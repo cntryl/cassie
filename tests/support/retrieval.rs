@@ -48,7 +48,9 @@ fn new_circle_fixture(budget: usize, max_result_rows: usize) -> Cassie {
     config.limits.query_memory_budget_bytes = budget;
     config.limits.max_result_rows = max_result_rows;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-    Cassie::new_in_memory_with_config(config).expect("create in-memory Cassie")
+    let cassie = Cassie::new_in_memory_with_config(config).expect("create in-memory Cassie");
+    cassie_test_support::support_sql::install_vector_extension(&cassie);
+    cassie
 }
 
 pub fn create_index(cassie: &Cassie, options: &str) {

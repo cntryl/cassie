@@ -55,7 +55,7 @@ fn should_publish_implicit_table_creation_before_returning_its_command() {
 }
 
 #[test]
-fn should_publish_implicit_like_table_with_its_identity_and_index_before_returning() {
+fn should_publish_implicit_like_table_clone_before_returning() {
     // Arrange
     let cassie = fixture();
     let owner = cassie.create_session("tester", None);
@@ -137,8 +137,11 @@ fn should_publish_implicit_like_table_with_its_identity_and_index_before_returni
         Some((canonical_target.as_str(), "id"))
     );
     assert_eq!(indexes.len(), 1);
-    assert_eq!(cassie.catalog.list_indexes("like_publication_target").len(), 1);
-    assert!(visible_rows.rows().is_empty());
+    assert_eq!(
+        cassie.catalog.list_indexes("like_publication_target").len(),
+        1
+    );
+    assert_eq!(visible_rows.rows().len(), 0);
     assert_eq!(inserted.rows(), &[vec![Value::Int64(5)]]);
 }
 

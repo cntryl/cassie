@@ -3,6 +3,7 @@ fn should_use_hnsw_graph_for_sql_vector_top_k_with_bounded_candidates() {
     // Arrange
     let path = data_dir("hnsw_sql_topk");
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().unwrap();
     let collection = "hnsw_sql_topk";
     register_hnsw_collection(&cassie, collection);

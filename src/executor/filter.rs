@@ -100,6 +100,8 @@ pub(crate) mod extended_ops;
 #[path = "filter/hash_functions.rs"]
 pub(crate) mod hash_functions;
 use binary::binary_scalar;
+#[path = "filter/comment_functions.rs"]
+mod comment_functions;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
 #[path = "filter/numeric_ops.rs"]
@@ -108,8 +110,6 @@ mod numeric_ops;
 mod object_ids;
 #[path = "filter/sequence_functions.rs"]
 mod sequence_functions;
-#[path = "filter/comment_functions.rs"]
-mod comment_functions;
 pub(crate) use casts::cast_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
@@ -178,10 +178,6 @@ fn take_json_function_call_count() -> usize {
 fn take_array_value_clone_count() -> usize {
     ARRAY_VALUE_CLONE_COUNT.with(|count| count.replace(0))
 }
-
-#[cfg(test)]
-#[path = "filter/json_delete_evaluation_tests.rs"]
-mod json_delete_evaluation_tests;
 
 #[derive(Debug, Clone)]
 pub(crate) enum ScalarValue {
@@ -291,18 +287,6 @@ impl ScalarValue {
                 ARRAY_VALUE_CLONE_COUNT.with(|count| count.set(count.get().saturating_add(1)));
                 Value::Array(v.clone())
             }
-        }
-    }
-
-    fn into_value(self) -> Value {
-        match self {
-            ScalarValue::Null => Value::Null,
-            ScalarValue::Bool(value) => Value::Bool(value),
-            ScalarValue::Int(value) => Value::Int64(value),
-            ScalarValue::Float(value) => Value::Float64(value),
-            ScalarValue::Str(value) | ScalarValue::Json(value) => Value::String(value),
-            ScalarValue::Typed(value) => Value::Typed(value),
-            ScalarValue::Array(value) => Value::Array(value),
         }
     }
 

@@ -51,13 +51,13 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_keep_worker_row_diagnostic_and_admitted_pgwire_frame_independent() {
+fn should_keep_worker_row_diagnostic_independent_of_admitted_pgwire_frame() {
     // Arrange
     let controls = controls(1_048_576);
     let worker_controls = controls.clone();
     let worker = std::thread::spawn(move || simulated_execution(&worker_controls));
     let error = worker.join().expect("worker").expect_err("row error");
-    let expected = serde_json::from_slice::<serde_json::Value>(b"[}\xff ")
+    let expected = serde_json::from_slice::<serde_json::Value>(&[0x5b, 0x7d, 0xff, 0x20])
         .expect_err("legacy")
         .to_string();
     let message = format!("invalid JSON in row blob: {expected}");
@@ -96,7 +96,7 @@ fn should_preserve_worker_cancellation_in_private_execution_error() {
     // Assert
     assert!(matches!(
         result,
-        Err(PrivateExecutionError::Cassie(CassieError::QueryCancelled))
+        Err(PrivateExecutionError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -106,7 +106,7 @@ fn should_preserve_public_parse_error_shape_while_marking_its_detached_owner_bou
     // Arrange
     let controls = controls(1_048_576);
     let private = simulated_execution(&controls).expect_err("row error");
-    let expected = serde_json::from_slice::<serde_json::Value>(b"[}\xff ")
+    let expected = serde_json::from_slice::<serde_json::Value>(&[0x5b, 0x7d, 0xff, 0x20])
         .expect_err("legacy")
         .to_string();
     let bare = format!("invalid JSON in row blob: {expected}");
@@ -149,7 +149,7 @@ fn should_preserve_fatal_severity_for_owned_row_diagnostic() {
 }
 
 #[test]
-fn should_enforce_measured_worker_diagnostic_and_frame_overlap_budget() {
+fn should_enforce_measured_worker_diagnostic_frame_overlap_budget() {
     // Arrange
     let baseline = controls(1_048_576);
     let diagnostic =
@@ -166,8 +166,8 @@ fn should_enforce_measured_worker_diagnostic_and_frame_overlap_budget() {
     drop(frame);
     drop(filler);
     drop(diagnostic);
-    // Act / Assert
-    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+    // Act
+    let outcomes = [(peak, true), (peak - 1, false)].map(|(budget, succeeds)| {
         let controls = controls(budget);
         let diagnostic =
             crate::midge::row_blob::tests::owned_row_diagnostic(&controls).expect("diagnostic");
@@ -178,11 +178,17 @@ fn should_enforce_measured_worker_diagnostic_and_frame_overlap_budget() {
             diagnostic.as_str(),
             &controls,
         );
-        assert_eq!(frame.is_ok(), succeeds);
+        let admitted = frame.is_ok();
         drop(frame);
         drop(filler);
         drop(diagnostic);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+        (succeeds, admitted, controls.current_query_memory_bytes())
+    });
+
+    // Assert
+    for (succeeds, admitted, retained) in outcomes {
+        assert_eq!(admitted, succeeds);
+        assert_eq!(retained, 0);
     }
 }
 
@@ -219,7 +225,7 @@ fn should_release_partial_frame_after_actual_copy_cancellation() {
     });
     // Assert
     assert_eq!(copied, 1);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(controls.current_query_memory_bytes() > 0);
     drop(diagnostic);
     assert_eq!(controls.current_query_memory_bytes(), 0);

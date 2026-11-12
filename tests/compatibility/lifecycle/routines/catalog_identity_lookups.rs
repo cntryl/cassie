@@ -155,10 +155,7 @@ fn should_hide_cassie_only_derived_indexes_from_regclass() {
             .await
             .expect("resolve only index kinds represented in PostgreSQL catalogs");
         let hidden_cast = client
-            .query(
-                "SELECT 'compat_regclass_column_idx'::regclass",
-                &[],
-            )
+            .query("SELECT 'compat_regclass_column_idx'::regclass", &[])
             .await
             .expect_err("a Cassie-only index name is absent from regclass input lookup");
 

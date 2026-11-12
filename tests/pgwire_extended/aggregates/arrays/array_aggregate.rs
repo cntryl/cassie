@@ -156,6 +156,7 @@ fn should_validate_distinct_array_inputs_with_different_lower_bounds() {
 
     // Assert
     crate::support_collection_aggregate_resources::assert_rejected_without_partial_rows(
-        &batches[0], "2202E",
+        &batches[0],
+        "2202E",
     );
 }

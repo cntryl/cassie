@@ -101,6 +101,12 @@ fn create_in_namespace(
         });
     }
 
+    if schema_fields
+        .iter()
+        .any(|field| matches!(field.data_type, DataType::Vector(_)))
+    {
+        ensure_vector_extension(cassie, database)?;
+    }
     let schema = Schema {
         fields: schema_fields,
     };
@@ -139,6 +145,21 @@ fn create_in_namespace(
     Ok(serde_json::json!({
         "collection": name,
     }))
+}
+
+/// Installs the `vector` extension through the administrative path when a REST collection
+/// declares a vector field and the database does not have the extension yet.
+fn ensure_vector_extension(cassie: &Cassie, database: &str) -> Result<(), CassieError> {
+    if cassie.catalog.get_extension(database, "vector").is_some() {
+        return Ok(());
+    }
+    let administrator = cassie.create_session("root", Some(database.to_owned()));
+    cassie.execute_sql(
+        &administrator,
+        "CREATE EXTENSION IF NOT EXISTS vector",
+        Vec::new(),
+    )?;
+    Ok(())
 }
 
 fn normalize_collection_name(raw: &str) -> Result<String, CassieError> {

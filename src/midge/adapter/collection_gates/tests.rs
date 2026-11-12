@@ -131,7 +131,9 @@ fn should_serialize_sequence_cursor_publication_after_the_midge_update() {
     let boundary = waiting_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("second update reaches the shared sequence gate");
-    resume_tx.send(()).expect("release first cursor publication");
+    resume_tx
+        .send(())
+        .expect("release first cursor publication");
     let first_result = first.join().expect("first sequence update thread");
     let second_result = second.join().expect("second sequence update thread");
 

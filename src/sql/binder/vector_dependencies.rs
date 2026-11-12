@@ -17,7 +17,10 @@ pub(crate) fn select_uses_vector_extension(statement: &SelectStatement) -> bool 
             .is_some_and(expr_uses_vector_extension)
         || statement.distinct_on.iter().any(expr_uses_vector_extension)
         || statement.group_by.iter().any(expr_uses_vector_extension)
-        || statement.order.iter().any(|order| expr_uses_vector_extension(&order.expr))
+        || statement
+            .order
+            .iter()
+            .any(|order| expr_uses_vector_extension(&order.expr))
         || statement
             .limit
             .as_ref()
@@ -36,7 +39,9 @@ pub(crate) fn select_uses_vector_extension(statement: &SelectStatement) -> bool 
 fn cte_uses_vector_extension(cte: &crate::sql::ast::CommonTableExpression) -> bool {
     let query_uses_vector = match &cte.query {
         CteQuery::Simple(statement) => parsed_statement_uses_vector_extension(statement),
-        CteQuery::Recursive { base, recursive, .. } => {
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
             parsed_statement_uses_vector_extension(base)
                 || parsed_statement_uses_vector_extension(recursive)
         }
@@ -57,10 +62,7 @@ fn parsed_statement_uses_vector_extension(statement: &ParsedStatement) -> bool {
 
 fn source_uses_vector_extension(source: &QuerySource) -> bool {
     match source {
-        QuerySource::Values { rows } => rows
-            .iter()
-            .flatten()
-            .any(expr_uses_vector_extension),
+        QuerySource::Values { rows } => rows.iter().flatten().any(expr_uses_vector_extension),
         QuerySource::TableSample {
             source,
             rate,
@@ -69,9 +71,7 @@ fn source_uses_vector_extension(source: &QuerySource) -> bool {
         } => {
             source_uses_vector_extension(source)
                 || expr_uses_vector_extension(rate)
-                || repeatable
-                    .as_ref()
-                    .is_some_and(expr_uses_vector_extension)
+                || repeatable.as_ref().is_some_and(expr_uses_vector_extension)
         }
         QuerySource::Aliased { source, .. } => source_uses_vector_extension(source),
         QuerySource::TableFunction { function, .. } => {

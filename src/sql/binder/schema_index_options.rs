@@ -4,33 +4,30 @@ use crate::sql::ast::{CreateIndexStatement, IdentifierPath};
 use crate::types::DataType;
 use crate::vector::index_options::normalize_vector_index_options;
 
+/// The catalog and name-resolution scope a `CREATE INDEX` binds within.
+pub(super) struct IndexBindingScope<'a> {
+    pub(super) catalog: &'a Catalog,
+    pub(super) database: &'a str,
+    pub(super) search_path: &'a [String],
+}
+
 pub(super) fn bind_vector_index_options(
     statement: &mut CreateIndexStatement,
-    catalog: &Catalog,
+    scope: &IndexBindingScope<'_>,
     schema: &CollectionSchema,
-    database: &str,
-    search_path: &[String],
     table: &str,
     name: &str,
     fields: &[String],
 ) -> Result<(), CassieError> {
+    let catalog = scope.catalog;
     let field = &fields[0];
     validate_vector_index_field(catalog, schema, table, name, field)?;
     let access_method = statement
         .options
         .get(crate::catalog::IndexMeta::ACCESS_METHOD_OPTION)
-        .map_or("vector", String::as_str);
-    if matches!(access_method, "hnsw" | "ivfflat") {
-        return bind_pgvector_index_options(
-            statement,
-            catalog,
-            schema,
-            database,
-            search_path,
-            name,
-            field,
-            access_method,
-        );
+        .map_or_else(|| "vector".to_owned(), Clone::clone);
+    if matches!(access_method.as_str(), "hnsw" | "ivfflat") {
+        return bind_pgvector_index_options(statement, scope, schema, name, field, &access_method);
     }
     if access_method != "vector" {
         return Err(CassieError::Planner(format!(
@@ -53,17 +50,19 @@ pub(super) fn bind_vector_index_options(
 
 fn bind_pgvector_index_options(
     statement: &mut CreateIndexStatement,
-    catalog: &Catalog,
+    scope: &IndexBindingScope<'_>,
     schema: &CollectionSchema,
-    database: &str,
-    search_path: &[String],
     name: &str,
     field: &str,
     access_method: &str,
 ) -> Result<(), CassieError> {
-    let extension = catalog.get_extension(database, "vector").ok_or_else(|| {
-        CassieError::Planner("pgvector index methods require the vector extension".into())
-    })?;
+    let search_path = scope.search_path;
+    let extension = scope
+        .catalog
+        .get_extension(scope.database, "vector")
+        .ok_or_else(|| {
+            CassieError::Planner("pgvector index methods require the vector extension".into())
+        })?;
     let extension_schema = local_name(&extension.schema);
     let field_entry = schema
         .fields
@@ -76,15 +75,15 @@ fn bind_pgvector_index_options(
         )));
     };
     if !(1..=2_000).contains(&dimensions) {
-        return Err(CassieError::Planner(format!(
+        return Err(CassieError::ResourceLimit(format!(
             "pgvector {access_method} indexes support vector dimensions from 1 through 2000"
         )));
     }
 
     let operator_class_key = crate::catalog::IndexMeta::key_option_name(0, "operator_class");
-    let explicit_operator_class = statement.options.get(&operator_class_key);
+    let explicit_operator_class = statement.options.get(&operator_class_key).cloned();
     let operator_class = explicit_operator_class
-        .map(String::as_str)
+        .as_deref()
         .or_else(|| (access_method == "ivfflat").then_some("vector_l2_ops"))
         .ok_or_else(|| {
             CassieError::Planner(format!(
@@ -116,7 +115,7 @@ fn bind_pgvector_index_options(
             "pgvector {access_method} indexes select their metric from the operator class and index the vector field directly"
         )));
     }
-    for (key, _) in &statement.options {
+    for key in statement.options.keys() {
         let allowed = match access_method {
             "hnsw" => matches!(key.as_str(), "m" | "ef_construction"),
             "ivfflat" => key == "lists",
@@ -131,10 +130,11 @@ fn bind_pgvector_index_options(
     }
 
     let key_option_names = ["order", "nulls"];
-    if key_option_names
-        .iter()
-        .any(|option| statement.options.contains_key(&crate::catalog::IndexMeta::key_option_name(0, option)))
-    {
+    if key_option_names.iter().any(|option| {
+        statement
+            .options
+            .contains_key(&crate::catalog::IndexMeta::key_option_name(0, option))
+    }) {
         return Err(CassieError::Planner(
             "pgvector indexes do not accept key ordering options".into(),
         ));
@@ -378,7 +378,14 @@ fn validate_time_series_timestamp_field(
                 "time-series index field '{timestamp_field}' does not exist on collection '{table}'"
             ))
         })?;
-    if matches!(field_entry.data_type, DataType::Timestamp) {
+    if matches!(
+        field_entry.data_type,
+        DataType::Timestamp
+            | DataType::Extended(
+                crate::types::extended::ExtendedType::Timestamp { .. }
+                    | crate::types::extended::ExtendedType::TimestampTz { .. }
+            )
+    ) {
         Ok(())
     } else {
         Err(CassieError::Planner(format!(

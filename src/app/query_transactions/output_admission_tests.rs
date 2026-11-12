@@ -7,7 +7,7 @@ use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::types::Value;
 
 thread_local! {
-    static CANCEL_BEFORE_INDEX_GUARD: std::cell::RefCell<Option<QueryCancellationHandle>> = std::cell::RefCell::new(None);
+    static CANCEL_BEFORE_INDEX_GUARD: std::cell::RefCell<Option<QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
 }
 
 pub(super) fn cancel_before_index_guard_if_armed() {
@@ -46,7 +46,7 @@ fn should_fail_transaction_when_index_commit_guard_is_cancelled() {
         .commit_transaction_with_controls(&session, &controls);
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(session.transaction_status(), "failed");
     assert_eq!(controls.current_query_memory_bytes(), 0);
     session.rollback_transaction();

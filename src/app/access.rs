@@ -111,10 +111,9 @@ impl super::Cassie {
             &target,
             &insert.columns,
             |index| match &insert.source {
-                crate::sql::ast::InsertSource::Values(rows) => rows.iter().any(|row| {
-                    row.get(index)
-                        .is_some_and(Expr::is_default_assignment)
-                }),
+                crate::sql::ast::InsertSource::Values(rows) => rows
+                    .iter()
+                    .any(|row| row.get(index).is_some_and(Expr::is_default_assignment)),
                 crate::sql::ast::InsertSource::Select(_) => false,
             },
             default_values,
@@ -162,12 +161,7 @@ impl super::Cassie {
             } = &conflict.action
             {
                 for (field, expression) in assignments {
-                    self.reject_sequence_default_assignment(
-                        context,
-                        &target,
-                        field,
-                        expression,
-                    )?;
+                    self.reject_sequence_default_assignment(context, &target, field, expression)?;
                     self.authorize_expression(session, context, expression)?;
                     target_select_required |=
                         target_read.expression_reads_target(expression, false);
@@ -253,8 +247,7 @@ impl super::Cassie {
         default_values: bool,
         overriding_user: bool,
     ) -> Result<(), CassieError> {
-        let resolved =
-            crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
+        let resolved = crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
         let schema = self
             .catalog
             .get_schema(&resolved)
@@ -302,8 +295,7 @@ impl super::Cassie {
         if !expression.is_default_assignment() {
             return Ok(());
         }
-        let resolved =
-            crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
+        let resolved = crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
         if self
             .catalog
             .get_constraints(&resolved)
@@ -420,57 +412,62 @@ impl super::Cassie {
             }
         }
         for clause in &merge.clauses {
-            if let Some(condition) = &clause.condition {
-                self.authorize_expression(session, context, condition)?;
-            }
-            match &clause.action {
-                crate::sql::ast::MergeAction::Update {
-                    assignments,
-                    row_subqueries,
-                } => {
-                    for (field, expression) in assignments {
-                        self.reject_sequence_default_assignment(
-                            context,
-                            &target,
-                            field,
-                            expression,
-                        )?;
-                        self.authorize_expression(session, context, expression)?;
-                    }
-                    for row_subquery in row_subqueries {
-                        self.authorize_non_admin_statement(
-                            session,
-                            context,
-                            &row_subquery.query.statement,
-                        )?;
-                    }
-                }
-                crate::sql::ast::MergeAction::Insert {
-                    columns,
-                    values,
-                    overriding,
-                } => {
-                    self.reject_implicit_sequence_defaults(
-                        context,
-                        &target,
-                        columns,
-                        |index| {
-                            values.as_ref().is_some_and(|row| {
-                                row.get(index)
-                                    .is_some_and(Expr::is_default_assignment)
-                            })
-                        },
-                        values.as_ref().is_none_or(Vec::is_empty),
-                        *overriding == Some(crate::sql::ast::InsertOverriding::User),
-                    )?;
-                    for expression in values.iter().flatten() {
-                        self.authorize_expression(session, context, expression)?;
-                    }
-                }
-                crate::sql::ast::MergeAction::Delete | crate::sql::ast::MergeAction::DoNothing => {}
-            }
+            self.authorize_merge_clause(session, context, &target, clause)?;
         }
         self.authorize_returning(session, context, &merge.returning)
+    }
+
+    fn authorize_merge_clause(
+        &self,
+        session: &CassieSession,
+        context: &crate::sql::binder::BindingContext,
+        target: &str,
+        clause: &crate::sql::ast::MergeClause,
+    ) -> Result<(), CassieError> {
+        if let Some(condition) = &clause.condition {
+            self.authorize_expression(session, context, condition)?;
+        }
+        match &clause.action {
+            crate::sql::ast::MergeAction::Update {
+                assignments,
+                row_subqueries,
+            } => {
+                for (field, expression) in assignments {
+                    self.reject_sequence_default_assignment(context, target, field, expression)?;
+                    self.authorize_expression(session, context, expression)?;
+                }
+                for row_subquery in row_subqueries {
+                    self.authorize_non_admin_statement(
+                        session,
+                        context,
+                        &row_subquery.query.statement,
+                    )?;
+                }
+            }
+            crate::sql::ast::MergeAction::Insert {
+                columns,
+                values,
+                overriding,
+            } => {
+                self.reject_implicit_sequence_defaults(
+                    context,
+                    target,
+                    columns,
+                    |index| {
+                        values.as_ref().is_some_and(|row| {
+                            row.get(index).is_some_and(Expr::is_default_assignment)
+                        })
+                    },
+                    values.as_ref().is_none_or(Vec::is_empty),
+                    *overriding == Some(crate::sql::ast::InsertOverriding::User),
+                )?;
+                for expression in values.iter().flatten() {
+                    self.authorize_expression(session, context, expression)?;
+                }
+            }
+            crate::sql::ast::MergeAction::Delete | crate::sql::ast::MergeAction::DoNothing => {}
+        }
+        Ok(())
     }
 
     fn authorize_select(
@@ -702,7 +699,13 @@ impl super::Cassie {
     ) -> Result<(), CassieError> {
         let resolved = crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
         let schema_name = crate::catalog::relation_schema_name(&resolved);
-        if crate::catalog::is_system_schema(&schema_name) {
+        // System relations are stored as `schema.name`, not database-qualified.
+        let system_qualified = matches!(
+            crate::catalog::parse_name(&resolved),
+            Ok(crate::catalog::ParsedName::SchemaQualified { schema, .. })
+                if crate::catalog::is_system_schema(&schema)
+        );
+        if system_qualified || crate::catalog::is_system_schema(&schema_name) {
             return Ok(());
         }
         let Some(collection) = self.catalog.get_collection(&resolved) else {

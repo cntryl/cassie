@@ -135,10 +135,10 @@ pub(super) fn drop_referencing_indexes_in_tx(
         }
         match index.reservation_identity()? {
             crate::catalog::indexes::ReservationIdentity::Legacy(name) => {
-                scalar_names.push(name.to_string())
+                scalar_names.push(name.to_string());
             }
             crate::catalog::indexes::ReservationIdentity::Generation(id) => {
-                scalar_reservation_generations.push(id)
+                scalar_reservation_generations.push(id);
             }
         }
     }
@@ -667,7 +667,7 @@ fn collection_rename_prefixes(
     current_name: &str,
     next_name: &str,
     relation_id: u64,
-) -> [CollectionRenamePrefix; 13] {
+) -> [CollectionRenamePrefix; 14] {
     [
         (
             Midge::row_prefix(relation_id),

@@ -271,3 +271,42 @@ fn should_allow_case_distinct_rest_collection_fields() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_install_vector_extension_when_rest_collection_declares_vector_field() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    let database = cassie
+        .create_session("root", None)
+        .current_database()
+        .expect("session database")
+        .to_owned();
+    assert!(cassie.catalog.get_extension(&database, "vector").is_none());
+    let plain = serde_json::json!({
+        "name": "rest_plain_collection",
+        "fields": [{"name": "title", "type": "text"}],
+    });
+    let vector = serde_json::json!({
+        "name": "rest_vector_collection",
+        "fields": [{"name": "embedding", "type": "vector(2)"}],
+    });
+    let second = serde_json::json!({
+        "name": "rest_second_vector_collection",
+        "fields": [{"name": "embedding", "type": "vector(3)"}],
+    });
+
+    // Act
+    collections::create(&cassie, plain.to_string().as_bytes()).expect("create plain collection");
+    let installed_by_plain = cassie.catalog.get_extension(&database, "vector").is_some();
+    collections::create(&cassie, vector.to_string().as_bytes()).expect("create vector collection");
+    let installed = cassie.catalog.get_extension(&database, "vector");
+    let repeated = collections::create(&cassie, second.to_string().as_bytes());
+
+    // Assert
+    assert!(!installed_by_plain, "plain collections do not install it");
+    assert!(
+        installed.is_some_and(|extension| extension.vector_type_object_id.is_some()),
+        "vector collections install the extension"
+    );
+    assert!(repeated.is_ok(), "an installed extension is reused");
+}

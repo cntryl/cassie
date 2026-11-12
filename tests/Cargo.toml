@@ -38,7 +38,7 @@ getrandom = "0.4"
 sha2 = "0.11"
 md-5 = "0.11"
 time = { version = "0.3", features = ["formatting", "parsing"] }
-jiff = { version = "0.2.39", default-features = false, features = ["std", "tzdb-bundle-always"] }
+jiff = { version = "0.2.43", default-features = false, features = ["std", "tzdb-bundle-always"] }
 url = "2.5"
 regex-automata = "0.4.18"
 regex-syntax = "0.8.11"

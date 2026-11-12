@@ -517,6 +517,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::CreateRole(_) => "CREATE ROLE",
         QueryStatement::AlterRole(_) => "ALTER ROLE",
         QueryStatement::DropRole(_) => "DROP ROLE",
+        QueryStatement::CommentOn(_) => "COMMENT",
         QueryStatement::GrantDatabaseConnect(_) => "GRANT",
         QueryStatement::RevokeDatabaseConnect(_) => "REVOKE",
         QueryStatement::CreateIndex(_) => "CREATE INDEX",

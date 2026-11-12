@@ -185,7 +185,7 @@ fn should_keep_published_sequence_cursor_out_of_the_transaction_catalog_overlay(
     session.attach_schema_context(&scoped);
 
     // Act
-    session.publish_sequence_metadata(updated);
+    session.publish_sequence_metadata(&updated);
     let staged = session
         .transaction_catalog_overlay()
         .expect("transaction catalog overlay remains")

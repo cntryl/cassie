@@ -23,7 +23,9 @@ fn new_in_memory_vector_cassie() -> Cassie {
         model: "deterministic-test".to_string(),
         dimensions: 3,
     });
-    Cassie::new_in_memory_with_config(config).expect("create in-memory Cassie")
+    let cassie = Cassie::new_in_memory_with_config(config).expect("create in-memory Cassie");
+    support::install_vector_extension(&cassie);
+    cassie
 }
 
 fn start_in_memory_vector_cassie() -> Cassie {
@@ -38,7 +40,9 @@ fn new_vector_cassie(path: &str) -> Cassie {
         model: "deterministic-test".to_string(),
         dimensions: 3,
     });
-    Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie")
+    let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie");
+    support::install_vector_extension(&cassie);
+    cassie
 }
 
 fn start_vector_cassie(path: &str) -> Cassie {

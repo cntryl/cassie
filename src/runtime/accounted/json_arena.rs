@@ -25,8 +25,11 @@ mod sources;
 mod value;
 
 pub(crate) use document::binary::{binary_json_text, BinaryJsonError};
+#[cfg(test)]
+pub(crate) use document::cell::{
+    Cell as PlainCell, CellError as PlainCellError, Identity as PlainIdentity,
+};
 pub(crate) use document::comparison::compare as compare_jsonb_candidate;
-pub(crate) use document::binary::{binary_json_text, BinaryJsonError};
 pub(crate) use document::diagnostic::OwnedDiagnostic as JsonbDiagnostic;
 #[cfg(test)]
 pub(crate) use document::exists::cancel_existence_parse_once;

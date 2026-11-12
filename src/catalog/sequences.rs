@@ -181,10 +181,45 @@ impl Catalog {
     pub(crate) fn update_sequence_cursor(&self, metadata: &SequenceMeta) {
         let key = metadata.name.to_ascii_lowercase();
         let mut sequences = self.sequences.write();
-        if let Some(current) = sequences.get_mut(&key) {
+        // Storage publishes the canonical (database-qualified) name, while the
+        // catalog may hold the same sequence under its shorter registered name.
+        let target = if sequences.contains_key(&key) {
+            Some(key)
+        } else {
+            sequences
+                .iter()
+                .find(|(_, current)| {
+                    current.object_id == metadata.object_id
+                        && (name_matches(&current.name, &metadata.name)
+                            || name_matches(&metadata.name, &current.name))
+                })
+                .map(|(stored_key, _)| stored_key.clone())
+        };
+        if let Some(current) = target.and_then(|key| sequences.get_mut(&key)) {
             if current.object_id == metadata.object_id {
                 current.current_value = metadata.current_value;
                 current.is_called = metadata.is_called;
+            }
+        }
+    }
+
+    /// Takes the published cursor of every sequence this catalog holds under
+    /// the same identity as `published`, except the `staged` identities the
+    /// owning transaction advanced or restarted itself. A transaction overlay
+    /// would otherwise replay an older cursor over newer published advances.
+    pub(crate) fn refresh_published_sequence_cursors(&self, published: &Self, staged: &[u64]) {
+        let live = published.sequences.read();
+        let mut sequences = self.sequences.write();
+        for current in sequences.values_mut() {
+            if staged.contains(&current.object_id) {
+                continue;
+            }
+            if let Some(source) = live
+                .values()
+                .find(|source| source.object_id == current.object_id && source.object_id != 0)
+            {
+                current.current_value = source.current_value;
+                current.is_called = source.is_called;
             }
         }
     }
@@ -269,6 +304,15 @@ pub fn parse_nextval_default_expression(raw: &str) -> Option<String> {
     None
 }
 
+fn is_identifier(raw: &str) -> bool {
+    let mut chars = raw.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
 #[cfg(test)]
 mod tests {
     use super::SequenceMeta;
@@ -324,13 +368,4 @@ mod tests {
         assert_eq!(current.current_value, 1);
         assert!(!current.is_called);
     }
-}
-
-fn is_identifier(raw: &str) -> bool {
-    let mut chars = raw.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    (first.is_ascii_alphabetic() || first == '_')
-        && chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }

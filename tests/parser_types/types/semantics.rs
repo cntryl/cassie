@@ -86,7 +86,10 @@ fn should_validate_deterministic_type_oid_assignments() {
         .collect::<Vec<_>>();
 
     // Assert
-    assert_eq!(vector_two_oid, vector_three_oid - 1);
+    assert_eq!(
+        vector_two_oid, vector_three_oid,
+        "vector has no static OID; its identity is the installed per-database type OID"
+    );
     for ((element, expected), actual) in array_cases.iter().zip(array_oids) {
         assert_eq!(
             actual, *expected,
@@ -106,6 +109,7 @@ fn should_roundtrip_supported_sql_values() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -198,6 +202,7 @@ fn should_cast_string_to_uuid() {
     runtime.block_on(async {
         let path = data_dir("cast_uuid");
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -230,6 +235,7 @@ fn should_cast_null_to_text() {
     runtime.block_on(async {
         let path = data_dir("cast_null_text");
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -256,6 +262,7 @@ fn should_fail_when_casting_scalar_to_unsupported_type_family() {
     runtime.block_on(async {
         let path = data_dir("cast_unsupported_family");
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -268,9 +275,7 @@ fn should_fail_when_casting_scalar_to_unsupported_type_family() {
         assert!(array_cast.is_err(), "array cast should be unsupported");
         if let Err(error) = vector_cast {
             assert!(
-                error
-                    .to_string()
-                    .contains("cannot cast scalar value to VECTOR"),
+                error.to_string().contains("cannot cast value to VECTOR"),
                 "unexpected vector cast error: {error}"
             );
         }

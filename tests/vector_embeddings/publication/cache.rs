@@ -37,6 +37,7 @@ fn cache_instance(path: &str) -> (Cassie, Arc<ConstantProvider>) {
         ..CassieRuntimeConfig::default()
     };
     let mut cassie = Cassie::new_with_data_dir_and_config(path, config).expect("Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     let provider = Arc::new(ConstantProvider::default());
     cassie.embedding_provider = provider.clone();
     cassie.startup().expect("startup");

@@ -42,11 +42,18 @@ impl Cassie {
             None
         } else {
             let context = self.binding_context_for_session(session);
+            // Inference sees the active database's vector OID as its private marker.
+            let mut inference_oids = declared_oids.to_vec();
+            crate::sql::binder::normalize_parameter_type_oids_for_database(
+                &mut inference_oids,
+                &self.catalog,
+                &context.database,
+            );
             crate::sql::binder::infer_plan_output_contract(
                 logical,
                 &self.catalog,
                 &context,
-                declared_oids,
+                &inference_oids,
                 controls,
             )?
         };
@@ -84,6 +91,45 @@ impl Cassie {
             &logical.projection,
             &mut columns,
         );
+        self.normalize_returning_identity_columns(logical, &mut columns);
+        let database = session
+            .and_then(CassieSession::current_database)
+            .unwrap_or(&self.default_database);
+        for column in &mut columns {
+            let data_type = DataType::parse_sql(&column.data_type)
+                .map_err(|error| CassieError::Execution(format!("invalid result type: {error}")))?;
+            if matches!(data_type, DataType::Vector(_)) {
+                column.type_oid = crate::catalog::object_identity::type_oid_for_database(
+                    &self.catalog,
+                    database,
+                    &data_type,
+                )
+                .ok_or_else(|| {
+                    crate::app::DiagnosticError::new("42704", "type \"vector\" does not exist")
+                })?;
+            }
+            if matches!(data_type, DataType::Array(element) if matches!(*element, DataType::Vector(_)))
+            {
+                return Err(CassieError::Unsupported(
+                    "VECTOR array result identities are not supported by pgwire".to_string(),
+                ));
+            }
+            if (34_000..44_000).contains(&column.type_oid) {
+                return Err(CassieError::Unsupported(
+                    "private Cassie array result OIDs are unsupported by pgwire".to_string(),
+                ));
+            }
+        }
+        controls.check_interruption()?;
+        Ok(columns)
+    }
+
+    /// Aligns DML RETURNING identity columns with the target table's declared id.
+    fn normalize_returning_identity_columns(
+        &self,
+        logical: &LogicalPlan,
+        columns: &mut [ColumnMeta],
+    ) {
         let returning = match logical.command.as_ref() {
             Some(LogicalCommand::Insert(statement)) => {
                 Some((&statement.table, &statement.returning))
@@ -102,48 +148,10 @@ impl Cassie {
                 .get_schema(table.as_str())
                 .is_some_and(|schema| schema.declares_id());
             crate::executor::aggregate::normalize_dml_returning_identity_columns(
-                &mut columns,
+                columns,
                 returning,
                 schema_has_id,
             );
         }
-        let database = session
-            .and_then(CassieSession::current_database)
-            .unwrap_or(&self.default_database);
-        for column in &mut columns {
-            let data_type = DataType::parse_sql(&column.data_type)
-                .map_err(|error| CassieError::Execution(format!("invalid result type: {error}")))?;
-            if matches!(data_type, DataType::Vector(_)) {
-                column.type_oid = crate::catalog::object_identity::type_oid_for_database(
-                    &self.catalog,
-                    database,
-                    &data_type,
-                )
-                .ok_or_else(|| {
-                    crate::app::DiagnosticError::new(
-                        "42704",
-                        "type \"vector\" does not exist",
-                    )
-                })?;
-            }
-            if matches!(data_type, DataType::Array(element) if matches!(*element, DataType::Vector(_)))
-            {
-                return Err(CassieError::Unsupported(
-                    "VECTOR array result identities are not supported by pgwire".to_string(),
-                ));
-            }
-            if (34_000..44_000).contains(&column.type_oid) {
-                return Err(CassieError::Unsupported(
-                    "private Cassie array result OIDs are unsupported by pgwire".to_string(),
-                ));
-            }
-        }
-        if controls.is_canceled() {
-            return Err(CassieError::QueryCanceled);
-        }
-        if controls.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
-        Ok(columns)
     }
 }

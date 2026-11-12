@@ -31,14 +31,20 @@ fn should_match_existing_numeric_truncation_across_decimal_chunks() {
     ];
     let controls = controls(1_000_000);
 
-    // Act and assert
-    for (input, scale) in cases {
+    // Act
+    let outcomes = cases.map(|(input, scale)| {
         let value = parse_text(input).expect("numeric input");
         let expected = math::trunc(&value, scale);
         let output = truncate(&value, scale, &controls).expect("controlled truncation");
-        assert_eq!(output.as_numeric(), &expected, "{input} at {scale}");
+        let matches_expected = *output.as_numeric() == expected;
         drop(output);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+        (input, scale, matches_expected, controls.current_query_memory_bytes())
+    });
+
+    // Assert
+    for (input, scale, matches_expected, retained) in outcomes {
+        assert!(matches_expected, "{input} at {scale}");
+        assert_eq!(retained, 0);
     }
 }
 

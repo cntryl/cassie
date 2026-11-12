@@ -20,7 +20,7 @@ fn catalog_column_names(
 }
 
 #[test]
-fn should_expose_selected_relation_and_type_fields_with_non_domain_defaults() {
+fn should_expose_selected_relation_type_fields_with_non_domain_defaults() {
     // Arrange
     let fixture = sql_fixture("issue-817-type-catalog-fields", &[]);
     fixture.cassie.startup().expect("startup");
@@ -130,9 +130,8 @@ fn should_expose_selected_relation_and_type_fields_with_non_domain_defaults() {
 #[test]
 fn should_preserve_relhasindex_after_dropping_last_index_through_restart() {
     // Arrange
-    let directory = crate::support_catalog_directory::CatalogDirectory::new(
-        "issue-817-relhasindex-restart",
-    );
+    let directory =
+        crate::support_catalog_directory::CatalogDirectory::new("issue-817-relhasindex-restart");
     let config = crate::support_sql::with_test_root_password(CassieRuntimeConfig::default());
     let query = "SELECT relhasindex FROM pg_catalog.pg_class \
                  WHERE relname = 'issue_817_relhasindex_rows'";
@@ -153,7 +152,9 @@ fn should_preserve_relhasindex_after_dropping_last_index_through_restart() {
         ] {
             cassie
                 .execute_sql(&session, sql, vec![])
-                .unwrap_or_else(|error| panic!("catalog lifecycle statement failed: {sql}: {error}"));
+                .unwrap_or_else(|error| {
+                    panic!("catalog lifecycle statement failed: {sql}: {error}")
+                });
         }
         after_drop = cassie
             .execute_sql(&session, query, vec![])
@@ -165,6 +166,7 @@ fn should_preserve_relhasindex_after_dropping_last_index_through_restart() {
         cassie.shutdown();
     }
 
+    // Act
     let reopened = Cassie::new_with_data_dir_and_config(&directory.0, config)
         .expect("reopen the local catalog instance");
     reopened.startup().expect("start the reopened instance");

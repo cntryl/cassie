@@ -18,12 +18,14 @@ fn vector_config() -> CassieRuntimeConfig {
 fn start_vector_cassie(path: &str) -> Cassie {
     let config = vector_config();
     let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("start Cassie");
     cassie
 }
 
 fn start_vector_cassie_in_memory() -> Cassie {
     let cassie = Cassie::new_in_memory_with_config(vector_config()).expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("start Cassie");
     cassie
 }

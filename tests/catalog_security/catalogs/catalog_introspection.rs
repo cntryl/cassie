@@ -134,6 +134,7 @@ fn should_reflect_table_rename_drop_lifecycle_after_restart() {
 
     runtime.block_on(async {
             let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().expect("start Cassie");
             let session = cassie.create_session("tester", None);
             cassie
@@ -211,6 +212,7 @@ fn should_list_indexes_through_pg_catalog() {
 
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -259,6 +261,7 @@ fn should_list_primary_key_index_through_pg_catalog() {
 
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -307,6 +310,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
 
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -366,6 +370,7 @@ fn should_report_column_store_storage_metadata_after_restart() {
             };
 
             let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -436,6 +441,7 @@ fn should_list_namespaces_through_pg_catalog() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -477,6 +483,7 @@ fn should_list_constraints_through_information_schema() {
 
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -521,6 +528,7 @@ fn should_return_admin_role_for_pg_roles_catalog_view() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 
@@ -550,6 +558,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
 
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -560,7 +569,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
             let selected = cassie
                 .execute_sql(
                     &session,
-                    "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE oid IN (17, 20, 21, 23, 25, 1001, 1007, 1042, 1043) OR typname = 'vector(2)' ORDER BY oid",
+                    "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE oid IN (17, 20, 21, 23, 25, 1001, 1007, 1042, 1043) ORDER BY oid",
                     vec![],
                 )
 
@@ -624,12 +633,6 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
                         Value::Int64(0),
                         Value::Int64(11)
                     ],
-                    vec![
-                        Value::String("vector(2)".to_string()),
-                        Value::Int64(DataType::Vector(Some(2)).type_oid()),
-                        Value::Int64(0),
-                        Value::Int64(11)
-                    ],
                 ]
             );
 
@@ -648,6 +651,7 @@ fn should_list_user_defined_views_through_catalog_views() {
 
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie

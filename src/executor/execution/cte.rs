@@ -1,8 +1,10 @@
 use super::{
-    build_logical_plan, check_timeout, execute_plan_with_parameter_oids, row_signature,
-    BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap,
-    QueryError, QueryExecutionControls, Value,
+    build_logical_plan, check_timeout, execute_plan_with_parameter_oids, row_signature, BatchRow,
+    CommonTableExpression, CteQuery, HashMap, PlanExecutionEnv, QueryError, QueryExecutionControls,
+    Value,
 };
+#[cfg(test)]
+use super::{execute_plan, Cassie};
 use crate::executor::semantic::SemanticKey;
 use crate::sql::ast::SetOperator;
 
@@ -92,15 +94,11 @@ fn recursion_depth_exceeded(name: &str, depth: usize) -> QueryError {
 }
 
 pub(super) fn execute_cte<'a>(
-    cassie: &'a Cassie,
-    session: Option<&'a CassieSession>,
+    env: &'a PlanExecutionEnv<'a>,
     cte: &'a CommonTableExpression,
     cte_context: &'a mut CteContext,
-    user_functions: &'a HashMap<String, FunctionMeta>,
-    params: &'a [Value],
-    parameter_type_oids: &'a [i32],
-    controls: &'a QueryExecutionControls,
 ) -> CteExecution<'a> {
+    let controls = env.controls;
     check_timeout(controls)?;
     let _name_memory = controls.reserve_query_memory(cte.name.len())?;
     let cte_name = cte.name.to_ascii_lowercase();
@@ -113,35 +111,22 @@ pub(super) fn execute_cte<'a>(
         None
     };
     let namespace = context_fields(cte_context, controls)?;
-    let fields =
-        crate::sql::binder::cte_row_fields(cte, &namespace, &cassie.catalog, user_functions)
-            .map_err(|error| QueryError::General(error.to_string()))?;
+    let fields = crate::sql::binder::cte_row_fields(
+        cte,
+        &namespace,
+        &env.cassie.catalog,
+        env.user_functions,
+    )
+    .map_err(|error| QueryError::General(error.to_string()))?;
 
     let fields_memory = controls.reserve_query_memory(retention::fields_bytes(&fields)?)?;
     let output = match &cte.query {
         CteQuery::Simple(statement) => {
-            let logical = build_logical_plan(&cassie.catalog, statement.as_ref())?;
-            execute_cte_plan(
-                cassie,
-                session,
-                &logical,
-                cte_context,
-                user_functions,
-                params,
-                parameter_type_oids,
-                controls,
-            )?
+            let logical = build_logical_plan(&env.cassie.catalog, statement.as_ref())?;
+            execute_cte_plan(env, &logical, cte_context)?
         }
         CteQuery::Recursive { .. } => {
-            let mut environment = RecursiveCteEnvironment {
-                cassie,
-                session,
-                cte_context,
-                user_functions,
-                params,
-                parameter_type_oids,
-                controls,
-            };
+            let mut environment = RecursiveCteEnvironment { env, cte_context };
             execute_recursive_cte(&mut environment, cte, &fields)?
         }
     };
@@ -166,13 +151,8 @@ pub(super) fn execute_cte<'a>(
 }
 
 struct RecursiveCteEnvironment<'a> {
-    cassie: &'a Cassie,
-    session: Option<&'a CassieSession>,
+    env: &'a PlanExecutionEnv<'a>,
     cte_context: &'a mut CteContext,
-    user_functions: &'a HashMap<String, FunctionMeta>,
-    params: &'a [Value],
-    parameter_type_oids: &'a [i32],
-    controls: &'a QueryExecutionControls,
 }
 
 fn execute_recursive_cte(
@@ -191,39 +171,30 @@ fn execute_recursive_cte(
         ));
     };
     let cte_name = cte.name.to_ascii_lowercase();
-    let base_plan = build_logical_plan(&environment.cassie.catalog, base.as_ref())?;
+    let base_plan = build_logical_plan(&environment.env.cassie.catalog, base.as_ref())?;
     let recursive_statement = search_cycle::add_lineage_projection(
         recursive.as_ref(),
         &cte_name,
         cte.search.as_ref(),
         cte.cycle.as_ref(),
     )?;
-    let recursive_plan = build_logical_plan(&environment.cassie.catalog, &recursive_statement)?;
-    let mut rows = execute_cte_plan(
-        environment.cassie,
-        environment.session,
-        &base_plan,
-        environment.cte_context,
-        environment.user_functions,
-        environment.params,
-        environment.parameter_type_oids,
-        environment.controls,
-    )?;
-    rows = rows.rename(&cte.aliases, environment.controls)?;
+    let recursive_plan = build_logical_plan(&environment.env.cassie.catalog, &recursive_statement)?;
+    let mut rows = execute_cte_plan(environment.env, &base_plan, environment.cte_context)?;
+    rows = rows.rename(&cte.aliases, environment.env.controls)?;
     search_cycle::append_base_metadata(
         &mut rows,
         &cte_name,
         cte.search.as_ref(),
         cte.cycle.as_ref(),
         fields,
-        environment.controls,
+        environment.env.controls,
     )?;
 
-    let mut seen = seen::SeenRows::new_typed(environment.controls, fields)?;
+    let mut seen = seen::SeenRows::new_typed(environment.env.controls, fields)?;
     if matches!(operator, SetOperator::Union) {
-        seen.retain_unique(&mut rows, environment.controls)?;
+        seen.retain_unique(&mut rows, environment.env.controls)?;
     }
-    let mut delta = RetainedRows::copy(&rows.rows, environment.controls)?;
+    let mut delta = RetainedRows::copy(&rows.rows, environment.env.controls)?;
     let working_fields =
         search_cycle::working_fields(fields, &cte_name, cte.search.as_ref(), cte.cycle.as_ref());
     store_working_rows(
@@ -231,7 +202,7 @@ fn execute_recursive_cte(
         &cte_name,
         &delta.rows,
         &working_fields,
-        environment.controls,
+        environment.env.controls,
     )?;
     let stabilized = execute_recursive_cte_steps(
         environment,
@@ -245,7 +216,7 @@ fn execute_recursive_cte(
     if !stabilized {
         return Err(recursion_depth_exceeded(
             &cte.name,
-            environment.controls.cte_recursion_depth,
+            environment.env.controls.cte_recursion_depth,
         ));
     }
     Ok(rows)
@@ -265,30 +236,24 @@ fn execute_recursive_cte_steps(
             "recursive CTE execution received a non-recursive query".into(),
         ));
     };
-    for _ in 0..environment.controls.cte_recursion_depth {
-        check_timeout(environment.controls)?;
-        let recursive_rows = execute_cte_plan(
-            environment.cassie,
-            environment.session,
-            recursive_plan,
-            environment.cte_context,
-            environment.user_functions,
-            environment.params,
-            environment.parameter_type_oids,
-            environment.controls,
-        )?;
-        let mut recursive_rows = recursive_rows.rename(&cte.aliases, environment.controls)?;
+    for _ in 0..environment.env.controls.cte_recursion_depth {
+        check_timeout(environment.env.controls)?;
+        let recursive_rows =
+            execute_cte_plan(environment.env, recursive_plan, environment.cte_context)?;
+        let mut recursive_rows = recursive_rows.rename(&cte.aliases, environment.env.controls)?;
         search_cycle::append_recursive_metadata(
             &mut recursive_rows,
             &cte.name.to_ascii_lowercase(),
             cte.search.as_ref(),
             cte.cycle.as_ref(),
             working_fields,
-            environment.controls,
+            environment.env.controls,
         )?;
 
         match operator {
-            SetOperator::Union => seen.retain_unique(&mut recursive_rows, environment.controls)?,
+            SetOperator::Union => {
+                seen.retain_unique(&mut recursive_rows, environment.env.controls)?;
+            }
             SetOperator::UnionAll => {}
             _ => {
                 return Err(QueryError::General(
@@ -300,12 +265,12 @@ fn execute_recursive_cte_steps(
             return Ok(true);
         }
 
-        rows.append(&recursive_rows.rows, environment.controls)?;
+        rows.append(&recursive_rows.rows, environment.env.controls)?;
         if cte.cycle.is_some() {
             search_cycle::prune_cycle_rows(
                 &mut recursive_rows,
                 &cte.name.to_ascii_lowercase(),
-                environment.controls,
+                environment.env.controls,
             )?;
         }
         if recursive_rows.is_empty() {
@@ -318,7 +283,7 @@ fn execute_recursive_cte_steps(
             &cte.name.to_ascii_lowercase(),
             &delta.rows,
             working_fields,
-            environment.controls,
+            environment.env.controls,
         )?;
     }
     Ok(false)
@@ -344,27 +309,17 @@ fn store_working_rows(
 }
 
 fn execute_cte_plan(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
+    env: &PlanExecutionEnv<'_>,
     plan: &crate::planner::LogicalPlan,
     context: &mut CteContext,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    parameter_type_oids: &[i32],
-    controls: &QueryExecutionControls,
 ) -> Result<RetainedRows, QueryError> {
-    let controls = controls.for_relational_scalar_cte();
-    execute_plan_with_parameter_oids(
-        cassie,
-        session,
-        plan,
-        context,
-        user_functions,
-        params,
-        parameter_type_oids,
-        &controls,
-    )
-    .and_then(|rows| RetainedRows::from_output(rows, &controls))
+    let controls = env.controls.for_relational_scalar_cte();
+    let env = PlanExecutionEnv {
+        controls: &controls,
+        ..*env
+    };
+    execute_plan_with_parameter_oids(&env, plan, context)
+        .and_then(|rows| RetainedRows::from_output(rows, &controls))
 }
 
 pub(super) fn copy_source_rows(

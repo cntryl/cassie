@@ -72,56 +72,21 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
     let normalized_argument = uncommented_argument.to_ascii_lowercase();
     let mut words = normalized_argument.split_whitespace();
     if words.next() == Some("transaction") {
-        if session_end.is_none() && words.eq(["isolation", "level", "repeatable", "read"]) {
-            return Ok(parsed(
-                sql,
-                "transaction isolation level",
-                Some("repeatable read".to_string()),
-                SettingAction::Set,
-            ));
-        }
-        return Err(SqlError::unsupported(
-            "unsupported SET TRANSACTION form".into(),
-        ));
+        return match parse_set_transaction_isolation(sql, uncommented_argument.trim())? {
+            Some(statement) => Ok(statement),
+            None => Err(SqlError::unsupported(
+                "unsupported SET TRANSACTION form".into(),
+            )),
+        };
     }
     if let Some(end) = lexical::pattern_end(argument, 0, "LOCAL ") {
         return parse_set_local(sql, &argument[end..]);
-    }
-    if let Some(statement) = parse_set_transaction_isolation(sql, argument, session_end.is_some())?
-    {
-        return Ok(statement);
     }
     if let Some(statement) = parse_set_names(sql, argument)? {
         return Ok(statement);
     }
     if let Some(end) = lexical::pattern_end(argument, 0, "CHARACTERISTICS AS TRANSACTION ") {
-        if session_end.is_none() {
-            return Err(SqlError::syntax(
-                "session transaction characteristics require SET SESSION".into(),
-            ));
-        }
-        let (variable, value) = match argument[end..]
-            .to_ascii_lowercase()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .as_slice()
-        {
-            ["read", "only"] => ("default_transaction_read_only", "on"),
-            ["read", "write"] => ("default_transaction_read_only", "off"),
-            ["deferrable"] => ("default_transaction_deferrable", "on"),
-            ["not", "deferrable"] => ("default_transaction_deferrable", "off"),
-            _ => {
-                return Err(SqlError::unsupported(
-                    "unsupported session transaction characteristics".into(),
-                ))
-            }
-        };
-        return Ok(parsed(
-            sql,
-            variable,
-            Some(value.to_string()),
-            SettingAction::Set,
-        ));
+        return parse_session_characteristics(sql, &argument[end..], session_end.is_some());
     }
     let (variable, value) = if let Some(end) = lexical::pattern_end(argument, 0, "TIME ZONE ") {
         ("timezone", argument[end..].trim())
@@ -172,6 +137,40 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
     Ok(parsed(sql, variable, Some(value), SettingAction::Set))
 }
 
+fn parse_session_characteristics(
+    sql: &str,
+    characteristics: &str,
+    session: bool,
+) -> Result<ParsedStatement, SqlError> {
+    if !session {
+        return Err(SqlError::syntax(
+            "session transaction characteristics require SET SESSION".into(),
+        ));
+    }
+    let (variable, value) = match characteristics
+        .to_ascii_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["read", "only"] => ("default_transaction_read_only", "on"),
+        ["read", "write"] => ("default_transaction_read_only", "off"),
+        ["deferrable"] => ("default_transaction_deferrable", "on"),
+        ["not", "deferrable"] => ("default_transaction_deferrable", "off"),
+        _ => {
+            return Err(SqlError::unsupported(
+                "unsupported session transaction characteristics".into(),
+            ))
+        }
+    };
+    Ok(parsed(
+        sql,
+        variable,
+        Some(value.to_string()),
+        SettingAction::Set,
+    ))
+}
+
 fn parse_set_local(sql: &str, argument: &str) -> Result<ParsedStatement, SqlError> {
     let mut statement = parse_set_statement(&format!("SET {argument}"))?;
     if let QueryStatement::Set(set) = &mut statement.statement {
@@ -189,16 +188,10 @@ fn parse_set_local(sql: &str, argument: &str) -> Result<ParsedStatement, SqlErro
 fn parse_set_transaction_isolation(
     sql: &str,
     argument: &str,
-    session: bool,
 ) -> Result<Option<ParsedStatement>, SqlError> {
     let Some(end) = lexical::pattern_end(argument, 0, "TRANSACTION ISOLATION LEVEL") else {
         return Ok(None);
     };
-    if session {
-        return Err(SqlError::unsupported(
-            "SET SESSION TRANSACTION ISOLATION is not supported in this version".into(),
-        ));
-    }
     let isolation = match argument[end..].trim().to_ascii_lowercase().as_str() {
         "read committed" => "read committed",
         "read uncommitted" => "read uncommitted",

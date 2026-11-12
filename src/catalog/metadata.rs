@@ -9,8 +9,7 @@ use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
     CollectionSchema, CollectionStorageMode, DatabaseMeta, ExtensionMeta, FieldConstraint,
     FunctionMeta, GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta,
-    ObjectCommentMeta,
-    OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
+    ObjectCommentMeta, OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
     ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
     RetentionPolicyMeta, RoleMeta, RoleObjectGrantMeta, RollupMeta, SequenceMeta, ViewMeta,
 };
@@ -44,7 +43,6 @@ pub struct Catalog {
     pub(super) extensions: Arc<RwLock<HashMap<String, ExtensionMeta>>>,
     pub(super) views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub(super) roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
-    pub(super) role_object_grants: Arc<RwLock<HashMap<String, RoleObjectGrantMeta>>>,
     pub(super) sequences: Arc<RwLock<HashMap<String, SequenceMeta>>>,
     pub(super) rollups: Arc<RwLock<HashMap<String, RollupMeta>>>,
     pub(super) retention_policies: Arc<RwLock<HashMap<String, RetentionPolicyMeta>>>,
@@ -62,16 +60,16 @@ pub struct Catalog {
     version: Arc<AtomicU64>,
 }
 
-#[path = "metadata/index_relations.rs"]
-mod index_relations;
 #[path = "metadata/index_namespace.rs"]
 mod index_namespace;
+#[path = "metadata/index_relations.rs"]
+mod index_relations;
+#[path = "metadata_comments.rs"]
+mod metadata_comments;
 #[path = "metadata_databases.rs"]
 mod metadata_databases;
 #[path = "metadata_domains.rs"]
 mod metadata_domains;
-#[path = "metadata_comments.rs"]
-mod metadata_comments;
 #[path = "metadata_stored_names.rs"]
 mod metadata_stored_names;
 
@@ -92,7 +90,6 @@ impl Catalog {
             extensions: Arc::new(RwLock::new(HashMap::new())),
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
-            role_object_grants: Arc::new(RwLock::new(HashMap::new())),
             sequences: Self::sequence_store(),
             rollups: Arc::new(RwLock::new(HashMap::new())),
             retention_policies: Arc::new(RwLock::new(HashMap::new())),
@@ -132,8 +129,7 @@ impl Catalog {
         (*self.projections.write()).clone_from(&snapshot.projections.read());
         (*self.cardinality.write()).clone_from(&snapshot.cardinality.read());
         (*self.object_comments.write()).clone_from(&snapshot.object_comments.read());
-        (*self.role_object_grants.write())
-            .clone_from(&snapshot.role_object_grants.read());
+        (*self.role_object_grants.write()).clone_from(&snapshot.role_object_grants.read());
         self.bump_version();
     }
 

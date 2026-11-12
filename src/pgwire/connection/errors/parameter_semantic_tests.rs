@@ -688,7 +688,7 @@ fn should_hold_owned_numeric_error_with_encoded_frame_through_delivery() {
 }
 
 #[test]
-fn should_retain_owned_numeric_frame_through_pending_write_and_flush() {
+fn should_retain_owned_numeric_frame_while_writer_is_pending() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

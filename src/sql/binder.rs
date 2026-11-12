@@ -42,12 +42,12 @@ mod boolean_parameters;
 pub(crate) use boolean_parameters::validate_plan as validate_boolean_parameter_plan;
 #[path = "binder/boolean_bindings.rs"]
 mod boolean_bindings;
-#[path = "binder/comments.rs"]
-mod comments;
 #[path = "binder/boolean_contexts.rs"]
 mod boolean_contexts;
 mod bytea_functions;
 mod character_comparison;
+#[path = "binder/comments.rs"]
+mod comments;
 #[path = "binder/extended_inference.rs"]
 mod extended_inference;
 mod power_coercion;
@@ -64,8 +64,7 @@ use crate::search::bm25;
 use crate::sql::ast::{
     AlterIndexOperation, AlterIndexStatement, AlterSchemaOperation, AlterSchemaStatement,
     AlterSequenceStatement, AlterTableOperation, AlterTableStatement, BinaryOp,
-    CallProcedureStatement, CatalogStatement, CommentOnStatement, CommonTableExpression,
-    CopyStatement,
+    CallProcedureStatement, CatalogStatement, CommonTableExpression, CopyStatement,
     CreateDatabaseStatement, CreateFunctionStatement, CreateProcedureStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement, CteQuery,
     DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
@@ -171,9 +170,9 @@ use context::{normalize_schema_name, resolve_relation_path, resolve_schema_name}
 pub(crate) use inference::common_case_type;
 pub(crate) use inference::cte_collection_schema_with_functions;
 pub(crate) use inference::infer_projection_expr_type;
+pub(crate) use inference::VECTOR_PARAMETER_TYPE_OID;
 pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
 pub(crate) use inference::{infer_expr_type, integer_literal_type, known_expr_type};
-pub(crate) use inference::VECTOR_PARAMETER_TYPE_OID;
 use projections::bind_projection_route;
 use recursive::bind_recursive_cte_query;
 use routines::{

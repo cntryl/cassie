@@ -16,6 +16,7 @@ fn create_manifest_source(
     title: &str,
 ) -> (Cassie, String, ProjectionManifestExportOptions) {
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -250,6 +251,7 @@ fn should_rehydrate_persisted_consistency_report_after_restart() {
     let path = data_dir("projection_consistency_restart");
     let report_id = {
         let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -362,6 +364,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -453,6 +456,7 @@ fn should_support_restful_projection_consistency_aliases() {
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

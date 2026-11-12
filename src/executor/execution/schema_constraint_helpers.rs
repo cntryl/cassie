@@ -161,7 +161,11 @@ pub(super) fn alter_table_drop_constraint(
         drop_constraint_index(cassie, table, &index)?;
     }
     if !constraints.iter().any(|constraint| constraint.primary_key) {
-        drop_constraint_index(cassie, table, &format!("{table}_pkey"))?;
+        drop_constraint_index(
+            cassie,
+            table,
+            &format!("{}_pkey", crate::catalog::local_name(table)),
+        )?;
     }
     Ok(())
 }
@@ -230,7 +234,7 @@ fn primary_key_index_name(table: &str, constraint: &FieldConstraint) -> String {
     constraint
         .primary_key_name
         .clone()
-        .unwrap_or_else(|| format!("{table}_pkey"))
+        .unwrap_or_else(|| format!("{}_pkey", crate::catalog::local_name(table)))
 }
 
 /// Drops every multi-column UNIQUE constraint that includes `field`, as

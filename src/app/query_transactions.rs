@@ -165,16 +165,8 @@ impl Cassie {
         result
     }
 
-    fn commit_transaction_inner<'a>(
-        &'a self,
-        session: &CassieSession,
-        held_publication: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
-        controls: &crate::runtime::QueryExecutionControls,
-    ) -> Result<(), CassieError> {
-        let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
-        let _entry_overlay_scope = super::SessionReadScope::enter(None);
-        let _publication_controls =
-            crate::midge::adapter::PublicationControlScope::enter(Some(controls));
+    /// Rejects COMMIT when storage needs recovery or no healthy transaction is active.
+    fn ensure_commit_admissible(&self, session: &CassieSession) -> Result<(), CassieError> {
         if let Err(error) = self.check_storage_recovery_required() {
             session.rollback_transaction();
             return Err(error);
@@ -187,6 +179,32 @@ impl Cassie {
                 "COMMIT requires an active transaction".to_string(),
             ));
         }
+        Ok(())
+    }
+
+    /// Fails the transaction when another commit published catalog changes first.
+    fn ensure_commit_catalog_current(&self, session: &CassieSession) -> Result<(), CassieError> {
+        if session.transaction_catalog_base_version() != Some(self.publication_catalog.version()) {
+            session.mark_transaction_failed();
+            return Err(CassieError::Transaction {
+                kind: TransactionErrorKind::SerializationFailure,
+                message: "catalog changed while a transactional DDL block was active".to_owned(),
+            });
+        }
+        Ok(())
+    }
+
+    fn commit_transaction_inner<'a>(
+        &'a self,
+        session: &CassieSession,
+        held_publication: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
+        let _entry_overlay_scope = super::SessionReadScope::enter(None);
+        let _publication_controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(controls));
+        self.ensure_commit_admissible(session)?;
         let (storage_overlay, _sequence_buffers, _sequence_directory) = session
             .transaction_storage_overlay_snapshot()
             .with_sequence_cursors(controls)?;
@@ -203,6 +221,8 @@ impl Cassie {
             .unwrap_or_default();
         if let Some(catalog) = &catalog_overlay {
             storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
+            let staged = storage_overlay.staged_sequence_object_ids(controls)?;
+            catalog.refresh_published_sequence_cursors(&self.publication_catalog, &staged);
         }
         let database = session
             .current_database()
@@ -215,15 +235,8 @@ impl Cassie {
             held_publication,
             controls,
         )?;
-        if catalog_overlay.is_some()
-            && session.transaction_catalog_base_version()
-                != Some(self.publication_catalog.version())
-        {
-            session.mark_transaction_failed();
-            return Err(CassieError::Transaction {
-                kind: TransactionErrorKind::SerializationFailure,
-                message: "catalog changed while a transactional DDL block was active".to_owned(),
-            });
+        if catalog_overlay.is_some() {
+            self.ensure_commit_catalog_current(session)?;
         }
         let transactional_ddl = catalog_overlay
             .as_ref()

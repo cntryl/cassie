@@ -22,6 +22,7 @@ fn should_reserve_cold_normalized_decode_overlap_before_the_next_read() {
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).expect("engine");
+    crate::support_sql::install_vector_extension(&cassie);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(

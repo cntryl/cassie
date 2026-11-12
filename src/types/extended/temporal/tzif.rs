@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-/// One raw `ttinfo` record. `designation_index` is an offset into the TZif
+/// One raw `ttinfo` record. `designation_index` is an offset into the `TZif`
 /// character table, so equal text at different offsets remains distinguishable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RawLocalTimeType {
@@ -9,19 +9,22 @@ pub(crate) struct RawLocalTimeType {
     pub(crate) designation_index: usize,
 }
 
+/// One raw transition: the instant it takes effect and the local-time type
+/// (an index into the raw type table) that applies from then on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RawTransition {
     pub(crate) unix_seconds: i64,
     pub(crate) type_index: usize,
 }
 
-/// The parsed local-time types and exact character table owned by one TZif.
+/// The parsed local-time types and exact character table owned by one `TZif`.
 #[derive(Debug, Clone)]
 pub(crate) struct RawTzif {
     bytes: Arc<[u8]>,
     pub(crate) local_time_types: Vec<RawLocalTimeType>,
     pub(crate) transitions: Vec<RawTransition>,
-    pub(crate) default_type_index: Option<usize>,
+    /// Whether a non-empty POSIX footer governs instants after the last transition.
+    pub(crate) has_footer: bool,
     designations: std::ops::Range<usize>,
 }
 
@@ -48,7 +51,6 @@ struct SectionLayout {
 }
 
 impl RawTzif {
-    #[must_use]
     pub(crate) fn parse(bytes: Arc<[u8]>) -> Result<Self, &'static str> {
         let first = read_header(&bytes, 0)?;
         let (header, section_start, width) = if first.version == 0 {
@@ -73,7 +75,8 @@ impl RawTzif {
             let record = bytes
                 .get(start..start + TYPE_LEN)
                 .ok_or("truncated TZif type table")?;
-            let offset_seconds_east = i32::from_be_bytes([record[0], record[1], record[2], record[3]]);
+            let offset_seconds_east =
+                i32::from_be_bytes([record[0], record[1], record[2], record[3]]);
             let is_dst = match record[4] {
                 0 => false,
                 1 => true,
@@ -96,8 +99,8 @@ impl RawTzif {
                 designation_index,
             });
         }
-        let transition_count = usize::try_from(header.transition_count)
-            .map_err(|_| "too many TZif transitions")?;
+        let transition_count =
+            usize::try_from(header.transition_count).map_err(|_| "too many TZif transitions")?;
         let mut transitions = Vec::with_capacity(transition_count);
         for index in 0..transition_count {
             let time_start = section
@@ -134,13 +137,13 @@ impl RawTzif {
                 type_index,
             });
         }
-        let default_type_index = infer_default_type_index(&local_time_types, &transitions);
+        let has_footer = header.version != 0 && footer_is_present(&bytes[section.end..]);
 
         Ok(Self {
             bytes,
             local_time_types,
             transitions,
-            default_type_index,
+            has_footer,
             designations: section.designations,
         })
     }
@@ -152,7 +155,7 @@ impl RawTzif {
     }
 
     /// Finds the first matching character-table index, even when its spelling
-    /// appears again later in the TZif data.
+    /// appears again later in the `TZif` data.
     #[must_use]
     pub(crate) fn first_matching_designation_index(&self, query: &str) -> Option<usize> {
         let mut index = 0;
@@ -165,7 +168,6 @@ impl RawTzif {
         None
     }
 
-    #[must_use]
     pub(crate) fn first_matching_designation_index_with_checks<E>(
         &self,
         query: &str,
@@ -212,6 +214,12 @@ impl RawTzif {
                 .zip(query.as_bytes())
                 .all(|(&left, &right)| left.eq_ignore_ascii_case(&right))
     }
+}
+
+fn footer_is_present(rest: &[u8]) -> bool {
+    rest.strip_prefix(b"\n")
+        .and_then(|footer| footer.iter().position(|&byte| byte == b'\n'))
+        .is_some_and(|length| length > 0)
 }
 
 fn read_header(bytes: &[u8], start: usize) -> Result<Header, &'static str> {
@@ -302,39 +310,6 @@ fn section_layout(
     })
 }
 
-fn infer_default_type_index(
-    local_time_types: &[RawLocalTimeType],
-    transitions: &[RawTransition],
-) -> Option<usize> {
-    if local_time_types.is_empty() {
-        return None;
-    }
-    let mut default_type = (!transitions
-        .iter()
-        .any(|transition| transition.type_index == 0))
-    .then_some(0);
-    if default_type.is_none()
-        && transitions.first().is_some_and(|transition| {
-            local_time_types[transition.type_index].is_dst
-        })
-    {
-        let mut index = transitions.first()?.type_index;
-        while index > 0 {
-            index -= 1;
-            if !local_time_types[index].is_dst {
-                default_type = Some(index);
-                break;
-            }
-        }
-    }
-    default_type.or_else(|| {
-        local_time_types
-            .iter()
-            .position(|local_type| !local_type.is_dst)
-            .or(Some(0))
-    })
-}
-
 #[cfg(test)]
 fn parse_local_time_types(bytes: Arc<[u8]>) -> Result<RawTzif, &'static str> {
     RawTzif::parse(bytes)
@@ -399,10 +374,7 @@ mod tests {
     #[test]
     fn should_keep_duplicate_spelling_at_distinct_raw_indices_fixed() {
         // Arrange
-        let bytes = tzif(
-            &[(0, false, 0), (3_600, true, 4)],
-            b"AAA\0AAA\0",
-        );
+        let bytes = tzif(&[(0, false, 0), (3_600, true, 4)], b"AAA\0AAA\0");
 
         // Act
         let parsed = parse_local_time_types(Arc::from(bytes)).expect("valid TZif type table");

@@ -3,7 +3,7 @@ use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 
 #[test]
-fn should_bind_index_names_for_unscoped_and_two_part_collections() {
+fn should_bind_index_names_for_legacy_collection_forms() {
     // Arrange
     let fixture = sql_fixture("index-namespace-unscoped", &[]);
     let schema = cassie::types::Schema {
@@ -20,15 +20,24 @@ fn should_bind_index_names_for_unscoped_and_two_part_collections() {
         .cassie
         .register_collection("legacy_schema.rows".to_owned(), schema);
 
-    // Act and assert
-    for sql in [
+    // Act
+    let bound = [
         "CREATE INDEX legacy_idx ON legacy_rows (v)",
         "CREATE INDEX ON legacy_rows (v)",
         "CREATE INDEX legacy_idx ON legacy_schema.rows (v)",
         "CREATE INDEX ON legacy_schema.rows (v)",
-    ] {
+    ]
+    .map(|sql| {
         let parsed = cassie::sql::parse_statement(sql).expect("parse");
-        cassie::sql::binder::bind(parsed, &fixture.cassie.catalog).expect("bind legacy collection");
+        (
+            sql,
+            cassie::sql::binder::bind(parsed, &fixture.cassie.catalog),
+        )
+    });
+
+    // Assert
+    for (sql, result) in bound {
+        assert!(result.is_ok(), "bind legacy collection: {sql}");
     }
 }
 
@@ -57,7 +66,7 @@ fn should_fail_closed_when_the_catalog_contains_an_unparseable_relation_name() {
         .expect_err("malformed metadata must not be skipped");
 
     // Assert
-    assert!(!error.to_string().is_empty());
+    assert_ne!(error.to_string(), "");
 }
 
 #[test]
@@ -84,18 +93,14 @@ fn should_detect_same_schema_index_name_on_another_table() {
 
     // Assert
     assert_eq!(
-        duplicate
-            .expect_err("schema name collision")
-            .descriptor()
-            .sql_state,
+        duplicate.expect_err("schema name collision").sql_state(),
         "42P07"
     );
     skipped.expect("valid IF NOT EXISTS skips existing relation");
     assert_eq!(
         invalid
             .expect_err("column validation precedes skip")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42703"
     );
     other_schema.expect("other schemas have independent index names");
@@ -107,7 +112,7 @@ fn should_detect_same_schema_index_name_on_another_table() {
 }
 
 #[test]
-fn should_reject_index_names_used_by_tables_and_sequences() {
+fn should_reject_index_names_used_by_other_relations() {
     // Arrange
     let fixture = sql_fixture(
         "index-namespace-relations",
@@ -127,15 +132,13 @@ fn should_reject_index_names_used_by_tables_and_sequences() {
     assert_eq!(
         table
             .expect_err("table shares relation namespace")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
     assert_eq!(
         sequence
             .expect_err("sequence shares relation namespace")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
     skipped.expect("IF NOT EXISTS skips occupied relation name");
@@ -159,16 +162,13 @@ fn should_reject_index_names_used_by_views() {
 
     // Assert
     assert_eq!(
-        view.expect_err("view owns relation name")
-            .descriptor()
-            .sql_state,
+        view.expect_err("view owns relation name").sql_state(),
         "42P07"
     );
     assert_eq!(
         materialized
             .expect_err("materialized view owns relation name")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
 }
@@ -191,8 +191,7 @@ fn should_reject_case_distinct_index_names_until_identity_is_safe() {
     assert_eq!(
         ambiguous
             .expect_err("case-distinct identity is not yet safe")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "0A000"
     );
     let first_oid = fixture.rows("SELECT oid::bigint FROM pg_class WHERE relname = 'Case.Index'");
@@ -229,13 +228,14 @@ fn should_preserve_unquoted_lookup_for_an_existing_mixed_case_index() {
         .expect("existing unquoted case-folded lookup");
 
     // Assert
-    assert!(fixture
-        .rows("SELECT indexname FROM pg_indexes WHERE tablename = 'indexed_rows'")
-        .is_empty());
+    assert_eq!(
+        fixture.rows("SELECT indexname FROM pg_indexes WHERE tablename = 'indexed_rows'"),
+        [] as [std::vec::Vec<cassie::types::Value>; 0]
+    );
 }
 
 #[test]
-fn should_validate_include_and_predicate_before_skipping_an_existing_name() {
+fn should_validate_index_shape_before_skipping_an_existing_name() {
     // Arrange
     let fixture = sql_fixture(
         "index-namespace-if-not-exists-validation",
@@ -253,17 +253,11 @@ fn should_validate_include_and_predicate_before_skipping_an_existing_name() {
 
     // Assert
     assert_eq!(
-        include
-            .expect_err("missing INCLUDE column")
-            .descriptor()
-            .sql_state,
+        include.expect_err("missing INCLUDE column").sql_state(),
         "42703"
     );
     assert_eq!(
-        predicate
-            .expect_err("missing predicate column")
-            .descriptor()
-            .sql_state,
+        predicate.expect_err("missing predicate column").sql_state(),
         "42703"
     );
 }
@@ -368,10 +362,7 @@ fn should_restore_schema_namespace_after_savepoint_rollback() {
 
     // Assert
     assert_eq!(
-        collision
-            .expect_err("staged index owns name")
-            .descriptor()
-            .sql_state,
+        collision.expect_err("staged index owns name").sql_state(),
         "42P07"
     );
     assert!(fixture
@@ -421,7 +412,7 @@ fn should_reject_concurrent_catalog_publication_of_the_same_index_name() {
         .expect("recover second transaction");
 
     // Assert
-    assert_eq!(conflict.descriptor().sql_state, "40001");
+    assert_eq!(conflict.sql_state(), "40001");
     assert_eq!(fixture.rows("SELECT indexname FROM pg_indexes WHERE tablename IN ('namespace_left', 'namespace_right')"),
         vec![vec![Value::String("shared_idx".to_owned())]]);
 }

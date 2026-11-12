@@ -198,6 +198,7 @@ fn should_clean_batched_ivfflat_sidecars_after_failed_publication_retry() {
     let _failpoint_guard = document_write_failure_point_test_guard();
     let path = data_dir("ivfflat_batched_build_retry");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("startup");
     let collection = "ivfflat_batched_build_retry";
     register_ivfflat_collection(&cassie, collection);
@@ -326,6 +327,7 @@ fn should_parse_ivfflat_vector_index_options() {
 fn should_persist_ivfflat_vector_index_options() {
     // Arrange
     let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).expect("cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
     cassie
@@ -371,6 +373,7 @@ fn should_use_trained_ivfflat_candidate_lists_for_top_k() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "ivfflat_candidate_lists";
         register_ivfflat_collection(&cassie, collection);
         put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
@@ -406,6 +409,7 @@ fn should_use_ivfflat_lists_for_an_other_case_vector_field() {
     // Arrange
     let path = data_dir("ivfflat_field_case");
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_field_case";
     register_ivfflat_collection(&cassie, collection);
     put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
@@ -439,6 +443,7 @@ fn should_read_only_probed_ivfflat_candidates() {
     // Arrange
     let path = data_dir("ivfflat_point_reads");
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_point_reads";
     register_ivfflat_collection(&cassie, collection);
     for index in 0..32 {
@@ -481,6 +486,7 @@ fn should_read_only_probed_ivfflat_candidates() {
 fn should_read_persisted_ivfflat_candidate_ids_without_source_scan() {
     // Arrange
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_persisted_candidate_ids";
     register_ivfflat_collection(&cassie, collection);
     for index in 0..32 {
@@ -518,6 +524,7 @@ fn should_store_ivfflat_membership_outside_training_manifest() {
     // Arrange
     let path = data_dir("ivfflat_membership_layout");
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_membership_layout";
     register_ivfflat_collection(&cassie, collection);
     put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
@@ -563,6 +570,7 @@ fn should_refresh_ivfflat_training_after_document_writes() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "ivfflat_write_refresh";
         register_ivfflat_collection(&cassie, collection);
         put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
@@ -611,6 +619,7 @@ fn should_keep_ivfflat_reads_safe_during_concurrent_mutation() {
     // Arrange
     let path = data_dir("ivfflat_concurrent_mutation");
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_concurrent_mutation";
     register_ivfflat_collection(&cassie, collection);
     put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
@@ -670,6 +679,7 @@ fn should_fall_back_when_ivfflat_training_assignment_coverage_is_missing() {
     // Arrange
     let path = data_dir("ivfflat_missing_assignment_fallback");
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_missing_assignment_fallback";
     register_ivfflat_collection(&cassie, collection);
     put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
@@ -699,6 +709,7 @@ fn should_fall_back_when_ivfflat_training_list_bounds_are_bad() {
     // Arrange
     let path = data_dir("ivfflat_bad_list_bounds_fallback");
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_bad_list_bounds_fallback";
     register_ivfflat_collection(&cassie, collection);
     put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
@@ -730,6 +741,7 @@ fn should_fall_back_when_same_row_count_ivfflat_training_fingerprint_is_stale() 
     // Arrange
     let path = data_dir("ivfflat_stale_fingerprint_fallback");
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_stale_fingerprint_fallback";
     register_ivfflat_collection(&cassie, collection);
     put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);

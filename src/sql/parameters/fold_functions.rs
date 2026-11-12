@@ -182,6 +182,55 @@ impl Fold<'_, '_> {
         Ok(Some(Summary::known(oid(&cast.data_type))))
     }
 
+    fn boolean_signature_output(
+        &mut self,
+        function: &ast::FunctionCall,
+        metadata: &functions::ScalarFunction,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        for (argument, summary) in function
+            .args
+            .iter()
+            .zip(&mut self.summaries.values[frame.start..])
+        {
+            check_controls(self.controls)?;
+            self.occurrences.coerce(summary, 16, true)?;
+            self.occurrences
+                .boolean_aggregate_input(metadata.name, *summary)?;
+            if summary.oid == 705 {
+                if let ast::Expr::StringLiteral(input) = argument {
+                    self.occurrences
+                        .boolean_aggregate_literal(input, self.controls)?;
+                }
+            }
+        }
+        Ok(Summary::known(16))
+    }
+
+    fn bitwise_signature_output(
+        &mut self,
+        function: &ast::FunctionCall,
+        metadata: &functions::ScalarFunction,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        let summary = &mut self.summaries.values[frame.start];
+        match summary.oid {
+            0 | 705 => {
+                self.occurrences.ambiguous_function(metadata.name)?;
+                Ok(Summary::unqualified())
+            }
+            oid @ (20 | 21 | 23) => Ok(Summary::known(oid)),
+            oid => {
+                self.occurrences.undefined_function(
+                    metadata.name,
+                    function.args.len(),
+                    Some(oid),
+                )?;
+                Ok(Summary::unqualified())
+            }
+        }
+    }
+
     fn apply_input_signature(
         &mut self,
         function: &ast::FunctionCall,
@@ -197,11 +246,12 @@ impl Fold<'_, '_> {
                 signature @ (FunctionInputSignature::Positional(_)
                 | FunctionInputSignature::VariadicTail { .. }),
             ) => {
-                let variadic_array = matches!(signature, FunctionInputSignature::VariadicTail { .. })
-                    && function
-                        .args
-                        .get(1)
-                        .is_some_and(functions::json::is_variadic_array_argument);
+                let variadic_array =
+                    matches!(signature, FunctionInputSignature::VariadicTail { .. })
+                        && function
+                            .args
+                            .get(1)
+                            .is_some_and(functions::json::is_variadic_array_argument);
                 self.positional_function(
                     function,
                     metadata.expect("positional metadata"),
@@ -224,47 +274,17 @@ impl Fold<'_, '_> {
                     frame,
                 )
             }
-            Some(FunctionInputSignature::Boolean) => {
-                for (argument, summary) in function
-                    .args
-                    .iter()
-                    .zip(&mut self.summaries.values[frame.start..])
-                {
-                    check_controls(self.controls)?;
-                    self.occurrences.coerce(summary, 16, true)?;
-                    self.occurrences.boolean_aggregate_input(
-                        metadata.expect("Boolean signature metadata").name,
-                        *summary,
-                    )?;
-                    if summary.oid == 705 {
-                        if let ast::Expr::StringLiteral(input) = argument {
-                            self.occurrences
-                                .boolean_aggregate_literal(input, self.controls)?;
-                        }
-                    }
-                }
-                Ok(Summary::known(16))
-            }
+            Some(FunctionInputSignature::Boolean) => self.boolean_signature_output(
+                function,
+                metadata.expect("Boolean signature metadata"),
+                frame,
+            ),
             Some(FunctionInputSignature::AnyElement) => self.any_element_output(metadata, frame),
-            Some(FunctionInputSignature::BitwiseInteger) => {
-                let metadata = metadata.expect("bitwise aggregate signature metadata");
-                let summary = &mut self.summaries.values[frame.start];
-                match summary.oid {
-                    0 | 705 => {
-                        self.occurrences.ambiguous_function(metadata.name)?;
-                        Ok(Summary::unqualified())
-                    }
-                    oid @ (20 | 21 | 23) => Ok(Summary::known(oid)),
-                    oid => {
-                        self.occurrences.undefined_function(
-                            metadata.name,
-                            function.args.len(),
-                            Some(oid),
-                        )?;
-                        Ok(Summary::unqualified())
-                    }
-                }
-            }
+            Some(FunctionInputSignature::BitwiseInteger) => self.bitwise_signature_output(
+                function,
+                metadata.expect("bitwise aggregate signature metadata"),
+                frame,
+            ),
             Some(FunctionInputSignature::Text) => {
                 for summary in &mut self.summaries.values[frame.start..] {
                     check_controls(self.controls)?;
@@ -647,6 +667,17 @@ impl Fold<'_, '_> {
                 // Float arguments reach the binder, which names the full
                 // undefined `numeric` overload signature.
                 1700 => matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700),
+                // The binder names the full undefined overload signature for
+                // a non-INT4 `round`/`trunc` scale.
+                23 if matches!(
+                    metadata.id,
+                    functions::FunctionId::Math(
+                        functions::math::MathFunction::Round | functions::math::MathFunction::Trunc
+                    )
+                ) && matches!(summary.oid, 20 | 701 | 1700) =>
+                {
+                    true
+                }
                 23 => {
                     matches!(summary.oid, 0 | 21 | 23 | 705)
                         || summary.oid == 20 && self.occurrences.embedded_int4_carrier(*summary)
@@ -678,8 +709,7 @@ impl Fold<'_, '_> {
                 i32::try_from(result.type_oid()).unwrap_or_default(),
             ));
         }
-        if metadata.id
-            == functions::FunctionId::Json(functions::json::JsonFunction::VariadicArray)
+        if metadata.id == functions::FunctionId::Json(functions::json::JsonFunction::VariadicArray)
         {
             return Ok(Summary::known(1009));
         }

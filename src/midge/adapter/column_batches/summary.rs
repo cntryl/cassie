@@ -75,13 +75,13 @@ fn json_to_schema_value(value: &serde_json::Value, data_type: Option<&DataType>)
         if let Some(values) = value.as_array() {
             let vector = ((1..=16_000).contains(&values.len())
                 && expected_dimensions.is_none_or(|dimensions| values.len() == dimensions))
-                .then(|| {
-                    values
-                        .iter()
-                        .map(|part| crate::vector::f64_to_finite_f32(part.as_f64()?))
-                        .collect::<Option<Vec<_>>>()
-                })
-                .flatten();
+            .then(|| {
+                values
+                    .iter()
+                    .map(|part| crate::vector::f64_to_finite_f32(part.as_f64()?))
+                    .collect::<Option<Vec<_>>>()
+            })
+            .flatten();
             if let Some(vector) = vector {
                 return Value::Vector(Vector::new(vector));
             }

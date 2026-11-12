@@ -84,7 +84,12 @@ fn should_reject_malformed_binary_vector_headers() {
     ];
     let cycles = cases
         .map(|body| {
-            fixture::execute_cycle("SELECT $1 AS v", Some((100_002, 1, Some(body))), 0, false)
+            fixture::execute_cycle(
+                "SELECT $1 AS v",
+                Some((fixture::VECTOR_TYPE_OID, 1, Some(body))),
+                0,
+                false,
+            )
         })
         .to_vec();
 
@@ -334,14 +339,15 @@ fn should_reject_invalid_scalar_array_element_lengths() {
 }
 
 #[test]
-fn should_reject_unregistered_vector_binary_results_before_writes() {
+fn should_encode_maximum_width_vector_nulls_in_binary_results() {
     // Arrange
-    // The declared storage/text width exceeds the selected binary OID family.
-    // NULL avoids allocating any 32,768-component vector payload.
+    // The maximum declared width uses the installed database OID in both formats.
+    // NULL avoids allocating any 16,000-component vector payload.
     let setup = [(
-        "CREATE TABLE wide_vector_null (v VECTOR(32768))",
+        "CREATE TABLE wide_vector_null (v VECTOR(16000))",
         Vec::new(),
     )];
+    let null_row = vec![0, 1, 255, 255, 255, 255];
     let cycles = vec![
         fixture::execute_cycle(
             "INSERT INTO wide_vector_null (v) VALUES (NULL) RETURNING v",
@@ -350,37 +356,40 @@ fn should_reject_unregistered_vector_binary_results_before_writes() {
             false,
         ),
         fixture::execute_cycle("SELECT COUNT(*) AS v FROM wide_vector_null", None, 1, false),
-        fixture::execute_cycle("SELECT v FROM wide_vector_null", None, 1, false),
+        fixture::execute_cycle("SELECT v FROM wide_vector_null", None, 1, true),
         fixture::execute_cycle(
             "INSERT INTO wide_vector_null (v) VALUES (NULL) RETURNING v",
             None,
             0,
             true,
         ),
-        fixture::execute_cycle("SELECT v FROM wide_vector_null", None, 0, true),
     ];
 
     // Act
-    let batches = fixture::run_cycles("type-wide-vector-binary-prewrite", &setup, cycles);
+    let batches = fixture::run_cycles("type-wide-vector-binary-nulls", &setup, cycles);
 
     // Assert
-    assert_eq!(batches.len(), 5);
-    fixture::assert_unsupported_before_metadata(&batches[0]);
+    assert_eq!(batches.len(), 4);
+    for (index, rows) in [(0, 1), (2, 1), (3, 1)] {
+        let frames = &batches[index];
+        fixture::assert_success(frames);
+        fixture::assert_single_column_descriptors(
+            frames,
+            (fixture::VECTOR_TYPE_OID, -1, 16_000),
+            i16::from(index != 3),
+            index != 0,
+        );
+        assert_eq!(
+            fixture::data_row_payloads(frames),
+            vec![null_row.clone(); rows],
+            "RETURNING and stored reads retain one SQL NULL field"
+        );
+    }
     fixture::assert_success(&batches[1]);
     fixture::assert_single_column_descriptors(&batches[1], (20, 8, -1), 1, false);
     assert_eq!(
         fixture::data_row_payloads(&batches[1]),
-        vec![fixture::one_field_row(&[0, 0, 0, 0, 0, 0, 0, 0])],
-        "binary RETURNING rejection must leave the table empty",
+        vec![fixture::one_field_row(&[0, 0, 0, 0, 0, 0, 0, 1])],
+        "the binary RETURNING insert published its row"
     );
-    fixture::assert_unsupported_before_metadata(&batches[2]);
-    for frames in [&batches[3], &batches[4]] {
-        fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (132_768, -1, -1), 0, true);
-        assert_eq!(
-            fixture::data_row_payloads(frames),
-            vec![vec![0, 1, 255, 255, 255, 255]],
-            "text RETURNING and stored read retain one SQL NULL field",
-        );
-    }
 }

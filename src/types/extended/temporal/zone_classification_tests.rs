@@ -2,7 +2,7 @@ use super::{classify, Classification};
 use crate::types::extended::temporal::zone::lookup_zone;
 
 #[test]
-fn should_classify_fixed_dynamic_and_unknown_reachable_abbreviations() {
+fn should_classify_reachable_abbreviations_by_zone_transitions() {
     // Arrange
     let new_york = lookup_zone("America/New_York").expect("New York");
     let moscow = lookup_zone("Europe/Moscow").expect("Moscow");
@@ -66,10 +66,8 @@ fn should_classify_distinct_dst_flags_as_dynamic_at_the_same_offset() {
     block(&mut bytes, 4);
     block(&mut bytes, 8);
     bytes.extend_from_slice(b"\n\n");
-    let zone = crate::types::extended::temporal::zone::Zone::Rules {
-        tz: jiff::tz::TimeZone::tzif("Test/SameOffset", &bytes).expect("TZif"),
-        name: "Test/SameOffset".to_owned(),
-    };
+    let zone = crate::types::extended::temporal::zone::Zone::from_tzif("Test/SameOffset", &bytes)
+        .expect("TZif");
 
     // Act
     let result = classify(&zone, "CST", &mut || Ok::<_, ()>(()));
@@ -106,9 +104,9 @@ fn should_observe_the_same_transitions_for_distinct_raw_designation_indices() {
         bytes.extend_from_slice(b"\n\n");
         bytes
     }
-    let zone = |duplicate| crate::types::extended::temporal::zone::Zone::Rules {
-        tz: jiff::tz::TimeZone::tzif("Test/Paired", &data(duplicate)).expect("TZif"),
-        name: "Test/Paired".to_owned(),
+    let zone = |duplicate| {
+        crate::types::extended::temporal::zone::Zone::from_tzif("Test/Paired", &data(duplicate))
+            .expect("TZif")
     };
     let shared = zone(false);
     let duplicate = zone(true);

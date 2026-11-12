@@ -75,26 +75,39 @@ fn path_function_classified(
     };
     path_function_borrowed(
         kind,
-        &args[0],
-        &args[1],
-        args.get(2),
-        args.get(3),
+        &PathFunctionInputs {
+            document: &args[0],
+            path: &args[1],
+            variables: args.get(2),
+            silent: args.get(3),
+        },
         silent,
         controls,
         owner,
     )
 }
 
+/// The SQL argument values supplied to one JSONPATH function call.
+struct PathFunctionInputs<'a> {
+    document: &'a Value,
+    path: &'a Value,
+    variables: Option<&'a Value>,
+    silent: Option<&'a Value>,
+}
+
 fn path_function_borrowed(
     kind: JsonFunction,
-    document_value: &Value,
-    path_value: &Value,
-    variables_value: Option<&Value>,
-    silent_value: Option<&Value>,
+    inputs: &PathFunctionInputs<'_>,
     silent: bool,
     controls: Option<&QueryExecutionControls>,
     owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, PathFunctionError> {
+    let &PathFunctionInputs {
+        document: document_value,
+        path: path_value,
+        variables: variables_value,
+        silent: silent_value,
+    } = inputs;
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
@@ -170,6 +183,7 @@ fn path_function_borrowed(
         PathResult::Match(value) => value.map_or(Value::Null, Value::Bool),
     };
     super::json_result_owner::retain_json_tree(value, reservation, owner, controls)
+        .map_err(PathFunctionError::from)
 }
 
 fn sql_json_exists(
@@ -186,10 +200,12 @@ fn sql_json_exists(
         .ok_or_else(|| CassieError::InvalidParameterValue("missing ON ERROR policy".into()))?;
     match path_function_borrowed(
         JsonFunction::PathExists,
-        document,
-        path,
-        None,
-        None,
+        &PathFunctionInputs {
+            document,
+            path,
+            variables: None,
+            silent: None,
+        },
         false,
         controls,
         None,
@@ -508,7 +524,15 @@ fn extract(
             CassieError::Execution("function json_extract_path() does not exist".into()).into(),
         );
     }
-    extract_segments(&args[0], &args[1..], false, binary, as_text, controls, owner)
+    extract_segments(
+        &args[0],
+        &args[1..],
+        false,
+        binary,
+        as_text,
+        controls,
+        owner,
+    )
 }
 
 fn extract_segments(
@@ -526,9 +550,7 @@ fn extract_segments(
         );
     }
     if matches!(document_value, Value::Null)
-        || segments
-            .iter()
-            .any(|value| matches!(value, Value::Null))
+        || segments.iter().any(|value| matches!(value, Value::Null))
     {
         return Ok(Value::Null);
     }
@@ -568,12 +590,7 @@ fn extract_segments(
     let document = super::json_functions::json_text(document_value)?;
     let result = if let (Some(controls), Some(owner)) = (controls, owner) {
         super::super::json_delete::controlled_function_extraction(
-            &document,
-            segments,
-            as_text,
-            binary,
-            controls,
-            owner,
+            &document, segments, as_text, binary, controls, owner,
         )?
     } else {
         let segments = segments.iter().map(|value| match value {
@@ -646,12 +663,11 @@ mod tests {
     }
 
     #[test]
-    fn should_admit_variadic_path_array_workspace_and_honor_cancellation() {
+    fn should_control_variadic_path_array_workspace_admission() {
         // Arrange
-        let path = crate::types::SqlArray::from_elements(vec![crate::types::Value::String(
-            "a".into(),
-        )])
-        .expect("path array");
+        let path =
+            crate::types::SqlArray::from_elements(vec![crate::types::Value::String("a".into())])
+                .expect("path array");
         let input = [
             Value::String(format!("{{\"a\":\"{}\"}}", "x".repeat(80))),
             Value::Array(path),
@@ -765,7 +781,9 @@ mod tests {
         // Assert
         assert!(matches!(
             denied,
-            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(_)))
+            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                _
+            )))
         ));
         assert!(matches!(
             interrupted,
@@ -798,7 +816,9 @@ mod tests {
         // Assert
         assert!(matches!(
             denied,
-            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(_)))
+            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                _
+            )))
         ));
         assert_eq!(scarce.current_query_memory_bytes(), 0);
     }

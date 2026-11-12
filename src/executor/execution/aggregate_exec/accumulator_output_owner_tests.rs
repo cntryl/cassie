@@ -1,6 +1,5 @@
 use super::super::collection_json as aggregate_json;
 use super::*;
-use super::super::collection_json as aggregate_json;
 use crate::runtime::QueryCancellationHandle;
 
 #[test]

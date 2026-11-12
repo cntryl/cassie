@@ -87,7 +87,10 @@ pub(super) fn rows(
                         // Ownership is not recorded in the current metadata format.
                         null("tableowner"),
                         null("tablespace"),
-                        flag("hasindexes", catalog.has_relation_index_history(&table.name)),
+                        flag(
+                            "hasindexes",
+                            catalog.has_relation_index_history(&table.name),
+                        ),
                         flag("hasrules", false),
                         flag("hastriggers", false),
                         flag("rowsecurity", false),

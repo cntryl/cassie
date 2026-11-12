@@ -74,9 +74,8 @@ fn object_address(
                     },
                 ));
             }
-            let object_oid = stored_namespace_oid(&cassie.catalog, schema).ok_or_else(|| {
-                unsupported("schema has no stable PostgreSQL catalog identity")
-            })?;
+            let object_oid = stored_namespace_oid(&cassie.catalog, schema)
+                .ok_or_else(|| unsupported("schema has no stable PostgreSQL catalog identity"))?;
             (PG_NAMESPACE_OID, object_oid, 0)
         }
         CommentOnObjectKind::Table | CommentOnObjectKind::Column => {
@@ -94,7 +93,7 @@ fn object_address(
                 .ok_or_else(|| unsupported("table has no stable PostgreSQL catalog identity"))?;
             let object_sub_id = if statement.kind == CommentOnObjectKind::Column {
                 let column = statement.column.as_ref().ok_or_else(|| {
-                    QueryError::Planner("COMMENT ON COLUMN requires a column name".to_owned())
+                    QueryError::General("COMMENT ON COLUMN requires a column name".to_owned())
                 })?;
                 let row_schema = cassie
                     .midge

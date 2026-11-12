@@ -391,31 +391,14 @@ fn should_reject_other_non_admin_writes_that_consume_sequence_defaults() {
         .expect("sequence metadata");
 
     // Act
-    let default_cell = cassie.execute_sql(
-        &writer,
+    let denied_writes = [
         "INSERT INTO public.sequence_default_write_paths (id, body) VALUES (DEFAULT, 'denied')",
-        Vec::new(),
-    );
-    let overriding_user = cassie.execute_sql(
-        &writer,
         "INSERT INTO public.sequence_default_write_paths (id, body) OVERRIDING USER VALUE VALUES (10, 'denied')",
-        Vec::new(),
-    );
-    let update_default = cassie.execute_sql(
-        &writer,
         "UPDATE public.sequence_default_write_paths SET id = DEFAULT",
-        Vec::new(),
-    );
-    let merge_default = cassie.execute_sql(
-        &writer,
         "MERGE INTO public.sequence_default_write_paths AS target USING (VALUES (11, 'merge')) AS source(id, body) ON target.id = source.id WHEN NOT MATCHED THEN INSERT (body) VALUES (source.body)",
-        Vec::new(),
-    );
-    let copy_omitted_default = cassie.execute_sql(
-        &writer,
         "COPY public.sequence_default_write_paths (body) FROM STDIN",
-        Vec::new(),
-    );
+    ]
+    .map(|sql| cassie.execute_sql(&writer, sql, Vec::new()));
     let rows = cassie
         .execute_sql(
             &root,
@@ -430,17 +413,8 @@ fn should_reject_other_non_admin_writes_that_consume_sequence_defaults() {
         .expect("sequence metadata");
 
     // Assert
-    for result in [
-        default_cell,
-        overriding_user,
-        update_default,
-        merge_default,
-        copy_omitted_default,
-    ] {
-        assert!(matches!(
-            result,
-            Err(CassieError::InsufficientPrivilege)
-        ));
+    for result in denied_writes {
+        assert!(matches!(result, Err(CassieError::InsufficientPrivilege)));
     }
     assert_eq!(rows.rows(), vec![vec![Value::Int64(9)]]);
     assert_eq!(sequence_after.current_value, sequence_before.current_value);
@@ -520,7 +494,7 @@ fn should_report_direct_acl_privilege_state() {
 }
 
 #[test]
-fn should_evaluate_selected_privileges_for_current_and_named_roles() {
+fn should_evaluate_selected_privileges_across_role_arguments() {
     // Arrange
     let (cassie, root, reader, _projector) = role_grant_fixture();
 
@@ -608,7 +582,10 @@ fn should_evaluate_selected_privileges_for_current_and_named_roles() {
             Value::Bool(true),
         ]]
     );
-    assert!(matches!(invalid_privilege, Err(CassieError::Unsupported(_))));
+    assert!(matches!(
+        invalid_privilege,
+        Err(CassieError::Unsupported(_))
+    ));
     assert!(matches!(
         missing_role,
         Err(CassieError::CatalogObjectNotFound {
@@ -620,7 +597,7 @@ fn should_evaluate_selected_privileges_for_current_and_named_roles() {
 }
 
 #[test]
-fn should_reject_role_and_relation_oid_arguments_for_selected_privilege_helpers() {
+fn should_reject_oid_arguments_for_selected_privilege_helpers() {
     // Arrange
     let (cassie, root, _reader, _projector) = role_grant_fixture();
     cassie
@@ -844,7 +821,7 @@ fn should_reject_sequence_helpers_for_non_admin_roles() {
     }
 }
 
-#[path = "object_privilege_grants/lifecycle.rs"]
-mod lifecycle;
 #[path = "object_privilege_grants/identifier_visibility.rs"]
 mod identifier_visibility;
+#[path = "object_privilege_grants/lifecycle.rs"]
+mod lifecycle;

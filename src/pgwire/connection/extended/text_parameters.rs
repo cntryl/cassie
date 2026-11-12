@@ -72,6 +72,11 @@ pub(super) fn decode_text_parameter(
         Some(BuiltinKind::Int8) => parse_integer(text, crate::types::IntegerWidth::I64),
         Some(BuiltinKind::Float8) => parse_float(text).map(Value::Float64),
         Some(BuiltinKind::Name) => Ok(Value::String(crate::types::name::parse_text(text))),
+        Some(BuiltinKind::Extended(
+            kind @ (ExtendedType::TimeTz { .. }
+            | ExtendedType::TimestampTz { .. }
+            | ExtendedType::Interval { .. }),
+        )) => temporal_parameter(text, kind, controls),
         Some(BuiltinKind::Extended(kind)) if kind.binds_parameters() => {
             kind.parse_text(text).map(Value::Typed).map_err(|error| {
                 ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
@@ -91,18 +96,9 @@ pub(super) fn decode_text_parameter(
         Some(BuiltinKind::Timestamp) => {
             temporal_parameter(text, ExtendedType::Timestamp { precision: None }, controls)
         }
-        Some(BuiltinKind::Extended(
-            kind @ (ExtendedType::TimeTz { .. }
-            | ExtendedType::TimestampTz { .. }
-            | ExtendedType::Interval { .. }),
-        )) => temporal_parameter(text, kind, controls),
         Some(BuiltinKind::Uuid) => uuid::Uuid::parse_str(text.trim())
             .map(|uuid| Value::String(uuid.to_string()))
             .map_err(|_| ExtendedQueryError::invalid_input_syntax("uuid", text)),
-        Some(BuiltinKind::Extended(kind)) if kind.binds_parameters() => kind
-            .parse_text(text)
-            .map(Value::Typed)
-            .map_err(|error| ExtendedQueryError::cassie(&error.into())),
         Some(BuiltinKind::Bytea) => crate::types::bytea_input::canonical(text)
             .map(Value::String)
             .map_err(|error| ExtendedQueryError::cassie(&error.into())),

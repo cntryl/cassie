@@ -8,7 +8,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_preserve_json_identity_and_jsonb_canonical_sentinel_keys() {
+fn should_parse_cells_with_identity_specific_text() {
     // Arrange
     let controls = controls();
     let source = r#" {"$serde_json::private::Number" : "7"} "#;
@@ -104,7 +104,7 @@ fn should_release_partial_clone_after_actual_copy_cancellation() {
     assert_eq!(copies, 1);
     assert!(matches!(
         result,
-        Err(CellError::Control(crate::app::CassieError::QueryCancelled))
+        Err(CellError::Control(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), original);
     drop(cell);
@@ -112,7 +112,7 @@ fn should_release_partial_clone_after_actual_copy_cancellation() {
 }
 
 #[test]
-fn should_enforce_measured_source_and_clone_overlap() {
+fn should_enforce_measured_source_clone_overlap_budget() {
     // Arrange
     let source = format!("\"{}\"", "x".repeat(4096));
     let baseline = controls();
@@ -123,39 +123,59 @@ fn should_enforce_measured_source_and_clone_overlap() {
     let peak = baseline.peak_query_memory_bytes();
     drop(clones);
     drop(cell);
-    // Act / Assert
-    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
-        let limits = CassieRuntimeLimits {
-            query_memory_budget_bytes: budget,
-            query_timeout_ms: 0,
-            ..CassieRuntimeLimits::default()
-        };
-        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
-        let cell = Cell::parse(&source, Identity::Json, &controls).expect("source");
-        let clones = (0..15)
-            .map(|_| cell.try_clone(&controls).expect("clone"))
-            .collect::<Vec<_>>();
-        let result = cell.try_clone(&controls);
-        assert_eq!(result.is_ok(), succeeds);
-        drop(result);
-        drop(clones);
-        drop(cell);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = [(peak, true), (peak - 1, false)]
+        .into_iter()
+        .map(|(budget, succeeds)| {
+            let limits = CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                query_timeout_ms: 0,
+                ..CassieRuntimeLimits::default()
+            };
+            let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+            let cell = Cell::parse(&source, Identity::Json, &controls).expect("source");
+            let clones = (0..15)
+                .map(|_| cell.try_clone(&controls).expect("clone"))
+                .collect::<Vec<_>>();
+            let result = cell.try_clone(&controls);
+            let accepted = result.is_ok();
+            drop(result);
+            drop(clones);
+            drop(cell);
+            (succeeds, accepted, controls.current_query_memory_bytes())
+        })
+        .collect();
+
+    // Assert
+    for (succeeds, accepted, memory) in results {
+        assert_eq!(accepted, succeeds);
+        assert_eq!(memory, 0);
     }
 }
 
 #[test]
-fn should_preserve_jsonb_nul_and_numeric_errors_without_leaking() {
+fn should_leave_no_memory_after_jsonb_parse_errors() {
     // Arrange
     let controls = controls();
-    // Act / Assert
-    for (source, nul) in [(r#"{"a":"\u0000"}"#, true), (r#"{"a":1e131072}"#, false)] {
-        let result = Cell::parse(source, Identity::Jsonb, &controls);
-        assert!(matches!(
-            (result, nul),
-            (Err(CellError::Nul), true) | (Err(CellError::Numeric), false)
-        ));
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = [(r#"{"a":"\u0000"}"#, true), (r#"{"a":1e131072}"#, false)]
+        .into_iter()
+        .map(|(source, nul)| {
+            let result = Cell::parse(source, Identity::Jsonb, &controls);
+            let matched = matches!(
+                (result, nul),
+                (Err(CellError::Nul), true) | (Err(CellError::Numeric), false)
+            );
+            (matched, controls.current_query_memory_bytes())
+        })
+        .collect();
+
+    // Assert
+    for (matched, memory) in results {
+        assert!(matched);
+        assert_eq!(memory, 0);
     }
 }
 
@@ -190,17 +210,27 @@ fn should_enforce_measured_cell_creation_overlap_budget() {
     let peak = baseline.peak_query_memory_bytes();
     drop(cell);
     assert_eq!(baseline.current_query_memory_bytes(), 0);
-    // Act / Assert
-    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
-        let limits = CassieRuntimeLimits {
-            query_memory_budget_bytes: budget,
-            query_timeout_ms: 0,
-            ..CassieRuntimeLimits::default()
-        };
-        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
-        let result = Cell::parse(source, Identity::Jsonb, &controls);
-        assert_eq!(result.is_ok(), succeeds);
-        drop(result);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = [(peak, true), (peak - 1, false)]
+        .into_iter()
+        .map(|(budget, succeeds)| {
+            let limits = CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                query_timeout_ms: 0,
+                ..CassieRuntimeLimits::default()
+            };
+            let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+            let result = Cell::parse(source, Identity::Jsonb, &controls);
+            let accepted = result.is_ok();
+            drop(result);
+            (succeeds, accepted, controls.current_query_memory_bytes())
+        })
+        .collect();
+
+    // Assert
+    for (succeeds, accepted, memory) in results {
+        assert_eq!(accepted, succeeds);
+        assert_eq!(memory, 0);
     }
 }

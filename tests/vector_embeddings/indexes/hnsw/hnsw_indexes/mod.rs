@@ -175,6 +175,7 @@ include!("binary.rs");
 fn hnsw_layout_fixture(label: &str) -> (Cassie, String, &'static str) {
     let path = data_dir(label);
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().unwrap();
     let collection = "hnsw_layout_records";
     register_hnsw_collection(&cassie, collection);

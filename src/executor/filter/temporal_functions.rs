@@ -364,7 +364,9 @@ fn dispatch_with_memory(
                 other => Ok(other),
             }
         }
-        ("date_bin", [stride, source, origin]) => date_bin(stride, source, origin, session, controls),
+        ("date_bin", [stride, source, origin]) => {
+            date_bin(stride, source, origin, session, controls)
+        }
         ("age", [left, right]) => age(left, right, session, controls),
         ("age", [value]) => {
             let today = session
@@ -402,7 +404,8 @@ fn dispatch_with_memory(
         }
         ("timezone", [value]) => timezone(&session.zone, value, session, controls),
         ("date_add" | "date_subtract", [value, span, rest @ ..]) => {
-            let TypedValue::TimestampTz(instant) = coerce(value, TIMESTAMPTZ, session, controls)? else {
+            let TypedValue::TimestampTz(instant) = coerce(value, TIMESTAMPTZ, session, controls)?
+            else {
                 return Err(argument_error(name, args));
             };
             let TypedValue::Interval(mut span) = coerce(span, INTERVAL, session, controls)? else {
@@ -537,14 +540,14 @@ fn date_bin(
     };
     match source_value(source, session, controls)? {
         TypedValue::Timestamp(value) => {
-            let TypedValue::Timestamp(origin) = coerce(origin, TIMESTAMP, session, controls)? else {
+            let TypedValue::Timestamp(origin) = coerce(origin, TIMESTAMP, session, controls)?
+            else {
                 return Err(execution("date_bin origin must be a timestamp"));
             };
             temporal::date_bin(&stride, value, origin).map(TypedValue::Timestamp)
         }
         TypedValue::TimestampTz(value) => {
-            let TypedValue::TimestampTz(origin) =
-                coerce(origin, TIMESTAMPTZ, session, controls)?
+            let TypedValue::TimestampTz(origin) = coerce(origin, TIMESTAMPTZ, session, controls)?
             else {
                 return Err(execution("date_bin origin must be a timestamp"));
             };

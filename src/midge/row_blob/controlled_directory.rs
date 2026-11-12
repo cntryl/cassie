@@ -1,4 +1,4 @@
-//! Test-only checked directory and borrowed TYPE_JSON span.
+//! Test-only checked directory and borrowed `TYPE_JSON` span.
 use std::cmp::Ordering;
 use std::mem::size_of;
 
@@ -26,7 +26,7 @@ struct Entry {
 
 struct Buffer {
     values: Vec<Entry>,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 impl Buffer {
@@ -36,7 +36,7 @@ impl Buffer {
             .ok_or_else(overflow)?;
         let mut result = Self {
             values: Vec::new(),
-            _memory: controls.reserve_query_memory(bytes)?,
+            memory: controls.reserve_query_memory(bytes)?,
         };
         result
             .values
@@ -176,7 +176,7 @@ impl<'a> Directory<'a> {
         field: &RowFieldMeta,
         controls: &QueryExecutionControls,
     ) -> Result<Option<&'a [u8]>, CassieError> {
-        if !self.entries._memory.belongs_to(controls) {
+        if !self.entries.memory.belongs_to(controls) {
             return Err(CassieError::ResourceLimit(
                 "row directory uses a different query tracker".into(),
             ));

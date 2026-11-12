@@ -5,8 +5,8 @@ use super::super::calendar::{
 use super::super::session::IntervalStyle;
 use super::super::tokens::{
     date_keyword, leading_integer, parse_fraction, parse_fractional_second, tokenize_with_check,
-    truncate_f64, truncate_f64_i32, unit_keyword, DecodeError, Keyword,
-    Reserved, TokenKind, TokenizeError, Unit,
+    truncate_f64, truncate_f64_i32, unit_keyword, DecodeError, Keyword, Reserved, TokenKind,
+    TokenizeError, Unit,
 };
 use super::{
     Interval, DAY_MASK, FULL_RANGE, HOUR_MASK, MINUTE_MASK, MONTH_MASK, SECOND_MASK, YEAR_MASK,
@@ -217,7 +217,7 @@ pub fn parse_interval(
     })
 }
 
-pub(super) fn parse_interval_with_check<E>(
+pub(crate) fn parse_interval_with_check<E>(
     input: &str,
     range: i32,
     style: IntervalStyle,
@@ -251,33 +251,38 @@ fn default_unit(range: i32) -> Unit {
     }
 }
 
+/// SQL-standard intervals whose leading field is negative apply that sign to
+/// every field unless another field carries its own explicit sign.
+fn sql_standard_force_negative<E>(
+    tokens: &[super::super::tokens::Token],
+    style: IntervalStyle,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<bool, TokenizeError<E>> {
+    if style != IntervalStyle::SqlStandard
+        || !tokens
+            .first()
+            .is_some_and(|token| token.text.starts_with('-'))
+    {
+        return Ok(false);
+    }
+    for (index, token) in tokens[1..].iter().enumerate() {
+        if index % 128 == 0 {
+            check().map_err(TokenizeError::Check)?;
+        }
+        if token.text.starts_with('-') || token.text.starts_with('+') {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 fn decode_interval_with_check<E>(
     tokens: &[super::super::tokens::Token],
     range: i32,
     style: IntervalStyle,
     check: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<Interval, TokenizeError<E>> {
-    let mut has_explicit_sign = false;
-    if style == IntervalStyle::SqlStandard
-        && tokens
-            .first()
-            .is_some_and(|token| token.text.starts_with('-'))
-    {
-        for (index, token) in tokens[1..].iter().enumerate() {
-            if index % 128 == 0 {
-                check().map_err(TokenizeError::Check)?;
-            }
-            if token.text.starts_with('-') || token.text.starts_with('+') {
-                has_explicit_sign = true;
-                break;
-            }
-        }
-    }
-    let force_negative = style == IntervalStyle::SqlStandard
-        && tokens
-            .first()
-            .is_some_and(|token| token.text.starts_with('-'))
-        && !has_explicit_sign;
+    let force_negative = sql_standard_force_negative(tokens, style, check)?;
     let mut accumulator = Accumulator::default();
     let (mut fmask, mut unit, mut parsing_unit, mut is_before) =
         (0_u32, None::<Unit>, false, false);
@@ -364,7 +369,7 @@ fn decode_interval_with_check<E>(
     if is_before {
         accumulator.negate()?;
     }
-    accumulator.finish()
+    accumulator.finish().map_err(TokenizeError::from)
 }
 
 /// A signed number, `years-months`, or a fraction, with its effective unit.
@@ -483,10 +488,10 @@ fn interval_time(
 }
 
 /// `ParseISO8601Number`: integer and fractional parts of a decimal number.
-fn iso_number<E>(
-    text: &str,
+fn iso_number<'a, E>(
+    text: &'a str,
     check: &mut impl FnMut() -> Result<(), E>,
-) -> Result<(i64, f64, &str), TokenizeError<E>> {
+) -> Result<(i64, f64, &'a str), TokenizeError<E>> {
     let bytes = text.as_bytes();
     if !bytes
         .first()

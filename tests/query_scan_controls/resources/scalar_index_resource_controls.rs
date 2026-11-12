@@ -94,7 +94,7 @@ fn should_reject_scalar_index_hit_before_retaining_it_given_low_memory() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
     // Act
-    let observations = [512, 2 * 1_024].map(|memory_budget| {
+    let observations = [1_024, 2 * 1_024].map(|memory_budget| {
         let cassie = configured_cassie(memory_budget);
         let session = cassie.create_session("tester", None);
         seed_indexed_rows_with_first_id_prefix(

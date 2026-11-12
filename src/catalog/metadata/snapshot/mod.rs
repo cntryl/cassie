@@ -180,7 +180,6 @@ impl Catalog {
             extensions: Arc::new(RwLock::new(self.extensions.read().clone())),
             views: Arc::new(RwLock::new(self.views.read().clone())),
             roles: Arc::new(RwLock::new(self.roles.read().clone())),
-            role_object_grants: Arc::new(RwLock::new(self.role_object_grants.read().clone())),
             sequences: Arc::new(RwLock::new(self.sequences.read().clone())),
             rollups: Arc::new(RwLock::new(self.rollups.read().clone())),
             retention_policies: Arc::new(RwLock::new(self.retention_policies.read().clone())),
@@ -200,9 +199,7 @@ impl Catalog {
             )),
             maintenance_debts: Arc::new(RwLock::new(self.maintenance_debts.read().clone())),
             object_comments: Arc::new(RwLock::new(self.object_comments.read().clone())),
-            role_object_grants: Arc::new(RwLock::new(
-                self.role_object_grants.read().clone(),
-            )),
+            role_object_grants: Arc::new(RwLock::new(self.role_object_grants.read().clone())),
             version: Arc::new(AtomicU64::new(self.version())),
         }
     }
@@ -382,7 +379,6 @@ catalog_maps! {
     extensions: crate::catalog::ExtensionMeta,
     views: crate::catalog::ViewMeta,
     roles: crate::catalog::RoleMeta,
-    role_object_grants: crate::catalog::RoleObjectGrantMeta,
     sequences: crate::catalog::SequenceMeta,
     rollups: crate::catalog::RollupMeta,
     retention_policies: crate::catalog::RetentionPolicyMeta,

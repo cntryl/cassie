@@ -1,11 +1,11 @@
 use super::types::ExecutionBreakdownDurations;
 use super::{
     build_select_result, dml_command, execute_physical_plan_with_parameter_oids,
-    execute_plan_with_execution_breakdown,
-    materialized_projection, materialized_projection_maintenance, plan_needs_user_functions,
-    rollups, Arc, Cassie, CassieSession, CteContext, ExecutionBreakdownOutput, FunctionMeta,
-    HashMap, Instant, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QueryResult,
-    Value,
+    execute_plan_with_execution_breakdown, materialized_projection,
+    materialized_projection_maintenance, plan_execution_env_with_parameter_oids,
+    plan_needs_user_functions, rollups, Arc, Cassie, CassieSession, CteContext,
+    ExecutionBreakdownOutput, FunctionMeta, HashMap, Instant, LogicalPlan, PhysicalPlan,
+    QueryError, QueryExecutionControls, QueryResult, Value,
 };
 
 /// # Errors
@@ -171,16 +171,15 @@ pub(crate) fn run_with_session_parameter_oids(
     let controls = &statement_controls;
     let (_read_scope, _overlay_scope) = enter_statement_read(controls);
     let mut cte_context = CteContext::new();
-    let rows = execute_physical_plan_with_parameter_oids(
+    let env = plan_execution_env_with_parameter_oids(
         cassie,
         session,
-        plan.as_ref(),
-        &mut cte_context,
         &user_functions,
         &params,
         parameter_type_oids,
         controls,
-    )?;
+    );
+    let rows = execute_physical_plan_with_parameter_oids(&env, plan.as_ref(), &mut cte_context)?;
 
     build_select_result(cassie, session, plan, rows, &user_functions, controls)
 }

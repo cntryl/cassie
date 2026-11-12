@@ -4,22 +4,22 @@ use super::calendar::{
 };
 use super::session::{DateOrder, TemporalSession};
 use super::tokens::{
-    date_keyword, leading_int, parse_fraction, parse_fractional_second,
-    tokenize_with_check, DecodeError, Keyword, Meridiem, Reserved, Token, TokenKind, TokenizeError,
-    Unit,
+    date_keyword, leading_int, parse_fraction, parse_fractional_second, tokenize_with_check,
+    DecodeError, Keyword, Meridiem, Reserved, Token, TokenKind, TokenizeError, Unit,
 };
 use super::zone::{lookup_zone, AbbreviationSet, Zone};
 
 #[path = "decode_zone.rs"]
 mod zone_resolution;
+use zone_resolution::zone_abbreviation_with_check;
 use zone_resolution::{
     defer_dynamic_session_abbreviation, global_zone_abbreviation, resolve_zone_with_check,
     session_zone_abbreviation,
 };
-pub(super) use zone_resolution::zone_abbreviation_with_check;
 
 #[path = "time_input.rs"]
 mod time_input;
+pub(crate) use time_input::decode_time_only_with_check;
 pub use time_input::{decode_time_only, DecodedTime};
 
 const YEAR: u32 = 1 << 2;
@@ -295,22 +295,7 @@ fn decode_keyword_field<E>(
     check: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<Option<u32>, TokenizeError<E>> {
     if is_default_msk(field, session) {
-        if defer_dynamic_session_abbreviation(field, state, session, check)? {
-            return Ok(Some(TZ));
-        }
-        if let Some((east, dst)) = session_zone_abbreviation(field, state, session, check)? {
-            state.zone_west = Some(-east);
-            return Ok(Some(if dst { DTZ | TZ } else { TZ }));
-        }
-        if state.fmask & DATE_M != DATE_M {
-            return Err(DecodeError::BadFormat.into());
-        }
-        state.dynamic_zone = Some(
-            lookup_zone("Europe/Moscow")
-                .ok_or_else(|| DecodeError::BadTimezone("MSK".to_string()))?,
-        );
-        state.dynamic_abbreviation = Some("msk".to_string());
-        return Ok(Some(TZ));
+        return decode_default_msk(field, state, session, check).map(Some);
     }
     if defer_dynamic_session_abbreviation(field, state, session, check)? {
         return Ok(Some(TZ));
@@ -342,20 +327,7 @@ fn decode_keyword_field<E>(
     let tmask = match keyword {
         Keyword::Ignore => return Ok(None),
         Keyword::Reserved(reserved) => decode_reserved(reserved, state, session),
-        Keyword::Month(month) => {
-            let mut tmask = MONTH;
-            if state.fmask & MONTH != 0
-                && !state.have_text_month
-                && state.fmask & DAY == 0
-                && (1..=31).contains(&state.fields.month)
-            {
-                state.fields.day = state.fields.month;
-                tmask = DAY;
-            }
-            state.have_text_month = true;
-            state.fields.month = month;
-            tmask
-        }
+        Keyword::Month(month) => decode_text_month(month, state),
         Keyword::DstModifier(seconds) => {
             let west = state.zone_west.ok_or(DecodeError::BadFormat)?;
             state.zone_west = Some(west - seconds);
@@ -403,19 +375,46 @@ fn decode_keyword_field<E>(
     Ok(Some(tmask))
 }
 
-fn is_default_msk(field: &str, session: &TemporalSession) -> bool {
-    field.eq_ignore_ascii_case("MSK") && session.abbreviations == AbbreviationSet::Default
+fn decode_default_msk<E>(
+    field: &str,
+    state: &mut State,
+    session: &TemporalSession,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<u32, TokenizeError<E>> {
+    if defer_dynamic_session_abbreviation(field, state, session, check)? {
+        return Ok(TZ);
+    }
+    if let Some((east, dst)) = session_zone_abbreviation(field, state, session, check)? {
+        state.zone_west = Some(-east);
+        return Ok(if dst { DTZ | TZ } else { TZ });
+    }
+    if state.fmask & DATE_M != DATE_M {
+        return Err(DecodeError::BadFormat.into());
+    }
+    state.dynamic_zone = Some(
+        lookup_zone("Europe/Moscow").ok_or_else(|| DecodeError::BadTimezone("MSK".to_string()))?,
+    );
+    state.dynamic_abbreviation = Some("msk".to_string());
+    Ok(TZ)
 }
 
-fn zone_abbreviation_probe(field: &str, state: &State, session: &TemporalSession) -> Option<i64> {
-    if !field.chars().all(|c| c.is_ascii_alphabetic()) {
-        return None;
+fn decode_text_month(month: i32, state: &mut State) -> u32 {
+    let mut tmask = MONTH;
+    if state.fmask & MONTH != 0
+        && !state.have_text_month
+        && state.fmask & DAY == 0
+        && (1..=31).contains(&state.fields.month)
+    {
+        state.fields.day = state.fields.month;
+        tmask = DAY;
     }
-    Some(if state.fmask & DATE_M == DATE_M {
-        local_micros(&state.fields)
-    } else {
-        session.transaction_start
-    })
+    state.have_text_month = true;
+    state.fields.month = month;
+    tmask
+}
+
+fn is_default_msk(field: &str, session: &TemporalSession) -> bool {
+    field.eq_ignore_ascii_case("MSK") && session.abbreviations == AbbreviationSet::Default
 }
 
 fn decode_reserved(reserved: Reserved, state: &mut State, session: &TemporalSession) -> u32 {

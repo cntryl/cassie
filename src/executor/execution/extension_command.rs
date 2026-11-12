@@ -201,10 +201,7 @@ fn allocate_vector_ann_catalog_identities(
 }
 
 fn allocate_catalog_object_id(cassie: &Cassie) -> Result<u64, QueryError> {
-    cassie
-        .midge
-        .allocate_object_id()
-        .map_err(QueryError::from)
+    cassie.midge.allocate_object_id().map_err(QueryError::from)
 }
 
 fn set_schema(
@@ -387,7 +384,10 @@ fn vector_extension_dependents(cassie: &Cassie, database: &str) -> Vec<String> {
                         crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
                     )
                 })
-                .map_or_else(|| collection.name.clone(), |projection| projection.collection);
+                .map_or_else(
+                    || collection.name.clone(),
+                    |projection| projection.collection,
+                );
             dependents.extend(
                 schema
                     .fields

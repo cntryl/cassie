@@ -32,16 +32,12 @@ fn should_match_binary_vector_display_with_error_precedence() {
         f32::MIN,
     ];
     let bytes = frame(&values);
-    let original = super::super::super::super::codecs::binary_to_value_with_vector(
-        &bytes,
-        25,
-        true,
-    )
-    .expect("original");
+    let original =
+        super::super::super::super::codecs::binary_to_value_with_vector(&bytes, 25, true)
+            .expect("original");
     let expected = super::super::super::super::codecs::value_to_text(&original, 25);
     // Act
-    let (actual, memory) = super::decode(&bytes, 0, &controls, Some(values.len()))
-        .expect("decode");
+    let (actual, memory) = super::decode(&bytes, 0, &controls, Some(values.len())).expect("decode");
     // Assert
     assert_eq!(actual, expected);
     drop((actual, memory));
@@ -61,7 +57,7 @@ fn should_match_binary_vector_display_with_error_precedence() {
             b
         },
     ] {
-        let result = super::decode(&bytes, 2, &controls, None);
+        let result = super::decode(&bytes, 2, &controls, Some(1));
         assert!(
             matches!(result, Err(CassieError::Parse(message)) if message == "COPY binary field 3 is invalid: invalid binary vector value")
         );

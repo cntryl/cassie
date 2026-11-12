@@ -14,7 +14,7 @@ use crate::catalog::{
     ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchRow, ColumnBatchSegmentMeta,
     DatabaseMeta, FieldCardinalityStats, FieldConstraint, FieldHeavyHitter, FieldHistogramBucket,
     IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProjectionMeta,
-    RetentionPolicyMeta, RollupMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::midge::row_blob::{
@@ -28,10 +28,10 @@ mod column_batch_format_v1;
 pub(crate) use column_batch_format_v1::NumericValues;
 mod collection_gates;
 mod core;
-mod object_comments;
-mod role_object_grants;
 pub mod fulltext_retrieval;
+mod object_comments;
 mod publication;
+mod role_object_grants;
 pub(crate) use publication::RetainedRowHistory;
 mod raw_ops;
 pub(crate) use publication::PublicationControlScope;
@@ -349,7 +349,7 @@ mod database_catalog_rewrite;
 mod databases;
 pub(crate) use column_store::ColumnStoreScanRequest;
 pub(crate) use database_catalog_rewrite::{
-    is_database_catalog_entry, validate_database_catalog_entry,
+    is_database_catalog_entry, rewrite_database_data_entry, validate_database_catalog_entry,
 };
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;

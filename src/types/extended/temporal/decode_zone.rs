@@ -1,10 +1,9 @@
 //! Checked session and named-zone abbreviation resolution for date/time input.
-use super::State;
-use super::local_micros;
-use super::{DATE_M, DTZMOD};
 use super::super::session::TemporalSession;
 use super::super::tokens::{DecodeError, TokenizeError};
-use super::super::zone::Zone;
+use super::local_micros;
+use super::State;
+use super::{DATE_M, DTZMOD};
 
 pub(super) fn resolve_zone_with_check<E>(
     state: &State,

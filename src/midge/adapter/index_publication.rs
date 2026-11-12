@@ -126,6 +126,36 @@ impl Midge {
         Ok(false)
     }
 
+    /// Completes a prepared publication that an earlier, failed attempt to
+    /// create this index left behind, instead of re-preparing it. The caller
+    /// owns the collection's write gate. Returns whether a journal was found.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a journal is malformed or its publication fails.
+    pub(crate) fn recover_prepared_index_with_held_collection_gate(
+        &self,
+        collection: &str,
+        name: &str,
+    ) -> Result<bool, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        for (_key, raw) in self.scan_database_families(&Self::index_publication_prefix())? {
+            let pending =
+                serde_json::from_slice::<PendingIndexPublication>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid index publication: {error}"))
+                })?;
+            if self
+                .canonical_collection_name(&pending.index.collection)
+                .eq_ignore_ascii_case(&collection)
+                && pending.index.name.eq_ignore_ascii_case(name)
+            {
+                self.publish_prepared_index_locked(pending)?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub(crate) fn validate_pending_index_publications(&self) -> Result<(), CassieError> {
         let entries = self.scan_database_families(&Self::index_publication_prefix())?;
         for (_key, raw) in entries {

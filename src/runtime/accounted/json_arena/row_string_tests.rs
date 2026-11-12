@@ -8,7 +8,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_slice_read_double_error_precedence_and_position() {
+fn should_match_slice_read_error_for_strings_with_competing_errors() {
     // Arrange
     let controls = controls();
     let inputs: &[&[u8]] = &[
@@ -21,27 +21,35 @@ fn should_match_slice_read_double_error_precedence_and_position() {
         b"\"\\ud800\xff\"",
         b"\"\\u12x4\xff\"",
     ];
-    // Act / Assert
-    for input in inputs {
-        let expected = serde_json::from_slice::<String>(input).expect_err("legacy error");
-        let mut cursor = Cursor::from_row_bytes(input, &controls);
-        let actual = match cursor.read_row_string_observing(|| {}) {
-            Ok(_) => panic!("accepted malformed string"),
-            Err(error) => error,
-        };
-        let (category, position) = actual.test_info().expect("semantic error");
-        assert_eq!(category, expected.classify(), "{input:?}");
-        assert_eq!(
-            (position.line, position.column),
-            (expected.line(), expected.column()),
-            "{input:?}"
-        );
-        assert_eq!(
-            actual.test_message().expect("message"),
-            expected.to_string(),
-            "{input:?}"
-        );
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = inputs
+        .iter()
+        .map(|input| {
+            let expected = serde_json::from_slice::<String>(input).expect_err("legacy error");
+            let mut cursor = Cursor::from_row_bytes(input, &controls);
+            let Err(actual) = cursor.read_row_string_observing(|| {}) else {
+                panic!("accepted malformed string");
+            };
+            let (category, position) = actual.test_info().expect("semantic error");
+            (
+                *input,
+                (category, position.line, position.column),
+                (expected.classify(), expected.line(), expected.column()),
+                (
+                    actual.test_message().expect("message"),
+                    expected.to_string(),
+                ),
+                controls.current_query_memory_bytes(),
+            )
+        })
+        .collect();
+
+    // Assert
+    for (input, actual, expected, (actual_message, expected_message), memory) in results {
+        assert_eq!(actual, expected, "{input:?}");
+        assert_eq!(actual_message, expected_message, "{input:?}");
+        assert_eq!(memory, 0);
     }
 }
 
@@ -61,7 +69,7 @@ fn should_decode_a_multibyte_character_across_validation_chunks() {
 }
 
 #[test]
-fn should_match_invalid_key_position_after_newlines_and_escapes() {
+fn should_match_legacy_invalid_key_error_in_multiline_input() {
     // Arrange
     let controls = controls();
     let input = b"{\n \"a\":0,\n \"\xff\\nX\":1}";
@@ -76,9 +84,8 @@ fn should_match_invalid_key_position_after_newlines_and_escapes() {
         let _consumed = cursor.next().expect("advance");
     }
     // Act
-    let actual = match cursor.read_row_string_observing(|| {}) {
-        Ok(_) => panic!("accepted invalid key"),
-        Err(error) => error,
+    let Err(actual) = cursor.read_row_string_observing(|| {}) else {
+        panic!("accepted invalid key");
     };
     // Assert
     let (category, position) = actual.test_info().expect("semantic error");
@@ -115,14 +122,14 @@ fn should_release_row_string_buffers_after_actual_byte_copy_cancellation() {
     assert!(matches!(
         result,
         Err(CursorError::Interrupted(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
-fn should_release_old_and_new_buffers_after_actual_growth_move_cancellation() {
+fn should_release_buffers_after_actual_growth_move_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -144,7 +151,7 @@ fn should_release_old_and_new_buffers_after_actual_growth_move_cancellation() {
     assert!(matches!(
         result,
         Err(CursorError::Interrupted(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -160,18 +167,28 @@ fn should_enforce_measured_row_string_buffer_overlap_budget() {
     let peak = baseline.peak_query_memory_bytes();
     drop(output);
     assert_eq!(baseline.current_query_memory_bytes(), 0);
-    // Act / Assert
-    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
-        let limits = CassieRuntimeLimits {
-            query_memory_budget_bytes: budget,
-            query_timeout_ms: 0,
-            ..CassieRuntimeLimits::default()
-        };
-        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
-        let mut cursor = Cursor::from_row_bytes(input, &controls);
-        let result = cursor.read_row_string_observing(|| {});
-        assert_eq!(result.is_ok(), succeeds);
-        drop(result);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = [(peak, true), (peak - 1, false)]
+        .into_iter()
+        .map(|(budget, succeeds)| {
+            let limits = CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                query_timeout_ms: 0,
+                ..CassieRuntimeLimits::default()
+            };
+            let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+            let mut cursor = Cursor::from_row_bytes(input, &controls);
+            let result = cursor.read_row_string_observing(|| {});
+            let accepted = result.is_ok();
+            drop(result);
+            (succeeds, accepted, controls.current_query_memory_bytes())
+        })
+        .collect();
+
+    // Assert
+    for (succeeds, accepted, memory) in results {
+        assert_eq!(accepted, succeeds);
+        assert_eq!(memory, 0);
     }
 }

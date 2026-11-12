@@ -30,6 +30,7 @@ fn scored_ids(rows: &[Vec<Value>]) -> Vec<(String, f64)> {
 
 fn hybrid_fixture() -> Cassie {
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     seed_hybrid_fixture(cassie)
 }
 
@@ -40,6 +41,7 @@ fn hybrid_fixture_with_local_provider() -> Cassie {
         dimensions: 2,
     });
     let cassie = Cassie::new_in_memory_with_config(config).unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().unwrap();
     run(
         &cassie,
@@ -116,6 +118,7 @@ fn should_highlight_accent_folded_matches_in_snippet() {
         .expect("runtime");
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             run(&cassie, "CREATE TABLE snip_accent (id INT NOT NULL, body TEXT)");
             run(
@@ -153,6 +156,7 @@ fn should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet() {
         .expect("runtime");
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             run(&cassie, "CREATE TABLE snip_read (id INT NOT NULL, body TEXT)");
             run(
@@ -188,6 +192,7 @@ fn should_not_highlight_case_mismatch_when_case_folding_is_disabled() {
         .expect("runtime");
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             run(&cassie, "CREATE TABLE snip_case (id INT NOT NULL, body TEXT)");
             run(

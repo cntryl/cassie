@@ -17,7 +17,7 @@ struct CheckingReader<'a> {
 
 impl Read for CheckingReader<'_> {
     fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
-        if self.position % 4096 == 0 {
+        if self.position.is_multiple_of(4096) {
             if let Some(controls) = self.controls {
                 controls
                     .check_interruption()

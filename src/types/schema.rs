@@ -91,7 +91,7 @@ impl DataType {
         const OID_ARRAY_BASE: i64 = 34000;
         match type_metadata(self) {
             TypeMetadata::Scalar(metadata) => i64::from(metadata.oid),
-            TypeMetadata::Vector(_) => 0,
+            TypeMetadata::Vector => 0,
             TypeMetadata::Array(inner) => {
                 let element = match inner {
                     Self::Vector(_) => return 0,
@@ -109,7 +109,7 @@ impl DataType {
     pub fn typlen(&self) -> i16 {
         match type_metadata(self) {
             TypeMetadata::Scalar(metadata) => metadata.typlen,
-            TypeMetadata::Vector(_) | TypeMetadata::Array(_) => -1,
+            TypeMetadata::Vector | TypeMetadata::Array(_) => -1,
         }
     }
 
@@ -206,7 +206,9 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
             .parse::<usize>()
             .map_err(|_| format!("invalid VECTOR dimension '{raw}'"))?;
         if !(1..=16_000).contains(&dimensions) {
-            return Err(format!("VECTOR dimension must be between 1 and 16000 in '{raw}'"));
+            return Err(format!(
+                "VECTOR dimension must be between 1 and 16000 in '{raw}'"
+            ));
         }
         return Ok(DataType::Vector(Some(dimensions)));
     }

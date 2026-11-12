@@ -168,7 +168,7 @@ impl BuiltinKind {
 /// The current container adapter is explicit; every scalar must resolve metadata.
 pub(crate) enum TypeMetadata<'a> {
     Scalar(&'static BuiltinType),
-    Vector(Option<usize>),
+    Vector,
     Array(&'a DataType),
 }
 
@@ -194,8 +194,7 @@ pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
         DataType::JsonPath => BuiltinKind::JsonPath,
         DataType::ObjectId(kind) => BuiltinKind::ObjectId(*kind),
         DataType::Extended(kind) => extended_builtin_kind(*kind),
-        DataType::Vector(Some(dimensions)) => return TypeMetadata::Vector(Some(*dimensions)),
-        DataType::Vector(None) => return TypeMetadata::Vector(None),
+        DataType::Vector(_) => return TypeMetadata::Vector,
         DataType::Array(inner) => return TypeMetadata::Array(inner),
     };
     TypeMetadata::Scalar(kind.metadata())

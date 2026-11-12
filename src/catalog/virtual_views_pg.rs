@@ -7,14 +7,14 @@ use crate::types::{DataType, ObjectIdKind, Value};
 
 use super::VirtualRow;
 
-#[path = "virtual_views_pg/index_definitions.rs"]
-mod index_definitions;
 #[path = "virtual_views_pg/acl.rs"]
 mod acl;
 #[path = "virtual_views_pg/collation.rs"]
 pub(super) mod collation;
 #[path = "virtual_views_pg/descriptions.rs"]
 pub(super) mod descriptions;
+#[path = "virtual_views_pg/index_definitions.rs"]
+mod index_definitions;
 #[path = "virtual_views_pg/type_identity.rs"]
 mod type_identity;
 #[path = "virtual_views_pg/vector_catalogs.rs"]
@@ -121,7 +121,12 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = vec![
-        namespace_row(catalog, "information_schema", "information_schema", current_database),
+        namespace_row(
+            catalog,
+            "information_schema",
+            "information_schema",
+            current_database,
+        ),
         namespace_row(catalog, "pg_catalog", "pg_catalog", current_database),
         namespace_row(catalog, "public", "public", current_database),
     ];
@@ -239,12 +244,14 @@ pub(super) fn pg_attribute(
             rows.push(attribute_row(
                 catalog,
                 &collection.name,
-                &field_name,
-                &field.data_type,
-                field.field_id,
-                constraint,
+                &AttributeSpec {
+                    field_name: &field_name,
+                    data_type: &field.data_type,
+                    attnum: i64::from(field.field_id),
+                    constraint,
+                    is_dropped: field.retired,
+                },
                 current_database,
-                field.retired,
             ));
         }
     }
@@ -258,12 +265,14 @@ pub(super) fn pg_attribute(
             rows.push(attribute_row(
                 catalog,
                 &view.name,
-                &field.name,
-                &field.data_type,
-                i64::try_from(index + 1).unwrap_or(i64::MAX),
-                None,
+                &AttributeSpec {
+                    field_name: &field.name,
+                    data_type: &field.data_type,
+                    attnum: i64::try_from(index + 1).unwrap_or(i64::MAX),
+                    constraint: None,
+                    is_dropped: false,
+                },
                 current_database,
-                false,
             ));
         }
     }
@@ -285,12 +294,14 @@ pub(super) fn pg_attribute(
             rows.push(attribute_row(
                 catalog,
                 &projection.collection,
-                &field.name,
-                &field.data_type,
-                i64::try_from(index + 1).unwrap_or(i64::MAX),
-                None,
+                &AttributeSpec {
+                    field_name: &field.name,
+                    data_type: &field.data_type,
+                    attnum: i64::try_from(index + 1).unwrap_or(i64::MAX),
+                    constraint: None,
+                    is_dropped: false,
+                },
                 current_database,
-                false,
             ));
         }
     }
@@ -303,8 +314,9 @@ pub(super) fn pg_indexes(catalog: &Catalog, current_database: Option<&str>) -> V
         .into_iter()
         .filter(|index| {
             catalog.is_published_in_postgresql_catalogs(index, current_database)
-                && current_database
-                    .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+                && current_database.is_none_or(|database| {
+                    relation_belongs_to_database(&index.collection, database)
+                })
         })
         .map(|index| {
             vec![
@@ -322,8 +334,9 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
         .into_iter()
         .filter(|index| {
             catalog.is_published_in_postgresql_catalogs(index, current_database)
-                && current_database
-                    .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+                && current_database.is_none_or(|database| {
+                    relation_belongs_to_database(&index.collection, database)
+                })
         })
         .map(|index| {
             let primary = index_is_primary(catalog, &index);
@@ -416,16 +429,28 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
     rows
 }
 
+/// One `pg_attribute` column described independently of its owning relation.
+struct AttributeSpec<'a> {
+    field_name: &'a str,
+    data_type: &'a DataType,
+    attnum: i64,
+    constraint: Option<&'a FieldConstraint>,
+    is_dropped: bool,
+}
+
 fn attribute_row(
     catalog: &Catalog,
     relation: &str,
-    field_name: &str,
-    data_type: &DataType,
-    attnum: impl TryInto<i64>,
-    constraint: Option<&FieldConstraint>,
+    attribute: &AttributeSpec<'_>,
     current_database: Option<&str>,
-    is_dropped: bool,
 ) -> VirtualRow {
+    let &AttributeSpec {
+        field_name,
+        data_type,
+        attnum,
+        constraint,
+        is_dropped,
+    } = attribute;
     let identity = if is_dropped {
         None
     } else {
@@ -444,9 +469,7 @@ fn attribute_row(
                 current_database
                     .and_then(|database| {
                         crate::catalog::object_identity::type_oid_for_database(
-                            catalog,
-                            database,
-                            data_type,
+                            catalog, database, data_type,
                         )
                     })
                     .unwrap_or_else(|| {
@@ -460,7 +483,10 @@ fn attribute_row(
         ),
         bool_value("attnotnull", !is_dropped && is_not_null(constraint)),
         int_value("atttypmod", i64::from(data_type.atttypmod())),
-        bool_value("atthasdef", !is_dropped && constraint_has_default(constraint)),
+        bool_value(
+            "atthasdef",
+            !is_dropped && constraint_has_default(constraint),
+        ),
         bool_value("attisdropped", is_dropped),
         string(
             "attidentity",
@@ -489,7 +515,10 @@ fn namespace_row(
         int_value("oid", namespace_oid(catalog, canonical)),
         string("nspname", name),
         int_value("nspowner", postgres_role_oid()),
-        ("nspacl".to_string(), acl::schema_acl(catalog, current_database, canonical)),
+        (
+            "nspacl".to_string(),
+            acl::schema_acl(catalog, current_database, canonical),
+        ),
     ]
 }
 
@@ -585,7 +614,12 @@ fn index_reloptions(index: &IndexMeta) -> Option<String> {
     };
     let options = names
         .iter()
-        .filter_map(|name| index.options.get(*name).map(|value| format!("{name}={value}")))
+        .filter_map(|name| {
+            index
+                .options
+                .get(*name)
+                .map(|value| format!("{name}={value}"))
+        })
         .collect::<Vec<_>>();
     (!options.is_empty()).then(|| format!("{{{}}}", options.join(",")))
 }
@@ -1034,7 +1068,7 @@ mod tests {
         // Act
         let access_method_oids = indexes
             .iter()
-            .map(|index| relation_access_method_oid(catalog, None, "i", Some(index)))
+            .map(|index| relation_access_method_oid(&catalog, None, "i", Some(index)))
             .collect::<Vec<_>>();
 
         // Assert

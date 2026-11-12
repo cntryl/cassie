@@ -60,8 +60,11 @@ fn validate_extension_profile(metadata: &ExtensionMeta) -> Result<(), CassieErro
             identities.ivfflat.inner_product_operator_class,
             identities.ivfflat.cosine_operator_class,
         ];
-        if ids.iter().any(|id| *id == 0)
-            || ids.iter().enumerate().any(|(index, id)| ids[..index].contains(id))
+        if ids.contains(&0)
+            || ids
+                .iter()
+                .enumerate()
+                .any(|(index, id)| ids[..index].contains(id))
         {
             return Err(CassieError::Unsupported(
                 "vector extension has invalid or duplicate catalog object identities".into(),

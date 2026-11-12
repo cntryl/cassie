@@ -18,14 +18,6 @@ pub(crate) enum TextVectorError {
 
 // A callback may observe a valid prefix before later input is rejected. Retained
 // output consumers must complete a no-op validation pass before construction.
-pub(crate) fn visit_components(
-    text: &str,
-    dimensions: usize,
-    component: impl FnMut(f32),
-) -> Result<(), TextVectorError> {
-    visit_components_with_dimension(text, Some(dimensions), component).map(|_| ())
-}
-
 pub(crate) fn visit_components_with_dimension(
     text: &str,
     expected_dimensions: Option<usize>,
@@ -113,10 +105,9 @@ mod tests {
         let mut observed = Vec::new();
 
         // Act
-        let dimensions = visit_components_with_dimension("[1,2.5]", None, |value| {
-            observed.push(value)
-        })
-        .expect("variable-width finite vector");
+        let dimensions =
+            visit_components_with_dimension("[1,2.5]", None, |value| observed.push(value))
+                .expect("variable-width finite vector");
 
         // Assert
         assert_eq!(dimensions, 2);
@@ -124,9 +115,14 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_empty_and_oversized_bare_vector_text() {
+    fn should_reject_bare_vector_text_outside_length_bounds() {
         // Arrange
-        let oversized = format!("[{}]", std::iter::repeat_n("0", 16_001).collect::<Vec<_>>().join(","));
+        let oversized = format!(
+            "[{}]",
+            std::iter::repeat_n("0", 16_001)
+                .collect::<Vec<_>>()
+                .join(",")
+        );
 
         // Act
         let empty = visit_components_with_dimension("[]", None, |_| {});

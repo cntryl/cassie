@@ -10,10 +10,10 @@ mod postgresql18_catalog_relation_shapes;
 #[path = "catalog_security/catalogs/columns/stable_attribute_identity.rs"]
 mod postgresql18_stable_attribute_identity;
 
-#[path = "catalog_security/catalogs/columns/type_catalog_fields.rs"]
-mod postgresql18_type_catalog_fields;
 #[path = "catalog_security/catalogs/descriptions/comment_contract.rs"]
 mod postgresql18_comment_contract;
+#[path = "catalog_security/catalogs/columns/type_catalog_fields.rs"]
+mod postgresql18_type_catalog_fields;
 
 #[path = "support/backend_sessions.rs"]
 mod support_backend_sessions;

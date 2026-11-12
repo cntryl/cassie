@@ -351,24 +351,29 @@ fn pg_catalog_core_rows(
             Some(virtual_views_pg::pg_namespace(catalog, current_database))
         }
         "pg_catalog.pg_class" => Some(virtual_views_pg::pg_class(catalog, current_database)),
-        "pg_catalog.pg_am" => {
-            Some(virtual_views_pg::vector_catalogs::access_method_rows(catalog, current_database))
-        }
-        "pg_catalog.pg_operator" => {
-            Some(virtual_views_pg::vector_catalogs::operator_rows(catalog, current_database))
-        }
-        "pg_catalog.pg_opfamily" => {
-            Some(virtual_views_pg::vector_catalogs::operator_family_rows(catalog, current_database))
-        }
-        "pg_catalog.pg_opclass" => {
-            Some(virtual_views_pg::vector_catalogs::operator_class_rows(catalog, current_database))
-        }
+        "pg_catalog.pg_am" => Some(virtual_views_pg::vector_catalogs::access_method_rows(
+            catalog,
+            current_database,
+        )),
+        "pg_catalog.pg_operator" => Some(virtual_views_pg::vector_catalogs::operator_rows(
+            catalog,
+            current_database,
+        )),
+        "pg_catalog.pg_opfamily" => Some(virtual_views_pg::vector_catalogs::operator_family_rows(
+            catalog,
+            current_database,
+        )),
+        "pg_catalog.pg_opclass" => Some(virtual_views_pg::vector_catalogs::operator_class_rows(
+            catalog,
+            current_database,
+        )),
         "pg_catalog.pg_amop" => Some(
-            virtual_views_pg::vector_catalogs::access_method_operator_rows(catalog, current_database),
+            virtual_views_pg::vector_catalogs::access_method_operator_rows(
+                catalog,
+                current_database,
+            ),
         ),
-        "pg_catalog.pg_collation" => {
-            Some(virtual_views_pg::collation::rows())
-        }
+        "pg_catalog.pg_collation" => Some(virtual_views_pg::collation::rows()),
         "pg_catalog.pg_description" => Some(virtual_views_pg::descriptions::rows(
             catalog,
             current_database,
@@ -702,7 +707,7 @@ fn udt_name(data_type: &DataType) -> String {
 
     match type_metadata(data_type) {
         TypeMetadata::Scalar(metadata) => metadata.name.to_owned(),
-        TypeMetadata::Vector(_) => "vector".to_owned(),
+        TypeMetadata::Vector => "vector".to_owned(),
         TypeMetadata::Array(inner) => format!("_{}", udt_name(inner)),
     }
 }

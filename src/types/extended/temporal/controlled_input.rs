@@ -3,7 +3,7 @@
 use crate::app::CassieError;
 use crate::runtime::QueryExecutionControls;
 use crate::types::extended::temporal::tokens::{self, TokenizeError};
-use crate::types::extended::temporal::{self, DecodeError, TemporalSession};
+use crate::types::extended::temporal::{self, TemporalSession};
 use crate::types::extended::{ExtendedType, TypeInputError};
 use crate::types::typed::TypedValue;
 
@@ -24,7 +24,7 @@ pub(crate) fn parse_text(
         ExtendedType::Date => {
             let decoded = temporal::decode::decode_datetime_with_check(text, session, &mut check)
                 .map_err(|error| decode_error("date", text, error))?;
-            TypedValue::Date(parse_date(text, decoded).map_err(CassieError::from)?)
+            TypedValue::Date(parse_date(text, &decoded).map_err(CassieError::from)?)
         }
         ExtendedType::Time { precision } => {
             let decoded = temporal::decode::decode_time_only_with_check(text, session, &mut check)
@@ -46,15 +46,15 @@ pub(crate) fn parse_text(
                 Some(temporal::decode::Special::Late) => temporal::calendar::TIMESTAMP_NOEND,
                 Some(temporal::decode::Special::Early) => temporal::calendar::TIMESTAMP_NOBEGIN,
                 Some(temporal::decode::Special::Epoch) => {
-                    -temporal::calendar::UNIX_TO_POSTGRES_SECS
-                        * temporal::calendar::USECS_PER_SEC
+                    -temporal::calendar::UNIX_TO_POSTGRES_SECS * temporal::calendar::USECS_PER_SEC
                 }
-                None => temporal::calendar::fields_to_timestamp(&decoded.fields, None)
-                    .ok_or_else(|| {
+                None => temporal::calendar::fields_to_timestamp(&decoded.fields, None).ok_or_else(
+                    || {
                         CassieError::from(temporal::range_error(format!(
                             "timestamp out of range: \"{text}\""
                         )))
-                    })?,
+                    },
+                )?,
             };
             TypedValue::Timestamp(temporal::calendar::round_timestamp(timestamp, precision))
         }
@@ -65,8 +65,7 @@ pub(crate) fn parse_text(
                 Some(temporal::decode::Special::Late) => temporal::calendar::TIMESTAMP_NOEND,
                 Some(temporal::decode::Special::Early) => temporal::calendar::TIMESTAMP_NOBEGIN,
                 Some(temporal::decode::Special::Epoch) => {
-                    -temporal::calendar::UNIX_TO_POSTGRES_SECS
-                        * temporal::calendar::USECS_PER_SEC
+                    -temporal::calendar::UNIX_TO_POSTGRES_SECS * temporal::calendar::USECS_PER_SEC
                 }
                 None => temporal::calendar::fields_to_timestamp(
                     &decoded.fields,
@@ -93,9 +92,11 @@ pub(crate) fn parse_text(
                 &mut check,
             )
             .map_err(|error| decode_error("interval", text, error))?;
-            TypedValue::Interval(value.apply_typmod(typmod).map_err(|_| {
-                CassieError::from(temporal::range_error("interval out of range"))
-            })?)
+            TypedValue::Interval(
+                value.apply_typmod(typmod).map_err(|_| {
+                    CassieError::from(temporal::range_error("interval out of range"))
+                })?,
+            )
         }
         _ => {
             return Err(CassieError::TypeInput(TypeInputError::new(
@@ -108,29 +109,23 @@ pub(crate) fn parse_text(
     Ok(value)
 }
 
-fn decode_error(
-    type_name: &str,
-    text: &str,
-    error: TokenizeError<CassieError>,
-) -> CassieError {
+fn decode_error(type_name: &str, text: &str, error: TokenizeError<CassieError>) -> CassieError {
     match error {
-        TokenizeError::Decode(error) => CassieError::from(temporal::input_error(
-            type_name,
-            text,
-            &error,
-        )),
+        TokenizeError::Decode(error) => {
+            CassieError::from(temporal::input_error(type_name, text, &error))
+        }
         TokenizeError::Check(error) => error,
     }
 }
 
-fn parse_date(text: &str, decoded: temporal::decode::Decoded) -> Result<i32, TypeInputError> {
+fn parse_date(text: &str, decoded: &temporal::decode::Decoded) -> Result<i32, TypeInputError> {
     match decoded.special {
         Some(temporal::decode::Special::Late) => return Ok(temporal::calendar::DATE_NOEND),
         Some(temporal::decode::Special::Early) => return Ok(temporal::calendar::DATE_NOBEGIN),
         Some(temporal::decode::Special::Epoch) => return Ok(-10_957),
         None => {}
     }
-    let fields = decoded.fields;
+    let fields = &decoded.fields;
     let out_of_range = || temporal::range_error(format!("date out of range: \"{text}\""));
     if !temporal::calendar::is_valid_julian(fields.year, fields.month, fields.day) {
         return Err(out_of_range());
@@ -166,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn should_admit_temporal_token_scratch_at_exact_budget_and_release_it() {
+    fn should_gate_temporal_token_scratch_by_exact_budget() {
         // Arrange
         let required = temporal::tokens::tokenization_memory_bound(INPUT).expect("bound");
         let exact = controls(required);
@@ -232,21 +227,11 @@ mod tests {
         let kind = ExtendedType::TimestampTz { precision: None };
 
         // Act
-        let winter_2012 = parse_text(
-            kind,
-            "2012-01-01 00:00:00 MSK",
-            &session,
-            &controls,
-        );
+        let winter_2012 = parse_text(kind, "2012-01-01 00:00:00 MSK", &session, &controls);
         let expected_2012 = kind
             .parse_text_in("2012-01-01 00:00:00+04", &session)
             .expect("explicit historical offset");
-        let winter_2015 = parse_text(
-            kind,
-            "2015-01-01 00:00:00 MSK",
-            &session,
-            &controls,
-        );
+        let winter_2015 = parse_text(kind, "2015-01-01 00:00:00 MSK", &session, &controls);
         let expected_2015 = kind
             .parse_text_in("2015-01-01 00:00:00+03", &session)
             .expect("explicit current offset");

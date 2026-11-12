@@ -10,6 +10,7 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 fn should_reject_normalized_vectors_from_an_older_collection_generation() {
     // Arrange
     let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("start Cassie");
     let collection = "normalized_vector_generation_docs";
     let schema = Schema {

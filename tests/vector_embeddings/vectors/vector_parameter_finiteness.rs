@@ -4,6 +4,7 @@ use cassie::types::{Value, Vector};
 fn should_reject_non_finite_vector_parameter_components_without_writing() {
     // Arrange
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

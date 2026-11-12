@@ -42,7 +42,7 @@ fn should_treat_private_sentinel_names_as_ordinary_keys_at_all_depths() {
 }
 
 #[test]
-fn should_preserve_escaped_duplicate_last_and_value_mode_policy() {
+fn should_keep_last_escaped_duplicate_key_in_plain_mode_unlike_value_mode() {
     // Arrange
     let controls = controls();
     let input = r#"{"$serde_json::private::Number":"first","\u0024serde_json::private::Number":"last","after":1}"#;
@@ -70,7 +70,7 @@ fn should_preserve_escaped_duplicate_last_and_value_mode_policy() {
 }
 
 #[test]
-fn should_reject_invalid_plain_json_and_release_owners() {
+fn should_release_owners_after_invalid_plain_json() {
     // Arrange
     let controls = controls();
     let invalid = r#"{"$serde_json::private::Number":"7",}"#;
@@ -138,46 +138,66 @@ fn should_enforce_measured_plain_parse_owner_overlap_budget() {
     let peak = baseline.peak_query_memory_bytes();
     drop(parsed);
     assert_eq!(baseline.current_query_memory_bytes(), 0);
-    // Act / Assert
-    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
-        let limits = CassieRuntimeLimits {
-            query_memory_budget_bytes: budget,
-            query_timeout_ms: 0,
-            ..CassieRuntimeLimits::default()
-        };
-        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
-        let result = Document::parse_plain(input, &controls);
-        assert_eq!(result.is_ok(), succeeds);
-        drop(result);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = [(peak, true), (peak - 1, false)]
+        .into_iter()
+        .map(|(budget, succeeds)| {
+            let limits = CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                query_timeout_ms: 0,
+                ..CassieRuntimeLimits::default()
+            };
+            let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+            let result = Document::parse_plain(input, &controls);
+            let accepted = result.is_ok();
+            drop(result);
+            (succeeds, accepted, controls.current_query_memory_bytes())
+        })
+        .collect();
+
+    // Assert
+    for (succeeds, accepted, memory) in results {
+        assert_eq!(accepted, succeeds);
+        assert_eq!(memory, 0);
     }
 }
 
 #[test]
-fn should_preserve_jsonb_nul_and_numeric_range_after_plain_parsing() {
+fn should_report_jsonb_nul_or_numeric_range_errors_after_plain_parsing() {
     // Arrange
     let controls = controls();
     let inputs = [
         (r#"{"$serde_json::private::Number":"\u0000"}"#, true),
         (r#"{"$serde_json::private::Number":1e131072}"#, false),
     ];
-    // Act / Assert
-    for (input, nul) in inputs {
-        let parsed = Document::parse_plain(input, &controls).expect("plain object");
-        let output = super::super::forest::jsonb_output::serialize(&parsed.forest, parsed.root);
-        if nul {
-            assert!(matches!(
-                output,
-                Err(super::super::forest::jsonb_output::SerializeError::Nul)
-            ));
-        } else {
-            assert!(matches!(
-                output,
-                Err(super::super::forest::jsonb_output::SerializeError::NumericOverflow)
-            ));
-        }
-        drop(parsed);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = inputs
+        .into_iter()
+        .map(|(input, nul)| {
+            let parsed = Document::parse_plain(input, &controls).expect("plain object");
+            let output = super::super::forest::jsonb_output::serialize(&parsed.forest, parsed.root);
+            let matched = if nul {
+                matches!(
+                    output,
+                    Err(super::super::forest::jsonb_output::SerializeError::Nul)
+                )
+            } else {
+                matches!(
+                    output,
+                    Err(super::super::forest::jsonb_output::SerializeError::NumericOverflow)
+                )
+            };
+            drop(parsed);
+            (matched, controls.current_query_memory_bytes())
+        })
+        .collect();
+
+    // Assert
+    for (matched, memory) in results {
+        assert!(matched);
+        assert_eq!(memory, 0);
     }
 }
 
@@ -186,15 +206,25 @@ fn should_match_existing_jsonb_format_without_sentinel_keys() {
     // Arrange
     let controls = controls();
     let cases = [r#"{"long":1e2,"a":[null,"é",true]}"#, r#"{"a":1,"a":2}"#];
-    // Act / Assert
-    for input in cases {
-        let expected = crate::types::jsonb::canonical(input).expect("legacy");
-        let parsed = Document::parse_plain(input, &controls).expect("plain object");
-        let output = super::super::forest::jsonb_output::serialize(&parsed.forest, parsed.root)
-            .expect("output");
-        assert_eq!(output.as_str(), expected);
-        drop(output);
-        drop(parsed);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = cases
+        .into_iter()
+        .map(|input| {
+            let expected = crate::types::jsonb::canonical(input).expect("legacy");
+            let parsed = Document::parse_plain(input, &controls).expect("plain object");
+            let output = super::super::forest::jsonb_output::serialize(&parsed.forest, parsed.root)
+                .expect("output");
+            let actual = output.as_str().to_string();
+            drop(output);
+            drop(parsed);
+            (actual, expected, controls.current_query_memory_bytes())
+        })
+        .collect();
+
+    // Assert
+    for (actual, expected, memory) in results {
+        assert_eq!(actual, expected);
+        assert_eq!(memory, 0);
     }
 }

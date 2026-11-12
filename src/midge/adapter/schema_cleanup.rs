@@ -33,6 +33,12 @@ impl PendingSchemaCleanup {
 }
 
 impl Midge {
+    /// Reports whether this thread is inside a transactional DDL scope, where
+    /// pending cleanups are not completable and must wait for a later statement.
+    pub(crate) fn defers_schema_cleanup(&self) -> bool {
+        self.has_active_transactional_ddl_scope()
+    }
+
     pub(crate) fn ensure_no_pending_index_cleanup(
         &self,
         collection: &str,
@@ -478,7 +484,7 @@ mod tests {
     use crate::midge::adapter::StorageFamily;
 
     #[test]
-    fn should_preserve_ambiguous_cleanup_and_publication_after_restart() {
+    fn should_preserve_ambiguous_cleanup_publication_pair_after_restart() {
         // Arrange
         let path =
             std::env::temp_dir().join(format!("cassie_index_cleanup_pair_{}", Uuid::new_v4()));
@@ -545,13 +551,16 @@ mod tests {
             reopened.pending_schema_cleanups().expect("markers").len(),
             1
         );
-        assert!(!reopened
-            .raw_scan_prefix(
-                StorageFamily::Data,
-                &key_encoding::index_publication_prefix()
-            )
-            .expect("journal")
-            .is_empty());
+        assert_ne!(
+            reopened
+                .raw_scan_prefix(
+                    StorageFamily::Data,
+                    &key_encoding::index_publication_prefix()
+                )
+                .expect("journal")
+                .len(),
+            0
+        );
         assert!(reopened
             .get_index(&index.collection, &index.name)
             .expect("read")

@@ -1,6 +1,6 @@
 use super::{
-    env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, Query, StorageFamily,
-    PublicationControlScope, StorageLayout, TransactionMode, WriteOptions,
+    env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, PublicationControlScope,
+    Query, StorageFamily, StorageLayout, TransactionMode, WriteOptions,
 };
 use parking_lot::RwLock;
 use parking_lot::{Mutex, ReentrantMutex};

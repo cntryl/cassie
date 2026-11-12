@@ -2,7 +2,7 @@ use crate::sql::ast::{CommentOnObjectKind, IdentifierComponent, QueryStatement};
 use crate::sql::{parse_statement, SqlErrorKind};
 
 #[test]
-fn should_preserve_quoted_relation_and_column_identifiers_given_column_comment() {
+fn should_preserve_quoted_identifier_components_given_column_comment() {
     // Arrange
     let sql = "COMMENT ON COLUMN \"Q Schema\".\"T.Table\".\"Odd.Name\" IS 'note'";
 
@@ -15,7 +15,12 @@ fn should_preserve_quoted_relation_and_column_identifiers_given_column_comment()
     };
     assert_eq!(statement.kind, CommentOnObjectKind::Column);
     assert_eq!(
-        statement.object.components().map(|part| part.value()).collect::<Vec<_>>(),
+        statement
+            .object
+            .components()
+            .iter()
+            .map(IdentifierComponent::value)
+            .collect::<Vec<_>>(),
         ["Q Schema", "T.Table"]
     );
     assert_eq!(

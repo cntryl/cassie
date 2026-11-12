@@ -33,7 +33,7 @@ fn scalar_i64(cassie: &Cassie, session: &CassieSession, sql: &str) -> i64 {
 }
 
 #[test]
-fn should_return_schema_table_and_column_comments_with_selected_catalog_descriptors() {
+fn should_return_comments_from_selected_catalog_descriptors() {
     // Arrange
     let fixture = sql_fixture(
         "issue-845-comment-values",
@@ -46,14 +46,10 @@ fn should_return_schema_table_and_column_comments_with_selected_catalog_descript
         .execute("COMMENT ON SCHEMA issue_845_schema IS 'schema comment'")
         .expect("comment on schema");
     fixture
-        .execute(
-            "COMMENT ON TABLE issue_845_schema.comment_subject IS 'table comment'",
-        )
+        .execute("COMMENT ON TABLE issue_845_schema.comment_subject IS 'table comment'")
         .expect("comment on table");
     fixture
-        .execute(
-            "COMMENT ON COLUMN issue_845_schema.comment_subject.payload IS 'column comment'",
-        )
+        .execute("COMMENT ON COLUMN issue_845_schema.comment_subject.payload IS 'column comment'")
         .expect("comment on column");
 
     // Act
@@ -121,7 +117,7 @@ fn should_return_schema_table_and_column_comments_with_selected_catalog_descript
 }
 
 #[test]
-fn should_resolve_single_argument_object_descriptions_for_schema_and_table_oids() {
+fn should_resolve_single_argument_object_descriptions_for_relation_oids() {
     // Arrange
     let fixture = sql_fixture(
         "issue-845-single-argument-description",
@@ -199,7 +195,10 @@ fn should_scope_comment_reads_to_the_current_database_family() {
         .expect("read descriptions in the second database");
 
     // Assert
-    assert_eq!(result.rows(), vec![vec![Value::Bool(true), Value::Int64(0)]]);
+    assert_eq!(
+        result.rows(),
+        vec![vec![Value::Bool(true), Value::Int64(0)]]
+    );
 }
 
 #[test]
@@ -249,8 +248,11 @@ fn should_remove_comments_given_null_or_empty_string() {
     );
 }
 
+const TABLE_COMMENT_SQL: &str =
+    "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')";
+
 #[test]
-fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
+fn should_roll_back_staged_comment_changes() {
     // Arrange
     let fixture = sql_fixture(
         "issue-845-comment-rollback",
@@ -260,6 +262,11 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
         .execute("COMMENT ON TABLE issue_845_tx_subject IS 'committed base'")
         .expect("publish base comment");
     let observer = fixture.cassie.create_session("tester", None);
+    let read_observer = || {
+        fixture
+            .cassie
+            .execute_sql(&observer, TABLE_COMMENT_SQL, vec![])
+    };
 
     // Act
     fixture.execute("BEGIN").expect("begin transaction");
@@ -267,18 +274,10 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
         .execute("COMMENT ON TABLE issue_845_tx_subject IS 'transaction value'")
         .expect("stage transaction comment");
     let own_value = fixture
-        .execute(
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-        )
+        .execute(TABLE_COMMENT_SQL)
         .expect("read the transaction's comment");
-    let other_value = fixture
-        .cassie
-        .execute_sql(
-            &observer,
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-            vec![],
-        )
-        .expect("read only the committed comment from another session");
+    let other_value =
+        read_observer().expect("read only the committed comment from another session");
     fixture
         .execute("SAVEPOINT issue_845_comment_savepoint")
         .expect("create comment savepoint");
@@ -289,15 +288,11 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
         .execute("ROLLBACK TO SAVEPOINT issue_845_comment_savepoint")
         .expect("discard savepoint comment");
     let after_savepoint = fixture
-        .execute(
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-        )
+        .execute(TABLE_COMMENT_SQL)
         .expect("read comment after savepoint rollback");
     fixture.execute("ROLLBACK").expect("roll back transaction");
     let after_transaction = fixture
-        .execute(
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-        )
+        .execute(TABLE_COMMENT_SQL)
         .expect("read committed comment after transaction rollback");
 
     fixture.execute("BEGIN").expect("begin commit transaction");
@@ -311,57 +306,31 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
              AND classoid = 'pg_class'::regclass::oid",
         )
         .expect("read staged comment from pg_description");
-    let other_before_commit = fixture
-        .cassie
-        .execute_sql(
-            &observer,
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-            vec![],
-        )
-        .expect("observer sees only committed data before commit");
-    fixture.execute("COMMIT").expect("commit transaction comment");
-    let other_after_commit = fixture
-        .cassie
-        .execute_sql(
-            &observer,
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-            vec![],
-        )
-        .expect("observer sees committed comment");
+    let other_before_commit =
+        read_observer().expect("observer sees only committed data before commit");
+    fixture
+        .execute("COMMIT")
+        .expect("commit transaction comment");
+    let other_after_commit = read_observer().expect("observer sees committed comment");
 
     // Assert
-    assert_eq!(
-        own_value.rows(),
-        vec![vec![Value::String("transaction value".to_owned())]]
-    );
-    assert_eq!(
-        other_value.rows(),
-        vec![vec![Value::String("committed base".to_owned())]]
-    );
-    assert_eq!(
-        after_savepoint.rows(),
-        vec![vec![Value::String("transaction value".to_owned())]]
-    );
-    assert_eq!(
-        after_transaction.rows(),
-        vec![vec![Value::String("committed base".to_owned())]]
-    );
+    assert_eq!(own_value.rows(), comment_rows("transaction value"));
+    assert_eq!(other_value.rows(), comment_rows("committed base"));
+    assert_eq!(after_savepoint.rows(), comment_rows("transaction value"));
+    assert_eq!(after_transaction.rows(), comment_rows("committed base"));
     assert_eq!(
         own_catalog_value.rows(),
-        vec![vec![Value::String("committed transaction value".to_owned())]]
+        comment_rows("committed transaction value")
     );
-    assert_eq!(
-        other_before_commit.rows(),
-        vec![vec![Value::String("committed base".to_owned())]]
-    );
+    assert_eq!(other_before_commit.rows(), comment_rows("committed base"));
     assert_eq!(
         other_after_commit.rows(),
-        vec![vec![Value::String("committed transaction value".to_owned())]]
+        comment_rows("committed transaction value")
     );
 }
 
 #[test]
-fn should_preserve_comment_addresses_across_renames_and_remove_them_on_drop() {
+fn should_track_comment_addresses_through_object_lifecycle() {
     // Arrange
     let fixture = sql_fixture(
         "issue-845-comment-renames",
@@ -400,9 +369,7 @@ fn should_preserve_comment_addresses_across_renames_and_remove_them_on_drop() {
         .execute("ALTER TABLE issue_845_after.comment_subject RENAME TO renamed_subject")
         .expect("rename table without changing its identity");
     fixture
-        .execute(
-            "ALTER TABLE issue_845_after.renamed_subject RENAME COLUMN payload TO body",
-        )
+        .execute("ALTER TABLE issue_845_after.renamed_subject RENAME COLUMN payload TO body")
         .expect("rename column without changing its attribute identity");
     let renamed_descriptions = fixture
         .execute(
@@ -464,7 +431,7 @@ fn should_preserve_comment_addresses_across_renames_and_remove_them_on_drop() {
 }
 
 #[test]
-fn should_preserve_comment_records_through_local_restart_and_database_image_restore() {
+fn should_preserve_comment_records_across_persistence_boundaries() {
     // Arrange
     let path = data_dir("issue-845-comment-recovery");
     let directory = DataDirectory(path.clone());
@@ -472,7 +439,11 @@ fn should_preserve_comment_records_through_local_restart_and_database_image_rest
     cassie.startup().expect("start local database");
     let postgres = cassie.create_session("tester", Some("postgres".to_owned()));
     cassie
-        .execute_sql(&postgres, "CREATE DATABASE issue_845_comment_source", vec![])
+        .execute_sql(
+            &postgres,
+            "CREATE DATABASE issue_845_comment_source",
+            vec![],
+        )
         .expect("create image source database");
     let source = cassie.create_session("tester", Some("issue_845_comment_source".to_owned()));
     for sql in [
@@ -506,6 +477,9 @@ fn should_preserve_comment_records_through_local_restart_and_database_image_rest
     let restored = cassie.create_session("tester", Some("issue_845_comment_restored".to_owned()));
     let restored_before_restart = selected_descriptions(&cassie, &restored);
     cassie.shutdown();
+    // The image streams hold Cassie clones, and so the storage writer lease.
+    drop(backup);
+    drop(restore);
     drop(restored);
     drop(source);
     drop(postgres);
@@ -530,7 +504,7 @@ fn should_preserve_comment_records_through_local_restart_and_database_image_rest
 }
 
 #[test]
-fn should_reject_unselected_comment_targets_and_non_owner_roles() {
+fn should_reject_comment_changes_outside_the_selected_contract() {
     // Arrange
     let password = crate::support_sql::test_root_password();
     let config = CassieRuntimeConfig {
@@ -574,11 +548,13 @@ fn should_reject_unselected_comment_targets_and_non_owner_roles() {
     .map(|sql| cassie.execute_sql(&root, sql, vec![]));
 
     // Assert
-    assert!(matches!(unauthorized, Err(CassieError::InsufficientPrivilege)));
-    assert!(unsupported.iter().all(|result| matches!(
-        result,
-        Err(CassieError::Unsupported(_))
-    )));
+    assert!(matches!(
+        unauthorized,
+        Err(CassieError::InsufficientPrivilege)
+    ));
+    assert!(unsupported
+        .iter()
+        .all(|result| matches!(result, Err(CassieError::Unsupported(_)))));
 }
 
 struct DataDirectory(PathBuf);
@@ -589,9 +565,10 @@ impl Drop for DataDirectory {
     }
 }
 
+fn comment_rows(comment: &str) -> Vec<Vec<Value>> {
+    vec![vec![Value::String(comment.to_owned())]]
+}
+
 fn data_dir(label: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "cassie-{label}-{}",
-        uuid::Uuid::new_v4()
-    ))
+    std::env::temp_dir().join(format!("cassie-{label}-{}", uuid::Uuid::new_v4()))
 }

@@ -2,9 +2,9 @@
 use super::{
     apply_meridiem, date_keyword, decode_date, decode_number, decode_number_field,
     decode_number_token, decode_time, decode_timezone, local_micros, lookup_zone, time_fields,
-    time_overflows, validate_date, DecodeError, Keyword, Prefix,
-    Reserved, State, TemporalSession, Token, TokenKind, Unit, ADBC, AMPM, DATE_M, DTZ, DTZMOD,
-    TIME_M, TZ, USECS_PER_DAY, TokenizeError,
+    time_overflows, validate_date, DecodeError, Keyword, Prefix, Reserved, State, TemporalSession,
+    Token, TokenKind, TokenizeError, Unit, ADBC, AMPM, DATE_M, DTZ, DTZMOD, TIME_M, TZ,
+    USECS_PER_DAY,
 };
 
 /// Decoded `time`/`timetz` input.
@@ -29,12 +29,12 @@ pub fn decode_time_only(
     })
 }
 
-pub(super) fn decode_time_only_with_check<E>(
+pub(crate) fn decode_time_only_with_check<E>(
     input: &str,
     session: &TemporalSession,
     check: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<DecodedTime, TokenizeError<E>> {
-    let tokens = super::tokens::tokenize_with_check(input, check)?;
+    let tokens = super::tokenize_with_check(input, check)?;
     let mut state = State::default();
     for index in 0..tokens.len() {
         if index % 128 == 0 {

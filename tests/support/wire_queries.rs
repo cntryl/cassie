@@ -4,7 +4,8 @@ use crate::support_pgwire as wire;
 use cassie::app::Cassie;
 use cassie::types::Value;
 
-use super::VECTOR_TYPE_OID;
+/// Placeholder OID for the per-database pgvector type; matches `type_metadata_contract`.
+const VECTOR_TYPE_OID: i32 = i32::MIN;
 
 pub type Frames = Vec<(u8, Vec<u8>)>;
 
@@ -32,16 +33,24 @@ pub fn run_cycles(
             .unwrap_or_else(|error| panic!("create ephemeral fixture {label}: {error}"));
         cassie.startup().expect("startup before table creation");
         let session = cassie.create_session("tester", None);
-        if cycles.iter().flatten().any(parse_frame_has_vector_placeholder) {
+        let mentions_vector = setup
+            .iter()
+            .any(|(sql, _)| sql.to_ascii_lowercase().contains("vector"))
+            || cycles
+                .iter()
+                .flatten()
+                .any(|frame| frame_mentions_vector(frame));
+        if mentions_vector
+            || cycles
+                .iter()
+                .flatten()
+                .any(|frame| parse_frame_has_vector_placeholder(frame))
+        {
             let database = session.current_database().unwrap_or("postgres");
             if cassie.catalog.get_extension(database, "vector").is_none() {
                 let root = cassie.create_session("root", None);
                 cassie
-                    .execute_sql(
-                        &root,
-                        "CREATE EXTENSION vector VERSION '0.8.7'",
-                        Vec::new(),
-                    )
+                    .execute_sql(&root, "CREATE EXTENSION vector VERSION '0.8.7'", Vec::new())
                     .expect("install vector for dynamic-OID wire fixtures");
             }
             let database = session.current_database().unwrap_or("postgres");
@@ -86,6 +95,12 @@ pub fn run_cycles(
     batches
 }
 
+fn frame_mentions_vector(frame: &[u8]) -> bool {
+    frame
+        .windows(b"vector".len())
+        .any(|window| window.eq_ignore_ascii_case(b"vector"))
+}
+
 fn parse_frame_has_vector_placeholder(frame: &[u8]) -> bool {
     parse_parameter_oids(frame).is_some_and(|(start, count)| {
         (0..count).any(|index| {
@@ -93,8 +108,7 @@ fn parse_frame_has_vector_placeholder(frame: &[u8]) -> bool {
             frame
                 .get(offset..offset.saturating_add(4))
                 .is_some_and(|bytes| {
-                    i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
-                        == VECTOR_TYPE_OID
+                    i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) == VECTOR_TYPE_OID
                 })
         })
     })
@@ -109,9 +123,7 @@ fn rewrite_parse_frame_vector_placeholder(frame: &mut [u8], vector_oid: i32) {
         let Some(bytes) = frame.get(offset..offset.saturating_add(4)) else {
             return;
         };
-        if i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
-            == VECTOR_TYPE_OID
-        {
+        if i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) == VECTOR_TYPE_OID {
             frame[offset..offset + 4].copy_from_slice(&vector_oid.to_be_bytes());
         }
     }

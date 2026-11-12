@@ -202,7 +202,8 @@ fn should_encode_declared_vectors_from_json_returning_arrays() {
     ];
 
     // Act
-    let results = values.map(|value| super::codecs::value_to_binary(&value, 100_002));
+    let results = values
+        .map(|value| super::codecs::value_to_binary_with_typmod_and_vector(&value, 0, 2, true));
 
     // Assert
     for (result, expected) in results.into_iter().zip(expected) {
@@ -226,7 +227,8 @@ fn should_reject_invalid_json_returning_vector_components() {
     ];
 
     // Act
-    let results = values.map(|value| super::codecs::value_to_binary(&value, 100_002));
+    let results = values
+        .map(|value| super::codecs::value_to_binary_with_typmod_and_vector(&value, 0, 2, true));
 
     // Assert
     for result in results {
@@ -241,18 +243,19 @@ fn should_reject_invalid_json_returning_vector_components() {
 #[test]
 fn should_roundtrip_maximum_supported_binary_vector_width() {
     // Arrange
-    let vector = crate::types::Vector::new(vec![0.25; 32_767]);
+    let vector = crate::types::Vector::new(vec![0.25; 16_000]);
     let expected = Value::Vector(vector.clone());
-    let expected_header = [127, 255, 0, 0];
+    let expected_header = [62, 128, 0, 0];
 
     // Act
-    let bytes = super::codecs::value_to_binary(&Value::Vector(vector), 132_767)
-        .expect("maximum registered scalar vector width");
-    let decoded = super::codecs::binary_to_value(&bytes, 132_767)
-        .expect("decode maximum registered scalar vector width");
+    let bytes =
+        super::codecs::value_to_binary_with_typmod_and_vector(&Value::Vector(vector), 0, -1, true)
+            .expect("maximum supported vector width");
+    let decoded = super::codecs::binary_to_value_with_vector(&bytes, 0, true)
+        .expect("decode maximum supported vector width");
 
     // Assert
-    assert_eq!(bytes.len(), 131_072);
+    assert_eq!(bytes.len(), 64_004);
     assert_eq!(bytes[..4], expected_header);
     assert!(bytes[4..]
         .as_chunks::<4>()
@@ -285,7 +288,12 @@ fn should_encode_declared_vectors_from_text_parameter_strings() {
     let results = cases.map(|(text, expected)| {
         (
             text,
-            super::codecs::value_to_binary(&Value::String(text.to_string()), 100_002),
+            super::codecs::value_to_binary_with_typmod_and_vector(
+                &Value::String(text.to_string()),
+                0,
+                2,
+                true,
+            ),
             expected,
         )
     });
@@ -318,8 +326,14 @@ fn should_reject_invalid_declared_vector_text_parameter_strings() {
     ];
 
     // Act
-    let results = values
-        .map(|text| super::codecs::value_to_binary(&Value::String(text.to_string()), 100_002));
+    let results = values.map(|text| {
+        super::codecs::value_to_binary_with_typmod_and_vector(
+            &Value::String(text.to_string()),
+            0,
+            2,
+            true,
+        )
+    });
 
     // Assert
     for result in results {
@@ -342,7 +356,12 @@ fn should_borrow_vector_numeric_tokens_from_the_original_text() {
     // Act
     let tokens = serde_json::from_str::<[&serde_json::value::RawValue; 2]>(text)
         .expect("borrowed numeric JSON tokens");
-    let encoded = super::codecs::value_to_binary(&Value::String(text.to_string()), 100_002);
+    let encoded = super::codecs::value_to_binary_with_typmod_and_vector(
+        &Value::String(text.to_string()),
+        0,
+        2,
+        true,
+    );
 
     // Assert
     for ((token, expected), offset) in tokens.into_iter().zip(expected).zip(offsets) {
@@ -370,7 +389,9 @@ fn should_reject_oversized_vector_text_sequences_before_returning_output() {
     ];
 
     // Act
-    let outputs = inputs.map(|text| super::codecs::value_to_binary(&Value::String(text), 100_002));
+    let outputs = inputs.map(|text| {
+        super::codecs::value_to_binary_with_typmod_and_vector(&Value::String(text), 0, 2, true)
+    });
 
     // Assert
     for output in outputs {

@@ -153,7 +153,7 @@ impl Cassie {
                 like: None,
             }),
         };
-        self.execute_bound_statement(
+        self.execute_nested_create_table(
             session,
             create_table.clone(),
             crate::runtime::sql_fingerprint(&create_table),
@@ -192,6 +192,30 @@ impl Cassie {
         };
 
         command_result(&format!("SELECT {row_count}"), controls)
+    }
+
+    /// Creates the CTAS target inside the statement's own transaction. Unlike a
+    /// standalone implicit `CREATE TABLE`, it must not publish or commit: the
+    /// enclosing operation owns the transaction and its commit.
+    fn execute_nested_create_table(
+        &self,
+        session: &CassieSession,
+        create_table: ParsedStatement,
+        fingerprint: u64,
+        parameters: (Vec<Value>, &[i32], bool),
+        mode: ExecutionMode,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        self.prepare_transaction_read_view(session, &create_table, controls)?;
+        let _publication_read = self.catalog_publication.read();
+        self.execute_bound_catalog_scoped(
+            session,
+            create_table,
+            fingerprint,
+            parameters,
+            mode,
+            controls,
+        )
     }
 
     fn execute_prepared_ctas_rows(

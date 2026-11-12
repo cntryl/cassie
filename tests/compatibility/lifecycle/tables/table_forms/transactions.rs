@@ -282,7 +282,7 @@ fn should_restore_like_identity_publication_to_savepoint() {
 }
 
 #[test]
-fn should_rollback_ctas_rows_and_catalog_to_savepoint() {
+fn should_discard_ctas_publication_on_savepoint_rollback() {
     // Arrange
     let runtime = current_thread_runtime();
 

@@ -271,8 +271,7 @@ impl AggregateAccumulator {
                     argument,
                     user_functions,
                     value_context.parameter_type_oids,
-                )
-                    == Some(crate::types::DataType::Bytea)
+                ) == Some(crate::types::DataType::Bytea)
             }) || has_bytea_pair(&value, second_argument.as_ref()));
         let array_input = crate::sql::functions::function(&function.name).is_some_and(|metadata| {
             matches!(

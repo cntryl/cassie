@@ -136,7 +136,7 @@ fn numeric_assignment(value: &Value, data_type: &DataType) -> Result<Option<Valu
 ///
 /// A literal that is not a vector of the declared width stays a string so schema
 /// validation reports the mismatch; a component outside the f32 range is a range error.
-fn vector_literal_to_json(
+pub(super) fn vector_literal_to_json(
     field: &str,
     text: &str,
     expected_dimensions: Option<usize>,

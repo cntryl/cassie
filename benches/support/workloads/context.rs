@@ -652,7 +652,7 @@ pub(super) fn bench_document_schema() -> Schema {
             },
             FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(3),
+                data_type: DataType::Vector(Some(3)),
                 nullable: true,
             },
         ],

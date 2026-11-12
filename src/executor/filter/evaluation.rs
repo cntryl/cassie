@@ -134,17 +134,6 @@ pub(crate) fn evaluate_projection_value_with_owners<R: RowAccess + ?Sized>(
     memory: Option<&EvaluationMemory>,
     deletion_memory: Option<&EvaluationMemory>,
 ) -> Result<Value, QueryError> {
-    evaluate_projection_value_with_owners(row, expression, context, controls, Some(memory), None)
-}
-
-pub(crate) fn evaluate_projection_value_with_owners<R: RowAccess + ?Sized>(
-    row: &R,
-    expression: &Expr,
-    context: &ProjectionValueContext<'_>,
-    controls: &QueryExecutionControls,
-    memory: Option<&EvaluationMemory>,
-    deletion_memory: Option<&EvaluationMemory>,
-) -> Result<Value, QueryError> {
     controls.check_interruption()?;
     evaluate_expr_value_with_context(
         row,

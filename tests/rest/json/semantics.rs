@@ -16,6 +16,7 @@ fn data_dir(label: &str) -> String {
 }
 
 fn setup_query_values(cassie: &Cassie) {
+    crate::support_sql::install_vector_extension(cassie);
     let session = cassie.create_session("root", None);
     cassie
         .execute_sql(

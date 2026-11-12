@@ -23,6 +23,7 @@ fn should_execute_insert_values_with_explicit_columns_returning_columns() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -66,6 +67,7 @@ fn should_return_stored_canonical_typed_text_from_insert_update_returning() {
 
     runtime.block_on(async {
             let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+            crate::support_sql::install_vector_extension(&cassie);
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             cassie
@@ -140,6 +142,7 @@ fn should_insert_values_using_table_column_order() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -186,6 +189,7 @@ fn should_insert_multiple_values_rows() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -230,6 +234,7 @@ fn should_return_generated_row_id_from_insert_values() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -269,6 +274,7 @@ fn should_execute_insert_returning_wildcard() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -311,6 +317,7 @@ fn should_execute_insert_returning_scalar_function() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -352,6 +359,7 @@ fn should_reject_insert_returning_unknown_function() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -392,6 +400,7 @@ fn should_reject_insert_values_when_not_null_constraint_fails() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -428,6 +437,7 @@ fn should_reject_insert_values_when_not_null_column_is_missing() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -464,6 +474,7 @@ fn should_apply_default_values_for_insert_values() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -503,6 +514,7 @@ fn should_preserve_explicit_insert_value_when_default_exists() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -541,6 +553,7 @@ fn should_round_trip_insert_values_vector_field() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -588,6 +601,7 @@ fn should_reject_insert_values_when_vector_dimensions_mismatch() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -627,6 +641,7 @@ fn should_reject_insert_values_with_duplicate_target_column() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -663,6 +678,7 @@ fn should_reject_insert_values_with_unknown_target_column() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -699,6 +715,7 @@ fn should_store_insert_values_as_row_blobs() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -755,6 +772,7 @@ fn should_project_missing_sparse_row_fields_as_null() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -801,6 +819,7 @@ fn should_reject_an_invalid_timestamp_string_on_insert() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -839,6 +858,7 @@ fn should_cast_a_timestamp_string_to_its_canonical_utc_form() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
 

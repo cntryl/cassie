@@ -161,7 +161,7 @@ fn should_deduplicate_supported_schema_vector_identities() {
     let fixture = sql_fixture("finite-type-vector-identities", &[]);
     fixture.cassie.startup().expect("startup");
     fixture
-        .execute("CREATE EXTENSION vector VERSION '0.8.7'")
+        .execute_as_root("CREATE EXTENSION vector VERSION '0.8.7'")
         .expect("install vector type identity");
     fixture
         .execute(
@@ -218,7 +218,7 @@ fn should_discover_vector_types_within_the_current_database() {
     let fixture = sql_fixture("finite-type-vector-database-scope", &[]);
     fixture.cassie.startup().expect("startup");
     fixture
-        .execute("CREATE EXTENSION vector VERSION '0.8.7'")
+        .execute_as_root("CREATE EXTENSION vector VERSION '0.8.7'")
         .expect("install vector in the current database");
     fixture
         .execute("CREATE TABLE p04_local_vectors (embedding VECTOR(2))")
@@ -231,12 +231,16 @@ fn should_discover_vector_types_within_the_current_database() {
         .create_session("root", Some("p04_vector_tenant".to_string()));
     fixture
         .cassie
+        .execute_sql(&tenant, "CREATE EXTENSION vector VERSION '0.8.7'", vec![])
+        .expect("install vector in the second database");
+    fixture
+        .cassie
         .execute_sql(
             &tenant,
-            "CREATE EXTENSION vector VERSION '0.8.7'; CREATE TABLE p04_local_vectors (embedding VECTOR(7))",
+            "CREATE TABLE p04_local_vectors (embedding VECTOR(7))",
             vec![],
         )
-        .expect("install vector and create second database vector schema");
+        .expect("create second database vector schema");
 
     // Act
     let current = fixture
@@ -767,7 +771,7 @@ fn should_keep_installed_vector_type_after_materialized_view_drop() {
     let fixture = sql_fixture("catalog-matview-vector-type-lifecycle", &[]);
     fixture.cassie.startup().expect("startup");
     fixture
-        .execute("CREATE EXTENSION vector VERSION '0.8.7'")
+        .execute_as_root("CREATE EXTENSION vector VERSION '0.8.7'")
         .expect("install vector type");
     fixture
         .execute("CREATE TABLE mv_type_source (id INTEGER)")
@@ -849,7 +853,7 @@ fn should_retain_installed_vector_type_after_view_creation_rollback() {
     let fixture = sql_fixture("catalog-matview-vector-type-rollback", &[]);
     fixture.cassie.startup().expect("startup");
     fixture
-        .execute("CREATE EXTENSION vector VERSION '0.8.7'")
+        .execute_as_root("CREATE EXTENSION vector VERSION '0.8.7'")
         .expect("install vector type");
     fixture
         .execute("CREATE TABLE mv_rollback_source (id INTEGER)")

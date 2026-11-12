@@ -87,13 +87,12 @@ impl Midge {
                     .map_err(CassieError::from)?,
             )?;
             for (key, raw_value) in entries {
-                let metadata: ObjectCommentMeta = serde_json::from_slice(&raw_value).map_err(
-                    |error| {
+                let metadata: ObjectCommentMeta =
+                    serde_json::from_slice(&raw_value).map_err(|error| {
                         CassieError::Parse(format!(
                             "invalid object comment metadata in database '{database}': {error}"
                         ))
-                    },
-                )?;
+                    })?;
                 metadata.validate(&database).map_err(|error| {
                     CassieError::Parse(format!(
                         "invalid object comment metadata in database '{database}': {error}"
@@ -137,22 +136,6 @@ impl Midge {
         for (key, _) in entries {
             tx.delete(key).map_err(CassieError::from)?;
         }
-        Ok(())
-    }
-
-    /// Delete one column comment in an existing family transaction.
-    pub(crate) fn delete_object_comment_to_tx(
-        tx: &mut AdapterTransaction,
-        class_oid: u32,
-        object_oid: u32,
-        object_sub_id: i32,
-    ) -> Result<(), CassieError> {
-        tx.delete(key_encoding::object_comment_key(
-            class_oid,
-            object_oid,
-            object_sub_id,
-        ))
-        .map_err(CassieError::from)?;
         Ok(())
     }
 }

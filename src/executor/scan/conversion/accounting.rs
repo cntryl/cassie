@@ -245,13 +245,10 @@ pub(super) fn value_heap(
     data_type: Option<&DataType>,
 ) -> Result<usize, CassieError> {
     if let Some(DataType::Vector(expected_dimensions)) = data_type {
-        if value
-            .as_array()
-            .is_some_and(|values| {
-                (1..=16_000).contains(&values.len())
-                    && expected_dimensions.is_none_or(|dimensions| values.len() == dimensions)
-            })
-        {
+        if value.as_array().is_some_and(|values| {
+            (1..=16_000).contains(&values.len())
+                && expected_dimensions.is_none_or(|dimensions| values.len() == dimensions)
+        }) {
             let dimensions = value.as_array().map_or(0, Vec::len);
             let float_bytes = mul(grown_capacity(dimensions, 4)?, size_of::<f32>())?;
             // Failed element parsing falls back to a complete JSON clone after the partial

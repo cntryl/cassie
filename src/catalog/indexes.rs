@@ -130,7 +130,8 @@ impl IndexMeta {
     const UNIQUE_RESERVATION_NAME_OPTION: &'static str = "__cassie_unique_reservation_name";
     const UNIQUE_RESERVATION_GENERATION_OPTION: &'static str =
         "__cassie_unique_reservation_generation";
-    pub(crate) const ACCESS_METHOD_OPTION: &'static str = "__cassie_access_method";
+    /// Index option key that records the selected PostgreSQL access method.
+    pub const ACCESS_METHOD_OPTION: &'static str = "__cassie_access_method";
     pub(crate) const NULLS_NOT_DISTINCT_OPTION: &'static str = "__cassie_nulls_not_distinct";
 
     #[must_use]
@@ -186,8 +187,9 @@ impl IndexMeta {
             .is_some_and(|value| value == "true")
     }
 
+    /// Index option key for a per-key option such as `order` or `operator_class`.
     #[must_use]
-    pub(crate) fn key_option_name(position: usize, option: &str) -> String {
+    pub fn key_option_name(position: usize, option: &str) -> String {
         format!("__cassie_index_key_{position}_{option}")
     }
 
@@ -281,13 +283,14 @@ impl IndexMeta {
         Ok(ReservationIdentity::Generation(identity))
     }
 
+    #[cfg(test)]
     pub(crate) fn set_reservation_generation(
         &mut self,
         identity: u64,
     ) -> Result<(), crate::app::CassieError> {
         if identity == 0
             || self.storage_id() != Some(identity)
-            || !self.relation_id().is_some_and(|id| id != 0)
+            || self.relation_id().is_none_or(|id| id == 0)
         {
             return Err(crate::app::CassieError::Parse(
                 "invalid unique index reservation generation".into(),

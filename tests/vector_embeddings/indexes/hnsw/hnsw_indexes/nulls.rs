@@ -3,6 +3,7 @@ fn should_exclude_null_vector_rows_from_sql_top_k() {
     // Arrange
     let path = data_dir("sql_topk_missing_vector");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("startup");
     let collection = "sql_topk_missing_vector";
     register_hnsw_collection(&cassie, collection);

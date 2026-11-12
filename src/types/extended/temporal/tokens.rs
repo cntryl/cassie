@@ -388,7 +388,7 @@ pub(crate) fn tokenize_with_check<E>(
             index += 1;
             continue;
         } else {
-            return Err(DecodeError::BadFormat);
+            return Err(DecodeError::BadFormat.into());
         }
         tokens.push(Token { text, kind });
     }
@@ -400,7 +400,7 @@ fn check_tokenizer_progress<E>(
     index: usize,
     check: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<(), TokenizeError<E>> {
-    if index % 128 == 0 {
+    if index.is_multiple_of(128) {
         check().map_err(TokenizeError::Check)?;
     }
     Ok(())

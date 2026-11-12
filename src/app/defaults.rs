@@ -18,16 +18,17 @@ pub(super) fn apply_default_values(
 
         if let Some(sequence) = constraint.default_sequence.as_deref() {
             let value = app.midge.with_sequence_update_gate(sequence, || {
-                let (value, updated) = app.midge.update_sequence_retrying(sequence, |metadata| {
-                    metadata.advance().map_err(Into::into)
-                })?;
+                let (value, updated) =
+                    app.midge.update_sequence_retrying(sequence, |metadata| {
+                        metadata.advance().map_err(Into::into)
+                    })?;
                 if let Some(session) = session {
                     session.record_sequence_value(&updated.name, updated.object_id, value, true);
                 }
                 if !app.midge.is_private_sequence(&updated)? {
                     app.publication_catalog.update_sequence_cursor(&updated);
                     if let Some(session) = session {
-                        session.invalidate_sequence_cursor_descriptor();
+                        session.mirror_published_sequence_cursor(&updated);
                     }
                 }
                 Ok(value)

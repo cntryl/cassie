@@ -170,11 +170,7 @@ fn selected_extension_dependency_ids(
         }
     }
     if crate::sql::binder::select_uses_vector_extension(select) {
-        if let Some(extension) =
-            cassie
-                .catalog
-                .get_extension(&context.database, "vector")
-        {
+        if let Some(extension) = cassie.catalog.get_extension(&context.database, "vector") {
             extension_ids.insert(extension.object_id);
         }
     }
@@ -255,19 +251,6 @@ fn drop_table_target(
         schema_foreign_keys::reject_referenced_table_drop(cassie, table)?;
     }
 
-    let collection = cassie
-        .catalog
-        .get_collection(table)
-        .ok_or_else(|| QueryError::General(format!("table '{table}' does not exist")))?;
-    let database_name = crate::catalog::relation_database_name(&collection.name)
-        .unwrap_or_else(|| cassie.default_database.clone());
-    let database_family = cassie
-        .midge
-        .get_database(&database_name)
-        .map_err(QueryError::Cassie)?
-        .map(|database| database.physical_family)
-        .ok_or_else(|| QueryError::General(format!("table '{table}' database is unavailable")))?;
-
     for view in dependent_views {
         drop_stored_view(cassie, &view)?;
     }
@@ -282,6 +265,12 @@ fn drop_table_target(
         .defer_drop_collection(table, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
     cleanup_relation_comments(cassie, &collection.name, collection.storage_id)?;
+    schema_namespace_command::cleanup_table_role_grants_after_drop(
+        cassie,
+        session.is_some_and(CassieSession::is_transaction_active),
+        &collection.name,
+        collection.storage_id,
+    )?;
     schema_sequence_rename::drop_owned_table_sequences(cassie, table)?;
     cassie
         .catalog
@@ -789,10 +778,7 @@ fn alter_table_drop_column(
         drop_stored_view(cassie, &view)?;
     }
     schema_constraint_helpers::drop_composite_constraints_on_column(cassie, table, field)?;
-    let row_schema = cassie
-        .midge
-        .row_schema(table)
-        .map_err(QueryError::Cassie)?;
+    let row_schema = cassie.midge.row_schema(table).map_err(QueryError::Cassie)?;
     let dropped_field_id = row_schema
         .fields
         .iter()

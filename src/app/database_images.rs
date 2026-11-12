@@ -236,39 +236,6 @@ impl DatabaseBackupStream {
             .is_some_and(|metadata| metadata.physical_family == self.source_physical_family))
     }
 
-    fn enqueue_header_frame(&mut self) -> Result<(), CassieError> {
-        self.pending.extend(DATABASE_IMAGE_MAGIC.iter().copied());
-        let protected = self.storage_layout_version != V1_LAYOUT_VERSION;
-        let header = DatabaseImageHeader {
-            image_version: if protected {
-                PROTECTED_DATABASE_IMAGE_VERSION
-            } else {
-                DATABASE_IMAGE_VERSION
-            },
-            source_database: self.source_database.clone(),
-            source_physical_family: self.source_physical_family.clone(),
-            storage_layout_version: self.storage_layout_version.to_string(),
-            schema_epoch: self.schema_epoch,
-            data_epoch: self.data_epoch,
-            integrity: if protected {
-                V2_INTEGRITY
-            } else {
-                V1_INTEGRITY
-            }
-            .to_string(),
-        };
-        let payload = serde_json::to_vec(&header).map_err(|error| {
-            CassieError::Parse(format!("encode database image header: {error}"))
-        })?;
-        if protected {
-            self.hasher.update([FRAME_HEADER]);
-            self.hasher.update(&payload);
-        }
-        self.enqueue_frame(FRAME_HEADER, &payload);
-        self.phase = BackupPhase::Catalog;
-        Ok(())
-    }
-
     fn enqueue_frame(&mut self, tag: u8, payload: &[u8]) {
         let body_len = payload.len().saturating_add(1);
         self.pending
@@ -491,9 +458,14 @@ impl DatabaseRestoreSession {
         let staged = self.staged.as_ref().ok_or_else(|| {
             CassieError::Parse("database image data appeared before a valid header".to_string())
         })?;
+        let stored = crate::midge::adapter::rewrite_database_data_entry(
+            &key,
+            &value,
+            &staged.metadata.name,
+        )?;
         self.cassie
             .midge
-            .write_staged_database_entries(staged, &[(key.clone(), value.clone())])?;
+            .write_staged_database_entries(staged, &[(key.clone(), stored)])?;
         self.hasher
             .update(frame_integrity_bytes(FRAME_DATA, &key, &value));
         self.data_count = self.data_count.saturating_add(1);

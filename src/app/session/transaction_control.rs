@@ -113,8 +113,10 @@ impl CassieSession {
     pub(crate) fn set_transaction_isolation(&self, value: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::Idle || transaction.implicit {
-            return Err(CassieError::savepoint_outside_transaction(
-                "SET TRANSACTION",
+            // The bounded #819 profile keeps this a deterministic 0A000 rejection;
+            // PostgreSQL's 25P01 warning-and-no-op form is not selected.
+            return Err(CassieError::Unsupported(
+                "SET TRANSACTION requires an explicit transaction block".to_owned(),
             ));
         }
         if transaction.status == SessionTransactionStatus::Failed {
@@ -166,44 +168,6 @@ impl CassieSession {
     ) -> (Option<TransactionIsolation>, TransactionModes) {
         let transaction = self.transaction.lock();
         (transaction.isolation, transaction.modes)
-    }
-
-    pub(crate) fn set_transaction_isolation(&self, value: &str) -> Result<(), CassieError> {
-        if !value.trim().eq_ignore_ascii_case("repeatable read") {
-            return Err(CassieError::Unsupported(
-                "only REPEATABLE READ can be selected by SET TRANSACTION in this version"
-                    .to_string(),
-            ));
-        }
-
-        let mut transaction = self.transaction.lock();
-        if transaction.status == SessionTransactionStatus::Failed {
-            return Err(CassieError::failed_transaction());
-        }
-        if transaction.status != SessionTransactionStatus::InTransaction || transaction.implicit {
-            return Err(CassieError::Unsupported(
-                "SET TRANSACTION ISOLATION LEVEL requires an explicit transaction block"
-                    .to_string(),
-            ));
-        }
-        if transaction.modes.deferrable == Some(true) {
-            return Err(CassieError::Unsupported(
-                "DEFERRABLE REPEATABLE READ is unsupported".to_string(),
-            ));
-        }
-        if transaction.has_query
-            || transaction.repeatable_read.is_some()
-            || !transaction.savepoints.is_empty()
-        {
-            return Err(CassieError::Transaction {
-                kind: TransactionErrorKind::ActiveTransaction,
-                message: "transaction isolation must be set before the first query or savepoint"
-                    .to_string(),
-            });
-        }
-
-        transaction.isolation = Some(TransactionIsolation::RepeatableRead);
-        Ok(())
     }
 
     pub(crate) fn transaction_generation(&self) -> u64 {

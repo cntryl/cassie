@@ -111,6 +111,9 @@ fn ordered_numeric_fixture_with_storage(
     } else {
         crate::support_sql::new_in_memory_cassie().expect("create Cassie")
     };
+    if column_type.to_ascii_lowercase().contains("vector") {
+        crate::support_sql::install_vector_extension(&cassie);
+    }
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(

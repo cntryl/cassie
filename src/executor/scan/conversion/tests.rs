@@ -439,8 +439,8 @@ fn should_cover_extreme_finite_vector_formatting_scratch_before_conversion() {
 
     // Act
     for (label, finite) in [
-        ("maximum", f64::MAX),
-        ("negative maximum", -f64::MAX),
+        ("maximum", f64::from(f32::MAX)),
+        ("negative maximum", f64::from(f32::MIN)),
         ("smallest subnormal", f64::from_bits(1)),
         ("negative smallest subnormal", -f64::from_bits(1)),
     ] {

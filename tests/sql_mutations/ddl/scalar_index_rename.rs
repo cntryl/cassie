@@ -106,8 +106,13 @@ fn should_preserve_scalar_entries_when_index_is_renamed() {
         .unwrap();
 }
 
+// Same-name replacement while the old index's name-only cleanup is pending is
+// unsupported (docs/scalar-index-pending-cleanup-guard-2026-11-08.md): cleanup
+// resolves the then-current index by name and would delete the replacement.
+// The name is reusable once the cleanup has drained.
+
 #[test]
-fn should_keep_recreated_index_and_its_unique_entries_after_old_cleanup_drains() {
+fn should_reject_recreating_an_index_until_old_cleanup_drains() {
     // Arrange
     let fixture = sql_fixture(
         "index-recreate-commit",
@@ -119,23 +124,23 @@ fn should_keep_recreated_index_and_its_unique_entries_after_old_cleanup_drains()
     );
     let observer = fixture.cassie.create_session("observer", None);
     let pinned = fixture.cassie.begin_schema_epoch_guard_for_diagnostics();
-    fixture.execute("BEGIN").unwrap();
     fixture.execute("DROP INDEX index_recreate_key").unwrap();
-    fixture
-        .execute("CREATE UNIQUE INDEX index_recreate_key ON index_recreate_rows(payload)")
-        .unwrap();
     // Act
-    fixture.execute("COMMIT").unwrap();
-    fixture
-        .cassie
-        .run_deferred_schema_cleanup_for_diagnostics()
-        .unwrap();
+    let rejected =
+        fixture.execute("CREATE UNIQUE INDEX index_recreate_key ON index_recreate_rows(payload)");
     drop(pinned);
     fixture
         .cassie
         .run_deferred_schema_cleanup_for_diagnostics()
         .unwrap();
+    fixture
+        .execute("CREATE UNIQUE INDEX index_recreate_key ON index_recreate_rows(payload)")
+        .expect("name is reusable after cleanup drains");
     // Assert
+    let message = rejected
+        .expect_err("pending cleanup owns the name")
+        .to_string();
+    assert!(message.contains("pending index cleanup"), "{message}");
     let metadata = fixture
         .cassie
         .catalog
@@ -161,7 +166,7 @@ fn should_keep_recreated_index_and_its_unique_entries_after_old_cleanup_drains()
 }
 
 #[test]
-fn should_restore_original_index_after_replacement_savepoint_rollback() {
+fn should_restore_original_index_after_rejected_replacement_savepoint_rollback() {
     // Arrange
     let fixture = sql_fixture(
         "index-recreate-savepoint",
@@ -175,9 +180,8 @@ fn should_restore_original_index_after_replacement_savepoint_rollback() {
     );
     // Act
     fixture.execute("DROP INDEX index_savepoint_key").unwrap();
-    fixture
-        .execute("CREATE UNIQUE INDEX index_savepoint_key ON index_savepoint_rows(payload)")
-        .unwrap();
+    let rejected =
+        fixture.execute("CREATE UNIQUE INDEX index_savepoint_key ON index_savepoint_rows(payload)");
     fixture.execute("ROLLBACK TO before_replacement").unwrap();
     fixture.execute("COMMIT").unwrap();
     fixture
@@ -185,6 +189,10 @@ fn should_restore_original_index_after_replacement_savepoint_rollback() {
         .run_deferred_schema_cleanup_for_diagnostics()
         .unwrap();
     // Assert
+    let message = rejected
+        .expect_err("pending cleanup owns the name")
+        .to_string();
+    assert!(message.contains("pending index cleanup"), "{message}");
     let metadata = fixture
         .cassie
         .catalog
@@ -200,7 +208,7 @@ fn should_restore_original_index_after_replacement_savepoint_rollback() {
 }
 
 #[test]
-fn should_restore_original_index_after_replacement_transaction_rollback() {
+fn should_restore_original_index_after_rejected_replacement_transaction_rollback() {
     // Arrange
     let fixture = sql_fixture(
         "index-recreate-rollback",
@@ -213,15 +221,18 @@ fn should_restore_original_index_after_replacement_transaction_rollback() {
     );
     // Act
     fixture.execute("DROP INDEX index_rollback_key").unwrap();
-    fixture
-        .execute("CREATE UNIQUE INDEX index_rollback_key ON index_rollback_rows(payload)")
-        .unwrap();
+    let rejected =
+        fixture.execute("CREATE UNIQUE INDEX index_rollback_key ON index_rollback_rows(payload)");
     fixture.execute("ROLLBACK").unwrap();
     fixture
         .cassie
         .run_deferred_schema_cleanup_for_diagnostics()
         .unwrap();
     // Assert
+    let message = rejected
+        .expect_err("pending cleanup owns the name")
+        .to_string();
+    assert!(message.contains("pending index cleanup"), "{message}");
     let metadata = fixture
         .cassie
         .catalog

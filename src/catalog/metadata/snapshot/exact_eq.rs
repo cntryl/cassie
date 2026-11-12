@@ -32,6 +32,7 @@ scalar_eq!(
     u16,
     u32,
     u64,
+    i32,
     i64,
     usize,
     crate::catalog::DefaultSequenceOwnership,
@@ -46,7 +47,9 @@ impl ExactMetadataEq for crate::catalog::ObjectCommentMeta {
         controls: &QueryExecutionControls,
     ) -> Result<bool, CassieError> {
         controls.check_interruption()?;
-        Ok(self.format_version.exact_eq(&other.format_version, controls)?
+        Ok(self
+            .format_version
+            .exact_eq(&other.format_version, controls)?
             && self
                 .address
                 .database

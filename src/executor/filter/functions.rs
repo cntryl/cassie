@@ -35,14 +35,14 @@ pub(super) mod math;
 mod math_functions;
 #[path = "math_random.rs"]
 mod math_random;
+#[path = "privilege_functions.rs"]
+mod privilege_functions;
 #[path = "regex_functions.rs"]
 mod regex_functions;
 #[path = "relation_locations.rs"]
 mod relation_locations;
 #[path = "runtime_information.rs"]
 mod runtime_information;
-#[path = "privilege_functions.rs"]
-mod privilege_functions;
 #[path = "session_setting_flags.rs"]
 mod session_setting_flags;
 #[path = "text_format.rs"]
@@ -282,9 +282,7 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "quote_ident" | "pg_catalog.quote_ident" => Some(unary_nullable_text(name, args, |text| {
             Value::String(quote_identifier(text))
         })),
-        "format_type" | "pg_catalog.format_type" => {
-            Some(evaluate_format_type(name, args, session))
-        }
+        "format_type" | "pg_catalog.format_type" => Some(evaluate_format_type(name, args, session)),
         "pg_get_expr" | "pg_catalog.pg_get_expr" => Some(evaluate_pg_get_expr(name, args)),
         "pg_get_indexdef" | "pg_catalog.pg_get_indexdef" => {
             Some(evaluate_pg_get_indexdef(name, args, session))
@@ -341,47 +339,6 @@ fn evaluate_current_database(
                 .unwrap_or_default(),
         )
     })
-}
-
-#[derive(Clone, Copy)]
-enum PrivilegeFunction {
-    Database,
-    Schema,
-    Table,
-}
-
-fn evaluate_has_privilege(
-    name: &str,
-    args: &[Value],
-    session: Option<&CassieSession>,
-    function: PrivilegeFunction,
-) -> Result<Value, QueryError> {
-    require_arg_count_range(name, args, 2..=3)?;
-    let values = args
-        .iter()
-        .map(|value| text_arg(name, value))
-        .collect::<Result<Option<Vec<_>>, _>>()?;
-    let Some(values) = values else {
-        return Ok(Value::Null);
-    };
-    let (role, object, privilege) = match values.as_slice() {
-        [object, privilege] => (
-            session.map_or("root", |session| session.user.as_str()),
-            object.as_str(),
-            privilege.as_str(),
-        ),
-        [role, object, privilege] => (role.as_str(), object.as_str(), privilege.as_str()),
-        _ => unreachable!("argument count was checked"),
-    };
-    let session = session.ok_or_else(|| {
-        QueryError::General(format!("{name} requires an attached session catalog"))
-    })?;
-    let result = match function {
-        PrivilegeFunction::Database => session.has_database_privilege(role, object, privilege),
-        PrivilegeFunction::Schema => session.has_schema_privilege(role, object, privilege),
-        PrivilegeFunction::Table => session.has_table_privilege(role, object, privilege),
-    }?;
-    Ok(Value::Bool(result))
 }
 
 fn evaluate_current_user(
@@ -814,7 +771,11 @@ fn require_zero_args(name: &str, args: &[Value]) -> Result<(), QueryError> {
     require_arg_count(name, args, 0)
 }
 
-fn require_arg_count(name: &str, args: &[Value], expected: usize) -> Result<(), QueryError> {
+pub(super) fn require_arg_count(
+    name: &str,
+    args: &[Value],
+    expected: usize,
+) -> Result<(), QueryError> {
     if args.len() == expected {
         Ok(())
     } else {
@@ -825,7 +786,7 @@ fn require_arg_count(name: &str, args: &[Value], expected: usize) -> Result<(), 
     }
 }
 
-fn require_arg_count_range(
+pub(super) fn require_arg_count_range(
     name: &str,
     args: &[Value],
     range: std::ops::RangeInclusive<usize>,
@@ -866,11 +827,7 @@ fn evaluate_format_type(
     })
 }
 
-fn format_type_oid_in_session(
-    oid: i64,
-    typmod: i64,
-    session: Option<&CassieSession>,
-) -> String {
+fn format_type_oid_in_session(oid: i64, typmod: i64, session: Option<&CassieSession>) -> String {
     if let Some((catalog, context)) = session.and_then(CassieSession::object_lookup_context) {
         let vector_oid = crate::catalog::object_identity::type_oid_for_database(
             &catalog,
@@ -881,9 +838,10 @@ fn format_type_oid_in_session(
             return usize::try_from(typmod)
                 .ok()
                 .filter(|dimensions| (1..=16_000).contains(dimensions))
-                .map_or_else(|| "vector".to_string(), |dimensions| {
-                    format!("vector({dimensions})")
-                });
+                .map_or_else(
+                    || "vector".to_string(),
+                    |dimensions| format!("vector({dimensions})"),
+                );
         }
     }
     format_type_oid(oid, typmod)

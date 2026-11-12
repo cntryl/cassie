@@ -24,8 +24,17 @@ impl CassieSession {
             .map(Catalog::version)
     }
 
-    pub(crate) fn invalidate_sequence_cursor_descriptor(&self) {
-        self.transaction.lock().catalog_views.descriptors = None;
+    /// Invalidates the cached descriptor view after a published advance. Without
+    /// an admitted base the overlay is the statement's read view, so it mirrors
+    /// the advanced cursor in place.
+    pub(crate) fn mirror_published_sequence_cursor(&self, metadata: &crate::catalog::SequenceMeta) {
+        let mut transaction = self.transaction.lock();
+        transaction.catalog_views.descriptors = None;
+        if transaction.catalog_views.base.is_none() {
+            if let Some(overlay) = transaction.catalog_overlay.as_ref() {
+                overlay.update_sequence_cursor(metadata);
+            }
+        }
     }
 
     /// The caller holds the current catalog publication guard. Compare all
@@ -95,14 +104,30 @@ impl CassieSession {
             return Ok(Some(initial));
         };
         let version = overlay.version();
+        let published = self.publication_catalog();
+        let staged = transaction
+            .storage_overlay
+            .lock()
+            .staged_sequence_object_ids(controls)?;
+        // Published sequence cursors are not transactional: the view always
+        // reports the current cursor, apart from sequences this transaction
+        // stages itself.
+        let refresh = |view: &Arc<ControlledCatalogSnapshot>| {
+            if let Some(published) = &published {
+                view.catalog()
+                    .refresh_published_sequence_cursors(published, &staged);
+            }
+        };
         if let Some((cached_version, cached)) = &transaction.catalog_views.sql {
             if *cached_version == version {
+                refresh(cached);
                 return Ok(Some(Arc::clone(cached)));
             }
         }
         let merged = initial
             .catalog()
             .snapshot_with_delta(base.catalog(), overlay, controls)?;
+        refresh(&merged);
         transaction.catalog_views.sql = Some((version, Arc::clone(&merged)));
         Ok(Some(merged))
     }

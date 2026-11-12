@@ -476,7 +476,7 @@ pub(crate) fn parameter_from_text_with_controls(
         return Ok(None);
     }
     let utc = temporal::default_session();
-    let parsed = parse_controlled(kind, text, &utc, controls)?;
+    let parsed = parse_controlled(kind, text, utc, controls)?;
     if matches!(
         kind,
         ExtendedType::TimestampTz { .. } | ExtendedType::TimeTz { .. }

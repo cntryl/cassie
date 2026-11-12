@@ -22,7 +22,7 @@ fn evaluate_object_description(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
-    super::require_arg_count_range(name, args, 1..=2)?;
+    super::functions::require_arg_count_range(name, args, 1..=2)?;
     let Some(object_oid) = oid_argument(name, &args[0])? else {
         return Ok(Value::Null);
     };
@@ -30,7 +30,7 @@ fn evaluate_object_description(
         return Ok(Value::Null);
     };
     let description = if let Some(class_argument) = args.get(1) {
-        let Some(class_name) = super::text_arg(name, class_argument)? else {
+        let Some(class_name) = super::functions::text_arg(name, class_argument)? else {
             return Ok(Value::Null);
         };
         let class_oid = match class_name.as_str() {
@@ -50,7 +50,7 @@ fn evaluate_column_description(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
-    super::require_arg_count(name, args, 2)?;
+    super::functions::require_arg_count(name, args, 2)?;
     let Some(object_oid) = oid_argument(name, &args[0])? else {
         return Ok(Value::Null);
     };
@@ -72,7 +72,7 @@ fn oid_argument(name: &str, value: &Value) -> Result<Option<u32>, QueryError> {
         Value::Null => Ok(None),
         Value::Int64(value) => crate::types::object_id::oid_from_integer(*value)
             .map(Some)
-            .map_err(|error| QueryError::Cassie(error.into())),
+            .map_err(|value| QueryError::General(format!("OID out of range: {value}"))),
         _ => Err(QueryError::General(format!(
             "function '{name}' expects an oid input"
         ))),
@@ -92,12 +92,11 @@ fn integer_argument(name: &str, value: &Value) -> Result<Option<i64>, QueryError
 fn attribute_number(name: &str, value: &Value) -> Result<Option<i32>, QueryError> {
     integer_argument(name, value)?
         .map(|value| {
-            i32::try_from(value)
-                .map_err(|_| {
-                    QueryError::Cassie(crate::app::CassieError::Execution(
-                        "integer out of range".to_owned(),
-                    ))
-                })
+            i32::try_from(value).map_err(|_| {
+                QueryError::Cassie(crate::app::CassieError::Execution(
+                    "integer out of range".to_owned(),
+                ))
+            })
         })
         .transpose()
 }
@@ -116,7 +115,9 @@ mod tests {
         let result = attribute_number("col_description", &value);
 
         // Assert
-        assert!(matches!(result, Err(crate::executor::QueryError::Cassie(crate::app::CassieError::Execution(message))) if message == "integer out of range"));
+        assert!(
+            matches!(result, Err(crate::executor::QueryError::Cassie(crate::app::CassieError::Execution(message))) if message == "integer out of range")
+        );
     }
 
     #[test]

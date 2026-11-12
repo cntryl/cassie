@@ -39,7 +39,7 @@ pub(super) fn bind_create_index(
         String::new()
     } else {
         match parse_name(statement.name.trim()).map_err(CassieError::Planner)? {
-            ParsedName::Unqualified(name) => derive_scoped_name(&table, |_| name),
+            ParsedName::Unqualified(name) => scoped_index_name(&table, name),
             _ => normalize_relation_name(statement.name.trim(), context)?,
         }
     };
@@ -74,8 +74,8 @@ pub(super) fn bind_create_index(
     validate_index_shape(&statement, &fields, &expressions)?;
 
     let include_fields = declared_field_names(&schema, normalize_fields(&statement.include_fields));
-    validate_include_fields(&statement, &schema, &table, &fields, &include_fields)?;
-    validate_index_fields_and_expressions(&schema, &table, &fields, &expressions)?;
+    validate_include_fields(&statement, &schema, &fields, &include_fields)?;
+    validate_index_fields_and_expressions(&schema, &fields, &expressions)?;
     let search_path = context
         .relation_search_order()
         .into_iter()
@@ -151,10 +151,12 @@ fn bind_index_method_options(
     match statement.kind {
         crate::catalog::IndexKind::Vector => schema_index_options::bind_vector_index_options(
             statement,
-            catalog,
+            &schema_index_options::IndexBindingScope {
+                catalog,
+                database,
+                search_path,
+            },
             schema,
-            database,
-            search_path,
             table,
             name,
             fields,
@@ -668,7 +670,7 @@ fn validate_scalar_index_key_options(
     if statement.kind == crate::catalog::IndexKind::Vector
         && statement
             .options
-            .get(&IndexMeta::ACCESS_METHOD_OPTION)
+            .get(IndexMeta::ACCESS_METHOD_OPTION)
             .is_some_and(|method| matches!(method.as_str(), "hnsw" | "ivfflat"))
     {
         return Ok(());
@@ -1010,4 +1012,15 @@ pub(super) fn bind_index_rename_target(
         .collect::<Vec<_>>();
     *parts.last_mut().expect("owner has a local component") = local;
     Ok(IdentifierPath::from_values(parts).into_string())
+}
+
+/// Places an unqualified index name beside its table. A name that needs quoting
+/// (dots, quotes, whitespace) keeps its quotes where no database qualifier
+/// re-escapes it, so `"Case.Index"` is not read back as `Case`.`Index`.
+fn scoped_index_name(table: &str, name: String) -> String {
+    let quoted = crate::catalog::canonical_identifier_component(&name);
+    match parse_name(table) {
+        Ok(ParsedName::DatabaseQualified { .. }) => derive_scoped_name(table, |_| name),
+        _ => derive_scoped_name(table, |_| quoted),
+    }
 }

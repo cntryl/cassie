@@ -17,7 +17,9 @@ fn vector_cassie(_label: &str) -> Cassie {
         model: "deterministic-test".to_string(),
         dimensions: 3,
     });
-    Cassie::new_in_memory_with_config(config).expect("create Cassie")
+    let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
+    cassie
 }
 
 fn vector_cassie_with_memory_budget(data_dir: &str, query_memory_budget_bytes: usize) -> Cassie {
@@ -426,6 +428,8 @@ fn should_enforce_query_memory_budget_during_exact_vector_top_k() {
     let path = data_dir("vector_exact_memory_budget");
     let cassie = vector_cassie_with_memory_budget(&path, 64 * 1_024);
     cassie.startup().expect("start seeded vector collection");
+    // A tiny budget would reject the install itself, so install under the larger first budget.
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "vector_exact_memory_budget";
     // Only the first storage identity changes; the twenty payloads and scores remain.
     // Its lexically first raw key alone exceeds the deeper target admission budget.
@@ -495,6 +499,7 @@ fn should_cancel_during_exact_vector_scoring() {
         dimensions: 3,
     });
     let cassie = Arc::new(Cassie::new_in_memory_with_config(config).expect("create Cassie"));
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "vector_exact_active_cancellation";
     seed_vector_collection(&cassie, collection, 3);
     let before = cassie.metrics();
@@ -550,6 +555,7 @@ fn should_release_scoring_pause_when_a_diagnostic_endpoint_disconnects() {
         config.limits.execution_result_cache_enabled =
             cassie::config::ExecutionResultCacheEnabled::disabled();
         let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "vector_disconnected_scoring_pause";
         seed_vector_collection(&cassie, collection, 3);
         let session = cassie.create_session("tester", None);

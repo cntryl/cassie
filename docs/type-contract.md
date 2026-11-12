@@ -449,6 +449,16 @@ Cassie implementation/tests remain the correctness evidence. The typed request a
 response are retained in the ignored `target/v020-evidence/844-vector-contract/`
 directory.
 
+Extension gate (user-approved, kept): `VECTOR(n)` and bare `vector` columns, `::vector`
+casts, and vector wire/parameter OIDs require `CREATE EXTENSION vector` in the
+database; otherwise Cassie returns SQLSTATE `42704` (`type "vector" does not exist`).
+Only `root` may install extensions. There are no private or legacy vector OIDs: vector
+identity is the installed per-database type OID
+(`ExtensionMeta::vector_type_object_id`). REST collection creation that declares a
+vector field installs the extension through the administrative path when it is missing
+(`should_install_vector_extension_when_rest_collection_declares_vector_field`), so REST
+clients need no SQL step.
+
 Keep Cassie's existing `USING vector` form and add pgvector's `USING hnsw` and
 `USING ivfflat` forms. Each added method accepts exactly `vector_l2_ops`,
 `vector_ip_ops`, and `vector_cosine_ops`, mapping respectively to `<->` L2 distance,

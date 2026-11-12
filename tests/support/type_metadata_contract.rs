@@ -56,9 +56,16 @@ pub fn assert_single_column_descriptors(
         assert_eq!(columns.len(), 1);
         let column = &columns[0];
         if expected.0 == VECTOR_TYPE_OID {
-            assert!(column.type_oid >= 16_384);
+            assert!(
+                column.type_oid >= 16_384,
+                "vector descriptor must carry the installed database OID, got {}",
+                column.type_oid
+            );
             assert!(!(100_001..=132_767).contains(&column.type_oid));
-            assert_eq!((column.type_size, column.type_mod), (expected.1, expected.2));
+            assert_eq!(
+                (column.type_size, column.type_mod),
+                (expected.1, expected.2)
+            );
             if let Some(active_vector_oid) = active_vector_oid {
                 assert_eq!(column.type_oid, active_vector_oid);
             } else {

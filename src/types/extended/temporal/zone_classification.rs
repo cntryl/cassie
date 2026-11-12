@@ -16,6 +16,7 @@ fn classify<E>(
     let Zone::Rules { tz, .. } = zone else {
         return Ok(None);
     };
+    let tz = &tz.time_zone;
     let initial = tz.to_offset_info(jiff::Timestamp::MIN);
     let mut found = initial
         .abbreviation()

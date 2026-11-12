@@ -93,10 +93,27 @@ fn seeded_fixture(
     setup: &[&str],
     label: &str,
 ) -> SqlFixture {
+    let installs_vector = setup
+        .iter()
+        .any(|sql| sql.to_ascii_lowercase().contains("extension vector"));
+    if !installs_vector
+        && setup
+            .iter()
+            .any(|sql| sql.to_ascii_lowercase().contains("vector"))
+    {
+        crate::support_sql::install_vector_extension(&cassie);
+    }
     let session = cassie.create_session("tester", None);
+    let root = cassie.create_session("root", None);
     for sql in setup {
+        // Only root may manage installed extensions.
+        let owner = if sql.trim_start().to_ascii_lowercase().contains("extension ") {
+            &root
+        } else {
+            &session
+        };
         assert!(
-            cassie.execute_sql(&session, sql, vec![]).is_ok(),
+            cassie.execute_sql(owner, sql, vec![]).is_ok(),
             "setup statement failed in {label}: {sql}"
         );
     }
@@ -115,6 +132,16 @@ impl SqlFixture {
     /// Returns the engine error for a failing statement.
     pub fn execute(&self, sql: &str) -> Result<QueryResult, CassieError> {
         self.cassie.execute_sql(&self.session, sql, vec![])
+    }
+
+    /// Runs `sql` as `root`, the only role that may manage installed extensions.
+    ///
+    /// # Errors
+    ///
+    /// Returns the engine error for a failing statement.
+    pub fn execute_as_root(&self, sql: &str) -> Result<QueryResult, CassieError> {
+        let root = self.cassie.create_session("root", None);
+        self.cassie.execute_sql(&root, sql, vec![])
     }
 
     /// Runs `sql` and returns its rows.

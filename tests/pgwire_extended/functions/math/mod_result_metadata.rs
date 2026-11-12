@@ -17,11 +17,7 @@ fn should_preserve_mod_result_identity_for_each_supported_numeric_width() {
             wire::sync_frame(),
         ]),
         Step::ThroughReady(vec![
-            wire::bind_frame(
-                portal,
-                statement,
-                &["5", "3", "5", "3", "5", "3", "5", "3"],
-            ),
+            wire::bind_frame(portal, statement, &["5", "3", "5", "3", "5", "3", "5", "3"]),
             wire::describe_portal_frame(portal),
             wire::execute_frame(portal),
             wire::sync_frame(),

@@ -49,9 +49,6 @@ mod series_sources;
 #[path = "types/arrays/unnest_sources.rs"]
 mod unnest_sources;
 
-#[path = "set_returning/series_contracts.rs"]
-mod series_sources;
-
 #[path = "aggregates/ordered_set/arrays.rs"]
 mod aggregates_ordered_set_arrays;
 

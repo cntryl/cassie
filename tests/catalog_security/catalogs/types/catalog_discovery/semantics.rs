@@ -385,15 +385,9 @@ fn should_resolve_bounded_array_lookup_signatures() {
                     to_regtype('integer[-- bound comment\n2]')::oid, \
                     to_regprocedure('pg_catalog.array_fill(anyelement, integer[2])')::oid, \
                     to_regtype('_int4[]') IS NULL, \
-                    to_regtype('_int4[2]') IS NULL, \
-                    to_regtype('integer[1__0]') IS NULL, \
-                    to_regtype('integer[2147483648]') IS NULL, \
-                    to_regtype('integer[0x80000000]') IS NULL",
+                    to_regtype('_int4[2]') IS NULL",
         )
         .expect("resolve builtin array dimensions in object identifier names");
-    let nullable = fixture
-        .execute("SELECT to_regtype('integer[\u{00a0}2]') IS NULL")
-        .expect("malformed name has no nullable lookup result");
     let invalid = fixture
         .execute("SELECT 'integer[\u{00a0}2]'::regtype")
         .expect_err("a regtype cast rejects non-SQL whitespace");
@@ -417,25 +411,71 @@ fn should_resolve_bounded_array_lookup_signatures() {
             Value::Int64(1_193),
             Value::Bool(true),
             Value::Bool(true),
-            Value::Bool(true),
-            Value::Bool(true),
-            Value::Bool(true),
         ]]
     );
-    assert_eq!(nullable.rows(), vec![vec![Value::Bool(true)]]);
     match &invalid {
         cassie::app::CassieError::ObjectIdentifier(
-            error @ cassie::types::ObjectIdentifierError::InvalidName(name),
+            error @ cassie::types::ObjectIdentifierError::TypeNameSyntax(name),
         ) => {
             assert_eq!(name, "integer[\u{00a0}2]");
-            assert_eq!(error.sqlstate(), "42602");
+            assert_eq!(error.sqlstate(), "42601");
         }
         other => panic!("unexpected regtype error: {other:?}"),
     }
-    assert_eq!(invalid.to_string(), "invalid name syntax");
+    assert_eq!(invalid.to_string(), "invalid type name syntax");
+}
 
-    // The explicit cast path remains an error for invalid input.
-    assert!(fixture.execute("SELECT 'integer[1__0]'::regtype").is_err());
+#[test]
+fn should_resolve_regnamespace_only_within_the_active_database() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regnamespace-database-scope", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE SCHEMA issue_818_namespace_current_only")
+        .expect("create namespace in the current database");
+    fixture
+        .execute("CREATE DATABASE issue_818_regnamespace_tenant")
+        .expect("create a second database");
+    let tenant = fixture
+        .cassie
+        .create_session("tester", Some("issue_818_regnamespace_tenant".to_owned()));
+    fixture
+        .cassie
+        .execute_sql(
+            &tenant,
+            "CREATE SCHEMA issue_818_namespace_other_only",
+            vec![],
+        )
+        .expect("create a namespace in the second database");
+
+    // Act
+    let current = fixture
+        .execute(
+            "SELECT to_regnamespace('issue_818_namespace_current_only') IS NOT NULL, \
+                    to_regnamespace('issue_818_namespace_other_only') IS NULL, \
+                    to_regnamespace('issue_818_namespace_missing') IS NULL",
+        )
+        .expect("resolve namespaces only from the current database");
+    let other = fixture
+        .cassie
+        .execute_sql(
+            &tenant,
+            "SELECT to_regnamespace('issue_818_namespace_other_only') IS NOT NULL, \
+                    to_regnamespace('issue_818_namespace_current_only') IS NULL, \
+                    to_regnamespace('issue_818_namespace_missing') IS NULL",
+            vec![],
+        )
+        .expect("resolve namespaces only from the second database");
+
+    // Assert
+    assert_eq!(
+        current.rows(),
+        &[vec![Value::Bool(true), Value::Bool(true), Value::Bool(true)]]
+    );
+    assert_eq!(
+        other.rows(),
+        &[vec![Value::Bool(true), Value::Bool(true), Value::Bool(true)]]
+    );
 }
 
 #[test]

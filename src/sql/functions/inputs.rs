@@ -150,7 +150,11 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::OctetLength
         | FunctionId::BitLength
         | FunctionId::Ascii
-        | FunctionId::Format => Some(FunctionInputSignature::Positional(&[25])),
+        | FunctionId::Format
+        | FunctionId::ToRegClass
+        | FunctionId::ToRegNamespace
+        | FunctionId::ToRegType
+        | FunctionId::ToRegProcedure => Some(FunctionInputSignature::Positional(&[25])),
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
         FunctionId::PgGetFunctionArguments
         | FunctionId::PgGetFunctionIdentityArguments

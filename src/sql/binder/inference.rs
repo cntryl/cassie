@@ -704,10 +704,10 @@ pub(super) fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType>
         .map(|field| field.data_type.clone())
 }
 
-#[path = "inference_numeric.rs"]
 #[path = "inference_composite.rs"]
 mod composite;
 pub(crate) use composite::composite_field_type;
+#[path = "inference_numeric.rs"]
 mod numeric;
 use numeric::{arithmetic_type, numeric_function_type, power_type};
 

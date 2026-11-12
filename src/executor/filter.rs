@@ -925,7 +925,9 @@ fn eval_is_null_expr<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     let value = eval_scalar_with_context(row, expr, context)?;
-    Ok(ScalarValue::Bool(composite_cast::null_test(&value, negated)))
+    Ok(ScalarValue::Bool(composite_cast::null_test(
+        &value, negated,
+    )))
 }
 
 fn eval_in_list_expr<R: RowAccess + ?Sized>(

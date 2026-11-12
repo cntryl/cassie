@@ -290614,6 +290614,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/boolean_aggregate_cancellation.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 216,
+      "sha256": "972a3b9ebb51d95348c76c73658859897b7e4199798113f8a6589eadaf89142c",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/boolean_aggregate_cancellation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/bytea_cast_planning.rs",
       "role": "shared_support",
       "action": "keep",

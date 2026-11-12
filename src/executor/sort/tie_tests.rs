@@ -4,6 +4,7 @@ use crate::config::CassieRuntimeLimits;
 use crate::executor::batch::{row_tie_key, BatchRow};
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::types::{ArrayDimension, SqlArray, Value};
+use std::fmt::Write as _;
 use std::time::Instant;
 
 #[test]

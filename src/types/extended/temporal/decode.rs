@@ -407,6 +407,17 @@ fn is_default_msk(field: &str, session: &TemporalSession) -> bool {
     field.eq_ignore_ascii_case("MSK") && session.abbreviations == AbbreviationSet::Default
 }
 
+fn zone_abbreviation_probe(field: &str, state: &State, session: &TemporalSession) -> Option<i64> {
+    if !field.chars().all(|c| c.is_ascii_alphabetic()) {
+        return None;
+    }
+    Some(if state.fmask & DATE_M == DATE_M {
+        local_micros(&state.fields)
+    } else {
+        session.transaction_start
+    })
+}
+
 fn decode_reserved(reserved: Reserved, state: &mut State, session: &TemporalSession) -> u32 {
     match reserved {
         Reserved::Now => {
@@ -896,3 +907,7 @@ mod tests {
         assert_eq!(bad, Err(DecodeError::FieldOverflow));
     }
 }
+
+#[cfg(test)]
+#[path = "decode_controlled_tests.rs"]
+mod controlled_tests;

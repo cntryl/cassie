@@ -344,6 +344,37 @@ uses 2249/contextual typmod. Domain output uses base codecs where SQL resolution
 flattens it. Catalog/schema/constraint/row changes publish in one family and survive
 restart/image restore; failed validation publishes nothing.
 
+#### #828 increment 1 status (composite types and ROW)
+
+Increment 1 implements `CREATE TYPE [schema.]name AS (field type, ...)`,
+`DROP TYPE [IF EXISTS] name [RESTRICT]` (`2BP01` on dependents, `42710`
+duplicate, `42704` missing, `3F000` missing schema), composite-typed table
+columns, `ROW(...)` and implicit `(a, b)` constructors, `ROW(...)::t` and
+`'(x,1)'::t` casts, `(expr).field` selection, PostgreSQL record text
+input/output, binary RECORD output, the CRB1 tag 0x0F payload (version u8=1,
+type OID u32, descriptor revision u64, field count u32, recursively framed
+nullable values, big-endian; tag 0x10 stays reserved for domains) and the
+`pg_type`/`pg_class`/`pg_attribute`/`regtype` rows. Type, array-type and
+`relkind = 'c'` relation OIDs come from `Midge::allocate_object_id` and are
+durable. The code and its regressions are authored; they have not been
+compiled or executed (assembler-owned gate). Pending or excluded:
+
+- domains, `ALTER TYPE`, relation row types (a table name used as a type),
+  `(expr).*` expansion, JSON recordset functions and enums keep deterministic
+  `0A000` or `42704` outcomes;
+- arrays of composite types (`name[]` columns and casts) are rejected with
+  `0A000` although the `_name` array type row and OID exist;
+- composite columns cannot carry `DEFAULT`, `PRIMARY KEY`, `UNIQUE` or an
+  index; `CREATE TABLE AS` with a RECORD column is not yet rejected;
+- binary parameter input of composite types, `COPY` of composite columns and
+  `DROP TYPE ... CASCADE` with dependents are not implemented;
+- record ordering uses an order-preserving key that is exact for equality and
+  for text, integer, float and boolean fields; fields of other families order
+  by their typed key bytes;
+- view and routine bodies are reparsed without a type scope, and one simple
+  query string cannot create a type and use it in a later statement of the
+  same string.
+
 ### #843, #844
 
 Select only pgcrypto 1.4 and vector 0.8.7 as built-in SQL shims. Root installs into an

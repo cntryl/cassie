@@ -56,7 +56,8 @@ In the current source, [`virtual_views_pg.rs`](../src/catalog/virtual_views_pg.r
 declares and builds the selected base `pg_namespace`, `pg_class`, `pg_type`,
 and `pg_attribute` rows. Their existence does not complete the dependent
 workflows: user object resolution still belongs to #818, selected
-composite/domain type rows are absent until #828, and extension catalog rows
+domain type rows are absent until #828, composite type rows are authored but
+not yet executed, and extension catalog rows
 remain empty until #843. `nspowner` and
 `relowner` currently describe the bootstrap `root`; `nspacl` and `relacl` are
 empty. Role-aware schema/table grant reporting remains with #831.
@@ -330,11 +331,15 @@ The role-aware lookup regression is authored with #831 integration and remains
 unexecuted; it distinguishes unqualified lookup before/after USAGE, qualified
 identity lookup, namespace lookup, and table SELECT authorization.
 
-The descriptor additions selected by #828 are present before its type runtime: rows for
-the currently supported types report `typnotnull = false` and `typtypmod = -1`,
-and `pg_class.reltype = 0` while Cassie has no row-type identity for the
-relation. This is the deterministic unsupported boundary, not composite/domain
-support or PostgreSQL row-type parity. #828 owns the future database-scoped
+The descriptor additions selected by #828 are present: rows for the currently
+supported types report `typnotnull = false` and `typtypmod = -1`, and
+`pg_class.reltype = 0` for tables, views and sequences while Cassie has no
+automatic row-type identity for them. User composite types add a `pg_type` row
+(`typtype = 'c'`, `typcategory = 'C'`, `typrelid`, `typarray`), a `_name`
+array `pg_type` row, a `pg_class` row with `relkind = 'c'` whose `reltype` is
+the type OID, and one `pg_attribute` row per field. These rows are authored
+under #828 increment 1 and are not yet executed; table row types and domains
+remain unsupported and are not PostgreSQL row-type parity. #828 owns the future database-scoped
 row-type and domain OIDs. Enum rows remain deferred to #827; broad routines,
 dependency families, sequences, and partitions remain unselected except for
 separately documented finite workflows.

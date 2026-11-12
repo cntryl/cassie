@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::executor::batch::{BatchRow, OperatorMemory};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::Schema;
+use crate::types::{Schema, Value};
 
 use super::QueryError;
 
@@ -67,9 +67,18 @@ fn encode_observing(
         for (field_index, ((_, value), field)) in
             entries.into_iter().zip(&schema.fields).enumerate()
         {
-            let value = crate::types::json::try_value_to_json(value).map_err(|error| {
-                QueryError::General(format!("materialized projection output {error}"))
-            })?;
+            let value = match (&field.data_type, value) {
+                (crate::types::DataType::Vector(dimensions), Value::String(text)) => {
+                    crate::executor::execution::dml::vector_literal_to_json(
+                        &field.name,
+                        &text,
+                        *dimensions,
+                    )?
+                }
+                (_, value) => crate::types::json::try_value_to_json(value).map_err(|error| {
+                    QueryError::General(format!("materialized projection output {error}"))
+                })?,
+            };
             payload.insert(field.name.clone(), value);
             observe_field(index, field_index);
             super::super::check_timeout(controls)?;

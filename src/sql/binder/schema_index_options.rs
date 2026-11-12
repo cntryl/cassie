@@ -75,7 +75,7 @@ fn bind_pgvector_index_options(
         )));
     };
     if !(1..=2_000).contains(&dimensions) {
-        return Err(CassieError::Planner(format!(
+        return Err(CassieError::ResourceLimit(format!(
             "pgvector {access_method} indexes support vector dimensions from 1 through 2000"
         )));
     }

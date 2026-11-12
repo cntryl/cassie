@@ -4,6 +4,7 @@ use super::{fixture, wire};
 
 const SYNTAX_ERROR: &str = "42601";
 const UNDEFINED_OBJECT: &str = "42704";
+const UNDEFINED_FUNCTION: &str = "42883";
 
 /// Runs `sql`, then a follow-up query on the same connection, and returns
 /// the rejection SQLSTATE plus the follow-up rows.
@@ -26,7 +27,7 @@ fn should_reject_row_to_json_as_an_unsupported_function() {
     let (code, recovery) = run_then_recover("deferred-row-to-json", sql);
 
     // Assert
-    assert_eq!(code.as_deref(), Some(SYNTAX_ERROR));
+    assert_eq!(code.as_deref(), Some(UNDEFINED_FUNCTION));
     assert_eq!(recovery, vec![vec![Some("7".into())]]);
 }
 
@@ -39,7 +40,7 @@ fn should_reject_array_to_json_as_an_unsupported_function() {
     let (code, recovery) = run_then_recover("deferred-array-to-json", sql);
 
     // Assert
-    assert_eq!(code.as_deref(), Some(SYNTAX_ERROR));
+    assert_eq!(code.as_deref(), Some(UNDEFINED_FUNCTION));
     assert_eq!(recovery, vec![vec![Some("7".into())]]);
 }
 
@@ -78,7 +79,7 @@ fn should_reject_json_value() {
     let (code, recovery) = run_then_recover("deferred-json-value", sql);
 
     // Assert
-    assert_eq!(code.as_deref(), Some(SYNTAX_ERROR));
+    assert_eq!(code.as_deref(), Some(UNDEFINED_FUNCTION));
     assert_eq!(recovery, vec![vec![Some("7".into())]]);
 }
 
@@ -91,7 +92,7 @@ fn should_reject_json_query() {
     let (code, recovery) = run_then_recover("deferred-json-query", sql);
 
     // Assert
-    assert_eq!(code.as_deref(), Some(SYNTAX_ERROR));
+    assert_eq!(code.as_deref(), Some(UNDEFINED_FUNCTION));
     assert_eq!(recovery, vec![vec![Some("7".into())]]);
 }
 

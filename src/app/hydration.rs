@@ -226,6 +226,15 @@ impl Cassie {
             self.catalog.register_extension(metadata);
         }
 
+        let composite_types = self.midge.list_composite_types().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list composite type metadata: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in composite_types {
+            self.catalog.register_composite_type(metadata);
+        }
+
         let functions = self.midge.list_functions().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list functions: {error}"))

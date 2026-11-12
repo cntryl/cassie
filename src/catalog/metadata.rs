@@ -7,11 +7,12 @@ use parking_lot::RwLock;
 use crate::app::CassieError;
 use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
-    CollectionSchema, CollectionStorageMode, DatabaseMeta, ExtensionMeta, FieldConstraint,
-    FunctionMeta, GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta,
-    ObjectCommentMeta, OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
-    ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
-    RetentionPolicyMeta, RoleMeta, RoleObjectGrantMeta, RollupMeta, SequenceMeta, ViewMeta,
+    CollectionSchema, CollectionStorageMode, CompositeTypeMeta, DatabaseMeta, ExtensionMeta,
+    FieldConstraint, FunctionMeta, GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta,
+    NamespaceMeta, ObjectCommentMeta, OperationalAssignmentMeta, ProcedureMeta,
+    ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
+    ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RoleObjectGrantMeta, RollupMeta,
+    SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
@@ -41,6 +42,7 @@ pub struct Catalog {
     pub(super) functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
     pub(super) procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
     pub(super) extensions: Arc<RwLock<HashMap<String, ExtensionMeta>>>,
+    pub(super) composite_types: Arc<RwLock<HashMap<String, CompositeTypeMeta>>>,
     pub(super) views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub(super) roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
     pub(super) sequences: Arc<RwLock<HashMap<String, SequenceMeta>>>,
@@ -88,6 +90,7 @@ impl Catalog {
             functions: Arc::new(RwLock::new(HashMap::new())),
             procedures: Arc::new(RwLock::new(HashMap::new())),
             extensions: Arc::new(RwLock::new(HashMap::new())),
+            composite_types: Arc::new(RwLock::new(HashMap::new())),
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
             sequences: Self::sequence_store(),
@@ -122,6 +125,7 @@ impl Catalog {
         (*self.graphs.write()).clone_from(&snapshot.graphs.read());
         (*self.views.write()).clone_from(&snapshot.views.read());
         (*self.extensions.write()).clone_from(&snapshot.extensions.read());
+        (*self.composite_types.write()).clone_from(&snapshot.composite_types.read());
         (*self.sequences.write()).clone_from(&snapshot.sequences.read());
         (*self.rollups.write()).clone_from(&snapshot.rollups.read());
         (*self.retention_policies.write()).clone_from(&snapshot.retention_policies.read());
@@ -280,6 +284,7 @@ impl Catalog {
         self.functions.write().clear();
         self.procedures.write().clear();
         self.extensions.write().clear();
+        self.composite_types.write().clear();
         self.views.write().clear();
         self.roles.write().clear();
         self.sequences.write().clear();

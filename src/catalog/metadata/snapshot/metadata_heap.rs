@@ -187,6 +187,20 @@ metadata_heap!(crate::catalog::programs::ExtensionMeta {
     vector_catalog_identities,
 });
 
+metadata_heap!(crate::types::composite::CompositeField { name, data_type });
+
+metadata_heap!(crate::catalog::composite_types::CompositeTypeMeta {
+    format_version,
+    database,
+    name,
+    object_id,
+    array_object_id,
+    relation_object_id,
+    owner_oid,
+    revision,
+    fields,
+});
+
 metadata_heap!(crate::catalog::programs::VectorCatalogIdentitySet {
     operators,
     hnsw,

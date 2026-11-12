@@ -2,6 +2,7 @@ pub mod builtin_identity;
 pub mod cardinality;
 pub mod collections;
 pub mod column_defaults;
+pub mod composite_types;
 pub mod composite_unique;
 pub mod consistency;
 pub mod constraints;
@@ -45,6 +46,7 @@ pub use column_defaults::{
     coerce_default_literal, evaluate_volatile_default, parse_volatile_default_expression,
     volatile_default_accepts,
 };
+pub use composite_types::{CompositeTypeMeta, COMPOSITE_TYPE_FORMAT_VERSION};
 pub use composite_unique::{
     composite_primary_key_constraints, composite_primary_key_indexes, composite_unique_constraints,
     composite_unique_indexes, conflicting_unique_membership, enforces_single_column_uniqueness,

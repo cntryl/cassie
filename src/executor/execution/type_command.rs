@@ -193,7 +193,7 @@ fn drop_types(
                 format!("type \"{raw}\" does not exist"),
             ));
         };
-        let oid = u32::try_from(metadata.object_id).unwrap_or(0);
+        let oid = metadata.type_oid();
         let dependents = cassie.catalog.composite_type_dependents(oid);
         if !dependents.is_empty() {
             if cascade {

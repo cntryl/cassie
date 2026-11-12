@@ -36,13 +36,31 @@ impl CompositeTypeMeta {
     #[must_use]
     pub fn descriptor(&self) -> CompositeRef {
         CompositeRef::new(CompositeType {
-            oid: u32::try_from(self.object_id).unwrap_or(0),
-            array_oid: u32::try_from(self.array_object_id).unwrap_or(0),
+            oid: self.type_oid(),
+            array_oid: self.array_oid(),
             qualified_name: self.name.clone(),
             name: local_name(&self.name),
             revision: self.revision,
             fields: self.fields.clone(),
         })
+    }
+
+    /// `pg_type.oid` of the composite type.
+    #[must_use]
+    pub fn type_oid(&self) -> u32 {
+        super::object_identity::normal_oid(self.object_id).unwrap_or(0)
+    }
+
+    /// `pg_type.oid` of the matching `_name` array type.
+    #[must_use]
+    pub fn array_oid(&self) -> u32 {
+        super::object_identity::normal_oid(self.array_object_id).unwrap_or(0)
+    }
+
+    /// `pg_class.oid` of the `relkind = 'c'` row (`pg_type.typrelid`).
+    #[must_use]
+    pub fn relation_oid(&self) -> u32 {
+        super::object_identity::normal_oid(self.relation_object_id).unwrap_or(0)
     }
 
     #[must_use]
@@ -123,7 +141,7 @@ impl Catalog {
         self.composite_types
             .read()
             .values()
-            .find(|metadata| metadata.object_id == u64::from(oid))
+            .find(|metadata| metadata.type_oid() == oid)
             .cloned()
     }
 
@@ -133,7 +151,7 @@ impl Catalog {
         self.composite_types
             .read()
             .values()
-            .find(|metadata| metadata.array_object_id == u64::from(oid))
+            .find(|metadata| metadata.array_oid() == oid)
             .cloned()
     }
 
@@ -187,7 +205,7 @@ impl Catalog {
     pub fn composite_type_dependents(&self, oid: u32) -> Vec<String> {
         let mut dependents = Vec::new();
         for metadata in self.composite_types.read().values() {
-            if metadata.object_id != u64::from(oid)
+            if metadata.type_oid() != oid
                 && metadata
                     .fields
                     .iter()

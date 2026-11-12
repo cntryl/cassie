@@ -15,7 +15,9 @@ fn validate_composite_type(metadata: &CompositeTypeMeta) -> Result<(), CassieErr
         metadata.relation_object_id,
     ];
     if ids.contains(&0)
-        || ids.iter().any(|id| u32::try_from(*id).is_err())
+        || ids
+            .iter()
+            .any(|id| crate::catalog::object_identity::normal_oid(*id).is_none())
         || ids
             .iter()
             .enumerate()

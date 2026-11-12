@@ -67,7 +67,10 @@ impl<'a> ObjectScope<'a> {
         match kind {
             ObjectIdKind::Oid => parse_oid_text(trimmed).map(Some),
             ObjectIdKind::RegClass => self.resolve_relation(trimmed),
-            ObjectIdKind::RegType => names::builtin_type_oid(trimmed),
+            ObjectIdKind::RegType => match names::builtin_type_oid(trimmed)? {
+                Some(oid) => Ok(Some(oid)),
+                None => Ok(self.resolve_user_type(trimmed)),
+            },
             ObjectIdKind::RegNamespace => self.resolve_namespace_text(trimmed),
             ObjectIdKind::RegRole => self.resolve_role(trimmed),
             ObjectIdKind::RegCollation => Ok(resolve_builtin_name(
@@ -116,7 +119,8 @@ impl<'a> ObjectScope<'a> {
             ObjectIdKind::RegClass => self.relation_label(oid),
             ObjectIdKind::RegType => builtin_identities()
                 .type_by_oid(oid)
-                .map(|row| row.display.clone()),
+                .map(|row| row.display.clone())
+                .or_else(|| self.user_type_label(oid)),
             ObjectIdKind::RegNamespace => {
                 self.namespace_name(oid).map(|name| quote_identifier(&name))
             }
@@ -134,6 +138,50 @@ impl<'a> ObjectScope<'a> {
             ObjectIdKind::RegOperator => routines::operator_signature_label(oid),
         };
         label.unwrap_or_else(|| oid.to_string())
+    }
+
+    /// A user composite type named by `text`, or its `[]` array type.
+    fn resolve_user_type(&self, text: &str) -> Option<u32> {
+        let search_order = self.context.relation_search_order();
+        let resolve = |name: &str| {
+            self.catalog
+                .resolve_composite_type(&self.context.database, &search_order, name)
+        };
+        if let Some(base) = text.trim_end().strip_suffix("[]") {
+            return resolve(base.trim_end()).map(|metadata| metadata.array_oid());
+        }
+        resolve(text).map(|metadata| metadata.type_oid())
+    }
+
+    /// `regtype` output for a user composite type or its array type.
+    fn user_type_label(&self, oid: u32) -> Option<String> {
+        let (metadata, suffix) = self.catalog.get_composite_type_by_oid(oid).map_or_else(
+            || {
+                self.catalog
+                    .get_composite_type_by_array_oid(oid)
+                    .map(|metadata| (metadata, "[]"))
+            },
+            |metadata| Some((metadata, "")),
+        )?;
+        let search_order = self.context.relation_search_order();
+        let visible = self
+            .catalog
+            .resolve_composite_type(
+                &self.context.database,
+                &search_order,
+                &quote_identifier(&metadata.local_name()),
+            )
+            .is_some_and(|found| found.type_oid() == metadata.type_oid());
+        let name = if visible {
+            quote_identifier(&metadata.local_name())
+        } else {
+            format!(
+                "{}.{}",
+                quote_identifier(&metadata.schema_name()),
+                quote_identifier(&metadata.local_name())
+            )
+        };
+        Some(format!("{name}{suffix}"))
     }
 
     fn resolve_relation(&self, text: &str) -> Result<Option<u32>, ObjectIdentifierError> {

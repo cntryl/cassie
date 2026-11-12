@@ -11,6 +11,8 @@ use super::VirtualRow;
 mod acl;
 #[path = "virtual_views_pg/collation.rs"]
 pub(super) mod collation;
+#[path = "virtual_views_pg/composite_catalogs.rs"]
+mod composite_catalogs;
 #[path = "virtual_views_pg/descriptions.rs"]
 pub(super) mod descriptions;
 #[path = "virtual_views_pg/index_definitions.rs"]
@@ -210,6 +212,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
             })
             .map(|index| class_row(catalog, &index.name, "i", Some(&index), current_database)),
     );
+    rows.extend(composite_catalogs::class_rows(catalog, current_database));
     rows.sort_by_key(row_sort_key);
     rows
 }
@@ -305,6 +308,10 @@ pub(super) fn pg_attribute(
             ));
         }
     }
+    rows.extend(composite_catalogs::attribute_rows(
+        catalog,
+        current_database,
+    ));
     rows.sort_by_key(row_sort_key);
     Ok(rows)
 }
@@ -425,6 +432,7 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
             i64::from(type_oid),
         ))
     }));
+    rows.extend(composite_catalogs::type_rows(catalog, current_database));
     rows.sort_by_key(row_sort_key);
     rows
 }

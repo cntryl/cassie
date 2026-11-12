@@ -43,7 +43,7 @@ for retained key admission, and 0.12 for window FILTER frame membership. A
 second review returned 0.14 for unknown-outcome publication fencing, 0.13 for
 catalog delta overwrite, 0.13 for catalog admission, and 0.08 for native writer
 escape. Its paired RR snapshot concern was 0.60 and requires a probe.
-`should_capture_matching_assertion_and_read_views_while_a_publisher_waits`
+`should_capture_matching_validation_views_while_a_publisher_waits`
 synchronizes on the competing commit's actual publication gate, captures the
 assertion/read pair, and checks historical visibility plus conflict rejection.
 At that initial review checkpoint the probe and full suite were pending; these judgments do not prove correctness. Final executed results belong to PR #1184.

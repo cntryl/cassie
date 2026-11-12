@@ -15,9 +15,12 @@ pub(super) fn execute_command(
     let outcome = command_outcome(cassie, session, command, params, user_functions, controls);
 
     if outcome.invalidate_plan_cache {
-        cassie
-            .bump_schema_epoch_and_invalidate_query_cache()
-            .map_err(|error| QueryError::General(error.to_string()))?;
+        let bumped = cassie.bump_schema_epoch_and_invalidate_query_cache();
+        // A command that already failed (for example canceled) keeps its own
+        // error; the invalidation failure must not replace it.
+        if outcome.result.is_ok() {
+            bumped.map_err(|error| QueryError::General(error.to_string()))?;
+        }
     }
 
     outcome.result

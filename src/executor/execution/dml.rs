@@ -18,6 +18,8 @@ mod dml_joined;
 mod dml_joined_update;
 #[path = "dml_merge.rs"]
 mod dml_merge;
+#[path = "dml_missing_row.rs"]
+mod dml_missing_row;
 #[path = "dml_returning.rs"]
 mod dml_returning;
 #[cfg(test)]
@@ -75,7 +77,7 @@ fn value_to_json(value: &Value) -> Result<serde_json::Value, QueryError> {
     })
 }
 
-fn value_to_json_for_field(
+pub(super) fn value_to_json_for_field(
     field: &str,
     value: &Value,
     data_type: &DataType,

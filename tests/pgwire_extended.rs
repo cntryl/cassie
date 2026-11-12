@@ -9,6 +9,15 @@ mod transaction_owned_sequences;
 #[path = "pgwire_extended/transactions/repeatable_read.rs"]
 mod repeatable_read;
 
+#[path = "pgwire_extended/transactions/repeatable_cancellation.rs"]
+mod repeatable_cancellation;
+
+#[path = "pgwire_extended/ddl/ddl_cancellation.rs"]
+mod ddl_cancellation;
+
+#[path = "pgwire_extended/ddl/extended_ddl_forms.rs"]
+mod extended_ddl_forms;
+
 #[path = "pgwire_extended/conflicts/unique_validation_errors.rs"]
 mod unique_validation_errors;
 
@@ -185,6 +194,9 @@ mod support_portal_memory_calibration;
 
 #[path = "support/primitive_literal_inputs.rs"]
 mod support_primitive_literal_inputs;
+
+#[path = "support/pgwire_cancel_session.rs"]
+mod support_pgwire_cancel_session;
 
 #[path = "support/repeatable_read.rs"]
 mod support_repeatable_read;

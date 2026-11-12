@@ -55,6 +55,18 @@ mod repeatable_conflicts;
 #[path = "sql_mutations/transactions/repeatable_catalog.rs"]
 mod repeatable_catalog;
 
+#[path = "sql_mutations/transactions/repeatable_bounds.rs"]
+mod repeatable_bounds;
+
+#[path = "sql_mutations/ddl/drop_view_options.rs"]
+mod drop_view_options;
+
+#[path = "sql_mutations/ddl/using_conversions.rs"]
+mod using_conversions;
+
+#[path = "sql_mutations/transactions/repeatable_waits.rs"]
+mod repeatable_waits;
+
 #[path = "sql_mutations/mutations/statement_atomicity.rs"]
 mod postgresql18_mutation_inventory_wave4;
 

@@ -23,6 +23,13 @@ pub(crate) fn plan_needs_resolution(
     traversal::plan_needs_resolution(plan, controls)
 }
 
+pub(crate) fn guard_plan_depth(
+    plan: &crate::planner::logical::LogicalPlan,
+    controls: &QueryExecutionControls,
+) -> Result<(), CassieError> {
+    traversal::guard_plan_depth(plan, controls)
+}
+
 pub(crate) fn resolve_plan(
     plan: &crate::planner::logical::LogicalPlan,
     params: &[Value],

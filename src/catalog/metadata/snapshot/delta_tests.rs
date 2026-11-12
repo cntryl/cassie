@@ -3,12 +3,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::catalog::{
-    CollectionSchema, DatabaseMeta, FieldMeta, NamespaceMeta, RoleGrantTarget,
-    RoleObjectGrantMeta, RoleObjectPrivilege, SequenceMeta,
+    CollectionSchema, DatabaseMeta, FieldMeta, NamespaceMeta, RoleGrantTarget, RoleObjectGrantMeta,
+    RoleObjectPrivilege, SequenceMeta,
 };
-use std::collections::BTreeSet;
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryCancellationHandle;
+use std::collections::BTreeSet;
 
 use super::{CaptureBoundary, Catalog, QueryExecutionControls};
 
@@ -147,8 +147,13 @@ fn should_publish_role_grant_delta_from_a_detached_transaction_snapshot() {
 
     // Assert
     assert_eq!(owner.catalog().list_role_object_grants(), vec![added]);
-    assert_eq!(owner.accounted_bytes(), controls.current_query_memory_bytes());
-    assert!(!initial.matches_transaction_metadata(&overlay, &controls).unwrap());
+    assert_eq!(
+        owner.accounted_bytes(),
+        controls.current_query_memory_bytes()
+    );
+    assert!(!initial
+        .matches_transaction_metadata(&overlay, &controls)
+        .unwrap());
 }
 
 #[test]
@@ -321,10 +326,7 @@ fn should_compare_transaction_metadata_without_capacity_or_version_identity() {
 fn should_ignore_sequence_cursor_for_conflicts_and_keep_the_owner_cursor_in_its_read_view() {
     // Arrange
     let current = Catalog::new();
-    let mut sequence = SequenceMeta::new(
-        "public.sequence_cursor",
-        crate::types::DataType::BigInt,
-    );
+    let mut sequence = SequenceMeta::new("public.sequence_cursor", crate::types::DataType::BigInt);
     sequence.object_id = 83;
     current.register_sequence(sequence.clone());
     let base = current.detached_transaction_snapshot();

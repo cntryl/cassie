@@ -31,9 +31,6 @@ use crate::midge::adapter::RootHashRecord;
 #[path = "materialized_projection_test_support.rs"]
 pub(super) mod test_support;
 
-#[cfg(test)]
-pub(super) use test_support::cancel_before_activation_publication;
-
 pub(super) use super::materialized_projection_maintenance::mark_source_projections_stale;
 
 pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryError> {

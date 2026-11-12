@@ -115,13 +115,18 @@ fn should_set_repeatable_read_before_the_first_snapshot_in_an_explicit_transacti
     let retained = fixture
         .execute("SELECT value FROM set_rr_rows WHERE id = 1")
         .expect("read again through the retained RR snapshot");
-    fixture.execute("COMMIT").expect("commit the read-only transaction");
+    fixture
+        .execute("COMMIT")
+        .expect("commit the read-only transaction");
     let current = fixture
         .execute("SELECT value FROM set_rr_rows WHERE id = 1")
         .expect("read the current row after commit");
 
     // Assert
-    assert_eq!(isolation.rows(), &[vec![Value::String("repeatable read".into())]]);
+    assert_eq!(
+        isolation.rows(),
+        &[vec![Value::String("repeatable read".into())]]
+    );
     assert_eq!(before.rows(), &[vec![Value::String("before".into())]]);
     assert_eq!(retained.rows(), &[vec![Value::String("before".into())]]);
     assert_eq!(current.rows(), &[vec![Value::String("after".into())]]);
@@ -133,7 +138,9 @@ fn should_reject_set_repeatable_read_after_snapshot_capture() {
     // Arrange
     let fixture = sql_fixture("issue-819-set-transaction-after-snapshot", &[]);
     fixture.execute("BEGIN").expect("begin");
-    fixture.execute("SELECT 1").expect("capture the first snapshot");
+    fixture
+        .execute("SELECT 1")
+        .expect("capture the first snapshot");
 
     // Act
     let error = fixture
@@ -183,7 +190,10 @@ fn should_reject_set_repeatable_read_after_savepoint_before_snapshot_capture() {
             ..
         }
     ));
-    assert_eq!(isolation.rows(), &[vec![Value::String("read committed".into())]]);
+    assert_eq!(
+        isolation.rows(),
+        &[vec![Value::String("read committed".into())]]
+    );
     assert_eq!(fixture.session.transaction_status(), "idle");
 }
 

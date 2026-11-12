@@ -34,7 +34,12 @@ fn should_encode_declared_text_vector_parameters_in_binary_results() {
     assert_eq!(batches.len(), 6);
     for (index, frames) in batches.iter().enumerate() {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (fixture::VECTOR_TYPE_OID, -1, -1), 1, index % 2 == 1);
+        fixture::assert_single_column_descriptors(
+            frames,
+            (fixture::VECTOR_TYPE_OID, -1, -1),
+            1,
+            index % 2 == 1,
+        );
         assert_eq!(
             fixture::data_row_payloads(frames),
             vec![fixture::one_field_row(VECTOR_BINARY)],
@@ -71,7 +76,12 @@ fn should_preserve_declared_vector_parameter_text_spellings() {
     assert_eq!(batches.len(), 12);
     for (frames, (describe, output)) in batches.iter().zip(expected) {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (fixture::VECTOR_TYPE_OID, -1, -1), 0, describe);
+        fixture::assert_single_column_descriptors(
+            frames,
+            (fixture::VECTOR_TYPE_OID, -1, -1),
+            0,
+            describe,
+        );
         assert_eq!(
             fixture::data_row_payloads(frames),
             vec![fixture::one_field_row(output)],
@@ -101,7 +111,12 @@ fn should_preserve_native_vector_parameters_in_binary_results() {
     assert_eq!(batches.len(), 6);
     for (index, frames) in batches.iter().enumerate() {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (fixture::VECTOR_TYPE_OID, -1, -1), 1, index % 2 == 1);
+        fixture::assert_single_column_descriptors(
+            frames,
+            (fixture::VECTOR_TYPE_OID, -1, -1),
+            1,
+            index % 2 == 1,
+        );
         assert_eq!(
             fixture::data_row_payloads(frames),
             vec![fixture::one_field_row(VECTOR_BINARY)],
@@ -199,14 +214,24 @@ fn should_preserve_nonnull_vector_width_validation_before_publication() {
     assert_eq!(batches.len(), 4);
     for frames in &batches[..2] {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (fixture::VECTOR_TYPE_OID, -1, -1), 1, true);
+        fixture::assert_single_column_descriptors(
+            frames,
+            (fixture::VECTOR_TYPE_OID, -1, -1),
+            1,
+            true,
+        );
         assert_eq!(
             fixture::data_row_payloads(frames),
             vec![fixture::one_field_row(VECTOR_BINARY)]
         );
     }
     assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("22000"));
-    fixture::assert_single_column_descriptors(&batches[2], (fixture::VECTOR_TYPE_OID, -1, -1), 0, true);
+    fixture::assert_single_column_descriptors(
+        &batches[2],
+        (fixture::VECTOR_TYPE_OID, -1, -1),
+        0,
+        true,
+    );
     assert_eq!(
         fixture::data_row_payloads(&batches[2]),
         Vec::<Vec<u8>>::new()
@@ -257,7 +282,12 @@ fn should_preserve_finite_vector_boundaries_through_text_parameter_writes() {
     assert_eq!(frames.len(), 4);
     for (index, cycle) in frames.iter().enumerate() {
         fixture::assert_success(cycle);
-        fixture::assert_single_column_descriptors(cycle, (fixture::VECTOR_TYPE_OID, -1, -1), 1, false);
+        fixture::assert_single_column_descriptors(
+            cycle,
+            (fixture::VECTOR_TYPE_OID, -1, -1),
+            1,
+            false,
+        );
         assert_eq!(
             fixture::data_row_payloads(cycle),
             vec![fixture::one_field_row(&binary)],

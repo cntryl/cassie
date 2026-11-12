@@ -131,10 +131,11 @@ fn bind_pgvector_index_options(
     }
 
     let key_option_names = ["order", "nulls"];
-    if key_option_names
-        .iter()
-        .any(|option| statement.options.contains_key(&crate::catalog::IndexMeta::key_option_name(0, option)))
-    {
+    if key_option_names.iter().any(|option| {
+        statement
+            .options
+            .contains_key(&crate::catalog::IndexMeta::key_option_name(0, option))
+    }) {
         return Err(CassieError::Planner(
             "pgvector indexes do not accept key ordering options".into(),
         ));

@@ -92,12 +92,11 @@ fn integer_argument(name: &str, value: &Value) -> Result<Option<i64>, QueryError
 fn attribute_number(name: &str, value: &Value) -> Result<Option<i32>, QueryError> {
     integer_argument(name, value)?
         .map(|value| {
-            i32::try_from(value)
-                .map_err(|_| {
-                    QueryError::Cassie(crate::app::CassieError::Execution(
-                        "integer out of range".to_owned(),
-                    ))
-                })
+            i32::try_from(value).map_err(|_| {
+                QueryError::Cassie(crate::app::CassieError::Execution(
+                    "integer out of range".to_owned(),
+                ))
+            })
         })
         .transpose()
 }
@@ -116,7 +115,9 @@ mod tests {
         let result = attribute_number("col_description", &value);
 
         // Assert
-        assert!(matches!(result, Err(crate::executor::QueryError::Cassie(crate::app::CassieError::Execution(message))) if message == "integer out of range"));
+        assert!(
+            matches!(result, Err(crate::executor::QueryError::Cassie(crate::app::CassieError::Execution(message))) if message == "integer out of range")
+        );
     }
 
     #[test]

@@ -304,9 +304,10 @@ pub(super) fn cast(
             return None;
         }
         let cast = controls.map_or_else(
-            || kind.cast_from_in(&source, session).map_err(|error| {
-                crate::app::CassieError::TypeInput(error)
-            }),
+            || {
+                kind.cast_from_in(&source, session)
+                    .map_err(|error| crate::app::CassieError::TypeInput(error))
+            },
             |controls| kind.cast_from_in_with_controls(&source, session, controls),
         );
         return Some(cast.map(ScalarValue::Typed).map_err(QueryError::from));

@@ -76,7 +76,8 @@ fn should_bound_supported_cell_encodings_before_allocation() {
         .iter()
         .flat_map(|(oid, value)| {
             [0, 1].map(|format| {
-                let bound = cell_bytes(value, *oid, -1, format, false, false).expect("admission bound");
+                let bound =
+                    cell_bytes(value, *oid, -1, format, false, false).expect("admission bound");
                 let length = if matches!(value, Value::Null) {
                     0
                 } else if format == 0 {

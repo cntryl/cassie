@@ -626,7 +626,8 @@ fn scalar_from_json(value: &JsonValue, data_type: &DataType) -> Result<Value, St
                 .map(JsonValue::as_f64)
                 .map(|number| number.and_then(|value| value.to_string().parse::<f32>().ok()))
                 .collect::<Option<Vec<_>>>()?;
-            dimensions.is_none_or(|expected| parsed.len() == expected)
+            dimensions
+                .is_none_or(|expected| parsed.len() == expected)
                 .then_some(Value::Vector(crate::types::Vector { values: parsed }))
         }),
         Type::Text

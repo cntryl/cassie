@@ -141,8 +141,7 @@ fn prepare_input(
                 argument,
                 context.user_functions,
                 context.parameter_type_oids,
-            )
-                == Some(crate::types::DataType::Bytea)
+            ) == Some(crate::types::DataType::Bytea)
         }) || super::state::has_bytea_carrier(&value)
             && delimiter
                 .as_ref()

@@ -1,11 +1,11 @@
 use super::super::expr::{parse_expression, split_csv};
 use super::schema_identifiers::{parse_column_reference, parse_identifier, parse_relation_path};
-use crate::sql::ast::IdentifierPath;
 use super::{
     find_matching_paren, find_top_level_keyword, AlterIndexOperation, AlterIndexStatement,
     CreateIndexStatement, DropIndexStatement, Expr, IndexKind, ParsedStatement, QueryStatement,
     SqlError,
 };
+use crate::sql::ast::IdentifierPath;
 
 use super::{parse_if_exists, parse_if_not_exists, starts_with_keyword};
 
@@ -391,11 +391,7 @@ pub(in crate::sql::parser) fn parse_index_kind(
         ));
     }
     if starts_with_keyword(remainder, "hnsw") {
-        return Ok((
-            IndexKind::Vector,
-            Some("hnsw"),
-            remainder[4..].trim_start(),
-        ));
+        return Ok((IndexKind::Vector, Some("hnsw"), remainder[4..].trim_start()));
     }
     if starts_with_keyword(remainder, "ivfflat") {
         return Ok((

@@ -1,11 +1,10 @@
 use super::types::ExecutionBreakdownDurations;
 use super::{
     build_select_result, dml_command, execute_physical_plan_with_parameter_oids,
-    execute_plan_with_execution_breakdown,
-    materialized_projection, materialized_projection_maintenance, plan_needs_user_functions,
-    rollups, Arc, Cassie, CassieSession, CteContext, ExecutionBreakdownOutput, FunctionMeta,
-    HashMap, Instant, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QueryResult,
-    Value,
+    execute_plan_with_execution_breakdown, materialized_projection,
+    materialized_projection_maintenance, plan_needs_user_functions, rollups, Arc, Cassie,
+    CassieSession, CteContext, ExecutionBreakdownOutput, FunctionMeta, HashMap, Instant,
+    LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QueryResult, Value,
 };
 
 /// # Errors

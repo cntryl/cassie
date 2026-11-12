@@ -100,6 +100,8 @@ pub(crate) mod extended_ops;
 #[path = "filter/hash_functions.rs"]
 pub(crate) mod hash_functions;
 use binary::binary_scalar;
+#[path = "filter/comment_functions.rs"]
+mod comment_functions;
 #[path = "filter/numeric_comparison.rs"]
 mod numeric_comparison;
 #[path = "filter/numeric_ops.rs"]
@@ -108,8 +110,6 @@ mod numeric_ops;
 mod object_ids;
 #[path = "filter/sequence_functions.rs"]
 mod sequence_functions;
-#[path = "filter/comment_functions.rs"]
-mod comment_functions;
 pub(crate) use casts::cast_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]

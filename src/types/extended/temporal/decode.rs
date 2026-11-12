@@ -4,24 +4,23 @@ use super::calendar::{
 };
 use super::session::{DateOrder, TemporalSession};
 use super::tokens::{
-    date_keyword, leading_int, parse_fraction, parse_fractional_second,
-    tokenize_with_check, DecodeError, Keyword, Meridiem, Reserved, Token, TokenKind, TokenizeError,
-    Unit,
+    date_keyword, leading_int, parse_fraction, parse_fractional_second, tokenize_with_check,
+    DecodeError, Keyword, Meridiem, Reserved, Token, TokenKind, TokenizeError, Unit,
 };
 use super::zone::{lookup_zone, AbbreviationSet, Zone};
 
 #[path = "decode_zone.rs"]
 mod zone_resolution;
+use zone_resolution::zone_abbreviation_with_check;
 use zone_resolution::{
     defer_dynamic_session_abbreviation, global_zone_abbreviation, resolve_zone_with_check,
     session_zone_abbreviation,
 };
-use zone_resolution::zone_abbreviation_with_check;
 
 #[path = "time_input.rs"]
 mod time_input;
-pub use time_input::{decode_time_only, DecodedTime};
 pub(crate) use time_input::decode_time_only_with_check;
+pub use time_input::{decode_time_only, DecodedTime};
 
 const YEAR: u32 = 1 << 2;
 const MONTH: u32 = 1 << 1;
@@ -406,17 +405,6 @@ fn decode_keyword_field<E>(
 
 fn is_default_msk(field: &str, session: &TemporalSession) -> bool {
     field.eq_ignore_ascii_case("MSK") && session.abbreviations == AbbreviationSet::Default
-}
-
-fn zone_abbreviation_probe(field: &str, state: &State, session: &TemporalSession) -> Option<i64> {
-    if !field.chars().all(|c| c.is_ascii_alphabetic()) {
-        return None;
-    }
-    Some(if state.fmask & DATE_M == DATE_M {
-        local_micros(&state.fields)
-    } else {
-        session.transaction_start
-    })
 }
 
 fn decode_reserved(reserved: Reserved, state: &mut State, session: &TemporalSession) -> u32 {

@@ -1,7 +1,9 @@
 use super::{text_arg, CassieSession, QueryError, Value};
 use crate::app::{CassieError, CatalogObjectKind};
 use crate::catalog::object_identity::ObjectScope;
-use crate::catalog::{normalize_role_name, Catalog, RoleGrantTarget, RoleMeta, RoleObjectPrivilege};
+use crate::catalog::{
+    normalize_role_name, Catalog, RoleGrantTarget, RoleMeta, RoleObjectPrivilege,
+};
 use crate::sql::binder::BindingContext;
 use crate::types::object_id::FIRST_NORMAL_OBJECT_ID;
 use crate::types::ObjectIdKind;
@@ -59,15 +61,9 @@ pub(super) fn evaluate(
     reject_oid_argument(name, "object", object_name)?;
 
     let allowed = match kind {
-        ObjectKind::Database => {
-            database_privilege(&catalog, &role, object_name, &requested)?
-        }
-        ObjectKind::Schema => {
-            schema_privilege(&catalog, &context, &role, object_name, &requested)?
-        }
-        ObjectKind::Table => {
-            table_privilege(&catalog, &context, &role, object_name, &requested)?
-        }
+        ObjectKind::Database => database_privilege(&catalog, &role, object_name, &requested)?,
+        ObjectKind::Schema => schema_privilege(&catalog, &context, &role, object_name, &requested)?,
+        ObjectKind::Table => table_privilege(&catalog, &context, &role, object_name, &requested)?,
     };
     Ok(Value::Bool(allowed))
 }
@@ -134,30 +130,32 @@ fn parse_privileges(
 
 fn explicit_role(catalog: &Catalog, name: &str) -> Result<RoleMeta, QueryError> {
     let normalized = normalize_role_name(name);
-    catalog
-        .get_role(&normalized)
-        .ok_or_else(|| {
-            QueryError::Cassie(CassieError::CatalogObjectNotFound {
-                kind: CatalogObjectKind::Role,
-                name: normalized,
-            })
+    catalog.get_role(&normalized).ok_or_else(|| {
+        QueryError::Cassie(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Role,
+            name: normalized,
         })
+    })
 }
 
 fn current_role(catalog: &Catalog, session: &CassieSession) -> Result<RoleMeta, QueryError> {
     if !session.is_network_authenticated() {
         return Ok(RoleMeta::bootstrap_admin("root", None));
     }
-    catalog.get_role(&session.user).or_else(|| {
-        session.user.eq_ignore_ascii_case("root")
-            .then(|| RoleMeta::bootstrap_admin("root", None))
-    })
-    .ok_or_else(|| {
-        QueryError::Cassie(CassieError::CatalogObjectNotFound {
-            kind: CatalogObjectKind::Role,
-            name: session.user.clone(),
+    catalog
+        .get_role(&session.user)
+        .or_else(|| {
+            session
+                .user
+                .eq_ignore_ascii_case("root")
+                .then(|| RoleMeta::bootstrap_admin("root", None))
         })
-    })
+        .ok_or_else(|| {
+            QueryError::Cassie(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Role,
+                name: session.user.clone(),
+            })
+        })
 }
 
 fn database_privilege(
@@ -191,15 +189,13 @@ fn schema_privilege(
 ) -> Result<bool, QueryError> {
     let scope = ObjectScope::new(catalog, context);
     let oid = resolve_object_oid(&scope, ObjectIdKind::RegNamespace, name)?;
-    let system_schema = crate::catalog::is_system_schema(
-        &scope.label(ObjectIdKind::RegNamespace, oid),
-    );
+    let system_schema =
+        crate::catalog::is_system_schema(&scope.label(ObjectIdKind::RegNamespace, oid));
     if role.is_admin || system_schema {
         return Ok(true);
     }
     let Some(namespace) = catalog.list_namespaces().into_iter().find(|namespace| {
-        crate::catalog::object_identity::stored_namespace_oid(catalog, &namespace.name)
-            == Some(oid)
+        crate::catalog::object_identity::stored_namespace_oid(catalog, &namespace.name) == Some(oid)
     }) else {
         return Ok(false);
     };
@@ -228,9 +224,13 @@ fn table_privilege(
     if role.is_admin || oid < FIRST_NORMAL_OBJECT_ID {
         return Ok(true);
     }
-    let Some(table) = catalog.list_collections_canonical().into_iter().find(|table| {
-        crate::catalog::object_identity::stored_relation_oid(catalog, &table.name) == Some(oid)
-    }) else {
+    let Some(table) = catalog
+        .list_collections_canonical()
+        .into_iter()
+        .find(|table| {
+            crate::catalog::object_identity::stored_relation_oid(catalog, &table.name) == Some(oid)
+        })
+    else {
         return Ok(false);
     };
     let Some(database) = catalog.get_database(&context.database) else {

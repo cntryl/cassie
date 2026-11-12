@@ -47,7 +47,9 @@ impl ExactMetadataEq for crate::catalog::ObjectCommentMeta {
         controls: &QueryExecutionControls,
     ) -> Result<bool, CassieError> {
         controls.check_interruption()?;
-        Ok(self.format_version.exact_eq(&other.format_version, controls)?
+        Ok(self
+            .format_version
+            .exact_eq(&other.format_version, controls)?
             && self
                 .address
                 .database

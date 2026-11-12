@@ -650,7 +650,8 @@ impl Cassie {
         dimensions: Option<usize>,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
-        let expected = dimensions.map_or_else(|| "vector".to_string(), |size| format!("vector({size})"));
+        let expected =
+            dimensions.map_or_else(|| "vector".to_string(), |size| format!("vector({size})"));
         let Some(array) = value.as_array() else {
             return Self::invalid_vector(field, expected);
         };

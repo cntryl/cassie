@@ -13,8 +13,8 @@ pub mod graphs;
 pub mod indexes;
 pub mod maintenance;
 pub mod metadata;
-pub mod object_identity;
 pub mod object_comment;
+pub mod object_identity;
 pub mod operational;
 pub mod programs;
 pub mod repair;
@@ -69,8 +69,8 @@ pub use indexes::{
 pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;
 pub(crate) use metadata::{ControlledCatalogSnapshot, FunctionInputScope};
-pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
 pub use object_comment::{ObjectCommentAddress, ObjectCommentMeta};
+pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
 pub(crate) const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_view";
 pub use programs::{
     ExtensionMeta, FunctionArgMeta, FunctionMeta, ProcedureMeta, VectorAnnCatalogIdentityIds,

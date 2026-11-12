@@ -40,9 +40,7 @@ impl Cassie {
                 ));
         let mut parameter_types = prepare.parameter_types.clone();
         parameter_types.resize(parameter_count, String::new());
-        let database = session
-            .current_database()
-            .unwrap_or(&self.default_database);
+        let database = session.current_database().unwrap_or(&self.default_database);
         let parameter_oids = parameter_types
             .iter()
             .map(|name| parameter_oid(name, &self.catalog, database))
@@ -152,7 +150,8 @@ fn parameter_oid(
         return Ok(0);
     }
     let data_type = DataType::parse_sql(name).map_err(CassieError::Parse)?;
-    if matches!(&data_type, DataType::Array(element) if matches!(element.as_ref(), DataType::Vector(_))) {
+    if matches!(&data_type, DataType::Array(element) if matches!(element.as_ref(), DataType::Vector(_)))
+    {
         return Err(CassieError::Unsupported(
             "VECTOR array parameter identities are not supported".to_string(),
         ));

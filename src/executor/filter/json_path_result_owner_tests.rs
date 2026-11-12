@@ -133,9 +133,9 @@ fn should_release_extracted_output_after_post_finish_cancellation() {
         &[
             Value::String(r#"{"a":"payload"}"#.into()),
             Value::Array(
-                crate::types::SqlArray::from_elements(vec![
-                    crate::types::Value::String("a".into()),
-                ])
+                crate::types::SqlArray::from_elements(vec![crate::types::Value::String(
+                    "a".into(),
+                )])
                 .expect("path array"),
             ),
         ],

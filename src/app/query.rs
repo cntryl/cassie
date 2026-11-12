@@ -635,6 +635,7 @@ impl Cassie {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn execute_physical_statement(
         &self,
         session: &CassieSession,
@@ -667,7 +668,7 @@ impl Cassie {
             parameter_type_oids,
             controls,
         )
-            .map_err(CassieError::from)
+        .map_err(CassieError::from)
     }
 
     pub(super) fn record_query_feedback(

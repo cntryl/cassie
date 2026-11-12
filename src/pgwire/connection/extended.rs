@@ -958,23 +958,25 @@ fn decode_binary_parameter_with_vector(
     index: usize,
     is_vector: bool,
 ) -> Result<Value, ExtendedQueryError> {
-    super::codecs::binary_to_value_with_vector(parameter, i64::from(oid), is_vector).map_err(|error| {
-        if super::codecs::temporal_scalar_excess(&error) {
-            ExtendedQueryError {
-                pg_error: Box::new(PgWireError::new(
-                    PgWireSeverity::Error,
-                    "22P03",
-                    format!(
-                        "incorrect binary data format in bind parameter {}",
-                        index + 1
-                    ),
-                )),
-                record_protocol_error: false,
+    super::codecs::binary_to_value_with_vector(parameter, i64::from(oid), is_vector).map_err(
+        |error| {
+            if super::codecs::temporal_scalar_excess(&error) {
+                ExtendedQueryError {
+                    pg_error: Box::new(PgWireError::new(
+                        PgWireSeverity::Error,
+                        "22P03",
+                        format!(
+                            "incorrect binary data format in bind parameter {}",
+                            index + 1
+                        ),
+                    )),
+                    record_protocol_error: false,
+                }
+            } else {
+                ExtendedQueryError::protocol_from_io(&error)
             }
-        } else {
-            ExtendedQueryError::protocol_from_io(&error)
-        }
-    })
+        },
+    )
 }
 
 fn missing_statement_error(name: &str) -> ExtendedQueryError {

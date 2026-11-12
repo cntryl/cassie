@@ -33,11 +33,7 @@ impl Catalog {
             .map(|metadata| metadata.description.clone())
     }
 
-    pub fn object_comment_by_oid(
-        &self,
-        database: &str,
-        object_oid: u32,
-    ) -> Option<String> {
+    pub fn object_comment_by_oid(&self, database: &str, object_oid: u32) -> Option<String> {
         let database = database.to_ascii_lowercase();
         let comments = self.object_comments.read();
         comments
@@ -97,9 +93,9 @@ impl Catalog {
 
     pub(crate) fn unregister_object_comments_for_database(&self, database: &str) {
         let database = database.to_ascii_lowercase();
-        self.object_comments.write().retain(|_, metadata| {
-            !metadata.address.database.eq_ignore_ascii_case(&database)
-        });
+        self.object_comments
+            .write()
+            .retain(|_, metadata| !metadata.address.database.eq_ignore_ascii_case(&database));
         self.bump_version();
     }
 }

@@ -300,7 +300,7 @@ fn execute_schema_object_group(
             super::schema_command::drop_view(cassie, statement, controls),
         )),
         LogicalCommand::DropTable(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_table(cassie, session, statement, controls),
+            super::schema_command::drop_table(cassie, statement, controls),
         )),
         LogicalCommand::AlterTable(statement) => Some(CommandExecution::invalidating(
             super::schema_command::alter_table(cassie, session, statement, controls),
@@ -883,7 +883,7 @@ fn apply_write_side_effects(
     _controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     if session.is_some_and(CassieSession::is_transaction_active) {
-        super::rollups::mark_source_rollups_stale(cassie, session, table)?;
+        super::rollups::mark_source_rollups_stale(cassie, table)?;
     }
     Ok(())
 }

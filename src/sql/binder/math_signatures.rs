@@ -126,8 +126,7 @@ pub(super) fn validate(
             if let Some(controls) = types.controls() {
                 controls.check_interruption()?;
             }
-            let Ok(value) =
-                crate::types::integer::parse(input, crate::types::IntegerWidth::I32)
+            let Ok(value) = crate::types::integer::parse(input, crate::types::IntegerWidth::I32)
             else {
                 crate::sql::literal_inputs::validate_with_controls(
                     &function.args[1],

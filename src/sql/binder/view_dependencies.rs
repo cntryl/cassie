@@ -41,7 +41,9 @@ fn collect_select(statement: &SelectStatement, relations: &mut BTreeSet<String>)
 fn collect_cte(cte: &CommonTableExpression, relations: &mut BTreeSet<String>) {
     match &cte.query {
         CteQuery::Simple(statement) => collect_parsed_statement(statement, relations),
-        CteQuery::Recursive { base, recursive, .. } => {
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
             collect_parsed_statement(base, relations);
             collect_parsed_statement(recursive, relations);
         }

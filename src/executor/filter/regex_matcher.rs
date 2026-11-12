@@ -35,19 +35,6 @@ pub(super) enum Captures {
 }
 
 impl Regex {
-    pub(super) fn native(
-        regex: bounded::Regex,
-        controls: Option<&QueryExecutionControls>,
-    ) -> Result<Self, QueryError> {
-        let memory = controls
-            .map(|controls| controls.reserve_query_memory(size_of::<bounded::Regex>()))
-            .transpose()?;
-        Ok(Self::Native(NativeRegex {
-            regex: Box::new(regex),
-            _allocation: memory,
-        }))
-    }
-
     pub(super) fn is_match(
         &self,
         input: &str,

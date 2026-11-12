@@ -5,19 +5,17 @@ use crate::catalog::{
 use crate::types::Value;
 use std::collections::HashMap;
 
-pub(super) fn schema_acl(
-    catalog: &Catalog,
-    current_database: Option<&str>,
-    schema: &str,
-) -> Value {
+pub(super) fn schema_acl(catalog: &Catalog, current_database: Option<&str>, schema: &str) -> Value {
     let Some(database_name) = current_database else {
         return Value::Null;
     };
     let Some(database) = catalog.get_database(database_name) else {
         return Value::Null;
     };
-    let canonical = SchemaId::parse_canonical(schema)
-        .map_or_else(|| canonical_schema_name(database_name, schema), |_| schema.to_owned());
+    let canonical = SchemaId::parse_canonical(schema).map_or_else(
+        || canonical_schema_name(database_name, schema),
+        |_| schema.to_owned(),
+    );
     let Some(namespace) = catalog.get_namespace(&canonical) else {
         return Value::Null;
     };

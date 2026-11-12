@@ -203,10 +203,7 @@ impl Zone {
     pub fn offset_at(&self, utc_micros: i64) -> i32 {
         match self {
             Self::Fixed { east, .. } => *east,
-            Self::Rules { tz, .. } => tz
-                .time_zone
-                .to_offset(jiff_timestamp(utc_micros))
-                .seconds(),
+            Self::Rules { tz, .. } => tz.time_zone.to_offset(jiff_timestamp(utc_micros)).seconds(),
         }
     }
 
@@ -253,15 +250,13 @@ impl Zone {
             return Ok(None);
         };
         match &tz.source {
-            RuleSource::Tzif(raw) => Ok(classify_raw_abbreviation_with_checks(
-                raw,
-                abbreviation,
-                check,
-            )?
-            .map(|classification| classification.dynamic)),
-            RuleSource::Posix(posix) => Ok(posix
-                .abbreviation_offset(abbreviation)
-                .map(|_| false)),
+            RuleSource::Tzif(raw) => {
+                Ok(
+                    classify_raw_abbreviation_with_checks(raw, abbreviation, check)?
+                        .map(|classification| classification.dynamic),
+                )
+            }
+            RuleSource::Posix(posix) => Ok(posix.abbreviation_offset(abbreviation).map(|_| false)),
             RuleSource::Special => {
                 let info = tz.time_zone.to_offset_info(jiff_timestamp(0));
                 Ok(info
@@ -356,7 +351,10 @@ impl Zone {
     }
 }
 
-fn classify_raw_abbreviation<'a>(raw: &'a RawTzif, abbreviation: &str) -> Option<RawAbbreviation<'a>> {
+fn classify_raw_abbreviation<'a>(
+    raw: &'a RawTzif,
+    abbreviation: &str,
+) -> Option<RawAbbreviation<'a>> {
     let designation_index = raw.first_matching_designation_index(abbreviation)?;
     let first_type = raw
         .local_time_types
@@ -379,8 +377,8 @@ fn classify_raw_abbreviation_with_checks<'a, E>(
     abbreviation: &str,
     check: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<Option<RawAbbreviation<'a>>, E> {
-    let Some(designation_index) = raw
-        .first_matching_designation_index_with_checks(abbreviation, check)?
+    let Some(designation_index) =
+        raw.first_matching_designation_index_with_checks(abbreviation, check)?
     else {
         return Ok(None);
     };
@@ -516,10 +514,7 @@ impl PosixRule {
             .abbreviation
             .eq_ignore_ascii_case(abbreviation)
         {
-            return Some((
-                self.standard.offset_seconds_east,
-                self.standard.is_dst,
-            ));
+            return Some((self.standard.offset_seconds_east, self.standard.is_dst));
         }
         self.daylight
             .as_ref()
@@ -915,7 +910,6 @@ mod tests {
             Some((-8 * 3600, false))
         );
     }
-
 }
 
 #[cfg(test)]

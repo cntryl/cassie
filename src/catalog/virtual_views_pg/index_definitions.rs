@@ -33,7 +33,12 @@ pub(super) fn index_definition(index: &IndexMeta) -> String {
     };
     let storage_options = storage_option_names
         .iter()
-        .filter_map(|name| index.options.get(*name).map(|value| format!("{name}={value}")))
+        .filter_map(|name| {
+            index
+                .options
+                .get(*name)
+                .map(|value| format!("{name}={value}"))
+        })
         .collect::<Vec<_>>();
     let storage_options = if storage_options.is_empty() {
         String::new()

@@ -103,12 +103,13 @@ pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 pub(crate) use scored::install_ann_rerank_barriers;
 
 use cte::{execute_cte, CteContext};
+#[cfg(test)]
+use dispatch::execute_physical_plan;
 use dispatch::{
     build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_query_memory_budget,
-    execute_physical_plan, execute_physical_plan_with_parameter_oids, execute_plan,
-    execute_plan_with_execution_breakdown, execute_plan_with_parameter_oids,
-    execute_plan_with_outer_row, plan_execution_env_with_parameter_oids,
-    reserve_projection_output_before_building,
+    execute_physical_plan_with_parameter_oids, execute_plan, execute_plan_with_execution_breakdown,
+    execute_plan_with_outer_row, execute_plan_with_parameter_oids,
+    plan_execution_env_with_parameter_oids, reserve_projection_output_before_building,
     resolve_exists_expr, resolve_statement_exists, ExistsResolutionContext,
 };
 #[cfg(test)]

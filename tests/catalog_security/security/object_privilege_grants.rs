@@ -437,10 +437,7 @@ fn should_reject_other_non_admin_writes_that_consume_sequence_defaults() {
         merge_default,
         copy_omitted_default,
     ] {
-        assert!(matches!(
-            result,
-            Err(CassieError::InsufficientPrivilege)
-        ));
+        assert!(matches!(result, Err(CassieError::InsufficientPrivilege)));
     }
     assert_eq!(rows.rows(), vec![vec![Value::Int64(9)]]);
     assert_eq!(sequence_after.current_value, sequence_before.current_value);
@@ -608,7 +605,10 @@ fn should_evaluate_selected_privileges_for_current_and_named_roles() {
             Value::Bool(true),
         ]]
     );
-    assert!(matches!(invalid_privilege, Err(CassieError::Unsupported(_))));
+    assert!(matches!(
+        invalid_privilege,
+        Err(CassieError::Unsupported(_))
+    ));
     assert!(matches!(
         missing_role,
         Err(CassieError::CatalogObjectNotFound {
@@ -844,7 +844,7 @@ fn should_reject_sequence_helpers_for_non_admin_roles() {
     }
 }
 
-#[path = "object_privilege_grants/lifecycle.rs"]
-mod lifecycle;
 #[path = "object_privilege_grants/identifier_visibility.rs"]
 mod identifier_visibility;
+#[path = "object_privilege_grants/lifecycle.rs"]
+mod lifecycle;

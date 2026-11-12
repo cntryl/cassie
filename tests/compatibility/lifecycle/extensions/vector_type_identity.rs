@@ -132,10 +132,7 @@ fn should_describe_sql_prepared_vector_parameters_with_the_active_database_oid()
 
         // Act
         let result = client
-            .query_one(
-                "EXECUTE prepared_vector_identity('[1,2]'::vector)",
-                &[],
-            )
+            .query_one("EXECUTE prepared_vector_identity('[1,2]'::vector)", &[])
             .await
             .expect("execute the SQL-prepared vector statement");
 
@@ -184,7 +181,11 @@ fn should_restore_pgvector_catalog_identities_after_local_restart() {
     assert_eq!(after_restart, before_restart);
     assert_eq!(after_restart[0].len(), 1, "one installed vector type");
     assert_eq!(after_restart[1].len(), 2, "two selected vector methods");
-    assert_eq!(after_restart[2].len(), 3, "three selected distance operators");
+    assert_eq!(
+        after_restart[2].len(),
+        3,
+        "three selected distance operators"
+    );
     assert_eq!(after_restart[3].len(), 6, "six selected operator families");
     assert_eq!(after_restart[4].len(), 6, "six selected operator classes");
     assert_eq!(after_restart[5].len(), 6, "six selected ordering members");

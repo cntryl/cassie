@@ -129,11 +129,7 @@ pub(crate) fn drop_schema(
         .midge
         .drop_namespace(&statement.schema)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    super::cleanup_schema_comment(
-        cassie,
-        &namespace_database_name,
-        &statement.schema,
-    )?;
+    super::cleanup_schema_comment(cassie, &namespace_database_name, &statement.schema)?;
     let target = crate::catalog::RoleGrantTarget::Schema(namespace.object_id);
     if transactional {
         cassie

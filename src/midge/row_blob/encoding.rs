@@ -272,9 +272,10 @@ fn encode_vector_value(
     {
         return Err(CassieError::InvalidVector(format!(
             "vector field expects {} dimensions but received {dimensions}",
-            expected_dimensions.map_or_else(|| "between 1 and 16000".into(), |expected| {
-                expected.to_string()
-            })
+            expected_dimensions.map_or_else(
+                || "between 1 and 16000".into(),
+                |expected| { expected.to_string() }
+            )
         )));
     }
 

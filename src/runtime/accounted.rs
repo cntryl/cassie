@@ -4,10 +4,10 @@ use crate::app::CassieError;
 
 use super::{QueryExecutionControls, QueryMemoryReservation};
 
-#[path = "accounted/json.rs"]
-pub(crate) mod json;
 #[path = "accounted/compact_json.rs"]
 pub(crate) mod compact_json;
+#[path = "accounted/json.rs"]
+pub(crate) mod json;
 
 #[path = "accounted/json_arena.rs"]
 pub(crate) mod json_arena;

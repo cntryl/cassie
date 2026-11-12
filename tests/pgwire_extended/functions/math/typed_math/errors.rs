@@ -110,11 +110,7 @@ fn should_reject_float_modulo_without_a_postgresql_overload() {
     let statement = "float_modulo_without_overload";
     let real = wire::parse_frame_with_types(statement, "SELECT MOD($1, $2)", &[700, 700]);
     let float8_statement = "float8_modulo_without_overload";
-    let float8 = wire::parse_frame_with_types(
-        float8_statement,
-        "SELECT MOD($1, $2)",
-        &[701, 701],
-    );
+    let float8 = wire::parse_frame_with_types(float8_statement, "SELECT MOD($1, $2)", &[701, 701]);
 
     // Act
     let real_batches = run_script(
@@ -287,7 +283,10 @@ fn should_accept_smallint_parameters_for_numeric_rounding_scales() {
         .iter()
         .find(|(tag, _)| *tag == b't')
         .expect("numeric rounding ParameterDescription");
-    assert_eq!(wire::parse_parameter_description(&parameters.1), vec![1700, 21]);
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        vec![1700, 21]
+    );
     let result_description = described
         .iter()
         .find(|(tag, _)| *tag == b'T')

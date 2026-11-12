@@ -36,13 +36,12 @@ pub mod pg_lsn;
 pub mod temporal;
 #[path = "extended/temporal_types.rs"]
 mod temporal_types;
+pub(crate) use temporal_types::parameter_from_text_with_controls as temporal_parameter_from_text_with_controls;
 pub use temporal_types::{
     column_value as temporal_column_value, convert as convert_temporal,
     display_name as temporal_display_name, legacy_text as temporal_legacy_text,
     parameter_from_text as temporal_parameter_from_text, parse_type_name as temporal_type_name,
 };
-pub(crate) use temporal_types::parameter_from_text_with_controls as
-    temporal_parameter_from_text_with_controls;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

@@ -92,12 +92,7 @@ async fn assert_catalog_count(
     assert_value(&frames, expected, expected_status);
 }
 
-async fn assert_ids(
-    session: &mut WireSession,
-    table: &str,
-    ids: &[&str],
-    expected_status: u8,
-) {
+async fn assert_ids(session: &mut WireSession, table: &str, ids: &[&str], expected_status: u8) {
     let frames = session
         .query(&format!("SELECT id FROM {table} ORDER BY id"))
         .await;
@@ -111,14 +106,13 @@ async fn assert_ids(
     );
 }
 
-async fn create_tables(
-    session: &mut WireSession,
-    tables: &SequenceTables,
-    expected_status: u8,
-) {
+async fn create_tables(session: &mut WireSession, tables: &SequenceTables, expected_status: u8) {
     assert_success(
         &session
-            .query(&format!("CREATE TABLE {} (id SERIAL PRIMARY KEY)", tables.serial))
+            .query(&format!(
+                "CREATE TABLE {} (id SERIAL PRIMARY KEY)",
+                tables.serial
+            ))
             .await,
         expected_status,
     );
@@ -176,9 +170,7 @@ async fn assert_savepoint_cursor_behavior(
     assert_success(&owner.query("SAVEPOINT sequence_cursor").await, b'T');
     exercise_direct_values_and_defaults(owner, tables, b'T', "3", "4").await;
     assert_success(
-        &owner
-            .query("ROLLBACK TO SAVEPOINT sequence_cursor")
-            .await,
+        &owner.query("ROLLBACK TO SAVEPOINT sequence_cursor").await,
         b'T',
     );
     for table in [&tables.serial, &tables.identity] {
@@ -195,10 +187,7 @@ async fn assert_savepoint_cursor_behavior(
 }
 
 async fn recover_expected_transaction_error(owner: &mut WireSession) {
-    assert_success(
-        &owner.query("SAVEPOINT before_expected_error").await,
-        b'T',
-    );
+    assert_success(&owner.query("SAVEPOINT before_expected_error").await, b'T');
     let failed = owner.query("SELECT 1 / 0").await;
     assert_eq!(wire::error_code(&failed).as_deref(), Some("22012"));
     assert_eq!(ready_status(&failed), Some(b'E'));

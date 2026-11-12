@@ -481,7 +481,10 @@ fn should_parse_pgvector_ann_methods_with_operator_classes() {
         assert_eq!(
             statement
                 .options
-                .get(&cassie::catalog::IndexMeta::key_option_name(0, "operator_class"))
+                .get(&cassie::catalog::IndexMeta::key_option_name(
+                    0,
+                    "operator_class"
+                ))
                 .map(String::as_str),
             Some(operator_class)
         );

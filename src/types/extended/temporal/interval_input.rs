@@ -5,8 +5,8 @@ use super::super::calendar::{
 use super::super::session::IntervalStyle;
 use super::super::tokens::{
     date_keyword, leading_integer, parse_fraction, parse_fractional_second, tokenize_with_check,
-    truncate_f64, truncate_f64_i32, unit_keyword, DecodeError, Keyword,
-    Reserved, TokenKind, TokenizeError, Unit,
+    truncate_f64, truncate_f64_i32, unit_keyword, DecodeError, Keyword, Reserved, TokenKind,
+    TokenizeError, Unit,
 };
 use super::{
     Interval, DAY_MASK, FULL_RANGE, HOUR_MASK, MINUTE_MASK, MONTH_MASK, SECOND_MASK, YEAR_MASK,

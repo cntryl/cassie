@@ -1,9 +1,9 @@
 use super::Catalog;
 use crate::catalog::{
-    local_name, name_matches, normalize_role_name, parse_name, FunctionMeta, GraphMeta,
-    MaintenanceDebtMeta, NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind, ProjectionMeta,
-    ExtensionMeta, RetentionPolicyMeta, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RollupMeta,
-    ViewMeta,
+    local_name, name_matches, normalize_role_name, parse_name, ExtensionMeta, FunctionMeta,
+    GraphMeta, MaintenanceDebtMeta, NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind,
+    ProjectionMeta, RetentionPolicyMeta, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta,
+    RollupMeta, ViewMeta,
 };
 use std::collections::BTreeSet;
 

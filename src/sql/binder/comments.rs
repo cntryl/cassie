@@ -14,11 +14,8 @@ pub(super) fn bind_comment_on(
 ) -> Result<CommentOnStatement, CassieError> {
     match statement.kind {
         CommentOnObjectKind::Schema => {
-            let schema = super::context::resolve_schema_name(
-                statement.object.as_str(),
-                catalog,
-                context,
-            )?;
+            let schema =
+                super::context::resolve_schema_name(statement.object.as_str(), catalog, context)?;
             if !catalog.namespace_exists(&schema) && !crate::catalog::is_system_schema(&schema) {
                 return Err(CassieError::CatalogObjectNotFound {
                     kind: CatalogObjectKind::Schema,

@@ -1,12 +1,12 @@
+#[cfg(test)]
+use super::execute_plan;
 use super::{
-    build_logical_plan, check_timeout, execute_plan_with_parameter_oids, row_signature,
-    BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap,
-    QueryError, QueryExecutionControls, Value,
+    build_logical_plan, check_timeout, execute_plan_with_parameter_oids, row_signature, BatchRow,
+    Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap, QueryError,
+    QueryExecutionControls, Value,
 };
 use crate::executor::semantic::SemanticKey;
 use crate::sql::ast::SetOperator;
-#[cfg(test)]
-use super::execute_plan;
 
 #[cfg(test)]
 mod retention_tests;

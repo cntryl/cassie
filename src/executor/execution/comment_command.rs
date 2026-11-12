@@ -74,9 +74,8 @@ fn object_address(
                     },
                 ));
             }
-            let object_oid = stored_namespace_oid(&cassie.catalog, schema).ok_or_else(|| {
-                unsupported("schema has no stable PostgreSQL catalog identity")
-            })?;
+            let object_oid = stored_namespace_oid(&cassie.catalog, schema)
+                .ok_or_else(|| unsupported("schema has no stable PostgreSQL catalog identity"))?;
             (PG_NAMESPACE_OID, object_oid, 0)
         }
         CommentOnObjectKind::Table | CommentOnObjectKind::Column => {

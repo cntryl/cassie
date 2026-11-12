@@ -283,6 +283,7 @@ impl IndexMeta {
         Ok(ReservationIdentity::Generation(identity))
     }
 
+    #[cfg(test)]
     pub(crate) fn set_reservation_generation(
         &mut self,
         identity: u64,

@@ -1,8 +1,7 @@
 //! Parser for the finite schema, table, and column COMMENT ON surface.
 
 use crate::sql::ast::{
-    CommentOnObjectKind, CommentOnStatement, Expr, IdentifierPath, ParsedStatement,
-    QueryStatement,
+    CommentOnObjectKind, CommentOnStatement, Expr, IdentifierPath, ParsedStatement, QueryStatement,
 };
 
 use super::SqlError;
@@ -29,7 +28,9 @@ pub(super) fn parse_comment_statement(sql: &str) -> Result<ParsedStatement, SqlE
     }
     let rest = rest[2..].trim_start();
     let Some((kind, target)) = split_target(rest) else {
-        return Err(SqlError::syntax("COMMENT ON requires an object target".to_owned()));
+        return Err(SqlError::syntax(
+            "COMMENT ON requires an object target".to_owned(),
+        ));
     };
     let Some((object, description)) = super::clauses::split_top_level(target, "IS") else {
         return Err(SqlError::syntax(
@@ -44,8 +45,16 @@ pub(super) fn parse_comment_statement(sql: &str) -> Result<ParsedStatement, SqlE
         ));
     }
     let (kind, object, column) = match kind.to_ascii_lowercase().as_str() {
-        "schema" => (CommentOnObjectKind::Schema, IdentifierPath::parse(object), None),
-        "table" => (CommentOnObjectKind::Table, IdentifierPath::parse(object), None),
+        "schema" => (
+            CommentOnObjectKind::Schema,
+            IdentifierPath::parse(object),
+            None,
+        ),
+        "table" => (
+            CommentOnObjectKind::Table,
+            IdentifierPath::parse(object),
+            None,
+        ),
         "column" => {
             let path = IdentifierPath::parse(object).map_err(SqlError::syntax)?;
             if path.components().len() < 2 {

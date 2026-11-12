@@ -120,10 +120,7 @@ impl Cassie {
                     &data_type,
                 )
                 .ok_or_else(|| {
-                    crate::app::DiagnosticError::new(
-                        "42704",
-                        "type \"vector\" does not exist",
-                    )
+                    crate::app::DiagnosticError::new("42704", "type \"vector\" does not exist")
                 })?;
             }
             if matches!(data_type, DataType::Array(element) if matches!(*element, DataType::Vector(_)))

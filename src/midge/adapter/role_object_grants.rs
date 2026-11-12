@@ -2,9 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use super::{
-    collect_scan, key_encoding, AdapterTransaction, CassieError, Midge, Query,
-};
+use super::{collect_scan, key_encoding, AdapterTransaction, CassieError, Midge, Query};
 use crate::catalog::{RoleGrantTarget, RoleObjectGrantMeta, RoleObjectPrivilege};
 
 impl Midge {
@@ -61,9 +59,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when storage or a record is malformed.
-    pub fn list_role_object_grants(
-        &self,
-    ) -> Result<Vec<RoleObjectGrantMeta>, CassieError> {
+    pub fn list_role_object_grants(&self) -> Result<Vec<RoleObjectGrantMeta>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         let prefix = key_encoding::role_object_grant_prefix();
         let entries = collect_scan(
@@ -100,11 +96,8 @@ impl Midge {
             return Ok(Vec::new());
         }
         let mut tx = self.begin_schema_rw_tx()?;
-        let removed = Self::delete_role_object_grants_for_targets_to_tx(
-            &mut tx,
-            database_family,
-            targets,
-        )?;
+        let removed =
+            Self::delete_role_object_grants_for_targets_to_tx(&mut tx, database_family, targets)?;
         if removed.is_empty() {
             return Ok(removed);
         }
@@ -183,8 +176,9 @@ impl Midge {
 }
 
 fn decode_record(key: &[u8], raw: &[u8]) -> Result<RoleObjectGrantMeta, CassieError> {
-    let grant: RoleObjectGrantMeta = serde_json::from_slice(raw)
-        .map_err(|error| CassieError::Parse(format!("invalid role object grant metadata: {error}")))?;
+    let grant: RoleObjectGrantMeta = serde_json::from_slice(raw).map_err(|error| {
+        CassieError::Parse(format!("invalid role object grant metadata: {error}"))
+    })?;
     validate_record(&grant).map_err(|error| match error {
         CassieError::Unsupported(message) => CassieError::Parse(message),
         other => other,
@@ -332,7 +326,8 @@ mod tests {
     fn should_delete_only_matching_database_targets_and_role_records() {
         // Arrange
         let (midge, family) = midge();
-        midge.create_database("role_grant_other", None)
+        midge
+            .create_database("role_grant_other", None)
             .expect("create second database");
         let other_family = midge
             .get_database("role_grant_other")
@@ -343,15 +338,26 @@ mod tests {
         let records = [
             grant(&family, 22, target.clone(), &[RoleObjectPrivilege::Select]),
             grant(&family, 23, target.clone(), &[RoleObjectPrivilege::Insert]),
-            grant(&family, 22, RoleGrantTarget::Schema(31), &[RoleObjectPrivilege::Usage]),
-            grant(&other_family, 22, target.clone(), &[RoleObjectPrivilege::Select]),
+            grant(
+                &family,
+                22,
+                RoleGrantTarget::Schema(31),
+                &[RoleObjectPrivilege::Usage],
+            ),
+            grant(
+                &other_family,
+                22,
+                target.clone(),
+                &[RoleObjectPrivilege::Select],
+            ),
         ];
         for record in &records {
-            midge.update_role_object_grant(
-                record,
-                &record.privileges.iter().copied().collect::<Vec<_>>(),
-                true,
-            )
+            midge
+                .update_role_object_grant(
+                    record,
+                    &record.privileges.iter().copied().collect::<Vec<_>>(),
+                    true,
+                )
                 .expect("persist grant");
         }
 
@@ -362,7 +368,9 @@ mod tests {
         let removed_role = midge
             .delete_role_object_grants_for_role(22)
             .expect("delete all records for role");
-        let remaining = midge.list_role_object_grants().expect("list remaining grants");
+        let remaining = midge
+            .list_role_object_grants()
+            .expect("list remaining grants");
 
         // Assert
         assert_eq!(removed_target.len(), 2);
@@ -391,7 +399,8 @@ mod tests {
         );
         let key = key_encoding::role_object_grant_key(&key_record);
         let value = serde_json::to_vec(&value_record).expect("serialize mismatched record");
-        midge.raw_put(StorageFamily::Schema, &key, &value)
+        midge
+            .raw_put(StorageFamily::Schema, &key, &value)
             .expect("seed mismatched key/value record");
 
         // Act
@@ -411,19 +420,11 @@ mod tests {
             RoleGrantTarget::Schema(31),
             &[RoleObjectPrivilege::Usage],
         );
-        let wrong_schema_privilege = grant(
-            &family,
-            22,
-            RoleGrantTarget::Schema(31),
-            &[],
-        );
+        let wrong_schema_privilege = grant(&family, 22, RoleGrantTarget::Schema(31), &[]);
 
         // Act
-        let zero_role_result = midge.update_role_object_grant(
-            &zero_role,
-            &[RoleObjectPrivilege::Usage],
-            true,
-        );
+        let zero_role_result =
+            midge.update_role_object_grant(&zero_role, &[RoleObjectPrivilege::Usage], true);
         let wrong_target_result = midge.update_role_object_grant(
             &wrong_schema_privilege,
             &[RoleObjectPrivilege::Select],
@@ -451,7 +452,8 @@ mod tests {
             RoleGrantTarget::Schema(31),
             &[RoleObjectPrivilege::Usage],
         );
-        midge.update_role_object_grant(&schema, &[RoleObjectPrivilege::Usage], true)
+        midge
+            .update_role_object_grant(&schema, &[RoleObjectPrivilege::Usage], true)
             .expect("persist schema grant");
 
         // Act

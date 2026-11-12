@@ -374,20 +374,20 @@ impl Cassie {
             }
             let database_name = database_names.get(&grant.database_family);
             let target_exists = match (&grant.target, database_name) {
-                (RoleGrantTarget::Schema(object_id), Some(database)) => namespaces.iter().any(
-                    |namespace| {
+                (RoleGrantTarget::Schema(object_id), Some(database)) => {
+                    namespaces.iter().any(|namespace| {
                         namespace.object_id == *object_id
                             && crate::catalog::schema_database_name(&namespace.name)
                                 .is_some_and(|name| name.eq_ignore_ascii_case(database))
-                    },
-                ),
-                (RoleGrantTarget::Table(object_id), Some(database)) => collections.iter().any(
-                    |collection| {
+                    })
+                }
+                (RoleGrantTarget::Table(object_id), Some(database)) => {
+                    collections.iter().any(|collection| {
                         collection.storage_id == *object_id
                             && crate::catalog::relation_database_name(&collection.name)
                                 .is_some_and(|name| name.eq_ignore_ascii_case(database))
-                    },
-                ),
+                    })
+                }
                 (_, None) => false,
             };
             if target_exists {

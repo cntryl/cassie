@@ -35,10 +35,7 @@ fn owned_identity(cassie: &Cassie, sequence: &str, table: &str) -> SequenceMeta 
         .owned_by
         .as_ref()
         .unwrap_or_else(|| panic!("identity sequence {sequence} is not owned"));
-    assert_eq!(
-        owner.table,
-        cassie.midge.canonical_collection_name(table)
-    );
+    assert_eq!(owner.table, cassie.midge.canonical_collection_name(table));
     assert_eq!(owner.column, "id");
     metadata
 }

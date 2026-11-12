@@ -65,9 +65,7 @@ pub(super) fn parameter_type_oids(params: &[Value]) -> Vec<i32> {
                         Value::String(_) => 25,
                         Value::Typed(typed) => i32::try_from(typed.kind().type_oid()).ok()?,
                         Value::Json(_) => 114,
-                        Value::Vector(_) => {
-                            Some(crate::sql::binder::VECTOR_PARAMETER_TYPE_OID)?
-                        }
+                        Value::Vector(_) => Some(crate::sql::binder::VECTOR_PARAMETER_TYPE_OID)?,
                         Value::Array(_) | Value::Null => return None,
                     };
                     crate::catalog::builtin_identity::builtin_array_oid(

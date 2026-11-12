@@ -3,7 +3,7 @@
 use crate::app::CassieError;
 use crate::runtime::QueryExecutionControls;
 use crate::types::extended::temporal::tokens::{self, TokenizeError};
-use crate::types::extended::temporal::{self, DecodeError, TemporalSession};
+use crate::types::extended::temporal::{self, TemporalSession};
 use crate::types::extended::{ExtendedType, TypeInputError};
 use crate::types::typed::TypedValue;
 
@@ -46,15 +46,15 @@ pub(crate) fn parse_text(
                 Some(temporal::decode::Special::Late) => temporal::calendar::TIMESTAMP_NOEND,
                 Some(temporal::decode::Special::Early) => temporal::calendar::TIMESTAMP_NOBEGIN,
                 Some(temporal::decode::Special::Epoch) => {
-                    -temporal::calendar::UNIX_TO_POSTGRES_SECS
-                        * temporal::calendar::USECS_PER_SEC
+                    -temporal::calendar::UNIX_TO_POSTGRES_SECS * temporal::calendar::USECS_PER_SEC
                 }
-                None => temporal::calendar::fields_to_timestamp(&decoded.fields, None)
-                    .ok_or_else(|| {
+                None => temporal::calendar::fields_to_timestamp(&decoded.fields, None).ok_or_else(
+                    || {
                         CassieError::from(temporal::range_error(format!(
                             "timestamp out of range: \"{text}\""
                         )))
-                    })?,
+                    },
+                )?,
             };
             TypedValue::Timestamp(temporal::calendar::round_timestamp(timestamp, precision))
         }
@@ -65,8 +65,7 @@ pub(crate) fn parse_text(
                 Some(temporal::decode::Special::Late) => temporal::calendar::TIMESTAMP_NOEND,
                 Some(temporal::decode::Special::Early) => temporal::calendar::TIMESTAMP_NOBEGIN,
                 Some(temporal::decode::Special::Epoch) => {
-                    -temporal::calendar::UNIX_TO_POSTGRES_SECS
-                        * temporal::calendar::USECS_PER_SEC
+                    -temporal::calendar::UNIX_TO_POSTGRES_SECS * temporal::calendar::USECS_PER_SEC
                 }
                 None => temporal::calendar::fields_to_timestamp(
                     &decoded.fields,
@@ -93,9 +92,11 @@ pub(crate) fn parse_text(
                 &mut check,
             )
             .map_err(|error| decode_error("interval", text, error))?;
-            TypedValue::Interval(value.apply_typmod(typmod).map_err(|_| {
-                CassieError::from(temporal::range_error("interval out of range"))
-            })?)
+            TypedValue::Interval(
+                value.apply_typmod(typmod).map_err(|_| {
+                    CassieError::from(temporal::range_error("interval out of range"))
+                })?,
+            )
         }
         _ => {
             return Err(CassieError::TypeInput(TypeInputError::new(
@@ -108,17 +109,11 @@ pub(crate) fn parse_text(
     Ok(value)
 }
 
-fn decode_error(
-    type_name: &str,
-    text: &str,
-    error: TokenizeError<CassieError>,
-) -> CassieError {
+fn decode_error(type_name: &str, text: &str, error: TokenizeError<CassieError>) -> CassieError {
     match error {
-        TokenizeError::Decode(error) => CassieError::from(temporal::input_error(
-            type_name,
-            text,
-            &error,
-        )),
+        TokenizeError::Decode(error) => {
+            CassieError::from(temporal::input_error(type_name, text, &error))
+        }
         TokenizeError::Check(error) => error,
     }
 }
@@ -232,21 +227,11 @@ mod tests {
         let kind = ExtendedType::TimestampTz { precision: None };
 
         // Act
-        let winter_2012 = parse_text(
-            kind,
-            "2012-01-01 00:00:00 MSK",
-            &session,
-            &controls,
-        );
+        let winter_2012 = parse_text(kind, "2012-01-01 00:00:00 MSK", &session, &controls);
         let expected_2012 = kind
             .parse_text_in("2012-01-01 00:00:00+04", &session)
             .expect("explicit historical offset");
-        let winter_2015 = parse_text(
-            kind,
-            "2015-01-01 00:00:00 MSK",
-            &session,
-            &controls,
-        );
+        let winter_2015 = parse_text(kind, "2015-01-01 00:00:00 MSK", &session, &controls);
         let expected_2015 = kind
             .parse_text_in("2015-01-01 00:00:00+03", &session)
             .expect("explicit current offset");

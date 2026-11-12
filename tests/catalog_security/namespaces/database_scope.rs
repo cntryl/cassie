@@ -570,8 +570,7 @@ fn should_scope_index_catalog_views_like_regclass_when_embedded_database_is_abse
     ] {
         cassie.execute_sql(&tenant, sql, vec![]).unwrap();
     }
-    let session_without_database =
-        cassie::app::CassieSession::new("tester".to_string(), None);
+    let session_without_database = cassie::app::CassieSession::new("tester".to_string(), None);
 
     // Act
     let tenant_rows = query_rows(
@@ -613,7 +612,10 @@ fn should_scope_index_catalog_views_like_regclass_when_embedded_database_is_abse
     );
 
     // Assert
-    assert_eq!(tenant_rows, vec![vec![Value::String("tenant_only_idx".to_string())]]);
+    assert_eq!(
+        tenant_rows,
+        vec![vec![Value::String("tenant_only_idx".to_string())]]
+    );
     assert_eq!(current_database, vec![vec![Value::String(String::new())]]);
     assert_eq!(foreign_regclass, vec![vec![Value::Null]]);
     assert_eq!(

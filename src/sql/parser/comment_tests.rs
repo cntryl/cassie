@@ -15,7 +15,12 @@ fn should_preserve_quoted_relation_and_column_identifiers_given_column_comment()
     };
     assert_eq!(statement.kind, CommentOnObjectKind::Column);
     assert_eq!(
-        statement.object.components().iter().map(|part| part.value()).collect::<Vec<_>>(),
+        statement
+            .object
+            .components()
+            .iter()
+            .map(|part| part.value())
+            .collect::<Vec<_>>(),
         ["Q Schema", "T.Table"]
     );
     assert_eq!(

@@ -56,7 +56,9 @@ impl ObjectCommentMeta {
             _ => false,
         };
         if !valid_sub_id {
-            return Err("object comment address is outside the selected catalog classes".to_owned());
+            return Err(
+                "object comment address is outside the selected catalog classes".to_owned(),
+            );
         }
         Ok(())
     }

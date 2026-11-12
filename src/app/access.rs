@@ -111,10 +111,9 @@ impl super::Cassie {
             &target,
             &insert.columns,
             |index| match &insert.source {
-                crate::sql::ast::InsertSource::Values(rows) => rows.iter().any(|row| {
-                    row.get(index)
-                        .is_some_and(Expr::is_default_assignment)
-                }),
+                crate::sql::ast::InsertSource::Values(rows) => rows
+                    .iter()
+                    .any(|row| row.get(index).is_some_and(Expr::is_default_assignment)),
                 crate::sql::ast::InsertSource::Select(_) => false,
             },
             default_values,
@@ -162,12 +161,7 @@ impl super::Cassie {
             } = &conflict.action
             {
                 for (field, expression) in assignments {
-                    self.reject_sequence_default_assignment(
-                        context,
-                        &target,
-                        field,
-                        expression,
-                    )?;
+                    self.reject_sequence_default_assignment(context, &target, field, expression)?;
                     self.authorize_expression(session, context, expression)?;
                     target_select_required |=
                         target_read.expression_reads_target(expression, false);
@@ -253,8 +247,7 @@ impl super::Cassie {
         default_values: bool,
         overriding_user: bool,
     ) -> Result<(), CassieError> {
-        let resolved =
-            crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
+        let resolved = crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
         let schema = self
             .catalog
             .get_schema(&resolved)
@@ -302,8 +295,7 @@ impl super::Cassie {
         if !expression.is_default_assignment() {
             return Ok(());
         }
-        let resolved =
-            crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
+        let resolved = crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
         if self
             .catalog
             .get_constraints(&resolved)
@@ -430,10 +422,7 @@ impl super::Cassie {
                 } => {
                     for (field, expression) in assignments {
                         self.reject_sequence_default_assignment(
-                            context,
-                            &target,
-                            field,
-                            expression,
+                            context, &target, field, expression,
                         )?;
                         self.authorize_expression(session, context, expression)?;
                     }
@@ -456,8 +445,7 @@ impl super::Cassie {
                         columns,
                         |index| {
                             values.as_ref().is_some_and(|row| {
-                                row.get(index)
-                                    .is_some_and(Expr::is_default_assignment)
+                                row.get(index).is_some_and(Expr::is_default_assignment)
                             })
                         },
                         values.as_ref().is_none_or(Vec::is_empty),

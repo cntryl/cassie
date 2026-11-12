@@ -177,11 +177,10 @@ fn should_return_owned_numeric_error_response_through_public_route_request() {
                 .await
                 .expect("server connection");
         });
-        let (mut sender, connection) = hyper::client::conn::http1::handshake(
-            hyper_util::rt::TokioIo::new(client_io),
-        )
-        .await
-        .expect("client handshake");
+        let (mut sender, connection) =
+            hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(client_io))
+                .await
+                .expect("client handshake");
         let client = tokio::spawn(async move {
             connection.await.expect("client connection");
         });

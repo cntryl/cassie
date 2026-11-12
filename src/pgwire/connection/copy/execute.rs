@@ -64,11 +64,7 @@ pub(super) fn execute_copy_payload(
                 .current_database()
                 .unwrap_or(&cassie.default_database);
             let (rows, memory) = input::parse_binary_payload_in_database(
-                payload,
-                cassie,
-                database,
-                statement,
-                &controls,
+                payload, cassie, database, statement, &controls,
             )?;
             (rows, Some(memory))
         }

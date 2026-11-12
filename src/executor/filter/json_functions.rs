@@ -44,10 +44,9 @@ pub(super) fn evaluate_with_owner(
     if matches!(kind, JsonFunction::VariadicArray) {
         return Some(match args {
             [array @ (Value::Array(_) | Value::Null)] => Ok(array.clone()),
-            _ => Err(CassieError::Execution(
-                "VARIADIC JSON path argument requires TEXT[]".into(),
-            )
-            .into()),
+            _ => Err(
+                CassieError::Execution("VARIADIC JSON path argument requires TEXT[]".into()).into(),
+            ),
         });
     }
     matches!(

@@ -197,11 +197,12 @@ impl Fold<'_, '_> {
                 signature @ (FunctionInputSignature::Positional(_)
                 | FunctionInputSignature::VariadicTail { .. }),
             ) => {
-                let variadic_array = matches!(signature, FunctionInputSignature::VariadicTail { .. })
-                    && function
-                        .args
-                        .get(1)
-                        .is_some_and(functions::json::is_variadic_array_argument);
+                let variadic_array =
+                    matches!(signature, FunctionInputSignature::VariadicTail { .. })
+                        && function
+                            .args
+                            .get(1)
+                            .is_some_and(functions::json::is_variadic_array_argument);
                 self.positional_function(
                     function,
                     metadata.expect("positional metadata"),
@@ -678,8 +679,7 @@ impl Fold<'_, '_> {
                 i32::try_from(result.type_oid()).unwrap_or_default(),
             ));
         }
-        if metadata.id
-            == functions::FunctionId::Json(functions::json::JsonFunction::VariadicArray)
+        if metadata.id == functions::FunctionId::Json(functions::json::JsonFunction::VariadicArray)
         {
             return Ok(Summary::known(1009));
         }

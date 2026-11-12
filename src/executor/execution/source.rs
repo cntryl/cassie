@@ -24,13 +24,12 @@ use super::plan_inspection;
 use super::reserve_projection_output_before_building;
 use super::{
     aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog,
-    check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan_with_parameter_oids,
-    execute_plan_with_outer_row, filter, graph, load_fulltext_index_options,
-    plan_execution_env_with_parameter_oids,
-    projection, resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec,
-    AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession, CteContext, ExistsResolutionContext,
-    Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError,
-    QueryExecutionControls, QuerySource, Value,
+    check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan_with_outer_row,
+    execute_plan_with_parameter_oids, filter, graph, load_fulltext_index_options,
+    plan_execution_env_with_parameter_oids, projection, resolve_exists_expr, row_signature, scan,
+    sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession,
+    CteContext, ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind,
+    LogicalPlan, QueryError, QueryExecutionControls, QuerySource, Value,
 };
 pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 
@@ -466,6 +465,7 @@ pub(super) fn execute_source_query_with_outer_row(
     Ok(rows)
 }
 
+#[cfg(test)]
 pub(super) fn source_execution_env<'a>(
     cassie: &'a Cassie,
     session: Option<&'a CassieSession>,

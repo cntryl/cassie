@@ -3,18 +3,18 @@
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
-#[path = "mod_zero_division.rs"]
-mod mod_zero_division;
 #[path = "mod_result_metadata.rs"]
 mod mod_result_metadata;
+#[path = "mod_zero_division.rs"]
+mod mod_zero_division;
 #[path = "numeric_log_binary.rs"]
 mod numeric_log_binary;
 #[path = "power_range_messages.rs"]
 mod power_range_messages;
-#[path = "rounding_zero_sign.rs"]
-mod rounding_zero_sign;
 #[path = "typed_math/errors.rs"]
 mod residual_typed_math_contract;
+#[path = "rounding_zero_sign.rs"]
+mod rounding_zero_sign;
 
 #[test]
 fn should_describe_math_function_results_with_the_postgresql_types() {

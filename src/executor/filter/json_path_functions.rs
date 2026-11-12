@@ -509,7 +509,15 @@ fn extract(
             CassieError::Execution("function json_extract_path() does not exist".into()).into(),
         );
     }
-    extract_segments(&args[0], &args[1..], false, binary, as_text, controls, owner)
+    extract_segments(
+        &args[0],
+        &args[1..],
+        false,
+        binary,
+        as_text,
+        controls,
+        owner,
+    )
 }
 
 fn extract_segments(
@@ -527,9 +535,7 @@ fn extract_segments(
         );
     }
     if matches!(document_value, Value::Null)
-        || segments
-            .iter()
-            .any(|value| matches!(value, Value::Null))
+        || segments.iter().any(|value| matches!(value, Value::Null))
     {
         return Ok(Value::Null);
     }
@@ -569,12 +575,7 @@ fn extract_segments(
     let document = super::json_functions::json_text(document_value)?;
     let result = if let (Some(controls), Some(owner)) = (controls, owner) {
         super::super::json_delete::controlled_function_extraction(
-            &document,
-            segments,
-            as_text,
-            binary,
-            controls,
-            owner,
+            &document, segments, as_text, binary, controls, owner,
         )?
     } else {
         let segments = segments.iter().map(|value| match value {
@@ -649,10 +650,9 @@ mod tests {
     #[test]
     fn should_admit_variadic_path_array_workspace_and_honor_cancellation() {
         // Arrange
-        let path = crate::types::SqlArray::from_elements(vec![crate::types::Value::String(
-            "a".into(),
-        )])
-        .expect("path array");
+        let path =
+            crate::types::SqlArray::from_elements(vec![crate::types::Value::String("a".into())])
+                .expect("path array");
         let input = [
             Value::String(format!("{{\"a\":\"{}\"}}", "x".repeat(80))),
             Value::Array(path),
@@ -766,7 +766,9 @@ mod tests {
         // Assert
         assert!(matches!(
             denied,
-            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(_)))
+            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                _
+            )))
         ));
         assert!(matches!(
             interrupted,
@@ -799,7 +801,9 @@ mod tests {
         // Assert
         assert!(matches!(
             denied,
-            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(_)))
+            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                _
+            )))
         ));
         assert_eq!(scarce.current_query_memory_bytes(), 0);
     }

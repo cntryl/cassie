@@ -58,7 +58,10 @@ pub fn assert_single_column_descriptors(
         if expected.0 == VECTOR_TYPE_OID {
             assert!(column.type_oid >= 16_384);
             assert!(!(100_001..=132_767).contains(&column.type_oid));
-            assert_eq!((column.type_size, column.type_mod), (expected.1, expected.2));
+            assert_eq!(
+                (column.type_size, column.type_mod),
+                (expected.1, expected.2)
+            );
             if let Some(active_vector_oid) = active_vector_oid {
                 assert_eq!(column.type_oid, active_vector_oid);
             } else {

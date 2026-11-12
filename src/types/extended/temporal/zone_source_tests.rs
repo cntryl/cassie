@@ -145,8 +145,8 @@ fn should_resolve_dynamic_types_by_the_exact_raw_transition_index() {
         b"AAA\0AAA\0",
     );
     let zone = Zone::from_tzif("Test/TransitionIndex", &bytes).expect("valid TZif");
-    let at_unix_second_15 = (15 - crate::types::extended::temporal::calendar::UNIX_TO_POSTGRES_SECS)
-        * 1_000_000;
+    let at_unix_second_15 =
+        (15 - crate::types::extended::temporal::calendar::UNIX_TO_POSTGRES_SECS) * 1_000_000;
 
     // Act
     let result = zone.abbreviation_offset("AAA", at_unix_second_15);
@@ -283,14 +283,7 @@ fn transitions_tzif(
     let type_count = u32::try_from(types.len()).expect("small TZif fixture");
     let transition_count = u32::try_from(transitions.len()).expect("small TZif fixture");
     let designation_count = u32::try_from(designations.len()).expect("small TZif fixture");
-    for count in [
-        0_u32,
-        0,
-        0,
-        transition_count,
-        type_count,
-        designation_count,
-    ] {
+    for count in [0_u32, 0, 0, transition_count, type_count, designation_count] {
         bytes.extend_from_slice(&count.to_be_bytes());
     }
     for (time, _) in transitions {

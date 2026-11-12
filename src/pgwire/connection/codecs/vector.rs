@@ -4,10 +4,7 @@ use super::{invalid_data, invalid_value};
 use crate::types::Value;
 use crate::vector::text::visit_components_with_dimension;
 
-pub(super) fn encode_vector(
-    value: &Value,
-    atttypmod: i32,
-) -> io::Result<Vec<u8>> {
+pub(super) fn encode_vector(value: &Value, atttypmod: i32) -> io::Result<Vec<u8>> {
     let expected_dimensions = usize::try_from(atttypmod)
         .ok()
         .filter(|dimensions| (1..=16_000).contains(dimensions));
@@ -78,10 +75,7 @@ pub(super) fn decode_vector(
 // Text Bind retains its original String carrier. Validate the entire known-width
 // sequence before allocating a result buffer, then replay the immutable text into
 // that bounded buffer. Neither pass builds a JSON array or a temporary vector.
-fn encode_text_vector(
-    text: &str,
-    expected_dimensions: Option<usize>,
-) -> io::Result<Vec<u8>> {
+fn encode_text_vector(text: &str, expected_dimensions: Option<usize>) -> io::Result<Vec<u8>> {
     let dimensions = visit_components_with_dimension(text, expected_dimensions, |_| {})
         .map_err(|_| invalid_data("vector"))?;
     let mut encoded = vector_output_buffer(dimensions)?;

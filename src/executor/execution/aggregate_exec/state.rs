@@ -359,7 +359,13 @@ impl AggregateAccumulator {
                 seen_input,
             } => {
                 *seen_input = true;
-                return update_collection_values(*kind, values, value, second_argument, array_input);
+                return update_collection_values(
+                    *kind,
+                    values,
+                    value,
+                    second_argument,
+                    array_input,
+                );
             }
             Self::Sum { sum, seen } => update_sum(sum, seen, function, value)?,
             Self::Avg { sum, count } => update_average(sum, count, function, value)?,

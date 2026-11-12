@@ -91,8 +91,7 @@ fn should_bind_pgvector_methods_and_return_operator_ordered_vector_rows() {
 
         // Assert
         assert_eq!(
-            access_method,
-            "hnsw",
+            access_method, "hnsw",
             "pg_class relam resolves to the installed HNSW method"
         );
         assert_eq!(
@@ -178,8 +177,12 @@ fn should_match_exact_l2_top_k_through_pgvector_hnsw_and_default_ivfflat() {
             "the baseline result must be produced without an HNSW index"
         );
         assert_eq!(
-            after_exact["vector"]["ivfflat_executions"].as_u64().unwrap(),
-            before_exact["vector"]["ivfflat_executions"].as_u64().unwrap(),
+            after_exact["vector"]["ivfflat_executions"]
+                .as_u64()
+                .unwrap(),
+            before_exact["vector"]["ivfflat_executions"]
+                .as_u64()
+                .unwrap(),
             "the baseline result must be produced without an IVFFlat index"
         );
         assert_eq!(hnsw_rows, exact_rows);
@@ -191,8 +194,12 @@ fn should_match_exact_l2_top_k_through_pgvector_hnsw_and_default_ivfflat() {
         );
         assert_eq!(ivfflat_rows, exact_rows);
         assert_eq!(
-            after_ivfflat["vector"]["ivfflat_executions"].as_u64().unwrap()
-                - before_ivfflat["vector"]["ivfflat_executions"].as_u64().unwrap(),
+            after_ivfflat["vector"]["ivfflat_executions"]
+                .as_u64()
+                .unwrap()
+                - before_ivfflat["vector"]["ivfflat_executions"]
+                    .as_u64()
+                    .unwrap(),
             1,
             "the default IVFFlat result must come from the ANN execution path"
         );
@@ -377,10 +384,7 @@ fn should_preserve_vector_dependents_when_extension_drop_is_rejected() {
             .expect("inspect the retained vector type")
             .get(0);
         let retained_distance: f64 = client
-            .query_one(
-                "SELECT distance FROM pgvector_drop_cascade_view",
-                &[],
-            )
+            .query_one("SELECT distance FROM pgvector_drop_cascade_view", &[])
             .await
             .expect("a rejected cascade must preserve regular views it could otherwise remove")
             .get(0);
@@ -404,8 +408,14 @@ fn should_preserve_vector_dependents_when_extension_drop_is_rejected() {
         assert_eq!(extension_count, 1);
         assert_eq!(vector_type_count, 1);
         assert!((retained_distance - 2.0_f64.sqrt()).abs() < 1e-12);
-        assert_eq!(index_identity.get::<_, i64>(0), index_identity.get::<_, i64>(3));
-        assert_eq!(index_identity.get::<_, i64>(1), index_identity.get::<_, i64>(2));
+        assert_eq!(
+            index_identity.get::<_, i64>(0),
+            index_identity.get::<_, i64>(3)
+        );
+        assert_eq!(
+            index_identity.get::<_, i64>(1),
+            index_identity.get::<_, i64>(2)
+        );
 
         execute_statements(
             &client,
@@ -416,8 +426,8 @@ fn should_preserve_vector_dependents_when_extension_drop_is_rejected() {
                 "DROP EXTENSION vector",
             ],
         )
-            .await
-            .expect("remove dependents before dropping the extension");
+        .await
+        .expect("remove dependents before dropping the extension");
 
         drop(client);
         server.shutdown(connection).await;
@@ -543,10 +553,7 @@ fn should_track_vector_dependencies_in_nested_select_shapes() {
             .expect("inspect nested vector-dependent views after RESTRICT")
             .get(0);
         let chained_text: String = client
-            .query_one(
-                "SELECT embedding_text FROM pgvector_ast_view_child",
-                &[],
-            )
+            .query_one("SELECT embedding_text FROM pgvector_ast_view_child", &[])
             .await
             .expect("read a text-only view derived from vector output")
             .get(0);
@@ -677,7 +684,9 @@ fn should_restore_vector_view_dependency_after_local_restart() {
 
     // Act
     let reopened = Cassie::new_with_data_dir(&path).expect("reopen local Cassie");
-    reopened.startup().expect("restore extension and view metadata");
+    reopened
+        .startup()
+        .expect("restore extension and view metadata");
     let session = reopened.create_session("root", None);
     let retained_view = reopened
         .execute_sql(
@@ -797,7 +806,10 @@ fn should_publish_only_installed_vector_access_methods_and_operator_classes() {
             ]
         );
         assert_eq!(operator_members.len(), 6);
-        for (row, operator) in operator_members.iter().zip(["<=>", "<#>", "<->", "<=>", "<#>", "<->"]) {
+        for (row, operator) in operator_members
+            .iter()
+            .zip(["<=>", "<#>", "<->", "<=>", "<#>", "<->"])
+        {
             assert_eq!(row.get::<_, i16>(2), 1);
             assert_eq!(row.get::<_, String>(3), "o");
             assert_eq!(row.get::<_, i64>(4), 1_970);

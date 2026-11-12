@@ -194,7 +194,14 @@ fn scratch_bytes(
                 .columns()
                 .get(index)
                 .is_some_and(ColumnMeta::is_vector);
-            let mut cell = cell_bytes(value, oid, atttypmod, format, postgres_array_text, is_vector)?;
+            let mut cell = cell_bytes(
+                value,
+                oid,
+                atttypmod,
+                format,
+                postgres_array_text,
+                is_vector,
+            )?;
             if format == 0 && array_element_oid(oid).is_some() {
                 let mut extra = 0;
                 if let Value::Array(array) = value {
@@ -331,12 +338,10 @@ fn vector_dimensions_for_value(value: &Value, atttypmod: i32) -> Option<usize> {
     let dimensions = match value {
         Value::Vector(vector) => vector.values.len(),
         Value::Json(serde_json::Value::Array(values)) => values.len(),
-        Value::String(text) => crate::vector::text::visit_components_with_dimension(
-            text,
-            expected_dimensions,
-            |_| {},
-        )
-        .ok()?,
+        Value::String(text) => {
+            crate::vector::text::visit_components_with_dimension(text, expected_dimensions, |_| {})
+                .ok()?
+        }
         _ => return None,
     };
     ((1..=16_000).contains(&dimensions)
@@ -566,7 +571,9 @@ fn array_element_bytes(value: &serde_json::Value, oid: i64) -> Result<CellBytes,
         return json_bytes(value);
     }
     match value {
-        serde_json::Value::Bool(value) => cell_bytes(&Value::Bool(*value), oid, -1, 1, false, false),
+        serde_json::Value::Bool(value) => {
+            cell_bytes(&Value::Bool(*value), oid, -1, 1, false, false)
+        }
         serde_json::Value::Number(value) => {
             let value = value
                 .as_i64()

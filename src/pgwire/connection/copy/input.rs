@@ -228,6 +228,7 @@ fn push_text_field(
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn parse_binary_payload(
     payload: &[u8],
     cassie: &Cassie,
@@ -512,6 +513,7 @@ fn decode_json_binary_field(
     Ok(Some(output))
 }
 
+#[cfg(test)]
 fn copy_column_types(
     statement: &CopyStatement,
     fields: &[crate::catalog::FieldMeta],

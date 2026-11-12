@@ -143,6 +143,7 @@ pub(super) fn execute_plan_with_parameter_oids(
     execute_plan_with_outer_row(&env, plan, cte_context, None)
 }
 
+#[cfg(test)]
 pub(super) fn execute_physical_plan(
     cassie: &Cassie,
     session: Option<&CassieSession>,

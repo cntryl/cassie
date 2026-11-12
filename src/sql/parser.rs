@@ -182,6 +182,9 @@ mod order_ordinals;
 #[path = "parser/parameter_text.rs"]
 mod parameter_text;
 pub(crate) use parameter_text::{max_positional_parameter, substitute_positional_parameters};
+#[cfg(test)]
+#[path = "parser/comment_tests.rs"]
+mod comment_tests;
 #[path = "parser/preflight.rs"]
 mod preflight;
 #[path = "parser/query.rs"]
@@ -194,9 +197,6 @@ mod rollups;
 mod schema;
 #[path = "parser/statements.rs"]
 mod statements;
-#[cfg(test)]
-#[path = "parser/comment_tests.rs"]
-mod comment_tests;
 
 use clauses::{find_top_level_keyword, strip_parentheses};
 use copy::parse_copy_statement;

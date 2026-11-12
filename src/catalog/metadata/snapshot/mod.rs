@@ -199,9 +199,7 @@ impl Catalog {
             )),
             maintenance_debts: Arc::new(RwLock::new(self.maintenance_debts.read().clone())),
             object_comments: Arc::new(RwLock::new(self.object_comments.read().clone())),
-            role_object_grants: Arc::new(RwLock::new(
-                self.role_object_grants.read().clone(),
-            )),
+            role_object_grants: Arc::new(RwLock::new(self.role_object_grants.read().clone())),
             version: Arc::new(AtomicU64::new(self.version())),
         }
     }

@@ -46,14 +46,10 @@ fn should_return_schema_table_and_column_comments_with_selected_catalog_descript
         .execute("COMMENT ON SCHEMA issue_845_schema IS 'schema comment'")
         .expect("comment on schema");
     fixture
-        .execute(
-            "COMMENT ON TABLE issue_845_schema.comment_subject IS 'table comment'",
-        )
+        .execute("COMMENT ON TABLE issue_845_schema.comment_subject IS 'table comment'")
         .expect("comment on table");
     fixture
-        .execute(
-            "COMMENT ON COLUMN issue_845_schema.comment_subject.payload IS 'column comment'",
-        )
+        .execute("COMMENT ON COLUMN issue_845_schema.comment_subject.payload IS 'column comment'")
         .expect("comment on column");
 
     // Act
@@ -199,7 +195,10 @@ fn should_scope_comment_reads_to_the_current_database_family() {
         .expect("read descriptions in the second database");
 
     // Assert
-    assert_eq!(result.rows(), vec![vec![Value::Bool(true), Value::Int64(0)]]);
+    assert_eq!(
+        result.rows(),
+        vec![vec![Value::Bool(true), Value::Int64(0)]]
+    );
 }
 
 #[test]
@@ -267,9 +266,7 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
         .execute("COMMENT ON TABLE issue_845_tx_subject IS 'transaction value'")
         .expect("stage transaction comment");
     let own_value = fixture
-        .execute(
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-        )
+        .execute("SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')")
         .expect("read the transaction's comment");
     let other_value = fixture
         .cassie
@@ -289,15 +286,11 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
         .execute("ROLLBACK TO SAVEPOINT issue_845_comment_savepoint")
         .expect("discard savepoint comment");
     let after_savepoint = fixture
-        .execute(
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-        )
+        .execute("SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')")
         .expect("read comment after savepoint rollback");
     fixture.execute("ROLLBACK").expect("roll back transaction");
     let after_transaction = fixture
-        .execute(
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-        )
+        .execute("SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')")
         .expect("read committed comment after transaction rollback");
 
     fixture.execute("BEGIN").expect("begin commit transaction");
@@ -319,7 +312,9 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
             vec![],
         )
         .expect("observer sees only committed data before commit");
-    fixture.execute("COMMIT").expect("commit transaction comment");
+    fixture
+        .execute("COMMIT")
+        .expect("commit transaction comment");
     let other_after_commit = fixture
         .cassie
         .execute_sql(
@@ -348,7 +343,9 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
     );
     assert_eq!(
         own_catalog_value.rows(),
-        vec![vec![Value::String("committed transaction value".to_owned())]]
+        vec![vec![Value::String(
+            "committed transaction value".to_owned()
+        )]]
     );
     assert_eq!(
         other_before_commit.rows(),
@@ -356,7 +353,9 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
     );
     assert_eq!(
         other_after_commit.rows(),
-        vec![vec![Value::String("committed transaction value".to_owned())]]
+        vec![vec![Value::String(
+            "committed transaction value".to_owned()
+        )]]
     );
 }
 
@@ -400,9 +399,7 @@ fn should_preserve_comment_addresses_across_renames_and_remove_them_on_drop() {
         .execute("ALTER TABLE issue_845_after.comment_subject RENAME TO renamed_subject")
         .expect("rename table without changing its identity");
     fixture
-        .execute(
-            "ALTER TABLE issue_845_after.renamed_subject RENAME COLUMN payload TO body",
-        )
+        .execute("ALTER TABLE issue_845_after.renamed_subject RENAME COLUMN payload TO body")
         .expect("rename column without changing its attribute identity");
     let renamed_descriptions = fixture
         .execute(
@@ -472,7 +469,11 @@ fn should_preserve_comment_records_through_local_restart_and_database_image_rest
     cassie.startup().expect("start local database");
     let postgres = cassie.create_session("tester", Some("postgres".to_owned()));
     cassie
-        .execute_sql(&postgres, "CREATE DATABASE issue_845_comment_source", vec![])
+        .execute_sql(
+            &postgres,
+            "CREATE DATABASE issue_845_comment_source",
+            vec![],
+        )
         .expect("create image source database");
     let source = cassie.create_session("tester", Some("issue_845_comment_source".to_owned()));
     for sql in [
@@ -574,11 +575,13 @@ fn should_reject_unselected_comment_targets_and_non_owner_roles() {
     .map(|sql| cassie.execute_sql(&root, sql, vec![]));
 
     // Assert
-    assert!(matches!(unauthorized, Err(CassieError::InsufficientPrivilege)));
-    assert!(unsupported.iter().all(|result| matches!(
-        result,
-        Err(CassieError::Unsupported(_))
-    )));
+    assert!(matches!(
+        unauthorized,
+        Err(CassieError::InsufficientPrivilege)
+    ));
+    assert!(unsupported
+        .iter()
+        .all(|result| matches!(result, Err(CassieError::Unsupported(_)))));
 }
 
 struct DataDirectory(PathBuf);
@@ -590,8 +593,5 @@ impl Drop for DataDirectory {
 }
 
 fn data_dir(label: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "cassie-{label}-{}",
-        uuid::Uuid::new_v4()
-    ))
+    std::env::temp_dir().join(format!("cassie-{label}-{}", uuid::Uuid::new_v4()))
 }

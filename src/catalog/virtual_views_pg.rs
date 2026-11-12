@@ -7,14 +7,14 @@ use crate::types::{DataType, ObjectIdKind, Value};
 
 use super::VirtualRow;
 
-#[path = "virtual_views_pg/index_definitions.rs"]
-mod index_definitions;
 #[path = "virtual_views_pg/acl.rs"]
 mod acl;
 #[path = "virtual_views_pg/collation.rs"]
 pub(super) mod collation;
 #[path = "virtual_views_pg/descriptions.rs"]
 pub(super) mod descriptions;
+#[path = "virtual_views_pg/index_definitions.rs"]
+mod index_definitions;
 #[path = "virtual_views_pg/type_identity.rs"]
 mod type_identity;
 #[path = "virtual_views_pg/vector_catalogs.rs"]
@@ -121,7 +121,12 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = vec![
-        namespace_row(catalog, "information_schema", "information_schema", current_database),
+        namespace_row(
+            catalog,
+            "information_schema",
+            "information_schema",
+            current_database,
+        ),
         namespace_row(catalog, "pg_catalog", "pg_catalog", current_database),
         namespace_row(catalog, "public", "public", current_database),
     ];
@@ -303,8 +308,9 @@ pub(super) fn pg_indexes(catalog: &Catalog, current_database: Option<&str>) -> V
         .into_iter()
         .filter(|index| {
             catalog.is_published_in_postgresql_catalogs(index, current_database)
-                && current_database
-                    .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+                && current_database.is_none_or(|database| {
+                    relation_belongs_to_database(&index.collection, database)
+                })
         })
         .map(|index| {
             vec![
@@ -322,8 +328,9 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
         .into_iter()
         .filter(|index| {
             catalog.is_published_in_postgresql_catalogs(index, current_database)
-                && current_database
-                    .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+                && current_database.is_none_or(|database| {
+                    relation_belongs_to_database(&index.collection, database)
+                })
         })
         .map(|index| {
             let primary = index_is_primary(catalog, &index);
@@ -444,9 +451,7 @@ fn attribute_row(
                 current_database
                     .and_then(|database| {
                         crate::catalog::object_identity::type_oid_for_database(
-                            catalog,
-                            database,
-                            data_type,
+                            catalog, database, data_type,
                         )
                     })
                     .unwrap_or_else(|| {
@@ -460,7 +465,10 @@ fn attribute_row(
         ),
         bool_value("attnotnull", !is_dropped && is_not_null(constraint)),
         int_value("atttypmod", i64::from(data_type.atttypmod())),
-        bool_value("atthasdef", !is_dropped && constraint_has_default(constraint)),
+        bool_value(
+            "atthasdef",
+            !is_dropped && constraint_has_default(constraint),
+        ),
         bool_value("attisdropped", is_dropped),
         string(
             "attidentity",
@@ -489,7 +497,10 @@ fn namespace_row(
         int_value("oid", namespace_oid(catalog, canonical)),
         string("nspname", name),
         int_value("nspowner", postgres_role_oid()),
-        ("nspacl".to_string(), acl::schema_acl(catalog, current_database, canonical)),
+        (
+            "nspacl".to_string(),
+            acl::schema_acl(catalog, current_database, canonical),
+        ),
     ]
 }
 
@@ -585,7 +596,12 @@ fn index_reloptions(index: &IndexMeta) -> Option<String> {
     };
     let options = names
         .iter()
-        .filter_map(|name| index.options.get(*name).map(|value| format!("{name}={value}")))
+        .filter_map(|name| {
+            index
+                .options
+                .get(*name)
+                .map(|value| format!("{name}={value}"))
+        })
         .collect::<Vec<_>>();
     (!options.is_empty()).then(|| format!("{{{}}}", options.join(",")))
 }

@@ -226,10 +226,8 @@ impl<'a> ObjectScope<'a> {
                 .logical_indexes_snapshot()
                 .into_iter()
                 .find(|index| {
-                    self.catalog.is_published_in_postgresql_catalogs(
-                        index,
-                        Some(&self.context.database),
-                    )
+                    self.catalog
+                        .is_published_in_postgresql_catalogs(index, Some(&self.context.database))
                         && catalog_index_oid(index) == oid
                         && crate::catalog::RelationId::parse_canonical(&index.collection)
                             .is_some_and(|relation| {
@@ -630,16 +628,15 @@ mod tests {
         let hnsw_name_before_install = scope
             .resolve(ObjectIdKind::RegClass, "events_hnsw_idx")
             .expect("parse HNSW index identity before extension install");
-        let column_label = scope.label(
-            ObjectIdKind::RegClass,
-            catalog_index_oid(&column_index),
-        );
+        let column_label = scope.label(ObjectIdKind::RegClass, catalog_index_oid(&column_index));
         let time_series_label = scope.label(
             ObjectIdKind::RegClass,
             catalog_index_oid(&time_series_index),
         );
-        let legacy_vector_label =
-            scope.label(ObjectIdKind::RegClass, catalog_index_oid(&legacy_vector_index));
+        let legacy_vector_label = scope.label(
+            ObjectIdKind::RegClass,
+            catalog_index_oid(&legacy_vector_index),
+        );
 
         // Arrange extension identities before testing the selected pgvector method.
         catalog.register_extension(vector_extension());

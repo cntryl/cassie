@@ -106,15 +106,13 @@ impl ParameterInference<'_> {
 
     fn oid_for_data_type(&self, data_type: &DataType) -> i32 {
         match (self.catalog, self.scope) {
-            (Some(catalog), Some(scope)) => {
-                crate::catalog::object_identity::type_oid_for_database(
-                    catalog,
-                    scope.database,
-                    data_type,
-                )
-                .and_then(|oid| i32::try_from(oid).ok())
-                .unwrap_or_else(|| i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX))
-            }
+            (Some(catalog), Some(scope)) => crate::catalog::object_identity::type_oid_for_database(
+                catalog,
+                scope.database,
+                data_type,
+            )
+            .and_then(|oid| i32::try_from(oid).ok())
+            .unwrap_or_else(|| i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX)),
             _ => i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX),
         }
     }

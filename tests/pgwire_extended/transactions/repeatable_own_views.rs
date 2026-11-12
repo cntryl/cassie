@@ -178,14 +178,8 @@ fn should_keep_an_extended_ctas_bound_to_its_bind_catalog() {
         frames[3].last().and_then(|(_, body)| body.first()),
         Some(&b'T')
     );
-    assert_eq!(
-        wire::data_rows(&frames[4]),
-        vec![vec![Some("0".into())]]
-    );
-    assert_eq!(
-        wire::data_rows(&frames[5]),
-        vec![vec![Some("1".into())]]
-    );
+    assert_eq!(wire::data_rows(&frames[4]), vec![vec![Some("0".into())]]);
+    assert_eq!(wire::data_rows(&frames[5]), vec![vec![Some("1".into())]]);
     assert_eq!(wire::error_code(&frames[6]), None);
     assert_eq!(frames[6].last().map(|(tag, _)| *tag), Some(b'Z'));
     assert_eq!(

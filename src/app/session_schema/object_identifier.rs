@@ -10,9 +10,7 @@ impl CassieSession {
     /// Network-authenticated non-admin roles search only schemas where they
     /// have direct USAGE. Explicitly qualified object and namespace lookups
     /// remain independent of this search path.
-    pub(crate) fn object_identifier_lookup_context(
-        &self,
-    ) -> Option<(Catalog, BindingContext)> {
+    pub(crate) fn object_identifier_lookup_context(&self) -> Option<(Catalog, BindingContext)> {
         let (catalog, mut context) = self.object_lookup_context()?;
         if !self.is_network_authenticated() || !self.is_authenticated_read_only() {
             return Some((catalog, context));

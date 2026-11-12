@@ -82,7 +82,8 @@ pub(in crate::catalog::virtual_views) fn operator_class_schema() -> Vec<(String,
     ]
 }
 
-pub(in crate::catalog::virtual_views) fn access_method_operator_schema() -> Vec<(String, DataType)> {
+pub(in crate::catalog::virtual_views) fn access_method_operator_schema() -> Vec<(String, DataType)>
+{
     vec![
         oid("amopfamily"),
         oid("amoplefttype"),
@@ -155,26 +156,26 @@ pub(in crate::catalog::virtual_views) fn operator_family_rows(
         int_value("oid", FLOAT8_BTREE_OPERATOR_FAMILY_OID),
         int_value("opfmethod", 403),
         string("opfname", "float_ops"),
-        int_value("opfnamespace", crate::catalog::builtin_identity::PG_CATALOG_NAMESPACE_OID),
+        int_value(
+            "opfnamespace",
+            crate::catalog::builtin_identity::PG_CATALOG_NAMESPACE_OID,
+        ),
         int_value("opfowner", 10),
     ]];
     let Some(vector) = InstalledVectorCatalog::load(catalog, database) else {
         return rows;
     };
-    rows.extend(vector
-        .methods
-        .into_iter()
-        .flat_map(|method| {
-            distance_classes(&vector, method).map(move |class| {
-                vec![
-                    int_value("oid", class.family_oid),
-                    int_value("opfmethod", method.access_method_oid),
-                    string("opfname", class.class_name),
-                    int_value("opfnamespace", vector.namespace_oid),
-                    int_value("opfowner", vector.owner_oid),
-                ]
-            })
-        }));
+    rows.extend(vector.methods.into_iter().flat_map(|method| {
+        distance_classes(&vector, method).map(move |class| {
+            vec![
+                int_value("oid", class.family_oid),
+                int_value("opfmethod", method.access_method_oid),
+                string("opfname", class.class_name),
+                int_value("opfnamespace", vector.namespace_oid),
+                int_value("opfowner", vector.owner_oid),
+            ]
+        })
+    }));
     rows
 }
 
@@ -226,10 +227,7 @@ pub(in crate::catalog::virtual_views) fn access_method_operator_rows(
                     string("amoppurpose", "o"),
                     int_value("amopopr", class.operator.oid),
                     int_value("amopmethod", method.access_method_oid),
-                    int_value(
-                        "amopsortfamily",
-                        FLOAT8_BTREE_OPERATOR_FAMILY_OID,
-                    ),
+                    int_value("amopsortfamily", FLOAT8_BTREE_OPERATOR_FAMILY_OID),
                 ]
             })
         })

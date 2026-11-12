@@ -84,9 +84,7 @@ fn should_detect_same_schema_index_name_on_another_table() {
 
     // Assert
     assert_eq!(
-        duplicate
-            .expect_err("schema name collision")
-            .sql_state(),
+        duplicate.expect_err("schema name collision").sql_state(),
         "42P07"
     );
     skipped.expect("valid IF NOT EXISTS skips existing relation");
@@ -155,8 +153,7 @@ fn should_reject_index_names_used_by_views() {
 
     // Assert
     assert_eq!(
-        view.expect_err("view owns relation name")
-            .sql_state(),
+        view.expect_err("view owns relation name").sql_state(),
         "42P07"
     );
     assert_eq!(
@@ -246,15 +243,11 @@ fn should_validate_include_and_predicate_before_skipping_an_existing_name() {
 
     // Assert
     assert_eq!(
-        include
-            .expect_err("missing INCLUDE column")
-            .sql_state(),
+        include.expect_err("missing INCLUDE column").sql_state(),
         "42703"
     );
     assert_eq!(
-        predicate
-            .expect_err("missing predicate column")
-            .sql_state(),
+        predicate.expect_err("missing predicate column").sql_state(),
         "42703"
     );
 }
@@ -359,9 +352,7 @@ fn should_restore_schema_namespace_after_savepoint_rollback() {
 
     // Assert
     assert_eq!(
-        collision
-            .expect_err("staged index owns name")
-            .sql_state(),
+        collision.expect_err("staged index owns name").sql_state(),
         "42P07"
     );
     assert!(fixture

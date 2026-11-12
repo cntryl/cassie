@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use super::{
     AlterIndexStatement, AlterMaterializedProjectionStatement, AlterRetentionPolicyStatement,
     AlterRoleStatement, AlterSchemaStatement, AlterSequenceStatement, AlterTableStatement,
-    CallProcedureStatement, CommentOnStatement, CompareProjectionStatement, CopyStatement, CreateDatabaseStatement,
-    CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
+    CallProcedureStatement, CommentOnStatement, CompareProjectionStatement, CopyStatement,
+    CreateDatabaseStatement, CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
     CreateMaterializedProjectionStatement, CreateMaterializedViewStatement,
     CreateProcedureStatement, CreateRetentionPolicyStatement, CreateRoleStatement,
     CreateRollupStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,

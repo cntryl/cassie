@@ -140,12 +140,18 @@ fn published_owner(
         || stored.normalized_fields() != index.normalized_fields()
         || stored.normalized_expressions() != index.normalized_expressions()
         || stored.predicate != index.predicate
+        || index
+            .storage_id()
+            .is_some_and(|identity| stored.storage_id() != Some(identity))
+        || index
+            .relation_id()
+            .is_some_and(|identity| stored.relation_id() != Some(identity))
     {
         return Ok(PublishedOwner::Unavailable);
     }
     cassie
         .midge
-        .unique_scalar_index_reservation_owner(collection, index.unique_reservation_name(), key)
+        .unique_scalar_index_reservation_owner(collection, &stored, key)
         .map(PublishedOwner::Ready)
 }
 

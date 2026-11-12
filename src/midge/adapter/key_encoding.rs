@@ -34,11 +34,13 @@ pub(super) use graph::{
 };
 pub(super) use hot_indexes::{
     column_batch_collection_prefix, column_batch_field_key, column_batch_index_prefix,
-    column_batch_metadata_key, column_batch_row_ids_key, scalar_index_collection_prefix,
-    scalar_index_data_prefix, unique_constraint_reservation_field_prefix,
-    unique_constraint_reservation_key, unique_constraint_reservation_prefix,
-    unique_index_reservation_prefix, unique_scalar_index_reservation_key,
-    unique_scalar_index_reservation_prefix,
+    column_batch_metadata_key, column_batch_row_ids_key, generated_unique_index_reservation_key,
+    generated_unique_index_reservation_prefix, generated_unique_index_reservations_prefix,
+    scalar_index_collection_prefix, scalar_index_data_prefix,
+    unique_constraint_reservation_field_prefix, unique_constraint_reservation_key,
+    unique_constraint_reservation_prefix, unique_index_reservation_key_for,
+    unique_index_reservation_prefix, unique_index_reservation_prefix_for,
+    unique_scalar_index_reservation_key, unique_scalar_index_reservation_prefix,
 };
 pub(super) use object_comments::{
     object_comment_key, object_comment_object_prefix, object_comment_prefix,

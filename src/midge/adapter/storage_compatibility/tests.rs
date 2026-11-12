@@ -5,6 +5,7 @@ use crate::midge::adapter::{key_encoding, StorageFamily};
 
 const V1: &str = "cassie-midge-layout-v1-0.1.0";
 const V2: &str = "cassie-midge-layout-v2-0.2.0";
+const V3: &str = "cassie-midge-layout-v3-0.2.0-index-generation";
 
 fn memory_store() -> Midge {
     let store = Midge::new_in_memory("postgres").expect("memory store");
@@ -62,6 +63,57 @@ fn should_acknowledge_a_monotonic_upgrade_without_rewriting_existing_rows() {
             .expect("unchanged rows"),
         before
     );
+}
+
+#[test]
+fn should_never_lower_generation_fence_for_older_requirements() {
+    // Arrange
+    let store = memory_store();
+    store.require_storage_layout_version(V2).expect("v2");
+    store
+        .raw_put(StorageFamily::Data, b"unrelated", b"preserved")
+        .expect("row");
+    // Act
+    store.require_storage_layout_version(V3).expect("v3");
+    store
+        .require_storage_layout_version(V2)
+        .expect("v2 requirement");
+    store
+        .require_storage_layout_version(V1)
+        .expect("v1 requirement");
+    // Assert
+    assert_eq!(marker(&store), V3.as_bytes());
+    assert!(store
+        .raw_scan_prefix(StorageFamily::Data, b"unrelated")
+        .expect("row readback")
+        .iter()
+        .any(|(_, value)| value == b"preserved"));
+}
+
+#[test]
+fn should_serialize_concurrent_older_and_generation_marker_requests_monotonically() {
+    // Arrange
+    let store = Arc::new(memory_store());
+    let start = Arc::new(Barrier::new(2));
+    // Act
+    std::thread::scope(|scope| {
+        let workers = [V2, V3]
+            .into_iter()
+            .map(|version| {
+                let store = Arc::clone(&store);
+                let start = Arc::clone(&start);
+                scope.spawn(move || {
+                    start.wait();
+                    store.require_storage_layout_version(version)
+                })
+            })
+            .collect::<Vec<_>>();
+        for worker in workers {
+            worker.join().expect("worker").expect("marker");
+        }
+    });
+    // Assert
+    assert_eq!(marker(&store), V3.as_bytes());
 }
 
 #[test]

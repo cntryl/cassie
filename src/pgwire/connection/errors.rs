@@ -7,6 +7,10 @@ mod parameter_semantic;
 #[path = "errors/parameter_semantic_tests.rs"]
 mod parameter_semantic_tests;
 
+#[cfg(test)]
+#[path = "errors/owned_row_frame_tests.rs"]
+mod owned_row_frame_tests;
+
 #[derive(Debug, Clone, Copy)]
 pub(super) enum PgWireSeverity {
     Error,

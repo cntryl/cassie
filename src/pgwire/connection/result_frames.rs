@@ -19,6 +19,10 @@ use super::writers::{
 #[path = "result_frames/tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "result_frames/raw_json_frame.rs"]
+mod raw_json_frame;
+
 /// Buffers precede their lease so cancellation drops owned allocations before admission.
 pub(super) struct QueryResultFrames<'a> {
     bytes: Vec<u8>,

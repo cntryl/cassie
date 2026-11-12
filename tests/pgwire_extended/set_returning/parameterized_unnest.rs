@@ -50,8 +50,5 @@ fn binary_result_row(value: Option<i32>, ordinality: i64) -> Vec<u8> {
     row
 }
 
-include!("parameterized_unnest/parameters.rs");
 
-include!("../types/arrays/parameterized_unnest/binary.rs");
 
-include!("../types/arrays/parameterized_unnest/semantics.rs");

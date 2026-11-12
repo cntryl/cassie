@@ -1,7 +1,8 @@
 # Release Milestones
 
-This page maps the live open issue backlog to three active feature releases and
-the deferred v0.4.0 named-enum milestone. The [Product Roadmap](product-roadmap.md)
+This page maps the live open issue backlog to the v0.1.0 and v0.2.0 releases and
+the later v0.3.0 (composite types and JSON recordsets), v0.4.0 (named enums) and
+v0.5.0 (authoritative columnar tables) milestones. The [Product Roadmap](product-roadmap.md)
 owns release purpose and scope. GitHub milestone membership and native issue
 dependencies are the live delivery record.
 
@@ -28,18 +29,20 @@ This release adds the finite read-side SQL and retrieval feature on top of the
 0.1.0 projection store. Scope is grouped by observable behavior:
 
 - Relational expressions and predicates: #762, #796, #798, #799, #800.
-- Arrays, table functions, JSON, and collection aggregates: #807–#811.
+- Arrays, table functions, JSON, and collection aggregates: #807–#811 (#829's
+  recordset work moved to v0.3.0).
 - Aggregate/window behavior and numeric/time functions: #805, #806, #813,
   #815.
-- Type and catalog support: #817, #818, #828, #829.
+- Type and catalog support: moved to v0.3.0 on 2026-11-12 (#817, #818, #828,
+  #829).
 - Transaction snapshots, table DDL, authorization, and schema evolution:
-  #819, #826, #831, #833, #839.
+  #819, #831, #833, #839 (#826 moved to v0.5.0).
 - Row-authoritative index behavior and object comments: #842, #845.
 - Bounded extension and retrieval compatibility: #843, #844.
 - Synchronized cancellation correctness probes for query and retrieval paths:
   #954.
 
-### Stacked delivery bundles selected 2026-11-04
+### Stacked delivery bundles selected 2026-11-04 (historical; #817, #818, #826, #828 and #829 have since moved to v0.3.0/v0.5.0)
 
 The user requested a handful of related feature PRs, stacked without waiting for
 parent review completion, with independent work in isolated worktrees. A
@@ -63,9 +66,25 @@ agent report, authored test, Jev probability, or a partial implementation.
 Every issue must retain a finite Cassie contract and the named read-model or
 client workflow that requires it. Full PostgreSQL parity is out of scope.
 In particular, #826 and #842 cover row-authoritative tables; column authority
-and its derived indexes belong to v0.3.0.
+and its derived indexes belong to v0.5.0.
 
-## v0.3.0 Authoritative Columnar Tables
+## v0.2.0 narrowing (2026-11-12)
+
+v0.2.0 is now "stabilize the delivered feature set and make it defect-free";
+new features moved to later milestones. On 2026-11-12 #817, #818, #828 and #829
+moved to v0.3.0 and #826 moved to v0.5.0. Forms not delivered under #810
+(`row_to_json`/`array_to_json`, `IS JSON`, `JSON_VALUE`, `JSON_QUERY`,
+`PASSING`; explicit `VARIADIC text[]` for `json*_extract_path` is implemented) and the #844 pgvector
+function-name surface are deferred and are not v0.2.0 acceptance criteria.
+
+## v0.3.0 Composite Types and JSON Recordsets
+
+Milestone 12 holds #817 (broad catalog introspection), #818 (`regclass`/`regtype`
+and related identifier conversions), #828 (composite and domain types) and #829
+(JSON recordset functions). Each requires its Type Contract selection before
+implementation; none is part of v0.2.0.
+
+## v0.5.0 Authoritative Columnar Tables
 
 This is a substantial storage feature, not a relabeling of existing derived
 column-batch indexes. #1105 defines the contract; #1106 adds table-mode DDL and

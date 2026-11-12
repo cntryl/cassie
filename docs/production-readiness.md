@@ -14,8 +14,9 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 ## Product release boundary
 
 The [Product Roadmap](product-roadmap.md) defines v0.1.0 Projection Store,
-v0.2.0 Query and Retrieval, and v0.3.0 Authoritative Columnar Tables as the
-three feature releases. Production readiness is a separate qualification gate;
+v0.2.0 Query and Retrieval, v0.3.0 Composite Types and JSON Recordsets,
+v0.4.0 Named Enum Types and v0.5.0 Authoritative Columnar Tables as the
+feature releases. Production readiness is a separate qualification gate;
 this document defines its evidence without creating another feature milestone
 or expanding SQL and server compatibility scope.
 

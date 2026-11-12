@@ -136,11 +136,7 @@ fn should_preserve_pg_attribute_identity_metadata_after_local_restart() {
 
 include!("semantics.rs");
 
-include!("../../constraints/catalog_information/nulls.rs");
-
 include!("../../constraints/catalog_information/semantics.rs");
-
-include!("../../descriptions/catalog_information/semantics.rs");
 
 include!("../../identity_privileges/catalog_information/semantics.rs");
 
@@ -161,8 +157,6 @@ include!("../../routines/catalog_information/semantics.rs");
 include!("../../sequences/catalog_information/semantics.rs");
 
 include!("../../sizes/catalog_information/semantics.rs");
-
-include!("../../system_information/catalog_information/semantics.rs");
 
 include!("../../triggers/catalog_information/semantics.rs");
 

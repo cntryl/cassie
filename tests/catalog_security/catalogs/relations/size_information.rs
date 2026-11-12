@@ -106,6 +106,4 @@ fn should_expose_pg_views_selected_definition_metadata() {
     );
 }
 
-include!("../sequences/size_information.rs");
-
 include!("../sizes/size_information.rs");

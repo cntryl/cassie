@@ -148,8 +148,8 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1634,
-    "rust_files": 1597,
+    "files": 1562,
+    "rust_files": 1525,
     "rust_test_declarations": 8620,
     "python_test_declarations": 22,
     "registered_rust_instances": 8620,
@@ -157,7 +157,7 @@
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
     "duplicate_registered_identities": [],
-    "planned_tests": 131,
+    "planned_tests": 117,
     "oversized_files": [],
     "destination_name_conflicts": [],
     "large_projected_destinations": [
@@ -217,7 +217,7 @@
         "test_declarations": 13
       }
     ],
-    "reviewed_layout_files": 1335,
+    "reviewed_layout_files": 1264,
     "placement_status": "Reviewed physical placements are recorded in layout-decisions.json; remaining placements are proposals. No test result is inferred."
   },
   "tests": [
@@ -268901,19 +268901,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/catalog_security/catalogs/blocking.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 5,
-      "sha256": "0b97d2173676f3d995829c91b2e08d5d8ca1fb3745112b9b4c1160321e132cef",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/blocking.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/catalog_security/catalogs/catalog.rs",
       "role": "test_module",
       "action": "keep",
@@ -269094,34 +269081,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/catalog_security/catalogs/commit_control.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "0370aad41f6e9e3d9d4272005bc4f7bc64e85f597cdf93855607e1ca60165a89",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/commit_control.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/nulls.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "catalog_security"
-      ],
-      "destinations": [
-        "tests/catalog_security/catalogs/constraints/catalog_information/nulls.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -269152,34 +269111,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/catalog_security/catalogs/descriptions/catalog_information/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "catalog_security"
-      ],
-      "destinations": [
-        "tests/catalog_security/catalogs/descriptions/catalog_information/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/foreign_keys.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 5,
-      "sha256": "b1824bca18ca2c265e40b3e50bb9ca808582783cc5ccd7f16216bfca287f40c3",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/foreign_keys.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/catalog_security/catalogs/identity_privileges/catalog_information/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -269191,19 +269122,6 @@
       ],
       "destinations": [
         "tests/catalog_security/catalogs/identity_privileges/catalog_information/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/identity_privileges/information_schema.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/identity_privileges/information_schema.rs"
       ],
       "line_limit": 1000
     },
@@ -269277,32 +269195,6 @@
       ],
       "destinations": [
         "tests/catalog_security/catalogs/locations.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/multixact.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "c3832ec122af028adbb121cfafe9b618379ffd4d8cfb4d93ee46ea8ec6b90c79",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/multixact.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/object_addresses.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "0cd08cfc9773f2ead940843b9580c7eaa4ecd534e4c5f162b9fae54d7545d2f8",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/object_addresses.rs"
       ],
       "line_limit": 1000
     },
@@ -269427,19 +269319,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/catalog_security/catalogs/relations/system_session.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/relations/system_session.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/catalog_security/catalogs/routines/catalog_information/parameters.rs",
       "role": "test_module",
       "action": "keep",
@@ -269466,62 +269345,6 @@
       ],
       "destinations": [
         "tests/catalog_security/catalogs/routines/catalog_information/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/routines/catalog_lookup.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "catalog_security"
-      ],
-      "destinations": [
-        "tests/catalog_security/catalogs/routines/catalog_lookup.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/routines/information_schema.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/routines/information_schema.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/routines/object_identity_functions.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [
-        "catalog_security"
-      ],
-      "destinations": [
-        "tests/catalog_security/catalogs/routines/object_identity_functions.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/routines/populated_descriptions.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "bc353abfeb636819415ba7cf42ebe1d04315573e8bb2c24348326e33881f6409",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/routines/populated_descriptions.rs"
       ],
       "line_limit": 1000
     },
@@ -269571,21 +269394,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/catalog_security/catalogs/sequences/catalog_lookup.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "catalog_security"
-      ],
-      "destinations": [
-        "tests/catalog_security/catalogs/sequences/catalog_lookup.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/catalog_security/catalogs/sequences/catalog_relation_shapes.rs",
       "role": "test_module",
       "action": "keep",
@@ -269597,21 +269405,6 @@
       ],
       "destinations": [
         "tests/catalog_security/catalogs/sequences/catalog_relation_shapes.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/sequences/size_information.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "catalog_security"
-      ],
-      "destinations": [
-        "tests/catalog_security/catalogs/sequences/size_information.rs"
       ],
       "line_limit": 1000
     },
@@ -269751,19 +269544,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/catalog_security/catalogs/snapshots.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "8dc6863df74fc3032607a98869478e0b1eb447cc7f76998c6c2318289c919c95",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/snapshots.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/catalog_security/catalogs/statistics_restore.rs",
       "role": "test_support",
       "action": "keep",
@@ -269773,21 +269553,6 @@
       "registered_suites": [],
       "destinations": [
         "tests/catalog_security/catalogs/statistics_restore.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/system_information/catalog_information/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "catalog_security"
-      ],
-      "destinations": [
-        "tests/catalog_security/catalogs/system_information/catalog_information/semantics.rs"
       ],
       "line_limit": 1000
     },
@@ -269822,32 +269587,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/catalog_security/catalogs/system_information/system_session.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/system_information/system_session.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/transactions.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "c860366504628bdc7ecbe30aec34f9b468f7be9eedaa96d117ea9148b80dac91",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/transactions.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/catalog_security/catalogs/triggers/catalog_information/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -269859,32 +269598,6 @@
       ],
       "destinations": [
         "tests/catalog_security/catalogs/triggers/catalog_information/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/triggers/information_schema.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/triggers/information_schema.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/types/base_information_function.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "78b5b8d4f20d3ee43ff83e0ce52404adddef496bb3ce5a2ca461cc80ef8b0784",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/types/base_information_function.rs"
       ],
       "line_limit": 1000
     },
@@ -269994,19 +269707,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/catalog_security/catalogs/types/information_schema.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/types/information_schema.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/catalog_security/catalogs/types/oid_identity/metadata.rs",
       "role": "test_module",
       "action": "keep",
@@ -270031,45 +269731,6 @@
       "registered_suites": [],
       "destinations": [
         "tests/catalog_security/catalogs/types/text_search_identifier_lookup/restart.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/types/text_search_identifier_lookup/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/types/text_search_identifier_lookup/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/types/vector_catalog.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "a9fa4b0a60d8c84606ad870583a1b6d66b4bc2c3a2445d9c48af54207baa42cd",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/types/vector_catalog.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/catalog_security/catalogs/visibility/visibility_functions.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "94794ffc42c8135c1ec6efb6c70825e425106f6226ca530408e7af2bb5c411cb",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/catalog_security/catalogs/visibility/visibility_functions.rs"
       ],
       "line_limit": 1000
     },
@@ -270569,45 +270230,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/compatibility/lifecycle/comments/comment_owner_lifecycle.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "94794ffc42c8135c1ec6efb6c70825e425106f6226ca530408e7af2bb5c411cb",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/compatibility/lifecycle/comments/comment_owner_lifecycle.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/compatibility/lifecycle/comments/lifecycle/transactions.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/compatibility/lifecycle/comments/lifecycle/transactions.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/compatibility/lifecycle/comments/null_clear/metadata.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 2,
-      "sha256": "75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/compatibility/lifecycle/comments/null_clear/metadata.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/compatibility/lifecycle/comments/null_clear_residuals.rs",
       "role": "module_registration",
       "action": "keep",
@@ -270617,36 +270239,6 @@
       "registered_suites": [],
       "destinations": [
         "tests/compatibility/lifecycle/comments/null_clear_residuals.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/compatibility/lifecycle/comments/routine_objects/restart.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [
-        "compatibility"
-      ],
-      "destinations": [
-        "tests/compatibility/lifecycle/comments/routine_objects/restart.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/compatibility/lifecycle/comments/routine_objects/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [
-        "compatibility"
-      ],
-      "destinations": [
-        "tests/compatibility/lifecycle/comments/routine_objects/semantics.rs"
       ],
       "line_limit": 1000
     },
@@ -271864,49 +271456,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/compatibility/lifecycle/namespaces/mutation_ddl/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [
-        "compatibility"
-      ],
-      "destinations": [
-        "tests/compatibility/lifecycle/namespaces/mutation_ddl/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/compatibility/lifecycle/namespaces/session_transaction/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [
-        "compatibility"
-      ],
-      "destinations": [
-        "tests/compatibility/lifecycle/namespaces/session_transaction/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/compatibility/lifecycle/namespaces/temp_views.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "94794ffc42c8135c1ec6efb6c70825e425106f6226ca530408e7af2bb5c411cb",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/compatibility/lifecycle/namespaces/temp_views.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/compatibility/lifecycle/qualification_contracts.rs",
       "role": "module_registration",
       "action": "keep",
@@ -272265,21 +271814,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/compatibility/lifecycle/tables/lifecycle/restart.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "compatibility"
-      ],
-      "destinations": [
-        "tests/compatibility/lifecycle/tables/lifecycle/restart.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/compatibility/lifecycle/tables/lifecycle/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -272505,21 +272039,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/recovery.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "compatibility"
-      ],
-      "destinations": [
-        "tests/compatibility/lifecycle/transactions/session_transaction/recovery.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -272696,19 +272215,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/compatibility/lifecycle/types/enum_record_domain/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/compatibility/lifecycle/types/enum_record_domain/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/compatibility/lifecycle/types/enum_record_domain.rs",
       "role": "module_registration",
       "action": "keep",
@@ -272718,34 +272224,6 @@
       "registered_suites": [],
       "destinations": [
         "tests/compatibility/lifecycle/types/enum_record_domain.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/compatibility/lifecycle/types/enum_support_function_identity.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "94794ffc42c8135c1ec6efb6c70825e425106f6226ca530408e7af2bb5c411cb",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/compatibility/lifecycle/types/enum_support_function_identity.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/compatibility/lifecycle/types/mutation_ddl/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [
-        "compatibility"
-      ],
-      "destinations": [
-        "tests/compatibility/lifecycle/types/mutation_ddl/semantics.rs"
       ],
       "line_limit": 1000
     },
@@ -275422,21 +274900,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/parser_types/postgresql18_text_search.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 9,
-      "sha256": "bfc85c84a61e95e6da5e67f62f6be95c615ec01ba0ce1c7d01b03a006ddeec9c",
-      "test_declarations": 0,
-      "registered_suites": [
-        "parser_types"
-      ],
-      "destinations": [
-        "tests/parser_types/postgresql18_text_search.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/parser_types/types/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -277512,21 +276975,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/functions/string/cancellation.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/functions/string/cancellation.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/functions/string/error_sqlstates.rs",
       "role": "test_module",
       "action": "keep",
@@ -277628,36 +277076,6 @@
       ],
       "destinations": [
         "tests/pgwire_extended/functions/string/parameters.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/functions/string/resources.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/functions/string/resources.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/functions/string/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/functions/string/semantics.rs"
       ],
       "line_limit": 1000
     },
@@ -280398,19 +279816,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/protocol/ts_headline_regconfig_wire.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "53d3a3f543fca85f86384a8eef9d44aa25a535da16e7cedc0ccdf45bd3184a07",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/protocol/ts_headline_regconfig_wire.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/protocol/vector_carriers.rs",
       "role": "test_module",
       "action": "keep",
@@ -280452,19 +279857,6 @@
       ],
       "destinations": [
         "tests/pgwire_extended/results/result_framing.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/routines/record_functions.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 5,
-      "sha256": "6a0abb94149a1436ff74573bc09070e834e86af6220315c23152c6b7a826e2f4",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/routines/record_functions.rs"
       ],
       "line_limit": 1000
     },
@@ -280514,36 +279906,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/set_returning/array_function/resources.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/set_returning/array_function/resources.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/set_returning/array_function/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/set_returning/array_function/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/set_returning/errors.rs",
       "role": "module_registration",
       "action": "keep",
@@ -280557,19 +279919,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/set_returning/parameterized_unnest/parameters.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/set_returning/parameterized_unnest/parameters.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/set_returning/parameterized_unnest.rs",
       "role": "module_registration",
       "action": "keep",
@@ -280579,19 +279928,6 @@
       "registered_suites": [],
       "destinations": [
         "tests/pgwire_extended/set_returning/parameterized_unnest.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/set_returning/rows_from_empty_member/nulls.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "8800481aadb737fda68e67bda4400a2284ee31d08a4b94776faaabdf35834b0a",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/set_returning/rows_from_empty_member/nulls.rs"
       ],
       "line_limit": 1000
     },
@@ -281475,19 +280811,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/types/arrays/boolean_array_container_framing.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "af552de858fd3cacc9a3718daf4dc5bf737cbdd98a5e50c0ed7980e788372ef5",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/arrays/boolean_array_container_framing.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/types/arrays/bounds_subscripts/nulls.rs",
       "role": "test_module",
       "action": "keep",
@@ -281653,21 +280976,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/types/arrays/index_queries/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/types/arrays/index_queries/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/types/arrays/multidimensional_persistence_binary.rs",
       "role": "test_module",
       "action": "keep",
@@ -281713,21 +281021,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/types/arrays/operators/parameters.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/types/arrays/operators/parameters.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/types/arrays/operators/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -281743,32 +281036,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/types/arrays/parameterized_unnest/binary.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/arrays/parameterized_unnest/binary.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/arrays/parameterized_unnest/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/arrays/parameterized_unnest/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/types/arrays/query/metadata.rs",
       "role": "test_module",
       "action": "keep",
@@ -281780,19 +281047,6 @@
       ],
       "destinations": [
         "tests/pgwire_extended/types/arrays/query/metadata.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/arrays/ragged_array_constructors.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "c9f7af6eea7fea12c2758386db017cff2ea70e5910658028e8c8d5167bbda027",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/arrays/ragged_array_constructors.rs"
       ],
       "line_limit": 1000
     },
@@ -282650,21 +281904,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/types/json/json_collection_sql_json/parameters.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/types/json/json_collection_sql_json/parameters.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/types/json/json_collection_sql_json/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -282691,32 +281930,6 @@
       ],
       "destinations": [
         "tests/pgwire_extended/types/json/json_legacy_builders_and_paths.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/json/json_query_quote_policies.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "94794ffc42c8135c1ec6efb6c70825e425106f6226ca530408e7af2bb5c411cb",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/json/json_query_quote_policies.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/json/json_query_returning_alias.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "94794ffc42c8135c1ec6efb6c70825e425106f6226ca530408e7af2bb5c411cb",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/json/json_query_returning_alias.rs"
       ],
       "line_limit": 1000
     },
@@ -283257,21 +282470,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/types/json/sql_json/nulls.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/types/json/sql_json/nulls.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/types/json/sql_json/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -283283,34 +282481,6 @@
       ],
       "destinations": [
         "tests/pgwire_extended/types/json/sql_json/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/json/sql_json_serialize/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "dad1808a4dd98cf15a6ca768a5b37c3ee44db3d8656001ce3deb12568d5070b8",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/json/sql_json_serialize/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/json/table_functions/errors.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/types/json/table_functions/errors.rs"
       ],
       "line_limit": 1000
     },
@@ -283328,19 +282498,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_later_row_errors.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "ac0cafbf2153b1f9ed57b5ed670faeff576c814e6628d4051dc9d5a88437564a",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/json/table_functions/json_table_later_row_errors.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_nested_semantics.rs",
       "role": "test_support",
       "action": "keep",
@@ -283354,47 +282511,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/pgwire_extended/types/json/table_functions/jsonb_populate_recordset.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "8a41f9399f609cba2c4283b9c3334acb71c8585d3f1216fcd2088cc6bc06af10",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/json/table_functions/jsonb_populate_recordset.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/json/table_functions/nulls.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "pgwire_types"
-      ],
-      "destinations": [
-        "tests/pgwire_extended/types/json/table_functions/nulls.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/json/table_functions/recordset_json_output_types.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "0b62bdf713cc76d79e1bb20b184912ed12c7da713ba8d2cd59af94f71055370f",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/json/table_functions/recordset_json_output_types.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/pgwire_extended/types/json/table_functions/recordset_midstream_cancellation.rs",
       "role": "test_support",
       "action": "keep",
@@ -283404,32 +282520,6 @@
       "registered_suites": [],
       "destinations": [
         "tests/pgwire_extended/types/json/table_functions/recordset_midstream_cancellation.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/json/table_functions/recordset_output_typmods.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "c83527f1725e8d1cc201578b69e8646a26f406a7c0a2e05712bbb6a585280782",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/json/table_functions/recordset_output_typmods.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/json/table_functions/recordset_parameter_inference.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "cb61da56eb716529bc04392f17efa241ff2cc0ad52943f72a3d58c68fbce8a74",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/json/table_functions/recordset_parameter_inference.rs"
       ],
       "line_limit": 1000
     },
@@ -283865,19 +282955,6 @@
       ],
       "destinations": [
         "tests/pgwire_extended/types/temporal/time_twenty_four_wire_endpoint.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/pgwire_extended/types/temporal/timestamp_without_timezone_series/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 4,
-      "sha256": "e3f39f1bc20a0a6c5213c7b2222bb4b025a57eabe86ca8bab4796cdec82314a6",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/pgwire_extended/types/temporal/timestamp_without_timezone_series/semantics.rs"
       ],
       "line_limit": 1000
     },
@@ -289387,36 +288464,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/sql_queries/set_returning/array_subscripts.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [
-        "sql_queries"
-      ],
-      "destinations": [
-        "tests/sql_queries/set_returning/array_subscripts.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/sql_queries/set_returning/lateral_ordinality.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-      "test_declarations": 0,
-      "registered_suites": [
-        "sql_queries"
-      ],
-      "destinations": [
-        "tests/sql_queries/set_returning/lateral_ordinality.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/sql_queries/set_returning/series.rs",
       "role": "test_module",
       "action": "keep",
@@ -289443,21 +288490,6 @@
       ],
       "destinations": [
         "tests/sql_queries/set_returning/unnest.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/sql_queries/set_returning/values_aggregate/nulls.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "sql_queries"
-      ],
-      "destinations": [
-        "tests/sql_queries/set_returning/values_aggregate/nulls.rs"
       ],
       "line_limit": 1000
     },
@@ -289518,19 +288550,6 @@
       ],
       "destinations": [
         "tests/sql_queries/table_sampling/tablesample.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/sql_queries/text_search/table_predicate.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 3,
-      "sha256": "0afcf3983e8ca00aedade64858807c2203fa53fcd28af9f49d7cad6817e34310",
-      "test_declarations": 0,
-      "registered_suites": [],
-      "destinations": [
-        "tests/sql_queries/text_search/table_predicate.rs"
       ],
       "line_limit": 1000
     },
@@ -289784,21 +288803,6 @@
       ],
       "destinations": [
         "tests/sql_queries/types/temporal/temporal.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/sql_queries/types/temporal/values_aggregate/semantics.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "test_declarations": 0,
-      "registered_suites": [
-        "sql_queries"
-      ],
-      "destinations": [
-        "tests/sql_queries/types/temporal/values_aggregate/semantics.rs"
       ],
       "line_limit": 1000
     },
@@ -293180,74 +292184,6 @@
       "observations": []
     },
     {
-      "issue": 808,
-      "name": "should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order",
-      "status": "authored",
-      "suite": "sql_queries",
-      "directory": "tests/sql_queries/set_returning",
-      "file": "tests/sql_queries/set_returning/array_subscripts.rs",
-      "execution_status": "not_run_after_test_refinement",
-      "category": "set_returning",
-      "actual_test": "should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::set_returning_array_subscripts::should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order"
-        }
-      ],
-      "asserted_contract": "generate_subscripts returns ascending actual indexes for a non-default array lower bound.",
-      "mapping_basis": "authored",
-      "oracle": {
-        "reference": "PostgreSQL18.6",
-        "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
-      },
-      "prior_execution_status": "failed_observed_before_test_refinement",
-      "prior_execution_evidence": "The earlier assertion order stopped at the separate array bounds control before reporting the generate_subscripts query result. The current test evaluates and asserts the generate_subscripts result first.",
-      "prior_observations": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::set_returning_array_subscripts::should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'sql_queries::set_returning_array_subscripts::should_return_ascending_subscripts_given_nondefault_array_bounds_when_generate_subscripts_uses_forward_order' (19469709) panicked at tests/sql_queries/set_returning/array_subscripts.rs:23:25:\narray bounds control: Planner(\"unresolvable column reference ''[0:2]={10,20,30}'::int4[]'; known fields or aliases required\")"
-        }
-      ],
-      "observations": []
-    },
-    {
-      "issue": 808,
-      "name": "should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied",
-      "status": "authored",
-      "suite": "sql_queries",
-      "directory": "tests/sql_queries/set_returning",
-      "file": "tests/sql_queries/set_returning/lateral_ordinality.rs",
-      "execution_status": "not_run_after_test_refinement",
-      "category": "set_returning",
-      "actual_test": "should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied",
-      "instances": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::set_returning_lateral_ordinality::should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied"
-        }
-      ],
-      "asserted_contract": "Correlated LATERAL output retains WITH ORDINALITY under row limit.",
-      "mapping_basis": "authored",
-      "oracle": {
-        "reference": "PostgreSQL18.6",
-        "evidence": "Expectation encoded in linked assertion; correction probes are recorded separately."
-      },
-      "prior_execution_status": "failed_observed_before_test_refinement",
-      "prior_execution_evidence": "The earlier assertion order stopped at the unlimited lateral control. The current test evaluates the limited correlated LATERAL query and its ordinal result/type before checking the control.",
-      "prior_observations": [
-        {
-          "suite": "sql_queries",
-          "name": "sql_queries::set_returning_lateral_ordinality::should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'sql_queries::set_returning_lateral_ordinality::should_preserve_ordinality_given_a_correlated_lateral_function_when_a_row_limit_is_applied' (19469714) panicked at tests/sql_queries/set_returning/lateral_ordinality.rs:33:27:\nunlimited correlated lateral control: InvalidQuery(\"invalid expression token 'source.stop_at) WITH ORDINALITY AS generated(value, ordinality'\")"
-        }
-      ],
-      "observations": []
-    },
-    {
       "issue": 809,
       "name": "should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_request_arrives",
       "status": "authored",
@@ -295657,108 +294593,6 @@
     },
     {
       "issue": 817,
-      "name": "should_describe_live_objects_given_supported_catalog_objects_when_pg_describe_object_is_called",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/object_addresses.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_describe_live_objects_given_supported_catalog_objects_when_pg_describe_object_is_called",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_object_addresses::should_describe_live_objects_given_supported_catalog_objects_when_pg_describe_object_is_called"
-        }
-      ],
-      "asserted_contract": "PG18.6 pg_describe_object for live pg_class relation returns OID 25 text `table issue_817_described_table`.",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 pg_describe_object for live pg_class relation returns OID 25 text `table issue_817_described_table`."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_object_addresses::should_describe_live_objects_given_supported_catalog_objects_when_pg_describe_object_is_called",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_object_addresses::should_describe_live_objects_given_supported_catalog_objects_when_pg_describe_object_is_called' (19482554) panicked at tests/catalog_security/catalogs/object_addresses.rs:24:25:\ndescribe the table by its catalog object address: Planner(\"unresolvable column reference ''pg_catalog.pg_class'::regclass'; known fields or aliases required\")\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_roundtrip_object_addresses_given_live_objects_when_address_helpers_are_called",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/object_addresses.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_roundtrip_object_addresses_given_live_objects_when_address_helpers_are_called",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_object_addresses::should_roundtrip_object_addresses_given_live_objects_when_address_helpers_are_called"
-        }
-      ],
-      "asserted_contract": "PG18.6 identify/resolve object-address round-trip returns six true booleans (OID 16) for class, name, argument list, object OID, and subobject identity.",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 identify/resolve object-address round-trip returns six true booleans (OID 16) for class, name, argument list, object OID, and subobject identity."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_object_addresses::should_roundtrip_object_addresses_given_live_objects_when_address_helpers_are_called",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_object_addresses::should_roundtrip_object_addresses_given_live_objects_when_address_helpers_are_called' (19482559) panicked at tests/catalog_security/catalogs/object_addresses.rs:59:25:\nidentify and resolve the same relation address: InvalidQuery(\"invalid relation alias\")\ntest catalogs_multixact::should_report_multixact_members_given_shared_row_locks_when_members_are_queried ... FAILED\ntest catalogs_runtime_capabilities::should_report_cassie_profile_capabilities_given_a_started_server_when_module_jit_numa_and_unicode_helpers_are_called ... FAILED\ntest catalogs_partitions::should_report_partition_definitions_given_partitioned_tables_when_definition_helpers_are_called ... FAILED\ntest catalogs_object_addresses::should_describe_live_objects_given_supported_catalog_objects_when_pg_describe_object_is_called ... FAILED\ntest catalogs_object_addresses::should_roundtrip_object_addresses_given_live_objects_when_address_helpers_are_called ... FAILED\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_report_catalog_foreign_keys_given_builtin_catalogs_when_pg_get_catalog_foreign_keys_is_called",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/foreign_keys.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_report_catalog_foreign_keys_given_builtin_catalogs_when_pg_get_catalog_foreign_keys_is_called",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_foreign_keys::should_report_catalog_foreign_keys_given_builtin_catalogs_when_pg_get_catalog_foreign_keys_is_called"
-        }
-      ],
-      "asserted_contract": "See the linked test assertion references; no separate Cassie result is inferred.",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "expected value/error literals in linked Rust test body",
-        "evidence": "Not independently rerun in this agent slice; see assertion references."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_foreign_keys::should_report_catalog_foreign_keys_given_builtin_catalogs_when_pg_get_catalog_foreign_keys_is_called",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_foreign_keys::should_report_catalog_foreign_keys_given_builtin_catalogs_when_pg_get_catalog_foreign_keys_is_called' (19482442) panicked at tests/catalog_security/catalogs/foreign_keys.rs:22:10:\nread a declared pg_proc to pg_namespace catalog relationship: Unsupported(\"unsupported data type 'regclass::text'\")\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
       "name": "should_report_partition_definitions_given_partitioned_tables_when_definition_helpers_are_called",
       "status": "authored",
       "suite": "catalog_security",
@@ -295929,74 +294763,6 @@
     },
     {
       "issue": 817,
-      "name": "should_report_lock_blockers_given_a_waiting_session_when_pg_blocking_pids_is_called",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/blocking.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_report_lock_blockers_given_a_waiting_session_when_pg_blocking_pids_is_called",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_blocking::should_report_lock_blockers_given_a_waiting_session_when_pg_blocking_pids_is_called"
-        }
-      ],
-      "asserted_contract": "PG18.6 with one row-lock owner and one blocked UPDATE, `owner_pid = ANY(pg_blocking_pids(waiter_pid))` is true.",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 with one row-lock owner and one blocked UPDATE, `owner_pid = ANY(pg_blocking_pids(waiter_pid))` is true."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_blocking::should_report_lock_blockers_given_a_waiting_session_when_pg_blocking_pids_is_called",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_blocking::should_report_lock_blockers_given_a_waiting_session_when_pg_blocking_pids_is_called' (19482438) panicked at tests/catalog_security/catalogs/blocking.rs:27:14:\ncreate a row to lock: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E0A000), message: \"unsupported feature: DDL and catalog operations require a standalone Query\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest catalogs_blocking::should_report_snapshot_blockers_given_a_deferrable_snapshot_waiter_when_safe_snapshot_blockers_are_queried ... FAILED\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_report_snapshot_blockers_given_a_deferrable_snapshot_waiter_when_safe_snapshot_blockers_are_queried",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/blocking.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_report_snapshot_blockers_given_a_deferrable_snapshot_waiter_when_safe_snapshot_blockers_are_queried",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_blocking::should_report_snapshot_blockers_given_a_deferrable_snapshot_waiter_when_safe_snapshot_blockers_are_queried"
-        }
-      ],
-      "asserted_contract": "PG18.6 with a serializable writer and serializable read-only deferrable waiter, `writer_pid = ANY(pg_safe_snapshot_blocking_pids(waiter_pid))` is true; waiter reads 2 rows after writer commits.",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 with a serializable writer and serializable read-only deferrable waiter, `writer_pid = ANY(pg_safe_snapshot_blocking_pids(waiter_pid))` is true; waiter reads 2 rows after writer commits."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_blocking::should_report_snapshot_blockers_given_a_deferrable_snapshot_waiter_when_safe_snapshot_blockers_are_queried",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_blocking::should_report_snapshot_blockers_given_a_deferrable_snapshot_waiter_when_safe_snapshot_blockers_are_queried' (19482439) panicked at tests/catalog_security/catalogs/blocking.rs:123:14:\ncreate a row for the serializable writer: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E0A000), message: \"unsupported feature: DDL and catalog operations require a standalone Query\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
       "name": "should_report_runtime_capabilities_given_a_started_server_when_module_jit_numa_and_unicode_helpers_are_called",
       "status": "existing_equivalent",
       "suite": "catalog_security",
@@ -296025,176 +294791,6 @@
           "name": "catalogs_runtime_capabilities::should_report_cassie_profile_capabilities_given_a_started_server_when_module_jit_numa_and_unicode_helpers_are_called",
           "status": "failed_observed",
           "failure_excerpt": "thread 'catalogs_runtime_capabilities::should_report_cassie_profile_capabilities_given_a_started_server_when_module_jit_numa_and_unicode_helpers_are_called' (19482561) panicked at tests/catalog_security/catalogs/runtime_capabilities.rs:21:10:\nread server JIT, NUMA, and Unicode capabilities: Planner(\"unsupported function 'pg_catalog.pg_jit_available'\")\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_report_snapshot_bounds_given_two_active_transactions_when_snapshot_functions_are_called",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/snapshots.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_report_snapshot_bounds_given_two_active_transactions_when_snapshot_functions_are_called",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_snapshots::should_report_snapshot_bounds_given_two_active_transactions_when_snapshot_functions_are_called"
-        }
-      ],
-      "asserted_contract": "PG18.6 with two assigned active transaction IDs, snapshot bounds are ordered and `pg_visible_in_snapshot` returns false for both active xids (`t|f|f`).",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 with two assigned active transaction IDs, snapshot bounds are ordered and `pg_visible_in_snapshot` returns false for both active xids (`t|f|f`)."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_snapshots::should_report_snapshot_bounds_given_two_active_transactions_when_snapshot_functions_are_called",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_snapshots::should_report_snapshot_bounds_given_two_active_transactions_when_snapshot_functions_are_called' (19482663) panicked at tests/catalog_security/catalogs/snapshots.rs:33:14:\nassign first transaction ID: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"unsupported function 'pg_current_xact_id'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_report_snapshot_visibility_given_committed_and_inflight_transactions_when_visibility_is_queried",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/snapshots.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_report_snapshot_visibility_given_committed_and_inflight_transactions_when_visibility_is_queried",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_snapshots::should_report_snapshot_visibility_given_committed_and_inflight_transactions_when_visibility_is_queried"
-        }
-      ],
-      "asserted_contract": "PG18.6 snapshot visibility returns true for a transaction committed before snapshot capture and false for an active transaction (`t|f`).",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 snapshot visibility returns true for a transaction committed before snapshot capture and false for an active transaction (`t|f`)."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_snapshots::should_report_snapshot_visibility_given_committed_and_inflight_transactions_when_visibility_is_queried",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_snapshots::should_report_snapshot_visibility_given_committed_and_inflight_transactions_when_visibility_is_queried' (19482664) panicked at tests/catalog_security/catalogs/snapshots.rs:91:14:\nassign an in-flight transaction ID: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"unsupported function 'pg_current_xact_id'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest catalogs_snapshots::should_preserve_legacy_txid_semantics_given_the_same_transaction_state_when_legacy_snapshot_helpers_are_called ... FAILED\ntest catalogs_snapshots::should_report_snapshot_bounds_given_two_active_transactions_when_snapshot_functions_are_called ... FAILED\ntest catalogs_snapshots::should_report_snapshot_visibility_given_committed_and_inflight_transactions_when_visibility_is_queried ... FAILED\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_preserve_legacy_txid_semantics_given_the_same_transaction_state_when_legacy_snapshot_helpers_are_called",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/snapshots.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_preserve_legacy_txid_semantics_given_the_same_transaction_state_when_legacy_snapshot_helpers_are_called",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_snapshots::should_preserve_legacy_txid_semantics_given_the_same_transaction_state_when_legacy_snapshot_helpers_are_called"
-        }
-      ],
-      "asserted_contract": "PG18.6 `txid_current_snapshot()::text = pg_current_snapshot()::text` returns true.",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 `txid_current_snapshot()::text = pg_current_snapshot()::text` returns true."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_snapshots::should_preserve_legacy_txid_semantics_given_the_same_transaction_state_when_legacy_snapshot_helpers_are_called",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_snapshots::should_preserve_legacy_txid_semantics_given_the_same_transaction_state_when_legacy_snapshot_helpers_are_called' (19482662) panicked at tests/catalog_security/catalogs/snapshots.rs:154:14:\ncompare legacy and xid8 snapshot representations: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"unsupported function 'txid_current_snapshot'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_report_transaction_status_given_assigned_transaction_ids_when_transaction_outcomes_are_queried",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/transactions.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_report_transaction_status_given_assigned_transaction_ids_when_transaction_outcomes_are_queried",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_transactions::should_report_transaction_status_given_assigned_transaction_ids_when_transaction_outcomes_are_queried"
-        }
-      ],
-      "asserted_contract": "PG18.6 pg_xact_status over active, committed, and rolled-back fresh xids returns `in progress`, `committed`, `aborted`.",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 pg_xact_status over active, committed, and rolled-back fresh xids returns `in progress`, `committed`, `aborted`."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_transactions::should_report_transaction_status_given_assigned_transaction_ids_when_transaction_outcomes_are_queried",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_transactions::should_report_transaction_status_given_assigned_transaction_ids_when_transaction_outcomes_are_queried' (19482836) panicked at tests/catalog_security/catalogs/transactions.rs:32:22:\nassign a transaction ID: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"unsupported function 'pg_current_xact_id'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest catalogs_transactions::should_report_transaction_status_given_assigned_transaction_ids_when_transaction_outcomes_are_queried ... FAILED\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_report_multixact_members_given_shared_row_locks_when_members_are_queried",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/multixact.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_report_multixact_members_given_shared_row_locks_when_members_are_queried",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_multixact::should_report_multixact_members_given_shared_row_locks_when_members_are_queried"
-        }
-      ],
-      "asserted_contract": "PG18.6 two simultaneous `FOR KEY SHARE` row locks produce exactly the two transaction xids as `keysh` members from pg_get_multixact_members.",
-      "mapping_basis": "authored_or_existing_exact_test",
-      "oracle": {
-        "authority": "local PostgreSQL 18.6 psql",
-        "evidence": "PG18.6 two simultaneous `FOR KEY SHARE` row locks produce exactly the two transaction xids as `keysh` members from pg_get_multixact_members."
-      },
-      "prior_execution_status": "pending_serialized_cargo",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_multixact::should_report_multixact_members_given_shared_row_locks_when_members_are_queried",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_multixact::should_report_multixact_members_given_shared_row_locks_when_members_are_queried' (19482546) panicked at tests/catalog_security/catalogs/multixact.rs:25:14:\ncreate a row for shared key locks: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E0A000), message: \"unsupported feature: DDL and catalog operations require a standalone Query\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\n\n",
           "evidence": "final focused run: final-catalog-tests.log"
         }
       ]
@@ -296263,74 +294859,6 @@
           "name": "catalogs_locations::should_follow_toast_identity_policy_given_stored_values_when_pg_column_toast_chunk_id_is_called",
           "status": "failed_observed",
           "failure_excerpt": "thread 'catalogs_locations::should_follow_toast_identity_policy_given_stored_values_when_pg_column_toast_chunk_id_is_called' (19482443) panicked at tests/catalog_security/catalogs/locations.rs:62:5:\nassertion `left == right` failed\n  left: Some(\"42601\")\n right: None\ntest catalogs_locations::should_follow_toast_identity_policy_given_stored_values_when_pg_column_toast_chunk_id_is_called ... FAILED\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_follow_commit_timestamp_policy_given_transaction_outcomes_when_commit_timestamp_helpers_are_called",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/commit_control.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_follow_commit_timestamp_policy_given_transaction_outcomes_when_commit_timestamp_helpers_are_called",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_commit_control::should_follow_commit_timestamp_policy_given_transaction_outcomes_when_commit_timestamp_helpers_are_called"
-        }
-      ],
-      "asserted_contract": "See the linked test assertion references; no separate Cassie result is inferred.",
-      "mapping_basis": "parent_owned_policy_row",
-      "oracle": {
-        "reference": "PostgreSQL18.6 plus explicit Midge compatibility profile policy",
-        "evidence": "Statistics restoration values and17backend observations were freshly probed. Physical file/control0A000 and commit-tracking-off55000 expectations approved by user2026-10-15. See oracle-corrections.md."
-      },
-      "prior_execution_status": "root_owned_policy_disposition",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_commit_control::should_follow_commit_timestamp_policy_given_transaction_outcomes_when_commit_timestamp_helpers_are_called",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_commit_control::should_follow_commit_timestamp_policy_given_transaction_outcomes_when_commit_timestamp_helpers_are_called' (19482440) panicked at tests/support/backend_sessions.rs:99:5:\nassertion `left == right` failed: error fields: [[('S', \"ERROR\"), ('C', \"22023\"), ('M', \"unrecognized configuration parameter \\\"track_commit_timestamp\\\"\")]]\n  left: Some(\"22023\")\n right: None\ntest catalogs_commit_control::should_follow_commit_timestamp_policy_given_transaction_outcomes_when_commit_timestamp_helpers_are_called ... FAILED\n\n",
-          "evidence": "final focused run: final-catalog-tests.log"
-        }
-      ]
-    },
-    {
-      "issue": 817,
-      "name": "should_follow_control_data_policy_given_an_authenticated_session_when_control_helpers_are_called",
-      "status": "authored",
-      "suite": "catalog_security",
-      "directory": "tests/catalog_security/catalogs",
-      "file": "tests/catalog_security/catalogs/commit_control.rs",
-      "execution_status": "failed_observed",
-      "category": "catalogs",
-      "actual_test": "should_follow_control_data_policy_given_an_authenticated_session_when_control_helpers_are_called",
-      "instances": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_commit_control::should_follow_control_data_policy_given_an_authenticated_session_when_control_helpers_are_called"
-        }
-      ],
-      "asserted_contract": "See the linked test assertion references; no separate Cassie result is inferred.",
-      "mapping_basis": "parent_owned_policy_row",
-      "oracle": {
-        "reference": "PostgreSQL18.6 plus explicit Midge compatibility profile policy",
-        "evidence": "Statistics restoration values and17backend observations were freshly probed. Physical file/control0A000 and commit-tracking-off55000 expectations approved by user2026-10-15. See oracle-corrections.md."
-      },
-      "prior_execution_status": "root_owned_policy_disposition",
-      "prior_execution_evidence": null,
-      "observations": [
-        {
-          "suite": "catalog_security",
-          "name": "catalogs_commit_control::should_follow_control_data_policy_given_an_authenticated_session_when_control_helpers_are_called",
-          "status": "failed_observed",
-          "failure_excerpt": "thread 'catalogs_commit_control::should_follow_control_data_policy_given_an_authenticated_session_when_control_helpers_are_called' (19482441) panicked at tests/support/wire_queries.rs:54:5:\nassertion `left == right` failed: wire errors: [[('S', \"ERROR\"), ('C', \"42601\"), ('M', \"unsupported function 'to_regprocedure'\")]]\n  left: Some(\"42601\")\n right: None\ntest catalogs_commit_control::should_follow_control_data_policy_given_an_authenticated_session_when_control_helpers_are_called ... FAILED\n\n",
           "evidence": "final focused run: final-catalog-tests.log"
         }
       ]

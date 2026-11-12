@@ -193,7 +193,7 @@ fn resolve<R: RowAccess + ?Sized>(
             .map(|value| super::truth_tests::evaluate(&value, *truth, *negated))
             .transpose(),
         Expr::IsNull { expr, negated } => Ok(resolve(expr, row, context)?
-            .map(|value| ScalarValue::Bool(super::null_test(&value, *negated)))),
+            .map(|value| ScalarValue::Bool(super::composite_cast::null_test(&value, *negated)))),
         expression @ Expr::Like { .. } => like_value(expression, row, context),
         expression @ Expr::Between { .. } => between_predicate(expression, row, context),
         Expr::RowCompare(comparison) => {

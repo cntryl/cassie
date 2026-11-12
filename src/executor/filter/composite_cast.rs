@@ -115,3 +115,21 @@ fn scalar_label(value: &ScalarValue) -> &'static str {
         _ => "unknown",
     }
 }
+
+/// `IS [NOT] NULL`. A record is NULL when every field is NULL and NOT NULL
+/// only when no field is NULL, so `IS NOT NULL` is not the negation of
+/// `IS NULL` for a partly-NULL record.
+pub(super) fn null_test(value: &ScalarValue, negated: bool) -> bool {
+    let (is_null, is_not_null) = match value {
+        ScalarValue::Null => (true, false),
+        ScalarValue::Typed(crate::types::typed::TypedValue::Record(record)) => {
+            (record.all_fields_null(), record.no_field_null())
+        }
+        _ => (false, true),
+    };
+    if negated {
+        is_not_null
+    } else {
+        is_null
+    }
+}

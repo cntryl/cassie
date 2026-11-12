@@ -196,6 +196,9 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
             super::operators::split_operator(raw, op, false)
         };
         if let Some((left, right)) = split {
+            if let Some(comparison) = comparison_after_pgvector_operand(raw, &parsed, right) {
+                return comparison;
+            }
             return row_predicates::comparison(left, parsed, right);
         }
     }
@@ -205,6 +208,40 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
     }
 
     parse_prefix_expression(raw)
+}
+
+/// pgvector distance operators bind tighter than comparisons, so
+/// `a <-> b < 1` is `(a <-> b) < 1`. `right` is the suffix of `raw` after the
+/// distance operator; split the comparison out of it when one is present.
+fn comparison_after_pgvector_operand(
+    raw: &str,
+    distance: &BinaryOp,
+    right: &str,
+) -> Option<Result<Expr, SqlError>> {
+    if !matches!(
+        distance,
+        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot
+    ) || [" <=> ", " <-> ", " <#> "]
+        .iter()
+        .any(|token| right.contains(token))
+    {
+        return None;
+    }
+    for (token, op) in [
+        ("<=", BinaryOp::Lte),
+        (">=", BinaryOp::Gte),
+        ("<>", BinaryOp::NotEq),
+        ("!=", BinaryOp::NotEq),
+        ("=", BinaryOp::Eq),
+        ("<", BinaryOp::Lt),
+        (">", BinaryOp::Gt),
+    ] {
+        if let Some((operand, rest)) = super::operators::split_operator(right, token, false) {
+            let end = raw.len() - right.len() + operand.len();
+            return Some(row_predicates::comparison(&raw[..end], op, rest));
+        }
+    }
+    None
 }
 
 /// The "any other operator" tokens split at the prefix-expression level.

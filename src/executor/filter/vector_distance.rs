@@ -21,7 +21,7 @@ pub(super) fn vector_distance(
     }
     if left.len() != right.len() {
         return Err(QueryError::General(format!(
-            "vector distance dimension mismatch: {} != {}",
+            "different vector dimensions {} and {}",
             left.len(),
             right.len()
         )));

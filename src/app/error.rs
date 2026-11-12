@@ -606,6 +606,9 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
     {
         return bad_request_descriptor("42883", message.to_string());
     }
+    if message.starts_with("unsupported function '") {
+        return bad_request_descriptor("42883", message.to_string());
+    }
     if message.eq_ignore_ascii_case("query timeout exceeded") {
         return timeout_descriptor();
     }

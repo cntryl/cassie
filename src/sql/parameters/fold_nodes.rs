@@ -85,6 +85,10 @@ impl<'a> Fold<'a, '_> {
             };
             let mut child = Child::node(node, context, qualified);
             qualify_child(parent_node, index, &mut child);
+            if let Some(oid) = self.vector_cast_parameter_oid(parent_node, &child) {
+                child.expected = Expected::Type(oid, false);
+                child.qualified = false;
+            }
             if let Some(oid) =
                 window_default_oid.filter(|oid| !matches!(*oid, 0 | UNKNOWN_PARAMETER_TYPE_OID))
             {
@@ -100,6 +104,34 @@ impl<'a> Fold<'a, '_> {
             }
             return Ok(Some(child));
         }
+    }
+
+    /// `$n::vector` resolves to the database's installed vector type identity,
+    /// which is allocated per database and has no static OID.
+    fn vector_cast_parameter_oid(&self, parent: Node<'_>, child: &Child<'_>) -> Option<i32> {
+        // An untyped operand of a pgvector distance operator is the other
+        // operand's vector type; parameter OIDs carry no dimension.
+        let vector = crate::types::DataType::Vector(None);
+        let data_type = match parent {
+            Node::Expr(ast::Expr::Cast {
+                data_type: data_type @ crate::types::DataType::Vector(_),
+                ..
+            }) => data_type,
+            Node::Expr(ast::Expr::Binary {
+                op:
+                    ast::BinaryOp::PgvectorCosine
+                    | ast::BinaryOp::PgvectorL2
+                    | ast::BinaryOp::PgvectorDot,
+                ..
+            }) => &vector,
+            _ => return None,
+        };
+        if !matches!(child.node, Node::Expr(ast::Expr::Param(_))) {
+            return None;
+        }
+        let database = self.scope?.database;
+        crate::catalog::object_identity::type_oid_for_database(self.catalog, database, data_type)
+            .and_then(|oid| i32::try_from(oid).ok())
     }
 
     fn window_value_oid(&self, node: Node<'_>, index: usize, context: usize) -> Option<i32> {

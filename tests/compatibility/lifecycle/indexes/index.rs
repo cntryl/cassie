@@ -22,6 +22,8 @@ mod operator_class_key_modifiers;
 mod partial_index_query_equivalence;
 #[path = "pgvector_profile.rs"]
 mod pgvector_profile;
+#[path = "pgvector_semantics.rs"]
+mod pgvector_semantics;
 #[path = "reindex_database_concurrent_ddl.rs"]
 mod reindex_database_concurrent_ddl;
 #[path = "reindex_options.rs"]

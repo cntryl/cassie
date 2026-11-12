@@ -536,6 +536,48 @@ execute. Cassie's existing vector index implementation remains the execution eng
 these SQL methods and catalog identities are aliases to its supported HNSW and
 IVFFlat paths, not claims of the native pgvector ABI.
 
+#### #844 v0.2.0 operator semantics and deferred surface
+
+Qualified v0.2.0 behavior, each pinned by a case in
+[`pgvector_semantics.rs`](../tests/compatibility/lifecycle/indexes/pgvector_semantics.rs)
+(PostgreSQL behavior for the same SQL-visible surface: pgvector 0.8.7):
+
+- `<->` is L2 distance, `<=>` is cosine distance and `<#>` is the **negative** inner
+  product (`'[2,2,2]' <#> '[3,1,0]'` is `-8`).
+- The distance operators bind tighter than comparison operators:
+  `embedding <-> $1 < 0.5` is `(embedding <-> $1) < 0.5`.
+- SQL NULL on either operand yields NULL for every operator.
+- Operands with different dimensions raise SQLSTATE `22000` with the pgvector message
+  `different vector dimensions N and M`.
+- `$1::vector` resolves to the database's installed vector type OID at Parse; binary
+  parameters use the dimension/reserved/f32 framing above.
+- Inner-product and cosine HNSW/IVFFlat indexes are created, cataloged and maintained,
+  and the operator ordering returns exactly the unindexed top-k. The SQL operator ANN
+  execution path itself serves L2 only; `<#>` and `<=>` ordering is answered by the
+  exact scan. Serving those metrics from the ANN graph/lists through the SQL operators
+  is a performance extension, not a v0.2.0 correctness requirement.
+
+#844 acceptance evidence map: type identity/OIDs and `CREATE EXTENSION` gating
+(`vector_type_identity`, `vector_extension.rs`); operators, precedence, NULL,
+dimension error, parameters and deferred rejection (`pgvector_semantics.rs`); operator
+classes, HNSW/IVFFlat catalogs, dependencies, dimension limit and L2 ANN-versus-exact
+correspondence (`pgvector_profile.rs`); inner-product and cosine top-k equality with
+indexes present (`pgvector_semantics.rs`).
+
+Defects found while qualifying and fixed: `$1::vector` was unresolvable at Parse
+(`42P18`); `a <-> b < n` parsed as `a <-> (b < n)`; undefined functions returned
+`42601` instead of `42883`; non-text values cast to `vector` returned `22000`
+instead of `42846`; the dimension-mismatch message did not match pgvector.
+
+Deferred (not v0.2.0, no partial support): the pgvector SQL functions `l2_distance`,
+`inner_product`, `vector_dims` and `vector_norm`, and casts from `real[]` (or any other
+array or non-text value) to `vector`. Cassie's own `vector_distance`, `cosine_distance`
+and `dot_product` functions are unrelated existing surface. The deferred names are
+rejected deterministically: calling them returns `42883` (undefined function), and
+casting an array, integer or other non-text value to `vector` returns `42846`.
+Text-to-vector casts (`'[1,2,3]'::vector`) are the only supported conversion; casts
+from `vector` to `real[]` are likewise unsupported (they fail input validation).
+
 These durable features use the current format and must pass current-build restart and recovery checks. No pre-release compatibility transition is required; see [Release Baseline](release-baseline.md#pre-release-format-and-api-policy-2026-11-10).
 Named ENUM #827 remains deferred to v0.4; historical full-parity/CRB3 proposals
 remain superseded. Codec goldens, checked framing and version admission precede

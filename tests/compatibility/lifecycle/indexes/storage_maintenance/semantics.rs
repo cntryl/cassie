@@ -464,7 +464,7 @@ fn should_reject_gin_pending_list_cleanup_without_a_gin_index() {
             .expect("row count");
 
         // Assert
-        assert_eq!(db_error(&rejected).code().code(), "42601");
+        assert_eq!(db_error(&rejected).code().code(), "42883");
         assert_eq!(row_count, 1);
 
         drop(client);

@@ -530,9 +530,11 @@ fn cast_vector_scalar(
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
-    let text = value
-        .as_str()
-        .ok_or_else(|| QueryError::General("cannot cast value to VECTOR".to_string()))?;
+    let text = value.as_str().ok_or_else(|| {
+        QueryError::Cassie(
+            crate::app::DiagnosticError::new("42846", "cannot cast value to VECTOR").into(),
+        )
+    })?;
     crate::vector::text::visit_components_with_dimension(text, expected_dimensions, |_| {})
         .map_err(|error| {
             let message = match error {

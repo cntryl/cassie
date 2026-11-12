@@ -77,9 +77,8 @@ The selected `pg_class.relhasindex` value currently reports whether the
 relation has an index, derived from live index metadata.
 [PostgreSQL 18.6](https://www.postgresql.org/docs/18/catalog-pg-class.html)
 defines a lazy flag that may remain true after the last index is dropped until
-VACUUM clears it. Cassie's stale-flag behavior remains an open compatibility
-cell under #817. This inventory records the current value and PostgreSQL
-witness without selecting a replacement contract or adding vacuum behavior.
+VACUUM clears it. Cassie's persisted stale-flag decision, with PostgreSQL 18.6
+oracle evidence, is recorded under `pg_class.relhasindex` below.
 
 Separate dependency question for coordinator triage: the [#954 JSONPath
 cancellation fixture](../tests/pgwire_extended/types/json/jsonpath/cancellation.rs)
@@ -354,7 +353,19 @@ Cassie stores that history with the owning collection metadata in the same
 database-family transaction as the cleanup record. It survives restart and
 transaction rollback discards it with the rest of the overlay. Cassie has no
 selected VACUUM operation, so the flag remains true until the relation is
-dropped. The new lifecycle probes are authored but unexecuted pending the
+dropped.
+
+Oracle verification (2026-11-12, local Homebrew PostgreSQL 18.6, throwaway
+cluster): after `CREATE TABLE t2(a int); CREATE INDEX i2 ON t2(a); DROP INDEX i2`,
+`SELECT relhasindex FROM pg_class WHERE relname = 't2'` returns `t`; after a
+subsequent `VACUUM t2` it returns `f`. Cassie matches the first observation and
+has no VACUUM that could produce the second, so the only divergence is the
+absence of the clearing operation, which is an unselected maintenance feature
+and not a defect. Decision: keep the sticky flag; the lifecycle regressions in
+`type_catalog_fields.rs` (restart persistence, rollback) are the executable
+evidence. Tracked as a residual of #817 (v0.3.0), which remains open.
+
+The earlier lifecycle probes are authored but unexecuted pending the
 coherent bundle gate. Jev selected a persisted history bit over deriving only
 from current indexes or the cleanup tombstone (probability 0.85, confidence
 0.77); the latter disappears when Midge completes cleanup and cannot survive a

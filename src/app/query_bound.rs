@@ -197,14 +197,15 @@ impl Cassie {
         } else {
             None
         };
-        scoped_cassie.execute_bound_statement_inner(
+        let result = scoped_cassie.execute_bound_statement_inner(
             session,
             parsed,
             sql_fingerprint,
             parameters,
             mode,
             controls,
-        )
+        );
+        result
     }
 
     fn execute_bound_statement_inner(

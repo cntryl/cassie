@@ -64,7 +64,7 @@ impl Cassie {
                 return Err(CassieError::DeadlineExceeded);
             }
             self.runtime.record_sql_parse();
-            let parsed = crate::sql::parser::parse_statement(sql)?;
+            let parsed = self.parse_statement_for_session(Some(session), sql)?;
             let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
             self.execute_pgwire_statement_core(
                 session,

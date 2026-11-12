@@ -164,7 +164,7 @@ pub(crate) fn validate_with_session_and_cancellation(
     if cancellation.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }
-    let parsed = crate::sql::parse_statement(request.sql.as_str())?;
+    let parsed = cassie.parse_statement_for_session(Some(session), request.sql.as_str())?;
     session.authorize_statement(&parsed.statement)?;
     cassie.authorize_role_object_access(session, &parsed.statement)?;
     let command = command_name(&parsed.statement).to_string();

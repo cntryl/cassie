@@ -108,6 +108,11 @@ impl Catalog {
     }
 
     #[must_use]
+    pub fn has_composite_types(&self) -> bool {
+        !self.composite_types.read().is_empty()
+    }
+
+    #[must_use]
     pub fn composite_type_exists(&self, name: &str) -> bool {
         self.get_composite_type(name).is_some()
     }

@@ -92,10 +92,14 @@ pub(super) fn eligible(statement: &ParsedStatement, catalog: &crate::catalog::Ca
     crate::app::implicit_ddl_supported(catalog, &statement.statement)
 }
 
-pub(super) fn preflight(statements: &[String]) -> Result<Vec<ParsedStatement>, CassieError> {
+pub(super) fn preflight(
+    cassie: &crate::app::Cassie,
+    session: &crate::app::CassieSession,
+    statements: &[String],
+) -> Result<Vec<ParsedStatement>, CassieError> {
     let parsed = statements
         .iter()
-        .map(|sql| crate::sql::parser::parse_statement(sql).map_err(CassieError::from))
+        .map(|sql| cassie.parse_statement_for_session(Some(session), sql))
         .collect::<Result<Vec<_>, _>>()?;
     if parsed.len() > 1
         && parsed.iter().any(|statement| {

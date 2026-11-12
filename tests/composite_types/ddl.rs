@@ -69,7 +69,10 @@ fn should_create_a_type_in_an_explicit_schema_and_resolve_it_through_search_path
         unqualified_before.is_err(),
         "type outside search_path must not resolve"
     );
-    assert!(unqualified_after.is_ok(), "search_path must expose the type");
+    assert!(
+        unqualified_after.is_ok(),
+        "search_path must expose the type"
+    );
 }
 
 #[test]
@@ -191,7 +194,10 @@ fn should_roll_back_create_type_with_its_transaction() {
     let recreated = fixture.execute(ADDRESS);
 
     // Assert
-    assert!(visible_inside.is_ok(), "type is visible inside its transaction");
+    assert!(
+        visible_inside.is_ok(),
+        "type is visible inside its transaction"
+    );
     assert!(after_rollback.is_err(), "rolled-back type must not survive");
     assert!(recreated.is_ok(), "rolled-back name must be reusable");
 }
@@ -223,7 +229,10 @@ fn should_roll_back_drop_type_with_its_transaction() {
     let after_rollback = fixture.execute("SELECT '(a,1)'::address::text");
 
     // Assert
-    assert!(after_rollback.is_ok(), "rolled-back drop must keep the type");
+    assert!(
+        after_rollback.is_ok(),
+        "rolled-back drop must keep the type"
+    );
 }
 
 #[test]

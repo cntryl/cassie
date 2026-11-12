@@ -118,9 +118,7 @@ fn comparison(
 /// A record compared with an untyped string literal, which PostgreSQL cannot
 /// coerce to a record type.
 fn record_against_text(left: &ScalarValue, right: &ScalarValue) -> bool {
-    let is_record = |value: &ScalarValue| {
-        matches!(value, ScalarValue::Typed(typed) if typed.as_record().is_some())
-    };
+    let is_record = |value: &ScalarValue| matches!(value, ScalarValue::Typed(typed) if typed.as_record().is_some());
     (is_record(left) && matches!(right, ScalarValue::Str(_)))
         || (matches!(left, ScalarValue::Str(_)) && is_record(right))
 }

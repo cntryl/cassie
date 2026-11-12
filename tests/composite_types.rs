@@ -3,7 +3,6 @@
 
 use cassie_test_support::support_composite_types;
 use cassie_test_support::support_pgwire;
-use cassie_test_support::support_sql;
 use cassie_test_support::support_sql_fixture;
 use cassie_test_support::support_type_metadata_contract;
 

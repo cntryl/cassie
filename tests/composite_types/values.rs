@@ -79,7 +79,8 @@ fn should_distinguish_sql_null_records_from_all_null_field_records() {
 
     // Act
     let rendered = first_column_text(&fixture.rows("SELECT a::text FROM people ORDER BY id"));
-    let present = fixture.rows("SELECT id FROM people WHERE a IS NOT DISTINCT FROM NULL ORDER BY id");
+    let present =
+        fixture.rows("SELECT id FROM people WHERE a IS NOT DISTINCT FROM NULL ORDER BY id");
 
     // Assert
     assert_eq!(rendered, vec![None, Some("(,)".to_owned())]);
@@ -146,7 +147,8 @@ fn should_select_fields_from_expressions_and_columns() {
 
     // Act
     let names = first_column_text(&fixture.rows("SELECT (p).name FROM people ORDER BY id"));
-    let streets = first_column_text(&fixture.rows("SELECT (people.a).street FROM people ORDER BY id"));
+    let streets =
+        first_column_text(&fixture.rows("SELECT (people.a).street FROM people ORDER BY id"));
     let nested = fixture.rows("SELECT ((p).home).zip FROM people ORDER BY id");
     let expression = text(&fixture, "SELECT (ROW('a', 1)::address).street");
 

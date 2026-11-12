@@ -44,6 +44,10 @@ mod postgresql18_window_function_wire;
 
 #[path = "subqueries/scalar_subqueries.rs"]
 mod scalar_subqueries;
+#[path = "set_returning/series_contracts.rs"]
+mod series_sources;
+#[path = "types/arrays/unnest_sources.rs"]
+mod unnest_sources;
 
 #[path = "set_returning/series_contracts.rs"]
 mod series_sources;

@@ -72,24 +72,15 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
     let normalized_argument = uncommented_argument.to_ascii_lowercase();
     let mut words = normalized_argument.split_whitespace();
     if words.next() == Some("transaction") {
-        if session_end.is_none() && words.eq(["isolation", "level", "repeatable", "read"]) {
-            return Ok(parsed(
-                sql,
-                "transaction isolation level",
-                Some("repeatable read".to_string()),
-                SettingAction::Set,
-            ));
-        }
-        return Err(SqlError::unsupported(
-            "unsupported SET TRANSACTION form".into(),
-        ));
+        return match parse_set_transaction_isolation(sql, uncommented_argument.trim())? {
+            Some(statement) => Ok(statement),
+            None => Err(SqlError::unsupported(
+                "unsupported SET TRANSACTION form".into(),
+            )),
+        };
     }
     if let Some(end) = lexical::pattern_end(argument, 0, "LOCAL ") {
         return parse_set_local(sql, &argument[end..]);
-    }
-    if let Some(statement) = parse_set_transaction_isolation(sql, argument, session_end.is_some())?
-    {
-        return Ok(statement);
     }
     if let Some(statement) = parse_set_names(sql, argument)? {
         return Ok(statement);
@@ -197,16 +188,10 @@ fn parse_set_local(sql: &str, argument: &str) -> Result<ParsedStatement, SqlErro
 fn parse_set_transaction_isolation(
     sql: &str,
     argument: &str,
-    session: bool,
 ) -> Result<Option<ParsedStatement>, SqlError> {
     let Some(end) = lexical::pattern_end(argument, 0, "TRANSACTION ISOLATION LEVEL") else {
         return Ok(None);
     };
-    if session {
-        return Err(SqlError::unsupported(
-            "SET SESSION TRANSACTION ISOLATION is not supported in this version".into(),
-        ));
-    }
     let isolation = match argument[end..].trim().to_ascii_lowercase().as_str() {
         "read committed" => "read committed",
         "read uncommitted" => "read uncommitted",

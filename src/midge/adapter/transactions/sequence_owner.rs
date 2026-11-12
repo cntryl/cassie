@@ -855,6 +855,29 @@ impl StorageOverlay {
         Ok((leases, directory))
     }
 
+    /// Object identities of every sequence this transaction stages itself.
+    pub(crate) fn staged_sequence_object_ids(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<Vec<u64>, CassieError> {
+        let prefix = super::super::key_encoding::sequence_prefix();
+        let mut identities = Vec::new();
+        for (index, (key, change)) in self.changes.iter().enumerate() {
+            if index % 128 == 0 {
+                controls.check_interruption()?;
+            }
+            if !key.starts_with(&prefix) {
+                continue;
+            }
+            let Some(raw) = &change.value else {
+                continue;
+            };
+            let (metadata, _scratch) = decode(raw, controls)?;
+            identities.push(metadata.object_id);
+        }
+        Ok(identities)
+    }
+
     pub(crate) fn apply_sequence_cursors_to_catalog(
         &self,
         catalog: &crate::catalog::Catalog,

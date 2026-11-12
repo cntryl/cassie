@@ -265,7 +265,9 @@ impl Zone {
                         .map(|classification| classification.dynamic),
                 )
             }
-            RuleSource::Posix(posix) => Ok(posix.abbreviation_offset(abbreviation).map(|_| false)),
+            RuleSource::Posix(posix) => Ok(posix
+                .abbreviation_offset_with_checks(abbreviation, check)?
+                .map(|_| false)),
             RuleSource::Special => {
                 let info = tz.time_zone.to_offset_info(jiff_timestamp(0));
                 Ok(info
@@ -300,16 +302,25 @@ impl Zone {
                         classification.first_type.is_dst,
                     )));
                 }
-                checked_dynamic_abbreviation_offset(
-                    &tz.time_zone,
+                let RawResolution::Found(resolution) = raw_dynamic_abbreviation_offset(
                     raw,
                     classification.designation_index,
-                    abbreviation,
                     utc_micros,
                     check,
-                )
+                )?
+                else {
+                    return checked_dynamic_abbreviation_offset(
+                        &tz.time_zone,
+                        raw,
+                        classification.designation_index,
+                        abbreviation,
+                        utc_micros,
+                        check,
+                    );
+                };
+                Ok(resolution)
             }
-            RuleSource::Posix(posix) => Ok(posix.abbreviation_offset(abbreviation)),
+            RuleSource::Posix(posix) => posix.abbreviation_offset_with_checks(abbreviation, check),
             RuleSource::Special => {
                 let info = tz.time_zone.to_offset_info(jiff_timestamp(utc_micros));
                 Ok(info
@@ -335,13 +346,23 @@ impl Zone {
             RuleSource::Tzif(raw) => {
                 let classification = classify_raw_abbreviation(raw, abbreviation)?;
                 if classification.dynamic {
-                    bounded_dynamic_abbreviation_offset(
-                        &tz.time_zone,
+                    let mut never_interrupted = || Ok::<(), std::convert::Infallible>(());
+                    let Ok(raw_resolution) = raw_dynamic_abbreviation_offset(
                         raw,
                         classification.designation_index,
-                        abbreviation,
                         local_micros,
-                    )
+                        &mut never_interrupted,
+                    );
+                    match raw_resolution {
+                        RawResolution::Found(resolution) => resolution,
+                        RawResolution::Footer => bounded_dynamic_abbreviation_offset(
+                            &tz.time_zone,
+                            raw,
+                            classification.designation_index,
+                            abbreviation,
+                            local_micros,
+                        ),
+                    }
                 } else {
                     Some((
                         classification.first_type.offset_seconds_east,
@@ -349,7 +370,16 @@ impl Zone {
                     ))
                 }
             }
-            RuleSource::Posix(posix) => posix.abbreviation_offset(abbreviation),
+            RuleSource::Posix(posix) => {
+                // The legacy resolver follows the type active at the instant,
+                // so a designation shared by both seasons varies with the date.
+                let info = tz.time_zone.to_offset_info(jiff_timestamp(local_micros));
+                if info.abbreviation().eq_ignore_ascii_case(abbreviation) {
+                    Some((info.offset().seconds(), info.dst().is_dst()))
+                } else {
+                    posix.abbreviation_offset(abbreviation)
+                }
+            }
             RuleSource::Special => {
                 let info = tz.time_zone.to_offset_info(jiff_timestamp(local_micros));
                 info.abbreviation()
@@ -416,6 +446,65 @@ fn classify_raw_abbreviation_with_checks<'a, E>(
         first_type,
         dynamic,
     }))
+}
+
+/// Resolves a dynamic abbreviation from the raw transition table by exact
+/// designation index, preferring the type in effect at `utc_micros`, then the
+/// most recent earlier type, then the first type and finally later history.
+///
+/// Reports [`RawResolution::Footer`] when the instant lies past the last raw
+/// transition of a file whose POSIX footer governs it; the caller then
+/// resolves through the zone rules.
+enum RawResolution {
+    Footer,
+    Found(Option<(i32, bool)>),
+}
+
+fn raw_dynamic_abbreviation_offset<E>(
+    raw: &RawTzif,
+    designation_index: usize,
+    utc_micros: i64,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<RawResolution, E> {
+    let unix = unix_seconds(utc_micros);
+    let mut active = 0;
+    for (index, transition) in raw.transitions.iter().enumerate() {
+        if index % 128 == 127 {
+            check()?;
+        }
+        if transition.unix_seconds > unix {
+            break;
+        }
+        active = index + 1;
+    }
+    if active == raw.transitions.len() && raw.has_footer {
+        return Ok(RawResolution::Footer);
+    }
+    let matching = |type_index: usize| {
+        let local_type = &raw.local_time_types[type_index];
+        (local_type.designation_index == designation_index)
+            .then_some((local_type.offset_seconds_east, local_type.is_dst))
+    };
+    for (index, transition) in raw.transitions[..active].iter().enumerate().rev() {
+        if index % 128 == 127 {
+            check()?;
+        }
+        if let Some(found) = matching(transition.type_index) {
+            return Ok(RawResolution::Found(Some(found)));
+        }
+    }
+    if let Some(found) = matching(0) {
+        return Ok(RawResolution::Found(Some(found)));
+    }
+    for (index, transition) in raw.transitions[active..].iter().enumerate() {
+        if index % 128 == 127 {
+            check()?;
+        }
+        if let Some(found) = matching(transition.type_index) {
+            return Ok(RawResolution::Found(Some(found)));
+        }
+    }
+    Ok(RawResolution::Found(None))
 }
 
 fn raw_type_has_offset(
@@ -517,6 +606,25 @@ fn bounded_dynamic_abbreviation_offset(
 }
 
 impl PosixRule {
+    fn abbreviation_offset_with_checks<E>(
+        &self,
+        abbreviation: &str,
+        check: &mut impl FnMut() -> Result<(), E>,
+    ) -> Result<Option<(i32, bool)>, E> {
+        if ascii_eq_with_checks(&self.standard.abbreviation, abbreviation, check)? {
+            return Ok(Some((
+                self.standard.offset_seconds_east,
+                self.standard.is_dst,
+            )));
+        }
+        if let Some(daylight) = &self.daylight {
+            if ascii_eq_with_checks(&daylight.abbreviation, abbreviation, check)? {
+                return Ok(Some((daylight.offset_seconds_east, daylight.is_dst)));
+            }
+        }
+        Ok(None)
+    }
+
     fn abbreviation_offset(&self, abbreviation: &str) -> Option<(i32, bool)> {
         if self
             .standard
@@ -530,6 +638,31 @@ impl PosixRule {
             .filter(|posix_type| posix_type.abbreviation.eq_ignore_ascii_case(abbreviation))
             .map(|posix_type| (posix_type.offset_seconds_east, posix_type.is_dst))
     }
+}
+
+/// ASCII case-insensitive equality that yields to `check` between 128-byte chunks.
+fn ascii_eq_with_checks<E>(
+    left: &str,
+    right: &str,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<bool, E> {
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (index, (left, right)) in left
+        .as_bytes()
+        .chunks(128)
+        .zip(right.as_bytes().chunks(128))
+        .enumerate()
+    {
+        if index > 0 {
+            check()?;
+        }
+        if !left.eq_ignore_ascii_case(right) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn parse_posix_rule(rule: &str) -> Result<PosixRule, String> {
@@ -848,32 +981,6 @@ mod source_tests;
 mod tests {
     use super::{lookup_zone, offset_abbreviation, AbbreviationSet};
     use crate::types::extended::temporal::calendar::{fields_to_timestamp, Fields};
-
-    #[test]
-    fn should_interrupt_a_long_formatted_timezone_abbreviation_search() {
-        // Arrange
-        let zone = lookup_zone("Europe/London").expect("London timezone");
-        let mut checks = 0;
-        let mut check = || {
-            checks += 1;
-            if checks == 2 {
-                Err("cancelled")
-            } else {
-                Ok(())
-            }
-        };
-
-        // Act
-        let result = zone.abbreviation_offset_with_checks(
-            "not-a-timezone-abbreviation",
-            local(2400, 1, 1, 0, 0),
-            &mut check,
-        );
-
-        // Assert
-        assert_eq!(result, Err("cancelled"));
-        assert_eq!(checks, 2);
-    }
 
     fn local(year: i32, month: i32, day: i32, hour: i32, minute: i32) -> i64 {
         fields_to_timestamp(

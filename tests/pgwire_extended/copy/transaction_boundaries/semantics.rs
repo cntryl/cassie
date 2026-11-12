@@ -677,7 +677,11 @@ fn should_report_unknown_quoted_copy_where_column_and_recover() {
         vec![wire::simple_query_frame("SELECT 1")],
     ];
     // Act
-    let frames = crate::support_repeatable_read::run_own_script(&[], script);
+    let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
+        &[],
+        script,
+        &[(1, "42703")],
+    );
     // Assert
     assert_eq!(wire::error_code(&frames[1]).as_deref(), Some("42703"));
     assert_eq!(wire::error_code(&frames[2]), None);

@@ -365,6 +365,9 @@ mod tests {
         let removed_target = midge
             .delete_role_object_grants_for_targets(&family, std::slice::from_ref(&target))
             .expect("delete matching target grants");
+        let after_targets = midge
+            .list_role_object_grants()
+            .expect("list grants after target deletion");
         let removed_role = midge
             .delete_role_object_grants_for_role(22)
             .expect("delete all records for role");
@@ -374,11 +377,18 @@ mod tests {
 
         // Assert
         assert_eq!(removed_target.len(), 2);
+        assert!(removed_target
+            .iter()
+            .all(|grant| grant.database_family == family && grant.target == target));
+        assert_eq!(after_targets.len(), 2);
+        assert!(after_targets
+            .iter()
+            .any(|grant| { grant.database_family == other_family && grant.target == target }));
+        assert!(after_targets
+            .iter()
+            .any(|grant| grant.target == RoleGrantTarget::Schema(31)));
         assert_eq!(removed_role.len(), 2);
-        assert_eq!(remaining.len(), 1);
-        assert_eq!(remaining[0].database_family, family);
-        assert_eq!(remaining[0].role_id, 23);
-        assert_eq!(remaining[0].target, RoleGrantTarget::Table(41));
+        assert_eq!(remaining, Vec::new());
     }
 
     #[test]

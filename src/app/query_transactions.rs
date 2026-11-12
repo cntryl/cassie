@@ -221,6 +221,8 @@ impl Cassie {
             .unwrap_or_default();
         if let Some(catalog) = &catalog_overlay {
             storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
+            let staged = storage_overlay.staged_sequence_object_ids(controls)?;
+            catalog.refresh_published_sequence_cursors(&self.publication_catalog, &staged);
         }
         let database = session
             .current_database()

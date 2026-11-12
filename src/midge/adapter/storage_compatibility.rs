@@ -6,10 +6,14 @@ use cntryl_midge::TransactionMode;
 
 pub(super) const V020_LAYOUT_VERSION: &str = "cassie-midge-layout-v2-0.2.0";
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+const V020_INDEX_GENERATION_LAYOUT_VERSION: &str = "cassie-midge-layout-v3-0.2.0-index-generation";
+
+/// Ordered minimum-reader levels; a marker never moves to a lower level.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Compatibility {
     V1,
     V020,
+    V020IndexGeneration,
 }
 
 impl Compatibility {
@@ -17,6 +21,9 @@ impl Compatibility {
         match marker {
             value if value == key_encoding::LAYOUT_MARKER_VALUE => Some(Self::V1),
             value if value == V020_LAYOUT_VERSION.as_bytes() => Some(Self::V020),
+            value if value == V020_INDEX_GENERATION_LAYOUT_VERSION.as_bytes() => {
+                Some(Self::V020IndexGeneration)
+            }
             _ => None,
         }
     }
@@ -25,6 +32,7 @@ impl Compatibility {
         match self {
             Self::V1 => key_encoding::LAYOUT_VERSION,
             Self::V020 => V020_LAYOUT_VERSION,
+            Self::V020IndexGeneration => V020_INDEX_GENERATION_LAYOUT_VERSION,
         }
     }
 }
@@ -112,8 +120,9 @@ impl Midge {
             .ok_or_else(|| {
                 Self::missing_layout_marker(crate::midge::adapter::SCHEMA_FAMILY_NAME)
             })?;
-        Compatibility::parse(&marker).ok_or_else(|| Self::incompatible_layout_marker(&marker))?;
-        if required == Compatibility::V1 {
+        let current = Compatibility::parse(&marker)
+            .ok_or_else(|| Self::incompatible_layout_marker(&marker))?;
+        if required == Compatibility::V1 || required < current {
             return Ok(());
         }
 

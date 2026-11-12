@@ -25,7 +25,7 @@ pub(crate) fn validate_with_controls(
     if !has_input_law(target, identity) {
         return Ok(());
     }
-    if numeric_input_law(target, identity) {
+    if numeric_input_law(target) {
         use crate::types::extended::numeric_validation::{validate, ValidationError};
         return match validate(input, controls) {
             Ok(()) => Ok(()),
@@ -101,15 +101,16 @@ pub(crate) fn has_input_law(target: &DataType, identity: CastIdentity) -> bool {
     // qualify an exact NUMERIC carrier or raw numeric literals.
     identity == CastIdentity::Scalar
         || (identity == CastIdentity::Numeric && *target == DataType::Float)
-        || numeric_input_law(target, identity)
+        || numeric_input_law(target)
 }
 
-fn numeric_input_law(target: &DataType, identity: CastIdentity) -> bool {
-    identity == CastIdentity::Numeric
-        && matches!(
-            target,
-            DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
-        )
+/// `numeric` is a native type: every cast to the exact carrier, whatever its
+/// requested identity, follows the numeric input grammar.
+fn numeric_input_law(target: &DataType) -> bool {
+    matches!(
+        target,
+        DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
+    )
 }
 
 pub(crate) fn rejects_cast_with_controls(
@@ -131,7 +132,7 @@ pub(crate) fn rejects_cast_with_controls(
     if !has_input_law(data_type, *identity) {
         return Ok(false);
     }
-    if numeric_input_law(data_type, *identity) {
+    if numeric_input_law(data_type) {
         use crate::types::extended::numeric_validation::{validate, ValidationError};
         return match validate(input, controls) {
             Ok(()) => Ok(false),

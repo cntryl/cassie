@@ -188,6 +188,15 @@ fn create_table_gated(
     }
     if statement.like.is_none() {
         for index in &initial_indexes {
+            // A retry after a failed publication completes the journal the
+            // earlier attempt prepared rather than reusing its index name.
+            let recovered = cassie
+                .midge
+                .recover_prepared_index_with_held_collection_gate(&index.collection, &index.name)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            if recovered {
+                continue;
+            }
             cassie
                 .midge
                 .put_index_with_held_collection_gate(index)

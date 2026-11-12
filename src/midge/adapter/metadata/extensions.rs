@@ -60,7 +60,7 @@ fn validate_extension_profile(metadata: &ExtensionMeta) -> Result<(), CassieErro
             identities.ivfflat.inner_product_operator_class,
             identities.ivfflat.cosine_operator_class,
         ];
-        if ids.iter().any(|id| *id == 0)
+        if ids.contains(&0)
             || ids
                 .iter()
                 .enumerate()

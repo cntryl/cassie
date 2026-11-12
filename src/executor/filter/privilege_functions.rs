@@ -57,7 +57,7 @@ pub(super) fn evaluate(
     } else {
         current_role(&catalog, session)?
     };
-    let object_name = &inputs[if inputs.len() == 3 { 1 } else { 0 }];
+    let object_name = &inputs[usize::from(inputs.len() == 3)];
     reject_oid_argument(name, "object", object_name)?;
 
     let allowed = match kind {
@@ -209,7 +209,7 @@ fn schema_privilege(
     );
     Ok(requested
         .iter()
-        .any(|privilege| requested_object_grant(grant.as_ref(), privilege)))
+        .any(|privilege| requested_object_grant(grant.as_ref(), *privilege)))
 }
 
 fn table_privilege(
@@ -243,15 +243,15 @@ fn table_privilege(
     );
     Ok(requested
         .iter()
-        .any(|privilege| requested_object_grant(grant.as_ref(), privilege)))
+        .any(|privilege| requested_object_grant(grant.as_ref(), *privilege)))
 }
 
 fn requested_object_grant(
     grant: Option<&crate::catalog::RoleObjectGrantMeta>,
-    requested: &RequestedPrivilege,
+    requested: RequestedPrivilege,
 ) -> bool {
     match (grant, requested) {
-        (Some(grant), RequestedPrivilege::Object(privilege)) => grant.grants(*privilege),
+        (Some(grant), RequestedPrivilege::Object(privilege)) => grant.grants(privilege),
         _ => false,
     }
 }

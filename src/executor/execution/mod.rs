@@ -110,7 +110,7 @@ use dispatch::{
     execute_physical_plan_with_parameter_oids, execute_plan, execute_plan_with_execution_breakdown,
     execute_plan_with_outer_row, execute_plan_with_parameter_oids,
     plan_execution_env_with_parameter_oids, reserve_projection_output_before_building,
-    resolve_exists_expr, resolve_statement_exists, ExistsResolutionContext,
+    resolve_exists_expr, resolve_statement_exists, ExistsResolutionContext, PlanExecutionEnv,
 };
 #[cfg(test)]
 use dispatch::{preferred_access_path_route, AccessPathRoute};

@@ -95,33 +95,7 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
         return Ok(statement);
     }
     if let Some(end) = lexical::pattern_end(argument, 0, "CHARACTERISTICS AS TRANSACTION ") {
-        if session_end.is_none() {
-            return Err(SqlError::syntax(
-                "session transaction characteristics require SET SESSION".into(),
-            ));
-        }
-        let (variable, value) = match argument[end..]
-            .to_ascii_lowercase()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .as_slice()
-        {
-            ["read", "only"] => ("default_transaction_read_only", "on"),
-            ["read", "write"] => ("default_transaction_read_only", "off"),
-            ["deferrable"] => ("default_transaction_deferrable", "on"),
-            ["not", "deferrable"] => ("default_transaction_deferrable", "off"),
-            _ => {
-                return Err(SqlError::unsupported(
-                    "unsupported session transaction characteristics".into(),
-                ))
-            }
-        };
-        return Ok(parsed(
-            sql,
-            variable,
-            Some(value.to_string()),
-            SettingAction::Set,
-        ));
+        return parse_session_characteristics(sql, &argument[end..], session_end.is_some());
     }
     let (variable, value) = if let Some(end) = lexical::pattern_end(argument, 0, "TIME ZONE ") {
         ("timezone", argument[end..].trim())
@@ -170,6 +144,40 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
         value.to_string()
     };
     Ok(parsed(sql, variable, Some(value), SettingAction::Set))
+}
+
+fn parse_session_characteristics(
+    sql: &str,
+    characteristics: &str,
+    session: bool,
+) -> Result<ParsedStatement, SqlError> {
+    if !session {
+        return Err(SqlError::syntax(
+            "session transaction characteristics require SET SESSION".into(),
+        ));
+    }
+    let (variable, value) = match characteristics
+        .to_ascii_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["read", "only"] => ("default_transaction_read_only", "on"),
+        ["read", "write"] => ("default_transaction_read_only", "off"),
+        ["deferrable"] => ("default_transaction_deferrable", "on"),
+        ["not", "deferrable"] => ("default_transaction_deferrable", "off"),
+        _ => {
+            return Err(SqlError::unsupported(
+                "unsupported session transaction characteristics".into(),
+            ))
+        }
+    };
+    Ok(parsed(
+        sql,
+        variable,
+        Some(value.to_string()),
+        SettingAction::Set,
+    ))
 }
 
 fn parse_set_local(sql: &str, argument: &str) -> Result<ParsedStatement, SqlError> {

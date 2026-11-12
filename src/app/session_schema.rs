@@ -72,14 +72,14 @@ impl CassieSession {
         }
     }
 
-    pub(crate) fn publish_sequence_metadata(&self, metadata: crate::catalog::SequenceMeta) {
+    pub(crate) fn publish_sequence_metadata(&self, metadata: &crate::catalog::SequenceMeta) {
         let publication_catalog = self
             .schema_context
             .lock()
             .as_ref()
             .map(|scope| scope.publication_catalog.clone());
         if let Some(publication_catalog) = publication_catalog {
-            publication_catalog.update_sequence_cursor(&metadata);
+            publication_catalog.update_sequence_cursor(metadata);
             self.invalidate_sequence_cursor_descriptor();
         }
     }

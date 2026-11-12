@@ -306,7 +306,7 @@ pub(super) fn cast(
         let cast = controls.map_or_else(
             || {
                 kind.cast_from_in(&source, session)
-                    .map_err(|error| crate::app::CassieError::TypeInput(error))
+                    .map_err(crate::app::CassieError::TypeInput)
             },
             |controls| kind.cast_from_in_with_controls(&source, session, controls),
         );

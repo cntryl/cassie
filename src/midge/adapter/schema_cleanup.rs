@@ -545,13 +545,16 @@ mod tests {
             reopened.pending_schema_cleanups().expect("markers").len(),
             1
         );
-        assert!(!reopened
-            .raw_scan_prefix(
-                StorageFamily::Data,
-                &key_encoding::index_publication_prefix()
-            )
-            .expect("journal")
-            .is_empty());
+        assert_ne!(
+            reopened
+                .raw_scan_prefix(
+                    StorageFamily::Data,
+                    &key_encoding::index_publication_prefix()
+                )
+                .expect("journal")
+                .len(),
+            0
+        );
         assert!(reopened
             .get_index(&index.collection, &index.name)
             .expect("read")

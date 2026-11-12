@@ -46,26 +46,7 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
     let on_pos = find_top_level_keyword(remainder, 0, "on")
         .ok_or_else(|| SqlError::new("CREATE INDEX requires 'ON' clause".to_string()))?;
 
-    let raw_name = remainder[..on_pos].trim();
-    let name = if raw_name.is_empty() {
-        String::new()
-    } else {
-        let parsed = parse_identifier(raw_name)?;
-        if raw_name.starts_with('"')
-            && crate::sql::ast::IdentifierPath::parse(raw_name)
-                .map_err(SqlError::new)?
-                .components()
-                .len()
-                == 1
-        {
-            crate::catalog::canonical_identifier_component(&parsed)
-        } else {
-            parsed
-        }
-    };
-    if !raw_name.is_empty() && name.is_empty() {
-        return Err(SqlError::new("CREATE INDEX missing index name".to_string()));
-    }
+    let name = parse_create_index_name(remainder[..on_pos].trim())?;
 
     let remainder = remainder[on_pos + 2..].trim();
     let (table, remainder) = parse_index_target(remainder)?;
@@ -101,32 +82,8 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
         return Err(SqlError::new("unsupported CREATE INDEX syntax".to_string()));
     }
 
-    if !matches!(kind, IndexKind::Scalar | IndexKind::Column)
-        && fields.len() + expressions.len() > 1
-    {
-        return Err(SqlError::unsupported(
-            "composite indexes are only supported for scalar index methods".to_string(),
-        ));
-    }
-    if !matches!(kind, IndexKind::Scalar) && !expressions.is_empty() {
-        return Err(SqlError::unsupported(
-            "expression indexes are only supported for scalar index methods".to_string(),
-        ));
-    }
-    if matches!(kind, IndexKind::Scalar) && access_method == Some("hash") {
-        options.insert(
-            crate::catalog::IndexMeta::ACCESS_METHOD_OPTION.to_string(),
-            "hash".to_string(),
-        );
-    }
-    if matches!(kind, IndexKind::Vector) {
-        if let Some(access_method @ ("hnsw" | "ivfflat")) = access_method {
-            options.insert(
-                crate::catalog::IndexMeta::ACCESS_METHOD_OPTION.to_string(),
-                access_method.to_string(),
-            );
-        }
-    }
+    validate_index_method_keys(&kind, &fields, &expressions)?;
+    insert_access_method_option(&mut options, &kind, access_method);
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
@@ -579,7 +536,7 @@ fn strip_trailing_operator_class(raw: &str) -> Option<(&str, String)> {
         .collect::<Vec<_>>()
         .join(".");
     let remainder = trimmed[..split].trim_end();
-    (!remainder.is_empty()).then(|| (remainder, candidate))
+    (!remainder.is_empty()).then_some((remainder, candidate))
 }
 
 pub(in crate::sql::parser) fn is_index_field_identifier(raw: &str) -> bool {
@@ -790,4 +747,62 @@ pub(in crate::sql::parser) fn parse_reindex_statement(
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Reindex(crate::sql::ast::ReindexStatement { target }),
     })
+}
+
+fn parse_create_index_name(raw_name: &str) -> Result<String, SqlError> {
+    if raw_name.is_empty() {
+        return Ok(String::new());
+    }
+    let parsed = parse_identifier(raw_name)?;
+    let name = if raw_name.starts_with('"')
+        && crate::sql::ast::IdentifierPath::parse(raw_name)
+            .map_err(SqlError::new)?
+            .components()
+            .len()
+            == 1
+    {
+        crate::catalog::canonical_identifier_component(&parsed)
+    } else {
+        parsed
+    };
+    if name.is_empty() {
+        return Err(SqlError::new("CREATE INDEX missing index name".to_string()));
+    }
+    Ok(name)
+}
+
+fn validate_index_method_keys(
+    kind: &IndexKind,
+    fields: &[String],
+    expressions: &[Expr],
+) -> Result<(), SqlError> {
+    if !matches!(kind, IndexKind::Scalar | IndexKind::Column)
+        && fields.len() + expressions.len() > 1
+    {
+        return Err(SqlError::unsupported(
+            "composite indexes are only supported for scalar index methods".to_string(),
+        ));
+    }
+    if !matches!(kind, IndexKind::Scalar) && !expressions.is_empty() {
+        return Err(SqlError::unsupported(
+            "expression indexes are only supported for scalar index methods".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn insert_access_method_option(
+    options: &mut std::collections::BTreeMap<String, String>,
+    kind: &IndexKind,
+    access_method: Option<&str>,
+) {
+    let ((IndexKind::Scalar, Some(selected @ "hash"))
+    | (IndexKind::Vector, Some(selected @ ("hnsw" | "ivfflat")))) = (kind, access_method)
+    else {
+        return;
+    };
+    options.insert(
+        crate::catalog::IndexMeta::ACCESS_METHOD_OPTION.to_string(),
+        selected.to_string(),
+    );
 }

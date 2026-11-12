@@ -24,9 +24,8 @@ fn should_retain_owned_row_diagnostic_and_match_legacy_parse_error_text() {
     let expected = serde_json::from_slice::<serde_json::Value>(bytes)
         .expect_err("legacy")
         .to_string();
-    let error = match Document::parse_plain_row(bytes, &controls) {
-        Ok(_) => panic!("accepted invalid row"),
-        Err(error) => error,
+    let Err(error) = Document::parse_plain_row(bytes, &controls) else {
+        panic!("accepted invalid row");
     };
     // Act
     let diagnostic = super::render_row(&error, &controls).expect("diagnostic");
@@ -49,9 +48,8 @@ fn should_release_row_diagnostic_after_actual_copy_cancellation() {
         Instant::now(),
         cancel.clone(),
     );
-    let error = match Document::parse_plain_row(b"[}", &controls) {
-        Ok(_) => panic!("accepted invalid row"),
-        Err(error) => error,
+    let Err(error) = Document::parse_plain_row(b"[}", &controls) else {
+        panic!("accepted invalid row");
     };
     let mut copies = 0;
     // Act
@@ -89,9 +87,8 @@ fn should_match_legacy_row_diagnostics_across_malformed_non_sentinel_inputs() {
         let expected = serde_json::from_slice::<serde_json::Value>(bytes)
             .expect_err("legacy")
             .to_string();
-        let error = match Document::parse_plain_row(bytes, &controls) {
-            Ok(_) => panic!("accepted malformed row"),
-            Err(error) => error,
+        let Err(error) = Document::parse_plain_row(bytes, &controls) else {
+            panic!("accepted malformed row");
         };
         let diagnostic = super::render_row(&error, &controls).expect("diagnostic");
         assert_eq!(

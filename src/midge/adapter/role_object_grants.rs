@@ -464,9 +464,12 @@ mod tests {
             .get_role(&role.name)
             .expect("read deleted role")
             .is_none());
-        assert!(midge
-            .list_role_object_grants()
-            .expect("list grants after role drop")
-            .is_empty());
+        assert_eq!(
+            midge
+                .list_role_object_grants()
+                .expect("list grants after role drop")
+                .len(),
+            0
+        );
     }
 }

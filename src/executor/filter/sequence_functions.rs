@@ -79,7 +79,7 @@ fn nextval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError
         })?;
         session.record_sequence_value(&sequence, identity, value, true);
         if !midge.is_private_sequence(&updated)? {
-            session.publish_sequence_metadata(updated);
+            session.publish_sequence_metadata(&updated);
         }
         Ok(value)
     })?;
@@ -128,7 +128,7 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
             session.record_sequence_value(&sequence, identity, value, false);
         }
         if !midge.is_private_sequence(&updated)? {
-            session.publish_sequence_metadata(updated);
+            session.publish_sequence_metadata(&updated);
         }
         Ok(value)
     })?;

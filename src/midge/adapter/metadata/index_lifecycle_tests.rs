@@ -161,10 +161,13 @@ fn should_not_defer_drop_while_a_same_name_publication_requires_recovery() {
         drop_attempt.is_err(),
         "DROP must not leave a future resurrection"
     );
-    assert!(midge
-        .pending_schema_cleanups()
-        .expect("cleanup markers")
-        .is_empty());
+    assert_eq!(
+        midge
+            .pending_schema_cleanups()
+            .expect("cleanup markers")
+            .len(),
+        0
+    );
     assert!(midge.get_index(&collection, &name).expect("read").is_some());
 }
 
@@ -219,7 +222,7 @@ fn should_reject_index_rename_when_source_or_destination_has_a_prepared_journal(
         crate::midge::adapter::set_index_publication_failure_point(false);
         assert!(prepared.is_err(), "leave prepared journal");
         let gate = midge.collection_write_gate(&collection);
-        let _guard = gate.lock();
+        let guard = gate.lock();
 
         // Act
         let renamed = midge.rename_index_and_constraints_with_held_collection_gate(
@@ -235,7 +238,7 @@ fn should_reject_index_rename_when_source_or_destination_has_a_prepared_journal(
             "pending source or destination must block rename"
         );
         assert!(midge.get_index(&collection, &name).expect("read").is_some());
-        drop(_guard);
+        drop(guard);
         midge
             .replay_pending_index_publications()
             .expect("recover journal");

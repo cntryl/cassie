@@ -66,6 +66,59 @@ fn has_applicable_declared_routine(function: &FunctionCall, types: &ResultTypes)
         })
 }
 
+fn validate_width_bucket(
+    function: &mut FunctionCall,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    if !has_applicable_declared_routine(function, types) {
+        let first = bucket_literal_family(types.expression_type(&function.args[0]).as_ref());
+        if first.is_some()
+            && function.args[1..3].iter().all(|argument| {
+                bucket_literal_family(types.expression_type(argument).as_ref()) == first
+            })
+        {
+            coerce_int4_literal(function, 3, types)?;
+        }
+    }
+    if !has_applicable_declared_routine(function, types)
+        && function.args[..3]
+            .iter()
+            .all(|argument| is_numeric_argument(types.expression_type(argument).as_ref()))
+        && is_unsupported_bucket_count(types.expression_type(&function.args[3]).as_ref())
+    {
+        return Err(super::boolean_aggregates::undefined_function(
+            function, types,
+        ));
+    }
+    Ok(())
+}
+
+/// Rewrites a string literal argument to an INT4 literal, reporting the
+/// PostgreSQL INT4 input error when it does not parse.
+fn coerce_int4_literal(
+    function: &mut FunctionCall,
+    index: usize,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    let Expr::StringLiteral(input) = &function.args[index] else {
+        return Ok(());
+    };
+    if let Some(controls) = types.controls() {
+        controls.check_interruption()?;
+    }
+    let Ok(value) = crate::types::integer::parse(input, crate::types::IntegerWidth::I32) else {
+        crate::sql::literal_inputs::validate_with_controls(
+            &function.args[index],
+            &DataType::Int,
+            CastIdentity::Scalar,
+            types.controls(),
+        )?;
+        unreachable!("INT4 input validation uses the same parser");
+    };
+    function.args[index] = Expr::IntegerLiteral(value);
+    Ok(())
+}
+
 /// Selected PostgreSQL math overloads do not exist (SQLSTATE 42883):
 /// `round`/`trunc` with FLOAT8 or a non-INT4 scale, two-argument FLOAT8 `log`,
 /// and `mod` over REAL/FLOAT8.
@@ -80,64 +133,13 @@ pub(super) fn validate(
         return Ok(());
     };
     if math == MathFunction::WidthBucket && function.args.len() == 4 {
-        if !has_applicable_declared_routine(function, types) {
-            let first = bucket_literal_family(types.expression_type(&function.args[0]).as_ref());
-            if first.is_some()
-                && function.args[1..3].iter().all(|argument| {
-                    bucket_literal_family(types.expression_type(argument).as_ref()) == first
-                })
-            {
-                if let Expr::StringLiteral(input) = &function.args[3] {
-                    if let Some(controls) = types.controls() {
-                        controls.check_interruption()?;
-                    }
-                    let Ok(value) =
-                        crate::types::integer::parse(input, crate::types::IntegerWidth::I32)
-                    else {
-                        crate::sql::literal_inputs::validate_with_controls(
-                            &function.args[3],
-                            &DataType::Int,
-                            CastIdentity::Scalar,
-                            types.controls(),
-                        )?;
-                        unreachable!("INT4 input validation uses the same parser");
-                    };
-                    function.args[3] = Expr::IntegerLiteral(value);
-                }
-            }
-        }
-        if !has_applicable_declared_routine(function, types)
-            && function.args[..3]
-                .iter()
-                .all(|argument| is_numeric_argument(types.expression_type(argument).as_ref()))
-            && is_unsupported_bucket_count(types.expression_type(&function.args[3]).as_ref())
-        {
-            return Err(super::boolean_aggregates::undefined_function(
-                function, types,
-            ));
-        }
-        return Ok(());
+        return validate_width_bucket(function, types);
     }
     if matches!(math, MathFunction::Round | MathFunction::Trunc)
         && function.args.len() == 2
         && !has_applicable_declared_routine(function, types)
     {
-        if let Expr::StringLiteral(input) = &function.args[1] {
-            if let Some(controls) = types.controls() {
-                controls.check_interruption()?;
-            }
-            let Ok(value) = crate::types::integer::parse(input, crate::types::IntegerWidth::I32)
-            else {
-                crate::sql::literal_inputs::validate_with_controls(
-                    &function.args[1],
-                    &DataType::Int,
-                    CastIdentity::Scalar,
-                    types.controls(),
-                )?;
-                unreachable!("INT4 input validation uses the same parser");
-            };
-            function.args[1] = Expr::IntegerLiteral(value);
-        }
+        coerce_int4_literal(function, 1, types)?;
     }
     if function.args.len() != 2 {
         return Ok(());

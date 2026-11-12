@@ -19,7 +19,7 @@ fn should_preserve_quoted_relation_and_column_identifiers_given_column_comment()
             .object
             .components()
             .iter()
-            .map(|part| part.value())
+            .map(IdentifierComponent::value)
             .collect::<Vec<_>>(),
         ["Q Schema", "T.Table"]
     );

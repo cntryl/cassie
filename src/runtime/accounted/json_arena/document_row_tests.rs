@@ -28,9 +28,8 @@ fn should_match_slice_read_document_error_category_and_position() {
     // Act / Assert
     for input in inputs {
         let expected = serde_json::from_slice::<serde_json::Value>(input).expect_err("legacy");
-        let actual = match Document::parse_plain_row(input, &controls) {
-            Ok(_) => panic!("accepted malformed document"),
-            Err(error) => error,
+        let Err(actual) = Document::parse_plain_row(input, &controls) else {
+            panic!("accepted malformed document");
         };
         assert_eq!(
             actual.test_diagnostic(),

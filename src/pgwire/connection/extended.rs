@@ -337,15 +337,7 @@ async fn handle_bind(
     }
     validate_format_count(parameter_formats.len(), parameters.len(), "parameter")?;
 
-    let vector_oid = session
-        .current_database()
-        .unwrap_or(&cassie.default_database);
-    let vector_oid = crate::catalog::object_identity::type_oid_for_database(
-        &cassie.catalog,
-        vector_oid,
-        &crate::types::DataType::Vector(None),
-    )
-    .and_then(|oid| i32::try_from(oid).ok());
+    let vector_oid = session_vector_oid(&cassie, session);
     let (values, parameter_memory) = decode_bind_parameters_with_vector_oid(
         &parameters,
         &parameter_formats,
@@ -391,6 +383,18 @@ async fn handle_bind(
 
     let _ = write_bind_complete(write_half).await;
     Ok(())
+}
+
+fn session_vector_oid(cassie: &Cassie, session: &CassieSession) -> Option<i32> {
+    let database = session
+        .current_database()
+        .unwrap_or(&cassie.default_database);
+    crate::catalog::object_identity::type_oid_for_database(
+        &cassie.catalog,
+        database,
+        &crate::types::DataType::Vector(None),
+    )
+    .and_then(|oid| i32::try_from(oid).ok())
 }
 
 fn decode_bind_parameters_with_vector_oid(

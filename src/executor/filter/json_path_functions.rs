@@ -75,26 +75,39 @@ fn path_function_classified(
     };
     path_function_borrowed(
         kind,
-        &args[0],
-        &args[1],
-        args.get(2),
-        args.get(3),
+        &PathFunctionInputs {
+            document: &args[0],
+            path: &args[1],
+            variables: args.get(2),
+            silent: args.get(3),
+        },
         silent,
         controls,
         owner,
     )
 }
 
+/// The SQL argument values supplied to one JSONPATH function call.
+struct PathFunctionInputs<'a> {
+    document: &'a Value,
+    path: &'a Value,
+    variables: Option<&'a Value>,
+    silent: Option<&'a Value>,
+}
+
 fn path_function_borrowed(
     kind: JsonFunction,
-    document_value: &Value,
-    path_value: &Value,
-    variables_value: Option<&Value>,
-    silent_value: Option<&Value>,
+    inputs: &PathFunctionInputs<'_>,
     silent: bool,
     controls: Option<&QueryExecutionControls>,
     owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, PathFunctionError> {
+    let &PathFunctionInputs {
+        document: document_value,
+        path: path_value,
+        variables: variables_value,
+        silent: silent_value,
+    } = inputs;
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
@@ -187,10 +200,12 @@ fn sql_json_exists(
         .ok_or_else(|| CassieError::InvalidParameterValue("missing ON ERROR policy".into()))?;
     match path_function_borrowed(
         JsonFunction::PathExists,
-        document,
-        path,
-        None,
-        None,
+        &PathFunctionInputs {
+            document,
+            path,
+            variables: None,
+            silent: None,
+        },
         false,
         controls,
         None,

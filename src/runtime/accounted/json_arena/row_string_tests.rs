@@ -25,9 +25,8 @@ fn should_match_slice_read_double_error_precedence_and_position() {
     for input in inputs {
         let expected = serde_json::from_slice::<String>(input).expect_err("legacy error");
         let mut cursor = Cursor::from_row_bytes(input, &controls);
-        let actual = match cursor.read_row_string_observing(|| {}) {
-            Ok(_) => panic!("accepted malformed string"),
-            Err(error) => error,
+        let Err(actual) = cursor.read_row_string_observing(|| {}) else {
+            panic!("accepted malformed string");
         };
         let (category, position) = actual.test_info().expect("semantic error");
         assert_eq!(category, expected.classify(), "{input:?}");
@@ -76,9 +75,8 @@ fn should_match_invalid_key_position_after_newlines_and_escapes() {
         let _consumed = cursor.next().expect("advance");
     }
     // Act
-    let actual = match cursor.read_row_string_observing(|| {}) {
-        Ok(_) => panic!("accepted invalid key"),
-        Err(error) => error,
+    let Err(actual) = cursor.read_row_string_observing(|| {}) else {
+        panic!("accepted invalid key");
     };
     // Assert
     let (category, position) = actual.test_info().expect("semantic error");

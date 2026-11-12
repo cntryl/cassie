@@ -412,53 +412,62 @@ impl super::Cassie {
             }
         }
         for clause in &merge.clauses {
-            if let Some(condition) = &clause.condition {
-                self.authorize_expression(session, context, condition)?;
-            }
-            match &clause.action {
-                crate::sql::ast::MergeAction::Update {
-                    assignments,
-                    row_subqueries,
-                } => {
-                    for (field, expression) in assignments {
-                        self.reject_sequence_default_assignment(
-                            context, &target, field, expression,
-                        )?;
-                        self.authorize_expression(session, context, expression)?;
-                    }
-                    for row_subquery in row_subqueries {
-                        self.authorize_non_admin_statement(
-                            session,
-                            context,
-                            &row_subquery.query.statement,
-                        )?;
-                    }
-                }
-                crate::sql::ast::MergeAction::Insert {
-                    columns,
-                    values,
-                    overriding,
-                } => {
-                    self.reject_implicit_sequence_defaults(
-                        context,
-                        &target,
-                        columns,
-                        |index| {
-                            values.as_ref().is_some_and(|row| {
-                                row.get(index).is_some_and(Expr::is_default_assignment)
-                            })
-                        },
-                        values.as_ref().is_none_or(Vec::is_empty),
-                        *overriding == Some(crate::sql::ast::InsertOverriding::User),
-                    )?;
-                    for expression in values.iter().flatten() {
-                        self.authorize_expression(session, context, expression)?;
-                    }
-                }
-                crate::sql::ast::MergeAction::Delete | crate::sql::ast::MergeAction::DoNothing => {}
-            }
+            self.authorize_merge_clause(session, context, &target, clause)?;
         }
         self.authorize_returning(session, context, &merge.returning)
+    }
+
+    fn authorize_merge_clause(
+        &self,
+        session: &CassieSession,
+        context: &crate::sql::binder::BindingContext,
+        target: &str,
+        clause: &crate::sql::ast::MergeClause,
+    ) -> Result<(), CassieError> {
+        if let Some(condition) = &clause.condition {
+            self.authorize_expression(session, context, condition)?;
+        }
+        match &clause.action {
+            crate::sql::ast::MergeAction::Update {
+                assignments,
+                row_subqueries,
+            } => {
+                for (field, expression) in assignments {
+                    self.reject_sequence_default_assignment(context, target, field, expression)?;
+                    self.authorize_expression(session, context, expression)?;
+                }
+                for row_subquery in row_subqueries {
+                    self.authorize_non_admin_statement(
+                        session,
+                        context,
+                        &row_subquery.query.statement,
+                    )?;
+                }
+            }
+            crate::sql::ast::MergeAction::Insert {
+                columns,
+                values,
+                overriding,
+            } => {
+                self.reject_implicit_sequence_defaults(
+                    context,
+                    target,
+                    columns,
+                    |index| {
+                        values.as_ref().is_some_and(|row| {
+                            row.get(index).is_some_and(Expr::is_default_assignment)
+                        })
+                    },
+                    values.as_ref().is_none_or(Vec::is_empty),
+                    *overriding == Some(crate::sql::ast::InsertOverriding::User),
+                )?;
+                for expression in values.iter().flatten() {
+                    self.authorize_expression(session, context, expression)?;
+                }
+            }
+            crate::sql::ast::MergeAction::Delete | crate::sql::ast::MergeAction::DoNothing => {}
+        }
+        Ok(())
     }
 
     fn authorize_select(

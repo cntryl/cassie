@@ -14,7 +14,7 @@ use self::tzif::{RawLocalTimeType, RawTzif};
 pub enum Zone {
     /// A fixed displacement, in seconds east of UTC.
     Fixed { east: i32, name: String },
-    /// An IANA, raw TZif or POSIX zone with its source retained.
+    /// An IANA, raw `TZif` or POSIX zone with its source retained.
     Rules { tz: RuleZone, name: String },
 }
 
@@ -55,7 +55,10 @@ struct PosixType {
 
 impl RuleZone {
     /// Returns the fixed offset when these rules contain no transitions.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the rules are not a single fixed offset.
     pub fn to_fixed_offset(&self) -> Result<jiff::tz::Offset, jiff::Error> {
         self.time_zone.to_fixed_offset()
     }
@@ -118,10 +121,13 @@ impl Zone {
         Self::special(TimeZone::UTC, "UTC")
     }
 
-    /// Constructs a zone from the exact TZif bytes supplied by the caller.
+    /// Constructs a zone from the exact `TZif` bytes supplied by the caller.
     /// The bytes, raw local-time types and Jiff zone stay coupled for the
     /// lifetime of the returned value.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns a description of the failure when the bytes are not valid `TZif` data.
     pub fn from_tzif(name: impl Into<String>, bytes: &[u8]) -> Result<Self, String> {
         let name = name.into();
         let bytes: Arc<[u8]> = Arc::from(bytes);
@@ -136,7 +142,7 @@ impl Zone {
         })
     }
 
-    /// Constructs a named IANA zone only from the pinned bundled TZif source.
+    /// Constructs a named IANA zone only from the pinned bundled `TZif` source.
     #[must_use]
     pub fn from_bundled_iana(name: &str) -> Option<Self> {
         let (canonical_name, bytes) = jiff_tzdb::get(name)?;
@@ -145,7 +151,10 @@ impl Zone {
 
     /// Constructs a zone from a POSIX rule while retaining the exact rule and
     /// the explicitly declared standard/daylight abbreviations.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns a description of the failure when the rule is not a valid POSIX time-zone rule.
     pub fn from_posix(rule: &str) -> Result<Self, String> {
         let time_zone = TimeZone::posix(rule).map_err(|error| error.to_string())?;
         let source = parse_posix_rule(rule)?;

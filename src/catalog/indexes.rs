@@ -290,7 +290,7 @@ impl IndexMeta {
     ) -> Result<(), crate::app::CassieError> {
         if identity == 0
             || self.storage_id() != Some(identity)
-            || !self.relation_id().is_some_and(|id| id != 0)
+            || self.relation_id().is_none_or(|id| id == 0)
         {
             return Err(crate::app::CassieError::Parse(
                 "invalid unique index reservation generation".into(),

@@ -110,37 +110,23 @@ pub(super) fn execute_plan(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    execute_plan_with_parameter_oids(
-        cassie,
-        session,
-        plan,
-        cte_context,
-        user_functions,
-        params,
-        &[],
-        controls,
-    )
-}
-
-pub(super) fn execute_plan_with_parameter_oids(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    plan: &LogicalPlan,
-    cte_context: &mut CteContext,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    parameter_type_oids: &[i32],
-    controls: &QueryExecutionControls,
-) -> Result<Vec<BatchRow>, QueryError> {
     let env = plan_execution_env_with_parameter_oids(
         cassie,
         session,
         user_functions,
         params,
-        parameter_type_oids,
+        &[],
         controls,
     );
-    execute_plan_with_outer_row(&env, plan, cte_context, None)
+    execute_plan_with_parameter_oids(&env, plan, cte_context)
+}
+
+pub(super) fn execute_plan_with_parameter_oids(
+    env: &PlanExecutionEnv<'_>,
+    plan: &LogicalPlan,
+    cte_context: &mut CteContext,
+) -> Result<Vec<BatchRow>, QueryError> {
+    execute_plan_with_outer_row(env, plan, cte_context, None)
 }
 
 #[cfg(test)]
@@ -153,37 +139,23 @@ pub(super) fn execute_physical_plan(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<super::owned_rows::OwnedRows, QueryError> {
-    execute_physical_plan_with_parameter_oids(
-        cassie,
-        session,
-        physical,
-        cte_context,
-        user_functions,
-        params,
-        &[],
-        controls,
-    )
-}
-
-pub(super) fn execute_physical_plan_with_parameter_oids(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    physical: &PhysicalPlan,
-    cte_context: &mut CteContext,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    parameter_type_oids: &[i32],
-    controls: &QueryExecutionControls,
-) -> Result<super::owned_rows::OwnedRows, QueryError> {
     let env = plan_execution_env_with_parameter_oids(
         cassie,
         session,
         user_functions,
         params,
-        parameter_type_oids,
+        &[],
         controls,
     );
-    execute_plan_with_physical(&env, Some(physical), &physical.logical, cte_context, None)
+    execute_physical_plan_with_parameter_oids(&env, physical, cte_context)
+}
+
+pub(super) fn execute_physical_plan_with_parameter_oids(
+    env: &PlanExecutionEnv<'_>,
+    physical: &PhysicalPlan,
+    cte_context: &mut CteContext,
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
+    execute_plan_with_physical(env, Some(physical), &physical.logical, cte_context, None)
 }
 
 pub(super) fn plan_execution_env_with_parameter_oids<'a>(
@@ -262,16 +234,11 @@ fn execute_plan_with_physical(
         if !live_ctes.contains(index) {
             continue;
         }
-        let rows = execute_cte(
-            env.cassie,
-            env.session,
-            cte,
-            cte_context,
-            env.user_functions,
-            env.params,
-            env.parameter_type_oids,
-            &cte_controls,
-        )?;
+        let cte_env = PlanExecutionEnv {
+            controls: &cte_controls,
+            ..*env
+        };
+        let rows = execute_cte(&cte_env, cte, cte_context)?;
         let _name_memory = cte_controls.reserve_query_memory(cte.name.len())?;
         cte_context.insert(&cte.name.to_ascii_lowercase(), rows, &cte_controls)?;
     }
@@ -449,14 +416,9 @@ fn scored_search_path(context: &mut AccessPathContext<'_>) -> AccessPathResult {
 
 fn analytical_projection_path(context: &mut AccessPathContext<'_>) -> AccessPathResult {
     analytical_projection::try_execute_analytical_projection(
-        context.env.cassie,
-        context.env.session,
+        context.env,
         context.plan,
         context.cte_context,
-        context.env.user_functions,
-        context.env.params,
-        context.env.parameter_type_oids,
-        context.env.controls,
     )
 }
 

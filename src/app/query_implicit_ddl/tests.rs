@@ -141,7 +141,7 @@ fn should_publish_implicit_like_table_with_its_identity_and_index_before_returni
         cassie.catalog.list_indexes("like_publication_target").len(),
         1
     );
-    assert!(visible_rows.rows().is_empty());
+    assert_eq!(visible_rows.rows().len(), 0);
     assert_eq!(inserted.rows(), &[vec![Value::Int64(5)]]);
 }
 

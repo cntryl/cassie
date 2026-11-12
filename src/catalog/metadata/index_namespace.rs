@@ -83,6 +83,24 @@ fn equal(
     Ok(true)
 }
 
+/// Reports whether a candidate relation name matches the target exactly, or
+/// only after ASCII case folding.
+fn name_match(
+    candidate: (&str, &str, &str),
+    target: (&str, &str, &str),
+    controls: Option<&QueryExecutionControls>,
+) -> Result<(bool, bool), CassieError> {
+    let matches = |fold| -> Result<bool, CassieError> {
+        Ok(equal(candidate.0, target.0, fold, controls)?
+            && equal(candidate.1, target.1, fold, controls)?
+            && equal(candidate.2, target.2, fold, controls)?)
+    };
+    if matches(false)? {
+        return Ok((true, false));
+    }
+    Ok((false, matches(true)?))
+}
+
 fn read<'a, T>(
     lock: &'a parking_lot::RwLock<T>,
     controls: Option<&QueryExecutionControls>,
@@ -130,21 +148,11 @@ impl Catalog {
         let (target_database, target_schema, target_name) = target.components(database);
         let mut exact = false;
         let mut ambiguous = false;
-        let mut record = |candidate_database: &str,
-                          candidate_schema: &str,
-                          candidate_name: &str|
-         -> Result<(), CassieError> {
-            if equal(candidate_database, target_database, false, controls)?
-                && equal(candidate_schema, target_schema, false, controls)?
-                && equal(candidate_name, target_name, false, controls)?
-            {
-                exact = true;
-            } else if equal(candidate_database, target_database, true, controls)?
-                && equal(candidate_schema, target_schema, true, controls)?
-                && equal(candidate_name, target_name, true, controls)?
-            {
-                ambiguous = true;
-            }
+        let target_parts = (target_database, target_schema, target_name);
+        let mut record = |db: &str, schema: &str, name: &str| -> Result<(), CassieError> {
+            let (is_exact, is_folded) = name_match((db, schema, name), target_parts, controls)?;
+            exact |= is_exact;
+            ambiguous |= is_folded;
             Ok(())
         };
         // Copy only names under their own guards, then examine projections with no
@@ -194,35 +202,9 @@ impl Catalog {
         for index in &indexes.values {
             let projection =
                 projection_for_output(projections.values(), &index.collection, controls)?;
-            let owner_name = if let Some(projection) = projection {
-                if projection.materialized.as_ref().is_some_and(
-                    crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
-                ) {
-                    let mut active = None;
-                    for version in &projection.versions {
-                        if let Some(controls) = controls {
-                            controls.check_interruption()?;
-                        }
-                        if let Some(id) = projection.active_version.as_ref() {
-                            if equal(id, &version.version_id, false, controls)? {
-                                active = Some(version.output_collection.as_str());
-                                break;
-                            }
-                        }
-                    }
-                    if let Some(active) = active {
-                        if !equal(active, &index.collection, false, controls)? {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-                    projection.collection.as_str()
-                } else {
-                    index.collection.as_str()
-                }
-            } else {
-                index.collection.as_str()
+            let Some(owner_name) = index_owner_name(projection, &index.collection, controls)?
+            else {
+                continue;
             };
             let owner = Parts::parse(owner_name, controls)?;
             let index_name = Parts::parse(&index.name, controls)?;
@@ -259,6 +241,43 @@ impl Catalog {
             ));
         }
         Ok(false)
+    }
+}
+
+/// Resolves the relation that owns an index name, or `None` when the index
+/// belongs to an inactive materialized-view version.
+fn index_owner_name<'a>(
+    projection: Option<&'a crate::catalog::ProjectionMeta>,
+    index_collection: &'a str,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Option<&'a str>, CassieError> {
+    let Some(projection) = projection else {
+        return Ok(Some(index_collection));
+    };
+    if !projection
+        .materialized
+        .as_ref()
+        .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+    {
+        return Ok(Some(index_collection));
+    }
+    let mut active = None;
+    for version in &projection.versions {
+        if let Some(controls) = controls {
+            controls.check_interruption()?;
+        }
+        if let Some(id) = projection.active_version.as_ref() {
+            if equal(id, &version.version_id, false, controls)? {
+                active = Some(version.output_collection.as_str());
+                break;
+            }
+        }
+    }
+    match active {
+        Some(active) if equal(active, index_collection, false, controls)? => {
+            Ok(Some(projection.collection.as_str()))
+        }
+        _ => Ok(None),
     }
 }
 

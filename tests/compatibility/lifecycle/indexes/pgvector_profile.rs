@@ -1,5 +1,8 @@
 use super::*;
 
+const VECTOR_METHOD_COUNT_SQL: &str =
+    "SELECT count(*) FROM pg_catalog.pg_am WHERE amname IN ('hnsw', 'ivfflat')";
+
 #[test]
 fn should_bind_pgvector_methods_and_return_operator_ordered_vector_rows() {
     // Arrange
@@ -49,17 +52,16 @@ fn should_bind_pgvector_methods_and_return_operator_ordered_vector_rows() {
             )
             .await
             .expect("use pgvector negative inner product");
-        client
-            .batch_execute("DROP INDEX pgvector_hnsw_rows_idx")
-            .await
-            .expect("drop the HNSW method before creating the IVFFlat method");
-        client
-            .batch_execute(
+        execute_statements(
+            &client,
+            &[
+                "DROP INDEX pgvector_hnsw_rows_idx",
                 "CREATE INDEX pgvector_ivfflat_rows_idx ON pgvector_hnsw_rows \
                  USING ivfflat (embedding vector_ip_ops) WITH (lists = 1)",
-            )
-            .await
-            .expect("create an IVFFlat index with the inner-product operator class");
+            ],
+        )
+        .await
+        .expect("replace the HNSW method with an inner-product IVFFlat index");
         let ivfflat_rows = client
             .query(
                 "SELECT id FROM pgvector_hnsw_rows \
@@ -68,17 +70,16 @@ fn should_bind_pgvector_methods_and_return_operator_ordered_vector_rows() {
             )
             .await
             .expect("use IVFFlat inner-product ordering");
-        client
-            .batch_execute("DROP INDEX pgvector_ivfflat_rows_idx")
-            .await
-            .expect("drop the explicit IVFFlat opclass before exercising its default");
-        client
-            .batch_execute(
+        execute_statements(
+            &client,
+            &[
+                "DROP INDEX pgvector_ivfflat_rows_idx",
                 "CREATE INDEX pgvector_ivfflat_default_rows_idx \
                  ON pgvector_hnsw_rows USING ivfflat (embedding) WITH (lists = 1)",
-            )
-            .await
-            .expect("use pgvector's default IVFFlat L2 operator class");
+            ],
+        )
+        .await
+        .expect("replace the explicit IVFFlat opclass with pgvector's default L2 class");
         let default_index_definition: String = client
             .query_one(
                 "SELECT indexdef FROM pg_catalog.pg_indexes \
@@ -94,23 +95,12 @@ fn should_bind_pgvector_methods_and_return_operator_ordered_vector_rows() {
             access_method, "hnsw",
             "pg_class relam resolves to the installed HNSW method"
         );
-        assert_eq!(
-            rows.iter()
-                .map(|row| row.get::<_, i32>(0))
-                .collect::<Vec<_>>(),
-            vec![1, 2, 3]
-        );
+        assert_eq!(row_ids(&rows), vec![1, 2, 3]);
         assert_eq!(rows[0].get::<_, f64>(1), 0.0);
         assert!((rows[1].get::<_, f64>(1) - 2.0_f64.sqrt()).abs() < 1e-12);
         assert_eq!(rows[2].get::<_, f64>(1), 2.0);
         assert_eq!(negative_inner_product.get::<_, f64>(0), -1.0);
-        assert_eq!(
-            ivfflat_rows
-                .iter()
-                .map(|row| row.get::<_, i32>(0))
-                .collect::<Vec<_>>(),
-            vec![1, 2, 3]
-        );
+        assert_eq!(row_ids(&ivfflat_rows), vec![1, 2, 3]);
         assert!(default_index_definition.contains("vector_l2_ops"));
 
         drop(client);
@@ -349,40 +339,31 @@ fn should_preserve_vector_dependents_when_extension_drop_is_rejected() {
             .batch_execute("DROP EXTENSION vector CASCADE")
             .await
             .expect_err("unsupported vector CASCADE must fail before changing dependent objects");
-        let access_methods: i64 = client
-            .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_am \
-                 WHERE amname IN ('hnsw', 'ivfflat')",
-                &[],
-            )
-            .await
-            .expect("inspect vector methods after rejected extension drops")
-            .get(0);
-        let indexes: i64 = client
-            .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_indexes \
+        let access_methods = query_i64(
+            &client,
+            VECTOR_METHOD_COUNT_SQL,
+            "inspect vector methods after rejected extension drops",
+        )
+        .await;
+        let indexes = query_i64(
+            &client,
+            "SELECT count(*) FROM pg_catalog.pg_indexes \
                  WHERE indexname = 'pgvector_drop_dependencies_idx'",
-                &[],
-            )
-            .await
-            .expect("inspect the retained dependent index")
-            .get(0);
-        let extension_count: i64 = client
-            .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_extension WHERE extname = 'vector'",
-                &[],
-            )
-            .await
-            .expect("inspect the retained vector extension")
-            .get(0);
-        let vector_type_count: i64 = client
-            .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_type WHERE typname = 'vector'",
-                &[],
-            )
-            .await
-            .expect("inspect the retained vector type")
-            .get(0);
+            "inspect the retained dependent index",
+        )
+        .await;
+        let extension_count = query_i64(
+            &client,
+            "SELECT count(*) FROM pg_catalog.pg_extension WHERE extname = 'vector'",
+            "inspect the retained vector extension",
+        )
+        .await;
+        let vector_type_count = query_i64(
+            &client,
+            "SELECT count(*) FROM pg_catalog.pg_type WHERE typname = 'vector'",
+            "inspect the retained vector type",
+        )
+        .await;
         let retained_distance: f64 = client
             .query_one("SELECT distance FROM pgvector_drop_cascade_view", &[])
             .await
@@ -483,11 +464,7 @@ fn should_track_vector_operator_dependencies_for_stored_views() {
             .expect("check that the dependent view was removed")
             .get(0);
         let remaining_methods: i64 = client
-            .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_am \
-                 WHERE amname IN ('hnsw', 'ivfflat')",
-                &[],
-            )
+            .query_one(VECTOR_METHOD_COUNT_SQL, &[])
             .await
             .expect("check that vector identities were removed")
             .get(0);
@@ -733,15 +710,12 @@ fn should_publish_only_installed_vector_access_methods_and_operator_classes() {
     runtime.block_on(async {
         let server = CompatibilityServer::start("pgvector_catalog_rows").await;
         let (client, connection) = server.connect().await;
-        let absent_methods: i64 = client
-            .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_am \
-                 WHERE amname IN ('hnsw', 'ivfflat')",
-                &[],
-            )
-            .await
-            .expect("inspect methods before vector installation")
-            .get(0);
+        let absent_methods = query_i64(
+            &client,
+            VECTOR_METHOD_COUNT_SQL,
+            "inspect methods before vector installation",
+        )
+        .await;
         client
             .batch_execute("CREATE EXTENSION vector VERSION '0.8.7'")
             .await
@@ -826,15 +800,12 @@ fn should_publish_only_installed_vector_access_methods_and_operator_classes() {
             .batch_execute("DROP EXTENSION vector")
             .await
             .expect("remove vector-owned identities");
-        let removed_methods: i64 = client
-            .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_am \
-                 WHERE amname IN ('hnsw', 'ivfflat')",
-                &[],
-            )
-            .await
-            .expect("check vector methods after extension removal")
-            .get(0);
+        let removed_methods = query_i64(
+            &client,
+            VECTOR_METHOD_COUNT_SQL,
+            "check vector methods after extension removal",
+        )
+        .await;
         assert_eq!(removed_methods, 0);
 
         drop(client);
@@ -884,4 +855,12 @@ fn should_reject_ann_indexes_above_the_pgvector_vector_dimension_limit() {
         drop(client);
         server.shutdown(connection).await;
     });
+}
+
+async fn query_i64(client: &tokio_postgres::Client, sql: &str, context: &str) -> i64 {
+    client.query_one(sql, &[]).await.expect(context).get(0)
+}
+
+fn row_ids(rows: &[tokio_postgres::Row]) -> Vec<i32> {
+    rows.iter().map(|row| row.get::<_, i32>(0)).collect()
 }

@@ -391,31 +391,14 @@ fn should_reject_other_non_admin_writes_that_consume_sequence_defaults() {
         .expect("sequence metadata");
 
     // Act
-    let default_cell = cassie.execute_sql(
-        &writer,
+    let denied_writes = [
         "INSERT INTO public.sequence_default_write_paths (id, body) VALUES (DEFAULT, 'denied')",
-        Vec::new(),
-    );
-    let overriding_user = cassie.execute_sql(
-        &writer,
         "INSERT INTO public.sequence_default_write_paths (id, body) OVERRIDING USER VALUE VALUES (10, 'denied')",
-        Vec::new(),
-    );
-    let update_default = cassie.execute_sql(
-        &writer,
         "UPDATE public.sequence_default_write_paths SET id = DEFAULT",
-        Vec::new(),
-    );
-    let merge_default = cassie.execute_sql(
-        &writer,
         "MERGE INTO public.sequence_default_write_paths AS target USING (VALUES (11, 'merge')) AS source(id, body) ON target.id = source.id WHEN NOT MATCHED THEN INSERT (body) VALUES (source.body)",
-        Vec::new(),
-    );
-    let copy_omitted_default = cassie.execute_sql(
-        &writer,
         "COPY public.sequence_default_write_paths (body) FROM STDIN",
-        Vec::new(),
-    );
+    ]
+    .map(|sql| cassie.execute_sql(&writer, sql, Vec::new()));
     let rows = cassie
         .execute_sql(
             &root,
@@ -430,13 +413,7 @@ fn should_reject_other_non_admin_writes_that_consume_sequence_defaults() {
         .expect("sequence metadata");
 
     // Assert
-    for result in [
-        default_cell,
-        overriding_user,
-        update_default,
-        merge_default,
-        copy_omitted_default,
-    ] {
+    for result in denied_writes {
         assert!(matches!(result, Err(CassieError::InsufficientPrivilege)));
     }
     assert_eq!(rows.rows(), vec![vec![Value::Int64(9)]]);

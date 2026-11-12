@@ -269,6 +269,15 @@ pub fn parse_nextval_default_expression(raw: &str) -> Option<String> {
     None
 }
 
+fn is_identifier(raw: &str) -> bool {
+    let mut chars = raw.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
 #[cfg(test)]
 mod tests {
     use super::SequenceMeta;
@@ -324,13 +333,4 @@ mod tests {
         assert_eq!(current.current_value, 1);
         assert!(!current.is_called);
     }
-}
-
-fn is_identifier(raw: &str) -> bool {
-    let mut chars = raw.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    (first.is_ascii_alphabetic() || first == '_')
-        && chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
 }

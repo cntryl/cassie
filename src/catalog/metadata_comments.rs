@@ -14,6 +14,7 @@ impl Catalog {
         self.bump_version();
     }
 
+    #[must_use]
     pub fn object_comment(
         &self,
         database: &str,
@@ -33,6 +34,7 @@ impl Catalog {
             .map(|metadata| metadata.description.clone())
     }
 
+    #[must_use]
     pub fn object_comment_by_oid(&self, database: &str, object_oid: u32) -> Option<String> {
         let database = database.to_ascii_lowercase();
         let comments = self.object_comments.read();

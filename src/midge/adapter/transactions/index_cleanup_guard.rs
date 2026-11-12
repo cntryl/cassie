@@ -45,47 +45,25 @@ impl<'a> IndexCleanupCommitGuard<'a> {
     ) -> Result<Self, CassieError> {
         let index_prefix = super::super::key_encoding::index_prefix();
         let cleanup_prefix = super::super::key_encoding::schema_cleanup_prefix();
-        let mut index_count = 0_usize;
-        let mut marker_count = 0_usize;
-        let mut source_count = 0_usize;
-        for (key, change) in &overlay.changes {
-            controls.check_interruption()?;
-            if key.starts_with(&index_prefix) {
-                index_count += 1;
-                if change.value.is_none()
-                    && matches!(&change.expected, ExpectedStorageValue::Missing)
-                {
-                    source_count += 1;
-                }
-            }
-            if change.value.is_some() && key.starts_with(&cleanup_prefix) {
-                marker_count += 1;
-            }
-        }
+        let (index_count, marker_count, source_count) =
+            count_staged_targets(overlay, &index_prefix, &cleanup_prefix, controls)?;
         let root = controls.reserve_query_memory(0)?;
-        let marker_zero = root.try_sibling(0)?;
-        let source_zero = root.try_sibling(0)?;
         let (indexes, index_memory) = try_reserve_vec(index_count, &root)?;
+        let (markers, marker_memory) = try_reserve_vec(marker_count, &root)?;
+        let (sources, source_memory) = try_reserve_vec(source_count, &root)?;
         let mut plan = Self {
             indexes,
-            markers: Vec::new(),
-            sources: Vec::new(),
+            markers,
+            sources,
             _index_memory: index_memory,
-            _marker_memory: marker_zero,
-            _source_memory: source_zero,
+            _marker_memory: marker_memory,
+            _source_memory: source_memory,
         };
-        let (markers, marker_memory) = try_reserve_vec(marker_count, &root)?;
-        plan.markers = markers;
-        plan._marker_memory = marker_memory;
-        let (sources, source_memory) = try_reserve_vec(source_count, &root)?;
-        plan.sources = sources;
-        plan._source_memory = source_memory;
         for (key, change) in &overlay.changes {
             controls.check_interruption()?;
             if key.starts_with(&index_prefix) {
                 let raw = match (&change.value, &change.expected) {
-                    (Some(raw), _) => raw,
-                    (None, ExpectedStorageValue::Present(raw)) => raw,
+                    (Some(raw), _) | (None, ExpectedStorageValue::Present(raw)) => raw,
                     (None, ExpectedStorageValue::Missing) => continue,
                     (None, _) => {
                         return Err(CassieError::Unsupported(
@@ -139,46 +117,8 @@ impl<'a> IndexCleanupCommitGuard<'a> {
             {
                 continue;
             }
-            let mut found: Option<(&str, &[u8])> = None;
-            for entry in &plan.indexes {
-                controls.check_interruption()?;
-                let collection = entry.metadata.value.collection.as_str();
-                let prefix = Midge::index_collection_prefix(collection);
-                if let Some(suffix) = key.strip_prefix(prefix.as_slice()) {
-                    if found.is_some_and(|(old, _)| old != collection) {
-                        return Err(CassieError::Unsupported(
-                            "staged index source collection is ambiguous".to_owned(),
-                        ));
-                    }
-                    found = Some((collection, suffix));
-                }
-            }
-            let (collection, suffix) = found.ok_or_else(|| {
-                CassieError::Unsupported(
-                    "staged index source has no retained collection witness".to_owned(),
-                )
-            })?;
-            controls.check_interruption()?;
-            let name = std::str::from_utf8(suffix).map_err(|_| {
-                CassieError::Unsupported("staged index source name is not UTF-8".to_owned())
-            })?;
-            if name.is_empty() || suffix.contains(&0) || Midge::index_key(collection, name) != *key
-            {
-                return Err(CassieError::Unsupported(
-                    "staged index source key is ambiguous".to_owned(),
-                ));
-            }
-            let bytes = collection.len().checked_add(name.len()).ok_or_else(|| {
-                CassieError::ResourceLimit("staged index source size overflow".to_owned())
-            })?;
-            let memory = controls.reserve_query_memory(bytes)?;
-            let collection_copy = copy_name(collection, controls)?;
-            let name_copy = copy_name(name, controls)?;
-            plan.sources.push(MissingIndexSource {
-                collection: collection_copy,
-                name: name_copy,
-                _memory: memory,
-            });
+            let source = missing_index_source(&plan.indexes, key, controls)?;
+            plan.sources.push(source);
         }
         Ok(plan)
     }
@@ -346,4 +286,76 @@ fn copy_name(name: &str, controls: &QueryExecutionControls) -> Result<String, Ca
         offset = end;
     }
     Ok(output)
+}
+
+/// Counts staged index rows, index cleanup markers, and missing index sources.
+fn count_staged_targets(
+    overlay: &StorageOverlay,
+    index_prefix: &[u8],
+    cleanup_prefix: &[u8],
+    controls: &QueryExecutionControls,
+) -> Result<(usize, usize, usize), CassieError> {
+    let mut index_count = 0_usize;
+    let mut marker_count = 0_usize;
+    let mut source_count = 0_usize;
+    for (key, change) in &overlay.changes {
+        controls.check_interruption()?;
+        if key.starts_with(index_prefix) {
+            index_count += 1;
+            if change.value.is_none() && matches!(&change.expected, ExpectedStorageValue::Missing) {
+                source_count += 1;
+            }
+        }
+        if change.value.is_some() && key.starts_with(cleanup_prefix) {
+            marker_count += 1;
+        }
+    }
+    Ok((index_count, marker_count, source_count))
+}
+
+/// Resolves the retained collection witness for a staged index-source deletion.
+fn missing_index_source(
+    indexes: &[IndexEntry<'_>],
+    key: &[u8],
+    controls: &QueryExecutionControls,
+) -> Result<MissingIndexSource, CassieError> {
+    let mut found: Option<(&str, &[u8])> = None;
+    for entry in indexes {
+        controls.check_interruption()?;
+        let collection = entry.metadata.value.collection.as_str();
+        let prefix = Midge::index_collection_prefix(collection);
+        if let Some(suffix) = key.strip_prefix(prefix.as_slice()) {
+            if found.is_some_and(|(old, _)| old != collection) {
+                return Err(CassieError::Unsupported(
+                    "staged index source collection is ambiguous".to_owned(),
+                ));
+            }
+            found = Some((collection, suffix));
+        }
+    }
+    let (collection, suffix) = found.ok_or_else(|| {
+        CassieError::Unsupported(
+            "staged index source has no retained collection witness".to_owned(),
+        )
+    })?;
+    controls.check_interruption()?;
+    let name = std::str::from_utf8(suffix).map_err(|_| {
+        CassieError::Unsupported("staged index source name is not UTF-8".to_owned())
+    })?;
+    if name.is_empty() || suffix.contains(&0) || Midge::index_key(collection, name) != key {
+        return Err(CassieError::Unsupported(
+            "staged index source key is ambiguous".to_owned(),
+        ));
+    }
+    let bytes = collection.len().checked_add(name.len()).ok_or_else(|| {
+        CassieError::ResourceLimit("staged index source size overflow".to_owned())
+    })?;
+    let memory = controls.reserve_query_memory(bytes)?;
+    let collection_copy = copy_name(collection, controls)?;
+    let name_copy = copy_name(name, controls)?;
+    Ok(MissingIndexSource {
+        collection: collection_copy,
+        name: name_copy,
+        _memory: memory,
+    })
 }

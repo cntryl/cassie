@@ -57,7 +57,7 @@ fn should_fail_closed_when_the_catalog_contains_an_unparseable_relation_name() {
         .expect_err("malformed metadata must not be skipped");
 
     // Assert
-    assert!(!error.to_string().is_empty());
+    assert_ne!(error.to_string(), "");
 }
 
 #[test]
@@ -219,9 +219,10 @@ fn should_preserve_unquoted_lookup_for_an_existing_mixed_case_index() {
         .expect("existing unquoted case-folded lookup");
 
     // Assert
-    assert!(fixture
-        .rows("SELECT indexname FROM pg_indexes WHERE tablename = 'indexed_rows'")
-        .is_empty());
+    assert_eq!(
+        fixture.rows("SELECT indexname FROM pg_indexes WHERE tablename = 'indexed_rows'"),
+        [] as [std::vec::Vec<cassie::types::Value>; 0]
+    );
 }
 
 #[test]

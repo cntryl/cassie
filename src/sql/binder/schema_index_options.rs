@@ -4,16 +4,22 @@ use crate::sql::ast::{CreateIndexStatement, IdentifierPath};
 use crate::types::DataType;
 use crate::vector::index_options::normalize_vector_index_options;
 
+/// The catalog and name-resolution scope a `CREATE INDEX` binds within.
+pub(super) struct IndexBindingScope<'a> {
+    pub(super) catalog: &'a Catalog,
+    pub(super) database: &'a str,
+    pub(super) search_path: &'a [String],
+}
+
 pub(super) fn bind_vector_index_options(
     statement: &mut CreateIndexStatement,
-    catalog: &Catalog,
+    scope: &IndexBindingScope<'_>,
     schema: &CollectionSchema,
-    database: &str,
-    search_path: &[String],
     table: &str,
     name: &str,
     fields: &[String],
 ) -> Result<(), CassieError> {
+    let catalog = scope.catalog;
     let field = &fields[0];
     validate_vector_index_field(catalog, schema, table, name, field)?;
     let access_method = statement
@@ -21,16 +27,7 @@ pub(super) fn bind_vector_index_options(
         .get(crate::catalog::IndexMeta::ACCESS_METHOD_OPTION)
         .map_or_else(|| "vector".to_owned(), Clone::clone);
     if matches!(access_method.as_str(), "hnsw" | "ivfflat") {
-        return bind_pgvector_index_options(
-            statement,
-            catalog,
-            schema,
-            database,
-            search_path,
-            name,
-            field,
-            &access_method,
-        );
+        return bind_pgvector_index_options(statement, scope, schema, name, field, &access_method);
     }
     if access_method != "vector" {
         return Err(CassieError::Planner(format!(
@@ -53,17 +50,19 @@ pub(super) fn bind_vector_index_options(
 
 fn bind_pgvector_index_options(
     statement: &mut CreateIndexStatement,
-    catalog: &Catalog,
+    scope: &IndexBindingScope<'_>,
     schema: &CollectionSchema,
-    database: &str,
-    search_path: &[String],
     name: &str,
     field: &str,
     access_method: &str,
 ) -> Result<(), CassieError> {
-    let extension = catalog.get_extension(database, "vector").ok_or_else(|| {
-        CassieError::Planner("pgvector index methods require the vector extension".into())
-    })?;
+    let search_path = scope.search_path;
+    let extension = scope
+        .catalog
+        .get_extension(scope.database, "vector")
+        .ok_or_else(|| {
+            CassieError::Planner("pgvector index methods require the vector extension".into())
+        })?;
     let extension_schema = local_name(&extension.schema);
     let field_entry = schema
         .fields
@@ -116,7 +115,7 @@ fn bind_pgvector_index_options(
             "pgvector {access_method} indexes select their metric from the operator class and index the vector field directly"
         )));
     }
-    for (key, _) in &statement.options {
+    for key in statement.options.keys() {
         let allowed = match access_method {
             "hnsw" => matches!(key.as_str(), "m" | "ef_construction"),
             "ivfflat" => key == "lists",

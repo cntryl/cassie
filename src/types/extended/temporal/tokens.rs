@@ -400,7 +400,7 @@ fn check_tokenizer_progress<E>(
     index: usize,
     check: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<(), TokenizeError<E>> {
-    if index % 128 == 0 {
+    if index.is_multiple_of(128) {
         check().map_err(TokenizeError::Check)?;
     }
     Ok(())

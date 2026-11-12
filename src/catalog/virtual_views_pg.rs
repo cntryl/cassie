@@ -244,12 +244,14 @@ pub(super) fn pg_attribute(
             rows.push(attribute_row(
                 catalog,
                 &collection.name,
-                &field_name,
-                &field.data_type,
-                field.field_id,
-                constraint,
+                &AttributeSpec {
+                    field_name: &field_name,
+                    data_type: &field.data_type,
+                    attnum: i64::from(field.field_id),
+                    constraint,
+                    is_dropped: field.retired,
+                },
                 current_database,
-                field.retired,
             ));
         }
     }
@@ -263,12 +265,14 @@ pub(super) fn pg_attribute(
             rows.push(attribute_row(
                 catalog,
                 &view.name,
-                &field.name,
-                &field.data_type,
-                i64::try_from(index + 1).unwrap_or(i64::MAX),
-                None,
+                &AttributeSpec {
+                    field_name: &field.name,
+                    data_type: &field.data_type,
+                    attnum: i64::try_from(index + 1).unwrap_or(i64::MAX),
+                    constraint: None,
+                    is_dropped: false,
+                },
                 current_database,
-                false,
             ));
         }
     }
@@ -290,12 +294,14 @@ pub(super) fn pg_attribute(
             rows.push(attribute_row(
                 catalog,
                 &projection.collection,
-                &field.name,
-                &field.data_type,
-                i64::try_from(index + 1).unwrap_or(i64::MAX),
-                None,
+                &AttributeSpec {
+                    field_name: &field.name,
+                    data_type: &field.data_type,
+                    attnum: i64::try_from(index + 1).unwrap_or(i64::MAX),
+                    constraint: None,
+                    is_dropped: false,
+                },
                 current_database,
-                false,
             ));
         }
     }
@@ -423,16 +429,28 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
     rows
 }
 
+/// One `pg_attribute` column described independently of its owning relation.
+struct AttributeSpec<'a> {
+    field_name: &'a str,
+    data_type: &'a DataType,
+    attnum: i64,
+    constraint: Option<&'a FieldConstraint>,
+    is_dropped: bool,
+}
+
 fn attribute_row(
     catalog: &Catalog,
     relation: &str,
-    field_name: &str,
-    data_type: &DataType,
-    attnum: impl TryInto<i64>,
-    constraint: Option<&FieldConstraint>,
+    attribute: &AttributeSpec<'_>,
     current_database: Option<&str>,
-    is_dropped: bool,
 ) -> VirtualRow {
+    let &AttributeSpec {
+        field_name,
+        data_type,
+        attnum,
+        constraint,
+        is_dropped,
+    } = attribute;
     let identity = if is_dropped {
         None
     } else {

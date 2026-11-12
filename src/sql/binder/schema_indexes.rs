@@ -151,10 +151,12 @@ fn bind_index_method_options(
     match statement.kind {
         crate::catalog::IndexKind::Vector => schema_index_options::bind_vector_index_options(
             statement,
-            catalog,
+            &schema_index_options::IndexBindingScope {
+                catalog,
+                database,
+                search_path,
+            },
             schema,
-            database,
-            search_path,
             table,
             name,
             fields,

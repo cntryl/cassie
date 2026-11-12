@@ -24,7 +24,7 @@ pub(crate) fn parse_text(
         ExtendedType::Date => {
             let decoded = temporal::decode::decode_datetime_with_check(text, session, &mut check)
                 .map_err(|error| decode_error("date", text, error))?;
-            TypedValue::Date(parse_date(text, decoded).map_err(CassieError::from)?)
+            TypedValue::Date(parse_date(text, &decoded).map_err(CassieError::from)?)
         }
         ExtendedType::Time { precision } => {
             let decoded = temporal::decode::decode_time_only_with_check(text, session, &mut check)
@@ -118,14 +118,14 @@ fn decode_error(type_name: &str, text: &str, error: TokenizeError<CassieError>) 
     }
 }
 
-fn parse_date(text: &str, decoded: temporal::decode::Decoded) -> Result<i32, TypeInputError> {
+fn parse_date(text: &str, decoded: &temporal::decode::Decoded) -> Result<i32, TypeInputError> {
     match decoded.special {
         Some(temporal::decode::Special::Late) => return Ok(temporal::calendar::DATE_NOEND),
         Some(temporal::decode::Special::Early) => return Ok(temporal::calendar::DATE_NOBEGIN),
         Some(temporal::decode::Special::Epoch) => return Ok(-10_957),
         None => {}
     }
-    let fields = decoded.fields;
+    let fields = &decoded.fields;
     let out_of_range = || temporal::range_error(format!("date out of range: \"{text}\""));
     if !temporal::calendar::is_valid_julian(fields.year, fields.month, fields.day) {
         return Err(out_of_range());

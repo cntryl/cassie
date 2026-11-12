@@ -209,15 +209,15 @@ impl Cassie {
         } else {
             None
         };
-        let result = scoped_cassie.execute_bound_statement_inner(
+
+        scoped_cassie.execute_bound_statement_inner(
             session,
             parsed,
             sql_fingerprint,
             parameters,
             mode,
             controls,
-        );
-        result
+        )
     }
 
     fn execute_bound_statement_inner(
@@ -352,12 +352,7 @@ impl Cassie {
             return Ok(cached);
         }
 
-        if controls.is_canceled() {
-            return Err(CassieError::QueryCanceled);
-        }
-        if controls.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
+        controls.check_interruption()?;
 
         let mut result = self.execute_bound_plan_with_feedback(
             session,

@@ -322,16 +322,7 @@ fn filtered(
     }
     if state.is_none() {
         *state = Some(
-            match super::resolve_plan_filter(
-                env.cassie,
-                env.session,
-                plan,
-                ctes,
-                env.user_functions,
-                env.params,
-                env.parameter_type_oids,
-                env.controls,
-            ) {
+            match super::resolve_plan_filter(&env.plan_env(), plan, ctes) {
                 Ok(expression) => {
                     let bytes = expression.as_ref().map_or(Ok(0), |expr| {
                         crate::sql::parse_analysis::expression_clone_bytes(expr, 0, env.controls)

@@ -625,7 +625,7 @@ fn should_scope_index_catalog_views_like_regclass_when_embedded_database_is_abse
             Value::String("default_only_idx".to_string()),
         ]]
     );
-    assert!(class_rows.is_empty());
-    assert!(index_rows.is_empty());
-    assert!(indexes_rows.is_empty());
+    assert_eq!(class_rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+    assert_eq!(index_rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+    assert_eq!(indexes_rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
 }

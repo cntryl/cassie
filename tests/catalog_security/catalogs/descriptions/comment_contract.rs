@@ -248,6 +248,9 @@ fn should_remove_comments_given_null_or_empty_string() {
     );
 }
 
+const TABLE_COMMENT_SQL: &str =
+    "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')";
+
 #[test]
 fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
     // Arrange
@@ -259,6 +262,11 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
         .execute("COMMENT ON TABLE issue_845_tx_subject IS 'committed base'")
         .expect("publish base comment");
     let observer = fixture.cassie.create_session("tester", None);
+    let read_observer = || {
+        fixture
+            .cassie
+            .execute_sql(&observer, TABLE_COMMENT_SQL, vec![])
+    };
 
     // Act
     fixture.execute("BEGIN").expect("begin transaction");
@@ -266,16 +274,10 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
         .execute("COMMENT ON TABLE issue_845_tx_subject IS 'transaction value'")
         .expect("stage transaction comment");
     let own_value = fixture
-        .execute("SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')")
+        .execute(TABLE_COMMENT_SQL)
         .expect("read the transaction's comment");
-    let other_value = fixture
-        .cassie
-        .execute_sql(
-            &observer,
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-            vec![],
-        )
-        .expect("read only the committed comment from another session");
+    let other_value =
+        read_observer().expect("read only the committed comment from another session");
     fixture
         .execute("SAVEPOINT issue_845_comment_savepoint")
         .expect("create comment savepoint");
@@ -286,11 +288,11 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
         .execute("ROLLBACK TO SAVEPOINT issue_845_comment_savepoint")
         .expect("discard savepoint comment");
     let after_savepoint = fixture
-        .execute("SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')")
+        .execute(TABLE_COMMENT_SQL)
         .expect("read comment after savepoint rollback");
     fixture.execute("ROLLBACK").expect("roll back transaction");
     let after_transaction = fixture
-        .execute("SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')")
+        .execute(TABLE_COMMENT_SQL)
         .expect("read committed comment after transaction rollback");
 
     fixture.execute("BEGIN").expect("begin commit transaction");
@@ -304,58 +306,26 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
              AND classoid = 'pg_class'::regclass::oid",
         )
         .expect("read staged comment from pg_description");
-    let other_before_commit = fixture
-        .cassie
-        .execute_sql(
-            &observer,
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-            vec![],
-        )
-        .expect("observer sees only committed data before commit");
+    let other_before_commit =
+        read_observer().expect("observer sees only committed data before commit");
     fixture
         .execute("COMMIT")
         .expect("commit transaction comment");
-    let other_after_commit = fixture
-        .cassie
-        .execute_sql(
-            &observer,
-            "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')",
-            vec![],
-        )
-        .expect("observer sees committed comment");
+    let other_after_commit = read_observer().expect("observer sees committed comment");
 
     // Assert
-    assert_eq!(
-        own_value.rows(),
-        vec![vec![Value::String("transaction value".to_owned())]]
-    );
-    assert_eq!(
-        other_value.rows(),
-        vec![vec![Value::String("committed base".to_owned())]]
-    );
-    assert_eq!(
-        after_savepoint.rows(),
-        vec![vec![Value::String("transaction value".to_owned())]]
-    );
-    assert_eq!(
-        after_transaction.rows(),
-        vec![vec![Value::String("committed base".to_owned())]]
-    );
+    assert_eq!(own_value.rows(), comment_rows("transaction value"));
+    assert_eq!(other_value.rows(), comment_rows("committed base"));
+    assert_eq!(after_savepoint.rows(), comment_rows("transaction value"));
+    assert_eq!(after_transaction.rows(), comment_rows("committed base"));
     assert_eq!(
         own_catalog_value.rows(),
-        vec![vec![Value::String(
-            "committed transaction value".to_owned()
-        )]]
+        comment_rows("committed transaction value")
     );
-    assert_eq!(
-        other_before_commit.rows(),
-        vec![vec![Value::String("committed base".to_owned())]]
-    );
+    assert_eq!(other_before_commit.rows(), comment_rows("committed base"));
     assert_eq!(
         other_after_commit.rows(),
-        vec![vec![Value::String(
-            "committed transaction value".to_owned()
-        )]]
+        comment_rows("committed transaction value")
     );
 }
 
@@ -590,6 +560,10 @@ impl Drop for DataDirectory {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
     }
+}
+
+fn comment_rows(comment: &str) -> Vec<Vec<Value>> {
+    vec![vec![Value::String(comment.to_owned())]]
 }
 
 fn data_dir(label: &str) -> PathBuf {

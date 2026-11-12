@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-/// One raw `ttinfo` record. `designation_index` is an offset into the TZif
+/// One raw `ttinfo` record. `designation_index` is an offset into the `TZif`
 /// character table, so equal text at different offsets remains distinguishable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RawLocalTimeType {
@@ -9,7 +9,7 @@ pub(crate) struct RawLocalTimeType {
     pub(crate) designation_index: usize,
 }
 
-/// The parsed local-time types and exact character table owned by one TZif.
+/// The parsed local-time types and exact character table owned by one `TZif`.
 #[derive(Debug, Clone)]
 pub(crate) struct RawTzif {
     bytes: Arc<[u8]>,
@@ -40,7 +40,6 @@ struct SectionLayout {
 }
 
 impl RawTzif {
-    #[must_use]
     pub(crate) fn parse(bytes: Arc<[u8]>) -> Result<Self, &'static str> {
         let first = read_header(&bytes, 0)?;
         let (header, section_start, width) = if first.version == 0 {
@@ -126,7 +125,7 @@ impl RawTzif {
     }
 
     /// Finds the first matching character-table index, even when its spelling
-    /// appears again later in the TZif data.
+    /// appears again later in the `TZif` data.
     #[must_use]
     pub(crate) fn first_matching_designation_index(&self, query: &str) -> Option<usize> {
         let mut index = 0;
@@ -139,7 +138,6 @@ impl RawTzif {
         None
     }
 
-    #[must_use]
     pub(crate) fn first_matching_designation_index_with_checks<E>(
         &self,
         query: &str,

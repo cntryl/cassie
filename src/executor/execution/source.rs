@@ -29,7 +29,7 @@ use super::{
     plan_execution_env_with_parameter_oids, projection, resolve_exists_expr, row_signature, scan,
     sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession,
     CteContext, ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind,
-    LogicalPlan, QueryError, QueryExecutionControls, QuerySource, Value,
+    LogicalPlan, PlanExecutionEnv, QueryError, QueryExecutionControls, QuerySource, Value,
 };
 pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 
@@ -62,6 +62,19 @@ pub(super) struct SourceExecutionEnv<'a> {
     pub(super) params: &'a [Value],
     pub(super) parameter_type_oids: &'a [i32],
     pub(super) controls: &'a QueryExecutionControls,
+}
+
+impl<'a> SourceExecutionEnv<'a> {
+    pub(super) fn plan_env(&self) -> PlanExecutionEnv<'a> {
+        plan_execution_env_with_parameter_oids(
+            self.cassie,
+            self.session,
+            self.user_functions,
+            self.params,
+            self.parameter_type_oids,
+            self.controls,
+        )
+    }
 }
 
 pub(super) fn execute_query_source(
@@ -191,16 +204,7 @@ fn execute_view_source(
     crate::sql::definition_guard::view(view).map_err(QueryError::Cassie)?;
     let logical = build_logical_plan_in_session(env.cassie, env.session, &parsed)?;
     let mut view_cte_context = CteContext::new();
-    let rows = execute_plan_with_parameter_oids(
-        env.cassie,
-        env.session,
-        &logical,
-        &mut view_cte_context,
-        env.user_functions,
-        env.params,
-        env.parameter_type_oids,
-        env.controls,
-    )?;
+    let rows = execute_plan_with_parameter_oids(&env.plan_env(), &logical, &mut view_cte_context)?;
     let rows = project_rows_to_schema(rows, &view.schema, name)?;
     let text_fields = schema_text_fields(&view.schema);
     finalize_source_batches(
@@ -607,16 +611,7 @@ fn resolve_filter_or_correlate(
     batches: Vec<Batch>,
     search_context: Option<&filter::SearchContext>,
 ) -> Result<(Vec<Batch>, Option<Expr>), QueryError> {
-    let error = match resolve_plan_filter(
-        env.cassie,
-        env.session,
-        plan,
-        cte_context,
-        env.user_functions,
-        env.params,
-        env.parameter_type_oids,
-        env.controls,
-    ) {
+    let error = match resolve_plan_filter(&env.plan_env(), plan, cte_context) {
         Ok(filter) => return Ok((batches, filter)),
         Err(error) => error,
     };
@@ -647,25 +642,20 @@ fn resolve_filter_or_correlate(
 }
 
 fn resolve_plan_filter(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
+    env: &PlanExecutionEnv<'_>,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    parameter_type_oids: &[i32],
-    controls: &QueryExecutionControls,
 ) -> Result<Option<Expr>, QueryError> {
     plan.filter.as_ref().map_or(Ok(None), |filter_expr| {
         resolve_exists_expr(
             &ExistsResolutionContext {
-                cassie,
-                session,
+                cassie: env.cassie,
+                session: env.session,
                 cte_context,
-                user_functions,
-                params,
-                parameter_type_oids,
-                controls,
+                user_functions: env.user_functions,
+                params: env.params,
+                parameter_type_oids: env.parameter_type_oids,
+                controls: env.controls,
                 outer_row: None,
             },
             filter_expr,
@@ -796,16 +786,15 @@ fn finalize_plan_rows(
         // The right branch is an input relation, not a result: the result-row
         // cap must not truncate it before EXCEPT/INTERSECT consult it.
         let right_controls = env.controls.for_uncapped_input();
-        let right_rows = execute_plan_with_parameter_oids(
+        let right_env = plan_execution_env_with_parameter_oids(
             env.cassie,
             env.session,
-            &right_plan,
-            cte_context,
             env.user_functions,
             env.params,
             env.parameter_type_oids,
             &right_controls,
-        )?;
+        );
+        let right_rows = execute_plan_with_parameter_oids(&right_env, &right_plan, cte_context)?;
         rows = apply_set_operation(rows, right_rows, &left_output_names, set, env.controls)?;
     }
     if plan.set.is_some() && !plan.order.is_empty() {

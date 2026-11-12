@@ -7,7 +7,7 @@ use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::types::Value;
 
 thread_local! {
-    static CANCEL_BEFORE_INDEX_GUARD: std::cell::RefCell<Option<QueryCancellationHandle>> = std::cell::RefCell::new(None);
+    static CANCEL_BEFORE_INDEX_GUARD: std::cell::RefCell<Option<QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
 }
 
 pub(super) fn cancel_before_index_guard_if_armed() {

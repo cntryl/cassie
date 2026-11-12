@@ -295,22 +295,7 @@ fn decode_keyword_field<E>(
     check: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<Option<u32>, TokenizeError<E>> {
     if is_default_msk(field, session) {
-        if defer_dynamic_session_abbreviation(field, state, session, check)? {
-            return Ok(Some(TZ));
-        }
-        if let Some((east, dst)) = session_zone_abbreviation(field, state, session, check)? {
-            state.zone_west = Some(-east);
-            return Ok(Some(if dst { DTZ | TZ } else { TZ }));
-        }
-        if state.fmask & DATE_M != DATE_M {
-            return Err(DecodeError::BadFormat.into());
-        }
-        state.dynamic_zone = Some(
-            lookup_zone("Europe/Moscow")
-                .ok_or_else(|| DecodeError::BadTimezone("MSK".to_string()))?,
-        );
-        state.dynamic_abbreviation = Some("msk".to_string());
-        return Ok(Some(TZ));
+        return decode_default_msk(field, state, session, check).map(Some);
     }
     if defer_dynamic_session_abbreviation(field, state, session, check)? {
         return Ok(Some(TZ));
@@ -342,20 +327,7 @@ fn decode_keyword_field<E>(
     let tmask = match keyword {
         Keyword::Ignore => return Ok(None),
         Keyword::Reserved(reserved) => decode_reserved(reserved, state, session),
-        Keyword::Month(month) => {
-            let mut tmask = MONTH;
-            if state.fmask & MONTH != 0
-                && !state.have_text_month
-                && state.fmask & DAY == 0
-                && (1..=31).contains(&state.fields.month)
-            {
-                state.fields.day = state.fields.month;
-                tmask = DAY;
-            }
-            state.have_text_month = true;
-            state.fields.month = month;
-            tmask
-        }
+        Keyword::Month(month) => decode_text_month(month, state),
         Keyword::DstModifier(seconds) => {
             let west = state.zone_west.ok_or(DecodeError::BadFormat)?;
             state.zone_west = Some(west - seconds);
@@ -401,6 +373,44 @@ fn decode_keyword_field<E>(
         Keyword::Ago => return Err(DecodeError::BadFormat.into()),
     };
     Ok(Some(tmask))
+}
+
+fn decode_default_msk<E>(
+    field: &str,
+    state: &mut State,
+    session: &TemporalSession,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<u32, TokenizeError<E>> {
+    if defer_dynamic_session_abbreviation(field, state, session, check)? {
+        return Ok(TZ);
+    }
+    if let Some((east, dst)) = session_zone_abbreviation(field, state, session, check)? {
+        state.zone_west = Some(-east);
+        return Ok(if dst { DTZ | TZ } else { TZ });
+    }
+    if state.fmask & DATE_M != DATE_M {
+        return Err(DecodeError::BadFormat.into());
+    }
+    state.dynamic_zone = Some(
+        lookup_zone("Europe/Moscow").ok_or_else(|| DecodeError::BadTimezone("MSK".to_string()))?,
+    );
+    state.dynamic_abbreviation = Some("msk".to_string());
+    Ok(TZ)
+}
+
+fn decode_text_month(month: i32, state: &mut State) -> u32 {
+    let mut tmask = MONTH;
+    if state.fmask & MONTH != 0
+        && !state.have_text_month
+        && state.fmask & DAY == 0
+        && (1..=31).contains(&state.fields.month)
+    {
+        state.fields.day = state.fields.month;
+        tmask = DAY;
+    }
+    state.have_text_month = true;
+    state.fields.month = month;
+    tmask
 }
 
 fn is_default_msk(field: &str, session: &TemporalSession) -> bool {

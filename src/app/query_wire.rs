@@ -84,29 +84,7 @@ impl Cassie {
             &logical.projection,
             &mut columns,
         );
-        let returning = match logical.command.as_ref() {
-            Some(LogicalCommand::Insert(statement)) => {
-                Some((&statement.table, &statement.returning))
-            }
-            Some(LogicalCommand::Update(statement)) => {
-                Some((&statement.table, &statement.returning))
-            }
-            Some(LogicalCommand::Delete(statement)) => {
-                Some((&statement.table, &statement.returning))
-            }
-            _ => None,
-        };
-        if let Some((table, returning)) = returning {
-            let schema_has_id = self
-                .catalog
-                .get_schema(table.as_str())
-                .is_some_and(|schema| schema.declares_id());
-            crate::executor::aggregate::normalize_dml_returning_identity_columns(
-                &mut columns,
-                returning,
-                schema_has_id,
-            );
-        }
+        self.normalize_returning_identity_columns(logical, &mut columns);
         let database = session
             .and_then(CassieSession::current_database)
             .unwrap_or(&self.default_database);
@@ -135,12 +113,38 @@ impl Cassie {
                 ));
             }
         }
-        if controls.is_canceled() {
-            return Err(CassieError::QueryCanceled);
-        }
-        if controls.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
+        controls.check_interruption()?;
         Ok(columns)
+    }
+
+    /// Aligns DML RETURNING identity columns with the target table's declared id.
+    fn normalize_returning_identity_columns(
+        &self,
+        logical: &LogicalPlan,
+        columns: &mut [ColumnMeta],
+    ) {
+        let returning = match logical.command.as_ref() {
+            Some(LogicalCommand::Insert(statement)) => {
+                Some((&statement.table, &statement.returning))
+            }
+            Some(LogicalCommand::Update(statement)) => {
+                Some((&statement.table, &statement.returning))
+            }
+            Some(LogicalCommand::Delete(statement)) => {
+                Some((&statement.table, &statement.returning))
+            }
+            _ => None,
+        };
+        if let Some((table, returning)) = returning {
+            let schema_has_id = self
+                .catalog
+                .get_schema(table.as_str())
+                .is_some_and(|schema| schema.declares_id());
+            crate::executor::aggregate::normalize_dml_returning_identity_columns(
+                columns,
+                returning,
+                schema_has_id,
+            );
+        }
     }
 }

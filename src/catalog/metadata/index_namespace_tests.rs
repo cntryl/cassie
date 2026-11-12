@@ -143,7 +143,7 @@ fn should_release_an_acquired_guard_when_cancelled_at_the_acquisition_boundary()
 
     // Act
     let result = super::read(&lock, Some(&controls), &mut || {}, &mut || {
-        cancellation.cancel()
+        cancellation.cancel();
     });
 
     // Assert
@@ -171,7 +171,7 @@ fn should_fail_closed_for_two_materialized_owners_of_one_output() {
                 activated_ms: None,
                 retired_ms: None,
                 last_error: None,
-                verification: Default::default(),
+                verification: crate::catalog::ProjectionRebuildVerificationMeta::default(),
             });
         catalog.register_projection_metadata(projection);
     }

@@ -20,7 +20,9 @@ pub fn bind_create_table(
             "CREATE TABLE requires a table name".into(),
         ));
     }
-    let already_exists = catalog.relation_exists(&name) || virtual_views::schema(&name).is_some();
+    let already_exists = catalog.relation_exists(&name)
+        || virtual_views::schema(&name).is_some()
+        || catalog.composite_type_exists(&name);
     if !statement.if_not_exists && already_exists {
         return Err(CassieError::Planner(format!(
             "collection '{name}' already exists"

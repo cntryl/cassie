@@ -159,3 +159,45 @@ fn should_reject_malformed_table_sample_clauses() {
         .iter()
         .all(|error| error.kind() == SqlErrorKind::Syntax));
 }
+
+#[test]
+fn should_group_comma_items_as_cross_join_over_inner_join_given_join_after_comma() {
+    // Arrange
+    let sql = "a, b JOIN c ON b.id = c.id";
+
+    // Act
+    let source = parse_query_source(sql).expect("comma list with a join parses");
+
+    // Assert
+    let QuerySource::Join {
+        left, right, kind, ..
+    } = source
+    else {
+        panic!("comma list must parse as a join");
+    };
+    assert_eq!(kind, crate::sql::ast::JoinKind::Cross);
+    assert!(matches!(*left, QuerySource::Collection(_)));
+    assert!(matches!(
+        *right,
+        QuerySource::Join {
+            kind: crate::sql::ast::JoinKind::Inner,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn should_fold_three_comma_items_left_associatively() {
+    // Arrange
+    let sql = "a, b, c";
+
+    // Act
+    let source = parse_query_source(sql).expect("three comma items parse");
+
+    // Assert
+    let QuerySource::Join { left, right, .. } = source else {
+        panic!("comma list must parse as a join");
+    };
+    assert!(matches!(*left, QuerySource::Join { .. }));
+    assert!(matches!(*right, QuerySource::Collection(_)));
+}

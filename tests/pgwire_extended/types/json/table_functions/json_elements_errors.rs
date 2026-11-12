@@ -231,3 +231,68 @@ fn should_return_the_documented_unsupported_error_given_select_list_use() {
     assert_eq!(wire::error_code(&frames).as_deref(), Some("0A000"));
     assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
 }
+
+#[test]
+fn should_filter_outer_rows_before_expanding_given_cross_join_lateral_with_an_erroring_row() {
+    // Arrange
+    let setup = [
+        ("CREATE TABLE lateral_steps (id INT, step INT)", Vec::new()),
+        (
+            "INSERT INTO lateral_steps VALUES (1, 1), (2, 1), (3, 0)",
+            Vec::new(),
+        ),
+    ];
+    let unfiltered =
+        "SELECT t.id, g FROM lateral_steps t CROSS JOIN LATERAL generate_series(1, 2, t.step) g";
+    let filtered = "SELECT t.id, g FROM lateral_steps t CROSS JOIN LATERAL generate_series(1, 2, t.step) g WHERE t.id < 3 ORDER BY t.id, g";
+    let output_conjunct = "SELECT t.id, g FROM lateral_steps t CROSS JOIN LATERAL generate_series(1, 2, t.step) g WHERE t.id < 3 AND g = 2 ORDER BY t.id";
+    let cycles = vec![
+        fixture::execute_cycle(unfiltered, None, 0, false),
+        fixture::execute_cycle(filtered, None, 0, false),
+        fixture::execute_cycle(output_conjunct, None, 0, false),
+    ];
+    // Act
+    let batches = fixture::run_cycles("json-elements-outer-filter-pushdown", &setup, cycles);
+    // Assert
+    assert!(
+        wire::error_code(&batches[0]).is_some(),
+        "the zero step must fail when the outer row is not filtered"
+    );
+    fixture::assert_success(&batches[1]);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![
+            vec![Some("1".to_owned()), Some("1".to_owned())],
+            vec![Some("1".to_owned()), Some("2".to_owned())],
+            vec![Some("2".to_owned()), Some("1".to_owned())],
+            vec![Some("2".to_owned()), Some("2".to_owned())],
+        ]
+    );
+    fixture::assert_success(&batches[2]);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![
+            vec![Some("1".to_owned()), Some("2".to_owned())],
+            vec![Some("2".to_owned()), Some("2".to_owned())],
+        ]
+    );
+}
+
+#[test]
+fn should_keep_function_output_conjuncts_above_given_json_each_lateral() {
+    // Arrange
+    let mut setup = docs_setup();
+    setup.push((
+        "INSERT INTO json_elements_docs VALUES (4, '{\"a\":1}')",
+        Vec::<Value>::new(),
+    ));
+    let sql = "SELECT t.id, e.value FROM json_elements_docs t, jsonb_array_elements(t.doc) e WHERE t.id < 3 AND e.value::text <> '1' ORDER BY t.id";
+    // Act
+    let frames = query("json-elements-output-conjunct", &setup, sql, false);
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(
+        wire::data_rows(&frames),
+        vec![vec![Some("1".to_owned()), Some("2".to_owned())]]
+    );
+}

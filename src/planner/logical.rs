@@ -475,7 +475,7 @@ fn plan_retention_statement(
 
 fn plan_select(select: &SelectStatement) -> Result<LogicalPlan, CassieError> {
     validate_logical_plan(select)?;
-    Ok(LogicalPlan {
+    let mut plan = LogicalPlan {
         command: None,
         source: select.source.clone(),
         collection: source_name(&select.source),
@@ -490,7 +490,9 @@ fn plan_select(select: &SelectStatement) -> Result<LogicalPlan, CassieError> {
         limit: select.limit.clone(),
         offset: select.offset.clone(),
         set: select.set.clone(),
-    })
+    };
+    super::lateral_filter::push_into_lateral_join(&mut plan);
+    Ok(plan)
 }
 
 fn single_row_command_plan(command: LogicalCommand) -> LogicalPlan {

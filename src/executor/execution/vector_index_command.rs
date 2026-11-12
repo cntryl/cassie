@@ -9,7 +9,7 @@ pub(super) fn vector_index_metadata(
     // fields or the embedding provider, matching scalar index creation.
     cassie
         .midge
-        .ensure_no_pending_index_cleanup(&statement.table.to_string(), &statement.name)?;
+        .ensure_no_pending_index_cleanup(statement.table.as_ref(), &statement.name)?;
     let schema = collection_schema(cassie, &statement.table)?;
     let vector_field = vector_field(&schema, statement)?;
     let source_field = statement

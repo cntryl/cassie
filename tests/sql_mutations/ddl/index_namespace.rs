@@ -20,15 +20,24 @@ fn should_bind_index_names_for_unscoped_and_two_part_collections() {
         .cassie
         .register_collection("legacy_schema.rows".to_owned(), schema);
 
-    // Act and assert
-    for sql in [
+    // Act
+    let bound = [
         "CREATE INDEX legacy_idx ON legacy_rows (v)",
         "CREATE INDEX ON legacy_rows (v)",
         "CREATE INDEX legacy_idx ON legacy_schema.rows (v)",
         "CREATE INDEX ON legacy_schema.rows (v)",
-    ] {
+    ]
+    .map(|sql| {
         let parsed = cassie::sql::parse_statement(sql).expect("parse");
-        cassie::sql::binder::bind(parsed, &fixture.cassie.catalog).expect("bind legacy collection");
+        (
+            sql,
+            cassie::sql::binder::bind(parsed, &fixture.cassie.catalog),
+        )
+    });
+
+    // Assert
+    for (sql, result) in bound {
+        assert!(result.is_ok(), "bind legacy collection: {sql}");
     }
 }
 

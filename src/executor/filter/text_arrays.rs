@@ -12,6 +12,9 @@ pub(super) fn cast(
             return Ok(value.clone());
         }
     }
+    if let ScalarValue::Array(array) = value {
+        return cast_elements(array, element_type);
+    }
     let ScalarValue::Str(input) = value else {
         return Err(QueryError::General(
             "cannot cast scalar value to ARRAY".into(),
@@ -34,6 +37,26 @@ pub(super) fn cast(
     )?;
     parsed
         .into_sql_array(element_type)
+        .map(ScalarValue::Array)
+        .map_err(|message| CassieError::ArrayInput(message).into())
+}
+
+/// Converts every element of an existing array to the target element type,
+/// preserving its dimensions and SQL NULL elements (`ARRAY[1.0]::real[]`).
+fn cast_elements(
+    array: &crate::types::SqlArray,
+    element_type: &DataType,
+) -> Result<ScalarValue, QueryError> {
+    let mut element_type = element_type;
+    while let DataType::Array(inner) = element_type {
+        element_type = inner;
+    }
+    let elements = array
+        .elements()
+        .iter()
+        .map(|element| super::cast_value(element, element_type))
+        .collect::<Result<Vec<_>, _>>()?;
+    crate::types::SqlArray::new(array.dimensions().to_vec(), elements)
         .map(ScalarValue::Array)
         .map_err(|message| CassieError::ArrayInput(message).into())
 }

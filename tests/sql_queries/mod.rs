@@ -1,3 +1,5 @@
+#[path = "casts/array_element_casts.rs"]
+mod array_element_casts;
 #[path = "types/real/real.rs"]
 mod native_real;
 #[path = "aggregates/aggregate_query_contracts.rs"]

@@ -550,7 +550,10 @@ Qualified v0.2.0 behavior, each pinned by a case in
 - Operands with different dimensions raise SQLSTATE `22000` with the pgvector message
   `different vector dimensions N and M`.
 - `$1::vector` resolves to the database's installed vector type OID at Parse; binary
-  parameters use the dimension/reserved/f32 framing above.
+  parameters use the dimension/reserved/f32 framing above. An untyped parameter (OID 0)
+  that is an operand of `<->`, `<#>` or `<=>` is inferred as that vector type in
+  ORDER BY, WHERE and projection positions, and Describe reports the vector OID.
+  Parameter OIDs carry no dimension; dimension mismatches surface at execution.
 - Inner-product and cosine HNSW/IVFFlat indexes are created, cataloged and maintained,
   and the operator ordering returns exactly the unindexed top-k. The SQL operator ANN
   execution path itself serves L2 only; `<#>` and `<=>` ordering is answered by the

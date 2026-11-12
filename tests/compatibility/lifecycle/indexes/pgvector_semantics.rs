@@ -306,6 +306,59 @@ fn should_bind_prepared_vector_parameter_in_operator_ordering() {
 }
 
 #[test]
+fn should_infer_vector_type_for_untyped_operator_parameters() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let (server, client, connection) = start_fixture("pgvector_untyped_parameter").await;
+        let shapes = [
+            (
+                "SELECT id FROM pgvector_semantics ORDER BY embedding <#> $1 LIMIT 3",
+                vec![5, 3, 1],
+            ),
+            (
+                "SELECT id FROM pgvector_semantics ORDER BY $1 <=> embedding LIMIT 3",
+                vec![1, 3, 5],
+            ),
+            (
+                "SELECT id FROM pgvector_semantics WHERE embedding <#> $1 <= -3 ORDER BY id",
+                vec![1, 3, 5],
+            ),
+            (
+                "SELECT id FROM pgvector_semantics \
+                 WHERE (embedding <-> $1) < 4 ORDER BY embedding <-> $1 LIMIT 3",
+                vec![3, 1, 5],
+            ),
+        ];
+
+        for (sql, expected) in shapes {
+            // Act
+            let statement = client
+                .prepare(sql)
+                .await
+                .unwrap_or_else(|error| panic!("{sql}: {}", db_error(&error).message()));
+            let rows = client
+                .query(&statement, &[&VectorParam(vec![3.0, 1.0, 0.0])])
+                .await
+                .unwrap_or_else(|error| panic!("{sql}: {}", db_error(&error).message()));
+
+            // Assert
+            assert_eq!(statement.params()[0].name(), "vector", "{sql}");
+            assert_eq!(row_ids(&rows), expected, "{sql}");
+        }
+
+        let projected = client
+            .prepare("SELECT embedding <-> $1 FROM pgvector_semantics")
+            .await
+            .expect("prepare a projected distance over an untyped parameter");
+        assert_eq!(projected.params()[0].name(), "vector");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_reject_deferred_pgvector_surface() {
     // Arrange
     let runtime = current_thread_runtime();

@@ -109,12 +109,22 @@ impl<'a> Fold<'a, '_> {
     /// `$n::vector` resolves to the database's installed vector type identity,
     /// which is allocated per database and has no static OID.
     fn vector_cast_parameter_oid(&self, parent: Node<'_>, child: &Child<'_>) -> Option<i32> {
-        let Node::Expr(ast::Expr::Cast {
-            data_type: data_type @ crate::types::DataType::Vector(_),
-            ..
-        }) = parent
-        else {
-            return None;
+        // An untyped operand of a pgvector distance operator is the other
+        // operand's vector type; parameter OIDs carry no dimension.
+        let vector = crate::types::DataType::Vector(None);
+        let data_type = match parent {
+            Node::Expr(ast::Expr::Cast {
+                data_type: data_type @ crate::types::DataType::Vector(_),
+                ..
+            }) => data_type,
+            Node::Expr(ast::Expr::Binary {
+                op:
+                    ast::BinaryOp::PgvectorCosine
+                    | ast::BinaryOp::PgvectorL2
+                    | ast::BinaryOp::PgvectorDot,
+                ..
+            }) => &vector,
+            _ => return None,
         };
         if !matches!(child.node, Node::Expr(ast::Expr::Param(_))) {
             return None;

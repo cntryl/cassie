@@ -23,9 +23,7 @@ pub(super) fn join_keys(plan: &LogicalPlan) -> Vec<String> {
     let QuerySource::Join { on, .. } = &plan.source else {
         return Vec::new();
     };
-    equi_join_columns(on)
-        .map(|(left, right)| vec![format!("{left}={right}")])
-        .unwrap_or_default()
+    equi_join_columns(on).map_or_default(|(left, right)| vec![format!("{left}={right}")])
 }
 
 pub(super) fn join_sort_required(plan: &LogicalPlan, strategy: Option<&str>) -> bool {

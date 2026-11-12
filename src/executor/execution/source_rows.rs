@@ -278,11 +278,9 @@ pub(super) fn distinct_batches(
     for row in batch::flatten_batches(batches) {
         super::check_timeout(controls)?;
         let signature = row_signature(&row, controls)?;
-        let bytes = signature.estimated_bytes().saturating_add(
-            serde_json::to_vec(row.entries())
-                .map(|bytes| bytes.len())
-                .unwrap_or_default(),
-        );
+        let bytes = signature
+            .estimated_bytes()
+            .saturating_add(serde_json::to_vec(row.entries()).map_or_default(|bytes| bytes.len()));
         if seen.insert(signature)? {
             memory.push(controls.reserve_query_memory(bytes)?);
             rows.push(row);
@@ -372,9 +370,7 @@ fn scalar_distinct_on_batches(
         let key = SemanticKey::from_semantic_values(keys);
         let key_bytes = key.estimated_bytes();
         if seen.insert(key)? {
-            let row_bytes = serde_json::to_vec(row.entries())
-                .map(|bytes| bytes.len())
-                .unwrap_or_default();
+            let row_bytes = serde_json::to_vec(row.entries()).map_or_default(|bytes| bytes.len());
             memory.push(controls.reserve_query_memory(key_bytes.saturating_add(row_bytes))?);
             rows.push(row);
         }

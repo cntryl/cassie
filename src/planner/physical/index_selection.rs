@@ -92,13 +92,11 @@ pub(crate) fn base_selected_index<S: BuildHasher>(
     let equality_fields = plan
         .filter
         .as_ref()
-        .map(super::equality_filter_fields)
-        .unwrap_or_default();
+        .map_or_default(super::equality_filter_fields);
     let equality_expressions = plan
         .filter
         .as_ref()
-        .map(super::equality_filter_expressions)
-        .unwrap_or_default();
+        .map_or_default(super::equality_filter_expressions);
     let scalar = scalar_candidates(plan, indexes, not_null_fields, cardinality_stats)
         .into_iter()
         .find(|index| {
@@ -130,13 +128,11 @@ fn scalar_candidates<S: BuildHasher>(
     let equality_fields = plan
         .filter
         .as_ref()
-        .map(super::equality_filter_fields)
-        .unwrap_or_default();
+        .map_or_default(super::equality_filter_fields);
     let equality_expressions = plan
         .filter
         .as_ref()
-        .map(super::equality_filter_expressions)
-        .unwrap_or_default();
+        .map_or_default(super::equality_filter_expressions);
     let mut scalar = indexes
         .iter()
         .filter(|index| collection == index.collection && index.kind == IndexKind::Scalar)

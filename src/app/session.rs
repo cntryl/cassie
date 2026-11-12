@@ -587,8 +587,7 @@ impl CassieSession {
             .lock()
             .writes
             .get(collection)
-            .map(|changes| changes.as_ref().clone())
-            .unwrap_or_default()
+            .map_or_default(|changes| changes.as_ref().clone())
     }
 
     pub(crate) fn collection_changes_matching(

@@ -236,11 +236,10 @@ pub(crate) fn set_positions(
     })?;
     let mut consumed = vec![0_usize; if multiset { right_len } else { 0 }];
     let mut output = Vec::with_capacity(total);
-    for lane in 0..left_len {
+    for (lane, key) in left_keys.values.iter().enumerate() {
         check_controls(controls)?;
         let include = match operator {
             SetOperator::IntersectAll | SetOperator::ExceptAll => {
-                let key = &left_keys.values[lane];
                 let start =
                     right_positions.partition_point(|index| right_keys.values[*index] < *key);
                 let end =
@@ -251,8 +250,8 @@ pub(crate) fn set_positions(
                 }
                 matched == (operator == SetOperator::IntersectAll)
             }
-            SetOperator::Intersect => contains(&left_keys.values[lane]),
-            SetOperator::Except => !contains(&left_keys.values[lane]),
+            SetOperator::Intersect => contains(key),
+            SetOperator::Except => !contains(key),
             SetOperator::Union | SetOperator::UnionAll => true,
         };
         if include {

@@ -217,8 +217,7 @@ impl Cassie {
         });
         let removed_role_grant_targets = catalog_overlay
             .as_ref()
-            .map(|catalog| self.role_grant_targets_removed_by_transaction(catalog))
-            .unwrap_or_default();
+            .map_or_default(|catalog| self.role_grant_targets_removed_by_transaction(catalog));
         if let Some(catalog) = &catalog_overlay {
             storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
             let staged = storage_overlay.staged_sequence_object_ids(controls)?;

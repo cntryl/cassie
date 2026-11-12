@@ -101,8 +101,7 @@ pub(crate) fn source_field_type_map_with_parameters(
             &HashMap::new(),
             parameter_types,
         )
-        .map(|schema| field_type_map(schema.fields.iter()))
-        .unwrap_or_default(),
+        .map_or_default(|schema| field_type_map(schema.fields.iter())),
         ast::QuerySource::TableFunction { .. } => binder::wildcard_output_shape_with_parameters(
             source,
             ctes,
@@ -110,13 +109,12 @@ pub(crate) fn source_field_type_map_with_parameters(
             &HashMap::new(),
             parameter_types,
         )
-        .map(|(fields, _)| {
+        .map_or_default(|(fields, _)| {
             fields
                 .into_iter()
                 .map(|field| (field.name, field.data_type))
                 .collect()
-        })
-        .unwrap_or_default(),
+        }),
         ast::QuerySource::SingleRow => FieldTypeMap::new(),
     }
 }
@@ -127,19 +125,16 @@ fn collection_field_type_map(collection: &str, catalog: &crate::catalog::Catalog
     } else {
         catalog
             .get_schema(collection)
-            .map(|schema| field_type_map(schema.fields.iter()))
-            .unwrap_or_default()
+            .map_or_default(|schema| field_type_map(schema.fields.iter()))
     }
 }
 
 fn values_field_type_map(rows: &[Vec<ast::Expr>], parameter_types: &[i32]) -> FieldTypeMap {
-    binder::values::schema(rows, &HashMap::new(), parameter_types)
-        .map(|schema| {
-            schema
-                .fields
-                .into_iter()
-                .map(|field| (field.name, field.data_type))
-                .collect()
-        })
-        .unwrap_or_default()
+    binder::values::schema(rows, &HashMap::new(), parameter_types).map_or_default(|schema| {
+        schema
+            .fields
+            .into_iter()
+            .map(|field| (field.name, field.data_type))
+            .collect()
+    })
 }

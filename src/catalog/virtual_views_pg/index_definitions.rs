@@ -24,8 +24,7 @@ pub(super) fn index_definition(index: &IndexMeta) -> String {
     let predicate = index
         .predicate
         .as_ref()
-        .map(|predicate| format!(" WHERE {}", format_stored_expression(predicate)))
-        .unwrap_or_default();
+        .map_or_default(|predicate| format!(" WHERE {}", format_stored_expression(predicate)));
     let storage_option_names = match index.access_method() {
         "hnsw" => &["m", "ef_construction"][..],
         "ivfflat" => &["lists"][..],

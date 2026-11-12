@@ -427,7 +427,7 @@ fn parse_time_series_partition_by(statement: &CreateIndexStatement) -> Vec<Strin
     statement
         .options
         .get("partition_by")
-        .map(|value| {
+        .map_or_default(|value| {
             value
                 .split(',')
                 .map(str::trim)
@@ -435,7 +435,6 @@ fn parse_time_series_partition_by(statement: &CreateIndexStatement) -> Vec<Strin
                 .map(str::to_string)
                 .collect::<Vec<_>>()
         })
-        .unwrap_or_default()
 }
 
 fn validate_time_series_partition_fields(

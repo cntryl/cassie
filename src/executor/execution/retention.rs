@@ -260,7 +260,5 @@ fn row_id(row: &BatchRow) -> Result<String, QueryError> {
 }
 
 fn timestamp_millis(timestamp: OffsetDateTime) -> u64 {
-    u64::try_from(timestamp.unix_timestamp_nanos())
-        .map(|nanos| nanos / 1_000_000)
-        .unwrap_or_default()
+    u64::try_from(timestamp.unix_timestamp_nanos()).map_or_default(|nanos| nanos / 1_000_000)
 }

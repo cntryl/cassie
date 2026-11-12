@@ -164,8 +164,7 @@ mod tests {
         let messages = inputs.map(|value| {
             canonical("statement_timeout", value)
                 .and_then(Result::err)
-                .map(|error| error.to_string())
-                .unwrap_or_default()
+                .map_or_default(|error| error.to_string())
         });
 
         // Assert

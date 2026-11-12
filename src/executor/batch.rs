@@ -172,10 +172,7 @@ impl BatchRow {
     }
 
     pub(crate) fn data_types(&self) -> &[DataType] {
-        self.data_types
-            .as_deref()
-            .map(Vec::as_slice)
-            .unwrap_or_default()
+        self.data_types.as_deref().map_or_default(Vec::as_slice)
     }
 
     pub(crate) fn shared_data_types(&self) -> Option<Arc<Vec<DataType>>> {

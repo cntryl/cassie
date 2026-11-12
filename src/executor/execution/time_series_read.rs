@@ -59,8 +59,7 @@ pub(super) fn try_execute_time_series_read(
     let range = plan
         .filter
         .as_ref()
-        .map(|filter| timestamp_range_from_filter(filter, &timestamp_field, params))
-        .unwrap_or_default();
+        .map_or_default(|filter| timestamp_range_from_filter(filter, &timestamp_field, params));
     let partition_key = partition_key_from_filter(
         plan.filter.as_ref(),
         index.options.get("partition_by").map(String::as_str),

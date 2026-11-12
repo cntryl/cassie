@@ -527,13 +527,12 @@ pub fn row_description_names(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
     frames
         .iter()
         .find(|(tag, _)| *tag == b'T')
-        .map(|(_, payload)| {
+        .map_or_default(|(_, payload)| {
             parse_row_description(payload)
                 .into_iter()
                 .map(|field| field.name)
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 #[must_use]

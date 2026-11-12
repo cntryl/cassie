@@ -381,9 +381,7 @@ fn pg_constraint_row(
         ),
         string(
             "confkey",
-            referenced_field
-                .map(|field| field_number(catalog, referenced_table, field))
-                .unwrap_or_default(),
+            referenced_field.map_or_default(|field| field_number(catalog, referenced_table, field)),
         ),
         bool_value("conenforced", true),
         bool_value("convalidated", true),

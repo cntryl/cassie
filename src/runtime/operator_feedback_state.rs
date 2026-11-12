@@ -110,8 +110,7 @@ impl RuntimeState {
         let outlier_before = feedback
             .entries
             .get(key)
-            .map(|record| record.outlier_samples)
-            .unwrap_or_default();
+            .map_or_default(|record| record.outlier_samples);
         if let Some(record) = feedback.entries.get_mut(key) {
             apply_feedback_observation(record, observation, now_ms);
             touch_feedback(&mut feedback.order, key);
@@ -145,8 +144,7 @@ impl RuntimeState {
         let outlier_after = feedback
             .entries
             .get(key)
-            .map(|record| record.outlier_samples)
-            .unwrap_or_default();
+            .map_or_default(|record| record.outlier_samples);
         let pending_deletes = std::mem::take(&mut feedback.pending_deletes);
         drop(feedback);
 

@@ -629,8 +629,7 @@ fn should_keep_rollup_sum_of_integer_column_in_bigint() {
             "SELECT total, amount_sum, small_sum FROM __cassie_rollup_ev_hourly",
             vec![],
         )
-        .map(|result| result.rows().to_vec())
-        .unwrap_or_default();
+        .map_or_default(|result| result.rows().to_vec());
 
     // Assert
     assert!(refreshed, "REFRESH ROLLUP must succeed");

@@ -421,8 +421,9 @@ impl Midge {
         let metadata = self.projection_metadata(collection)?;
         let current_rows = metadata
             .as_ref()
-            .map(|metadata| i64::try_from(metadata.hashes.rows.row_count).unwrap_or(i64::MAX))
-            .unwrap_or_default()
+            .map_or_default(|metadata| {
+                i64::try_from(metadata.hashes.rows.row_count).unwrap_or(i64::MAX)
+            })
             .saturating_add(row_delta)
             .max(0)
             .unsigned_abs();

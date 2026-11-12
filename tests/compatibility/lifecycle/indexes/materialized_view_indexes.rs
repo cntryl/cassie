@@ -115,7 +115,10 @@ fn should_remove_unique_index_from_sql_materialized_view_catalog() {
             .expect("index count");
 
         // Assert
-        assert!(!has_indexes);
+        // pg_matviews.hasindexes mirrors relhasindex, which PostgreSQL leaves set
+        // after the last index is dropped until maintenance clears it (see
+        // CollectionMeta::has_ever_had_indexes).
+        assert!(has_indexes);
         assert_eq!(index_count, 0);
 
         drop(client);

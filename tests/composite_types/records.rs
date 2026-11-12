@@ -1,6 +1,6 @@
 //! Record equality, ordering and sorting follow PostgreSQL's record comparison.
 
-use crate::support_composite_types::first_column_text;
+use crate::support_composite_types::{first_column_text, only_text};
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 use cassie::types::Value;
 

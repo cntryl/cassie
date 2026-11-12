@@ -121,6 +121,96 @@ fn should_reject_undefined_infinite_numeric_powers_without_partial_output() {
     }
 }
 
+#[test]
+fn should_return_numeric_exponential_range_errors_without_publishing_prior_rows() {
+    // Arrange
+    let queries = [
+        "SELECT exp(n) FROM (VALUES (0::numeric),(6000::numeric)) AS input(n)",
+        "SELECT power(n,e) FROM (VALUES (10::numeric,2::numeric),(1e4::numeric,1000.5::numeric)) AS input(n,e)",
+    ];
+    let mut steps = Vec::new();
+    for sql in queries {
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(sql)]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT exp(NULL::numeric), exp(-6000::numeric) = 0, power(10::numeric,2::numeric)",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-numeric-exp-range", steps);
+
+    // Assert
+    for pair in batches.as_chunks::<2>().0 {
+        assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("22003"));
+        assert!(!pair[0].iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')));
+        assert_eq!(pair[0].last().map(|frame| frame.0), Some(b'Z'));
+        assert_eq!(wire::error_code(&pair[1]), None);
+        assert_eq!(
+            wire::data_rows(&pair[1]),
+            vec![vec![
+                None,
+                Some("t".to_owned()),
+                Some("100.00000000000000".to_owned())
+            ]]
+        );
+        let description = pair[1]
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .expect("recovery descriptors");
+        assert_eq!(
+            wire::parse_row_description(&description.1)
+                .iter()
+                .map(|field| field.type_oid)
+                .collect::<Vec<_>>(),
+            [1700, 16, 1700]
+        );
+    }
+}
+
+#[test]
+fn should_reject_undefined_infinite_numeric_powers_without_partial_output() {
+    // Arrange
+    let queries = [
+        "SELECT power(base, exponent) FROM (VALUES (1::numeric, 2::numeric), ('-Infinity'::numeric, 0.5::numeric)) AS inputs(base, exponent)",
+        "SELECT power(base, exponent) FROM (VALUES (1::numeric, 2::numeric), (0::numeric, '-Infinity'::numeric)) AS inputs(base, exponent)",
+        "SELECT base ^ exponent FROM (VALUES (1::numeric, 2::numeric), ('-Infinity'::numeric, 0.5::numeric)) AS inputs(base, exponent)",
+        "SELECT base ^ exponent FROM (VALUES (1::numeric, 2::numeric), (0::numeric, '-Infinity'::numeric)) AS inputs(base, exponent)",
+    ];
+    let mut steps = Vec::new();
+    for sql in queries {
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(sql)]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT power('-Infinity'::numeric, 3::numeric), power(NULL::numeric, '-Infinity'::numeric), power('1e400'::numeric, '0.001'::numeric)",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-infinite-power-domains", steps);
+
+    // Assert
+    for pair in batches.as_chunks::<2>().0 {
+        assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("2201F"));
+        assert!(!pair[0].iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')));
+        assert_eq!(pair[0].last().map(|frame| frame.0), Some(b'Z'));
+        assert_eq!(wire::error_code(&pair[1]), None);
+        assert_eq!(
+            wire::data_rows(&pair[1]),
+            vec![vec![
+                Some("-Infinity".to_owned()),
+                None,
+                Some("2.5118864315095801".to_owned())
+            ]]
+        );
+        let description = pair[1]
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .expect("recovered numeric result descriptors");
+        assert!(wire::parse_row_description(&description.1)
+            .iter()
+            .all(|field| field.type_oid == 1700));
+    }
+}
+
 struct OverloadCase {
     control_sql: &'static str,
     control_types: &'static [i32],

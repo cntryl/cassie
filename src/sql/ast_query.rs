@@ -99,6 +99,10 @@ pub enum QuerySource {
     SingleRow,
 }
 
+fn without_ordinality(value: &bool) -> bool {
+    !value
+}
+
 impl PartialEq for QuerySource {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

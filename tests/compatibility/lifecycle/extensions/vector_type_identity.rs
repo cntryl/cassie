@@ -94,7 +94,7 @@ fn should_publish_one_canonical_vector_oid_with_declared_and_bare_typmods() {
                 "SELECT attname, atttypid::BIGINT, atttypmod \
                  , pg_catalog.format_type(atttypid, atttypmod) \
                  FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'vector_types'::regclass AND attnum > 0 \
+                 WHERE attrelid_oid = 'vector_types'::regclass AND attnum > 0 \
                  ORDER BY attnum",
                 &[],
             )

@@ -143940,6 +143940,161 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_preserve_array_lower_bounds_when_prepending_scalar_elements",
+      "name": "should_preserve_array_lower_bounds_when_prepending_scalar_elements",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 131,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_preserve_array_lower_bounds_when_prepending_scalar_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_preserve_native_identity_for_array_function_outputs",
+      "name": "should_preserve_native_identity_for_array_function_outputs",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 153,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_preserve_native_identity_for_array_function_outputs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_concatenate_scalar_elements_with_arrays_in_both_operand_orders",
+      "name": "should_concatenate_scalar_elements_with_arrays_in_both_operand_orders",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 180,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_concatenate_scalar_elements_with_arrays_in_both_operand_orders"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_distinguish_typed_text_elements_from_unknown_array_text_during_concatenation",
+      "name": "should_distinguish_typed_text_elements_from_unknown_array_text_during_concatenation",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 200,
+      "end_line": 219,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_distinguish_typed_text_elements_from_unknown_array_text_during_concatenation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_preserve_array_concatenation_parameter_overloads",
+      "name": "should_preserve_array_concatenation_parameter_overloads",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 222,
+      "end_line": 288,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_preserve_array_concatenation_parameter_overloads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/types/arrays/array_function/binary.rs::should_round_trip_multidimensional_nondefault_bounds_in_binary_format",
       "name": "should_round_trip_multidimensional_nondefault_bounds_in_binary_format",
       "current_file": "tests/pgwire_extended/types/arrays/array_function/binary.rs",

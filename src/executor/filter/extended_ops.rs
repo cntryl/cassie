@@ -19,14 +19,6 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
     }
     match (left, right) {
         (ScalarValue::Typed(left), ScalarValue::Typed(right)) => operations::compare(left, right),
-        (
-            ScalarValue::Typed(crate::types::typed::TypedValue::Record(record)),
-            ScalarValue::Str(_),
-        ) => {
-            let target = crate::types::DataType::Composite(record.descriptor().clone());
-            let parsed = super::cast_scalar(right, &target, None).ok()?;
-            compare(left, &parsed)
-        }
         (ScalarValue::Typed(typed), ScalarValue::Str(text)) => typed
             .kind()
             .parse_text(text)
@@ -84,6 +76,14 @@ fn comparison(
     right: &ScalarValue,
     null: bool,
 ) -> Option<Result<ScalarValue, QueryError>> {
+    if !null && record_against_text(left, right) {
+        return Some(Err(QueryError::Cassie(CassieError::from(
+            crate::app::DiagnosticError::new(
+                "0A000",
+                "input of anonymous composite types is not implemented",
+            ),
+        ))));
+    }
     let ordering = || compare(left, right).ok_or_else(|| undefined(left, op, right));
     let ordered = |test: fn(std::cmp::Ordering) -> bool| {
         Some(if null {
@@ -113,6 +113,16 @@ fn comparison(
         }
         _ => None,
     }
+}
+
+/// A record compared with an untyped string literal, which PostgreSQL cannot
+/// coerce to a record type.
+fn record_against_text(left: &ScalarValue, right: &ScalarValue) -> bool {
+    let is_record = |value: &ScalarValue| {
+        matches!(value, ScalarValue::Typed(typed) if typed.as_record().is_some())
+    };
+    (is_record(left) && matches!(right, ScalarValue::Str(_)))
+        || (matches!(left, ScalarValue::Str(_)) && is_record(right))
 }
 
 fn type_label(value: &ScalarValue) -> String {

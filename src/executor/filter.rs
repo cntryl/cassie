@@ -179,6 +179,10 @@ fn take_array_value_clone_count() -> usize {
     ARRAY_VALUE_CLONE_COUNT.with(|count| count.replace(0))
 }
 
+#[cfg(test)]
+#[path = "filter/json_delete_evaluation_tests.rs"]
+mod json_delete_evaluation_tests;
+
 #[derive(Debug, Clone)]
 pub(crate) enum ScalarValue {
     Null,
@@ -287,6 +291,18 @@ impl ScalarValue {
                 ARRAY_VALUE_CLONE_COUNT.with(|count| count.set(count.get().saturating_add(1)));
                 Value::Array(v.clone())
             }
+        }
+    }
+
+    fn into_value(self) -> Value {
+        match self {
+            ScalarValue::Null => Value::Null,
+            ScalarValue::Bool(value) => Value::Bool(value),
+            ScalarValue::Int(value) => Value::Int64(value),
+            ScalarValue::Float(value) => Value::Float64(value),
+            ScalarValue::Str(value) | ScalarValue::Json(value) => Value::String(value),
+            ScalarValue::Typed(value) => Value::Typed(value),
+            ScalarValue::Array(value) => Value::Array(value),
         }
     }
 

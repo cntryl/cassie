@@ -487,6 +487,9 @@ impl Cassie {
                 Self::validate_vector(field, *dimensions, value)
             }
             crate::types::DataType::Array(inner) => Self::validate_array(field, inner, value),
+            crate::types::DataType::Composite(descriptor) => {
+                Self::validate_record(field, descriptor, value)
+            }
         }
     }
 
@@ -663,6 +666,38 @@ impl Cassie {
         } else {
             Ok(())
         }
+    }
+
+    fn validate_record(
+        field: &str,
+        descriptor: &crate::types::CompositeRef,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        let stored = value
+            .as_object()
+            .and_then(|object| object.get(crate::types::composite::RECORD_STORAGE_KEY))
+            .and_then(serde_json::Value::as_object)
+            .and_then(|body| body.get("fields"))
+            .and_then(serde_json::Value::as_array);
+        let Some(stored) = stored else {
+            return Self::invalid_vector(field, "a composite record");
+        };
+        if stored.len() != descriptor.fields.len() {
+            return Self::invalid_vector(
+                field,
+                format!("a composite record of {} fields", descriptor.fields.len()),
+            );
+        }
+        for (value, declared) in stored.iter().zip(&descriptor.fields) {
+            if !value.is_null() {
+                Self::validate_value_against_data_type(
+                    &format!("{field}.{}", declared.name),
+                    &declared.data_type,
+                    value,
+                )?;
+            }
+        }
+        Ok(())
     }
 
     fn validate_array(

@@ -292,6 +292,8 @@ impl ExactMetadataEq for DataType {
                 Self::Extended(right) => left.exact_eq(right, controls),
                 _ => Ok(false),
             },
+            // Descriptors are immutable and shared; equal content is the identity.
+            Self::Composite(left) => Ok(matches!(other, Self::Composite(right) if left == right)),
             Self::Null
             | Self::SmallInt
             | Self::Int

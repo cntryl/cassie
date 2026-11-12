@@ -103,6 +103,7 @@ pub(super) fn encode_value(
             Ok((TYPE_BYTEA, decode_bytea(value)?))
         }
         DataType::Array(inner) => encode_array_value(inner, value),
+        DataType::Composite(descriptor) => super::composite::encode_composite(descriptor, value),
         DataType::Json | DataType::Jsonb => {
             let encoded = serde_json::to_vec(value)
                 .map_err(|error| CassieError::Parse(format!("invalid json field: {error}")))?;

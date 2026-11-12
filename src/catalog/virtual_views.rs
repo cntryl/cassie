@@ -661,7 +661,15 @@ fn information_schema_column_row(
             relation_database_name(relation)
                 .unwrap_or_else(|| current_database.unwrap_or("postgres").to_owned()),
         ),
-        string("udt_schema", crate::catalog::PG_CATALOG_SCHEMA),
+        string(
+            "udt_schema",
+            match data_type {
+                DataType::Composite(descriptor) if !descriptor.is_anonymous() => {
+                    relation_schema_name(&descriptor.qualified_name)
+                }
+                _ => crate::catalog::PG_CATALOG_SCHEMA.to_string(),
+            },
+        ),
         string("udt_name", udt_name(data_type)),
         optional_i64("character_maximum_length", character_length(data_type)),
         optional_i64("numeric_precision", numeric_precision(data_type)),
@@ -708,7 +716,11 @@ fn udt_name(data_type: &DataType) -> String {
     match type_metadata(data_type) {
         TypeMetadata::Scalar(metadata) => metadata.name.to_owned(),
         TypeMetadata::Vector => "vector".to_owned(),
-        TypeMetadata::Array(inner) => format!("_{}", udt_name(inner)),
+        TypeMetadata::Array(inner) => match inner {
+            DataType::Composite(descriptor) => format!("_{}", descriptor.name),
+            other => format!("_{}", udt_name(other)),
+        },
+        TypeMetadata::Composite(descriptor) => descriptor.name.clone(),
     }
 }
 
@@ -835,6 +847,7 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Jsonb => "jsonb".to_string(),
         DataType::JsonPath => "jsonpath".to_string(),
         DataType::Array(inner) => format!("{}[]", inner.type_name()),
+        DataType::Composite(_) => "USER-DEFINED".to_string(),
         DataType::ObjectId(kind) => kind.name().to_string(),
         DataType::Extended(kind) => kind.name().to_string(),
     }

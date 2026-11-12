@@ -717,6 +717,10 @@ fn copy_value_to_json(
         | DataType::Date
         | DataType::Time
         | DataType::Timestamp => Ok(serde_json::Value::String(value)),
+        DataType::Composite(_) => Err(CassieError::Unsupported(format!(
+            "COPY into composite field '{}' is pending under #828",
+            field.name
+        ))),
         DataType::Json | DataType::Jsonb => unreachable!("JSON fields use the controlled parser"),
     }?;
     Ok((value, None))

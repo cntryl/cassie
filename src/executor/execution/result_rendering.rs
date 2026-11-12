@@ -54,6 +54,8 @@ pub(crate) fn bound(value: &TypedValue, session: &TemporalSession) -> Result<usi
         }
         TypedValue::Bit(value) | TypedValue::VarBit(value) => add(mul(value.heap_bytes(), 8)?, 128),
         TypedValue::TimestampTz(_) => add(session.zone.name().len(), 256),
+        // Each field renders at most a few times its retained bytes, plus quoting.
+        TypedValue::Record(record) => add(mul(record.heap_bytes().max(128), 8)?, 256),
         TypedValue::Real(_)
         | TypedValue::Numeric(_)
         | TypedValue::Inet(_)

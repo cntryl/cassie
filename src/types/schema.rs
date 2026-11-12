@@ -23,8 +23,12 @@ pub enum DataType {
     Boolean,
     Name,
     Text,
-    Char { length: Option<u32> },
-    Varchar { length: Option<u32> },
+    Char {
+        length: Option<u32>,
+    },
+    Varchar {
+        length: Option<u32>,
+    },
     Uuid,
     Bytea,
     Date,
@@ -35,6 +39,8 @@ pub enum DataType {
     Jsonb,
     JsonPath,
     Array(Box<DataType>),
+    /// A named composite type or the transient `record` of a `ROW(...)` value.
+    Composite(super::CompositeRef),
     ObjectId(super::ObjectIdKind),
     Extended(super::extended::ExtendedType),
 }
@@ -81,6 +87,7 @@ impl DataType {
             Self::Jsonb => "jsonb".to_string(),
             Self::JsonPath => "jsonpath".to_string(),
             Self::Array(inner) => format!("{}[]", inner.type_name()),
+            Self::Composite(descriptor) => descriptor.name.clone(),
             Self::ObjectId(kind) => kind.name().to_string(),
             Self::Extended(kind) => kind.type_name(),
         }
@@ -92,9 +99,12 @@ impl DataType {
         match type_metadata(self) {
             TypeMetadata::Scalar(metadata) => i64::from(metadata.oid),
             TypeMetadata::Vector => 0,
+            TypeMetadata::Composite(descriptor) => i64::from(descriptor.oid),
             TypeMetadata::Array(inner) => {
                 let element = match inner {
                     Self::Vector(_) => return 0,
+                    // A composite array's OID is allocated with its element type.
+                    Self::Composite(descriptor) => return i64::from(descriptor.array_oid),
                     other => other.type_oid(),
                 };
                 u32::try_from(element)
@@ -109,7 +119,7 @@ impl DataType {
     pub fn typlen(&self) -> i16 {
         match type_metadata(self) {
             TypeMetadata::Scalar(metadata) => metadata.typlen,
-            TypeMetadata::Vector | TypeMetadata::Array(_) => -1,
+            TypeMetadata::Vector | TypeMetadata::Array(_) | TypeMetadata::Composite(_) => -1,
         }
     }
 

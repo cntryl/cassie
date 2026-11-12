@@ -8,6 +8,8 @@ pub(super) fn kind(data_type: &DataType, builtin: Option<&BuiltinTypeRow>) -> St
     }
     if matches!(data_type, DataType::Array(_)) {
         "a".to_string()
+    } else if matches!(data_type, DataType::Composite(_)) {
+        "c".to_string()
     } else {
         "b".to_string()
     }
@@ -39,6 +41,7 @@ pub(super) fn category(data_type: &DataType, builtin: Option<&BuiltinTypeRow>) -
         | DataType::Vector(_) => "U".to_string(),
         DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
         DataType::Array(_) => "A".to_string(),
+        DataType::Composite(_) => "C".to_string(),
         DataType::Extended(kind) => kind.category().to_string(),
     }
 }

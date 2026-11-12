@@ -120,7 +120,8 @@ pub(super) fn parameter_shape_for_oids(oids: &[i32]) -> Vec<crate::runtime::Para
                     | DataType::Date
                     | DataType::Time
                     | DataType::Timestamp
-                    | DataType::JsonPath,
+                    | DataType::JsonPath
+                    | DataType::Composite(_),
                 ) => ParameterShape::String,
                 Some(DataType::Vector(Some(dimensions))) => ParameterShape::Vector(dimensions),
                 Some(DataType::Vector(None)) => ParameterShape::Vector(0),

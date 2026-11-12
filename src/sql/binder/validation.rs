@@ -683,9 +683,11 @@ pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
         DataType::Vector(_) => OperandFamily::Vector,
         DataType::Json | DataType::Jsonb => OperandFamily::Json,
         DataType::JsonPath => OperandFamily::Other,
-        DataType::Uuid | DataType::Bytea | DataType::Array(_) | DataType::Null => {
-            OperandFamily::Other
-        }
+        DataType::Uuid
+        | DataType::Bytea
+        | DataType::Array(_)
+        | DataType::Composite(_)
+        | DataType::Null => OperandFamily::Other,
     }
 }
 

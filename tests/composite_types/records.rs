@@ -61,7 +61,8 @@ fn should_sort_records_with_null_fields_after_values_and_null_records_last() {
     let fixture = fixture("composite_order_by");
 
     // Act
-    let ordered = first_column_text(&fixture.rows("SELECT a::text FROM places ORDER BY a"));
+    let ordered =
+        first_column_text(&fixture.rows("SELECT a::text AS t FROM places ORDER BY places.a"));
 
     // Assert
     assert_eq!(
@@ -98,4 +99,33 @@ fn should_reject_comparing_a_record_with_an_untyped_literal() {
 
     // Assert
     assert_eq!(error.sql_state(), "0A000");
+}
+
+#[test]
+fn should_reject_scalar_functions_over_records_with_sqlstate_42883() {
+    // Arrange
+    let fixture = fixture("composite_function_over_record");
+
+    // Act
+    let length = fixture.error("SELECT length(ROW(1, 2))");
+    let abs = fixture.error("SELECT abs(ROW(1, 2))");
+
+    // Assert
+    assert_eq!(length.sql_state(), "42883");
+    assert_eq!(abs.sql_state(), "42883");
+}
+
+#[test]
+fn should_keep_record_equality_for_named_values_after_function_dispatch_changes() {
+    // Arrange
+    let fixture = fixture("composite_equality_after_dispatch");
+
+    // Act
+    let equal = single_bool(
+        &fixture,
+        "SELECT ROW('a', 1)::address = ROW('a', 1)::address",
+    );
+
+    // Assert
+    assert!(equal);
 }

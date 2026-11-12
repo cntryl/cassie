@@ -224,3 +224,27 @@ fn should_distinguish_a_null_record_from_an_all_null_record() {
     assert!(all_null.all_fields_null());
     assert!(!all_null.no_field_null());
 }
+
+#[test]
+fn should_reject_stored_records_that_do_not_match_the_descriptor() {
+    // Arrange
+    let record = text_record(vec![text("a"), text("b")]);
+    let json = record_to_storage_json(&record);
+    let mut other_type = (**record.descriptor()).clone();
+    other_type.oid += 1;
+    let other_oid = CompositeRef::new(other_type);
+    let mut short_type = (**record.descriptor()).clone();
+    short_type.fields.truncate(1);
+    let fewer_fields = CompositeRef::new(short_type);
+    let mut convert = |value: &serde_json::Value, _: &DataType| {
+        Value::String(value.as_str().unwrap_or_default().to_string())
+    };
+
+    // Act
+    let wrong_oid = record_from_storage_json(&json, &other_oid, &mut convert);
+    let wrong_count = record_from_storage_json(&json, &fewer_fields, &mut convert);
+
+    // Assert
+    assert_eq!(wrong_oid, None);
+    assert_eq!(wrong_count, None);
+}

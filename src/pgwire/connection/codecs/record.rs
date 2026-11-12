@@ -16,7 +16,7 @@ pub(super) const fn as_record(value: &Value) -> Option<&RecordValue> {
 /// of the field's own type.
 pub(super) fn text(record: &RecordValue) -> String {
     crate::types::composite::format_record_with(record, &mut |value, data_type| {
-        let field_oid = i64::from(data_type.type_oid());
+        let field_oid = data_type.type_oid();
         super::value_to_text(value, field_oid)
     })
 }
@@ -24,7 +24,7 @@ pub(super) fn text(record: &RecordValue) -> String {
 /// PostgreSQL binary record output (`record_send`).
 pub(super) fn binary(record: &RecordValue) -> io::Result<Vec<u8>> {
     crate::types::composite::send_record_binary(record, |value, data_type| {
-        let field_oid = i64::from(data_type.type_oid());
+        let field_oid = data_type.type_oid();
         super::value_to_binary(value, field_oid).map_err(|error| RecordSendError(error.to_string()))
     })
     .map_err(|error: RecordSendError| io::Error::new(io::ErrorKind::InvalidData, error.0))

@@ -787,9 +787,18 @@ pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataTyp
             descriptor,
             &mut json_to_typed_value,
         )
-        .map_or(Value::Null, |record| {
-            Value::Typed(crate::types::typed::TypedValue::Record(record))
-        });
+        .map_or_else(
+            || {
+                if !value.is_null() {
+                    tracing::error!(
+                        type_name = %descriptor.name,
+                        "stored composite value does not match its column descriptor"
+                    );
+                }
+                Value::Null
+            },
+            |record| Value::Typed(crate::types::typed::TypedValue::Record(record)),
+        );
     }
     if let DataType::Array(element_type) = data_type {
         if value

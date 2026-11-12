@@ -371,9 +371,40 @@ compiled or executed (assembler-owned gate). Pending or excluded:
 - record ordering uses an order-preserving key that is exact for equality and
   for text, integer, float and boolean fields; fields of other families order
   by their typed key bytes;
-- view and routine bodies are reparsed without a type scope, and one simple
-  query string cannot create a type and use it in a later statement of the
-  same string.
+- unscoped reparse paths fail closed with an unknown-type error instead of
+  resolving composite names: SQL `PREPARE p(address)`/`EXECUTE`, `COPY (query)`,
+  view and routine bodies, the `CREATE TABLE AS` insert reparse, and Describe
+  of a statement without a session (default search path). A view over a
+  composite type is therefore not usable yet;
+- one simple-query string cannot `CREATE TYPE` and use the type in a later
+  statement of the same string (all statements are parsed first);
+- `DROP TYPE` dependents cover composite fields and table columns only, not
+  views, materialized views, projections or function signatures;
+- concurrent `CREATE TYPE` of one name is not one atomic step (check,
+  identity allocation and publication are separate), like extensions;
+- `TypedValue::kind()` returns a sentinel (`Interval` with typmod `i32::MIN`)
+  for records. No silent misbehavior was found in review, only
+  interval-flavoured error text (for example `date_trunc('day', ROW(1,2))`);
+  replace it with an `Option`/dedicated kind enum before domains or
+  `ALTER TYPE`;
+- `TypedValue::send_binary` for a record returns empty bytes on an encode
+  error; the wire path (`codecs/record.rs`) propagates errors, so this is
+  reachable only through `COPY BINARY` and similar direct callers;
+- a prepared statement holds the descriptor from Parse time; after `DROP TYPE`
+  plus `CREATE TYPE` of the same name it fails closed with `42846`;
+- a stored record that does not match its column descriptor (OID or field
+  count) reads as SQL NULL with an error log rather than an error, because
+  `json_to_typed_value` is infallible; make it fallible before `ALTER TYPE`;
+- anonymous `ROW(...)` field types are best effort (integers report
+  `bigint`, so a binary RECORD field OID is 20 where PostgreSQL sends 23);
+- btree indexes and `UNIQUE` on record columns are `0A000` although
+  PostgreSQL supports them;
+- database image restore fails closed: restoring an image that contains
+  composite types returns `0A000` until the image rewrite re-keys the
+  `composite-type` family and re-allocates type identities;
+- `DROP DATABASE` discards the database's composite types, and
+  `DROP SCHEMA ... CASCADE` is rejected with `2BP01` while an object outside
+  the schema uses one of its types.
 
 ### #843, #844
 

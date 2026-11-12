@@ -8,7 +8,10 @@ fn error(error: TypeInputError) -> QueryError {
 }
 
 const fn owned(value: &ScalarValue) -> bool {
-    matches!(value, ScalarValue::Typed(typed) if operations::handles_value(typed))
+    matches!(
+        value,
+        ScalarValue::Typed(typed) if typed.as_record().is_some() || operations::handles_value(typed)
+    )
 }
 
 /// Compares an owned typed value with another operand: another value of its

@@ -252,3 +252,87 @@ fn should_reject_dropping_a_schema_that_still_owns_a_type() {
     assert!(restricted.is_err(), "schema with a type is not empty");
     assert!(emptied.is_ok(), "schema is empty after the type is dropped");
 }
+
+#[test]
+fn should_reject_schema_cascade_when_a_table_outside_the_schema_uses_the_type() {
+    // Arrange
+    let fixture = sql_fixture(
+        "composite_cascade_outside_dependent",
+        &["CREATE SCHEMA s1", "CREATE SCHEMA s2"],
+    );
+    fixture
+        .execute("CREATE TYPE s1.t AS (a int, b text)")
+        .unwrap();
+    fixture
+        .execute("CREATE TABLE s2.users (id int, v s1.t)")
+        .unwrap();
+
+    // Act
+    let error = fixture.error("DROP SCHEMA s1 CASCADE");
+    let type_still_resolves = fixture.execute("SELECT '(1,x)'::s1.t::text");
+    let table_still_readable = fixture.execute("SELECT v::text FROM s2.users");
+
+    // Assert
+    assert_eq!(error.sql_state(), "2BP01");
+    assert!(type_still_resolves.is_ok(), "the type must survive");
+    assert!(table_still_readable.is_ok(), "the table must survive");
+}
+
+#[test]
+fn should_drop_schema_types_with_cascade_when_nothing_outside_uses_them() {
+    // Arrange
+    let fixture = sql_fixture("composite_cascade_inside_only", &["CREATE SCHEMA s1"]);
+    fixture.execute("CREATE TYPE s1.t AS (a int)").unwrap();
+    fixture
+        .execute("CREATE TABLE s1.users (id int, v s1.t)")
+        .unwrap();
+
+    // Act
+    let dropped = fixture.execute("DROP SCHEMA s1 CASCADE");
+    let type_gone = fixture.execute("SELECT '(1)'::s1.t::text");
+
+    // Assert
+    assert!(dropped.is_ok(), "all dependents are inside the schema");
+    assert!(type_gone.is_err());
+}
+
+#[test]
+fn should_forget_a_databases_types_when_it_is_dropped_and_recreated() {
+    // Arrange
+    let fixture = sql_fixture("composite_drop_database", &[]);
+    fixture.execute_as_root("CREATE DATABASE scratch").unwrap();
+    let scratch = fixture
+        .cassie
+        .create_session("tester", Some("scratch".to_owned()));
+    fixture
+        .cassie
+        .execute_sql(&scratch, ADDRESS, vec![])
+        .unwrap();
+    let old_oid = fixture
+        .cassie
+        .catalog
+        .list_composite_types()
+        .into_iter()
+        .find(|metadata| metadata.database == "scratch")
+        .map(|metadata| metadata.type_oid())
+        .expect("type registered in scratch");
+
+    // Act
+    fixture.execute_as_root("DROP DATABASE scratch").unwrap();
+    fixture.execute_as_root("CREATE DATABASE scratch").unwrap();
+    let recreated = fixture
+        .cassie
+        .create_session("tester", Some("scratch".to_owned()));
+    let created = fixture.cassie.execute_sql(&recreated, ADDRESS, vec![]);
+
+    // Assert
+    assert!(created.is_ok(), "the dropped database's type name is free");
+    assert!(
+        fixture
+            .cassie
+            .catalog
+            .get_composite_type_by_oid(old_oid)
+            .is_none(),
+        "the old type OID no longer resolves"
+    );
+}

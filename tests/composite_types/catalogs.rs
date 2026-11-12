@@ -84,10 +84,10 @@ fn should_publish_pg_attribute_rows_for_each_field_in_order() {
     // Act
     let names = first_column_text(
         &fixture
-            .rows("SELECT attname FROM pg_attribute WHERE attrelid = 'address' ORDER BY attnum"),
+            .rows(concat!("SELECT a.attname ", "FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid_oid WHERE c.relname = 'address' AND c.relkind = 'c' ORDER BY a.attnum")),
     );
     let types = fixture
-        .rows("SELECT atttypid FROM pg_attribute WHERE attrelid = 'address' ORDER BY attnum");
+        .rows(concat!("SELECT a.atttypid ", "FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid_oid WHERE c.relname = 'address' AND c.relkind = 'c' ORDER BY a.attnum"));
 
     // Assert
     assert_eq!(
@@ -150,7 +150,7 @@ fn should_remove_catalog_rows_when_the_type_is_dropped() {
     );
     let attributes = count(
         &fixture,
-        "SELECT count(*) FROM pg_attribute WHERE attrelid = 'address'",
+        concat!("SELECT count(*) ", "FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid_oid WHERE c.relname = 'address' AND c.relkind = 'c'"),
     );
     let resolved = only_text(&fixture.rows("SELECT to_regtype('address')::text"));
 

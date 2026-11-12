@@ -817,7 +817,8 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
 
     match (left, right) {
         (ScalarValue::Typed(typed), _) | (_, ScalarValue::Typed(typed))
-            if crate::types::extended::operations::handles_value(typed) =>
+            if typed.as_record().is_some()
+                || crate::types::extended::operations::handles_value(typed) =>
         {
             extended_ops::compare(left, right).map(std::cmp::Ordering::is_eq)
         }

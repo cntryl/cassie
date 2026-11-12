@@ -69,6 +69,9 @@ pub(crate) fn drop_schema(
         .ok_or_else(|| QueryError::General("namespace database is unavailable".to_owned()))?;
     let namespace_database_family = namespace_database.physical_family;
     let transactional = session.is_some_and(CassieSession::is_transaction_active);
+    if statement.cascade {
+        reject_outside_type_dependents(cassie, &statement.schema)?;
+    }
     let output = empty_command("DROP SCHEMA", controls)?;
     if statement.cascade {
         for composite in cassie
@@ -183,6 +186,39 @@ pub(super) fn cleanup_table_role_grants_after_drop(
         .map_err(QueryError::Cassie)
 }
 
+/// A cascade may drop a schema's types only when nothing outside the schema
+/// still uses them; PostgreSQL reports such a dependent with `2BP01`.
+fn reject_outside_type_dependents(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
+    for composite in cassie
+        .catalog
+        .list_composite_types()
+        .into_iter()
+        .filter(|composite| object_in_schema(&composite.name, schema))
+    {
+        let outside = cassie
+            .catalog
+            .composite_type_dependents_with_owner(composite.type_oid())
+            .into_iter()
+            .filter(|(owner, _)| !object_in_schema(owner, schema))
+            .map(|(_, phrase)| format!("{phrase} depends on type {}", composite.local_name()))
+            .collect::<Vec<_>>();
+        if !outside.is_empty() {
+            return Err(QueryError::Cassie(
+                crate::app::DiagnosticError::new(
+                    "2BP01",
+                    format!(
+                        "cannot drop type {} because other objects depend on it",
+                        composite.local_name()
+                    ),
+                )
+                .with_detail(outside.join("\n"))
+                .into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn drop_database(
     cassie: &Cassie,
     session: Option<&crate::app::CassieSession>,
@@ -231,6 +267,9 @@ pub(crate) fn drop_database(
         .catalog
         .unregister_role_object_grants_for_database(&database_family);
     cassie.catalog.unregister_namespace(&public_schema);
+    cassie
+        .catalog
+        .unregister_composite_types_for_database(&statement.name);
     cassie.catalog.unregister_database(&statement.name);
 
     Ok(output)

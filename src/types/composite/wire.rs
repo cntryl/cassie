@@ -62,6 +62,9 @@ pub fn record_from_storage_json(
     field_from_json: &mut dyn FnMut(&serde_json::Value, &DataType) -> Value,
 ) -> Option<RecordValue> {
     let body = json.as_object()?.get(RECORD_STORAGE_KEY)?.as_object()?;
+    if body.get("oid")?.as_u64() != Some(u64::from(descriptor.oid)) {
+        return None;
+    }
     let stored = body.get("fields")?.as_array()?;
     if stored.len() != descriptor.fields.len() {
         return None;

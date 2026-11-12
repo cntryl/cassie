@@ -203,6 +203,16 @@ impl Catalog {
     /// `DROP TYPE` dependency detail (`column c of table t`).
     #[must_use]
     pub fn composite_type_dependents(&self, oid: u32) -> Vec<String> {
+        self.composite_type_dependents_with_owner(oid)
+            .into_iter()
+            .map(|(_, phrase)| phrase)
+            .collect()
+    }
+
+    /// Like [`Self::composite_type_dependents`], pairing each phrase with the
+    /// canonical name of the owning table or type.
+    #[must_use]
+    pub fn composite_type_dependents_with_owner(&self, oid: u32) -> Vec<(String, String)> {
         let mut dependents = Vec::new();
         for metadata in self.composite_types.read().values() {
             if metadata.type_oid() == oid {
@@ -210,10 +220,13 @@ impl Catalog {
             }
             for field in &metadata.fields {
                 if data_type_depends_on(&field.data_type, oid) {
-                    dependents.push(format!(
-                        "column {} of composite type {}",
-                        field.name,
-                        metadata.local_name()
+                    dependents.push((
+                        metadata.name.clone(),
+                        format!(
+                            "column {} of composite type {}",
+                            field.name,
+                            metadata.local_name()
+                        ),
                     ));
                 }
             }
@@ -221,16 +234,27 @@ impl Catalog {
         for schema in self.schemas.read().values() {
             for field in &schema.fields {
                 if data_type_depends_on(&field.data_type, oid) {
-                    dependents.push(format!(
-                        "column {} of table {}",
-                        field.name,
-                        local_name(&schema.collection)
+                    dependents.push((
+                        schema.collection.clone(),
+                        format!(
+                            "column {} of table {}",
+                            field.name,
+                            local_name(&schema.collection)
+                        ),
                     ));
                 }
             }
         }
         dependents.sort();
         dependents
+    }
+
+    /// Removes every type of `database` from the catalog (database drop).
+    pub fn unregister_composite_types_for_database(&self, database: &str) {
+        self.composite_types
+            .write()
+            .retain(|_, metadata| !metadata.database.eq_ignore_ascii_case(database));
+        self.bump_version();
     }
 
     /// Types declared in `schema` of `database`, for `DROP SCHEMA` dependency checks.

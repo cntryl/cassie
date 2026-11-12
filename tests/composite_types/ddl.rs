@@ -381,3 +381,20 @@ fn should_reject_a_view_sequence_index_or_table_named_like_a_type() {
     assert_eq!(index.sql_state(), "42P07");
     assert_eq!(table.sql_state(), "42P07");
 }
+
+#[test]
+fn should_skip_create_table_if_not_exists_over_a_type_name() {
+    // Arrange
+    let fixture = fixture_with_address("composite_table_if_not_exists");
+
+    // Act
+    let created = fixture.execute("CREATE TABLE IF NOT EXISTS address (id int)");
+    let tables =
+        fixture.rows("SELECT count(*) FROM pg_class WHERE relname = 'address' AND relkind = 'r'");
+    let types = fixture.rows("SELECT count(*) FROM pg_type WHERE typname = 'address'");
+
+    // Assert
+    assert!(created.is_ok());
+    assert_eq!(tables, vec![vec![cassie::types::Value::Int64(0)]]);
+    assert_eq!(types, vec![vec![cassie::types::Value::Int64(1)]]);
+}

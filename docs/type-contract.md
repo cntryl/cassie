@@ -411,8 +411,9 @@ compiled or executed (assembler-owned gate). Pending or excluded:
   accepts them;
 - a composite type shares the relation namespace with tables, views, sequences
   and indexes: `CREATE TYPE` over such a name is `42710`, and
-  `CREATE TABLE/VIEW/SEQUENCE/INDEX` over a type name is `42P07` (also with
-  `IF NOT EXISTS`, which is stricter than PostgreSQL).
+  `CREATE TABLE/VIEW/SEQUENCE/INDEX` over a type name is `42P07` (`CREATE TABLE IF NOT EXISTS`
+  over a type name skips, as in PostgreSQL, but `CREATE SEQUENCE/INDEX IF NOT
+  EXISTS` over a type name still raise `42P07` where PostgreSQL skips).
 
 ### #843, #844
 

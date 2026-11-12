@@ -47,9 +47,8 @@ mod schema_table_constraints;
 mod sequence_options;
 use schema_fields::parse_field_definition;
 use schema_fields::parse_field_definition_for_table;
-use schema_identifiers::{
-    parse_column_identifier, parse_column_reference, parse_identifier, parse_relation_path,
-};
+pub(super) use schema_identifiers::{parse_column_identifier, parse_identifier};
+use schema_identifiers::{parse_column_reference, parse_relation_path};
 pub(super) use schema_indexes::{
     parse_alter_index_statement, parse_create_index_statement, parse_drop_index_statement,
     parse_index_options, parse_reindex_statement,

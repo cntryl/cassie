@@ -51,7 +51,7 @@ fn should_send_record_text_with_postgresql_quoting() {
 }
 
 #[test]
-fn should_describe_named_records_with_the_allocated_oid_and_anonymous_with_2249() {
+fn should_describe_named_records_with_the_allocated_oid_otherwise_2249() {
     // Arrange
     let cycles = vec![
         fixture::execute_cycle("SELECT a FROM homes", None, 0, true),
@@ -75,7 +75,7 @@ fn should_describe_named_records_with_the_allocated_oid_and_anonymous_with_2249(
 }
 
 #[test]
-fn should_send_binary_records_with_field_count_oids_and_lengths() {
+fn should_send_binary_records_with_field_count_oids_plus_lengths() {
     // Arrange
     let cycles = vec![fixture::execute_cycle(
         "SELECT a FROM homes WHERE id = 1",

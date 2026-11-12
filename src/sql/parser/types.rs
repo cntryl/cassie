@@ -1,6 +1,8 @@
 use super::expr::split_csv;
-use super::schema_identifiers::{parse_column_identifier, parse_identifier};
-use super::{parse_data_type, split_first_token, ParsedStatement, QueryStatement, SqlError};
+use super::schema::{
+    parse_column_identifier, parse_data_type, parse_identifier, parse_if_exists, split_first_token,
+};
+use super::{ParsedStatement, QueryStatement, SqlError};
 use crate::sql::ast::{TypeAction, TypeAttribute, TypeStatement};
 
 pub(super) fn parse_create_type_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -86,7 +88,7 @@ pub(super) fn parse_drop_type_statement(sql: &str) -> Result<ParsedStatement, Sq
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let after_drop = trimmed["drop".len()..].trim_start();
     let rest = after_drop["type".len()..].trim_start();
-    let (if_exists, rest) = super::parse_if_exists(rest);
+    let (if_exists, rest) = parse_if_exists(rest);
     let lower = rest.to_ascii_lowercase();
     let (list, cascade) = if let Some(head) = lower.strip_suffix(" cascade") {
         (&rest[..head.len()], true)

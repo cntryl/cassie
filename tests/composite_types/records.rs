@@ -42,7 +42,7 @@ fn should_compare_records_field_wise() {
 }
 
 #[test]
-fn should_treat_null_fields_as_equal_and_greater_than_values_in_record_comparison() {
+fn should_order_null_fields_after_values_in_record_comparison() {
     // Arrange
     let fixture = fixture("composite_compare_null_fields");
 
@@ -56,7 +56,7 @@ fn should_treat_null_fields_as_equal_and_greater_than_values_in_record_compariso
 }
 
 #[test]
-fn should_sort_records_with_null_fields_after_values_and_null_records_last() {
+fn should_sort_records_with_null_fields_after_values_then_null_records() {
     // Arrange
     let fixture = fixture("composite_order_by");
 

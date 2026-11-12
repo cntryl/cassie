@@ -13,7 +13,7 @@ fn run(cassie: &Cassie, sql: &str) -> Vec<Vec<cassie::types::Value>> {
 }
 
 #[test]
-fn should_keep_types_rows_and_catalog_identity_across_restart() {
+fn should_keep_types_rows_plus_catalog_identity_across_restart() {
     // Arrange
     let store = LocalStore::new("composite_restart");
     let before_oid;

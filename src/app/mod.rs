@@ -43,7 +43,7 @@ use crate::runtime::{
 use crate::sql::ast::{
     QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,
 };
-use crate::sql::{binder, parser};
+use crate::sql::binder;
 use crate::types::{Value, Vector};
 
 pub(crate) fn field_value_is_sql_null(

@@ -20,7 +20,7 @@ fn text(fixture: &SqlFixture, sql: &str) -> Option<String> {
 }
 
 #[test]
-fn should_round_trip_composite_columns_through_insert_and_select() {
+fn should_round_trip_composite_columns_through_insert_select() {
     // Arrange
     let fixture = fixture("composite_round_trip");
     fixture
@@ -52,7 +52,7 @@ fn should_round_trip_composite_columns_through_insert_and_select() {
 }
 
 #[test]
-fn should_insert_text_literals_and_update_composite_columns() {
+fn should_write_composite_columns_from_text_literals() {
     // Arrange
     let fixture = fixture("composite_update");
     fixture
@@ -135,7 +135,7 @@ fn should_apply_is_null_rules_to_row_constructors() {
 }
 
 #[test]
-fn should_select_fields_from_expressions_and_columns() {
+fn should_select_fields_from_expressions_plus_columns() {
     // Arrange
     let fixture = fixture("composite_field_access");
     fixture
@@ -160,7 +160,7 @@ fn should_select_fields_from_expressions_and_columns() {
 }
 
 #[test]
-fn should_reject_unknown_fields_and_non_composite_operands() {
+fn should_reject_unknown_fields_plus_non_composite_operands() {
     // Arrange
     let fixture = fixture("composite_field_errors");
 
@@ -174,7 +174,7 @@ fn should_reject_unknown_fields_and_non_composite_operands() {
 }
 
 #[test]
-fn should_cast_row_constructors_and_text_literals_to_named_types() {
+fn should_cast_row_constructors_plus_text_literals_to_named_types() {
     // Arrange
     let fixture = fixture("composite_casts");
 
@@ -240,7 +240,7 @@ fn should_reject_anonymous_records_as_stored_columns() {
 }
 
 #[test]
-fn should_reject_indexes_and_unique_constraints_on_composite_columns() {
+fn should_reject_indexes_plus_unique_constraints_on_composite_columns() {
     // Arrange
     let fixture = fixture("composite_no_index");
 

@@ -9,7 +9,7 @@ fn fixture_with_address(label: &str) -> SqlFixture {
 }
 
 #[test]
-fn should_create_and_drop_a_composite_type() {
+fn should_create_then_drop_a_composite_type() {
     // Arrange
     let fixture = sql_fixture("composite_create_drop", &[]);
 
@@ -51,7 +51,7 @@ fn should_reject_duplicate_attribute_names_with_sqlstate_42701() {
 }
 
 #[test]
-fn should_create_a_type_in_an_explicit_schema_and_resolve_it_through_search_path() {
+fn should_create_a_type_in_an_explicit_schema_resolved_through_search_path() {
     // Arrange
     let fixture = sql_fixture("composite_schema", &["CREATE SCHEMA app"]);
 
@@ -153,7 +153,7 @@ fn should_allow_drop_after_the_dependent_table_is_dropped() {
 }
 
 #[test]
-fn should_honor_drop_type_if_exists_and_report_missing_types() {
+fn should_honor_drop_type_if_exists_for_missing_types() {
     // Arrange
     let fixture = sql_fixture("composite_drop_missing", &[]);
 
@@ -297,7 +297,7 @@ fn should_drop_schema_types_with_cascade_when_nothing_outside_uses_them() {
 }
 
 #[test]
-fn should_forget_a_databases_types_when_it_is_dropped_and_recreated() {
+fn should_forget_a_databases_types_when_it_is_dropped_then_recreated() {
     // Arrange
     let fixture = sql_fixture("composite_drop_database", &[]);
     fixture.execute_as_root("CREATE DATABASE scratch").unwrap();

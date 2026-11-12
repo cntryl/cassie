@@ -43,7 +43,7 @@ fn should_publish_a_pg_type_row_for_the_composite_type() {
 }
 
 #[test]
-fn should_link_pg_type_to_a_relkind_c_pg_class_row_and_back() {
+fn should_link_pg_type_to_a_relkind_c_pg_class_row_bidirectionally() {
     // Arrange
     let fixture = fixture("composite_pg_class");
 

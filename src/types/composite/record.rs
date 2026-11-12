@@ -93,7 +93,7 @@ fn value_heap_bytes(value: &Value) -> usize {
         Value::Array(array) => array
             .elements()
             .iter()
-            .fold(0, |bytes, element| {
+            .fold(0_usize, |bytes, element| {
                 bytes.saturating_add(value_heap_bytes(element))
             })
             .saturating_add(array.elements().len().saturating_mul(size_of::<Value>())),

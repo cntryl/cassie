@@ -781,6 +781,16 @@ fn json_to_value(value: &serde_json::Value) -> Value {
 }
 
 pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
+    if let DataType::Composite(descriptor) = data_type {
+        return crate::types::composite::record_from_storage_json(
+            value,
+            descriptor,
+            &mut json_to_typed_value,
+        )
+        .map_or(Value::Null, |record| {
+            Value::Typed(crate::types::typed::TypedValue::Record(record))
+        });
+    }
     if let DataType::Array(element_type) = data_type {
         if value
             .as_object()

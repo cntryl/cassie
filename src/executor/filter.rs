@@ -378,6 +378,8 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
 
 #[path = "filter/casts.rs"]
 mod casts;
+#[path = "filter/composite_cast.rs"]
+mod composite_cast;
 #[path = "filter/character_arrays.rs"]
 pub(crate) mod character_arrays;
 #[path = "filter/constants.rs"]
@@ -654,6 +656,7 @@ fn cast_scalar(
         DataType::Vector(expected_dimensions) => {
             cast_vector_scalar(value, *expected_dimensions, controls)
         }
+        DataType::Composite(descriptor) => composite_cast::cast(value, descriptor, controls),
     }
 }
 

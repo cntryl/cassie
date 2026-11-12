@@ -108,6 +108,11 @@ pub(super) fn value_to_json_for_field(
         return vector_literal_to_json(field, text, *dimensions);
     }
 
+    if matches!(data_type, DataType::Composite(_)) && !matches!(value, Value::Null) {
+        let assigned = crate::executor::filter::cast_value(value, data_type)?;
+        return value_to_json(&assigned);
+    }
+
     if let Some(assigned) = numeric_assignment(value, data_type)? {
         return value_to_json(&assigned);
     }

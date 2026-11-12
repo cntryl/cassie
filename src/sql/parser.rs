@@ -168,6 +168,11 @@ mod lexical;
 mod merge;
 #[path = "parser/truncate.rs"]
 mod truncate;
+#[path = "parser/type_scope.rs"]
+mod type_scope;
+#[path = "parser/types.rs"]
+mod types;
+pub use type_scope::{with_type_scope, TypeResolver};
 #[path = "parser/with_statement.rs"]
 mod with_statement;
 pub(crate) use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
@@ -398,6 +403,12 @@ fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedSta
         || starts_statement(lower, "drop extension")
     {
         return Ok(Some(extensions::parse_extension_statement(trimmed)?));
+    }
+    if starts_statement(lower, "create type") {
+        return Ok(Some(types::parse_create_type_statement(trimmed)?));
+    }
+    if starts_statement(lower, "drop type") {
+        return Ok(Some(types::parse_drop_type_statement(trimmed)?));
     }
     if starts_statement(lower, "create collation") {
         return Err(SqlError::unsupported(

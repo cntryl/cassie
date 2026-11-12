@@ -66,7 +66,8 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         | QueryStatement::DropView(_)
         | QueryStatement::DropSchema(_)
         | QueryStatement::AlterSchema(_)
-        | QueryStatement::Extension(_) => 0,
+        | QueryStatement::Extension(_)
+        | QueryStatement::Type(_) => 0,
         QueryStatement::Insert(statement) => parameter_count_insert(statement),
         QueryStatement::Update(statement) => parameter_count_update(statement),
         QueryStatement::Delete(statement) => parameter_count_delete(statement),

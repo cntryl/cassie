@@ -21,6 +21,9 @@ pub use ast_schema::{AlterTableOperation, AlterTableStatement, IdentityAlteratio
 #[path = "ast_extension.rs"]
 mod ast_extension;
 pub use ast_extension::{ExtensionAction, ExtensionStatement};
+#[path = "ast_type.rs"]
+mod ast_type;
+pub use ast_type::{TypeAction, TypeAttribute, TypeStatement};
 #[path = "ast_object_comment.rs"]
 mod ast_object_comment;
 pub use ast_object_comment::{CommentOnObjectKind, CommentOnStatement};
@@ -153,6 +156,7 @@ pub enum QueryStatement {
     DropProcedure(DropProcedureStatement),
     CallProcedure(CallProcedureStatement),
     Extension(ExtensionStatement),
+    Type(TypeStatement),
     DropSchema(DropSchemaStatement),
     AlterSchema(AlterSchemaStatement),
 }

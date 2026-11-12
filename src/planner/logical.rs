@@ -14,7 +14,7 @@ use crate::sql::{
         IdentifierPath, InsertStatement, OrderExpr, ProjectionStatementRef, QuerySource,
         RefreshRollupStatement, ReindexStatement, ReindexTarget, RetentionStatementRef,
         RuntimeStatementRef, SelectItem, SelectStatement, SetStatement, ShowStatement,
-        StatementRouteRef, UpdateStatement, VerifyProjectionStatement,
+        StatementRouteRef, TypeStatement, UpdateStatement, VerifyProjectionStatement,
     },
     binder::BoundStatement,
 };
@@ -111,6 +111,7 @@ pub enum LogicalCommand {
     EnforceRetentionPolicy(EnforceRetentionPolicyStatement),
     CallProcedure(crate::sql::ast::CallProcedureStatement),
     Extension(ExtensionStatement),
+    Type(TypeStatement),
     Show(ShowStatement),
     Set(SetStatement),
     Copy(crate::sql::ast::CopyStatement),
@@ -279,6 +280,11 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
             statement.name(),
             "EXTENSION requires a name",
             LogicalCommand::Extension(statement.clone()),
+        ),
+        CatalogStatementRef::Type(statement) => plan_named_command(
+            statement.name(),
+            "TYPE requires a name",
+            LogicalCommand::Type(statement.clone()),
         ),
         CatalogStatementRef::CreateIndex(_)
         | CatalogStatementRef::DropIndex(_)

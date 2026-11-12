@@ -71,6 +71,18 @@ pub(crate) fn drop_schema(
     let transactional = session.is_some_and(CassieSession::is_transaction_active);
     let output = empty_command("DROP SCHEMA", controls)?;
     if statement.cascade {
+        for composite in cassie
+            .catalog
+            .list_composite_types()
+            .into_iter()
+            .filter(|composite| object_in_schema(&composite.name, &statement.schema))
+        {
+            cassie
+                .midge
+                .delete_composite_type(&composite.database, &composite.name)
+                .map_err(QueryError::Cassie)?;
+            cassie.catalog.unregister_composite_type(&composite.name);
+        }
         let schema_views = cassie
             .catalog
             .list_views()
@@ -499,6 +511,11 @@ fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
             .list_sequences()
             .into_iter()
             .any(|sequence| object_in_schema(&sequence.name, schema))
+        && !cassie
+            .catalog
+            .list_composite_types()
+            .into_iter()
+            .any(|composite| object_in_schema(&composite.name, schema))
         && !cassie
             .catalog
             .list_graphs()

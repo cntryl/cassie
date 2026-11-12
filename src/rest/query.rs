@@ -3,7 +3,7 @@ use crate::catalog::IndexKind;
 use crate::catalog::RelationId;
 use crate::executor::ColumnMeta;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
-use crate::sql::ast::{ExtensionAction, QueryStatement, TransactionAction};
+use crate::sql::ast::{ExtensionAction, QueryStatement, TransactionAction, TypeAction};
 
 mod owned;
 pub use owned::{RestQueryExplainResponse, RestQueryResult};
@@ -554,6 +554,10 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::CallProcedure(_) => "CALL",
         QueryStatement::DropSchema(_) => "DROP SCHEMA",
         QueryStatement::AlterSchema(_) => "ALTER SCHEMA",
+        QueryStatement::Type(statement) => match &statement.action {
+            TypeAction::Create { .. } => "CREATE TYPE",
+            TypeAction::Drop { .. } => "DROP TYPE",
+        },
         QueryStatement::Extension(statement) => match &statement.action {
             ExtensionAction::Create { .. } => "CREATE EXTENSION",
             ExtensionAction::SetSchema { .. } | ExtensionAction::Update { .. } => "ALTER EXTENSION",

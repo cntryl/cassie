@@ -620,6 +620,9 @@ fn bind_catalog_definition_route(
             raw_sql,
             QueryStatement::Extension(statement),
         )),
+        CatalogStatement::Type(statement) => {
+            Ok(parsed_statement(raw_sql, QueryStatement::Type(statement)))
+        }
         CatalogStatement::CreateView(statement) => bind_catalog_statement(
             raw_sql,
             bind_create_view(statement, catalog, context),

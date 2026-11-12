@@ -571,7 +571,8 @@ fn query_children(query: &QueryStatement) -> usize {
         | QueryStatement::DropView(_)
         | QueryStatement::DropSchema(_)
         | QueryStatement::AlterSchema(_)
-        | QueryStatement::Extension(_) => 0,
+        | QueryStatement::Extension(_)
+        | QueryStatement::Type(_) => 0,
     }
 }
 
@@ -654,7 +655,8 @@ fn query_child(query: &QueryStatement, index: usize) -> Option<Node<'_>> {
         | QueryStatement::DropView(_)
         | QueryStatement::DropSchema(_)
         | QueryStatement::AlterSchema(_)
-        | QueryStatement::Extension(_) => None,
+        | QueryStatement::Extension(_)
+        | QueryStatement::Type(_) => None,
     }
 }
 

@@ -947,7 +947,16 @@ pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
             "unsupported data type '{alias}'"
         )));
     }
-    let data_type = DataType::parse_sql(raw).map_err(|message| {
+    let parsed = DataType::parse_sql(raw);
+    if let (Err(_), Some(composite)) = (&parsed, super::type_scope::resolve_named_type(raw)) {
+        if is_sql_standard_array {
+            return Err(SqlError::unsupported(
+                "arrays of composite types are not supported".into(),
+            ));
+        }
+        return Ok(DataType::Composite(composite));
+    }
+    let data_type = parsed.map_err(|message| {
         if message.starts_with("NUMERIC precision")
             || message.starts_with("NUMERIC scale")
             || message.starts_with("FLOAT precision")

@@ -101,7 +101,7 @@ fn should_order_keys_canonically_given_jsonb_each_when_object_has_duplicate_keys
 }
 
 #[test]
-fn should_preserve_order_and_duplicates_given_json_each_when_expanding_json_input() {
+fn should_preserve_input_order_with_duplicate_keys_given_json_each_input() {
     // Arrange
     let sql = r#"SELECT key, value FROM json_each('{"b":1, "a": "x", "b": null,  "cc":{"z" : 1}}'::json)"#;
     // Act
@@ -197,7 +197,7 @@ fn should_return_no_rows_given_sql_null_input_for_every_selected_function() {
 }
 
 #[test]
-fn should_return_no_rows_given_empty_containers_and_one_row_for_json_null_element() {
+fn should_return_no_rows_given_empty_containers_with_one_row_for_a_json_null_element() {
     // Arrange
     let empty_array = "SELECT * FROM jsonb_array_elements('[]'::jsonb)";
     let empty_object = "SELECT * FROM json_each('{}'::json)";
@@ -224,18 +224,26 @@ fn should_apply_limit_given_array_elements_source_when_more_elements_exist() {
 }
 
 #[test]
-fn should_normalize_numbers_and_order_nested_keys_given_jsonb_text_expansion() {
+fn should_normalize_numbers_given_jsonb_text_expansion() {
     // Arrange
-    let sql = r#"SELECT value FROM jsonb_array_elements_text('[1e2, {"bb":1,"a":2,"ccc":{"zz":1,"y":2}}]'::jsonb)"#;
+    let sql = "SELECT value FROM jsonb_array_elements_text('[1e2]'::jsonb)";
     // Act
-    let frames = query("json-elements-jsonb-text-normalized", &[], sql, false);
+    let frames = query("json-elements-jsonb-text-number", &[], sql, false);
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), text_rows(&["100"]));
+}
+
+#[test]
+fn should_order_nested_keys_canonically_given_jsonb_text_expansion() {
+    // Arrange
+    let sql = r#"SELECT value FROM jsonb_array_elements_text('[{"bb":1,"a":2,"ccc":{"zz":1,"y":2}}]'::jsonb)"#;
+    // Act
+    let frames = query("json-elements-jsonb-text-nested", &[], sql, false);
     // Assert
     fixture::assert_success(&frames);
     assert_eq!(
         wire::data_rows(&frames),
-        text_rows(&[
-            "100",
-            "{\"a\": 2, \"bb\": 1, \"ccc\": {\"y\": 2, \"zz\": 1}}"
-        ])
+        text_rows(&["{\"a\": 2, \"bb\": 1, \"ccc\": {\"y\": 2, \"zz\": 1}}"])
     );
 }

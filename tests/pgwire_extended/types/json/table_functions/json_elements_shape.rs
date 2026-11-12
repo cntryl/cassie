@@ -87,7 +87,7 @@ fn should_qualify_columns_by_table_alias_or_function_name() {
 }
 
 #[test]
-fn should_correlate_with_preceding_table_given_lateral_keyword_and_implicit_lateral() {
+fn should_correlate_with_preceding_table_given_either_lateral_spelling() {
     // Arrange
     let setup = docs_setup();
     let lateral = "SELECT t.id, e.value FROM json_elements_docs t, LATERAL jsonb_array_elements(t.doc) AS e ORDER BY t.id, e.value";
@@ -104,7 +104,7 @@ fn should_correlate_with_preceding_table_given_lateral_keyword_and_implicit_late
 }
 
 #[test]
-fn should_preserve_unmatched_left_rows_given_left_join_lateral_over_empty_and_null_documents() {
+fn should_preserve_unmatched_left_rows_given_left_join_lateral_over_documents_without_elements() {
     // Arrange
     let setup = docs_setup();
     let sql = "SELECT t.id, e.value FROM json_elements_docs t LEFT JOIN LATERAL jsonb_array_elements(t.doc) e ON true ORDER BY t.id, e.value";
@@ -168,7 +168,7 @@ fn should_accept_a_cast_bind_parameter_given_jsonb_document_text() {
 }
 
 #[test]
-fn should_infer_document_parameter_oids_given_unknown_parameters_in_json_and_jsonb_families() {
+fn should_infer_document_parameter_oids_given_unknown_parameters_in_both_families() {
     // Arrange
     let cycles = vec![
         fixture::execute_cycle(
@@ -216,7 +216,7 @@ fn should_return_no_rows_given_a_null_bind_parameter() {
 }
 
 #[test]
-fn should_accept_extraction_results_as_document_arguments_given_json_and_jsonb_columns() {
+fn should_accept_extraction_results_as_document_arguments_given_columns_of_either_family() {
     // Arrange
     let setup = [
         (
@@ -244,19 +244,26 @@ fn should_accept_extraction_results_as_document_arguments_given_json_and_jsonb_c
 }
 
 #[test]
-fn should_apply_limit_to_ordinality_and_accept_qualified_names() {
+fn should_apply_limit_to_ordinality_given_with_ordinality_source() {
     // Arrange
     let limited = "SELECT value, ordinality FROM jsonb_array_elements('[5,6,7]'::jsonb) WITH ORDINALITY LIMIT 2";
-    let qualified = "SELECT value FROM pg_catalog.jsonb_array_elements('[5]'::jsonb)";
     // Act
-    let limited_frames = query("json-elements-ordinality-limit", &[], limited, false);
-    let qualified_frames = query("json-elements-qualified-name", &[], qualified, false);
+    let frames = query("json-elements-ordinality-limit", &[], limited, false);
     // Assert
-    fixture::assert_success(&limited_frames);
-    fixture::assert_success(&qualified_frames);
+    fixture::assert_success(&frames);
     assert_eq!(
-        wire::data_rows(&limited_frames),
+        wire::data_rows(&frames),
         vec![row(&[Some("5"), Some("1")]), row(&[Some("6"), Some("2")])]
     );
-    assert_eq!(wire::data_rows(&qualified_frames), text_rows(&["5"]));
+}
+
+#[test]
+fn should_accept_pg_catalog_qualified_names_given_array_elements() {
+    // Arrange
+    let qualified = "SELECT value FROM pg_catalog.jsonb_array_elements('[5]'::jsonb)";
+    // Act
+    let frames = query("json-elements-qualified-name", &[], qualified, false);
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), text_rows(&["5"]));
 }

@@ -24,44 +24,55 @@ fn array_of(count: usize) -> String {
 }
 
 #[test]
-fn should_admit_a_small_expansion_and_reject_an_oversized_one_given_the_same_memory_budget() {
+fn should_admit_a_small_expansion_given_a_four_mib_memory_budget() {
+    // Gate proven: combined admission (decode bound or expansion bytes) accepts a small input.
+    // Arrange
+    let cassie = configured_cassie(MEMORY_BUDGET_BYTES, usize::MAX);
+    let session = cassie.create_session("tester", None);
+    let small = format!("SELECT value FROM jsonb_array_elements('{}')", array_of(16));
+    // Act
+    let admitted = cassie.execute_sql(&session, &small, vec![]);
+    // Assert
+    assert_eq!(admitted.expect("small expansion").rows().len(), 16);
+    assert_eq!(
+        cassie.metrics()["query"]["current_accounted_memory_bytes"],
+        0
+    );
+}
+
+#[test]
+fn should_reject_an_oversized_expansion_given_a_four_mib_memory_budget() {
     // Gate proven: combined admission (decode bound or expansion bytes, whichever trips first).
     // The decode bound is 192 bytes per input byte, so it normally trips before the row total;
     // no byte oracle exists to isolate the expansion gate deterministically.
     // Arrange
     let cassie = configured_cassie(MEMORY_BUDGET_BYTES, usize::MAX);
     let session = cassie.create_session("tester", None);
-    let small = format!("SELECT value FROM jsonb_array_elements('{}')", array_of(16));
     let oversized = format!(
         "SELECT value FROM jsonb_array_elements('{}')",
         array_of(100_000)
     );
+    let before = cassie.metrics();
     // Act
-    let admitted = cassie.execute_sql(&session, &small, vec![]);
-    let after_admitted = cassie.metrics();
     let rejected = cassie.execute_sql(&session, &oversized, vec![]);
     // Assert
-    assert_eq!(admitted.expect("small expansion").rows().len(), 16);
     assert!(matches!(rejected, Err(CassieError::ResourceLimit(_))));
-    let after_rejected = cassie.metrics();
-    assert_eq!(after_rejected["query"]["current_accounted_memory_bytes"], 0);
+    let after = cassie.metrics();
+    assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     assert_eq!(
-        after_rejected["query"]["rows_returned_total"],
-        after_admitted["query"]["rows_returned_total"],
+        after["query"]["rows_returned_total"], before["query"]["rows_returned_total"],
         "the rejected expansion must not publish rows"
     );
 }
 
 #[test]
-fn should_admit_the_result_row_limit_and_reject_one_more_row_given_array_elements() {
+fn should_admit_exactly_the_result_row_limit_given_array_elements() {
     // Arrange
     let cassie = configured_cassie(MEMORY_BUDGET_BYTES, RESULT_ROW_LIMIT);
     let session = cassie.create_session("tester", None);
     let at_limit = "SELECT value FROM jsonb_array_elements('[1,2,3]'::jsonb)";
-    let above_limit = "SELECT value FROM jsonb_array_elements('[1,2,3,4]'::jsonb)";
     // Act
     let admitted = cassie.execute_sql(&session, at_limit, vec![]);
-    let rejected = cassie.execute_sql(&session, above_limit, vec![]);
     // Assert
     let texts = admitted
         .expect("expansion at the row limit")
@@ -74,6 +85,17 @@ fn should_admit_the_result_row_limit_and_reject_one_more_row_given_array_element
         })
         .collect::<Vec<_>>();
     assert_eq!(texts, vec!["1", "2", "3"]);
+}
+
+#[test]
+fn should_reject_one_row_above_the_result_row_limit_given_array_elements() {
+    // Arrange
+    let cassie = configured_cassie(MEMORY_BUDGET_BYTES, RESULT_ROW_LIMIT);
+    let session = cassie.create_session("tester", None);
+    let above_limit = "SELECT value FROM jsonb_array_elements('[1,2,3,4]'::jsonb)";
+    // Act
+    let rejected = cassie.execute_sql(&session, above_limit, vec![]);
+    // Assert
     assert!(matches!(rejected, Err(CassieError::ResourceLimit(_))));
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"],

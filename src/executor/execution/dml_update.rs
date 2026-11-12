@@ -165,10 +165,11 @@ fn prepare_update_row(
         .get_document_for_session(context.session, &context.statement.table, &row_id)
         .map_err(QueryError::from)?
         .ok_or_else(|| {
-            QueryError::General(format!(
-                "row '{row_id}' was not found in '{}'",
-                context.statement.table
-            ))
+            super::dml_missing_row::missing_row_error(
+                context.session,
+                &row_id,
+                &context.statement.table,
+            )
         })?;
     let payload = updated_payload_from_row(
         &AssignmentTarget {

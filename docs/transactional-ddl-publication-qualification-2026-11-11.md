@@ -6,7 +6,9 @@ This record qualifies the shared atomic-publication boundary for the finite
 #826/#839 statement inventory in the [pgwire transaction contract](pgwire-transaction-contract.md#finite-ddl-statements-from-826-and-839).
 The source baseline for the prior #833 gate was `origin/main` at
 `3b81ccea55cdc9e60023bf02cf41607ca1904c11` (#1199). The current consolidated
-checkout also contains parallel milestone changes; its final gates are pending.
+checkout also contains parallel milestone changes. Its full locked suite passed on
+PR #1242 (commit `d2486540a`, 12,022 passed); the v0.2.0 stabilization evidence
+in the final section was added afterward.
 
 Cassie stages and publishes through `cntryl-midge` 0.5.2 as its only storage
 layer. The selected transaction remains within one Midge database family. This
@@ -41,7 +43,7 @@ below. A later focused diff review returned a low-confidence possible gap
 follow-up selected the existing generic Bind-data witness plus the new
 CTAS-specific Bind-catalog witness as sufficient for this #833 slice
 (probability 0.50, confidence 0.33); no duplicate CTAS data-owner case was
-added. Jev is advisory; all new regressions remain pending execution. The
+added. Jev is advisory; all new regressions have since executed and passed (PR #1242). The
 questions and responses are retained under
 `target/v020-evidence/833/jev-ctas-*.json`.
 
@@ -81,8 +83,7 @@ behavior, owner-view refresh, and conflict/read-view boundary. The deterministic
 `collection_gates/tests.rs::should_serialize_sequence_cursor_publication_after_the_midge_update`
 probe holds the first writer after Midge updates the durable cursor, observes a
 second writer at the actual collection-gate wait, and checks storage/catalog
-order after release. These Cassie probes are authored and remain pending
-execution.
+order after release. These Cassie probes executed and passed in the full locked suite on PR #1242.
 
 The new pgwire compatibility regressions in
 [`truncate_identity_rollback.rs`](../tests/compatibility/lifecycle/sequences/truncate_identity_rollback.rs)
@@ -115,8 +116,8 @@ These are publication-boundary tests. They do not establish every independent
 row-conversion, clone-option, constraint, or lifecycle obligation in #826/#839.
 
 The current consolidated checkout adds CTAS-focused protocol and lifecycle
-probes. They are authored but unexecuted pending the coordinator's frozen
-bundle gates:
+probes. They executed and passed in the full locked suite on PR #1242
+(commit `d2486540a`):
 
 - [`transactions.rs::should_discard_ctas_publication_on_savepoint_rollback`](../tests/compatibility/lifecycle/tables/table_forms/transactions.rs)
   checks owner rows and catalog visibility after CTAS, observer isolation, and
@@ -135,7 +136,7 @@ bundle gates:
   Execute uses the Bind catalog while a fresh command sees the later table.
 
 These probes do not prove the broader #826/#839 statement-form matrix, and no
-runtime change is claimed from unexecuted regressions.
+runtime change is claimed beyond the defects recorded in the final section.
 
 ## Statement-by-statement acceptance matrix
 
@@ -143,10 +144,12 @@ The live #833 body selects the exact finite forms in the transaction contract;
 the live #826 and #839 bodies still own their SQL semantics, conversion pairs,
 clone metadata, and dependency behavior. `Proven` below means a retained test
 exercises the named publication/lifecycle boundary. It does not transfer the
-downstream issue's full feature acceptance to #833. Existing tests were included
+downstream issue's full feature acceptance to #833. Cells below that report missing per-form cancellation or
+extended-protocol evidence, or tests as unexecuted, are superseded by the
+[v0.2.0 stabilization record](#v020-stabilization-record-2026-11-12). Existing tests were included
 in the prior full gate on pre-rebase commit `39e02d45`; the LIKE regression was
 also covered by the previous #833 ordered gate. The CTAS probes listed above
-were added afterward and remain pending execution.
+were added afterward and passed in the PR #1242 full suite.
 
 | Selected statement forms | Implicit standalone Query/Sync | Explicit transaction | Row/catalog atomicity and rollback/savepoint | Cancellation and restart | Deterministic rejection |
 |---|---|---|---|---|---|
@@ -174,11 +177,10 @@ The previous #833 gate included the explicit `LIKE` clone/savepoint regression,
 and `like_composite_primary_key.rs::should_recover_cloned_composite_primary_key_after_local_restart`
 provides clone restart evidence for the composite primary-key/index case. The
 new implicit LIKE identity/index publication and cloned identity-sequence
-restart probes are authored but remain pending until the consolidated bundle is
-executed. The CTAS savepoint, cancellation, restart, and Bind-owner probes, the
+restart probes executed and passed with the consolidated bundle (PR #1242). The CTAS savepoint, cancellation, restart, and Bind-owner probes, the
 #839 published-SERIAL `INSERT ... DEFAULT VALUES` protocol regression, and
 `transaction_owned_sequences.rs::should_publish_transaction_owned_sequences_across_isolation_levels`
-are also authored but remain pending until that gate. The transaction-owned
+also executed and passed in that gate. The transaction-owned
 sequence probe adds the RC/RR raw-wire matrix for pre-commit owner/observer
 catalog visibility, SERIAL and IDENTITY direct/default values, ReadyForQuery
 `I`/`T`/`E` transitions, savepoint cursor behavior, and full rollback/recreation.
@@ -230,18 +232,74 @@ the uncontended full suite passed.
 | `cntryl-tools validate-tests -f tests/compatibility/lifecycle/tables/table_forms/transactions.rs` | Passed: 1/1 compliant. |
 | `cntryl-tools validate-tests -f tests/compatibility/lifecycle/tables/table_forms.rs` | No tests found; this touched file only registers the new module. |
 
-## Remaining acceptance
+## v0.2.0 stabilization record (2026-11-12)
 
-| #833 acceptance item | Status after source/test matrix |
-|---|---|
-| Exact #826/#839 statement inventory | Proven and recorded in the transaction contract and live issue body. |
-| Atomic catalog + row publication for selected implicit and explicit paths | Partially proven. Existing witnesses cover common CREATE TABLE, CTAS rollback, materialized-view, ALTER/DROP, constraints, and LIKE/savepoint. CTAS-specific savepoint and cancellation/retry probes are authored but unexecuted; selected statement variants still lack extended-protocol evidence. |
-| Rollback, savepoint, cancellation, restart, deterministic rejection | Partially proven. Shared and selected-form witnesses are linked above. CTAS savepoint/cancellation/restart and Bind-owner probes are authored but pending the consolidated gates; per-form cancellation and the broader #826/#839 lifecycle matrix remain open. |
-| Single Midge-family scope; no cross-database or full PostgreSQL parity claim | Proven as the documented and source-backed publication boundary. No cross-database experiment or parity claim is made. |
+This record closes the matrix gaps listed above. Every statement here is backed
+by a test that was run in this change; the earlier statements that probes were
+authored but unexecuted are superseded by the PR #1242 full-suite pass
+(commit `d2486540a`, 12,022 passed).
 
-Keep #833 open for the remaining matrix gaps and final gate evidence. Keep #826,
-#839, and #819 open for their own acceptance: row-conversion pairs, remaining
-clone/constraint lifecycle edges, the unexecuted published-SERIAL default
-and `pg_sequences` regression, transaction-owned sequence lifecycle beyond
-the tested create/default/`nextval`/savepoint cases, broader #819 transaction
-wait rules, and full catalog tuple MVCC are not claimed complete here.
+### Extended-protocol coverage
+
+[`extended_ddl_forms.rs`](../tests/pgwire_extended/ddl/extended_ddl_forms.rs)
+runs every selected statement form in
+[`extended_ddl_form_cases.rs`](../tests/pgwire_extended/ddl/extended_ddl_form_cases.rs)
+through Parse/Bind/Execute twice. In an explicit transaction it checks the
+command tag, owner visibility, observer isolation, `ROLLBACK` and a re-run that
+`COMMIT` publishes. As an implicit Parse/Bind/Execute/Sync cycle it checks the
+tag, ready status `I` and observer visibility at completion. Forms covered:
+`CREATE TABLE` (defaults, identity, `SERIAL`, named constraints), `LIKE` (`ALL`
+and each `INCLUDING` option), `CREATE TABLE AS` over `SELECT` (column list,
+`USING heap`), `TABLE`, `VALUES`, prepared `EXECUTE` and `WITH NO DATA`;
+materialized-view create, refresh, rename and drop; `ALTER TABLE` add column
+`IF NOT EXISTS`, `TYPE ... USING`, multi-action, column and table rename,
+`SET SCHEMA`, `DROP COLUMN RESTRICT`/`CASCADE`, add unique/check/foreign-key
+and drop constraint; `DROP TABLE` name lists with `IF EXISTS`/`CASCADE`, and
+`DROP SCHEMA ... CASCADE`. `DROP VIEW` is standalone only: the implicit cycle is
+covered and an explicit block rejects it with `0A000` and recovers.
+
+### Per-form cancellation
+
+A cancellation can only be injected deterministically where a statement
+evaluates user expressions, so the matrix cell is stated per form:
+
+| Form | Cancellation evidence |
+| --- | --- |
+| `CREATE TABLE AS` | `ctas_atomicity.rs::should_recover_to_savepoint_after_canceled_extended_ctas`, and [`ddl_cancellation.rs`](../tests/pgwire_extended/ddl/ddl_cancellation.rs) for simple and extended protocol in explicit and implicit boundaries |
+| `ALTER COLUMN TYPE USING` and multi-action `ALTER` | `ddl_cancellation.rs` (cancel at the `USING` expression: `57014`, no CommandComplete, rows and type unchanged, savepoint or statement recovery, successful retry) |
+| `REFRESH MATERIALIZED VIEW` | `materialized_view_concurrent_tests.rs::should_recover_to_savepoint_after_canceled_refresh_in_an_explicit_transaction` plus the existing activation-boundary tests |
+| `CREATE MATERIALIZED VIEW` | The view query must be deterministic, so it cannot contain the sleep boundary; there is no deterministic wire cancellation point. Initial-build failure cleanup is covered by `should_remove_failed_materialized_view_creation`. |
+| Catalog-only forms (`CREATE TABLE`, `LIKE`, rename, `SET SCHEMA`, `DROP`, constraint DDL) | No interruptible execution phase after admission; the shared admission witness `should_cancel_an_implicit_ddl_publication_wait_before_staging` applies |
+
+### Defects found and fixed
+
+- A cancellation during `ALTER COLUMN TYPE ... USING` returned SQLSTATE `22000`
+  (`storage error: bump schema epoch: query canceled`) because the post-command
+  schema-epoch invalidation replaced the command's own error. The original
+  error (`57014`) is now kept (`dml_command.rs::execute_command`).
+- A `USING` result the target column could not store (for example uncast
+  `INT` to `TEXT`) deleted the old rows and retyped the column before failing,
+  losing the rows in an implicit statement. The result is now encoded against
+  the target type before any mutation (`schema_using.rs`).
+- `ALTER COLUMN ... TYPE JSON/JSONB USING c::jsonb` stored a JSON string instead
+  of the document, and stored SQL NULL as JSON `null`. The rewrite now uses the
+  same column assignment as `INSERT`.
+- `DROP VIEW name RESTRICT` read `RESTRICT` as part of the view name and failed
+  with "does not exist". `RESTRICT` is now an option and `CASCADE` is rejected
+  with `0A000`.
+- Under REPEATABLE READ an `UPDATE`/`DELETE` of a row that a competing commit had
+  deleted failed with a generic execution error instead of `40001`.
+
+### Remaining acceptance
+
+| #833 acceptance item | Status |
+| --- | --- |
+| Exact #826/#839 statement inventory | Proven; recorded in the transaction contract. |
+| Atomic catalog + row publication for selected implicit and explicit paths | Proven for every listed form through the simple and extended protocols (see above). |
+| Rollback, savepoint, cancellation, restart, deterministic rejection | Proven per the matrix and the cancellation table; cells that cannot be reached deterministically are named. |
+| Single Midge-family scope; no cross-database or full PostgreSQL parity claim | Unchanged: no cross-database atomicity and no full catalog tuple MVCC. |
+
+Row-conversion pairs for #839 are the finite list in the transaction contract
+(`Qualified ALTER COLUMN ... TYPE ... USING conversions`). The #819 profile is
+qualified in the contract's v0.2.0 REPEATABLE READ record; the broader owner
+waits and PostgreSQL stale-base ALTER parity are outside v0.2.0.

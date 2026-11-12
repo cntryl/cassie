@@ -27,8 +27,13 @@ impl Context<'_> {
         operations: &[AlterTableOperation],
     ) -> Result<(), QueryError> {
         for operation in operations {
-            if let AlterTableOperation::AlterColumnType { field, using, .. } = operation {
-                self.evaluate(table, field, using)?;
+            if let AlterTableOperation::AlterColumnType {
+                field,
+                data_type,
+                using,
+            } = operation
+            {
+                self.evaluate(table, field, data_type, using)?;
             }
         }
         Ok(())
@@ -38,6 +43,7 @@ impl Context<'_> {
         &self,
         table: &str,
         field: &str,
+        data_type: &DataType,
         expression: &Expr,
     ) -> Result<AccountedVec<(String, serde_json::Value)>, QueryError> {
         self.controls.check_interruption()?;
@@ -84,19 +90,32 @@ impl Context<'_> {
                     4,
                 )?;
                 prepared.try_push_with_result(bytes, || {
+                    // Store through the same column assignment INSERT uses, so a
+                    // JSON/JSONB text result becomes a document, not a string.
+                    // SQL NULL in a JSON column is an absent member, never JSON null.
+                    let sql_null_json = matches!(data_type, DataType::Json | DataType::Jsonb)
+                        && matches!(value, Value::Null);
                     let value = match value {
                         Value::Array(array) => array.to_storage_json(),
-                        value => crate::types::json::try_value_to_json(value).map_err(|error| {
-                            CassieError::from(QueryError::General(error.into()))
-                        })?,
+                        value => crate::executor::execution::dml::value_to_json_for_field(
+                            field, &value, data_type,
+                        )
+                        .map_err(CassieError::from)?,
                     };
+                    // Reject a result the target column cannot store before the
+                    // rewrite deletes or retypes anything.
+                    crate::midge::row_blob::encode_compact_value(data_type, &value)?;
                     let mut payload = document.payload;
                     let object = payload.as_object_mut().ok_or_else(|| {
                         CassieError::from(QueryError::General(format!(
                             "row in '{table}' is not an object"
                         )))
                     })?;
-                    object.insert(field.to_owned(), value);
+                    if sql_null_json {
+                        object.remove(field);
+                    } else {
+                        object.insert(field.to_owned(), value);
+                    }
                     Ok((document.id, payload))
                 })?;
                 #[cfg(test)]
@@ -119,7 +138,7 @@ impl Context<'_> {
         using: &Expr,
     ) -> Result<(), QueryError> {
         ensure_row_store_alter_supported(self.is_column_store, "ALTER COLUMN TYPE")?;
-        let prepared = self.evaluate(table, field, using)?;
+        let prepared = self.evaluate(table, field, data_type, using)?;
         let (prepared, prepared_memory) = prepared.into_parts();
         let mut writes = AccountedVec::try_new(self.controls)?;
         for (id, payload) in prepared {

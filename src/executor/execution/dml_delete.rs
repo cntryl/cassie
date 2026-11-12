@@ -86,10 +86,11 @@ fn execute_delete_with_held_referential_gates(
             }) {
                 continue;
             }
-            return Err(QueryError::General(format!(
-                "row '{row_id}' was not found in '{}'",
-                statement.table
-            )));
+            return Err(super::dml_missing_row::missing_row_error(
+                session,
+                &row_id,
+                &statement.table,
+            ));
         };
         let deleted = match dml_referential_actions::delete_existing_row(
             cassie,

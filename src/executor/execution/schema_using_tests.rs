@@ -19,6 +19,10 @@ fn fixture() -> (CassieSession, Cassie) {
     (session, cassie)
 }
 
+fn numeric() -> DataType {
+    DataType::Extended(crate::types::extended::ExtendedType::Numeric(None))
+}
+
 fn assert_unmodified(cassie: &Cassie, session: &CassieSession) {
     let result = cassie
         .execute_sql(session, "SELECT amount FROM char_using", vec![])
@@ -43,7 +47,7 @@ fn should_retain_using_output_admission_until_prepared_values_are_released() {
 
     // Act
     let prepared = context
-        .evaluate("char_using", "amount", &expression)
+        .evaluate("char_using", "amount", &numeric(), &expression)
         .expect("prepared conversion");
     let retained = controls.current_query_memory_bytes();
 
@@ -81,7 +85,7 @@ fn should_reject_using_padding_before_any_rewrite_mutation() {
             .expect("using expansion");
 
     // Act
-    let result = context.evaluate("char_using", "amount", &expression);
+    let result = context.evaluate("char_using", "amount", &numeric(), &expression);
 
     // Assert
     assert!(matches!(
@@ -113,7 +117,7 @@ fn should_cancel_using_preparation_before_rewrite_mutation() {
     AFTER_PREPARED.with(|slot| *slot.borrow_mut() = Some(cancellation));
 
     // Act
-    let result = context.evaluate("char_using", "amount", &expression);
+    let result = context.evaluate("char_using", "amount", &numeric(), &expression);
 
     // Assert
     assert!(matches!(

@@ -206,6 +206,53 @@ objects were absent after rollback. These tests and oracle results establish
 the selected shared publication paths; they do not close the separate
 row-conversion, sequence-lifecycle, or broader catalog-MVCC acceptance owned
 by #826, #839, and #819.
+#### Qualified `ALTER COLUMN ... TYPE ... USING` conversions
+
+`ALTER COLUMN c TYPE t USING expression` requires the `USING` clause. Cassie
+evaluates the expression once per row against the pre-change row, checks that
+each result can be stored in the target type, and only then deletes, retypes
+and rewrites rows. A result the target type cannot store (for example an
+uncast `INT` assigned to `TEXT`), or a cast that fails (`22P02`, `22003`),
+rejects the whole statement with the rows and column type unchanged. PostgreSQL applies an assignment cast to an uncast result; Cassie
+requires the explicit cast shown in the list. SQL NULL
+stays SQL NULL, including in `JSON` and `JSONB` columns. The conversion is
+atomic: it commits or rolls back with its transaction and survives local
+restart. Pairs below are the finite qualified set; each is exercised for row
+rewrite, NULL preservation, transaction rollback, and the table in
+[`using_conversion_pairs.rs`](../tests/sql_mutations/ddl/using_conversion_pairs.rs)
+through [`using_conversions.rs`](../tests/sql_mutations/ddl/using_conversions.rs).
+Local restart is exercised for a representative subset covering numeric, text,
+boolean, timestamp, UUID, JSONB and array targets in one committed and one
+rolled-back multi-action `ALTER`. Any pair not listed has no support claim.
+
+| Source type | Target types (USING `c::target` unless noted) |
+| --- | --- |
+| `INT` | `BIGINT`, `SMALLINT`, `NUMERIC(p,s)`, `TEXT`, `BOOLEAN`, `DOUBLE PRECISION`, `REAL`, `INT` (`c + 1`), `INT[]` (`ARRAY[c]`) |
+| `BIGINT`, `SMALLINT` | `INT` |
+| `INT[]`, `TEXT[]` | `TEXT` |
+| `TEXT` | `INT`, `BIGINT`, `NUMERIC(p,s)`, `BOOLEAN`, `DATE`, `TIMESTAMP`, `TIME`, `INTERVAL`, `JSONB`, `JSON`, `UUID`, `VARCHAR(n)`, `BYTEA` |
+| `VARCHAR(n)` | `TEXT` |
+| `NUMERIC(p,s)` | `INT`, `TEXT`, `DOUBLE PRECISION` |
+| `DOUBLE PRECISION` | `NUMERIC(p,s)`, `INT`, `TEXT` |
+| `BOOLEAN` | `TEXT`, `INT` |
+| `DATE` | `TEXT`, `TIMESTAMP` |
+| `TIMESTAMP` | `DATE`, `TEXT` |
+| `TIMESTAMPTZ`, `TIME`, `INTERVAL`, `UUID` | `TEXT` |
+| `JSONB` | `TEXT`, `JSON` |
+| `JSON` | `JSONB` |
+
+`JSON` columns render the stored document compactly, so `jsonb -> json`
+returns `{"a":1}` where PostgreSQL 18.6 preserves `{"a": 1}`. Column-store
+tables and every other pair remain outside this release.
+
+#### `DROP VIEW` options
+
+`DROP VIEW [IF EXISTS] name [, ...] [RESTRICT]` is supported. `RESTRICT` is the
+default and Cassie does not track dependencies between views. `CASCADE` is not
+selected and returns `0A000` before dropping anything. `DROP VIEW` is a
+standalone statement: it is not staged in an explicit transaction and the
+block rejects it with `0A000`.
+
 The scoped evidence and ordered gate results are in the
 [transactional DDL publication qualification](transactional-ddl-publication-qualification-2026-11-11.md).
 
@@ -387,9 +434,12 @@ server-parity claim follows from this finite acceptance.
 
 ## Selected v0.2 snapshot profile (2026-11-04)
 
-The user approved this contract direction on 2026-11-04. It is selected
-implementation scope, not implemented or qualified support. Existing rejection
-and compatibility boundaries remain until the owning acceptance cases pass.
+The user approved this contract direction on 2026-11-04. It is delivered and
+qualified for v0.2.0 as recorded in the
+[v0.2.0 qualification record](#v020-repeatable-read-qualification-record-2026-11-12).
+The full locked suite passed on PR #1242 (commit `d2486540a`, 12,022 passed),
+so the regressions the sections below describe as authored or unexecuted have
+executed and passed. Unselected forms keep their deterministic rejections.
 
 ### #819
 
@@ -412,6 +462,40 @@ Bound retained resources/wait graph, release on commit/rollback/disconnect/cance
 report 40P01 for detected wait cycles and 57014 for cancellation. Existing transaction
 error and ReadyForQuery carriers remain authoritative. No persistent format change is
 needed for isolation itself.
+
+### v0.2.0 REPEATABLE READ qualification record (2026-11-12)
+
+Selected REPEATABLE READ (read-only and read-write, one database family) is
+supported for v0.2.0. Executed evidence:
+
+| Obligation | Evidence |
+| --- | --- |
+| Retained view from the first snapshot statement; own-write and own-DDL overlay; savepoint recovery | [`repeatable_read.rs`](../tests/sql_mutations/transactions/repeatable_read.rs), [`repeatable_catalog.rs`](../tests/sql_mutations/transactions/repeatable_catalog.rs), [`repeatable_own_views.rs`](../tests/pgwire_extended/transactions/repeatable_own_views.rs), [`repeatable_read.rs`](../tests/pgwire_extended/transactions/repeatable_read.rs) |
+| First-committer-wins: a write to a row changed or deleted after the view fails with `40001` before publication; disjoint rows commit | [`repeatable_bounds.rs`](../tests/sql_mutations/transactions/repeatable_bounds.rs) (`should_reject_repeatable_update_of_a_row_changed_after_the_retained_view`, `should_reject_repeatable_delete_of_a_row_changed_after_the_retained_view`, `should_reject_repeatable_update_of_a_row_deleted_after_the_retained_view`, `should_reject_repeatable_delete_of_a_row_deleted_after_the_retained_view`, `should_allow_repeatable_delete_of_an_unchanged_row`); INSERT conflict targets in [`repeatable_conflicts.rs`](../tests/sql_mutations/transactions/repeatable_conflicts.rs) |
+| Resource bound: retained history is limited by `CASSIE_REPEATABLE_READ_HISTORY_MEMORY_BUDGET_BYTES`; a competing commit that would exceed it returns `54000` and publishes nothing | `should_bound_retained_history_at_the_configured_budget` (finds the smallest admitted budget through `Cassie::new_in_memory_with_config`, then checks one byte below and at the boundary) |
+| Cancellation returns `57014`; a savepoint keeps the original retained view; full rollback releases it | [`repeatable_cancellation.rs`](../tests/pgwire_extended/transactions/repeatable_cancellation.rs) |
+| Wait-cycle detection: RR unique-key owner waits share the READ COMMITTED wait registry and report `40P01` | [`repeatable_waits.rs`](../tests/sql_mutations/transactions/repeatable_waits.rs) |
+| `SERIALIZABLE` and RR `DEFERRABLE` return `0A000`; `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ` only before the first snapshot or savepoint | [`transaction_isolation.rs`](../tests/sql_mutations/transactions/transaction_isolation.rs) |
+
+An `UPDATE` or `DELETE` whose matched row was removed by a competing commit
+after the retained view used to fail with a generic execution error. It now
+returns `40001` (serialization failure) under a REPEATABLE READ owner.
+
+Outside v0.2.0 and not delivered:
+
+- The 2026-10-29 broader owner-wait paths (`UPDATE`, `MERGE`, `COPY`, composite
+  and expression unique keys) are not part of this release. Operators must
+  serialize all writers to each affected table from transaction start through
+  commit or rollback when a conflict is outside the documented single-column
+  `INSERT`/bounded `ON CONFLICT` wait slice, and must treat statement success
+  and `RETURNING` values as provisional until commit.
+- PostgreSQL 18.6 stale-base ALTER-after-snapshot parity (ALTER of a table that
+  was created outside the snapshot, with tuple-mask visibility of added columns,
+  defaults and indexes) is not delivered. Cassie preflights the selected
+  catalog baseline on every RR catalog write and returns `40001` when it has
+  changed; that deliberate guard is the supported behavior and is not parity.
+- Predicate-serializable guarantees, `SERIALIZABLE`, and cross-database
+  transactions.
 
 ### Explicit nullable columns
 
@@ -918,9 +1002,9 @@ changes and savepoint restoration used by the authored regressions.
 
 Statement forks also carry their originating transaction generation. Publication
 rejects an old fork after rollback and a new BEGIN, even when the row/catalog
-before-images happen to match. This candidate is enabled for executable
-qualification, with no passing support or issue-closure claim before the
-complete ordered native gate.
+before-images happen to match. This profile is enabled and qualified for
+v0.2.0: the complete locked suite passed on PR #1242 (commit `d2486540a`,
+12,022 passed) and the gates in the v0.2.0 qualification record pass.
 
 The 2026-11-05 integration gate exposed ordinary projector writes consuming the
 per-query numeric allowance through this independent shared tracker. The selected
@@ -967,7 +1051,8 @@ failed initialization. The selected behavior is supported only after those
 probes and the complete ordered gate execute successfully.
 An interim adversarial review returned 0.51 for retry after partial initialization
 and 0.44 for live create admission before initialization; authored probes exercise
-both boundaries. These probes remain unexecuted until the integrated gate.
+both boundaries. These probes executed and passed in the full locked suite on
+PR #1242 (commit `d2486540a`, 12,022 passed).
 
 A physical family already visible under the schema publication gate may be
 reused without issuing a create. Once a native create has been submitted, its

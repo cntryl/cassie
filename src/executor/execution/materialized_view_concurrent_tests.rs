@@ -602,3 +602,66 @@ fn should_reject_terminal_refresh_cleanup_while_storage_requires_recovery() {
         .any(|version| version.version_id == previous_version
             && version.state == ProjectionVersionState::Active));
 }
+
+#[test]
+fn should_recover_to_savepoint_after_canceled_refresh_in_an_explicit_transaction() {
+    // Arrange
+    let (cassie, session, previous_version) = materialized_view_with_unique_index();
+    let observer = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "UPDATE concurrent_refresh_cancel_source SET label = 'after' WHERE id = 1",
+            vec![],
+        )
+        .expect("change source row before refresh");
+    for sql in ["BEGIN", "SAVEPOINT before_refresh"] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("open savepoint");
+    }
+    let cancellation = QueryCancellationHandle::new();
+    let _cancel_at_activation = cancel_next_refresh_before_activation(cancellation.clone());
+
+    // Act
+    let canceled = cassie.execute_sql_with_cancellation(
+        &session,
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY concurrent_refresh_cancel_view",
+        vec![],
+        &cancellation,
+    );
+    let failed_status = session.transaction_status();
+    let recovered = cassie.execute_sql(&session, "ROLLBACK TO SAVEPOINT before_refresh", vec![]);
+    let recovered_status = session.transaction_status();
+    let owner_rows = materialized_view_rows(&cassie, &session);
+    let observer_rows = materialized_view_rows(&cassie, &observer);
+    let retried = cassie.execute_sql(
+        &session,
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY concurrent_refresh_cancel_view",
+        vec![],
+    );
+    let committed = cassie.execute_sql(&session, "COMMIT", vec![]);
+
+    // Assert
+    assert!(matches!(canceled, Err(CassieError::QueryCanceled)));
+    assert_eq!(failed_status, "failed");
+    assert!(recovered.is_ok(), "savepoint recovery after cancellation");
+    assert_eq!(recovered_status, "in_transaction");
+    let before = vec![vec![Value::Int64(1), Value::String("before".to_owned())]];
+    assert_eq!(owner_rows, before);
+    assert_eq!(observer_rows, before);
+    assert!(retried.is_ok(), "retry after recovery");
+    assert!(committed.is_ok(), "commit after recovery");
+    assert_eq!(
+        materialized_view_rows(&cassie, &observer),
+        vec![vec![Value::Int64(1), Value::String("after".to_owned())]]
+    );
+    let metadata = cassie
+        .catalog
+        .get_materialized_projection("concurrent_refresh_cancel_view")
+        .expect("metadata after recovery");
+    assert_ne!(
+        metadata.active_version.as_deref(),
+        Some(previous_version.as_str())
+    );
+}

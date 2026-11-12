@@ -66,6 +66,16 @@ pub(super) fn bind_create_index(
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
     let fields = declared_field_names(&schema, fields);
+    for field in &fields {
+        if schema.fields.iter().any(|entry| {
+            entry.name.eq_ignore_ascii_case(field)
+                && matches!(entry.data_type, crate::types::DataType::Composite(_))
+        }) {
+            return Err(CassieError::Unsupported(format!(
+                "indexes on composite column \"{field}\" are not supported in this version"
+            )));
+        }
+    }
     let expressions = declared_index_expressions(&schema, &expressions);
     if name.is_empty() {
         name =

@@ -7,6 +7,9 @@ mod timetz_error;
 #[path = "codecs/jsonb.rs"]
 mod jsonb;
 
+#[path = "codecs/record.rs"]
+mod record;
+
 use crate::executor::ColumnMeta;
 use crate::types::builtin::{
     builtin_for_oid, BuiltinKind as BinaryCodecKind, BuiltinType as BinaryCodec,
@@ -29,6 +32,9 @@ const MICROSECONDS_PER_DAY: i64 = 86_400_000_000;
 /// Renders `value` with PostgreSQL's text output function for the column's
 /// declared `type_oid`.
 pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
+    if let Some(record) = record::as_record(value) {
+        return record::text(record);
+    }
     if type_oid == 3802 {
         return jsonb::text(value);
     }
@@ -120,6 +126,9 @@ pub(super) fn value_to_binary_with_typmod_and_vector(
 ) -> io::Result<Vec<u8>> {
     if is_vector {
         return encode_vector(value, atttypmod);
+    }
+    if let Some(record) = record::as_record(value) {
+        return record::binary(record);
     }
     if let Some(encoded) = encode_special_binary_type(value, type_oid, atttypmod) {
         return encoded;

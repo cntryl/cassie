@@ -112,6 +112,20 @@ fn validate_and_bind_table_fields(
                 "CREATE TABLE field names cannot be empty".into(),
             ));
         }
+        if let DataType::Composite(descriptor) = &field.data_type {
+            if descriptor.is_anonymous() {
+                return Err(crate::app::DiagnosticError::new(
+                    "42P16",
+                    format!("column \"{field_name}\" has pseudo-type record"),
+                )
+                .into());
+            }
+            if own_unique_fields.iter().any(|unique| unique == field_name) {
+                return Err(CassieError::Unsupported(format!(
+                    "composite column \"{field_name}\" cannot be PRIMARY KEY or UNIQUE in this version"
+                )));
+            }
+        }
         super::validate_not_internal_identity_field(field_name)?;
         schema_defaults::bind_constraint_defaults(
             field_name,

@@ -225,6 +225,13 @@ pub(crate) fn parameter_data_type_for_oid_in_database(
     if vector_oid.is_some_and(|vector_oid| i64::from(oid) == vector_oid) {
         return Some(DataType::Vector(None));
     }
+    if let Some(composite) = u32::try_from(oid)
+        .ok()
+        .and_then(|oid| catalog.get_composite_type_by_oid(oid))
+        .filter(|composite| composite.database.eq_ignore_ascii_case(database))
+    {
+        return Some(DataType::Composite(composite.descriptor()));
+    }
     parameter_data_type_for_oid(oid)
 }
 

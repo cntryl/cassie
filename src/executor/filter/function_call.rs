@@ -110,6 +110,7 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     if name == crate::sql::ast::FIELD_ACCESS_FUNCTION {
         return evaluate_field_access(function, args);
     }
+    reject_record_arguments(local_name, &args)?;
 
     if let Some(result) = json_builders::evaluate(function, row, &args, context) {
         return result;
@@ -173,6 +174,53 @@ fn evaluate_argument_values<R: RowAccess + ?Sized>(
             Ok::<Value, QueryError>(value)
         })
         .collect()
+}
+
+/// Built-ins that accept a record argument; every other function over a
+/// record is undefined, as in PostgreSQL (`function abs(record) does not exist`).
+const RECORD_TOLERANT_FUNCTIONS: &[&str] = &[
+    "pg_typeof",
+    "nullif",
+    "greatest",
+    "least",
+    "num_nulls",
+    "num_nonnulls",
+    "to_json",
+    "to_jsonb",
+    "row_to_json",
+    "json_build_object",
+    "jsonb_build_object",
+    "json_build_array",
+    "jsonb_build_array",
+];
+
+fn reject_record_arguments(name: &str, args: &[Value]) -> Result<(), QueryError> {
+    let is_record =
+        |value: &Value| matches!(value, Value::Typed(typed) if typed.as_record().is_some());
+    if !args.iter().any(is_record) || RECORD_TOLERANT_FUNCTIONS.contains(&name) {
+        return Ok(());
+    }
+    let types = args
+        .iter()
+        .map(|value| match value {
+            Value::Typed(typed) => typed.as_record().map_or_else(
+                || crate::types::composite::value_data_type(value).type_name(),
+                |record| record.descriptor().name.clone(),
+            ),
+            other => crate::types::composite::value_data_type(other).type_name(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(crate::app::CassieError::from(
+        crate::app::DiagnosticError::new(
+            "42883",
+            format!("function {name}({types}) does not exist"),
+        )
+        .with_hint(
+            "No function matches the given name and argument types. You might need to add explicit type casts.",
+        ),
+    )
+    .into())
 }
 
 /// `ROW(a, b, ...)`: an anonymous record whose field types follow the values.

@@ -158,3 +158,26 @@ fn should_remove_catalog_rows_when_the_type_is_dropped() {
     assert_eq!((types, classes, attributes), (0, 0, 0));
     assert_eq!(resolved, None);
 }
+
+#[test]
+fn should_resolve_regclass_to_the_composite_relkind_c_row() {
+    // Arrange
+    let fixture = fixture("composite_regclass");
+
+    // Act
+    let same_oid = count(
+        &fixture,
+        "SELECT count(*) FROM pg_type WHERE typname = 'address' \
+         AND typrelid = 'address'::regclass::oid",
+    );
+    let label = only_text(&fixture.rows("SELECT 'address'::regclass::text"));
+    fixture
+        .execute("DROP TYPE address")
+        .expect("drop type should succeed");
+    let dropped = only_text(&fixture.rows("SELECT to_regclass('address')::text"));
+
+    // Assert
+    assert_eq!(same_oid, 1);
+    assert_eq!(label, Some("address".to_owned()));
+    assert_eq!(dropped, None);
+}

@@ -236,6 +236,21 @@ impl<'a> ObjectScope<'a> {
             });
         }
         self.index_in_schema(schema, name)
+            .or_else(|| self.composite_relation_in_schema(schema, name))
+    }
+
+    /// The `relkind = 'c'` pg_class row a composite type owns.
+    fn composite_relation_in_schema(&self, schema: &str, name: &str) -> Option<RelationIdentity> {
+        let metadata = self.catalog.get_composite_type(&canonical_relation_name(
+            &self.context.database,
+            schema,
+            name,
+        ))?;
+        Some(RelationIdentity {
+            oid: metadata.relation_oid(),
+            schema: metadata.schema_name(),
+            name: metadata.local_name(),
+        })
     }
 
     /// The name an unscoped catalog stores a relation under: bare for
@@ -294,6 +309,18 @@ impl<'a> ObjectScope<'a> {
                 });
         }
         let id = u64::from(oid - FIRST_NORMAL_OBJECT_ID);
+        if let Some(metadata) = self
+            .catalog
+            .list_composite_types_for_database(&self.context.database)
+            .into_iter()
+            .find(|metadata| metadata.relation_oid() == oid)
+        {
+            return Some(RelationIdentity {
+                oid,
+                schema: metadata.schema_name(),
+                name: metadata.local_name(),
+            });
+        }
         if let Some(index) =
             self.catalog
                 .logical_indexes_snapshot()

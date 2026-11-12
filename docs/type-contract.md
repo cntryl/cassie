@@ -404,7 +404,8 @@ compiled or executed (assembler-owned gate). Pending or excluded:
   `composite-type` family and re-allocates type identities;
 - `DROP DATABASE` discards the database's composite types, and
   `DROP SCHEMA ... CASCADE` is rejected with `2BP01` while an object outside
-  the schema uses one of its types.
+  the schema uses one of its types. This is a deliberate stricter difference:
+  PostgreSQL would cascade-drop the dependent column instead.
 
 ### #843, #844
 

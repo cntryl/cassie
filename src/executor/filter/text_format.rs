@@ -144,6 +144,7 @@ pub(super) fn evaluate(
     match name {
         "format" => Some(format(args, controls)),
         "replace" => Some(replace(args, controls)),
+        "quote_nullable" | "pg_catalog.quote_nullable" => Some(quote_nullable(args, controls)),
         _ => None,
     }
 }
@@ -165,6 +166,33 @@ fn format(args: &[Value], controls: Option<&QueryExecutionControls>) -> Result<V
         .try_reserve_exact(output_length)
         .map_err(|error| resource_limit(&format!("unable to allocate format() output: {error}")))?;
     render(format_string, format_args, &mut output, controls)?;
+    Ok(Value::String(output))
+}
+
+/// `quote_nullable(any)`: a SQL literal of the value's text output, or the
+/// bare word `NULL`.
+fn quote_nullable(
+    args: &[Value],
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Value, QueryError> {
+    let [value] = args else {
+        return Err(invalid_parameter("quote_nullable() takes one argument"));
+    };
+    if matches!(value, Value::Null) {
+        return Ok(Value::String("NULL".to_owned()));
+    }
+    let text = value_text(value);
+    let mut output = String::new();
+    if text.contains('\\') {
+        output.push('E');
+    }
+    let escaped = text.replace('\\', "\\\\");
+    let body = if text.contains('\\') {
+        escaped.as_str()
+    } else {
+        &text
+    };
+    append_literal(&mut output, body, controls)?;
     Ok(Value::String(output))
 }
 

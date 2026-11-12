@@ -151,6 +151,7 @@ pub enum FunctionId {
     SessionUser,
     CurrentRole,
     QuoteIdent,
+    QuoteNullable,
     FormatType,
     PgGetExpr,
     PgGetIndexDef,

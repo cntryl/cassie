@@ -130,6 +130,25 @@ impl Catalog {
         !self.composite_types.read().is_empty()
     }
 
+    /// A composite type owns a pg_class row, so creating a view, sequence,
+    /// index or table of the same name is `42P07`, as in PostgreSQL.
+    ///
+    /// # Errors
+    /// Returns `42P07` when a composite type holds `name`.
+    pub fn reject_composite_relation_name(
+        &self,
+        name: &str,
+    ) -> Result<(), crate::app::CassieError> {
+        if self.composite_type_exists(name) {
+            return Err(crate::app::DiagnosticError::new(
+                "42P07",
+                format!("relation \"{}\" already exists", local_name(name)),
+            )
+            .into());
+        }
+        Ok(())
+    }
+
     #[must_use]
     pub fn composite_type_exists(&self, name: &str) -> bool {
         self.get_composite_type(name).is_some()

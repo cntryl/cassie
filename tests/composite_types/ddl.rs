@@ -336,3 +336,48 @@ fn should_forget_a_databases_types_when_it_is_dropped_and_recreated() {
         "the old type OID no longer resolves"
     );
 }
+
+#[test]
+fn should_reject_a_type_named_like_an_existing_view_sequence_or_index() {
+    // Arrange
+    let fixture = sql_fixture(
+        "composite_type_vs_relations",
+        &[
+            "CREATE TABLE base (id int)",
+            "CREATE VIEW some_view AS SELECT id FROM base",
+            "CREATE SEQUENCE some_seq",
+            "CREATE INDEX some_idx ON base (id)",
+        ],
+    );
+
+    // Act
+    let view = fixture.error("CREATE TYPE some_view AS (a int)");
+    let sequence = fixture.error("CREATE TYPE some_seq AS (a int)");
+    let index = fixture.error("CREATE TYPE some_idx AS (a int)");
+
+    // Assert
+    assert_eq!(view.sql_state(), "42710");
+    assert_eq!(sequence.sql_state(), "42710");
+    assert_eq!(index.sql_state(), "42710");
+}
+
+#[test]
+fn should_reject_a_view_sequence_index_or_table_named_like_a_type() {
+    // Arrange
+    let fixture = sql_fixture(
+        "composite_relations_vs_type",
+        &[ADDRESS, "CREATE TABLE base (id int)"],
+    );
+
+    // Act
+    let view = fixture.error("CREATE VIEW address AS SELECT id FROM base");
+    let sequence = fixture.error("CREATE SEQUENCE address");
+    let index = fixture.error("CREATE INDEX address ON base (id)");
+    let table = fixture.error("CREATE TABLE address (id int)");
+
+    // Assert
+    assert_eq!(view.sql_state(), "42P07");
+    assert_eq!(sequence.sql_state(), "42P07");
+    assert_eq!(index.sql_state(), "42P07");
+    assert_eq!(table.sql_state(), "42P07");
+}

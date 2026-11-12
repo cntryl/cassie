@@ -405,7 +405,14 @@ compiled or executed (assembler-owned gate). Pending or excluded:
 - `DROP DATABASE` discards the database's composite types, and
   `DROP SCHEMA ... CASCADE` is rejected with `2BP01` while an object outside
   the schema uses one of its types. This is a deliberate stricter difference:
-  PostgreSQL would cascade-drop the dependent column instead.
+  PostgreSQL would cascade-drop the dependent column instead;
+- polymorphic (`anyelement`) user-defined functions called with a record
+  argument are rejected with `42883` in this increment, although PostgreSQL
+  accepts them;
+- a composite type shares the relation namespace with tables, views, sequences
+  and indexes: `CREATE TYPE` over such a name is `42710`, and
+  `CREATE TABLE/VIEW/SEQUENCE/INDEX` over a type name is `42P07` (also with
+  `IF NOT EXISTS`, which is stricter than PostgreSQL).
 
 ### #843, #844
 

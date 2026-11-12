@@ -129,3 +129,51 @@ fn should_keep_record_equality_for_named_values_after_function_dispatch_changes(
     // Assert
     assert!(equal);
 }
+
+#[test]
+fn should_render_records_through_concat_with_pg_text_output() {
+    // Arrange
+    let fixture = fixture("composite_concat_record");
+
+    // Act
+    let text = only_text(&fixture.rows("SELECT concat(ROW(1, 2))"));
+
+    // Assert
+    assert_eq!(text, Some("(1,2)".to_owned()));
+}
+
+#[test]
+fn should_render_records_through_concat_ws_with_pg_text_output() {
+    // Arrange
+    let fixture = fixture("composite_concat_ws_record");
+
+    // Act
+    let text = only_text(&fixture.rows("SELECT concat_ws('-', 'a', ROW(1, 2))"));
+
+    // Assert
+    assert_eq!(text, Some("a-(1,2)".to_owned()));
+}
+
+#[test]
+fn should_render_records_through_format_with_pg_text_output() {
+    // Arrange
+    let fixture = fixture("composite_format_record");
+
+    // Act
+    let text = only_text(&fixture.rows("SELECT format('%s', ROW(1, 2))"));
+
+    // Assert
+    assert_eq!(text, Some("(1,2)".to_owned()));
+}
+
+#[test]
+fn should_render_records_through_quote_nullable_as_a_literal() {
+    // Arrange
+    let fixture = fixture("composite_quote_nullable_record");
+
+    // Act
+    let text = only_text(&fixture.rows("SELECT quote_nullable(ROW(1, 2))"));
+
+    // Assert
+    assert_eq!(text, Some("'(1,2)'".to_owned()));
+}

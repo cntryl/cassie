@@ -43,6 +43,9 @@ pub(super) fn bind_create_index(
             _ => normalize_relation_name(statement.name.trim(), context)?,
         }
     };
+    if !name.is_empty() {
+        catalog.reject_composite_relation_name(&name)?;
+    }
     if !name.is_empty() && statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
         duplicate::validate(&statement, catalog, &table, controls)?;
         statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;

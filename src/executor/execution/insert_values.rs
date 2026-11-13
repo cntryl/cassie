@@ -23,6 +23,8 @@ pub(super) fn evaluate(
                 .map(|expression| {
                     if expression.is_default_assignment() {
                         Ok(InsertValue::Default)
+                    } else if matches!(expression, Expr::StringLiteral(_)) {
+                        value(expression, context).map(InsertValue::UnknownLiteral)
                     } else {
                         value(expression, context).map(InsertValue::Value)
                     }

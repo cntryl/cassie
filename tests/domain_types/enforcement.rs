@@ -502,3 +502,104 @@ fn should_return_a_json_table_value_satisfying_the_domain_check() {
     // Assert
     assert_eq!(rows, vec![vec![Value::Int64(3)]]);
 }
+
+// Authored, not run: revision 2 (whole-row reads, live descriptors, field inference).
+
+#[test]
+fn should_read_a_whole_row_that_violates_a_not_valid_domain_check() {
+    // Arrange: PostgreSQL does not revalidate stored values on read.
+    let fixture = row_type_fixture("domain_whole_row_not_valid");
+    fixture.execute("INSERT INTO dt VALUES (5)").unwrap();
+    fixture
+        .execute("ALTER DOMAIN posint ADD CONSTRAINT small CHECK (VALUE < 3) NOT VALID")
+        .unwrap();
+
+    // Act
+    let rows = fixture.rows("SELECT dt::text FROM dt");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::String("(5)".into())]]);
+}
+
+#[test]
+fn should_stop_enforcing_a_dropped_domain_check_on_row_type_casts() {
+    // Arrange
+    let fixture = row_type_fixture("domain_row_cast_dropped_check");
+    fixture
+        .execute("ALTER DOMAIN posint DROP CONSTRAINT posint_check")
+        .unwrap();
+
+    // Act
+    let rows = fixture.rows("SELECT ('(-1)'::dt)::text");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::String("(-1)".into())]]);
+}
+
+#[test]
+fn should_enforce_an_added_domain_check_on_row_type_casts() {
+    // Arrange
+    let fixture = row_type_fixture("domain_row_cast_added_check");
+    fixture
+        .execute("ALTER DOMAIN posint ADD CONSTRAINT small CHECK (VALUE < 10)")
+        .unwrap();
+
+    // Act
+    let error = fixture.error("SELECT '(50)'::dt");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_infer_the_base_type_for_arithmetic_on_a_row_type_domain_field() {
+    // Arrange
+    let fixture = row_type_fixture("domain_row_field_arithmetic");
+
+    // Act
+    let rows = fixture.rows("SELECT pg_typeof(('(3)'::dt).a + 1), ('(3)'::dt).a + 1");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![Value::String("integer".into()), Value::Int64(4)]]
+    );
+}
+
+// Authored, not run: revision 3 (columns of another table's row type).
+
+fn row_column_fixture(label: &str) -> SqlFixture {
+    let fixture = row_type_fixture(label);
+    fixture.execute("CREATE TABLE holder (r dt)").unwrap();
+    fixture
+}
+
+#[test]
+fn should_stop_enforcing_a_dropped_domain_check_on_a_row_type_column_insert() {
+    // Arrange
+    let fixture = row_column_fixture("domain_row_column_dropped_check");
+    fixture
+        .execute("ALTER DOMAIN posint DROP CONSTRAINT posint_check")
+        .unwrap();
+
+    // Act
+    let inserted = fixture.execute("INSERT INTO holder VALUES ('(-1)')");
+
+    // Assert
+    assert!(inserted.is_ok(), "the dropped check no longer applies");
+}
+
+#[test]
+fn should_enforce_an_added_domain_check_on_a_row_type_column_insert() {
+    // Arrange
+    let fixture = row_column_fixture("domain_row_column_added_check");
+    fixture
+        .execute("ALTER DOMAIN posint ADD CONSTRAINT small CHECK (VALUE < 10)")
+        .unwrap();
+
+    // Act
+    let error = fixture.error("INSERT INTO holder VALUES ('(50)')");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}

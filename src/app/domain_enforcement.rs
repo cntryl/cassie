@@ -109,12 +109,16 @@ impl Cassie {
         payload: &serde_json::Value,
         exclude_id: Option<&str>,
     ) -> Result<(), CassieError> {
-        if schema.fields.iter().all(|field| field.domain.is_none()) {
+        if schema.fields.iter().all(|field| {
+            field.domain.is_none()
+                && !matches!(field.data_type, crate::types::DataType::Composite(_))
+        }) {
             return Ok(());
         }
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
         })?;
+        self.validate_row_type_domain_fields(schema, object)?;
         let mut before: Option<Option<serde_json::Value>> = None;
         for field in &schema.fields {
             let Some(mut domain) = self.live_domain(field).map(|domain| (*domain).clone()) else {
@@ -144,6 +148,43 @@ impl Cassie {
             let value = payload_value(field, object.get(&field.name));
             if let Some(violation) = first_violation(&domain, &value).map_err(CassieError::from)? {
                 return Err(violation.into_error(&domain).into());
+            }
+        }
+        Ok(())
+    }
+
+    /// Enforces the live domains of columns whose type is another table's row
+    /// type. The column embeds a flattened descriptor, so the domains come from
+    /// that table's current row type, resolved by OID.
+    fn validate_row_type_domain_fields(
+        &self,
+        schema: &CollectionSchema,
+        object: &serde_json::Map<String, serde_json::Value>,
+    ) -> Result<(), CassieError> {
+        for field in &schema.fields {
+            let crate::types::DataType::Composite(embedded) = &field.data_type else {
+                continue;
+            };
+            let Some((_, live, false)) = self.catalog.relation_row_type_by_oid(embedded.oid) else {
+                continue;
+            };
+            if live.fields.iter().all(|f| f.data_type.domain().is_none()) {
+                continue;
+            }
+            let Value::Typed(crate::types::typed::TypedValue::Record(record)) =
+                payload_value(field, object.get(&field.name))
+            else {
+                continue;
+            };
+            for (value, member) in record.fields().iter().zip(&live.fields) {
+                let Some(domain) = member.data_type.domain() else {
+                    continue;
+                };
+                if let Some(violation) =
+                    first_violation(domain, value).map_err(CassieError::from)?
+                {
+                    return Err(violation.into_error(domain).into());
+                }
             }
         }
         Ok(())

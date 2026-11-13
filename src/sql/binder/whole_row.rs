@@ -35,7 +35,8 @@ fn scope_for(
         _ => return None,
     };
     let canonical = super::resolve_relation_name(path.as_str(), catalog, context).ok()?;
-    let row_type = catalog.relation_row_type(&canonical)?;
+    // Reads never revalidate stored values, so the row type is unconstrained.
+    let row_type = catalog.relation_row_type_unconstrained(&canonical)?;
     let schema = catalog.get_schema(&canonical)?;
     let binding = alias.map_or_else(|| crate::catalog::local_name(&canonical), str::to_owned);
     Some(RowScope {

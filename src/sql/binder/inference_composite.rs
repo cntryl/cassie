@@ -31,7 +31,7 @@ pub(crate) fn composite_field_type(
     };
     descriptor
         .field_index(field)
-        .map(|index| descriptor.fields[index].data_type.clone())
+        .map(|index| descriptor.fields[index].data_type.flattened().clone())
         .ok_or_else(|| {
             crate::app::DiagnosticError::new(
                 "42703",

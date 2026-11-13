@@ -140,6 +140,15 @@ pub fn record_from_storage_json(
     RecordValue::new(descriptor.clone(), values).map_err(StoredRecordError::new)
 }
 
+/// The type OID `record_send` and `record_recv` carry for a field: a domain
+/// field carries the domain's own OID, as PostgreSQL does.
+fn field_oid(data_type: &DataType) -> u32 {
+    match data_type {
+        DataType::Domain(domain) => domain.oid,
+        other => u32::try_from(other.type_oid()).unwrap_or(0),
+    }
+}
+
 /// `record_send`: field count, then per field its type OID and length-prefixed
 /// bytes (`-1` for NULL), all big-endian.
 ///
@@ -154,7 +163,7 @@ pub fn send_record_binary<E: From<String>>(
         .map_err(|_| E::from("record has too many fields".to_string()))?;
     let mut out = count.to_be_bytes().to_vec();
     for (value, field) in record.fields().iter().zip(&record.descriptor().fields) {
-        let oid = u32::try_from(field.data_type.flattened().type_oid()).unwrap_or(0);
+        let oid = field_oid(&field.data_type);
         out.extend_from_slice(&oid.to_be_bytes());
         if value.is_null() {
             out.extend_from_slice(&(-1_i32).to_be_bytes());
@@ -189,7 +198,7 @@ pub fn receive_record_binary(
     let mut values = Vec::with_capacity(descriptor.fields.len());
     for field in &descriptor.fields {
         let oid = read_i32(&mut cursor)?;
-        let expected = i32::try_from(field.data_type.type_oid()).unwrap_or(0);
+        let expected = i32::try_from(field_oid(&field.data_type)).unwrap_or(0);
         if oid != expected {
             return Err(format!(
                 "wrong data type in record column \"{}\": expected {expected}, received {oid}",

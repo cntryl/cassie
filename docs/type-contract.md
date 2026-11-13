@@ -530,6 +530,22 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   `ALTER TYPE <composite> RENAME TO <domain>` is `42710`.
 - A table's row type keeps the domain of a domain column: `'(-1)'::t`, `ROW(-1)::t` and
   `jsonb_populate_record(NULL::t, ...)` raise `23514`/`23502` as in PostgreSQL.
+- Whole-row reads (`SELECT t FROM t`, `t::text`) never revalidate stored values; a row
+  type's domain fields resolve the live domain descriptor by OID when the statement is
+  parsed, so `ALTER DOMAIN` is seen by later casts. `(row).field` infers the base type.
+  A column whose type is another table's row type stores that row type with its domain
+  fields flattened and enforces the live domains of the row type by OID on INSERT and
+  UPDATE (one level deep). Known divergences: binary `record_send`/`record_recv` carry
+  the domain OID per field for casts and user composites (as PostgreSQL), but a
+  whole-row value (`SELECT t FROM t`) is built from an unconstrained descriptor and
+  sends the base OID; a `JSON_TABLE` `EXISTS PATH` column of a domain type casts the
+  boolean to the domain even when the path is not found (PostgreSQL raises `42804`);
+  bind-time re-parse of view bodies uses the live catalog, not the open transaction's
+  overlay or REPEATABLE READ snapshot, so a domain created in the same open
+  transaction as `CREATE VIEW` is not seen by the bind step; a null-safe expression
+  `DEFAULT` that casts to a domain (for example `DEFAULT lower('A')::d`) is folded
+  against an empty catalog and fails with `42704` (plain literal casts such as
+  `DEFAULT 5::d` are stripped and accepted).
 - View, materialized view and materialized projection bodies, and their dependency
   and rename re-checks, resolve domain, composite and row-type names against the
   catalog and search path of the statement.

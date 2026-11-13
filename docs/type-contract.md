@@ -445,8 +445,9 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   indexes (`42710` / `42P07`). `ON CONFLICT DO NOTHING` still raises `23514` / `23502`
   or `DO UPDATE` for a violating proposed value. `pg_attribute.atttypmod` of a domain
   column is `-1`. A domain named like a table, view, sequence or composite type is
-  `42710` for `CREATE TABLE [IF NOT EXISTS]`, `CREATE VIEW`, `CREATE SEQUENCE` and
-  `CREATE TYPE`; a domain may share a sequence or index name.
+  `42710` for `CREATE TABLE [IF NOT EXISTS]`, `CREATE VIEW`, `CREATE MATERIALIZED VIEW`,
+  `CREATE SEQUENCE` and `CREATE TYPE`, and `CREATE DOMAIN` collides with tables, views,
+  composite types and other domains; a domain may share a sequence or index name.
 - Known divergences: `UPDATE t SET q = c` where the stored value already equals the
   constant `c` and violates a `NOT VALID` check is accepted (PostgreSQL re-coerces the
   constant and rejects); a column with its own volatile DEFAULT falls back to the domain

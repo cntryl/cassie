@@ -476,3 +476,59 @@ fn should_see_staged_rows_when_adding_a_not_null_domain_column() {
     // Assert
     assert_eq!(error.sql_state(), "23502");
 }
+
+#[test]
+fn should_reject_create_materialized_view_over_an_existing_domain_name() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_name_vs_matview");
+
+    // Act
+    let error = fixture.error("CREATE MATERIALIZED VIEW posint AS SELECT 1 AS a");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_forget_a_databases_domains_when_it_is_dropped_then_recreated() {
+    // Arrange
+    let fixture = sql_fixture("domain_drop_database", &[]);
+    fixture.execute_as_root("CREATE DATABASE scratch").unwrap();
+    let scratch = fixture
+        .cassie
+        .create_session("tester", Some("scratch".to_owned()));
+    fixture
+        .cassie
+        .execute_sql(&scratch, POSITIVE, vec![])
+        .unwrap();
+    let old_oid = fixture
+        .cassie
+        .catalog
+        .list_domain_types()
+        .into_iter()
+        .find(|metadata| metadata.database == "scratch")
+        .map(|metadata| metadata.type_oid())
+        .expect("domain registered in scratch");
+
+    // Act
+    fixture.execute_as_root("DROP DATABASE scratch").unwrap();
+    fixture.execute_as_root("CREATE DATABASE scratch").unwrap();
+    let recreated = fixture
+        .cassie
+        .create_session("tester", Some("scratch".to_owned()));
+    let created = fixture.cassie.execute_sql(&recreated, POSITIVE, vec![]);
+
+    // Assert
+    assert!(
+        created.is_ok(),
+        "the dropped database's domain name is free"
+    );
+    assert!(
+        fixture
+            .cassie
+            .catalog
+            .get_domain_type_by_oid(old_oid)
+            .is_none(),
+        "the old domain OID no longer resolves"
+    );
+}

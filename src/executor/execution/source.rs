@@ -471,7 +471,7 @@ pub(super) fn execute_source_query_with_outer_row(
         )?
     };
 
-    let rows = finalize_plan_rows(&phase_env, plan, cte_context, batches)?;
+    let rows = finalize_plan_rows(&phase_env, plan, cte_context, batches, outer_row)?;
     record_plan_metrics(
         env.cassie,
         plan,
@@ -783,6 +783,7 @@ fn finalize_plan_rows(
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     batches: projection::OwnedExpanded,
+    outer_row: Option<&BatchRow>,
 ) -> Result<super::owned_rows::OwnedRows, QueryError> {
     let rows = batches.flatten(env.controls)?;
     if rows.is_tracked() && plan.set.is_none() && plan.limit.is_none() && plan.offset.is_none() {
@@ -809,7 +810,9 @@ fn finalize_plan_rows(
             env.parameter_type_oids,
             &right_controls,
         );
-        let right_rows = execute_plan_with_parameter_oids(&right_env, &right_plan, cte_context)?;
+        // A lateral derived table's set-operation branches see the same outer row as the left.
+        let right_rows =
+            execute_plan_with_outer_row(&right_env, &right_plan, cte_context, outer_row)?;
         rows = apply_set_operation(rows, right_rows, &left_output_names, set, env.controls)?;
     }
     if plan.set.is_some() && !plan.order.is_empty() {

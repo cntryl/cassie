@@ -846,7 +846,7 @@ fn format_type_oid_in_session(oid: i64, typmod: i64, session: Option<&CassieSess
                 );
         }
     }
-    format_type_oid(oid, typmod)
+    identifiers::format_user_type_oid(oid, session).unwrap_or_else(|| format_type_oid(oid, typmod))
 }
 
 fn evaluate_concat(name: &str, args: &[Value]) -> Result<Value, QueryError> {

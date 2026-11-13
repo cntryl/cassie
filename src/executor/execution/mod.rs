@@ -156,7 +156,10 @@ pub(crate) use projection_diff::{
 mod projection_repair;
 pub(crate) use projection_repair::repair_projection_column_definitions;
 mod domain_command;
+mod domain_check_definition;
 mod domain_schema_scope;
+mod domain_view_dependents;
+mod domain_view_text;
 mod enum_command;
 mod enum_schema_scope;
 mod extension_command;

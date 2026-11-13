@@ -463,6 +463,9 @@ pub(crate) fn format_text_in(
                             }
                         }
                         Value::Typed(value) => value.text_in(session),
+                        Value::Json(value) if matches!(element_type, DataType::Enum(_)) => {
+                            enum_label(element_type, value)?
+                        }
                         Value::Json(value) if *element_type == DataType::Jsonb => {
                             crate::types::jsonb::format(value).ok()?
                         }
@@ -521,6 +524,17 @@ pub(crate) fn format_text_in(
         })
         .collect::<Option<String>>()?;
     Some(format!("{bounds}={body}"))
+}
+
+/// The label of a stored enum element document.
+fn enum_label(element_type: &DataType, document: &JsonValue) -> Option<String> {
+    let DataType::Enum(descriptor) = element_type else {
+        return None;
+    };
+    let member_id = crate::types::EnumValue::storage_member_id(document)?;
+    descriptor
+        .member(member_id)
+        .map(|member| member.label.clone())
 }
 
 fn quote_array_element(value: &str) -> String {

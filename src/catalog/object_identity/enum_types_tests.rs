@@ -71,8 +71,7 @@ fn should_qualify_enum_regtype_label_only_outside_the_search_path() {
     // Act
     let outside = ObjectScope::new(&catalog, &qualified).label(ObjectIdKind::RegType, oid);
     let inside = ObjectScope::new(&catalog, &visible).label(ObjectIdKind::RegType, oid);
-    let inside_array =
-        ObjectScope::new(&catalog, &visible).label(ObjectIdKind::RegType, array_oid);
+    let inside_array = ObjectScope::new(&catalog, &visible).label(ObjectIdKind::RegType, array_oid);
 
     // Assert
     assert_eq!(outside, "s.state_code");

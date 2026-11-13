@@ -69,7 +69,10 @@ pub(in crate::catalog::virtual_views) fn enum_schema() -> Vec<(String, DataType)
 }
 
 /// One `pg_enum` row per member of each enum type in the current database.
-pub(in crate::catalog::virtual_views) fn enum_rows(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
+pub(in crate::catalog::virtual_views) fn enum_rows(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for metadata in visible(catalog, current_database) {
         let type_oid = i64::from(metadata.type_oid());
@@ -93,7 +96,9 @@ pub(in crate::catalog::virtual_views) fn enum_rows(catalog: &Catalog, current_da
 
 /// `information_schema.columns.udt_schema` and `udt_name` of an enum column
 /// (`_name` for an enum array column), or `None` for any other column type.
-pub(in crate::catalog::virtual_views) fn column_udt(data_type: &DataType) -> Option<(String, String)> {
+pub(in crate::catalog::virtual_views) fn column_udt(
+    data_type: &DataType,
+) -> Option<(String, String)> {
     let (descriptor, prefix) = match data_type {
         DataType::Enum(descriptor) => (descriptor, ""),
         DataType::Array(inner) => match inner.as_ref() {

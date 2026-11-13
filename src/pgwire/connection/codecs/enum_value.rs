@@ -94,7 +94,11 @@ fn json_binary_array(value: &Value, element_oid: i32) -> io::Result<Vec<u8>> {
             }
         })
         .collect::<Vec<_>>();
-    let mut encoded = array_header(&dimensions, elements.iter().any(Option::is_none), element_oid);
+    let mut encoded = array_header(
+        &dimensions,
+        elements.iter().any(Option::is_none),
+        element_oid,
+    );
     for element in elements {
         match element {
             None => encoded.extend_from_slice(&(-1_i32).to_be_bytes()),
@@ -165,7 +169,9 @@ pub(in crate::pgwire::connection) fn decode_labels(
     let ndim = read_i32(parameter, &mut cursor, "enum array")?;
     let has_null = read_i32(parameter, &mut cursor, "enum array")?;
     let element_oid = i64::from(read_i32(parameter, &mut cursor, "enum array")?);
-    if !(0..=6).contains(&ndim) || !matches!(has_null, 0 | 1) || element_oid != i64::from(column.element_oid)
+    if !(0..=6).contains(&ndim)
+        || !matches!(has_null, 0 | 1)
+        || element_oid != i64::from(column.element_oid)
     {
         return Err(invalid_data("enum array"));
     }

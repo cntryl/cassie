@@ -194,7 +194,10 @@ fn scratch_bytes(
                 .columns()
                 .get(index)
                 .is_some_and(ColumnMeta::is_vector);
-            let enum_column = result.columns().get(index).and_then(crate::executor::ColumnMeta::enum_column);
+            let enum_column = result
+                .columns()
+                .get(index)
+                .and_then(crate::executor::ColumnMeta::enum_column);
             let mut cell = match enum_column {
                 Some(column) => enum_cell_bytes(value, column)?,
                 None => cell_bytes(

@@ -54,7 +54,8 @@ fn should_name_the_missing_neighbour_label() {
 fn should_request_renumbering_when_no_midpoint_is_representable() {
     // Arrange
     let mut descriptor = descriptor(&["a", "b"]);
-    descriptor.members[1].sort_order = f32::from_bits(descriptor.members[0].sort_order.to_bits() + 1);
+    descriptor.members[1].sort_order =
+        f32::from_bits(descriptor.members[0].sort_order.to_bits() + 1);
 
     // Act
     let outcome = descriptor.sort_order_for(Some(&EnumValuePlacement::Before("b".to_string())));
@@ -139,11 +140,17 @@ fn should_reject_unknown_and_uncommitted_labels_on_sql_input() {
     assert_eq!(committed.map(|value| value.member_id()), Ok(20_000));
     assert_eq!(
         uncommitted.map_err(|error| (error.sqlstate(), error.message())),
-        Err(("55P04", "unsafe use of new value \"b\" of enum type state_code".to_string()))
+        Err((
+            "55P04",
+            "unsafe use of new value \"b\" of enum type state_code".to_string()
+        ))
     );
     assert_eq!(
         unknown.map_err(|error| (error.sqlstate(), error.message())),
-        Err(("22P02", "invalid input value for enum state_code: \"z\"".to_string()))
+        Err((
+            "22P02",
+            "invalid input value for enum state_code: \"z\"".to_string()
+        ))
     );
 }
 
@@ -162,6 +169,9 @@ fn should_not_persist_the_uncommitted_marker() {
     let reloaded: EnumMember = serde_json::from_value(stored.clone()).expect("reload member");
 
     // Assert
-    assert_eq!(stored, serde_json::json!({"member_id": 7, "label": "b", "sort_order": 1.5}));
+    assert_eq!(
+        stored,
+        serde_json::json!({"member_id": 7, "label": "b", "sort_order": 1.5})
+    );
     assert!(!reloaded.uncommitted);
 }

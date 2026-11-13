@@ -17,10 +17,10 @@ mod cast_source;
 use cast_source::cast_source_type;
 #[path = "decimal_literals.rs"]
 mod decimal_literals;
-#[path = "enum_operands.rs"]
-mod enum_operands;
 #[path = "declared_functions.rs"]
 mod declared_functions;
+#[path = "enum_operands.rs"]
+mod enum_operands;
 #[path = "math_signatures.rs"]
 mod math_signatures;
 #[path = "row_predicates.rs"]

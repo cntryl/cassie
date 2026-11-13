@@ -27,11 +27,11 @@ pub(crate) use table::{
     catalog_table_columns, is_catalog_table, is_options_table, is_pg_input_error_info,
 };
 mod aggregate_core;
-mod enums;
 mod any_value;
 mod arrays;
 mod bitwise;
 mod bytea;
+mod enums;
 pub(crate) mod hashing;
 mod inputs;
 mod retrieval;

@@ -30,10 +30,7 @@ fn should_publish_an_enum_pg_type_row_with_enum_semantics() {
     );
 
     // Assert
-    assert_eq!(
-        row.as_deref(),
-        Some("e|E|4|true|0|true")
-    );
+    assert_eq!(row.as_deref(), Some("e|E|4|true|0|true"));
 }
 
 #[test]

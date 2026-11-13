@@ -14,13 +14,30 @@ pub struct TypeAttribute {
 /// catalog object the name resolves to.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TypeAlteration {
-    RenameTo { new_name: String },
-    RenameAttribute { from: String, to: String },
-    AddAttribute { attribute: TypeAttribute },
-    DropAttribute { name: String, if_exists: bool },
-    AlterAttributeType { name: String, data_type: DataType },
-    SetSchema { schema: String },
-    OwnerTo { owner: String },
+    RenameTo {
+        new_name: String,
+    },
+    RenameAttribute {
+        from: String,
+        to: String,
+    },
+    AddAttribute {
+        attribute: TypeAttribute,
+    },
+    DropAttribute {
+        name: String,
+        if_exists: bool,
+    },
+    AlterAttributeType {
+        name: String,
+        data_type: DataType,
+    },
+    SetSchema {
+        schema: String,
+    },
+    OwnerTo {
+        owner: String,
+    },
     /// `ADD VALUE [IF NOT EXISTS] 'label' [BEFORE | AFTER 'label']` (#827).
     AddValue {
         label: String,
@@ -28,7 +45,10 @@ pub enum TypeAlteration {
         placement: Option<EnumValuePlacement>,
     },
     /// `RENAME VALUE 'from' TO 'to'` (#827).
-    RenameValue { from: String, to: String },
+    RenameValue {
+        from: String,
+        to: String,
+    },
 }
 
 /// One composite type lifecycle operation.

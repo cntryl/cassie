@@ -57,12 +57,12 @@ use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement};
 use crate::runtime::{ExecutionMode, RuntimeState};
 use crate::types::Value;
 
+#[path = "extended/bind_parameters.rs"]
+mod bind_parameters;
 #[path = "extended/portal_state.rs"]
 mod portal_state;
 #[path = "extended/portal_streaming.rs"]
 mod portal_streaming;
-#[path = "extended/bind_parameters.rs"]
-mod bind_parameters;
 #[path = "extended/text_parameters.rs"]
 mod text_parameters;
 use portal_state::{

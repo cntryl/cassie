@@ -10,10 +10,10 @@ use super::{
 #[path = "validation_case.rs"]
 mod case;
 use case::case_operand_family;
-#[path = "validation_vector.rs"]
-mod vector;
 #[path = "validation_families.rs"]
 mod families;
+#[path = "validation_vector.rs"]
+mod vector;
 pub(super) use families::data_type_family;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

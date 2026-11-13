@@ -33,9 +33,7 @@ pub use boolean::BooleanInputError;
 pub use bytea_input::ByteaInputError;
 pub use composite::{CompositeField, CompositeRef, CompositeType, RecordValue};
 pub use domain::{DomainCheck, DomainDefault, DomainRef, DomainType};
-pub use enum_type::{
-    EnumInputError, EnumMember, EnumRef, EnumType, EnumValue, EnumValuePlacement,
-};
+pub use enum_type::{EnumInputError, EnumMember, EnumRef, EnumType, EnumValue, EnumValuePlacement};
 pub use float_input::FloatInputError;
 pub use integer::{IntegerOperation, IntegerWidth};
 pub use integer_bytea::IntegerByteaError;

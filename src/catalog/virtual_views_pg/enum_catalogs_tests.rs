@@ -40,13 +40,19 @@ fn should_publish_enum_and_array_type_rows_with_enum_typtype() {
 
     // Assert
     assert_eq!(rows.len(), 2);
-    assert_eq!(value(&rows[0], "typname"), &Value::String("state_code".into()));
+    assert_eq!(
+        value(&rows[0], "typname"),
+        &Value::String("state_code".into())
+    );
     assert_eq!(value(&rows[0], "typtype"), &Value::String("e".into()));
     assert_eq!(value(&rows[0], "typcategory"), &Value::String("E".into()));
     assert_eq!(value(&rows[0], "typlen"), &Value::Int64(4));
     assert_eq!(value(&rows[0], "typbyval"), &Value::Bool(true));
     assert_eq!(value(&rows[0], "typelem"), &Value::Int64(0));
-    assert_eq!(value(&rows[1], "typname"), &Value::String("_state_code".into()));
+    assert_eq!(
+        value(&rows[1], "typname"),
+        &Value::String("_state_code".into())
+    );
     assert_eq!(value(&rows[1], "typcategory"), &Value::String("A".into()));
     assert_eq!(value(&rows[1], "typelem"), value(&rows[0], "oid"));
     assert_eq!(value(&rows[0], "typarray"), value(&rows[1], "oid"));
@@ -64,7 +70,12 @@ fn should_publish_pg_enum_rows_for_the_current_database_only() {
 
     // Assert
     assert_eq!(rows.len(), 2);
-    assert_eq!(value(&rows[0], "oid"), &Value::Int64(i64::from(80_002 + crate::types::object_id::FIRST_NORMAL_OBJECT_ID)));
+    assert_eq!(
+        value(&rows[0], "oid"),
+        &Value::Int64(i64::from(
+            80_002 + crate::types::object_id::FIRST_NORMAL_OBJECT_ID
+        ))
+    );
     assert_eq!(value(&rows[0], "enumlabel"), &Value::String("ca".into()));
     assert_eq!(value(&rows[1], "enumsortorder"), &Value::Float64(1.5));
     assert_eq!(value(&rows[0], "enumtypid"), value(&rows[1], "enumtypid"));

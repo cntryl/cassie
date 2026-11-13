@@ -46,9 +46,12 @@ fn should_resolve_enum_and_enum_array_parameter_oids_in_their_database() {
     let (oid, array) = register(&catalog, false);
 
     // Act
-    let scalar = crate::sql::binder::parameter_data_type_for_oid_in_database(oid, &catalog, DATABASE);
-    let list = crate::sql::binder::parameter_data_type_for_oid_in_database(array, &catalog, DATABASE);
-    let foreign = crate::sql::binder::parameter_data_type_for_oid_in_database(oid, &catalog, "other");
+    let scalar =
+        crate::sql::binder::parameter_data_type_for_oid_in_database(oid, &catalog, DATABASE);
+    let list =
+        crate::sql::binder::parameter_data_type_for_oid_in_database(array, &catalog, DATABASE);
+    let foreign =
+        crate::sql::binder::parameter_data_type_for_oid_in_database(oid, &catalog, "other");
 
     // Assert
     assert!(matches!(scalar, Some(DataType::Enum(_))));

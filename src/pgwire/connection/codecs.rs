@@ -1,13 +1,13 @@
-#[path = "codecs/temporal_error.rs"]
-mod temporal_error;
-#[path = "codecs/timetz_error.rs"]
-mod timetz_error;
+#[path = "codecs/enum_value.rs"]
+pub(super) mod enum_value;
 #[path = "codecs/jsonb.rs"]
 mod jsonb;
 #[path = "codecs/record.rs"]
 pub(super) mod record;
-#[path = "codecs/enum_value.rs"]
-pub(super) mod enum_value;
+#[path = "codecs/temporal_error.rs"]
+mod temporal_error;
+#[path = "codecs/timetz_error.rs"]
+mod timetz_error;
 
 use crate::executor::ColumnMeta;
 use crate::types::builtin::{

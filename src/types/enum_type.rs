@@ -148,7 +148,9 @@ impl EnumType {
             .ok_or_else(|| neighbour.clone())?;
         let (lower, upper) = match placement {
             EnumValuePlacement::Before(_) => (
-                index.checked_sub(1).map(|lower| self.members[lower].sort_order),
+                index
+                    .checked_sub(1)
+                    .map(|lower| self.members[lower].sort_order),
                 Some(self.members[index].sort_order),
             ),
             EnumValuePlacement::After(_) => (
@@ -278,12 +280,13 @@ impl EnumValue {
     ///
     /// Returns `22P02` for an unknown label and `55P04` for an uncommitted one.
     pub fn parse_label(descriptor: &EnumRef, label: &str) -> Result<Self, EnumInputError> {
-        let member = descriptor
-            .member_by_label(label)
-            .ok_or_else(|| EnumInputError::InvalidLabel {
-                type_name: descriptor.name.clone(),
-                label: label.to_string(),
-            })?;
+        let member =
+            descriptor
+                .member_by_label(label)
+                .ok_or_else(|| EnumInputError::InvalidLabel {
+                    type_name: descriptor.name.clone(),
+                    label: label.to_string(),
+                })?;
         if member.uncommitted {
             return Err(EnumInputError::UncommittedLabel {
                 type_name: descriptor.name.clone(),

@@ -164,7 +164,9 @@ fn evaluate<R: RowAccess + ?Sized>(
     for argument in &mut arguments {
         if let Some(label) = argument.label.take() {
             let value = EnumValue::parse_label(&descriptor, &label).map_err(|error| {
-                QueryError::Cassie(CassieError::from(crate::executor::filter::enum_cast::input_diagnostic(&error)))
+                QueryError::Cassie(CassieError::from(
+                    crate::executor::filter::enum_cast::input_diagnostic(&error),
+                ))
             })?;
             argument.value = Some(value);
         }

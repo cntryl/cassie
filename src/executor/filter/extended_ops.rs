@@ -161,7 +161,9 @@ fn enum_label_input(left: &ScalarValue, right: &ScalarValue) -> Option<Result<()
         EnumValue::parse_label(value.descriptor(), label)
             .map(|_| ())
             .map_err(|error| {
-                QueryError::Cassie(CassieError::from(super::enum_cast::input_diagnostic(&error)))
+                QueryError::Cassie(CassieError::from(super::enum_cast::input_diagnostic(
+                    &error,
+                )))
             }),
     )
 }

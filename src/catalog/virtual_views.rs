@@ -637,6 +637,7 @@ fn information_schema_column_row(
     constraint: Option<&FieldConstraint>,
     current_database: Option<&str>,
 ) -> VirtualRow {
+    let enum_udt = virtual_views_pg::enum_catalogs::column_udt(data_type);
     vec![
         string("table_schema", relation_schema_name(relation)),
         string("table_name", local_name(relation)),
@@ -668,6 +669,7 @@ fn information_schema_column_row(
         string(
             "udt_schema",
             match data_type {
+                _ if enum_udt.is_some() => enum_udt.map(|(schema, _)| schema).unwrap_or_default(),
                 DataType::Composite(descriptor) if !descriptor.is_anonymous() => {
                     relation_schema_name(&descriptor.qualified_name)
                 }
@@ -717,6 +719,9 @@ fn is_not_nullable(constraint: Option<&FieldConstraint>) -> bool {
 fn udt_name(data_type: &DataType) -> String {
     use crate::types::builtin::{type_metadata, TypeMetadata};
 
+    if let Some((_, name)) = virtual_views_pg::enum_catalogs::column_udt(data_type) {
+        return name;
+    }
     match type_metadata(data_type) {
         TypeMetadata::Scalar(metadata) => metadata.name.to_owned(),
         TypeMetadata::Vector => "vector".to_owned(),
@@ -850,8 +855,11 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Json => "json".to_string(),
         DataType::Jsonb => "jsonb".to_string(),
         DataType::JsonPath => "jsonpath".to_string(),
+        DataType::Array(inner) if matches!(inner.as_ref(), DataType::Enum(_)) => {
+            "ARRAY".to_string()
+        }
         DataType::Array(inner) => format!("{}[]", inner.type_name()),
-        DataType::Composite(_) => "USER-DEFINED".to_string(),
+        DataType::Composite(_) | DataType::Enum(_) => "USER-DEFINED".to_string(),
         DataType::Domain(descriptor) => data_type_name(&descriptor.base),
         DataType::ObjectId(kind) => kind.name().to_string(),
         DataType::Extended(kind) => kind.name().to_string(),

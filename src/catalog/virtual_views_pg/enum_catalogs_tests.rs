@@ -69,3 +69,33 @@ fn should_publish_pg_enum_rows_for_the_current_database_only() {
     assert_eq!(value(&rows[1], "enumsortorder"), &Value::Float64(1.5));
     assert_eq!(value(&rows[0], "enumtypid"), value(&rows[1], "enumtypid"));
 }
+
+#[test]
+fn should_report_enum_and_enum_array_columns_as_user_defined_udt_names() {
+    // Arrange
+    let catalog = Catalog::new();
+    register(&catalog, "cassie", "state_code", 80_000);
+    let descriptor = catalog
+        .list_enum_types()
+        .first()
+        .map(crate::catalog::EnumTypeMeta::descriptor)
+        .expect("registered enum");
+    let scalar = crate::types::DataType::Enum(descriptor);
+    let array = crate::types::DataType::Array(Box::new(scalar.clone()));
+
+    // Act
+    let scalar_udt = super::column_udt(&scalar);
+    let array_udt = super::column_udt(&array);
+    let other = super::column_udt(&crate::types::DataType::Text);
+
+    // Assert
+    assert_eq!(
+        scalar_udt,
+        Some(("public".to_string(), "state_code".to_string()))
+    );
+    assert_eq!(
+        array_udt,
+        Some(("public".to_string(), "_state_code".to_string()))
+    );
+    assert_eq!(other, None);
+}

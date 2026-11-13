@@ -91,6 +91,23 @@ pub(in crate::catalog::virtual_views) fn enum_rows(catalog: &Catalog, current_da
     rows
 }
 
+/// `information_schema.columns.udt_schema` and `udt_name` of an enum column
+/// (`_name` for an enum array column), or `None` for any other column type.
+pub(in crate::catalog::virtual_views) fn column_udt(data_type: &DataType) -> Option<(String, String)> {
+    let (descriptor, prefix) = match data_type {
+        DataType::Enum(descriptor) => (descriptor, ""),
+        DataType::Array(inner) => match inner.as_ref() {
+            DataType::Enum(descriptor) => (descriptor, "_"),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    Some((
+        crate::catalog::relation_schema_name(&descriptor.qualified_name),
+        format!("{prefix}{}", descriptor.name),
+    ))
+}
+
 #[cfg(test)]
 #[path = "enum_catalogs_tests.rs"]
 mod tests;

@@ -129,9 +129,13 @@ fn validate_base(base: &DataType) -> Result<(), QueryError> {
     match base {
         DataType::Composite(_) => unsupported("composite types"),
         DataType::Domain(_) => unsupported("domains"),
+        DataType::Enum(_) => unsupported("enum types"),
         DataType::JsonPath | DataType::Null => unsupported("pseudo-types"),
         DataType::Array(inner)
-            if matches!(**inner, DataType::Composite(_) | DataType::Domain(_)) =>
+            if matches!(
+                **inner,
+                DataType::Composite(_) | DataType::Domain(_) | DataType::Enum(_)
+            ) =>
         {
             unsupported("arrays of composite types or domains")
         }

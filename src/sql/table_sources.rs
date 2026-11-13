@@ -12,7 +12,92 @@ pub(crate) fn is_series(name: &str) -> bool {
         || name.eq_ignore_ascii_case("pg_catalog.generate_series")
 }
 pub(crate) fn is_generated(name: &str) -> bool {
-    is_unnest(name) || is_series(name)
+    is_unnest(name) || is_series(name) || json_element_source(name).is_some()
+}
+
+/// One of the selected `json[b]_array_elements[_text]` / `json[b]_each[_text]` sources.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct JsonElementSource {
+    /// `jsonb_*` (true) or `json_*` (false).
+    pub(crate) binary: bool,
+    /// `json[b]_each[_text]` (true) or `json[b]_array_elements[_text]` (false).
+    pub(crate) each: bool,
+    /// The `_text` variant, whose value column is TEXT.
+    pub(crate) text: bool,
+}
+
+impl JsonElementSource {
+    /// Unqualified PostgreSQL function name, used for diagnostics and the default relation alias.
+    pub(crate) fn function_name(self) -> String {
+        format!(
+            "{}_{}{}",
+            if self.binary { "jsonb" } else { "json" },
+            if self.each { "each" } else { "array_elements" },
+            if self.text { "_text" } else { "" }
+        )
+    }
+
+    /// Number of expansion columns, excluding ordinality.
+    pub(crate) const fn column_count(self) -> usize {
+        if self.each {
+            2
+        } else {
+            1
+        }
+    }
+
+    /// PostgreSQL's output column name before any column alias list.
+    pub(crate) const fn column_name(self, index: usize) -> &'static str {
+        if self.each && index == 0 {
+            "key"
+        } else {
+            "value"
+        }
+    }
+
+    fn value_type(self) -> DataType {
+        if self.text {
+            DataType::Text
+        } else if self.binary {
+            DataType::Jsonb
+        } else {
+            DataType::Json
+        }
+    }
+}
+
+pub(crate) fn json_element_source(name: &str) -> Option<JsonElementSource> {
+    let lower = name.to_ascii_lowercase();
+    let bare = lower.strip_prefix("pg_catalog.").unwrap_or(&lower);
+    let (binary, rest) = if let Some(rest) = bare.strip_prefix("jsonb_") {
+        (true, rest)
+    } else {
+        (false, bare.strip_prefix("json_")?)
+    };
+    let (each, text) = match rest {
+        "array_elements" => (false, false),
+        "array_elements_text" => (false, true),
+        "each" => (true, false),
+        "each_text" => (true, true),
+        _ => return None,
+    };
+    Some(JsonElementSource { binary, each, text })
+}
+
+/// Physical columns of a JSON expansion source, followed by BIGINT ordinality when requested.
+pub(crate) fn json_element_columns(
+    source: JsonElementSource,
+    with_ordinality: bool,
+) -> Vec<(String, DataType)> {
+    let mut columns = Vec::with_capacity(source.column_count() + 1);
+    if source.each {
+        columns.push((physical_name(0), DataType::Text));
+    }
+    columns.push((physical_name(columns.len()), source.value_type()));
+    if with_ordinality {
+        columns.push((physical_name(columns.len()), DataType::BigInt));
+    }
+    columns
 }
 
 pub(crate) fn physical_name(index: usize) -> String {

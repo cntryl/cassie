@@ -263,6 +263,17 @@ fn execute_lateral_join<'a>(
 
     'left: for left_row in &left_rows {
         check_timeout(env.controls)?;
+        if matches!(spec.kind, JoinKind::Inner)
+            && !left_terms_pass(
+                env,
+                (spec.source, &*cte_context),
+                left_row,
+                &right_template,
+                spec.on,
+            )?
+        {
+            continue;
+        }
         let right_budget = matches!(spec.kind, JoinKind::Cross)
             .then_some(output_budget.saturating_sub(joined.len()));
         let (right_batches, _right_text) = execute_query_source(
@@ -331,6 +342,49 @@ fn execute_lateral_join<'a>(
 struct JoinPredicateContext<'a> {
     source: &'a QuerySource,
     ctes: &'a CteContext,
+}
+
+/// Evaluates the `ON` conjuncts that read only preserved-side columns before the lateral right
+/// side is expanded for `left`. Anything that is not a plain, side-effect-free left-only term is
+/// left to the ordinary post-join evaluation, so this can only skip rows the join would drop.
+pub(super) fn left_terms_pass(
+    env: &SourceExecutionEnv<'_>,
+    context: (&QuerySource, &CteContext),
+    left: &BatchRow,
+    right_template: &BatchRow,
+    on: &Expr,
+) -> Result<bool, QueryError> {
+    let mut terms = Vec::new();
+    crate::planner::lateral_filter::conjuncts(on, &mut terms);
+    let mut probe: Option<BatchRow> = None;
+    for term in terms {
+        let mut names = Vec::new();
+        if !crate::planner::lateral_filter::simple_columns(term, &mut names)
+            || names.is_empty()
+            || !names
+                .iter()
+                .all(|name| left.get(name).is_some() && right_template.get(name).is_none())
+        {
+            continue;
+        }
+        if probe.is_none() {
+            probe = Some(combine_rows(left, right_template)?);
+        }
+        let row = probe.as_ref().expect("combined probe row");
+        let passes = evaluate_join_on(
+            env,
+            Some(JoinPredicateContext {
+                source: context.0,
+                ctes: context.1,
+            }),
+            row,
+            term,
+        )?;
+        if !passes {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn evaluate_join_on(

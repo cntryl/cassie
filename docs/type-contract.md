@@ -834,6 +834,163 @@ Text-to-vector casts (`'[1,2,3]'::vector`) are the only supported conversion; ca
 from `vector` to `real[]` are likewise unsupported (they fail input validation).
 
 These durable features use the current format and must pass current-build restart and recovery checks. No pre-release compatibility transition is required; see [Release Baseline](release-baseline.md#pre-release-format-and-api-policy-2026-11-10).
-Named ENUM #827 remains deferred to v0.4; historical full-parity/CRB3 proposals
+Named ENUM #827 follows the [selected v0.4.0 contract](#selected-v040-named-enum-contract-2026-11-13); historical full-parity/CRB3 proposals
 remain superseded. Codec goldens, checked framing and version admission precede
 new row-value admission. Existing tags and scalar bytes retain their meaning.
+
+## Selected v0.4.0 named enum contract (2026-11-13)
+
+Owner: [#827](https://github.com/cntryl/cassie/issues/827). Baseline: `main` @ `af66698d6`.
+Semantic oracle: PostgreSQL 18.6 (local throwaway cluster, 2026-11-13). Contract
+options were selected with Jev 1.14.0. The request and response are kept under the
+worktree's ignored `target/jev/enum_contract_*` files. This section is the design
+authority for #827. It supersedes the earlier sketch in
+[PostgreSQL 18 type families](postgresql18-type-families.md#named-enums--827) wherever
+the two differ.
+
+### Scope
+
+Supported:
+
+- `CREATE TYPE name AS ENUM ('label', ...)`, including an empty label list.
+- `ALTER TYPE name ADD VALUE [IF NOT EXISTS] 'label' [BEFORE | AFTER 'label']`.
+- `ALTER TYPE name RENAME VALUE 'old' TO 'new'`.
+- `ALTER TYPE name RENAME TO`, `SET SCHEMA` and `OWNER TO`.
+- `DROP TYPE [IF EXISTS] name [, ...] [RESTRICT | CASCADE]`.
+- Enum columns, including `NOT NULL` and defaults.
+- Typed literals and casts (`'x'::t`, `CAST('x' AS t)`).
+- Implicit coercion of an unknown-type literal to the enum type in comparisons,
+  `IN`, `= ANY`, `INSERT`/`UPDATE` targets and `VALUES`.
+- Enum ↔ `text`/`varchar` casts and parameters typed by the enum OID.
+- Comparison operators `= <> < <= > >=`, `ORDER BY`, `GROUP BY`, `DISTINCT`, `min`/`max`.
+- `enum_first`, `enum_last` and `enum_range` (one and two argument forms).
+- `t[]` columns, literals and parameters.
+- `pg_type`/`pg_enum` rows and `regtype` resolution.
+
+Not part of v0.4.0, rejected deterministically with `0A000`:
+
+- `DROP TYPE ... CASCADE` when dependents exist. This matches composite and domain types.
+- Enums as composite fields or as domain base types.
+- Enum values in COPY.
+- Range types over enums.
+
+PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
+
+### Logical identity
+
+- An enum type is a database-scoped, schema-qualified named type. It shares the
+  relation/type namespace with tables, composites and domains. Name resolution uses
+  search order exactly like composite and domain types.
+- The type OID and array OID are allocated from Cassie's persistent object allocator
+  (`allocate_object_id`, then `normal_oid`).
+- Each label (member) gets an immutable `u64` member ID from the same allocator.
+  `pg_enum.oid` reports that ID.
+- The allocator commits independently of the DDL overlay. An ID allocated in a
+  transaction or savepoint that rolls back is burned and never reused. Committed IDs
+  are never reused.
+- `RENAME VALUE` changes only the label of an existing member. Its member ID and its
+  ordering are unchanged.
+- `ADD VALUE` creates a new member. It never changes the ID or relative order of an
+  existing member.
+
+### Ordering
+
+- Each member has an immutable `f32` sort order, stored in the descriptor.
+- `CREATE` assigns the sort orders 1, 2, …, n.
+- A trailing `ADD VALUE` uses the current maximum plus 1.
+- `BEFORE`/`AFTER` uses the midpoint of the neighbouring sort orders, or the neighbour
+  minus 1 at the head. This matches PostgreSQL's observed `pg_enum` (`1`, `1.5`, `2`, `3`).
+- When a midpoint is not representable strictly between its neighbours, all sort
+  orders of the type are renumbered 1…n in the same publication. The relative order of
+  the members does not change. Member IDs, stored values and index keys are unaffected.
+- Comparison, `ORDER BY`, `min`/`max` and `enum_range` follow sort order. `NULL` follows
+  the normal `NULLS LAST`/`FIRST` rules.
+- Comparing values of two different enum types, or an enum with a `text`-typed operand,
+  is `42883`.
+
+### Durable representation
+
+- Rows store the member ID, never the label text or the sort order.
+- The CRB1 additive tag is `0x11` (enum). Its payload is:
+  - `version u8 = 1`
+  - type OID `u32`
+  - member ID `u64`
+
+  Integers are big-endian. Existing tags and bytes keep their meaning.
+- `NULL` uses the outer NULL marker.
+- The stored JSON form, which is also the scalar-index key, is
+  `{"$cassie_enum_v1": <member_id>}`.
+- Every storage carrier uses this one form: rows, column batches, materialized views,
+  scalar indexes and transactional overlays. Label text appears only at the SQL, wire
+  and JSON-function boundary. A decoder rejects an unknown member ID for the column's
+  type as corruption (`XX001`).
+- Enum arrays use the existing array carrier, with each element in the scalar form above.
+- Scalar indexes on enum columns are keyed by member ID. The planner uses them only for
+  equality and `IN`/`= ANY`. Range predicates and `ORDER BY` on enum columns use runtime
+  comparison by sort order. `ADD VALUE` and `RENAME VALUE` never touch indexes or rows.
+
+### Catalog, persistence and lifecycle
+
+- The descriptor is `EnumTypeMeta`. It is persisted as `serde_json` under the key family
+  `b"enum-type"` in the type's database and reloaded at hydration. Its fields are:
+  - `format_version`
+  - `database`
+  - canonical name
+  - type OID and array OID
+  - owner OID
+  - `revision`
+  - members: an ordered list of `{member_id, label, sort_order}`
+- Each alteration bumps `revision` and publishes the descriptor atomically with the
+  catalog change.
+- Enum DDL participates in explicit-transaction DDL through the catalog and storage
+  overlays, like composite types. The `enum_types` map is published through the catalog
+  snapshot delta.
+- `ADD VALUE` inside an explicit transaction follows PostgreSQL 18:
+  - If the type existed before the transaction, using the new label in that transaction
+    raises `55P04`.
+  - If the type was created in the same transaction, the new label is usable immediately.
+- Dependencies are computed by scanning, like composite types: table columns and
+  arrays, defaults, and view or materialized-view outputs.
+  - `DROP TYPE ... RESTRICT` with dependents raises `2BP01` with PostgreSQL's
+    `column c of table t` detail.
+  - `DROP SCHEMA`/`DROP DATABASE` follow the composite type rules.
+- Labels are 1–63 bytes. A longer label raises `42602`.
+
+### SQL and wire behaviour
+
+- `pg_type` reports `typlen 4`, `typbyval t`, `typtype 'e'` and `typcategory 'E'`, with
+  `enum_in`/`enum_out`/`enum_recv`/`enum_send`. Each type has an `_name` array row.
+- `pg_enum` lists `oid`, `enumtypid`, `enumsortorder` and `enumlabel`. It moves out of
+  the empty-registry list.
+- `RowDescription` reports the enum's own type OID (array: its array OID), not `text`.
+- Text output and binary `enum_send` both send the UTF-8 label.
+- Binary `enum_recv` and text input parse a label of the current revision.
+- A parameter whose described or declared OID is the enum (or its array) parses label
+  text.
+- `information_schema.columns` reports `USER-DEFINED` with the `udt_name` set.
+
+| Input | SQLSTATE |
+|---|---|
+| Unknown label in input or cast | `22P02` |
+| Duplicate label in `CREATE` | `23505` |
+| `ADD VALUE` duplicate (`IF NOT EXISTS` emits a NOTICE instead) | `42710` |
+| `RENAME VALUE` to an existing label | `42710` |
+| Unknown `BEFORE`/`AFTER` or `RENAME VALUE` source label | `22023` |
+| Label longer than 63 bytes | `42602` |
+| Cast between enum and an integer type | `42846` |
+| Comparison with `text` or another enum type | `42883` |
+| `enum_first`/`enum_last` on an empty enum | `55000` |
+| Use of an uncommitted added label | `55P04` |
+| Drop with dependents | `2BP01` |
+
+### Evidence required for closure
+
+- Codec golden tests for tag `0x11` and for an enum array.
+- Restart round-trip after `ADD VALUE BEFORE`, `RENAME VALUE` and `RENAME TO`. This
+  enables the existing authored tests in
+  `tests/compatibility/lifecycle/types/enum_*.rs`.
+- Index equality probes before and after `RENAME VALUE`.
+- Transaction rollback, savepoint and `55P04` cases.
+- pgwire text and binary result and parameter cases.
+- The Prisma enum fixture accepted.
+- Every SQLSTATE in the table above checked against PostgreSQL 18.6.

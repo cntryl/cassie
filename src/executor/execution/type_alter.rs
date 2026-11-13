@@ -133,6 +133,7 @@ pub(super) fn alter(
             if relation_name_occupied(cassie, scope.database, &canonical, controls)? {
                 return Err(rename_collision(cassie, &canonical, new_name));
             }
+            reject_rename_under_views(cassie, &current, None)?;
             publish(cassie, &current, &current.with_name(canonical))?;
         }
         TypeAlteration::SetSchema { schema } => {
@@ -149,6 +150,7 @@ pub(super) fn alter(
             let next = current
                 .with_renamed_attribute(from, to)
                 .map_err(alter_error)?;
+            reject_rename_under_views(cassie, &current, Some(from.as_str()))?;
             publish(cassie, &current, &next)?;
         }
         TypeAlteration::AddAttribute { attribute } => {
@@ -160,7 +162,10 @@ pub(super) fn alter(
         }
         TypeAlteration::DropAttribute { name, if_exists } => {
             match current.with_dropped_attribute(name) {
-                Ok(next) => publish(cassie, &current, &next)?,
+                Ok(next) => {
+                    reject_drop_under_views(cassie, &current, name)?;
+                    publish(cassie, &current, &next)?;
+                }
                 Err(error) if *if_exists && error.sqlstate == "42703" => {}
                 Err(error) => return Err(alter_error(error)),
             }
@@ -175,6 +180,69 @@ pub(super) fn alter(
         }
     }
     Ok(output)
+}
+
+/// A view keeps its definition as SQL text, so it binds a composite type and
+/// its attributes by name. PostgreSQL binds them by identity and keeps such a
+/// view working across a rename; Cassie cannot rewrite the definition, so the
+/// rename is refused (`0A000`) instead of leaving a view that no longer runs.
+fn reject_rename_under_views(
+    cassie: &Cassie,
+    current: &CompositeTypeMeta,
+    attribute: Option<&str>,
+) -> Result<(), QueryError> {
+    let views = cassie.catalog.views_naming_composite(current, attribute);
+    let Some(view) = views.first() else {
+        return Ok(());
+    };
+    let subject = attribute.map_or_else(
+        || format!("type \"{}\"", current.local_name()),
+        |attribute| {
+            format!(
+                "attribute \"{attribute}\" of type \"{}\"",
+                current.local_name()
+            )
+        },
+    );
+    Err(diagnostic(
+        "0A000",
+        format!("cannot rename {subject} because view \"{view}\" refers to it by name"),
+    ))
+}
+
+/// Dropping an attribute a view selects is `2BP01`, as in PostgreSQL.
+fn reject_drop_under_views(
+    cassie: &Cassie,
+    current: &CompositeTypeMeta,
+    attribute: &str,
+) -> Result<(), QueryError> {
+    let views = cassie
+        .catalog
+        .views_naming_composite(current, Some(attribute));
+    if views.is_empty() {
+        return Ok(());
+    }
+    let type_name = current.local_name();
+    Err(QueryError::from(crate::app::CassieError::from(
+        crate::app::DiagnosticError::new(
+            "2BP01",
+            format!(
+                "cannot drop column {attribute} of composite type {type_name} because other objects depend on it"
+            ),
+        )
+        .with_detail(
+            views
+                .iter()
+                .map(|view| {
+                    format!(
+                        "view {view} depends on column {attribute} of composite type {type_name}"
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .with_hint("Use DROP ... CASCADE to drop the dependent objects too."),
+    )))
 }
 
 /// Retyping an attribute would have to rewrite stored values, so it is only
@@ -342,6 +410,7 @@ pub(super) fn reject_drop_column_in_use(
             AlterTableOperation::DropColumn { .. } | AlterTableOperation::AlterColumnType { .. }
         )
     };
+    reject_row_type_self_member(cassie, table, operation)?;
     let drops = match operation {
         AlterTableOperation::Multiple { operations } => operations.iter().any(changes_layout),
         other => changes_layout(other),
@@ -361,6 +430,44 @@ pub(super) fn reject_drop_column_in_use(
             "0A000",
             format!(
                 "cannot alter table \"{}\" because column \"{column}\" uses its row type",
+                row_type.name
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// A table cannot hold its own row type, directly or through another composite
+/// type or table row type that embeds it (PostgreSQL `42P16`). Accepting such a
+/// column would leave every object of the cycle undroppable.
+fn reject_row_type_self_member(
+    cassie: &Cassie,
+    table: &str,
+    operation: &crate::sql::ast::AlterTableOperation,
+) -> Result<(), QueryError> {
+    use crate::sql::ast::AlterTableOperation;
+    let Some(row_type) = cassie.catalog.relation_row_type(table) else {
+        return Ok(());
+    };
+    let embeds_row = |inner: &AlterTableOperation| match inner {
+        AlterTableOperation::AddColumn { data_type, .. }
+        | AlterTableOperation::AlterColumnType { data_type, .. } => {
+            crate::catalog::composite_types::data_type_depends_on(
+                data_type.flattened(),
+                row_type.oid,
+            )
+        }
+        _ => false,
+    };
+    let cyclic = match operation {
+        AlterTableOperation::Multiple { operations } => operations.iter().any(embeds_row),
+        other => embeds_row(other),
+    };
+    if cyclic {
+        return Err(diagnostic(
+            "42P16",
+            format!(
+                "composite type {} cannot be made a member of itself",
                 row_type.name
             ),
         ));

@@ -140,15 +140,27 @@ pub(super) fn excluded_local_args(
             out.insert(format!("excluded.{key}"), Value::Null);
         }
         for (field, value) in object {
-            let value = schema
+            let declared = schema
                 .fields
                 .iter()
                 .find(|candidate| candidate.name == *field)
-                .filter(|candidate| {
-                    candidate.data_type.is_json()
-                        && crate::types::json::requires_document_carrier(value)
-                })
-                .map_or_else(|| json_to_value(value), |_| Value::Json(value.clone()));
+                .map(|candidate| &candidate.data_type);
+            let value = match declared {
+                // A composite column keeps its typed record, so `EXCLUDED.c`
+                // assigns and `(EXCLUDED.c).field` selects like the stored row.
+                Some(data_type)
+                    if matches!(data_type.flattened(), crate::types::DataType::Composite(_)) =>
+                {
+                    crate::executor::scan::json_to_typed_value(value, data_type.flattened())
+                }
+                Some(data_type)
+                    if data_type.is_json()
+                        && crate::types::json::requires_document_carrier(value) =>
+                {
+                    Value::Json(value.clone())
+                }
+                _ => json_to_value(value),
+            };
             let key = crate::sql::ColumnIdentifierPath::from_field_name(field).lookup_key();
             out.insert(format!("excluded.{key}"), value);
         }

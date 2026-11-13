@@ -235,3 +235,21 @@ fn should_build_two_dimensions_given_nested_json_elements() {
     // Assert
     assert_rows(sql, &[&[Some("{{1,[2]},{3,[4]}}")]]);
 }
+
+#[test]
+fn should_keep_deeper_arrays_as_leaves_given_a_jsonb_array_column() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":[[1],[[2]]]}') AS x(a jsonb[])";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("{{1},{[2]}}")]]);
+}
+
+#[test]
+fn should_keep_deeper_arrays_as_leaves_given_a_json_array_column() {
+    // Arrange
+    let sql = "SELECT * FROM json_to_record('{\"a\":[[1],[[2]]]}') AS x(a json[])";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("{{1},{[2]}}")]]);
+}

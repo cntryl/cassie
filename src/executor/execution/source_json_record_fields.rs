@@ -152,7 +152,7 @@ fn array(
     hint: &str,
 ) -> Result<Value, QueryError> {
     match fragment.kind() {
-        Kind::Array => array_elements(fragment, element, hint),
+        Kind::Array => array_elements(fragment, element, hint, None).map(|(value, _)| value),
         Kind::String => super::filter::cast_value(&Value::String(fragment.scalar_text()?), target),
         _ => {
             let error = DiagnosticError::new("22P02", "expected JSON array")
@@ -162,17 +162,31 @@ fn array(
     }
 }
 
-/// Builds a rectangular array; JSON-typed elements stay one-dimensional.
-fn array_elements(fragment: Fragment, element: &DataType, hint: &str) -> Result<Value, QueryError> {
+/// Builds a rectangular array and reports its number of dimension levels. For JSON-typed
+/// elements the first item's leading path fixes the depth (`levels`, once known); below that
+/// depth an item is a leaf JSON value even when it is an array.
+fn array_elements(
+    fragment: Fragment,
+    element: &DataType,
+    hint: &str,
+    levels: Option<usize>,
+) -> Result<(Value, usize), QueryError> {
     let items = fragment.elements()?;
     let json_elements = matches!(element, DataType::Json | DataType::Jsonb);
-    // The first item decides the shape: an array makes every sibling an array (descend), any
-    // other first item keeps the list one-dimensional. Other element types always descend.
-    let descend = !json_elements || items.first().is_some_and(|item| item.kind() == Kind::Array);
+    let first_is_array = items.first().is_some_and(|item| item.kind() == Kind::Array);
+    let descend = match levels {
+        Some(depth) => json_elements && depth > 1,
+        None => !json_elements || first_is_array,
+    };
+    let mut known = levels.map(|depth| depth.saturating_sub(1));
+    let mut depth = 1;
     let mut values = Vec::with_capacity(items.len());
     for (index, item) in items.into_iter().enumerate() {
         if descend && item.kind() == Kind::Array {
-            values.push(array_elements(item, element, hint)?);
+            let (value, child) = array_elements(item, element, hint, known)?;
+            known = json_elements.then_some(child);
+            depth = child + 1;
+            values.push(value);
         } else if descend && json_elements {
             let error = DiagnosticError::new("22P02", "expected JSON array").with_hint(format!(
                 "See the array element [{index}] of key \"{hint}\"."
@@ -191,7 +205,7 @@ fn array_elements(fragment: Fragment, element: &DataType, hint: &str) -> Result<
         values.clear();
     }
     SqlArray::from_nested_values(values)
-        .map(Value::Array)
+        .map(|array| (Value::Array(array), depth))
         .map_err(|_| {
             let error = DiagnosticError::new("22P02", "malformed JSON array").with_detail(
                 "Multidimensional arrays must have sub-arrays with matching dimensions.",

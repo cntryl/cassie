@@ -120,7 +120,11 @@ and composite-type relations), `pg_type` types (built-in, array,
 composite, domain and table row types), `pg_namespace` schemas, `pg_proc` user and built-in routines,
 `pg_extension` extensions and `pg_authid` roles. A sub-object number names a
 column of tables, views, sequences and composite types; indexes, materialized
-views and catalog relations name no column and return only the column type. A
+views and catalog relations name no column and return only the column type. The
+sub-object number is `pg_attribute.attnum`: a dropped table column or composite
+attribute keeps its number and is identified by PostgreSQL's
+`........pg.dropped.N........` placeholder, and the numbers after it do not
+shift. An argument may be a scalar subquery. A
 missing object returns the class description with `NULL` columns, a `NULL`
 argument returns an all-`NULL` row, and a class Cassie does not model fails
 with SQLSTATE `0A000`. Projecting the record in a select list, and
@@ -401,6 +405,13 @@ the #828 regressions executed in the final full run on 1d0750c19. Increment 2 ad
 table) and `_name` array row with OIDs allocated by the Midge object-id allocator
 and persisted on the table (below `2^31`, stable across rename and restart), and `pg_attribute` rows of a
 composite type use physical attribute numbers, so a dropped attribute leaves a gap.
+Row-type rows are listed from each table's canonical name: two schemas holding
+the same table name publish one row type each, `typnamespace` is the table's
+own schema, and only the tables of the connected database are listed
+(authored regressions, execution deferred to the batch gate:
+[`row_type_catalog_scope.rs`](../tests/catalog_security/catalogs/types/object_identity/row_type_catalog_scope.rs)).
+An index's `pg_class.oid` is assigned by the same allocator at `CREATE INDEX`
+([Object Identifier Contract](object-identifier-contract.md#name-resolution-and-spelling-rules)).
 Domain types add a `pg_type` row (`typtype = 'd'`,
 `typbasetype`, `typtypmod`, `typnotnull`) and a `_name` array row with allocator-backed
 OIDs; `pg_attribute.atttypid` of a domain column is the domain OID while `atttypmod` is

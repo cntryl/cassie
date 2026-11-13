@@ -106,9 +106,16 @@ fn lookup(
     };
     let resolved = with_scope(session, |scope| match scope.resolve(kind, text) {
         Ok(oid) => Ok(oid),
+        // PostgreSQL raises these even from the nullable lookups: a name with
+        // too many dotted parts (`42601`) and a cross-database name (`0A000`).
         Err(error)
             if kind == ObjectIdKind::RegType
-                || matches!(error, ObjectIdentifierError::PermissionDenied { .. }) =>
+                || matches!(
+                    error,
+                    ObjectIdentifierError::PermissionDenied { .. }
+                        | ObjectIdentifierError::ImproperQualifiedName(_)
+                        | ObjectIdentifierError::CrossDatabase(_)
+                ) =>
         {
             Err(error)
         }

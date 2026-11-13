@@ -3,6 +3,7 @@
 use std::rc::Rc;
 
 use super::{Cassie, CassieSession};
+use crate::catalog::UserType;
 use crate::sql::DomainResolver;
 use crate::types::DomainRef;
 
@@ -21,9 +22,10 @@ impl Cassie {
             .collect::<Vec<_>>();
         Rc::new(move |raw: &str| -> Option<DomainRef> {
             let order = search_order.iter().map(String::as_str).collect::<Vec<_>>();
-            catalog
-                .resolve_domain_type(&database, &order, raw)
-                .map(|metadata| metadata.descriptor())
+            match catalog.resolve_user_type(&database, &order, raw)? {
+                UserType::Domain(metadata) => Some(metadata.descriptor()),
+                _ => None,
+            }
         })
     }
 }

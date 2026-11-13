@@ -3,16 +3,32 @@
 use super::super::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 
+#[path = "../object_identity/identifier_spelling.rs"]
+mod identifier_spelling;
+#[path = "../object_identity/identify_dropped_columns.rs"]
+mod identify_dropped_columns;
 #[path = "../object_identity/identify_object.rs"]
 mod identify_object;
+#[path = "../object_identity/index_identity.rs"]
+mod index_identity;
 #[path = "../object_identity/relation_access_methods.rs"]
 mod relation_access_methods;
 #[path = "../object_identity/routine_identity_lifecycle.rs"]
 mod routine_identity_lifecycle;
 #[path = "../object_identity/routine_replace.rs"]
 mod routine_replace;
+#[path = "../object_identity/routine_user_type_arguments.rs"]
+mod routine_user_type_arguments;
+#[path = "../object_identity/row_type_catalog_scope.rs"]
+mod row_type_catalog_scope;
+#[path = "../object_identity/schema_routines.rs"]
+mod schema_routines;
 #[path = "../object_identity/user_routines.rs"]
 mod user_routines;
+#[path = "../object_identity/user_type_array_names.rs"]
+mod user_type_array_names;
+#[path = "../object_identity/user_type_search_path.rs"]
+mod user_type_search_path;
 
 #[test]
 fn should_report_postgresql_object_identifier_type_oids() {

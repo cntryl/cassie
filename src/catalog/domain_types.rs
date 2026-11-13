@@ -280,6 +280,8 @@ impl Catalog {
                 }
             }
         }
+        // A routine taking or returning the domain keeps it alive as well.
+        dependents.extend(self.routine_dependents_on_type(oid));
         dependents.sort();
         dependents
     }

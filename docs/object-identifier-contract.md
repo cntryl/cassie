@@ -66,6 +66,8 @@ contract.
 
 The relevant source is `src/catalog/object_identity.rs`,
 `src/catalog/object_identity/names.rs`,
+`src/catalog/object_identity/user_types.rs`,
+`src/catalog/user_type_resolution.rs`,
 `src/catalog/object_identity/routines.rs`, and
 `src/executor/filter/object_ids.rs`. Built-in type and routine identities are
 read from the pinned data under `src/catalog/builtin_identity/`.
@@ -86,6 +88,82 @@ no schema owners other than `root`, so there is no separate owner path.
 [`identifier_visibility.rs`](../tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs)
 covers `regclass`, `regtype`, `regprocedure` and `regnamespace`, qualified and
 unqualified, with and without `USAGE`, and the `root` bypass.
+
+## Name resolution and spelling rules
+
+These rules were fixed after the v0.3.0 adversarial review; PostgreSQL 18.6 is
+the oracle for each. The regressions are authored and their execution is
+deferred to the batch gate.
+
+- **One search-path walk for user types.** A type name is unique within a
+  schema across enum, composite, domain and table row types, so an unqualified
+  name denotes the type in the first schema on the `search_path` that holds
+  any user type of that name, whatever its kind. `regtype` input, `regtype`
+  output and the cast binder (`x::name`, `null::name`) share that walk
+  (`Catalog::resolve_user_type`). `regtype` output is schema-qualified exactly
+  when that walk would find a different type, so output always round-trips.
+- **Array spellings.** A user type's array type resolves from `name[]`, any
+  number of `[]` or `[n]` dimensions, and its `pg_type.typname` (`_name`,
+  optionally schema-qualified).
+- **White space.** White space around the dot of a qualified name is
+  insignificant, and the schema-`USAGE` check reads the schema by the same
+  rule: `'s . t'`, `'s .t'` and `'db . s . t'` all require `USAGE` on `s`.
+- **Too many dotted parts and other databases.** A relation, type or routine
+  name with more than three dotted parts raises `42601`, and a three-part name
+  whose database is not the current one raises `0A000`, from both the cast and
+  the `to_reg*` helper. `to_regnamespace('a.b')` returns `NULL`.
+- **Quoted names.** A quoted relation, schema or type name is exact. An
+  unquoted type name folds to lower case and is exact, because type DDL folds
+  it. An unquoted relation or schema name matches without regard to case:
+  unquoted `CREATE TABLE` and `CREATE SCHEMA` keep the case they were written
+  in, so `'mixs.mixt'::regclass` still finds a relation created as
+  `"MixS"."MixT"` (PostgreSQL: `42P01`). That residual divergence ends only
+  when relation and schema DDL fold unquoted names. Routine names stay
+  case-insensitive as described above.
+- **`regnamespace` output** is `quote_ident` of the schema name: a name
+  holding a quote is escaped once (`"q""s"`).
+- **Routine arguments.** A function or procedure may declare domain and enum
+  argument types as well as built-in and composite ones; `regprocedure`
+  identifies the argument by the declared type, not a domain's base type. A
+  routine keeps the composite or domain types of its arguments and result
+  alive: `DROP TYPE` and `DROP DOMAIN` raise `2BP01`. The same dependency for
+  enum types is recorded as a pending obligation of the enum drop path
+  (`Catalog::routine_dependents_on_type` supplies the dependents).
+- **Schemas own their routines.** A function or procedure blocks a plain
+  `DROP SCHEMA`, and `DROP SCHEMA ... CASCADE` drops it.
+- **Index identity.** `CREATE INDEX` assigns the index's `pg_class.oid` from
+  the common identity allocator, so it cannot collide with another object and
+  survives rename and restart. An index stored without an assigned identity
+  (a constraint-backing index, or one created before this change) keeps a
+  name-derived OID in the upper half of the OID space, which no allocator
+  identity reaches.
+- **`pg_identify_object` sub-objects.** The sub-object number is
+  `pg_attribute.attnum`: a dropped table column or composite attribute keeps
+  its number and is identified by PostgreSQL's `........pg.dropped.N........`
+  placeholder, and later columns do not shift. Arguments may be scalar
+  subqueries.
+
+Residual divergences recorded for these rules:
+
+- A function and a procedure of the same name and argument types can coexist
+  (PostgreSQL: `42723`, see [Type Contract](type-contract.md)); `regproc` and
+  `regprocedure` then resolve the function and never the procedure.
+- `pg_attribute.attrelid` is the relation name as text and `attrelid_oid` the
+  OID ([Catalog Support](catalog-support.md)), so `attrelid = 't'::regclass`
+  and `attrelid = pg_class.oid` are rejected (`42601`); compare
+  `attrelid_oid` instead. Making `attrelid` an `oid` is a catalog-contract
+  change that every `attrelid = 'name'` consumer depends on.
+
+Evidence (authored, not yet run):
+[`user_type_search_path.rs`](../tests/catalog_security/catalogs/types/object_identity/user_type_search_path.rs),
+[`user_type_array_names.rs`](../tests/catalog_security/catalogs/types/object_identity/user_type_array_names.rs),
+[`identifier_spelling.rs`](../tests/catalog_security/catalogs/types/object_identity/identifier_spelling.rs),
+[`routine_user_type_arguments.rs`](../tests/catalog_security/catalogs/types/object_identity/routine_user_type_arguments.rs),
+[`schema_routines.rs`](../tests/catalog_security/catalogs/types/object_identity/schema_routines.rs),
+[`index_identity.rs`](../tests/catalog_security/catalogs/types/object_identity/index_identity.rs),
+[`identify_dropped_columns.rs`](../tests/catalog_security/catalogs/types/object_identity/identify_dropped_columns.rs)
+and the white-space cases in
+[`identifier_visibility.rs`](../tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs).
 
 ## Evidence
 

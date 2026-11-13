@@ -131,7 +131,7 @@ pub(super) fn parse_projection_item_with_named_windows(
         }
     }
 
-    let (expr_raw, alias) = parse_alias(token);
+    let (expr_raw, mut alias) = parse_alias(token);
     if expr_raw.trim().is_empty() {
         return Err(SqlError::new("invalid projection item".into()));
     }
@@ -149,7 +149,26 @@ pub(super) fn parse_projection_item_with_named_windows(
         return Ok(SelectItem::WindowFunction { function, alias });
     }
 
-    let expr = parse_expression(expr_raw)?;
+    let expr = match parse_expression(expr_raw) {
+        Ok(expr) => expr,
+        // `expr label` names the output column without `AS`. It is tried only when the item
+        // is not an expression by itself, so no accepted spelling changes meaning.
+        Err(error) => {
+            let split = if alias.is_none() {
+                split_bare_alias(expr_raw)
+            } else {
+                None
+            };
+            let Some((left, label)) = split else {
+                return Err(error);
+            };
+            let Ok(expr) = parse_expression(left) else {
+                return Err(error);
+            };
+            alias = Some(label);
+            expr
+        }
+    };
     Ok(match expr {
         Expr::Function(function) => SelectItem::Function {
             function: *function,
@@ -183,6 +202,43 @@ pub(super) fn parse_projection_item_with_named_windows(
         },
         Expr::Column(name) => SelectItem::Column { name, alias },
     })
+}
+
+/// Splits `expr label` at its last top-level token when that token is an identifier.
+fn split_bare_alias(raw: &str) -> Option<(&str, String)> {
+    let raw = raw.trim();
+    let bytes = raw.as_bytes();
+    let mut index = 0;
+    let mut start = None;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\'' | b'"' => index = super::lexical::quoted_end(raw, index)?,
+            b'(' => index = super::lexical::matching_paren(raw, index)? + 1,
+            b'[' => index = super::lexical::matching_bracket(raw, index)? + 1,
+            byte => {
+                index += 1;
+                if byte.is_ascii_whitespace() {
+                    start = Some(index);
+                }
+            }
+        }
+    }
+    let start = start?;
+    let (left, label) = (raw[..start].trim_end(), &raw[start..]);
+    let quoted =
+        label.starts_with('"') && super::lexical::quoted_end(label, 0) == Some(label.len());
+    let mut characters = label.chars();
+    let bare = characters
+        .next()
+        .is_some_and(|first| first.is_alphabetic() || first == '_')
+        && characters
+            .all(|character| character.is_alphanumeric() || matches!(character, '_' | '$'));
+    if left.is_empty() || !(quoted || bare) {
+        return None;
+    }
+    let label =
+        super::identifiers::normalize_identifier(label).unwrap_or_else(|_| label.to_string());
+    Some((left, label))
 }
 
 fn parse_window_function_with_named_windows(

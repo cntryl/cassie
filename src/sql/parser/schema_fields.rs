@@ -78,7 +78,7 @@ pub(super) fn parse_field_definition_for_table(
         constraint.storage,
         constraint.compression,
     )
-    .map_err(SqlError::invalid_parameter_value)?;
+    .map_err(SqlError::datatype_mismatch)?;
 
     if saw_null && constraint.not_null {
         return Err(SqlError::new(format!(

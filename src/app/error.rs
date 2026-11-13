@@ -758,6 +758,9 @@ impl From<crate::sql::SqlError> for CassieError {
             crate::sql::SqlErrorKind::InvalidParameterValue => {
                 CassieError::InvalidParameterValue(value.to_string())
             }
+            crate::sql::SqlErrorKind::DatatypeMismatch => {
+                CassieError::from(DiagnosticError::new("42804", value.to_string()))
+            }
         }
     }
 }

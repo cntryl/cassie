@@ -150,6 +150,8 @@ const fn extended_default_storage(extended: ExtendedType) -> ColumnStorage {
 /// # Errors
 ///
 /// Returns PostgreSQL's message for the rejected combination.
+/// Rejects storage or compression a fixed-width type cannot take. PostgreSQL
+/// reports these with SQLSTATE 42804 (`datatype_mismatch`).
 pub fn validate_column_storage(
     data_type: &DataType,
     storage: Option<ColumnStorage>,

@@ -109,7 +109,7 @@ fn should_alter_column_storage_metadata() {
         server.shutdown(connection).await;
         assert_eq!(changed[0], entry("a", "m", "l"));
         assert_eq!(reset[0], entry("a", "x", ""));
-        assert_eq!(sqlstate, "22023");
+        assert_eq!(sqlstate, "42804");
         assert_eq!(row.get::<_, String>(0), "kept");
         assert_eq!(row.get::<_, i32>(1), 7);
     });
@@ -549,5 +549,68 @@ fn should_reject_other_materialized_view_access_methods_with_0a000() {
         assert_eq!(create_state, "0A000");
         assert_eq!(alter_state, "0A000");
         assert_ne!(missing_state, "00000");
+    });
+}
+
+#[test]
+fn should_discard_copied_column_comments_when_the_like_transaction_rolls_back() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_comments_rollback").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_like_rollback_source (id INT, label TEXT)",
+                "COMMENT ON COLUMN compat_like_rollback_source.label IS 'copied label'",
+            ],
+        )
+        .await
+        .expect("create LIKE comment source");
+        let before: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_description WHERE description = 'copied label'",
+                &[],
+            )
+            .await
+            .expect("count source comments")
+            .get(0);
+
+        // Act
+        execute_statements(
+            &client,
+            &[
+                "BEGIN",
+                "CREATE TABLE compat_like_rollback_copy \
+                   (LIKE compat_like_rollback_source INCLUDING COMMENTS)",
+                "ROLLBACK",
+            ],
+        )
+        .await
+        .expect("create then roll back the LIKE copy");
+        let after: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_description WHERE description = 'copied label'",
+                &[],
+            )
+            .await
+            .expect("count comments after rollback")
+            .get(0);
+        let relations: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_class WHERE relname = 'compat_like_rollback_copy'",
+                &[],
+            )
+            .await
+            .expect("count rolled-back relations")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(before, 1);
+        assert_eq!(after, 1);
+        assert_eq!(relations, 0);
     });
 }

@@ -54,7 +54,7 @@ fn alter_column_storage(
         ColumnStorageSetting::Compression(compression) => (None, compression),
     };
     crate::catalog::column_storage::validate_column_storage(&data_type, storage, compression)
-        .map_err(|message| crate::app::DiagnosticError::new("22023", message))
+        .map_err(|message| crate::app::DiagnosticError::new("42804", message))
         .map_err(CassieError::from)?;
     super::sequence_command::mutate_field_constraint(cassie, table, field, |constraint| {
         match setting {

@@ -122,7 +122,7 @@ fn should_reject_non_plain_storage_on_fixed_width_columns_without_publishing_the
         .await;
 
         // Assert
-        assert_eq!(sqlstate, "22023");
+        assert_eq!(sqlstate, "42804");
         assert!(message.contains("can only have storage PLAIN"));
         assert_eq!(relation_count, 0);
 

@@ -79,7 +79,7 @@ fn should_report_an_undefined_function_for_a_cast_of_a_missing_user_signature() 
 }
 
 #[test]
-fn should_resolve_the_same_identity_by_bare_name_and_by_signature() {
+fn should_resolve_a_bare_name_to_the_identity_of_its_signature() {
     // Arrange
     let fixture = fixture("user_regproc_identity");
 

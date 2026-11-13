@@ -584,6 +584,18 @@ Rejected with `0A000` (documented limitations, not regressions):
 - restoring a database image that contains domain types fails closed;
 - prepared statements keep the descriptor seen at Parse time.
 
+#### Residual divergences from PostgreSQL 18.6 (#828, #818; accepted, documented)
+
+- `(expr).*` on an expression that is not a composite is `0A000`; PostgreSQL gives `42809`.
+- Binary record output re-parses the rendered text of each field, so `timestamptz` and
+  domain fields are approximate, and whole-row values send base type OIDs.
+- Views have `pg_class.reltype = 0`; PostgreSQL gives views a non-zero row type.
+- A plain `CREATE FUNCTION` does not detect a procedure of the same name; PostgreSQL gives
+  `42723` because functions and procedures share `pg_proc`.
+- Routine owner checks are not enforced.
+- `CREATE OR REPLACE FUNCTION/PROCEDURE` with a different argument list is `0A000`, because
+  Cassie has no routine overloads.
+
 ### #843, #844
 
 Select only pgcrypto 1.4 and vector 0.8.7 as built-in SQL shims. Root installs into an

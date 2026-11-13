@@ -11,24 +11,29 @@ use crate::types::composite::{CompositeField, CompositeRef, CompositeType};
 use crate::types::row_identity::is_row_identity_column;
 use crate::types::DataType;
 
-fn row_fields(schema: &CollectionSchema) -> Vec<CompositeField> {
-    schema
-        .fields
-        .iter()
-        .filter(|field| !is_row_identity_column(&field.name))
-        .map(|field| CompositeField {
-            name: field.name.clone(),
-            // A domain column keeps its domain so casts into the row type
-            // enforce the constraints, as PostgreSQL's coercion does.
-            data_type: field.domain.as_ref().map_or_else(
-                || field.data_type.clone(),
-                |domain| DataType::Domain(domain.clone()),
-            ),
-        })
-        .collect()
-}
-
 impl Catalog {
+    /// The fields of `schema`'s row type. With `constrained`, a domain column
+    /// keeps the domain's live descriptor (resolved by OID, as column
+    /// enforcement does, so `ALTER DOMAIN` is seen) and casts into the row type
+    /// enforce it; otherwise every field is its base type.
+    fn row_fields(&self, schema: &CollectionSchema, constrained: bool) -> Vec<CompositeField> {
+        schema
+            .fields
+            .iter()
+            .filter(|field| !is_row_identity_column(&field.name))
+            .map(|field| CompositeField {
+                name: field.name.clone(),
+                data_type: match field.domain.as_ref().filter(|_| constrained) {
+                    Some(snapshot) => DataType::Domain(
+                        self.get_domain_type_by_oid(snapshot.oid)
+                            .map_or_else(|| snapshot.clone(), |meta| meta.descriptor()),
+                    ),
+                    None => field.data_type.clone(),
+                },
+            })
+            .collect()
+    }
+
     /// Whether any table exists, i.e. whether a table name can name a type.
     #[must_use]
     pub fn has_collections(&self) -> bool {
@@ -38,12 +43,23 @@ impl Catalog {
     /// The row type of the table with canonical name `canonical`.
     #[must_use]
     pub fn relation_row_type(&self, canonical: &str) -> Option<CompositeRef> {
+        self.relation_row_type_with(canonical, true)
+    }
+
+    /// The row type with every domain field flattened to its base type, for
+    /// whole-row reads, which never revalidate stored values (as PostgreSQL).
+    #[must_use]
+    pub fn relation_row_type_unconstrained(&self, canonical: &str) -> Option<CompositeRef> {
+        self.relation_row_type_with(canonical, false)
+    }
+
+    fn relation_row_type_with(&self, canonical: &str, constrained: bool) -> Option<CompositeRef> {
         let collection = self.get_collection(canonical)?;
         if collection.row_type_object_id == 0 || collection.row_array_object_id == 0 {
             return None;
         }
         let schema = self.get_schema(canonical)?;
-        let fields = row_fields(&schema);
+        let fields = self.row_fields(&schema, constrained);
         Some(CompositeRef::new(CompositeType {
             oid: super::object_identity::normal_oid(collection.row_type_object_id)?,
             array_oid: super::object_identity::normal_oid(collection.row_array_object_id)?,

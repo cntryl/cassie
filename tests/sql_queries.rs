@@ -93,6 +93,9 @@ mod integration_sql_predicates;
 #[path = "sql_queries/projection/semantics.rs"]
 mod integration_sql_projection;
 
+#[path = "sql_queries/projection/cast_output_names.rs"]
+mod cast_output_names;
+
 // Formerly tests/integration_sql_read_path_depth.rs.
 #[path = "sql_queries/planning/read_path_depth.rs"]
 mod integration_sql_read_path_depth;

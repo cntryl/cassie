@@ -122,10 +122,9 @@ impl Cassie {
         } else {
             (None, None)
         };
-        let fallback_context = owner.is_none().then(|| {
-            let database = session.current_database().unwrap_or(&self.default_database);
-            crate::sql::binder::BindingContext::scoped(database, self.binding_search_path(session))
-        });
+        let fallback_context = owner
+            .is_none()
+            .then(|| self.binding_context_for_session(Some(session)));
         let context = owned_context
             .as_ref()
             .map(crate::app::CopyBindingContext::context)
@@ -220,8 +219,7 @@ impl Cassie {
             .map(|owner| owner.lock_catalog(&controls))
             .transpose()?;
         let database = session.current_database().unwrap_or(&self.default_database);
-        let context =
-            crate::sql::binder::BindingContext::scoped(database, self.binding_search_path(session));
+        let context = self.binding_context_for_session(Some(session));
         let mut statement = statement.clone();
         if let Some(relation_database) = crate::catalog::relation_database_name(&statement.table) {
             if !relation_database.eq_ignore_ascii_case(database) {

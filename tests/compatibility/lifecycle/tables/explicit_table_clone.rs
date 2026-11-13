@@ -161,48 +161,58 @@ fn should_not_copy_unique_constraints_when_like_is_used() {
 }
 
 #[test]
-fn should_reject_like_defaults_that_reference_source_owned_sequences() {
+fn should_keep_source_owned_sequence_dependency_when_like_copies_serial_defaults() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("like_serial_default_dependency").await;
         let (client, connection) = server.connect().await;
-        client
-            .batch_execute("CREATE TABLE compat_like_serial_source (id SERIAL)")
-            .await
-            .expect("create a source table with an owned serial sequence");
-
-        // Act
-        let error = client
-            .batch_execute(
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_like_serial_source (id SERIAL)",
                 "CREATE TABLE compat_like_serial_target \
                    (LIKE compat_like_serial_source INCLUDING DEFAULTS)",
-            )
-            .await
-            .expect_err("sequence defaults need source dependency tracking before copying");
-        let sqlstate = db_error(&error).code().code().to_owned();
-        let target_exists: bool = client
+            ],
+        )
+        .await
+        .expect("copy a serial default that references the source's owned sequence");
+
+        // Act
+        let drop_source = client
+            .batch_execute("DROP TABLE compat_like_serial_source")
+            .await;
+        let drop_sequence = client
+            .batch_execute("DROP SEQUENCE compat_like_serial_source_id_seq")
+            .await;
+        let target_id: i32 = client
             .query_one(
-                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
-                   WHERE table_name = 'compat_like_serial_target')",
+                "INSERT INTO compat_like_serial_target DEFAULT VALUES RETURNING id",
                 &[],
             )
             .await
-            .expect("check that rejection did not create the target")
+            .expect("the copied default keeps drawing from the source sequence")
             .get(0);
-        let source_id: i32 = client
-            .query_one(
-                "INSERT INTO compat_like_serial_source DEFAULT VALUES RETURNING id",
-                &[],
-            )
+        client
+            .batch_execute("DROP TABLE compat_like_serial_source CASCADE")
             .await
-            .expect("the rejected copy leaves the source sequence usable")
-            .get(0);
+            .expect("CASCADE drops the source and the dependent default");
+        let after_cascade = client
+            .execute("INSERT INTO compat_like_serial_target DEFAULT VALUES", &[])
+            .await
+            .expect_err("the removed default leaves the NOT NULL column without a value");
 
         // Assert
-        assert_eq!(sqlstate, "0A000");
-        assert!(!target_exists);
-        assert_eq!(source_id, 1);
+        let sqlstate = |result: &Result<(), tokio_postgres::Error>| {
+            result
+                .as_ref()
+                .err()
+                .map(|error| db_error(error).code().code().to_owned())
+        };
+        assert_eq!(sqlstate(&drop_source).as_deref(), Some("2BP01"));
+        assert_eq!(sqlstate(&drop_sequence).as_deref(), Some("2BP01"));
+        assert_eq!(target_id, 1);
+        assert_eq!(db_error(&after_cascade).code().code(), "23502");
 
         drop(client);
         server.shutdown(connection).await;

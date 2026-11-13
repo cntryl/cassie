@@ -73,6 +73,13 @@ pub(super) fn parse_field_definition_for_table(
         super::schema_identity::attach_identity_sequence(&mut constraint, table, &name);
     }
 
+    crate::catalog::column_storage::validate_column_storage(
+        &data_type,
+        constraint.storage,
+        constraint.compression,
+    )
+    .map_err(SqlError::invalid_parameter_value)?;
+
     if saw_null && constraint.not_null {
         return Err(SqlError::new(format!(
             "conflicting NULL/NOT NULL declarations for column '{name}'"
@@ -228,9 +235,8 @@ fn apply_field_constraint(
     saw_null: &mut bool,
 ) -> Result<bool, SqlError> {
     if is_column_storage_option(token) {
-        return Err(SqlError::unsupported(format!(
-            "column {token} options are not supported"
-        )));
+        *saw_constraint = true;
+        return apply_column_storage_option(token, parts, constraint).map(|()| false);
     }
     match token.to_lowercase().as_str() {
         "constraint" => {
@@ -339,6 +345,26 @@ fn apply_not_null_constraint(
     *saw_constraint = true;
     constraint.not_null = true;
     constraint.not_null_ownership = constraint.not_null_ownership.with_explicit();
+    Ok(())
+}
+
+/// Records `STORAGE <strategy>` or `COMPRESSION <method>` as catalog metadata.
+fn apply_column_storage_option(
+    token: &str,
+    parts: &mut impl Iterator<Item = String>,
+    constraint: &mut FieldConstraint,
+) -> Result<(), SqlError> {
+    let value = parts
+        .next()
+        .ok_or_else(|| SqlError::syntax(format!("{token} requires a value")))?;
+    let value = super::schema_identifiers::parse_identifier(&value)?;
+    if token.eq_ignore_ascii_case("storage") {
+        constraint.storage = crate::catalog::ColumnStorage::parse(&value)
+            .map_err(SqlError::invalid_parameter_value)?;
+    } else {
+        constraint.compression = crate::catalog::ColumnCompression::parse(&value)
+            .map_err(SqlError::invalid_parameter_value)?;
+    }
     Ok(())
 }
 

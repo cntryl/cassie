@@ -41,6 +41,7 @@ pub(super) fn bind_alter_constraint_targets(
         AlterTableOperation::AlterColumnSetDefault { field, .. }
         | AlterTableOperation::AlterColumnDropDefault { field }
         | AlterTableOperation::AlterColumnSetNotNull { field }
+        | AlterTableOperation::AlterColumnStorage { field, .. }
         | AlterTableOperation::AlterColumnDropNotNull { field }
         | AlterTableOperation::AlterColumnIdentity { field, .. }
         | AlterTableOperation::AlterColumnType { field, .. }

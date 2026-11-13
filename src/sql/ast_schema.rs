@@ -66,6 +66,11 @@ pub enum AlterTableOperation {
     AlterColumnSetNotNull {
         field: String,
     },
+    /// `ALTER COLUMN ... SET STORAGE` or `SET COMPRESSION` (catalog metadata only).
+    AlterColumnStorage {
+        field: String,
+        setting: crate::catalog::ColumnStorageSetting,
+    },
     AlterColumnDropNotNull {
         field: String,
     },

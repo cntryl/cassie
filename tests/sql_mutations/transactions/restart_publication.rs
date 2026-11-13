@@ -383,3 +383,73 @@ fn should_recover_ctas_publication_after_restart() {
     assert_eq!(committed_catalog, vec![vec![Value::String("r".to_owned())]]);
     assert_eq!(rolled_back_catalog, vec![vec![Value::Int64(0)]]);
 }
+
+fn prepare_column_storage_restart_state(path: &str) {
+    let cassie = Cassie::new_with_data_dir(path).expect("create column storage instance");
+    cassie.startup().expect("start column storage instance");
+    let session = cassie.create_session("tester", None);
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE public.issue826_storage_source \
+         (id INT, body TEXT STORAGE EXTERNAL COMPRESSION lz4, note TEXT)",
+    );
+    execute(
+        &cassie,
+        &session,
+        "ALTER TABLE public.issue826_storage_source ALTER COLUMN note SET STORAGE MAIN",
+    );
+    execute(
+        &cassie,
+        &session,
+        "COMMENT ON COLUMN public.issue826_storage_source.body IS 'durable comment'",
+    );
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE public.issue826_storage_copy \
+         (LIKE public.issue826_storage_source INCLUDING ALL)",
+    );
+}
+
+#[test]
+fn should_recover_column_storage_metadata_after_restart() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("issue-826-column-storage-restart");
+    let _directory = DataDirectory(path.clone());
+
+    // Act
+    prepare_column_storage_restart_state(&path);
+    let reopened = Cassie::new_with_data_dir(&path).expect("reopen Cassie instance");
+    reopened.startup().expect("recover column storage metadata");
+    let session = reopened.create_session("tester", None);
+    let attributes = rows(
+        &reopened,
+        &session,
+        "SELECT attrelid, attname, attstorage::TEXT, attcompression::TEXT \
+         FROM pg_catalog.pg_attribute \
+         WHERE attrelid IN ('issue826_storage_source', 'issue826_storage_copy') \
+           AND attnum > 0 ORDER BY attrelid, attnum",
+    );
+    let comment = rows(
+        &reopened,
+        &session,
+        "SELECT col_description('issue826_storage_copy'::regclass, 2)",
+    );
+
+    // Assert
+    let text = |value: &str| Value::String(value.to_owned());
+    let expected = ["issue826_storage_copy", "issue826_storage_source"]
+        .iter()
+        .flat_map(|table| {
+            [
+                vec![text(table), text("id"), text("p"), text("")],
+                vec![text(table), text("body"), text("e"), text("l")],
+                vec![text(table), text("note"), text("m"), text("")],
+            ]
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(attributes, expected);
+    assert_eq!(comment, vec![vec![text("durable comment")]]);
+}

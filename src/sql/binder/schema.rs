@@ -750,6 +750,7 @@ pub(super) fn validate_alter_schema(
         AlterTableOperation::AlterColumnSetDefault { .. }
         | AlterTableOperation::AlterColumnDropDefault { .. }
         | AlterTableOperation::AlterColumnSetNotNull { .. }
+        | AlterTableOperation::AlterColumnStorage { .. }
         | AlterTableOperation::AlterColumnDropNotNull { .. }
         | AlterTableOperation::AlterColumnIdentity { .. } => {
             validate_alter_column_operation(table, operation, existing_fields, catalog)?;

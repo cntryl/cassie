@@ -973,6 +973,8 @@ impl Catalog {
             || constraint.default_sequence.is_some()
             || constraint.check.is_some()
             || constraint.references_table.is_some()
+            || constraint.storage.is_some()
+            || constraint.compression.is_some()
     }
 
     pub(crate) fn bump_version(&self) {

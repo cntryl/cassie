@@ -128,6 +128,9 @@ pub(super) fn drop_sequence(
         )));
     }
 
+    for name in &names {
+        super::sequence_default_dependents::reject_for_sequence(cassie, name)?;
+    }
     let output = empty_command("DROP SEQUENCE", controls)?;
     for name in names {
         cassie
@@ -375,4 +378,6 @@ fn constraint_is_populated(constraint: &crate::catalog::FieldConstraint) -> bool
         || constraint.check.is_some()
         || constraint.references_table.is_some()
         || constraint.identity.is_some()
+        || constraint.storage.is_some()
+        || constraint.compression.is_some()
 }

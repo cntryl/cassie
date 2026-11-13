@@ -439,7 +439,8 @@ pub struct DropMaterializedViewStatement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenameMaterializedViewStatement {
     pub name: String,
-    pub new_name: String,
+    /// `None` is `SET ACCESS METHOD heap`, which leaves the view unchanged.
+    pub new_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

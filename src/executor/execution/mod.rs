@@ -155,6 +155,7 @@ pub(crate) use projection_diff::{
 };
 mod projection_repair;
 pub(crate) use projection_repair::repair_projection_column_definitions;
+mod column_storage_command;
 mod domain_command;
 mod domain_schema_scope;
 mod enum_command;
@@ -166,7 +167,9 @@ mod rollups;
 pub(super) mod schema_command;
 mod schema_creation;
 mod sequence_command;
+mod sequence_default_dependents;
 mod session_command;
+mod table_like_comments;
 mod type_alter;
 mod type_command;
 mod type_publish;

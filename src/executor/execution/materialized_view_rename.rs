@@ -10,9 +10,13 @@ pub(super) fn rename(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = super::command_output::empty("ALTER MATERIALIZED VIEW", controls)?;
-    cassie.midge.with_collection_gates(
-        &[statement.name.clone(), statement.new_name.clone()],
-        || {
+    let Some(new_name) = statement.new_name.as_deref() else {
+        // `SET ACCESS METHOD heap`: materialized views are always heap-backed.
+        return Ok(output);
+    };
+    cassie
+        .midge
+        .with_collection_gates(&[statement.name.clone(), new_name.to_string()], || {
             let mut metadata = cassie
                 .catalog
                 .get_materialized_projection(&statement.name)
@@ -22,14 +26,9 @@ pub(super) fn rename(
                     )
                 })
                 .ok_or_else(|| CassieError::CollectionNotFound(statement.name.clone()))?;
-            cassie
-                .catalog
-                .reject_relation_move_target(&statement.new_name)?;
-            if cassie.catalog.relation_exists(&statement.new_name)
-                || cassie
-                    .catalog
-                    .get_projection_metadata(&statement.new_name)
-                    .is_some()
+            cassie.catalog.reject_relation_move_target(new_name)?;
+            if cassie.catalog.relation_exists(new_name)
+                || cassie.catalog.get_projection_metadata(new_name).is_some()
             {
                 return Err(
                     DiagnosticError::new("42P07", "rename destination already exists").into(),
@@ -61,9 +60,9 @@ pub(super) fn rename(
             if metadata.projection_id.is_empty() {
                 metadata.projection_id.clone_from(&metadata.collection);
             }
-            metadata.collection.clone_from(&statement.new_name);
+            metadata.collection.clone_from(&new_name.to_string());
             if let Some(materialized) = metadata.materialized.as_mut() {
-                materialized.name.clone_from(&statement.new_name);
+                materialized.name.clone_from(&new_name.to_string());
             }
             cassie
                 .midge
@@ -72,8 +71,7 @@ pub(super) fn rename(
                 .catalog
                 .rename_materialized_view_metadata(&statement.name, metadata);
             Ok::<_, CassieError>(())
-        },
-    )?;
+        })?;
     Ok(output)
 }
 

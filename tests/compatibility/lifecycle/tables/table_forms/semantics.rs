@@ -1,23 +1,18 @@
 #[test]
-fn should_reject_table_like_before_creating_the_target() {
+fn should_reject_table_like_from_a_missing_source_before_creating_the_target() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("like_ast_execution_guard").await;
         let (client, connection) = server.connect().await;
-        client
-            .batch_execute("CREATE TABLE compat_like_guard_source (id INT)")
-            .await
-            .expect("create LIKE source table");
-
         // Act
         let error = client
             .batch_execute(
                 "CREATE TABLE compat_like_guard_target \
-                 (LIKE compat_like_guard_source INCLUDING COMMENTS)",
+                 (LIKE compat_like_guard_missing_source INCLUDING COMMENTS)",
             )
             .await
-            .expect_err("LIKE copy execution is still pending");
+            .expect_err("LIKE from a missing source must fail");
         let error = db_error(&error);
         let sqlstate = error.code().code().to_owned();
         let message = error.message().to_owned();
@@ -34,9 +29,9 @@ fn should_reject_table_like_before_creating_the_target() {
         // Assert
         drop(client);
         server.shutdown(connection).await;
-        assert_eq!(sqlstate, "0A000");
+        assert_eq!(sqlstate, "42P01");
         assert!(
-            message.contains("CREATE TABLE LIKE option INCLUDING COMMENTS is not supported"),
+            message.contains("compat_like_guard_missing_source"),
             "unexpected error message: {message}"
         );
         assert!(!target_exists);
@@ -44,7 +39,7 @@ fn should_reject_table_like_before_creating_the_target() {
 }
 
 #[test]
-fn should_reject_table_like_before_if_not_exists_short_circuit() {
+fn should_keep_an_existing_target_when_table_like_uses_if_not_exists() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -64,16 +59,12 @@ fn should_reject_table_like_before_if_not_exists_short_circuit() {
             .expect("seed target row");
 
         // Act
-        let error = client
+        let skipped = client
             .batch_execute(
                 "CREATE TABLE IF NOT EXISTS compat_like_short_circuit_target \
                  (LIKE compat_like_short_circuit_source INCLUDING COMMENTS)",
             )
-            .await
-            .expect_err("LIKE guard must run before IF NOT EXISTS");
-        let error = db_error(&error);
-        let sqlstate = error.code().code().to_owned();
-        let message = error.message().to_owned();
+            .await;
         let retained_value: i32 = client
             .query_one("SELECT id FROM compat_like_short_circuit_target", &[])
             .await
@@ -83,17 +74,13 @@ fn should_reject_table_like_before_if_not_exists_short_circuit() {
         // Assert
         drop(client);
         server.shutdown(connection).await;
-        assert_eq!(sqlstate, "0A000");
-        assert!(
-            message.contains("CREATE TABLE LIKE option INCLUDING COMMENTS is not supported"),
-            "unexpected error message: {message}"
-        );
+        assert!(skipped.is_ok());
         assert_eq!(retained_value, 7);
     });
 }
 
 #[test]
-fn should_reject_unselected_generated_forms_before_publication() {
+fn should_reject_generated_columns_but_accept_like_generated_as_a_noop() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -119,8 +106,7 @@ fn should_reject_unselected_generated_forms_before_publication() {
                    LIKE compat_generated_source INCLUDING GENERATED\
                  )",
             )
-            .await
-            .expect_err("LIKE INCLUDING GENERATED is outside the selected contract");
+            .await;
         let published_targets: i64 = client
             .query_one(
                 "SELECT count(*) FROM information_schema.tables \
@@ -139,12 +125,12 @@ fn should_reject_unselected_generated_forms_before_publication() {
             .code()
             .code()
             .to_owned();
-        let generated_like_state = db_error(&generated_like).code().code().to_owned();
+        let generated_like_ok = generated_like.is_ok();
         drop(client);
         server.shutdown(connection).await;
         assert_eq!(generated_column_state, "42601");
-        assert_eq!(generated_like_state, "0A000");
-        assert_eq!(published_targets, 0);
+        assert!(generated_like_ok);
+        assert_eq!(published_targets, 1);
     });
 }
 

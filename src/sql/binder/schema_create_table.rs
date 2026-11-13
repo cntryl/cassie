@@ -12,8 +12,6 @@ pub fn bind_create_table(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateTableStatement, CassieError> {
-    validate_create_table_like_options(&statement)?;
-
     let name = normalize_new_relation_path(&statement.table, context, catalog)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
@@ -188,54 +186,6 @@ fn validate_and_bind_table_fields(
         )));
     }
     Ok(())
-}
-
-fn validate_create_table_like_options(
-    statement: &crate::sql::ast::CreateTableStatement,
-) -> Result<(), CassieError> {
-    let Some(like) = statement.like.as_ref() else {
-        return Ok(());
-    };
-
-    for option in &like.options {
-        let (action, feature) = match option {
-            crate::sql::ast::CreateTableLikeOption::Including(feature) => ("INCLUDING", *feature),
-            crate::sql::ast::CreateTableLikeOption::Excluding(feature) => ("EXCLUDING", *feature),
-        };
-        if !matches!(
-            feature,
-            crate::sql::ast::CreateTableLikeFeature::All
-                | crate::sql::ast::CreateTableLikeFeature::Defaults
-                | crate::sql::ast::CreateTableLikeFeature::Constraints
-                | crate::sql::ast::CreateTableLikeFeature::Identity
-                | crate::sql::ast::CreateTableLikeFeature::Indexes
-        ) {
-            return Err(CassieError::Unsupported(format!(
-                "CREATE TABLE LIKE option {action} {} is not supported yet",
-                create_table_like_feature_name(feature)
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn create_table_like_feature_name(
-    feature: crate::sql::ast::CreateTableLikeFeature,
-) -> &'static str {
-    use crate::sql::ast::CreateTableLikeFeature;
-
-    match feature {
-        CreateTableLikeFeature::All => "ALL",
-        CreateTableLikeFeature::Comments => "COMMENTS",
-        CreateTableLikeFeature::Compression => "COMPRESSION",
-        CreateTableLikeFeature::Constraints => "CONSTRAINTS",
-        CreateTableLikeFeature::Defaults => "DEFAULTS",
-        CreateTableLikeFeature::Generated => "GENERATED",
-        CreateTableLikeFeature::Identity => "IDENTITY",
-        CreateTableLikeFeature::Indexes => "INDEXES",
-        CreateTableLikeFeature::Statistics => "STATISTICS",
-        CreateTableLikeFeature::Storage => "STORAGE",
-    }
 }
 
 pub fn canonical_relation_path(name: &str) -> Result<IdentifierPath, CassieError> {

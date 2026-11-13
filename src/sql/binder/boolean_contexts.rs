@@ -15,6 +15,8 @@ mod boolean_aggregates;
 #[path = "boolean_cast_source.rs"]
 mod cast_source;
 use cast_source::cast_source_type;
+#[path = "catalog_oid_operands.rs"]
+mod catalog_oid_operands;
 #[path = "decimal_literals.rs"]
 mod decimal_literals;
 #[path = "declared_functions.rs"]
@@ -517,6 +519,7 @@ fn validate_binary(
     ) {
         validate_collation_pair(left, right)?;
         null_safe_comparison::qualify(op, left, right, types)?;
+        catalog_oid_operands::bind_pair(left, right, types);
         enum_operands::qualify_pair(op, left, right, types)?;
         canonicalize_boolean_pair(left, right, types)?;
         decimal_literals::narrow_pair(left, right, types);

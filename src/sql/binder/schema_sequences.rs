@@ -123,6 +123,7 @@ pub(super) fn validate_alter_column_operation(
         }
         AlterTableOperation::AlterColumnDropDefault { field }
         | AlterTableOperation::AlterColumnSetNotNull { field }
+        | AlterTableOperation::AlterColumnStorage { field, .. }
         | AlterTableOperation::AlterColumnDropNotNull { field }
         | AlterTableOperation::AlterColumnIdentity { field, .. }
         | AlterTableOperation::AlterColumnType { field, .. } => {

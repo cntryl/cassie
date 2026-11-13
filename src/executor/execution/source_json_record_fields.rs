@@ -95,11 +95,8 @@ pub(super) fn check_length(text: &str, target: &DataType) -> Result<(), QueryErr
         _ => return Ok(()),
     };
     let allowed = usize::try_from(limit).unwrap_or(usize::MAX);
-    let counted = if matches!(target, DataType::Char { .. }) {
-        text.trim_end_matches(' ').chars().count()
-    } else {
-        text.chars().count()
-    };
+    // Trailing blanks never count against the limit; the later cast removes them.
+    let counted = text.trim_end_matches(' ').chars().count();
     if counted > allowed {
         return Err(diagnostic(
             "22001",
@@ -155,7 +152,7 @@ fn array(
     hint: &str,
 ) -> Result<Value, QueryError> {
     match fragment.kind() {
-        Kind::Array => array_elements(fragment, element),
+        Kind::Array => array_elements(fragment, element, hint),
         Kind::String => super::filter::cast_value(&Value::String(fragment.scalar_text()?), target),
         _ => {
             let error = DiagnosticError::new("22P02", "expected JSON array")
@@ -166,20 +163,32 @@ fn array(
 }
 
 /// Builds a rectangular array; JSON-typed elements stay one-dimensional.
-fn array_elements(fragment: Fragment, element: &DataType) -> Result<Value, QueryError> {
+fn array_elements(fragment: Fragment, element: &DataType, hint: &str) -> Result<Value, QueryError> {
     let items = fragment.elements()?;
     let json_elements = matches!(element, DataType::Json | DataType::Jsonb);
-    // JSON-typed elements descend only while every item is itself an array; a mixed list
-    // keeps its arrays as one-dimensional JSON values.
-    let descend = !json_elements
-        || (!items.is_empty() && items.iter().all(|item| item.kind() == Kind::Array));
+    // The first item decides the shape: an array makes every sibling an array (descend), any
+    // other first item keeps the list one-dimensional. Other element types always descend.
+    let descend = !json_elements || items.first().is_some_and(|item| item.kind() == Kind::Array);
     let mut values = Vec::with_capacity(items.len());
-    for item in items {
+    for (index, item) in items.into_iter().enumerate() {
         if descend && item.kind() == Kind::Array {
-            values.push(array_elements(item, element)?);
+            values.push(array_elements(item, element, hint)?);
+        } else if descend && json_elements {
+            let error = DiagnosticError::new("22P02", "expected JSON array").with_hint(format!(
+                "See the array element [{index}] of key \"{hint}\"."
+            ));
+            return Err(QueryError::from(CassieError::from(error)));
         } else {
             values.push(convert(item, element, None, "")?);
         }
+    }
+    // Sub-arrays that are all empty collapse to an empty array without dimensions.
+    if !values.is_empty()
+        && values
+            .iter()
+            .all(|value| matches!(value, Value::Array(array) if array.is_empty()))
+    {
+        values.clear();
     }
     SqlArray::from_nested_values(values)
         .map(Value::Array)

@@ -337,3 +337,37 @@ fn should_raise_a_missing_key_error_given_a_failing_nested_path_and_error_on_err
     // Assert
     assert_failure(sql, "2203A", "does not contain key");
 }
+
+#[test]
+fn should_map_a_member_accessor_on_a_non_object_to_member_not_found() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":1}'::jsonb, '$' \
+               COLUMNS (a int EXISTS PATH 'strict $.a.b' ERROR ON ERROR))";
+    // Act
+    // Assert
+    assert_failure(
+        sql,
+        "2203A",
+        "member accessor can only be applied to an object",
+    );
+}
+
+#[test]
+fn should_map_a_non_numeric_binary_operand_to_singleton_required() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('[\"x\"]'::jsonb, '$' \
+               COLUMNS (a int EXISTS PATH '$[0] + 1' ERROR ON ERROR))";
+    // Act
+    // Assert
+    assert_failure(sql, "22038", "left operand of jsonpath operator +");
+}
+
+#[test]
+fn should_map_a_numeric_method_on_a_string_to_non_numeric_item() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":\"x\"}'::jsonb, '$' \
+               COLUMNS (a int EXISTS PATH '$.a.abs()' ERROR ON ERROR))";
+    // Act
+    // Assert
+    assert_failure(sql, "22036", "abs()");
+}

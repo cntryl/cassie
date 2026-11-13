@@ -122,3 +122,12 @@ fn should_publish_no_rows_given_a_later_non_object_element() {
     // Assert
     assert_failure(sql, "22023", "must be an array of objects");
 }
+
+#[test]
+fn should_reject_a_non_array_sibling_given_a_leading_sub_array() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":[[1],2]}') AS x(a jsonb[])";
+    // Act
+    // Assert
+    assert_failure(sql, "22P02", "expected JSON array");
+}

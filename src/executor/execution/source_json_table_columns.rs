@@ -32,15 +32,16 @@ pub(super) fn eval_state(error: &sql_json_path::EvalError) -> &'static str {
     match error {
         E::NoKey(_) => "2203A",
         E::ArrayAccess | E::WildcardArrayAccess => "22039",
-        E::MemberAccess | E::WildcardMemberAccess => "2203C",
+        E::MemberAccess => "2203A",
+        E::WildcardMemberAccess => "2203C",
         E::ArrayIndexOutOfBounds | E::ArrayIndexOutOfRange | E::ArrayIndexNotNumeric => "22033",
         E::NoVariable(_) => "42704",
         E::DivisionByZero => "22012",
-        E::UnaryOperandNotNumeric(_)
-        | E::LeftOperandNotNumeric(_)
-        | E::RightOperandNotNumeric(_)
-        | E::MethodNotNumeric(_) => "2203B",
-        E::ExpectSingleBoolean => "22038",
+        E::UnaryOperandNotNumeric(_) => "2203B",
+        E::LeftOperandNotNumeric(_) | E::RightOperandNotNumeric(_) | E::ExpectSingleBoolean => {
+            "22038"
+        }
+        E::MethodNotNumeric(_) => "22036",
         _ => "22039",
     }
 }

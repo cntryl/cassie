@@ -206,5 +206,32 @@ fn should_keep_a_mixed_list_one_dimensional_given_a_jsonb_array_column() {
     let sql = "SELECT * FROM jsonb_to_record('{\"a\":[{\"k\":[1]},[2]]}') AS x(a jsonb[])";
     // Act
     // Assert
-    assert_rows(sql, &[&[Some("{\"{\\\"k\\\": [1]}\",\"[2]\"}")]]);
+    assert_rows(sql, &[&[Some("{\"{\\\"k\\\": [1]}\",[2]}")]]);
+}
+
+#[test]
+fn should_ignore_trailing_blanks_given_a_varchar_column() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":\"ab  \"}') AS x(a varchar(2))";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("ab")]]);
+}
+
+#[test]
+fn should_return_an_empty_array_given_empty_sub_arrays() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":[[],[]]}') AS x(a jsonb[])";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("{}")]]);
+}
+
+#[test]
+fn should_build_two_dimensions_given_nested_json_elements() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":[[1,[2]],[3,[4]]]}') AS x(a jsonb[])";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("{{1,[2]},{3,[4]}}")]]);
 }

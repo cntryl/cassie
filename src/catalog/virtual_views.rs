@@ -394,6 +394,10 @@ fn pg_catalog_core_rows(
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),
         "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog, current_database)),
+        "pg_catalog.pg_enum" => Some(virtual_views_pg::enum_catalogs::enum_rows(
+            catalog,
+            current_database,
+        )),
         "pg_catalog.pg_proc" => Some(virtual_views_procedures::rows(catalog, current_database)),
         _ => virtual_views_empty::rows(name)
             .or_else(|| virtual_views_relations::rows(catalog, name, current_database)),

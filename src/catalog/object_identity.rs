@@ -775,7 +775,7 @@ pub(crate) fn type_oid_for_database(
             .vector_type_object_id
             .and_then(normal_oid)
             .map(i64::from),
-        _ => Some(data_type.type_oid()),
+        _ => enum_types::enum_column_type_oid(data_type).or_else(|| Some(data_type.type_oid())),
     }
 }
 

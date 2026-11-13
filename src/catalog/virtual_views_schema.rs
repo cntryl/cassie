@@ -166,6 +166,7 @@ fn pg_catalog_core_schema(name: &str) -> Option<SchemaFactory> {
             ]
         }),
         "pg_catalog.pg_type" => Some(virtual_views_pg::type_schema),
+        "pg_catalog.pg_enum" => Some(virtual_views_pg::enum_catalogs::enum_schema),
         "pg_catalog.pg_proc" => Some(virtual_views_procedures::schema),
         _ => None,
     }

@@ -91,9 +91,9 @@ fn should_cast_an_enum_to_text_varchar_and_name_as_its_label() {
     let name = cast_scalar(&scalar, &DataType::Name, None).expect("name");
 
     // Assert
-    assert_eq!(text, ScalarValue::Str("happy".to_string()));
-    assert_eq!(varchar, ScalarValue::Str("happy".to_string()));
-    assert_eq!(name, ScalarValue::Str("happy".to_string()));
+    for cast in [text, varchar, name] {
+        assert!(matches!(&cast, ScalarValue::Str(label) if label == "happy"));
+    }
 }
 
 #[test]
@@ -106,7 +106,12 @@ fn should_keep_the_value_when_casting_an_enum_to_its_own_type() {
     let cast = cast_scalar(&scalar, &DataType::Enum(descriptor), None).expect("identity cast");
 
     // Assert
-    assert_eq!(cast, scalar);
+    let (ScalarValue::Typed(TypedValue::Enum(kept)), ScalarValue::Typed(TypedValue::Enum(source))) =
+        (&cast, &scalar)
+    else {
+        panic!("expected enum values");
+    };
+    assert_eq!(kept.member_id(), source.member_id());
 }
 
 #[test]

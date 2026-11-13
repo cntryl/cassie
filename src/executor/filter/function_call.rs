@@ -73,6 +73,9 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     if let Some(result) = super::regex_functions::evaluate_expression(function, row, context) {
         return result;
     }
+    if let Some(result) = super::enum_functions::evaluate_expression(function, row, context) {
+        return result;
+    }
     if let Some(result) = borrowed_object_keys_argument(&name, function, row, context) {
         return result;
     }

@@ -13,8 +13,21 @@ pub(super) fn execute(
     function: &crate::sql::ast::FunctionCall,
     outer_row: Option<&BatchRow>,
     qualify: bool,
+    ctes: &super::CteContext,
 ) -> SourceExecution {
-    let args = graph::evaluate_args(env, function, outer_row)?;
+    // A scalar subquery argument such as `(SELECT oid FROM pg_class ...)` is
+    // resolved the way every other FROM-source argument resolves one.
+    let args = if function.args.iter().any(super::Expr::contains_subquery) {
+        function
+            .args
+            .iter()
+            .map(|argument| {
+                super::source_json_fragment::evaluate_argument(env, argument, outer_row, ctes)
+            })
+            .collect::<Result<Vec<_>, QueryError>>()?
+    } else {
+        graph::evaluate_args(env, function, outer_row)?
+    };
     let [class_id, object_id, sub_id] = args.as_slice() else {
         return Err(wrong_argument_type());
     };
@@ -58,11 +71,19 @@ fn identify(
         })?;
     let table_column = |canonical: &str, attnum: i32| {
         let schema = env.cassie.midge.row_schema(canonical).ok()?;
+        // A dropped column keeps its attribute number and is named by
+        // PostgreSQL's placeholder, as `pg_attribute` publishes it.
         schema
             .fields
             .iter()
-            .find(|field| !field.retired && i64::from(field.field_id) == i64::from(attnum))
-            .map(|field| field.name.clone())
+            .find(|field| i64::from(field.field_id) == i64::from(attnum))
+            .map(|field| {
+                if field.retired {
+                    crate::catalog::object_identity::dropped_column_name(attnum)
+                } else {
+                    field.name.clone()
+                }
+            })
     };
     ObjectScope::new(&catalog, &context)
         .identify_object(class_id, object_id, sub_id, &table_column)

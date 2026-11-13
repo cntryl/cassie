@@ -56,10 +56,9 @@ contract.
   signature argument types. A missing helper lookup returns SQL `NULL`; a cast
   reports undefined function. Malformed helper signatures also return SQL
   `NULL`, matching PostgreSQL 18.6's `to_regprocedure` behavior.
-- Unqualified lookups are privilege-aware: schemas without `USAGE` are skipped
-  (see Visibility below). Qualified lookups do not require `USAGE`, which
-  differs from PostgreSQL (it reports 42501 for a qualified name in a schema
-  without `USAGE`).
+- Lookups are privilege-aware: unqualified names skip schemas without `USAGE`
+  and qualified `regclass`, `regtype`, `regproc` and `regprocedure` names in a
+  schema without `USAGE` raise `42501`, as in PostgreSQL (see Visibility).
 - Cassie has no routine overloads within a schema: `CREATE OR REPLACE
   FUNCTION|PROCEDURE` with a changed argument list is `0A000` and does not
   replace the routine. See [Type Contract](type-contract.md) for the related
@@ -77,12 +76,16 @@ Unqualified `regclass`, `regtype`, `regprocedure` and `regproc` resolution
 skips schemas on the `search_path` for which the authenticated role lacks
 `USAGE`; `to_reg*` returns `NULL` and a cast reports the undefined-object
 error until the role has `USAGE`, independent of the object's own privileges.
-PostgreSQL 18.6 agrees (unqualified `to_regprocedure('f(integer)')` and
-`to_regtype('t')` are `NULL` and the casts fail for a role without `USAGE`).
-Qualified names bypass the filter (a documented divergence). #831 is closed.
-Evidence:
+A qualified name in a schema without `USAGE` raises SQLSTATE `42501`
+("permission denied for schema") from both the cast and `to_reg*`, even when
+the object does not exist; `regnamespace` needs no `USAGE`. PostgreSQL 18.6
+agrees on every one of these cases. The restriction applies to
+network-authenticated non-admin roles; `root` is unrestricted. Cassie records
+no schema owners other than `root`, so there is no separate owner path.
+#831 is closed. Evidence:
 [`identifier_visibility.rs`](../tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs)
-covers `regclass` and the user routine and type lookups.
+covers `regclass`, `regtype`, `regprocedure` and `regnamespace`, qualified and
+unqualified, with and without `USAGE`, and the `root` bypass.
 
 ## Evidence
 

@@ -83,8 +83,6 @@ the linked entries.
   and `pg_get_object_address`; column names for indexes, materialized views and
   catalog relations; classes outside relations, types, schemas, routines,
   extensions and roles (`0A000`).
-- Qualified identifier lookups do not require schema `USAGE`
-  ([object identifier contract](object-identifier-contract.md#visibility)).
 - No routine overloads within a schema; user-defined operators are not
   resolvable ([type contract](type-contract.md)).
 - Enum rows (#827), custom array identities beyond the registered arrays, and

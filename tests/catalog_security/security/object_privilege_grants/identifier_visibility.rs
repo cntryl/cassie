@@ -15,14 +15,21 @@ fn should_filter_unqualified_regclass_by_schema_usage_separately_from_table_sele
             Vec::new(),
         )
         .expect("unqualified lookup should return NULL without schema USAGE");
+    // PostgreSQL 18.6 oracle: a qualified name in a schema without USAGE is
+    // 42501 "permission denied for schema" (even from to_regclass), while
+    // to_regnamespace needs no USAGE.
     let qualified_without_usage = cassie
         .execute_sql(
             &reader,
-            "SELECT to_regclass('public.authorization_documents') IS NOT NULL, \
-                    to_regnamespace('public') IS NOT NULL",
+            "SELECT to_regnamespace('public') IS NOT NULL",
             Vec::new(),
         )
-        .expect("qualified identity lookups should not require schema USAGE");
+        .expect("namespace lookups should not require schema USAGE");
+    let qualified_regclass_without_usage = cassie.execute_sql(
+        &reader,
+        "SELECT to_regclass('public.authorization_documents') IS NOT NULL",
+        Vec::new(),
+    );
     let hidden_regclass_cast = cassie.execute_sql(
         &reader,
         "SELECT 'authorization_documents'::regclass IS NOT NULL",
@@ -65,7 +72,13 @@ fn should_filter_unqualified_regclass_by_schema_usage_separately_from_table_sele
     assert_eq!(hidden_unqualified.rows(), vec![vec![Value::Bool(true)]]);
     assert_eq!(
         qualified_without_usage.rows(),
-        vec![vec![Value::Bool(true), Value::Bool(true)]]
+        vec![vec![Value::Bool(true)]]
+    );
+    assert_eq!(
+        qualified_regclass_without_usage
+            .expect_err("qualified lookup needs schema USAGE")
+            .sql_state(),
+        "42501"
     );
     assert!(
         hidden_regclass_cast.is_err(),
@@ -152,4 +165,137 @@ fn should_filter_unqualified_routine_lookups_by_schema_usage() {
         visible_casts.rows(),
         vec![vec![Value::Bool(true), Value::Bool(true)]]
     );
+}
+
+/// Runs each denied statement as `reader` before and the allowed statement
+/// after `GRANT USAGE`, returning the SQLSTATEs and the post-grant rows.
+fn qualified_lookup(denied: &[&str], allowed: &str) -> (Vec<String>, Vec<Vec<Value>>) {
+    let (cassie, root, reader, _projector) = role_grant_fixture();
+    for statement in [
+        "CREATE FUNCTION public.visible_fn(x INT) RETURNS INT AS \"x + 1\"",
+        "CREATE TYPE public.visible_pair AS (left_side INT)",
+    ] {
+        cassie
+            .execute_sql(&root, statement, Vec::new())
+            .expect("create object");
+    }
+    let states = denied
+        .iter()
+        .map(|sql| {
+            cassie
+                .execute_sql(&reader, sql, Vec::new())
+                .expect_err("qualified lookup needs schema USAGE")
+                .sql_state()
+                .to_owned()
+        })
+        .collect();
+    cassie
+        .execute_sql(&root, "GRANT USAGE ON SCHEMA public TO reader", Vec::new())
+        .expect("grant reader schema usage");
+    let rows = cassie
+        .execute_sql(&reader, allowed, Vec::new())
+        .expect("qualified lookup resolves with schema USAGE")
+        .rows()
+        .to_vec();
+    (states, rows)
+}
+
+// PostgreSQL 18.6 oracle for the four tests below: a qualified to_reg* or cast
+// in a schema without USAGE raises 42501 (even for a missing object);
+// to_regnamespace needs no USAGE.
+#[test]
+fn should_require_schema_usage_for_qualified_regclass() {
+    // Arrange
+    let denied = [
+        "SELECT to_regclass('public.authorization_documents')",
+        "SELECT 'public.authorization_documents'::regclass",
+        "SELECT to_regclass('public.no_such_relation')",
+    ];
+
+    // Act
+    let (states, rows) = qualified_lookup(
+        &denied,
+        "SELECT to_regclass('public.authorization_documents') IS NOT NULL, \
+                to_regclass('public.no_such_relation') IS NULL",
+    );
+
+    // Assert
+    assert_eq!(states, vec!["42501"; denied.len()]);
+    assert_eq!(rows, vec![vec![Value::Bool(true), Value::Bool(true)]]);
+}
+
+#[test]
+fn should_require_schema_usage_for_qualified_regtype() {
+    // Arrange
+    let denied = [
+        "SELECT to_regtype('public.visible_pair')",
+        "SELECT 'public.visible_pair'::regtype",
+    ];
+
+    // Act
+    let (states, rows) =
+        qualified_lookup(&denied, "SELECT 'public.visible_pair'::regtype IS NOT NULL");
+
+    // Assert
+    assert_eq!(states, vec!["42501"; denied.len()]);
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_require_schema_usage_for_qualified_regprocedure() {
+    // Arrange
+    let denied = [
+        "SELECT to_regprocedure('public.visible_fn(integer)')",
+        "SELECT 'public.visible_fn(integer)'::regprocedure",
+    ];
+
+    // Act
+    let (states, rows) = qualified_lookup(
+        &denied,
+        "SELECT to_regprocedure('public.visible_fn(integer)') IS NOT NULL",
+    );
+
+    // Assert
+    assert_eq!(states, vec!["42501"; denied.len()]);
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_not_require_schema_usage_for_regnamespace() {
+    // Arrange
+    let (cassie, _root, reader, _projector) = role_grant_fixture();
+
+    // Act
+    let rows = cassie
+        .execute_sql(
+            &reader,
+            "SELECT to_regnamespace('public') IS NOT NULL, 'public'::regnamespace IS NOT NULL",
+            Vec::new(),
+        )
+        .expect("regnamespace needs no schema USAGE")
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true), Value::Bool(true)]]);
+}
+
+#[test]
+fn should_let_root_resolve_qualified_names_without_a_usage_grant() {
+    // Arrange
+    let (cassie, root, _reader, _projector) = role_grant_fixture();
+
+    // Act
+    let rows = cassie
+        .execute_sql(
+            &root,
+            "SELECT to_regclass('public.authorization_documents') IS NOT NULL",
+            Vec::new(),
+        )
+        .expect("root bypasses the schema USAGE check")
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
 }

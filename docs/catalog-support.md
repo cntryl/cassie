@@ -62,17 +62,32 @@ remain empty until #843. `nspowner` and
 `relowner` currently describe the bootstrap `root`; `nspacl` and `relacl` are
 empty. Role-aware schema/table grant reporting remains with #831.
 
-The finite `pg_class.relam` mapping remains limited to identities already
-selected by their owning features: heap tables use OID 2, scalar btree indexes
-use OID 403, and full-text indexes use GIN OID 2742. Cassie-native vector,
-column, and time-series indexes continue to report 0 because this field set
-does not yet assign PostgreSQL or Cassie-specific access-method identities to
-them. This is current source behavior, not a disposition of the selected
-`relam` acceptance: #817 must resolve whether those implemented index rows need
-catalog identities before the issue can close. The current source and contract
-do not justify adding `pg_am` rows or inventing identities here. In particular,
-pgvector HNSW/IVFFlat method identity remains part of the pending #843/#844
-contract.
+The `pg_class.relam` identity follows PostgreSQL 18.6 for every published
+relation kind: heap tables and SQL materialized views report OID 2, scalar
+btree indexes OID 403, hash indexes OID 405, full-text indexes GIN OID 2742,
+and installed pgvector HNSW/IVFFlat indexes the access-method OIDs registered
+by the `vector` extension. Views, sequences and composite types report 0, as
+PostgreSQL does. Cassie Column, TimeSeries and legacy `USING vector` derived
+indexes are not published as `pg_class` rows, so they need no access-method
+identity. Regressions are authored but not yet executed:
+[`relation_access_methods.rs`](../tests/catalog_security/catalogs/types/object_identity/relation_access_methods.rs).
+
+`pg_identify_object(classid, objid, objsubid)` is a FROM-only table function
+returning `type`, `schema`, `name` and `identity` text columns with
+PostgreSQL 18.6 spelling. It identifies the classes Cassie models:
+`pg_class` relations (tables, views, materialized views, indexes, sequences
+and composite-type relations), `pg_type` types (built-in, array and
+composite), `pg_namespace` schemas, `pg_proc` user and built-in routines,
+`pg_extension` extensions and `pg_authid` roles. A sub-object number names a
+column of tables, views, sequences and composite types; indexes, materialized
+views and catalog relations name no column and return only the column type. A
+missing object returns the class description with `NULL` columns, a `NULL`
+argument returns an all-`NULL` row, and a class Cassie does not model fails
+with SQLSTATE `0A000`. Projecting the record in a select list, and
+`pg_identify_object_as_address` and `pg_get_object_address`, remain absent
+capabilities rather than regressions. Regressions are authored but not yet
+executed:
+[`identify_object.rs`](../tests/catalog_security/catalogs/types/object_identity/identify_object.rs).
 
 The selected `pg_class.relhasindex` value currently reports whether the
 relation has an index, derived from live index metadata.

@@ -15,10 +15,16 @@ use crate::sql::binder::BindingContext;
 use crate::types::object_id::{parse_oid_text, FIRST_NORMAL_OBJECT_ID};
 use crate::types::{ObjectIdKind, ObjectIdentifierError};
 
+#[path = "object_identity/identify.rs"]
+mod identify;
 #[path = "object_identity/names.rs"]
 mod names;
 #[path = "object_identity/routines.rs"]
 mod routines;
+#[path = "object_identity/user_routines.rs"]
+mod user_routines;
+
+pub use identify::{ObjectIdentity, UnsupportedObjectClass};
 
 pub(crate) use names::quote_identifier;
 use names::{qualified_name, Identifier};
@@ -85,8 +91,8 @@ impl<'a> ObjectScope<'a> {
                 trimmed,
                 &builtin_identities().text_search_dictionaries,
             )?),
-            ObjectIdKind::RegProc => routines::resolve_proc(trimmed),
-            ObjectIdKind::RegProcedure => routines::resolve_procedure(trimmed),
+            ObjectIdKind::RegProc => self.resolve_proc(trimmed),
+            ObjectIdKind::RegProcedure => self.resolve_procedure(trimmed),
             ObjectIdKind::RegOper => routines::resolve_operator(trimmed),
             ObjectIdKind::RegOperator => routines::resolve_operator_signature(trimmed),
         }
@@ -132,8 +138,8 @@ impl<'a> ObjectScope<'a> {
             ObjectIdKind::RegDictionary => {
                 builtin_label(oid, &builtin_identities().text_search_dictionaries)
             }
-            ObjectIdKind::RegProc => routines::proc_label(oid),
-            ObjectIdKind::RegProcedure => routines::procedure_label(oid),
+            ObjectIdKind::RegProc => self.proc_label(oid),
+            ObjectIdKind::RegProcedure => self.procedure_label(oid),
             ObjectIdKind::RegOper => routines::operator_label(oid),
             ObjectIdKind::RegOperator => routines::operator_signature_label(oid),
         };

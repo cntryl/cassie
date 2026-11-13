@@ -19,6 +19,7 @@ use std::time::Duration;
 
 mod character_arrays;
 mod controlled_source;
+mod enum_values;
 pub(crate) use character_arrays::{
     hydrate_row as hydrate_character_arrays, hydrate_value as hydrate_character_array_value,
 };
@@ -789,6 +790,9 @@ pub(crate) fn try_json_to_typed_value(
     value: &serde_json::Value,
     data_type: &DataType,
 ) -> Result<Value, CassieError> {
+    if enum_values::is_enum_column(data_type) {
+        return enum_values::from_storage(value, data_type);
+    }
     let DataType::Composite(descriptor) = data_type else {
         return Ok(json_to_typed_value(value, data_type));
     };
@@ -810,6 +814,12 @@ pub(crate) fn try_json_to_typed_value(
 }
 
 pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
+    if enum_values::is_enum_column(data_type) {
+        return enum_values::from_storage(value, data_type).unwrap_or_else(|error| {
+            tracing::error!(%error, "stored enum value does not match its column descriptor");
+            Value::Null
+        });
+    }
     if matches!(data_type, DataType::Composite(_)) {
         // Row decoding already rejects mismatched composite documents; this
         // infallible entry point serves callers that cannot report an error.

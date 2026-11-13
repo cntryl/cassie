@@ -555,7 +555,7 @@ async fn handle_simple_query(
         }
     }
 
-    let parsed = match transactions::preflight(&statements) {
+    let parsed = match transactions::preflight(&cassie, &session, &statements) {
         Ok(parsed) => parsed,
         Err(error) => {
             return write_simple_query_error(

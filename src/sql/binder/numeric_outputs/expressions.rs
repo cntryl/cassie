@@ -246,6 +246,40 @@ impl Analyzer<'_> {
         Ok(None)
     }
 
+    fn row_constructor_output(
+        &self,
+        function: &FunctionCall,
+        lookup: &[OutputField],
+    ) -> Result<OutputType, CassieError> {
+        let mut types = Vec::with_capacity(function.args.len());
+        for argument in &function.args {
+            types.push(if matches!(argument, Expr::Null) {
+                DataType::Text
+            } else {
+                self.expression(argument, lookup)?.data_type
+            });
+        }
+        Ok(OutputType::fixed(DataType::Composite(
+            crate::types::CompositeType::anonymous(types).into(),
+        )))
+    }
+
+    fn field_access_output(
+        &self,
+        function: &FunctionCall,
+        lookup: &[OutputField],
+    ) -> Result<OutputType, CassieError> {
+        let (Some(operand), Some(Expr::StringLiteral(field))) =
+            (function.args.first(), function.args.get(1))
+        else {
+            return Err(CassieError::Planner(
+                "field selection requires an operand and a field name".into(),
+            ));
+        };
+        let operand_type = self.expression(operand, lookup)?.data_type;
+        inference::composite_field_type(&operand_type, field).map(OutputType::fixed)
+    }
+
     fn array_constructor_output(
         &self,
         function: &FunctionCall,
@@ -280,6 +314,12 @@ impl Analyzer<'_> {
         let name = function.name.to_ascii_lowercase();
         if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
             return self.array_constructor_output(function, lookup);
+        }
+        if name == crate::sql::ast::ROW_CONSTRUCTOR_FUNCTION {
+            return self.row_constructor_output(function, lookup);
+        }
+        if name == crate::sql::ast::FIELD_ACCESS_FUNCTION {
+            return self.field_access_output(function, lookup);
         }
         if let Some(metadata) = self.functions.get(&name).filter(|metadata| {
             !crate::sql::functions::has_distinct_builtin_arity(

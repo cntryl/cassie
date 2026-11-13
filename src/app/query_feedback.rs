@@ -1,6 +1,6 @@
 use super::{
-    binder, parser, Arc, Cassie, CassieError, CassieSession, QueryExecutionControls,
-    RuntimeFeedbackKey, RuntimeFeedbackObservation,
+    binder, Arc, Cassie, CassieError, CassieSession, QueryExecutionControls, RuntimeFeedbackKey,
+    RuntimeFeedbackObservation,
 };
 use crate::runtime::RuntimeFeedbackMutation;
 
@@ -386,7 +386,7 @@ impl Cassie {
         sql: &str,
         candidate_index: Option<&str>,
     ) -> Result<RuntimeFeedbackKey, CassieError> {
-        let parsed = parser::parse_statement(sql)?;
+        let parsed = self.parse_statement_for_session(Some(session), sql)?;
         let context = self.binding_context_for_session(Some(session));
         let bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
         let cardinality_stats = self.catalog.cardinality_snapshot();

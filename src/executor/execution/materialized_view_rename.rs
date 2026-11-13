@@ -22,6 +22,9 @@ pub(super) fn rename(
                     )
                 })
                 .ok_or_else(|| CassieError::CollectionNotFound(statement.name.clone()))?;
+            cassie
+                .catalog
+                .reject_relation_move_target(&statement.new_name)?;
             if cassie.catalog.relation_exists(&statement.new_name)
                 || cassie
                     .catalog
@@ -133,9 +136,10 @@ fn reject_dependencies(
                 vec![schema, "public".to_string()],
             )
         };
-        let accepted = crate::sql::parse_statement(&query).is_ok_and(|parsed| {
-            crate::sql::binder::bind_with_context(parsed, &without_previous, &context).is_ok()
-        });
+        let accepted = crate::sql::parse_statement_in_catalog(&without_previous, &context, &query)
+            .is_ok_and(|parsed| {
+                crate::sql::binder::bind_with_context(parsed, &without_previous, &context).is_ok()
+            });
         controls.check_interruption()?;
         if !accepted {
             return Err(DiagnosticError::new("2BP01", format!("cannot rename materialized view while stored definition '{name}' depends on it or cannot be resolved")).into());

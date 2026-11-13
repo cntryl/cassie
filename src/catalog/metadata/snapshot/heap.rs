@@ -156,7 +156,11 @@ impl HeapBytes for DataType {
             Self::Vector(width) => width.heap_bytes(controls),
             Self::ObjectId(kind) => kind.heap_bytes(controls),
             Self::Extended(kind) => kind.heap_bytes(controls),
-            Self::Null
+            // A composite descriptor is shared behind an `Arc`; a clone
+            // retains no copy.
+            Self::Composite(_)
+            | Self::Domain(_)
+            | Self::Null
             | Self::SmallInt
             | Self::Int
             | Self::BigInt

@@ -1,0 +1,148 @@
+//! Outer-only predicates reach a lateral generated source inside derived tables (#1248).
+
+use super::json_records_support::{assert_failure, assert_lateral_rows, assert_rows};
+
+const DERIVED: &str = "SELECT id FROM (SELECT t.id, e.value FROM \
+    (VALUES (1, '[1]'::jsonb), (2, '3'::jsonb)) AS t(id, d), \
+    LATERAL jsonb_array_elements(t.d) AS e WHERE t.id = 1) AS s";
+
+#[test]
+fn should_skip_failing_lateral_rows_given_an_outer_only_filter_in_a_derived_table() {
+    // Arrange
+    // Act
+    // Assert
+    assert_rows(DERIVED, &[&[Some("1")]]);
+}
+
+#[test]
+fn should_skip_failing_lateral_rows_given_an_outer_only_filter_in_a_set_operation_branch() {
+    // Arrange
+    let sql = "SELECT 0 UNION ALL SELECT t.id FROM \
+        (VALUES (1, '[1]'::jsonb), (2, '3'::jsonb)) AS t(id, d), \
+        LATERAL jsonb_array_elements(t.d) AS e WHERE t.id = 1";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("0")], &[Some("1")]]);
+}
+
+#[test]
+fn should_still_raise_given_the_failing_row_is_selected_in_a_derived_table() {
+    // Arrange
+    let sql = DERIVED.replace("t.id = 1", "t.id = 2");
+    // Act
+    // Assert
+    assert_failure(&sql, "22023", "cannot extract elements from a scalar");
+}
+
+const INNER: &str = "lf_inner AS a, LATERAL jsonb_array_elements(a.d) AS e";
+
+#[test]
+fn should_keep_outer_correlated_conjuncts_given_a_lateral_derived_table() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM lf_outer AS t, LATERAL \
+         (SELECT e.value::text::int AS v FROM {INNER} WHERE a.id = t.id) AS s ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_lateral_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_resolve_outer_columns_given_a_set_operation_branch_in_a_lateral_derived_table() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM lf_outer AS t, LATERAL \
+         (SELECT 0 AS v WHERE false \
+          UNION ALL SELECT e.value::text::int FROM {INNER} WHERE a.id = t.id) AS s \
+         ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_lateral_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_resolve_outer_columns_given_both_set_operation_branches_in_a_lateral_derived_table() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM lf_outer AS t, LATERAL \
+         (SELECT e.value::text::int AS v FROM {INNER} WHERE a.id = t.id \
+          UNION ALL SELECT e.value::text::int FROM {INNER} WHERE a.id = t.id) AS s \
+         ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_lateral_rows(
+        &sql,
+        &[
+            &[Some("1"), Some("10")],
+            &[Some("1"), Some("10")],
+            &[Some("2"), Some("20")],
+            &[Some("2"), Some("20")],
+        ],
+    );
+}
+
+#[test]
+fn should_keep_outer_correlated_conjuncts_given_a_correlated_scalar_subquery() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, (SELECT max(e.value::text::int) FROM {INNER} WHERE a.id = t.id) \
+         FROM lf_outer AS t ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_lateral_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_skip_failing_rows_given_a_values_aliased_outer_input_and_a_cross_join_lateral() {
+    // Arrange
+    let sql = "SELECT t.id, e.value FROM (VALUES (1, '[7]'::jsonb), (2, '3'::jsonb)) AS t(id, j) \
+               CROSS JOIN LATERAL jsonb_array_elements(t.j) AS e WHERE t.id = 1";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1"), Some("7")]]);
+}
+
+const VALUES_INNER: &str = "(VALUES (1, '[10]'::jsonb), (2, '[20]'::jsonb)) AS a(id, d), \
+    LATERAL jsonb_array_elements(a.d) AS e";
+
+#[test]
+fn should_compare_the_outer_values_column_given_a_lateral_derived_table_over_values() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM (VALUES (1), (2)) AS t(id), LATERAL \
+         (SELECT e.value::text::int AS v FROM {VALUES_INNER} WHERE a.id = t.id) AS s \
+         ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_compare_the_outer_values_column_given_a_correlated_scalar_subquery_over_values() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, (SELECT max(e.value::text::int) FROM {VALUES_INNER} WHERE a.id = t.id) \
+         FROM (VALUES (1), (2)) AS t(id) ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_pair_rows_by_the_outer_values_column_given_reordered_inner_values() {
+    // Arrange
+    let sql = "SELECT t.id, (SELECT max(e.value::text::int) FROM \
+               (VALUES (2, '[10, 30]'::jsonb), (1, '[20]'::jsonb)) AS a(id, d), \
+               LATERAL jsonb_array_elements(a.d) AS e \
+               WHERE a.id = t.id AND e.value::text::int > 10) \
+               FROM (VALUES (1), (2)) AS t(id) ORDER BY 1";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1"), Some("20")], &[Some("2"), Some("30")]]);
+}

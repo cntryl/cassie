@@ -1,8 +1,8 @@
 //! Controlled Midge-to-typed transport. JSON decoding remains a storage boundary.
 use super::{
     controlled_storage_error, conversion, field_data_type, is_identity_reference,
-    is_row_identity_column, json_to_typed_value, projected_field_value, Cassie, CassieError,
-    CassieSession, DataType, QueryError, QueryExecutionControls, QueryMemoryReservation, RowDecode,
+    is_row_identity_column, projected_field_value, try_json_to_typed_value, Cassie, CassieSession,
+    DataType, QueryError, QueryExecutionControls, QueryMemoryReservation, RowDecode,
     SessionRowCursor, Value, DEFAULT_BATCH_SIZE,
 };
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
@@ -203,7 +203,7 @@ impl<'a> TypedScanStream<'a> {
                                 _ => crate::runtime::accounted::json::retained_bytes(value)?,
                             };
                             memory.try_grow(heap)?;
-                            Ok::<_, CassieError>(json_to_typed_value(value, data_type))
+                            try_json_to_typed_value(value, data_type)
                         })?
                 };
                 super::hydrate_character_array_value(

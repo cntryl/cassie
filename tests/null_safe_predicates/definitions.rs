@@ -48,11 +48,13 @@ fn should_reject_direct_durable_null_safe_metadata_admission() {
         return_type: cassie::types::DataType::Boolean,
         volatility: cassie::catalog::Volatility::Immutable,
         body: "NULL IS NOT DISTINCT FROM NULL".into(),
+        object_id: 0,
     };
     let procedure = cassie::catalog::ProcedureMeta {
         name: "forbidden_procedure".into(),
         args: vec![],
         body: "SELECT NULL IS DISTINCT FROM 1 AS different".into(),
+        object_id: 0,
     };
     let view = cassie::catalog::ViewMeta::new(
         "forbidden_direct_view",
@@ -144,6 +146,7 @@ fn should_reject_null_safe_predicates_in_nested_procedure_definitions() {
         args: vec![],
         body: "CREATE VIEW forbidden_nested_view AS SELECT NULL IS NOT DISTINCT FROM NULL AS same"
             .into(),
+        object_id: 0,
     };
     // Act
     let result = fixture.cassie.midge.put_procedure(&procedure);
@@ -213,6 +216,7 @@ fn should_reject_null_safe_arguments_in_stored_procedure_calls() {
         name: "forbidden_nested_call".into(),
         args: vec![],
         body: "CALL other_procedure(CAST(NULL IS DISTINCT FROM 1 AS BOOLEAN))".into(),
+        object_id: 0,
     };
     // Act
     let result = fixture.cassie.midge.put_procedure(&metadata);
@@ -307,6 +311,7 @@ fn should_reject_nested_default_parser_guard_before_procedure_publication() {
         args: vec![],
         body: "CREATE TABLE nested_default (n BOOLEAN DEFAULT (NULL IS NOT DISTINCT FROM NULL))"
             .into(),
+        object_id: 0,
     };
     cassie::sql::parse_statement(&procedure.body)
         .expect("ordinary table definition syntax is selected");
@@ -336,6 +341,7 @@ fn should_reject_nested_check_parser_guard_before_procedure_publication() {
         name: "forbidden_parser_check".into(),
         args: vec![],
         body: "CREATE TABLE nested_check (n BIGINT CHECK (n IS DISTINCT FROM NULL))".into(),
+        object_id: 0,
     };
     cassie::sql::parse_statement(&procedure.body)
         .expect("ordinary table definition syntax is selected");
@@ -380,6 +386,7 @@ fn should_preserve_unrelated_procedure_parser_admission() {
             name: name.into(),
             args: vec![],
             body: body.into(),
+            object_id: 0,
         };
         // Act
         let result = fixture.cassie.midge.put_procedure(&procedure);
@@ -406,8 +413,8 @@ fn should_reject_recursive_procedure_parser_guard() {
     let fixture = sql_fixture("null_safe_recursive_parser_guard", &[]);
     let procedure = cassie::catalog::ProcedureMeta {
         name: "forbidden_recursive_parser".into(), args: vec![],
-        body: r#"CREATE PROCEDURE inner_guard() AS "CREATE TABLE nested_guard (n BOOLEAN DEFAULT (NULL IS NOT DISTINCT FROM NULL))""#.into(),
-    };
+        body: r#"CREATE PROCEDURE inner_guard() AS "CREATE TABLE nested_guard (n BOOLEAN DEFAULT (NULL IS NOT DISTINCT FROM NULL))""#.into(), object_id: 0,
+};
     assert!(
         cassie::sql::parse_statement(&procedure.body).is_ok(),
         "outer routine syntax is supported"

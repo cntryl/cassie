@@ -20,7 +20,15 @@ pub fn bind_create_table(
             "CREATE TABLE requires a table name".into(),
         ));
     }
-    let already_exists = catalog.relation_exists(&name) || virtual_views::schema(&name).is_some();
+    if !statement.if_not_exists {
+        catalog.reject_composite_relation_name(&name)?;
+    }
+    // A domain is not a relation, so IF NOT EXISTS cannot skip it: the table's
+    // row type would collide with the domain (42710).
+    catalog.reject_domain_relation_name(&name)?;
+    let already_exists = catalog.relation_exists(&name)
+        || virtual_views::schema(&name).is_some()
+        || catalog.composite_type_exists(&name);
     if !statement.if_not_exists && already_exists {
         return Err(CassieError::Planner(format!(
             "collection '{name}' already exists"
@@ -111,6 +119,20 @@ fn validate_and_bind_table_fields(
             return Err(CassieError::Planner(
                 "CREATE TABLE field names cannot be empty".into(),
             ));
+        }
+        if let DataType::Composite(descriptor) = &field.data_type {
+            if descriptor.is_anonymous() {
+                return Err(crate::app::DiagnosticError::new(
+                    "42P16",
+                    format!("column \"{field_name}\" has pseudo-type record"),
+                )
+                .into());
+            }
+            if own_unique_fields.iter().any(|unique| unique == field_name) {
+                return Err(CassieError::Unsupported(format!(
+                    "composite column \"{field_name}\" cannot be PRIMARY KEY or UNIQUE in this version"
+                )));
+            }
         }
         super::validate_not_internal_identity_field(field_name)?;
         schema_defaults::bind_constraint_defaults(

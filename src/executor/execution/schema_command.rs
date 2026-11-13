@@ -98,7 +98,8 @@ fn create_view_gated(
         .into());
     }
 
-    let parsed = crate::sql::parser::parse_statement(&statement.query)
+    let parsed = cassie
+        .parse_statement_for_session(session, &statement.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let context = cassie.binding_context_for_session(session);
     let bound = crate::sql::binder::bind_with_context(parsed, &cassie.catalog, &context)
@@ -241,6 +242,7 @@ fn drop_table_target(
     if if_exists && !cassie.catalog.exists(table) {
         return Ok(());
     }
+    super::type_alter::reject_row_type_dependents(cassie, table, cascade)?;
     let dependent_views = views_depending_on(cassie, table, None);
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("table", table, &dependent_views));
@@ -415,7 +417,15 @@ pub(super) fn alter_table(
     let output = empty_command("ALTER TABLE", controls)?;
     let staged_default =
         session.and_then(|session| staged_add_column_default(cassie, session, statement));
+    let row_type_identity = cassie
+        .catalog
+        .get_collection(&statement.table)
+        .map(|collection| collection.storage_id);
+    super::type_alter::reject_drop_column_in_use(cassie, &statement.table, &statement.operation)?;
     execute_alter_table_operation(cassie, session, statement, is_column_store, controls)?;
+    if let Some(storage_id) = row_type_identity {
+        super::type_alter::refresh_relation_row_type(cassie, storage_id)?;
+    }
     if let (Some(session), Some((field, default_value))) = (session, staged_default) {
         session
             .apply_literal_default_to_staged_rows(&statement.table, &field, &default_value)
@@ -437,6 +447,16 @@ pub(super) fn alter_table(
     }
 
     Ok(output)
+}
+
+fn set_access_method(access_method: &str) -> Result<(), QueryError> {
+    if access_method == "heap" {
+        Ok(())
+    } else {
+        Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
+            format!("unsupported ALTER TABLE access method '{access_method}'"),
+        )))
+    }
 }
 
 fn execute_alter_table_operation(
@@ -477,11 +497,14 @@ fn execute_alter_table_operation(
             if_not_exists,
         } => alter_table_add_column(
             cassie,
+            session,
             &statement.table,
-            field,
-            data_type,
-            constraints,
-            *if_not_exists,
+            &NewColumn {
+                field,
+                data_type,
+                constraints,
+                if_not_exists: *if_not_exists,
+            },
             is_column_store,
         ),
         AlterTableOperation::AddConstraint { constraints } => {
@@ -505,15 +528,7 @@ fn execute_alter_table_operation(
         AlterTableOperation::SetSchema { schema } => {
             alter_table_set_schema(cassie, session, &statement.table, schema)
         }
-        AlterTableOperation::SetAccessMethod { access_method } => {
-            if access_method == "heap" {
-                Ok(())
-            } else {
-                Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
-                    format!("unsupported ALTER TABLE access method '{access_method}'"),
-                )))
-            }
-        }
+        AlterTableOperation::SetAccessMethod { access_method } => set_access_method(access_method),
         AlterTableOperation::AlterColumnSetDefault {
             field,
             default_value,
@@ -587,15 +602,27 @@ fn staged_add_column_default(
         .map(|default_value| (field.clone(), default_value))
 }
 
+/// The column of an `ALTER TABLE ... ADD COLUMN`.
+struct NewColumn<'a> {
+    field: &'a str,
+    data_type: &'a DataType,
+    constraints: &'a [crate::catalog::FieldConstraint],
+    if_not_exists: bool,
+}
+
 fn alter_table_add_column(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     table: &str,
-    field: &str,
-    data_type: &DataType,
-    constraints: &[crate::catalog::FieldConstraint],
-    if_not_exists: bool,
+    column: &NewColumn<'_>,
     is_column_store: bool,
 ) -> Result<(), QueryError> {
+    let NewColumn {
+        field,
+        data_type,
+        constraints,
+        if_not_exists,
+    } = *column;
     if if_not_exists
         && cassie.catalog.get_schema(table).is_some_and(|schema| {
             schema.fields.iter().any(|existing| {
@@ -628,6 +655,12 @@ fn alter_table_add_column(
         .with_collection_write_gates(&gated_collections, || {
             cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
             cassie.validate_existing_foreign_key_rows(table, constraints)?;
+            let default_value = cassie.domain_add_column_default(
+                session,
+                table,
+                data_type,
+                default_value.clone(),
+            )?;
 
             let field_schema = FieldSchema {
                 name: field.to_string(),
@@ -639,7 +672,7 @@ fn alter_table_add_column(
                 .alter_collection_add_column_with_default(
                     table,
                     field_schema.clone(),
-                    default_value.clone(),
+                    default_value,
                 )
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
@@ -880,6 +913,7 @@ fn alter_table_rename_table(
     table: &str,
     next_table: &str,
 ) -> Result<(), QueryError> {
+    cassie.catalog.reject_relation_move_target(next_table)?;
     if cassie.catalog.exists(next_table) {
         return Err(QueryError::General(format!(
             "collection '{next_table}' already exists"
@@ -920,6 +954,7 @@ fn alter_table_set_schema(
     if table == next_table {
         return Ok(());
     }
+    cassie.catalog.reject_relation_move_target(&next_table)?;
     if cassie.catalog.exists(&next_table) {
         return Err(QueryError::General(format!(
             "collection '{next_table}' already exists"

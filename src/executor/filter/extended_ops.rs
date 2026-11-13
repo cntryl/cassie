@@ -8,7 +8,10 @@ fn error(error: TypeInputError) -> QueryError {
 }
 
 const fn owned(value: &ScalarValue) -> bool {
-    matches!(value, ScalarValue::Typed(typed) if operations::handles_value(typed))
+    matches!(
+        value,
+        ScalarValue::Typed(typed) if typed.as_record().is_some() || operations::handles_value(typed)
+    )
 }
 
 /// Compares an owned typed value with another operand: another value of its
@@ -21,8 +24,7 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
         (ScalarValue::Typed(left), ScalarValue::Typed(right)) => operations::compare(left, right),
         (ScalarValue::Typed(typed), ScalarValue::Str(text)) => typed
             .kind()
-            .parse_text(text)
-            .ok()
+            .and_then(|kind| kind.parse_text(text).ok())
             .and_then(|other| operations::compare(typed, &other)),
         (ScalarValue::Str(_), ScalarValue::Typed(_)) => {
             compare(right, left).map(std::cmp::Ordering::reverse)
@@ -76,6 +78,14 @@ fn comparison(
     right: &ScalarValue,
     null: bool,
 ) -> Option<Result<ScalarValue, QueryError>> {
+    if !null && record_against_text(left, right) {
+        return Some(Err(QueryError::Cassie(CassieError::from(
+            crate::app::DiagnosticError::new(
+                "0A000",
+                "input of anonymous composite types is not implemented",
+            ),
+        ))));
+    }
     let ordering = || compare(left, right).ok_or_else(|| undefined(left, op, right));
     let ordered = |test: fn(std::cmp::Ordering) -> bool| {
         Some(if null {
@@ -107,9 +117,25 @@ fn comparison(
     }
 }
 
+/// A record compared with an untyped string literal, which PostgreSQL cannot
+/// coerce to a record type.
+fn record_against_text(left: &ScalarValue, right: &ScalarValue) -> bool {
+    let is_record = |value: &ScalarValue| matches!(value, ScalarValue::Typed(typed) if typed.as_record().is_some());
+    (is_record(left) && matches!(right, ScalarValue::Str(_)))
+        || (matches!(left, ScalarValue::Str(_)) && is_record(right))
+}
+
 fn type_label(value: &ScalarValue) -> String {
     match value {
-        ScalarValue::Typed(typed) => typed.kind().name().to_string(),
+        ScalarValue::Typed(typed) => typed.as_record().map_or_else(
+            || {
+                typed
+                    .kind()
+                    .map_or("record", crate::types::extended::ExtendedType::name)
+                    .to_string()
+            },
+            |record| record.descriptor().name.clone(),
+        ),
         ScalarValue::Int(_) => "integer".to_string(),
         ScalarValue::Float(_) => "double precision".to_string(),
         ScalarValue::Bool(_) => "boolean".to_string(),

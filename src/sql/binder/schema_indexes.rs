@@ -43,6 +43,9 @@ pub(super) fn bind_create_index(
             _ => normalize_relation_name(statement.name.trim(), context)?,
         }
     };
+    if !name.is_empty() {
+        catalog.reject_composite_relation_name(&name)?;
+    }
     if !name.is_empty() && statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
         duplicate::validate(&statement, catalog, &table, controls)?;
         statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
@@ -66,6 +69,7 @@ pub(super) fn bind_create_index(
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
     let fields = declared_field_names(&schema, fields);
+    reject_composite_index_columns(&schema, &fields)?;
     let expressions = declared_index_expressions(&schema, &expressions);
     if name.is_empty() {
         name =
@@ -116,6 +120,23 @@ pub(super) fn bind_create_index(
     statement.expressions = expressions;
     statement.include_fields = include_fields;
     Ok(statement)
+}
+
+fn reject_composite_index_columns(
+    schema: &CollectionSchema,
+    fields: &[String],
+) -> Result<(), CassieError> {
+    for field in fields {
+        if schema.fields.iter().any(|entry| {
+            entry.name.eq_ignore_ascii_case(field)
+                && matches!(entry.data_type, crate::types::DataType::Composite(_))
+        }) {
+            return Err(CassieError::Unsupported(format!(
+                "indexes on composite column \"{field}\" are not supported in this version"
+            )));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]

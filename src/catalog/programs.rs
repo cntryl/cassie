@@ -75,6 +75,10 @@ pub struct FunctionMeta {
     pub return_type: DataType,
     pub volatility: Volatility,
     pub body: String,
+    /// Stable routine identity allocated at creation and kept by replacement;
+    /// zero marks a row stored before identities existed and publishes no OID.
+    #[serde(default)]
+    pub object_id: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -82,6 +86,9 @@ pub struct ProcedureMeta {
     pub name: String,
     pub args: Vec<FunctionArgMeta>,
     pub body: String,
+    /// Stable routine identity; see [`FunctionMeta::object_id`].
+    #[serde(default)]
+    pub object_id: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -213,6 +213,7 @@ fn should_admit_sparse_nested_delta_backing_before_any_output_copy() {
         data_type: crate::types::DataType::Array(Box::new(crate::types::DataType::Array(
             Box::new(crate::types::DataType::Text),
         ))),
+        domain: None,
         is_indexed: false,
         boost: Some(-0.0),
     });
@@ -376,6 +377,7 @@ fn should_compare_nested_float_metadata_by_its_exact_bits() {
             fields: vec![FieldMeta {
                 name: "value".into(),
                 data_type: crate::types::DataType::Int,
+                domain: None,
                 is_indexed: false,
                 boost: Some(nan),
             }],

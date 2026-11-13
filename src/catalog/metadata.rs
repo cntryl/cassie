@@ -7,11 +7,12 @@ use parking_lot::RwLock;
 use crate::app::CassieError;
 use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
-    CollectionSchema, CollectionStorageMode, DatabaseMeta, ExtensionMeta, FieldConstraint,
-    FunctionMeta, GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta,
-    ObjectCommentMeta, OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
-    ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
-    RetentionPolicyMeta, RoleMeta, RoleObjectGrantMeta, RollupMeta, SequenceMeta, ViewMeta,
+    CollectionSchema, CollectionStorageMode, CompositeTypeMeta, DatabaseMeta, DomainTypeMeta,
+    ExtensionMeta, FieldConstraint, FunctionMeta, GraphMeta, IndexKind, IndexMeta,
+    MaintenanceDebtMeta, NamespaceMeta, ObjectCommentMeta, OperationalAssignmentMeta,
+    ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
+    ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RoleObjectGrantMeta, RollupMeta,
+    SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
@@ -41,6 +42,8 @@ pub struct Catalog {
     pub(super) functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
     pub(super) procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
     pub(super) extensions: Arc<RwLock<HashMap<String, ExtensionMeta>>>,
+    pub(super) composite_types: Arc<RwLock<HashMap<String, CompositeTypeMeta>>>,
+    pub(super) domain_types: Arc<RwLock<HashMap<String, DomainTypeMeta>>>,
     pub(super) views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub(super) roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
     pub(super) sequences: Arc<RwLock<HashMap<String, SequenceMeta>>>,
@@ -88,6 +91,8 @@ impl Catalog {
             functions: Arc::new(RwLock::new(HashMap::new())),
             procedures: Arc::new(RwLock::new(HashMap::new())),
             extensions: Arc::new(RwLock::new(HashMap::new())),
+            composite_types: Arc::new(RwLock::new(HashMap::new())),
+            domain_types: Arc::new(RwLock::new(HashMap::new())),
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
             sequences: Self::sequence_store(),
@@ -122,6 +127,8 @@ impl Catalog {
         (*self.graphs.write()).clone_from(&snapshot.graphs.read());
         (*self.views.write()).clone_from(&snapshot.views.read());
         (*self.extensions.write()).clone_from(&snapshot.extensions.read());
+        (*self.composite_types.write()).clone_from(&snapshot.composite_types.read());
+        (*self.domain_types.write()).clone_from(&snapshot.domain_types.read());
         (*self.sequences.write()).clone_from(&snapshot.sequences.read());
         (*self.rollups.write()).clone_from(&snapshot.rollups.read());
         (*self.retention_policies.write()).clone_from(&snapshot.retention_policies.read());
@@ -163,11 +170,8 @@ impl Catalog {
         let mut schemas = self.schemas.write();
         let fields = schema
             .into_iter()
-            .map(|(name, data_type)| crate::catalog::FieldMeta {
-                name,
-                data_type,
-                is_indexed: true,
-                boost: Some(1.0),
+            .map(|(name, data_type)| {
+                crate::catalog::FieldMeta::declared(name, data_type, true, Some(1.0))
             })
             .collect();
         schemas.insert(
@@ -254,7 +258,7 @@ impl Catalog {
     }
 
     #[must_use]
-    pub(crate) fn list_collections_canonical(&self) -> Vec<CollectionMeta> {
+    pub fn list_collections_canonical(&self) -> Vec<CollectionMeta> {
         let collections = self.collections.read();
         let mut out = collections.values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|entry| entry.name.to_ascii_lowercase());
@@ -280,6 +284,8 @@ impl Catalog {
         self.functions.write().clear();
         self.procedures.write().clear();
         self.extensions.write().clear();
+        self.composite_types.write().clear();
+        self.domain_types.write().clear();
         self.views.write().clear();
         self.roles.write().clear();
         self.sequences.write().clear();
@@ -486,12 +492,12 @@ impl Catalog {
             return;
         }
 
-        schema.fields.push(crate::catalog::FieldMeta {
+        schema.fields.push(crate::catalog::FieldMeta::declared(
             name,
             data_type,
-            is_indexed: true,
-            boost: Some(1.0),
-        });
+            true,
+            Some(1.0),
+        ));
         self.bump_version();
     }
 

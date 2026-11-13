@@ -65,7 +65,7 @@ pub(super) async fn handle_parse(
     }
 
     runtime.record_sql_parse();
-    let parsed = crate::sql::parse_statement(&query).map_err(CassieError::from)?;
+    let parsed = cassie.parse_statement_for_session(Some(session), &query)?;
     session
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;

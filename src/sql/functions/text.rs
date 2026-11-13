@@ -199,4 +199,16 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         FunctionArity::AtLeast(1),
         FunctionReturnType::Text,
     ),
+    scalar(
+        FunctionId::QuoteNullable,
+        "quote_nullable",
+        FunctionArity::Exact(1),
+        FunctionReturnType::Text,
+    ),
+    scalar(
+        FunctionId::QuoteNullable,
+        "pg_catalog.quote_nullable",
+        FunctionArity::Exact(1),
+        FunctionReturnType::Text,
+    ),
 ];

@@ -157,6 +157,10 @@ mod dml;
 mod dml_conflict;
 #[path = "parser/dml_targets.rs"]
 mod dml_targets;
+#[path = "parser/domain_scope.rs"]
+mod domain_scope;
+#[path = "parser/domains.rs"]
+mod domains;
 #[path = "parser/expr.rs"]
 mod expr;
 #[path = "parser/extensions.rs"]
@@ -168,6 +172,14 @@ mod lexical;
 mod merge;
 #[path = "parser/truncate.rs"]
 mod truncate;
+#[path = "parser/type_scope.rs"]
+mod type_scope;
+#[path = "parser/types.rs"]
+mod types;
+mod types_alter;
+pub use domain_scope::{with_domain_scope, DomainResolver};
+pub use type_scope::parse_data_type_in_scope;
+pub use type_scope::{with_type_scope, TypeResolver};
 #[path = "parser/with_statement.rs"]
 mod with_statement;
 pub(crate) use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
@@ -374,9 +386,9 @@ fn parse_routine_statement(
     trimmed: &str,
     lower: &str,
 ) -> Result<Option<ParsedStatement>, SqlError> {
-    if starts_statement(lower, "create function") {
+    if starts_create_routine(lower, "function") {
         Ok(Some(parse_create_function_statement(trimmed)?))
-    } else if starts_statement(lower, "create procedure") {
+    } else if starts_create_routine(lower, "procedure") {
         Ok(Some(parse_create_procedure_statement(trimmed)?))
     } else if starts_statement(lower, "drop function") {
         Ok(Some(parse_drop_function_statement(trimmed)?))
@@ -398,6 +410,24 @@ fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedSta
         || starts_statement(lower, "drop extension")
     {
         return Ok(Some(extensions::parse_extension_statement(trimmed)?));
+    }
+    if starts_statement(lower, "create type") {
+        return Ok(Some(types::parse_create_type_statement(trimmed)?));
+    }
+    if starts_statement(lower, "drop type") {
+        return Ok(Some(types::parse_drop_type_statement(trimmed)?));
+    }
+    if starts_statement(lower, "alter type") {
+        return Ok(Some(types_alter::parse_alter_type_statement(trimmed)?));
+    }
+    if starts_statement(lower, "create domain") {
+        return Ok(Some(domains::parse_create_domain_statement(trimmed)?));
+    }
+    if starts_statement(lower, "alter domain") {
+        return Ok(Some(domains::parse_alter_domain_statement(trimmed)?));
+    }
+    if starts_statement(lower, "drop domain") {
+        return Ok(Some(domains::parse_drop_domain_statement(trimmed)?));
     }
     if starts_statement(lower, "create collation") {
         return Err(SqlError::unsupported(
@@ -547,6 +577,18 @@ fn parse_session_statement(
     } else {
         Ok(None)
     }
+}
+
+/// `CREATE [OR REPLACE] FUNCTION|PROCEDURE`, whatever the whitespace between words.
+fn starts_create_routine(lower: &str, noun: &str) -> bool {
+    if starts_statement(lower, &format!("create {noun}")) {
+        return true;
+    }
+    let mut words = lower.split_whitespace();
+    words.next() == Some("create")
+        && words.next() == Some("or")
+        && words.next() == Some("replace")
+        && words.next() == Some(noun)
 }
 
 fn starts_statement(lower: &str, keyword: &str) -> bool {

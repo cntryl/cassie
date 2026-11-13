@@ -142,6 +142,20 @@ pub(crate) fn rewrite_database_data_entry(
     value: &[u8],
     target: &str,
 ) -> Result<Vec<u8>, CassieError> {
+    if key_family(key) == Some("composite-type") {
+        return Err(CassieError::Unsupported(
+            "database image restore of composite types is not supported yet (#828); \
+             drop the image's composite types before backup"
+                .into(),
+        ));
+    }
+    if key_family(key) == Some("domain-type") {
+        return Err(CassieError::Unsupported(
+            "database image restore of domain types is not supported yet (#828); \
+             drop the image's domain types before backup"
+                .into(),
+        ));
+    }
     if key_family(key) != Some("object-comment") {
         return Ok(value.to_vec());
     }
@@ -371,7 +385,40 @@ fn rewrite_catalog_name(value: &str, source: &str, target: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_database_catalog_entry, rewrite_catalog_value, rewrite_key_component};
+    use super::{
+        is_database_catalog_entry, rewrite_catalog_value, rewrite_database_data_entry,
+        rewrite_key_component,
+    };
+
+    #[test]
+    fn should_fail_closed_when_restoring_composite_type_records() {
+        // Arrange
+        let key = crate::midge::adapter::key_encoding::composite_type_key("analytics.public.t");
+
+        // Act
+        let result = rewrite_database_data_entry(&key, b"{}", "restored");
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(crate::app::CassieError::Unsupported(_))
+        ));
+    }
+
+    #[test]
+    fn should_fail_closed_when_restoring_domain_type_records() {
+        // Arrange
+        let key = crate::midge::adapter::key_encoding::domain_type_key("analytics.public.d");
+
+        // Act
+        let result = rewrite_database_data_entry(&key, b"{}", "restored");
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(crate::app::CassieError::Unsupported(_))
+        ));
+    }
 
     fn rewrite(family: &str, value: &serde_json::Value) -> serde_json::Value {
         let raw = serde_json::to_vec(&value).expect("catalog value");

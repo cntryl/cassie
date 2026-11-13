@@ -99,6 +99,8 @@ const FAMILY_FUNCTION: &[u8] = b"function";
 const FAMILY_PROCEDURE: &[u8] = b"procedure";
 const FAMILY_VIEW: &[u8] = b"view";
 const FAMILY_EXTENSION: &[u8] = b"extension";
+const FAMILY_COMPOSITE_TYPE: &[u8] = b"composite-type";
+const FAMILY_DOMAIN_TYPE: &[u8] = b"domain-type";
 const FAMILY_ROLE: &[u8] = b"role";
 const FAMILY_OBJECT_COMMENT: &[u8] = b"object-comment";
 const FAMILY_ROLE_OBJECT_GRANT: &[u8] = b"role-object-grant";
@@ -571,6 +573,28 @@ pub(super) fn extension_key(name: &str) -> Vec<u8> {
 
 pub(super) fn extension_prefix() -> Vec<u8> {
     prefix(FAMILY_EXTENSION, &[])
+}
+
+pub(super) fn composite_type_key(canonical_name: &str) -> Vec<u8> {
+    key(
+        FAMILY_COMPOSITE_TYPE,
+        &[canonical_name.to_ascii_lowercase().as_bytes()],
+    )
+}
+
+pub(super) fn composite_type_prefix() -> Vec<u8> {
+    prefix(FAMILY_COMPOSITE_TYPE, &[])
+}
+
+pub(super) fn domain_type_key(canonical_name: &str) -> Vec<u8> {
+    key(
+        FAMILY_DOMAIN_TYPE,
+        &[canonical_name.to_ascii_lowercase().as_bytes()],
+    )
+}
+
+pub(super) fn domain_type_prefix() -> Vec<u8> {
+    prefix(FAMILY_DOMAIN_TYPE, &[])
 }
 
 pub(super) fn role_key(name: &str) -> Vec<u8> {

@@ -43,7 +43,7 @@ use crate::runtime::{
 use crate::sql::ast::{
     QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,
 };
-use crate::sql::{binder, parser};
+use crate::sql::binder;
 use crate::types::{Value, Vector};
 
 pub(crate) fn field_value_is_sql_null(
@@ -134,6 +134,8 @@ mod lifecycle;
 mod operational;
 mod portal_reads;
 pub(crate) use portal_reads::PortalReadSpec;
+mod domain_enforcement;
+mod domain_scope;
 mod query;
 mod query_bind;
 mod query_bound;
@@ -145,6 +147,8 @@ mod query_feedback;
 mod query_implicit_ddl;
 mod query_lifecycle;
 mod query_wire;
+pub(crate) use domain_enforcement::DomainRowRule;
+mod type_scope;
 pub(crate) use query_feedback::USER_SEARCH_PATH_ENTRY;
 mod query_metrics;
 mod query_parameters;

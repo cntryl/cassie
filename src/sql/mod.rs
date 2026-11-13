@@ -8,6 +8,7 @@ use crate::types::DataType;
 
 pub mod ast;
 pub mod binder;
+pub(crate) mod catalog_scope;
 mod column_identifier;
 pub(crate) mod definition_guard;
 pub mod functions;
@@ -40,9 +41,13 @@ pub use ast::{
     StatementFamily, StatementRoute, StatementRouteRef, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
+pub(crate) use catalog_scope::parse_statement_in_catalog;
 pub(crate) use column_identifier::ColumnIdentifierPath;
 pub use functions::registry;
-pub use parser::{parse_statement, SqlError, SqlErrorKind};
+pub use parser::{
+    parse_statement, with_domain_scope, with_type_scope, DomainResolver, SqlError, SqlErrorKind,
+    TypeResolver,
+};
 
 #[cfg(test)]
 pub(crate) use parameters::checked_parse_parameter_types_in_scope;
@@ -104,10 +109,23 @@ pub(crate) fn field_type_for_column<'a>(
     column: &str,
 ) -> Option<&'a DataType> {
     let column = crate::sql::ColumnIdentifierPath::parse(column).ok()?;
-    field_types
+    let found = field_types
         .get(&column.namespace_key())
-        .or_else(|| field_types.get(&column.lookup_key()))
-        .or_else(|| field_types.get(&column.field_lookup_key()))
+        .or_else(|| field_types.get(&column.lookup_key()));
+    if found.is_some() {
+        return found;
+    }
+    // A row carrier that this source does not declare is an enclosing query's alias. Its
+    // bare field name may name a different column here (generated sources also call their
+    // output `column1`), so it must not resolve by name alone.
+    if column.is_qualified()
+        && column
+            .namespace_qualifier()
+            .is_some_and(|qualifier| qualifier.starts_with("__cassie_relation_alias_"))
+    {
+        return None;
+    }
+    field_types.get(&column.field_lookup_key())
 }
 
 #[cfg(test)]

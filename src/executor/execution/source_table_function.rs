@@ -17,6 +17,7 @@ pub(super) fn execute(
         function,
         lateral,
         with_ordinality,
+        form,
     } = source
     else {
         unreachable!("table function dispatch requires a table function");
@@ -42,6 +43,15 @@ pub(super) fn execute(
             ctes,
         );
     }
+    if let Some(result) = super::source_json_records::dispatch(
+        env,
+        function,
+        (form.as_deref(), *with_ordinality),
+        (outer_row, row_budget),
+        ctes,
+    ) {
+        return result;
+    }
     if crate::sql::table_sources::json_element_source(&function.name).is_some() {
         return super::source_json_elements::execute(
             env,
@@ -60,6 +70,15 @@ pub(super) fn execute(
         env.controls.check_interruption()?;
         // Native plugin loading is absent from the current Cassie profile.
         return finalize_source_batches(env, Vec::new(), Vec::new(), qualify, name);
+    }
+    if crate::sql::functions::is_identify_object(&function.name) {
+        return super::source_identify_object::execute(
+            env,
+            name,
+            function,
+            if lateral { outer_row } else { None },
+            qualify,
+        );
     }
     if crate::sql::functions::is_pg_input_error_info(&function.name) {
         return execute_pg_input_error_info(

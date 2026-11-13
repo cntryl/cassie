@@ -48,18 +48,8 @@ impl Fold<'_, '_> {
             }
             return Ok(Some(Summary::known(output.unwrap_or(705))));
         }
-        if let Some(json) = table_sources::json_element_source(&function.name) {
-            // The document argument is JSON (OID 114) or JSONB (OID 3802) by function family.
-            let document = if json.binary { 3802 } else { 114 };
-            for summary in self.summaries.values[frame.start..]
-                .iter_mut()
-                .take(function.args.len())
-            {
-                if matches!(summary.oid, 0 | 705) {
-                    self.occurrences.coerce(summary, document, false)?;
-                }
-            }
-            return Ok(Some(Summary::known(document)));
+        if let Some(summary) = self.json_source(function, frame)? {
+            return Ok(Some(summary));
         }
         if !table_sources::is_series(&function.name) {
             return Ok(None);
@@ -105,5 +95,49 @@ impl Fold<'_, '_> {
         Ok(Some(Summary::known(
             i32::try_from(signature.output.type_oid()).unwrap_or(705),
         )))
+    }
+
+    /// JSON document sources: element expansion, record-returning functions and `JSON_TABLE`.
+    fn json_source(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if let Some(json) = table_sources::json_element_source(&function.name) {
+            // The document argument is JSON (OID 114) or JSONB (OID 3802) by function family.
+            let document = if json.binary { 3802 } else { 114 };
+            for summary in self.summaries.values[frame.start..]
+                .iter_mut()
+                .take(function.args.len())
+            {
+                if matches!(summary.oid, 0 | 705) {
+                    self.occurrences.coerce(summary, document, false)?;
+                }
+            }
+            return Ok(Some(Summary::known(document)));
+        }
+        if let Some(record) = table_sources::record_source(&function.name) {
+            // Only the document slot is JSON typed; a populate base keeps its own type.
+            let document = if record.binary { 3802 } else { 114 };
+            if let Some(summary) = self.summaries.values[frame.start..]
+                .get_mut(record.document_index())
+                .filter(|summary| matches!(summary.oid, 0 | 705))
+            {
+                self.occurrences.coerce(summary, document, false)?;
+            }
+            return Ok(Some(Summary::known(document)));
+        }
+        if table_sources::is_json_table(&function.name) {
+            // The context item is JSONB; PASSING values keep their own types.
+            if let Some(summary) = self.summaries.values[frame.start..]
+                .iter_mut()
+                .next()
+                .filter(|summary| matches!(summary.oid, 0 | 705))
+            {
+                self.occurrences.coerce(summary, 3802, false)?;
+            }
+            return Ok(Some(Summary::known(3802)));
+        }
+        Ok(None)
     }
 }

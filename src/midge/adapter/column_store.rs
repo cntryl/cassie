@@ -151,6 +151,39 @@ impl Midge {
         Ok(created.then_some(storage_id))
     }
 
+    /// Writes the row schema, projection and cardinality records that are not stored yet.
+    fn save_missing_collection_state(
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        name: &str,
+        row_schema: &RowSchema,
+    ) -> Result<(), CassieError> {
+        if tx
+            .get(&Self::row_schema_key(name))
+            .map_err(CassieError::from)?
+            .is_none()
+        {
+            Self::save_row_schema_to_tx(tx, name, row_schema)?;
+        }
+        if tx
+            .get(&Self::projection_key(name))
+            .map_err(CassieError::from)?
+            .is_none()
+        {
+            Self::save_projection_metadata_to_tx(
+                tx,
+                &ProjectionMeta::new(name, row_schema.schema_version),
+            )?;
+        }
+        if tx
+            .get(Self::cardinality_key(name).as_slice())
+            .map_err(CassieError::from)?
+            .is_none()
+        {
+            Self::save_cardinality_stats_to_tx(tx, name, &CollectionCardinalityStats::default())?;
+        }
+        Ok(())
+    }
+
     fn create_collection_with_meta_inner(
         &self,
         name: &str,
@@ -174,6 +207,9 @@ impl Midge {
         };
         let storage_id = needs_storage_id
             .then(|| self.allocate_object_id())
+            .transpose()?;
+        let row_type_ids = needs_storage_id
+            .then(|| Ok::<_, CassieError>((self.allocate_object_id()?, self.allocate_object_id()?)))
             .transpose()?;
         let mut tx = self.begin_data_rw_tx_for(&name)?;
 
@@ -204,36 +240,10 @@ impl Midge {
             })?
         };
         metadata.storage_id = storage_id;
+        assign_row_type_ids(&mut metadata, existing_metadata.as_ref(), row_type_ids);
         let mut row_schema = RowSchema::from_schema(schema);
         row_schema.relation_id = storage_id;
-        if tx
-            .get(&Self::row_schema_key(&name))
-            .map_err(CassieError::from)?
-            .is_none()
-        {
-            Self::save_row_schema_to_tx(&mut tx, &name, &row_schema)?;
-        }
-        if tx
-            .get(&Self::projection_key(&name))
-            .map_err(CassieError::from)?
-            .is_none()
-        {
-            Self::save_projection_metadata_to_tx(
-                &mut tx,
-                &ProjectionMeta::new(&name, row_schema.schema_version),
-            )?;
-        }
-        if tx
-            .get(Self::cardinality_key(&name).as_slice())
-            .map_err(CassieError::from)?
-            .is_none()
-        {
-            Self::save_cardinality_stats_to_tx(
-                &mut tx,
-                &name,
-                &CollectionCardinalityStats::default(),
-            )?;
-        }
+        Self::save_missing_collection_state(&mut tx, &name, &row_schema)?;
         if existing_metadata.is_none() {
             Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
         }
@@ -911,5 +921,24 @@ impl Midge {
 
     pub(super) fn column_store_field_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {
         key_encoding::column_store_field_key(relation_id, field_id, id)
+    }
+}
+
+/// Keeps the row-type identities of existing metadata, else adopts the newly allocated pair.
+fn assign_row_type_ids(
+    metadata: &mut CollectionMeta,
+    existing: Option<&CollectionMeta>,
+    allocated: Option<(u64, u64)>,
+) {
+    match (existing, allocated) {
+        (Some(existing), _) if existing.row_type_object_id != 0 => {
+            metadata.row_type_object_id = existing.row_type_object_id;
+            metadata.row_array_object_id = existing.row_array_object_id;
+        }
+        (_, Some((row_type, row_array))) => {
+            metadata.row_type_object_id = row_type;
+            metadata.row_array_object_id = row_array;
+        }
+        _ => {}
     }
 }

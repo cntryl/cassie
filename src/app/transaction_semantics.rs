@@ -55,6 +55,7 @@ pub(crate) fn transactional_ddl_supported(catalog: &Catalog, statement: &QuerySt
         | QueryStatement::AlterSchema(_)
         | QueryStatement::CommentOn(_)
         | QueryStatement::Extension(_)
+        | QueryStatement::Type(_)
         | QueryStatement::CreateMaterializedView(_)
         | QueryStatement::RefreshMaterializedView(_)
         | QueryStatement::DropMaterializedView(_)

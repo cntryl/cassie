@@ -69,6 +69,8 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
                         atttypmod: -1,
                         format_code: 0,
                         nullable: true,
+                        is_record: false,
+                        record_type: None,
                     },
                     ColumnMeta {
                         name: "note".into(),
@@ -78,6 +80,8 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
                         atttypmod: -1,
                         format_code: 0,
                         nullable: true,
+                        is_record: false,
+                        record_type: None,
                     },
                 ]
             );

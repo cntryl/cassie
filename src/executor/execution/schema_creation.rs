@@ -115,13 +115,50 @@ pub(super) fn create_table(
     })
 }
 
+fn initial_table_indexes(
+    table: &str,
+    constraints: &[FieldConstraint],
+    additional_like_indexes: Vec<IndexMeta>,
+) -> Vec<IndexMeta> {
+    let mut initial_indexes = primary_key_indexes(table, constraints);
+    initial_indexes.extend(catalog::composite_primary_key_indexes(table, constraints));
+    initial_indexes.extend(catalog::unique_constraint_indexes(table, constraints));
+    initial_indexes.extend(additional_like_indexes);
+    initial_indexes
+}
+
+/// Persists the indexes of a new table. A retry after a failed publication
+/// completes the journal the earlier attempt prepared rather than reusing its
+/// index name.
+fn persist_initial_indexes(
+    cassie: &Cassie,
+    indexes: &[catalog::IndexMeta],
+) -> Result<(), QueryError> {
+    for index in indexes {
+        let recovered = cassie
+            .midge
+            .recover_prepared_index_with_held_collection_gate(&index.collection, &index.name)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        if recovered {
+            continue;
+        }
+        cassie
+            .midge
+            .put_index_with_held_collection_gate(index)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+    }
+    Ok(())
+}
+
 fn create_table_gated(
     cassie: &Cassie,
     statement: &CreateTableStatement,
     table: &str,
     controls: &QueryExecutionControls,
 ) -> Result<CreationOutcome, QueryError> {
-    if statement.if_not_exists && cassie.catalog.relation_exists(table) {
+    if statement.if_not_exists
+        && (cassie.catalog.relation_exists(table) || cassie.catalog.composite_type_exists(table))
+    {
         return CreationOutcome::unchanged("CREATE TABLE", controls);
     }
     if cassie.catalog.relation_exists(table) {
@@ -142,16 +179,7 @@ fn create_table_gated(
     let mut collection_meta =
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences = prepare_table_sequences(cassie, statement, fields)?;
-    let mut initial_indexes = primary_key_indexes(table, constraints.as_slice());
-    initial_indexes.extend(catalog::composite_primary_key_indexes(
-        table,
-        constraints.as_slice(),
-    ));
-    initial_indexes.extend(catalog::unique_constraint_indexes(
-        table,
-        constraints.as_slice(),
-    ));
-    initial_indexes.extend(additional_like_indexes);
+    let initial_indexes = initial_table_indexes(table, &constraints, additional_like_indexes);
     let output = super::command_output::empty("CREATE TABLE", controls)?;
     if statement.like.is_some() {
         let Some(storage_id) = cassie
@@ -186,22 +214,18 @@ fn create_table_gated(
             .save_constraints(table, constraints.as_slice())
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
+    // Creation paths return only the storage identity; the allocator-backed
+    // row-type identities were persisted with the metadata.
+    if let Some(stored) = cassie
+        .midge
+        .collection_metadata(table)
+        .map_err(QueryError::from)?
+    {
+        collection_meta.row_type_object_id = stored.row_type_object_id;
+        collection_meta.row_array_object_id = stored.row_array_object_id;
+    }
     if statement.like.is_none() {
-        for index in &initial_indexes {
-            // A retry after a failed publication completes the journal the
-            // earlier attempt prepared rather than reusing its index name.
-            let recovered = cassie
-                .midge
-                .recover_prepared_index_with_held_collection_gate(&index.collection, &index.name)
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            if recovered {
-                continue;
-            }
-            cassie
-                .midge
-                .put_index_with_held_collection_gate(index)
-                .map_err(|error| QueryError::General(error.to_string()))?;
-        }
+        persist_initial_indexes(cassie, &initial_indexes)?;
     }
     if statement.like.is_some() {
         super::sequence_command::register_created_sequences(cassie, table_sequences);

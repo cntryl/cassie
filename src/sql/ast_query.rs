@@ -84,6 +84,9 @@ pub enum QuerySource {
         lateral: bool,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         with_ordinality: bool,
+        /// Column definition list or `JSON_TABLE` specification of a generated source.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        form: Option<Box<super::TableFunctionForm>>,
     },
     Subquery {
         alias: String,
@@ -253,6 +256,22 @@ pub enum ArraySubscript {
 
 /// Internal parser/binder marker for SQL `ARRAY[...]` constructors.
 pub const ARRAY_CONSTRUCTOR_FUNCTION: &str = "__cassie_array_constructor";
+
+/// Internal parser/binder marker for SQL `ROW(...)` and implicit `(a, b)` constructors.
+pub const ROW_CONSTRUCTOR_FUNCTION: &str = "__cassie_row_constructor";
+
+/// Internal marker for `(expr).field`; the arguments are the composite
+/// expression and the field name as a string literal.
+pub const FIELD_ACCESS_FUNCTION: &str = "__cassie_field_access";
+/// The field name of `(expr).*`, which the binder expands in a SELECT list.
+pub const FIELD_ACCESS_ALL: &str = "*";
+
+/// Whether `name` is one of the internal record-syntax markers.
+#[must_use]
+pub fn is_record_syntax_function(name: &str) -> bool {
+    name.eq_ignore_ascii_case(ROW_CONSTRUCTOR_FUNCTION)
+        || name.eq_ignore_ascii_case(FIELD_ACCESS_FUNCTION)
+}
 
 /// Internal marker for an explicit `VARIADIC` array argument to a scalar function.
 pub const VARIADIC_ARRAY_ARGUMENT_FUNCTION: &str = "__cassie_variadic_array_argument";

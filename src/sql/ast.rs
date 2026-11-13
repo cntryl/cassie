@@ -21,12 +21,27 @@ pub use ast_schema::{AlterTableOperation, AlterTableStatement, IdentityAlteratio
 #[path = "ast_extension.rs"]
 mod ast_extension;
 pub use ast_extension::{ExtensionAction, ExtensionStatement};
+#[path = "ast_domain.rs"]
+mod ast_domain;
+pub use ast_domain::{
+    DomainAction, DomainAlteration, DomainCheckDefinition, DomainDefaultDefinition,
+};
+#[path = "ast_type.rs"]
+mod ast_type;
+pub use ast_type::{TypeAction, TypeAlteration, TypeAttribute, TypeStatement};
 #[path = "ast_object_comment.rs"]
 mod ast_object_comment;
 pub use ast_object_comment::{CommentOnObjectKind, CommentOnStatement};
 
 #[path = "ast_query.rs"]
 mod ast_query;
+#[path = "ast_table_function.rs"]
+mod ast_table_function;
+pub use ast_table_function::{
+    ExistsBehavior, JsonBehavior, JsonQuotes, JsonTableColumn, JsonTableExistsColumn,
+    JsonTableNested, JsonTableRootError, JsonTableSpec, JsonTableValueColumn, JsonWrapper,
+    RecordColumn, TableFunctionForm,
+};
 #[path = "ast_session.rs"]
 mod ast_session;
 pub use ast_session::{
@@ -54,11 +69,12 @@ pub use ast_dml::{
     MERGE_ACTION_COLUMN,
 };
 pub use ast_query::{
-    AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression,
-    CteCycle, CteMaterialization, CteQuery, CteSearch, CteSearchOrder, Expr, FunctionCall,
-    JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement,
-    SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp, WindowFrame, WindowFrameBound,
-    WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall, ARRAY_CONSTRUCTOR_FUNCTION,
+    is_record_syntax_function, AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params,
+    CastIdentity, CommonTableExpression, CteCycle, CteMaterialization, CteQuery, CteSearch,
+    CteSearchOrder, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem,
+    SelectSet, SelectStatement, SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp,
+    WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
+    ARRAY_CONSTRUCTOR_FUNCTION, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION,
     VARIADIC_ARRAY_ARGUMENT_FUNCTION,
 };
 
@@ -153,6 +169,7 @@ pub enum QueryStatement {
     DropProcedure(DropProcedureStatement),
     CallProcedure(CallProcedureStatement),
     Extension(ExtensionStatement),
+    Type(TypeStatement),
     DropSchema(DropSchemaStatement),
     AlterSchema(AlterSchemaStatement),
 }
@@ -558,6 +575,9 @@ pub struct EnforceRetentionPolicyStatement {
 pub struct CreateFunctionStatement {
     pub name: String,
     pub if_not_exists: bool,
+    /// `CREATE OR REPLACE`: an existing function of this name is redefined.
+    #[serde(default)]
+    pub or_replace: bool,
     pub args: Vec<FunctionArg>,
     pub return_type: DataType,
     pub volatility: Volatility,
@@ -574,6 +594,9 @@ pub struct DropFunctionStatement {
 pub struct CreateProcedureStatement {
     pub name: String,
     pub if_not_exists: bool,
+    /// `CREATE OR REPLACE`: an existing procedure of this name is redefined.
+    #[serde(default)]
+    pub or_replace: bool,
     pub args: Vec<FunctionArg>,
     pub body: String,
 }

@@ -22,6 +22,22 @@ pub(super) fn evaluate(
     Some((|| {
         require_arg_count_range(name, args, range)?;
         if name == "concat_ws" {
+            let rendered: Vec<Value>;
+            let args = if args.iter().any(is_record) {
+                rendered = args
+                    .iter()
+                    .map(|value| {
+                        if is_record(value) {
+                            Value::String(super::to_text(value))
+                        } else {
+                            value.clone()
+                        }
+                    })
+                    .collect();
+                &rendered[..]
+            } else {
+                args
+            };
             return concat_ws(args, controls);
         }
         if args.iter().any(|value| matches!(value, Value::Null)) {
@@ -37,6 +53,10 @@ pub(super) fn evaluate(
             _ => unreachable!("text transform dispatch"),
         }
     })())
+}
+
+fn is_record(value: &Value) -> bool {
+    matches!(value, Value::Typed(typed) if typed.as_record().is_some())
 }
 
 fn overlay(args: &[Value], controls: Option<&QueryExecutionControls>) -> Result<Value, QueryError> {

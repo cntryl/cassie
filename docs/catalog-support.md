@@ -48,30 +48,83 @@ prerequisite. The `#843` descriptors exist in
 but `pg_extension` and `pg_available_extensions` currently return no rows;
 extension installation, availability, digest registration, and lifecycle are
 still owned by #843. Empty rows do not advertise an installed or available
-extension. The `#818` conversion and lookup contract is owned by #818 and its
-remaining privilege-aware visibility dependency; the base relation descriptors
+extension. The `#818` conversion and lookup contract is owned by #818 (privilege-aware
+unqualified visibility is implemented and tested, see the
+[object identifier contract](object-identifier-contract.md#visibility)); the base relation descriptors
 do not establish that lookup behavior by themselves.
+
+Evidence for the #843 catalog rows (executed in the final full run on
+1d0750c19): descriptors in
+[`catalog_descriptors.rs`](../tests/compatibility/lifecycle/extensions/catalog_descriptors.rs),
+installed and available rows in
+[`extension_catalog_coverage.rs`](../tests/compatibility/lifecycle/extensions/extension_catalog_coverage.rs),
+and the registered `pgcrypto.digest` `pg_proc` rows in
+[`pgcrypto_extension.rs`](../tests/compatibility/lifecycle/extensions/pgcrypto_extension.rs).
+
+### #817 exclusions
+
+The selected #817 catalog surface deliberately excludes the following; each is
+an absent capability or documented divergence, not a regression. Details are in
+the linked entries.
+
+- Fields beyond the finite selection above, including `extconfig`,
+  `extcondition` and the available-extension `comment`
+  ([#843 field set](#843-extension-catalog-field-set--2026-11-11)); broad
+  `pg_proc` (user routine rows, `proargtypes`) and `pg_stat_activity`.
+- Owners and ACLs: `nspowner`/`relowner` describe `root`; `nspacl`/`relacl` are
+  empty; routine owner checks are not enforced.
+- `pg_class.reltype` is 0 for views (PostgreSQL gives a row type), and domain
+  rows carry no `typdefault` or `pg_constraint` rows.
+- `relhasindex` stays true after the last index is dropped (no VACUUM); see
+  `pg_class.relhasindex` below.
+- Cassie Column, TimeSeries and legacy `USING vector` indexes are not
+  published as `pg_class` rows and have no access-method identity.
+- `pg_identify_object`: select-list projection, `pg_identify_object_as_address`
+  and `pg_get_object_address`; column names for indexes, materialized views and
+  catalog relations; classes outside relations, types, schemas, routines,
+  extensions and roles (`0A000`).
+- No routine overloads within a schema; user-defined operators are not
+  resolvable ([type contract](type-contract.md)).
+- Enum rows (#827), custom array identities beyond the registered arrays, and
+  the 26 absent object registries, which are shape-only empty relations.
 
 In the current source, [`virtual_views_pg.rs`](../src/catalog/virtual_views_pg.rs)
 declares and builds the selected base `pg_namespace`, `pg_class`, `pg_type`,
 and `pg_attribute` rows. Their existence does not complete the dependent
 workflows: user object resolution still belongs to #818, selected
-composite/domain type rows are absent until #828, and extension catalog rows
+domain and composite type rows are covered by executed #828 regressions; domain rows carry no
+`typdefault` and no `pg_constraint` rows, and extension catalog rows
 remain empty until #843. `nspowner` and
 `relowner` currently describe the bootstrap `root`; `nspacl` and `relacl` are
 empty. Role-aware schema/table grant reporting remains with #831.
 
-The finite `pg_class.relam` mapping remains limited to identities already
-selected by their owning features: heap tables use OID 2, scalar btree indexes
-use OID 403, and full-text indexes use GIN OID 2742. Cassie-native vector,
-column, and time-series indexes continue to report 0 because this field set
-does not yet assign PostgreSQL or Cassie-specific access-method identities to
-them. This is current source behavior, not a disposition of the selected
-`relam` acceptance: #817 must resolve whether those implemented index rows need
-catalog identities before the issue can close. The current source and contract
-do not justify adding `pg_am` rows or inventing identities here. In particular,
-pgvector HNSW/IVFFlat method identity remains part of the pending #843/#844
-contract.
+The `pg_class.relam` identity follows PostgreSQL 18.6 for every published
+relation kind: heap tables and SQL materialized views report OID 2, scalar
+btree indexes OID 403, hash indexes OID 405, full-text indexes GIN OID 2742,
+and installed pgvector HNSW/IVFFlat indexes the access-method OIDs registered
+by the `vector` extension. Views, sequences and composite types report 0, as
+PostgreSQL does. Cassie Column, TimeSeries and legacy `USING vector` derived
+indexes are not published as `pg_class` rows, so they need no access-method
+identity. Regressions executed and passing in the final full run on
+1d0750c19 (12,657/12,657):
+[`relation_access_methods.rs`](../tests/catalog_security/catalogs/types/object_identity/relation_access_methods.rs).
+
+`pg_identify_object(classid, objid, objsubid)` is a FROM-only table function
+returning `type`, `schema`, `name` and `identity` text columns with
+PostgreSQL 18.6 spelling. It identifies the classes Cassie models:
+`pg_class` relations (tables, views, materialized views, indexes, sequences
+and composite-type relations), `pg_type` types (built-in, array,
+composite, domain and table row types), `pg_namespace` schemas, `pg_proc` user and built-in routines,
+`pg_extension` extensions and `pg_authid` roles. A sub-object number names a
+column of tables, views, sequences and composite types; indexes, materialized
+views and catalog relations name no column and return only the column type. A
+missing object returns the class description with `NULL` columns, a `NULL`
+argument returns an all-`NULL` row, and a class Cassie does not model fails
+with SQLSTATE `0A000`. Projecting the record in a select list, and
+`pg_identify_object_as_address` and `pg_get_object_address`, remain absent
+capabilities rather than regressions. Regressions executed and passing in the
+final full run on 1d0750c19 (12,657/12,657):
+[`identify_object.rs`](../tests/catalog_security/catalogs/types/object_identity/identify_object.rs).
 
 The selected `pg_class.relhasindex` value currently reports whether the
 relation has an index, derived from live index metadata.
@@ -326,16 +379,25 @@ direct namespace identity behavior (0.90, 0.85), and qualified lookup behavior
 `regclass` behavior; see [search_path](https://www.postgresql.org/docs/18/runtime-config-client.html),
 [object identifier types](https://www.postgresql.org/docs/18/datatype-oid.html),
 and the [PostgreSQL 18 `regclass` implementation](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/regproc.c).
-The role-aware lookup regression is authored with #831 integration and remains
-unexecuted; it distinguishes unqualified lookup before/after USAGE, qualified
+The role-aware lookup regressions are executed and passing
+([`identifier_visibility.rs`](../tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs), including user routines and types); they distinguish unqualified lookup before/after USAGE, qualified
 identity lookup, namespace lookup, and table SELECT authorization.
 
-The descriptor additions selected by #828 are present before its type runtime: rows for
-the currently supported types report `typnotnull = false` and `typtypmod = -1`,
-and `pg_class.reltype = 0` while Cassie has no row-type identity for the
-relation. This is the deterministic unsupported boundary, not composite/domain
-support or PostgreSQL row-type parity. #828 owns the future database-scoped
-row-type and domain OIDs. Enum rows remain deferred to #827; broad routines,
+The descriptor additions selected by #828 are present: rows for the currently
+supported types report `typnotnull = false` and `typtypmod = -1`, and
+`pg_class.reltype` is the derived row-type OID for tables (see below) and 0 for
+views and sequences. User composite types add a `pg_type` row
+(`typtype = 'c'`, `typcategory = 'C'`, `typrelid`, `typarray`), a `_name`
+array `pg_type` row, a `pg_class` row with `relkind = 'c'` whose `reltype` is
+the type OID, and one `pg_attribute` row per field. These rows are covered by
+the #828 regressions executed in the final full run on 1d0750c19. Increment 2 adds a row type per table: a `pg_type` row (`typtype = 'c'`, `typrelid` = the
+table) and `_name` array row with OIDs allocated by the Midge object-id allocator
+and persisted on the table (below `2^31`, stable across rename and restart), and `pg_attribute` rows of a
+composite type use physical attribute numbers, so a dropped attribute leaves a gap.
+Domain types add a `pg_type` row (`typtype = 'd'`,
+`typbasetype`, `typtypmod`, `typnotnull`) and a `_name` array row with allocator-backed
+OIDs; `pg_attribute.atttypid` of a domain column is the domain OID while `atttypmod` is
+`-1`. Enum rows remain deferred to #827; broad routines,
 dependency families, sequences, and partitions remain unselected except for
 separately documented finite workflows.
 

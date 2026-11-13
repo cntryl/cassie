@@ -40,18 +40,8 @@ pub(super) fn encode_value(
             0,
             crate::types::object_id::MAX_OID,
         ),
-        DataType::Float => {
-            let value = value
-                .as_f64()
-                .ok_or_else(|| CassieError::InvalidVector("float field expects f64".into()))?;
-            Ok((TYPE_F64, value.to_be_bytes().to_vec()))
-        }
-        DataType::Boolean => {
-            let value = value
-                .as_bool()
-                .ok_or_else(|| CassieError::InvalidVector("boolean field expects bool".into()))?;
-            Ok((TYPE_BOOL, vec![u8::from(value)]))
-        }
+        DataType::Float => encode_float(value),
+        DataType::Boolean => encode_boolean(value),
         DataType::Name => encode_string_value(value, "name field expects string"),
         DataType::Text => encode_string_value(value, "text field expects string"),
         DataType::Char { length } => encode_bounded_string(
@@ -70,14 +60,7 @@ pub(super) fn encode_value(
             "varchar field expects string",
             "varchar field expects up to {length} characters",
         ),
-        DataType::Uuid => {
-            let value = value
-                .as_str()
-                .ok_or_else(|| CassieError::InvalidVector("uuid field expects string".into()))?;
-            let uuid = Uuid::parse_str(value)
-                .map_err(|_| CassieError::InvalidVector("uuid field expects UUID".into()))?;
-            Ok((TYPE_UUID, uuid.as_bytes().to_vec()))
-        }
+        DataType::Uuid => encode_uuid(value),
         DataType::Date => encode_temporal_string(
             value,
             TYPE_DATE,
@@ -96,13 +79,10 @@ pub(super) fn encode_value(
             "timestamp field expects string",
             crate::types::temporal::canonical_timestamp,
         ),
-        DataType::Bytea => {
-            let value = value
-                .as_str()
-                .ok_or_else(|| CassieError::InvalidVector("bytea field expects string".into()))?;
-            Ok((TYPE_BYTEA, decode_bytea(value)?))
-        }
+        DataType::Bytea => encode_bytea(value),
         DataType::Array(inner) => encode_array_value(inner, value),
+        DataType::Composite(descriptor) => super::composite::encode_composite(descriptor, value),
+        DataType::Domain(descriptor) => super::domain::encode_domain(descriptor, value),
         DataType::Json | DataType::Jsonb => {
             let encoded = serde_json::to_vec(value)
                 .map_err(|error| CassieError::Parse(format!("invalid json field: {error}")))?;
@@ -113,6 +93,36 @@ pub(super) fn encode_value(
             "JSONPATH values are expression-only and cannot be persisted".to_string(),
         )),
     }
+}
+
+fn encode_float(value: &serde_json::Value) -> Result<(u8, Vec<u8>), CassieError> {
+    let value = value
+        .as_f64()
+        .ok_or_else(|| CassieError::InvalidVector("float field expects f64".into()))?;
+    Ok((TYPE_F64, value.to_be_bytes().to_vec()))
+}
+
+fn encode_boolean(value: &serde_json::Value) -> Result<(u8, Vec<u8>), CassieError> {
+    let value = value
+        .as_bool()
+        .ok_or_else(|| CassieError::InvalidVector("boolean field expects bool".into()))?;
+    Ok((TYPE_BOOL, vec![u8::from(value)]))
+}
+
+fn encode_uuid(value: &serde_json::Value) -> Result<(u8, Vec<u8>), CassieError> {
+    let value = value
+        .as_str()
+        .ok_or_else(|| CassieError::InvalidVector("uuid field expects string".into()))?;
+    let uuid = Uuid::parse_str(value)
+        .map_err(|_| CassieError::InvalidVector("uuid field expects UUID".into()))?;
+    Ok((TYPE_UUID, uuid.as_bytes().to_vec()))
+}
+
+fn encode_bytea(value: &serde_json::Value) -> Result<(u8, Vec<u8>), CassieError> {
+    let value = value
+        .as_str()
+        .ok_or_else(|| CassieError::InvalidVector("bytea field expects string".into()))?;
+    Ok((TYPE_BYTEA, decode_bytea(value)?))
 }
 
 fn encode_signed_integer(

@@ -118,6 +118,7 @@ pub(crate) fn bind_input_types(
 pub(crate) fn allows_function(name: &str) -> bool {
     crate::sql::functions::is_temporal_function(name)
         || name.eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+        || crate::sql::ast::is_record_syntax_function(name)
         || name.eq_ignore_ascii_case("_cassie_array_value")
         || name.eq_ignore_ascii_case("array_fill")
 }
@@ -185,6 +186,8 @@ fn validate(
                     | DataType::Timestamp
                     | DataType::Vector(_)
                     | DataType::Array(_)
+                    | DataType::Composite(_)
+                    | DataType::Domain(_)
                     | DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
             ) && !crate::types::extended::operations::handles(data_type) =>
         {

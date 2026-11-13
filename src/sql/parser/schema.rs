@@ -47,15 +47,14 @@ mod schema_table_constraints;
 mod sequence_options;
 use schema_fields::parse_field_definition;
 use schema_fields::parse_field_definition_for_table;
-use schema_identifiers::{
-    parse_column_identifier, parse_column_reference, parse_identifier, parse_relation_path,
-};
+pub(super) use schema_identifiers::{parse_column_identifier, parse_identifier};
+use schema_identifiers::{parse_column_reference, parse_relation_path};
 pub(super) use schema_indexes::{
     parse_alter_index_statement, parse_create_index_statement, parse_drop_index_statement,
     parse_index_options, parse_reindex_statement,
 };
 use schema_like::{is_like_table_element, parse_create_table_like_clause};
-use schema_literals::parse_constant_literal;
+pub(super) use schema_literals::parse_constant_literal;
 pub(super) use schema_literals::parse_constraint_literal;
 use schema_sequences::parse_alter_column_operation;
 use schema_table_constraints::{
@@ -947,7 +946,16 @@ pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
             "unsupported data type '{alias}'"
         )));
     }
-    let data_type = DataType::parse_sql(raw).map_err(|message| {
+    let parsed = DataType::parse_sql(raw);
+    if let (Err(_), Some(composite)) = (&parsed, super::type_scope::resolve_named_type(raw)) {
+        if is_sql_standard_array {
+            return Err(SqlError::unsupported(
+                "arrays of composite types are not supported".into(),
+            ));
+        }
+        return Ok(DataType::Composite(composite));
+    }
+    let data_type = parsed.map_err(|message| {
         if message.starts_with("NUMERIC precision")
             || message.starts_with("NUMERIC scale")
             || message.starts_with("FLOAT precision")

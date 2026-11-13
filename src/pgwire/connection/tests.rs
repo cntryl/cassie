@@ -403,3 +403,60 @@ fn should_reject_oversized_vector_text_sequences_before_returning_output() {
         );
     }
 }
+
+fn record_column() -> ColumnMeta {
+    let descriptor =
+        crate::types::CompositeRef::new(crate::types::composite::CompositeType::anonymous(vec![
+            DataType::Text,
+        ]));
+    ColumnMeta::from_data_type("r", &DataType::Composite(descriptor))
+}
+
+#[test]
+fn should_reject_binary_results_for_a_user_range_oid_without_the_record_flag() {
+    // Arrange
+    let mut column = ColumnMeta::text("extension_value");
+    column.type_oid = 20_000;
+
+    // Act
+    let outcome = super::codecs::validate_result_formats(&[column], &[1]);
+
+    // Assert
+    assert!(outcome.is_err());
+}
+
+#[test]
+fn should_accept_binary_results_for_a_record_column() {
+    // Arrange
+    let column = record_column();
+
+    // Act
+    let outcome = super::codecs::validate_result_formats(&[column], &[1]);
+
+    // Assert
+    assert!(outcome.is_ok());
+}
+
+#[test]
+fn should_accept_binary_results_for_the_anonymous_record_oid() {
+    // Arrange
+    let column = record_column();
+
+    // Act
+    let anonymous_oid = column.type_oid;
+
+    // Assert
+    assert_eq!(anonymous_oid, 2249);
+}
+
+#[test]
+fn should_flag_only_record_columns_in_result_metadata() {
+    // Arrange
+    let text = ColumnMeta::text("t");
+
+    // Act
+    let flags = (text.is_record, record_column().is_record);
+
+    // Assert
+    assert_eq!(flags, (false, true));
+}

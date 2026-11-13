@@ -2,10 +2,14 @@ pub mod builtin_identity;
 pub mod cardinality;
 pub mod collections;
 pub mod column_defaults;
+pub mod composite_alter;
+pub mod composite_reconcile;
+pub mod composite_types;
 pub mod composite_unique;
 pub mod consistency;
 pub mod constraints;
 mod controlled_name;
+pub mod domain_types;
 pub(crate) use controlled_name::name_matches_controlled;
 pub(crate) use controlled_name::trim_checked as trim_catalog_name_controlled;
 pub mod function_resolution;
@@ -17,6 +21,7 @@ pub mod object_comment;
 pub mod object_identity;
 pub mod operational;
 pub mod programs;
+pub mod relation_row_type;
 pub mod repair;
 pub mod retention;
 pub mod roles;
@@ -45,6 +50,7 @@ pub use column_defaults::{
     coerce_default_literal, evaluate_volatile_default, parse_volatile_default_expression,
     volatile_default_accepts,
 };
+pub use composite_types::{CompositeTypeMeta, COMPOSITE_TYPE_FORMAT_VERSION};
 pub use composite_unique::{
     composite_primary_key_constraints, composite_primary_key_indexes, composite_unique_constraints,
     composite_unique_indexes, conflicting_unique_membership, enforces_single_column_uniqueness,
@@ -61,6 +67,7 @@ pub use constraints::{
     DefaultSequenceOwnership, FieldConstraint, IdentityGeneration, NotNullOwnership,
     UniqueNullPolicy,
 };
+pub use domain_types::{same_stored_relation, DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
 pub use graphs::GraphMeta;
 pub use indexes::{
     ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,

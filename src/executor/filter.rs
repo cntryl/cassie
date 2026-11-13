@@ -380,6 +380,12 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
 mod casts;
 #[path = "filter/character_arrays.rs"]
 pub(crate) mod character_arrays;
+#[path = "filter/composite_cast.rs"]
+mod composite_cast;
+pub(crate) use composite_cast::record_from_text;
+#[path = "filter/domain_check.rs"]
+mod domain_check;
+pub(crate) use domain_check::{evaluate_check, first_violation};
 #[path = "filter/constants.rs"]
 mod constants;
 mod like_predicate;
@@ -553,13 +559,35 @@ fn cast_vector_scalar(
     Ok(ScalarValue::Str(text.to_string()))
 }
 
+fn cast_jsonpath(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
+    let path = value
+        .as_str()
+        .ok_or_else(|| QueryError::General("cannot cast value to JSONPATH".into()))?;
+    sql_json_path::JsonPath::new(path)
+        .map(|parsed| {
+            let has_variables = path
+                .as_bytes()
+                .windows(2)
+                .any(|pair| pair[0] == b'$' && (pair[1].is_ascii_alphabetic() || pair[1] == b'_'));
+            ScalarValue::Str(if has_variables {
+                path.to_owned()
+            } else {
+                parsed.to_string()
+            })
+        })
+        .map_err(|error| QueryError::Cassie(crate::app::CassieError::Parse(error.to_string())))
+}
+
 fn cast_scalar(
     value: &ScalarValue,
     data_type: &DataType,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
     if matches!(value, ScalarValue::Null) {
-        return Ok(ScalarValue::Null);
+        return match data_type {
+            DataType::Domain(domain) => domain_check::cast_null(domain),
+            _ => Ok(ScalarValue::Null),
+        };
     }
     if let Some(result) = temporal::cast(value, data_type, controls) {
         return result;
@@ -571,25 +599,7 @@ fn cast_scalar(
         DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32, controls),
         DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64, controls),
         DataType::ObjectId(_) => object_ids::cast(value),
-        DataType::JsonPath => {
-            let path = value
-                .as_str()
-                .ok_or_else(|| QueryError::General("cannot cast value to JSONPATH".into()))?;
-            sql_json_path::JsonPath::new(path)
-                .map(|parsed| {
-                    let has_variables = path.as_bytes().windows(2).any(|pair| {
-                        pair[0] == b'$' && (pair[1].is_ascii_alphabetic() || pair[1] == b'_')
-                    });
-                    ScalarValue::Str(if has_variables {
-                        path.to_owned()
-                    } else {
-                        parsed.to_string()
-                    })
-                })
-                .map_err(|error| {
-                    QueryError::Cassie(crate::app::CassieError::Parse(error.to_string()))
-                })
-        }
+        DataType::JsonPath => cast_jsonpath(value),
         DataType::Extended(kind) => kind
             .cast_from(&value.to_value())
             .map(ScalarValue::Typed)
@@ -654,6 +664,8 @@ fn cast_scalar(
         DataType::Vector(expected_dimensions) => {
             cast_vector_scalar(value, *expected_dimensions, controls)
         }
+        DataType::Composite(descriptor) => composite_cast::cast(value, descriptor, controls),
+        DataType::Domain(domain) => domain_check::cast(value, domain, controls),
     }
 }
 
@@ -814,7 +826,8 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
 
     match (left, right) {
         (ScalarValue::Typed(typed), _) | (_, ScalarValue::Typed(typed))
-            if crate::types::extended::operations::handles_value(typed) =>
+            if typed.as_record().is_some()
+                || crate::types::extended::operations::handles_value(typed) =>
         {
             extended_ops::compare(left, right).map(std::cmp::Ordering::is_eq)
         }
@@ -922,8 +935,9 @@ fn eval_is_null_expr<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     let value = eval_scalar_with_context(row, expr, context)?;
-    let is_null = matches!(value, ScalarValue::Null);
-    Ok(ScalarValue::Bool(if negated { !is_null } else { is_null }))
+    Ok(ScalarValue::Bool(composite_cast::null_test(
+        &value, negated,
+    )))
 }
 
 fn eval_in_list_expr<R: RowAccess + ?Sized>(

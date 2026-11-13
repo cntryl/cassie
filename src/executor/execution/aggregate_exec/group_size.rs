@@ -234,7 +234,10 @@ fn fixed_typed(value: &crate::types::typed::TypedValue) -> bool {
         | TypedValue::Timestamp(_)
         | TypedValue::TimestampTz(_)
         | TypedValue::Interval(_) => true,
-        TypedValue::Numeric(_) | TypedValue::Bit(_) | TypedValue::VarBit(_) => false,
+        TypedValue::Numeric(_)
+        | TypedValue::Bit(_)
+        | TypedValue::VarBit(_)
+        | TypedValue::Record(_) => false,
     }
 }
 

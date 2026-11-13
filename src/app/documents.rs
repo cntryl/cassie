@@ -103,6 +103,7 @@ impl Cassie {
         let constraints = self.catalog.get_constraints(collection);
         canonical_values::canonicalize_typed_values(&schema.fields, &mut payload);
         Self::validate_payload_schema(collection, &schema, &payload)?;
+        self.validate_domain_columns(None, collection, &schema, &payload, None)?;
         self.validate_row_constraints(collection, &payload, &constraints)?;
         Ok(payload)
     }
@@ -148,9 +149,13 @@ impl Cassie {
         if apply_defaults && !constraints.is_empty() {
             super::defaults::apply_default_values(self, session, &mut payload, &constraints)?;
         }
+        if apply_defaults {
+            self.apply_domain_defaults(collection, &mut payload)?;
+        }
         canonical_values::canonicalize_typed_values(&schema.fields, &mut payload);
 
         Self::validate_payload_schema(collection, &schema, &payload)?;
+        self.validate_domain_columns(session, collection, &schema, &payload, exclude_id)?;
 
         let indexes = self.catalog.list_vector_indexes(collection);
         if !indexes.is_empty() {
@@ -487,6 +492,12 @@ impl Cassie {
                 Self::validate_vector(field, *dimensions, value)
             }
             crate::types::DataType::Array(inner) => Self::validate_array(field, inner, value),
+            crate::types::DataType::Composite(descriptor) => {
+                Self::validate_record(field, descriptor, value)
+            }
+            crate::types::DataType::Domain(descriptor) => {
+                Self::validate_value_against_data_type(field, &descriptor.base, value)
+            }
         }
     }
 
@@ -663,6 +674,45 @@ impl Cassie {
         } else {
             Ok(())
         }
+    }
+
+    fn validate_record(
+        field: &str,
+        descriptor: &crate::types::CompositeRef,
+        value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        let stored = value
+            .as_object()
+            .and_then(|object| object.get(crate::types::composite::RECORD_STORAGE_KEY))
+            .and_then(serde_json::Value::as_object)
+            .and_then(|body| body.get("fields"))
+            .and_then(serde_json::Value::as_array);
+        let Some(stored) = stored else {
+            return Self::invalid_vector(field, "a composite record");
+        };
+        if stored.len() != descriptor.physical_len() {
+            return Self::invalid_vector(
+                field,
+                format!("a composite record of {} fields", descriptor.physical_len()),
+            );
+        }
+        for (declared, slot) in descriptor
+            .fields
+            .iter()
+            .zip(descriptor.physical_positions())
+        {
+            let Some(value) = stored.get(slot) else {
+                continue;
+            };
+            if !value.is_null() {
+                Self::validate_value_against_data_type(
+                    &format!("{field}.{}", declared.name),
+                    &declared.data_type,
+                    value,
+                )?;
+            }
+        }
+        Ok(())
     }
 
     fn validate_array(

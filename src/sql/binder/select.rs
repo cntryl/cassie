@@ -128,7 +128,9 @@ pub(super) fn bind_select_with_lateral_fields(
     super::coalesce_results::validate_select(&select, catalog, context)?;
 
     if let Some(set) = set {
-        let right = bind_select(*set.right, catalog, &scope, context)?;
+        // The right branch of a lateral derived table sees the same outer-row columns.
+        let right =
+            bind_select_with_lateral_fields(*set.right, catalog, &scope, lateral_fields, context)?;
         select.set = Some(Box::new(SelectSet {
             operator: set.operator,
             right: Box::new(right),
@@ -589,20 +591,9 @@ pub(super) fn bind_query_source_with_lateral_fields(
         QuerySource::Collection(name) => bind_collection_source(&name, catalog, scope, context),
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
         QuerySource::SingleRow => Ok(QuerySource::SingleRow),
-        QuerySource::TableFunction {
-            name,
-            function,
-            lateral,
-            with_ordinality,
-        } => bind_table_function(
-            name,
-            function,
-            lateral,
-            with_ordinality,
-            catalog,
-            lateral_fields,
-            context,
-        ),
+        source @ QuerySource::TableFunction { .. } => {
+            bind_table_function(source, catalog, lateral_fields, context)
+        }
         QuerySource::Subquery {
             alias,
             select,

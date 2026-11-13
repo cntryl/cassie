@@ -64,6 +64,9 @@ metadata_heap!(crate::catalog::cardinality::CollectionCardinalityStats {
 metadata_heap!(crate::catalog::collections::CollectionMeta {
     name,
     storage_id,
+    row_type_object_id,
+    row_array_object_id,
+    row_type_revision,
     has_ever_had_indexes,
     description,
     storage_mode,
@@ -159,6 +162,7 @@ metadata_heap!(crate::catalog::cardinality::FieldHistogramBucket {
 metadata_heap!(crate::catalog::schemas::FieldMeta {
     name,
     data_type,
+    domain,
     is_indexed,
     boost,
 });
@@ -171,6 +175,7 @@ metadata_heap!(crate::catalog::programs::FunctionMeta {
     return_type,
     volatility,
     body,
+    object_id,
 });
 
 metadata_heap!(crate::catalog::programs::ExtensionMeta {
@@ -185,6 +190,21 @@ metadata_heap!(crate::catalog::programs::ExtensionMeta {
     digest_bytea_object_id,
     vector_type_object_id,
     vector_catalog_identities,
+});
+
+metadata_heap!(crate::types::composite::CompositeField { name, data_type });
+
+metadata_heap!(crate::catalog::composite_types::CompositeTypeMeta {
+    format_version,
+    database,
+    name,
+    object_id,
+    array_object_id,
+    relation_object_id,
+    owner_oid,
+    revision,
+    fields,
+    dropped_positions,
 });
 
 metadata_heap!(crate::catalog::programs::VectorCatalogIdentitySet {
@@ -315,7 +335,12 @@ unit_enum_heap!(crate::catalog::operational::OperationalAssignmentState {
     Failed
 });
 
-metadata_heap!(crate::catalog::programs::ProcedureMeta { name, args, body });
+metadata_heap!(crate::catalog::programs::ProcedureMeta {
+    name,
+    args,
+    body,
+    object_id,
+});
 
 metadata_heap!(
     crate::catalog::collections::ProjectionComparisonReportMeta {
@@ -638,4 +663,52 @@ unit_enum_heap!(crate::catalog::programs::Volatility {
     Immutable,
     Stable,
     Volatile
+});
+
+// A domain descriptor is shared behind an `Arc`; a clone retains no copy.
+impl HeapBytes for crate::types::DomainRef {
+    fn heap_bytes(
+        &self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<usize, crate::app::CassieError> {
+        controls.check_interruption()?;
+        Ok(0)
+    }
+}
+
+impl crate::catalog::metadata::snapshot::exact_eq::ExactMetadataEq for crate::types::DomainRef {
+    fn exact_eq(
+        &self,
+        other: &Self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<bool, crate::app::CassieError> {
+        controls.check_interruption()?;
+        Ok(self == other)
+    }
+}
+
+metadata_heap!(crate::types::DomainDefault {
+    sql,
+    value,
+    expression,
+});
+
+metadata_heap!(crate::types::DomainCheck {
+    name,
+    sql,
+    validated,
+});
+
+metadata_heap!(crate::catalog::domain_types::DomainTypeMeta {
+    format_version,
+    database,
+    name,
+    object_id,
+    array_object_id,
+    owner_oid,
+    revision,
+    base,
+    not_null,
+    default,
+    checks,
 });

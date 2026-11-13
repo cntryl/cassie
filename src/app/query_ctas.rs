@@ -133,7 +133,8 @@ impl Cassie {
                             column.name.clone()
                         }
                     });
-                let data_type = crate::types::DataType::parse_sql(&column.data_type)
+                let data_type = self
+                    .parse_data_type_for_session(Some(session), &column.data_type)
                     .map_err(CassieError::Parse)?;
                 Ok(FieldDefinition {
                     name,
@@ -176,7 +177,7 @@ impl Cassie {
                 )?
             } else {
                 let insert_sql = format!("INSERT INTO {} {}", target.table, as_query.query.raw_sql);
-                let insert = crate::sql::parser::parse_statement(&insert_sql)?;
+                let insert = self.parse_statement_for_session(Some(session), &insert_sql)?;
                 let inserted = self.execute_bound_statement(
                     session,
                     insert.clone(),
@@ -247,7 +248,7 @@ impl Cassie {
             .collect::<Vec<_>>()
             .join(", ");
         let insert_sql = format!("INSERT INTO {} VALUES ({placeholders})", target.table);
-        let insert = crate::sql::parser::parse_statement(&insert_sql)?;
+        let insert = self.parse_statement_for_session(Some(session), &insert_sql)?;
         let fingerprint = crate::runtime::sql_fingerprint(&insert);
         let mut inserted = 0_u64;
         for row in rows.rows() {

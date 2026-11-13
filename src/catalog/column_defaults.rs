@@ -186,6 +186,10 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
             }
             other => other,
         }),
+        DataType::Composite(_) => {
+            Err("DEFAULT values for composite columns are pending under #828".to_string())
+        }
+        DataType::Domain(descriptor) => coerce_default_literal(&descriptor.base, value),
         DataType::Null
         | DataType::Bytea
         | DataType::JsonPath

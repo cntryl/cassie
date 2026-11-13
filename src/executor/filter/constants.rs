@@ -193,7 +193,7 @@ fn resolve<R: RowAccess + ?Sized>(
             .map(|value| super::truth_tests::evaluate(&value, *truth, *negated))
             .transpose(),
         Expr::IsNull { expr, negated } => Ok(resolve(expr, row, context)?
-            .map(|value| ScalarValue::Bool(matches!(value, ScalarValue::Null) != *negated))),
+            .map(|value| ScalarValue::Bool(super::composite_cast::null_test(&value, *negated)))),
         expression @ Expr::Like { .. } => like_value(expression, row, context),
         expression @ Expr::Between { .. } => between_predicate(expression, row, context),
         Expr::RowCompare(comparison) => {
@@ -363,7 +363,7 @@ fn literal(value: ScalarValue) -> Expr {
         },
         ScalarValue::Typed(value) => Expr::Cast {
             expr: Box::new(Expr::StringLiteral(value.text())),
-            data_type: crate::types::DataType::Extended(value.kind()),
+            data_type: value.extended_data_type(),
             source_type: None,
             identity: crate::sql::ast::CastIdentity::Scalar,
         },

@@ -237,16 +237,31 @@ fn query_source_uses_view_function(
             if !visited_views.insert(key.clone()) {
                 return false;
             }
-            let uses_function = crate::sql::parser::parse_statement(&view.query)
-                .ok()
-                .and_then(|parsed| match parsed.statement {
-                    QueryStatement::Select(select) => Some(select),
-                    _ => None,
-                })
-                .is_some_and(|select| {
-                    select_uses_function(&select, function_name)
-                        || select_uses_view_function(&select, function_name, catalog, visited_views)
-                });
+            // The stored body resolves type names from the view's own schema.
+            let context = crate::sql::binder::BindingContext::unscoped(
+                crate::catalog::relation_database_name(&view.name)
+                    .unwrap_or_else(|| crate::sql::binder::BindingContext::default().database),
+                vec![
+                    crate::catalog::relation_schema_name(&view.name),
+                    "public".to_string(),
+                ],
+            );
+            let uses_function =
+                crate::sql::parse_statement_in_catalog(catalog, &context, &view.query)
+                    .ok()
+                    .and_then(|parsed| match parsed.statement {
+                        QueryStatement::Select(select) => Some(select),
+                        _ => None,
+                    })
+                    .is_some_and(|select| {
+                        select_uses_function(&select, function_name)
+                            || select_uses_view_function(
+                                &select,
+                                function_name,
+                                catalog,
+                                visited_views,
+                            )
+                    });
             visited_views.remove(&key);
             uses_function
         }
@@ -805,7 +820,7 @@ fn collect_fulltext_fields_from_function(
 }
 
 pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan {
-    LogicalPlan {
+    let mut plan = LogicalPlan {
         command: None,
         source: select.source.clone(),
         collection: execution_source_name(&select.source),
@@ -820,7 +835,11 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
         limit: select.limit.clone(),
         offset: select.offset.clone(),
         set: select.set.clone(),
-    }
+    };
+    // Derived tables and set-operation branches run through this plan, so an outer-only
+    // predicate must reach the lateral join's left side exactly as it does for a top-level query.
+    crate::planner::lateral_filter::push_into_lateral_join(&mut plan);
+    plan
 }
 
 fn execution_source_name(source: &QuerySource) -> String {

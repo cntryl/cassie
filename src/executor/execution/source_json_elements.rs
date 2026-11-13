@@ -20,7 +20,7 @@ use crate::types::extended::TypeInputError;
 use crate::types::DataType;
 
 /// Object members in input order, retaining duplicate keys (`json` semantics).
-struct OrderedObject(Vec<(String, Box<RawValue>)>);
+pub(super) struct OrderedObject(pub(super) Vec<(String, Box<RawValue>)>);
 
 impl<'de> Deserialize<'de> for OrderedObject {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -177,7 +177,7 @@ fn invalid_input(text: &str) -> CassieError {
     ))
 }
 
-fn parse_error(error: ValueParseError, text: &str) -> QueryError {
+pub(super) fn parse_error(error: ValueParseError, text: &str) -> QueryError {
     match error {
         ValueParseError::Invalid => invalid_input(text).into(),
         ValueParseError::Controlled(error) => error.into(),
@@ -382,7 +382,7 @@ fn raw_text(raw: &RawValue) -> Result<Value, QueryError> {
     }
 }
 
-fn nul_error() -> QueryError {
+pub(super) fn nul_error() -> QueryError {
     CassieError::TypeInput(TypeInputError::new(
         "22P05",
         "unsupported Unicode escape sequence: \\u0000 cannot be converted to text".into(),
@@ -391,7 +391,7 @@ fn nul_error() -> QueryError {
 }
 
 /// JSONB cannot hold U+0000 in any string or key.
-fn contains_nul(document: &serde_json::Value) -> bool {
+pub(super) fn contains_nul(document: &serde_json::Value) -> bool {
     let mut pending = vec![document];
     while let Some(value) = pending.pop() {
         match value {

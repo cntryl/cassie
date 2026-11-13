@@ -182,6 +182,8 @@ pub(super) fn type_name_bytes(data_type: &crate::types::DataType) -> Result<usiz
             decimal_digits(u64::try_from(*dimensions).map_err(|_| size_overflow())?),
         )?,
         DataType::Array(inner) => checked_add(type_name_bytes(inner)?, 2)?,
+        DataType::Composite(descriptor) => descriptor.name.len(),
+        DataType::Domain(descriptor) => descriptor.name.len(),
         DataType::ObjectId(kind) => kind.name().len(),
         DataType::Extended(kind) => kind.name().len(),
     })

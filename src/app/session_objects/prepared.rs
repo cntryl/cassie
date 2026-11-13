@@ -43,7 +43,7 @@ impl Cassie {
         let database = session.current_database().unwrap_or(&self.default_database);
         let parameter_oids = parameter_types
             .iter()
-            .map(|name| parameter_oid(name, &self.catalog, database))
+            .map(|name| parameter_oid(self, session, name, &self.catalog, database))
             .collect::<Result<Vec<_>, _>>()?;
         let parsed = (*prepare.statement).clone();
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
@@ -85,7 +85,7 @@ impl Cassie {
         execute: &ExecuteStatement,
         call: SessionObjectCall<'_>,
     ) -> Result<QueryResult, CassieError> {
-        let parsed = bound_statement(session, execute)?;
+        let parsed = bound_statement(self, session, execute)?;
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
         self.execute_bound_statement(
             session,
@@ -103,7 +103,7 @@ impl Cassie {
         execute: &ExecuteStatement,
         wire_output: bool,
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
-        let parsed = bound_statement(session, execute)?;
+        let parsed = bound_statement(self, session, execute)?;
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
         if wire_output {
             self.describe_pgwire_parsed_statement_for_session(session, parsed, fingerprint, &[])
@@ -142,6 +142,8 @@ impl Cassie {
 /// The OID a declared parameter type binds as; an undeclared slot is
 /// inferred from its use.
 fn parameter_oid(
+    cassie: &Cassie,
+    session: &CassieSession,
     name: &str,
     catalog: &crate::catalog::Catalog,
     database: &str,
@@ -149,7 +151,9 @@ fn parameter_oid(
     if name.is_empty() {
         return Ok(0);
     }
-    let data_type = DataType::parse_sql(name).map_err(CassieError::Parse)?;
+    let data_type = cassie
+        .parse_data_type_for_session(Some(session), name)
+        .map_err(CassieError::Parse)?;
     if matches!(&data_type, DataType::Array(element) if matches!(element.as_ref(), DataType::Vector(_)))
     {
         return Err(CassieError::Unsupported(
@@ -171,6 +175,7 @@ fn parameter_oid(
 /// The prepared body with each `$n` replaced by its argument coerced to the
 /// declared parameter type, as PostgreSQL evaluates `EXECUTE` arguments.
 fn bound_statement(
+    cassie: &Cassie,
     session: &CassieSession,
     execute: &ExecuteStatement,
 ) -> Result<crate::sql::ast::ParsedStatement, CassieError> {
@@ -189,7 +194,7 @@ fn bound_statement(
             format!("CAST(({argument}) AS {declared})")
         })
     });
-    Ok(crate::sql::parser::parse_statement(&sql)?)
+    cassie.parse_statement_for_session(Some(session), &sql)
 }
 
 /// `pg_prepared_statements.parameter_types` text for one declared slot.

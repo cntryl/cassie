@@ -4,7 +4,7 @@ use super::query_metrics::{
     RuntimeFeedbackDeltas,
 };
 use super::{
-    current_time_millis, parser, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
+    current_time_millis, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
     CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
     QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
 };
@@ -298,7 +298,7 @@ impl Cassie {
         }
 
         self.runtime.record_sql_parse();
-        let parsed = parser::parse_statement(sql)?;
+        let parsed = self.parse_statement_for_session(None, sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
         self.describe_parsed_statement(parsed, sql_fingerprint)
     }
@@ -344,12 +344,12 @@ impl Cassie {
         let execution_session = session.with_statement_text(sql, controls)?;
         let session = &execution_session;
         self.runtime.record_sql_parse();
-        let parsed = parser::parse_statement(sql)?;
+        let parsed = self.parse_statement_for_session(Some(session), sql)?;
         let explain = if matches!(parsed.statement, QueryStatement::Explain(_)) {
             parsed
         } else {
             self.runtime.record_sql_parse();
-            parser::parse_statement(&format!("EXPLAIN {}", sql.trim()))?
+            self.parse_statement_for_session(Some(session), &format!("EXPLAIN {}", sql.trim()))?
         };
 
         self.ensure_statement_can_execute(session, &explain, controls)?;
@@ -401,7 +401,7 @@ impl Cassie {
         let execution_session = session.with_statement_text(sql, controls)?;
         let session = &execution_session;
         self.runtime.record_sql_parse();
-        let parsed = parser::parse_statement(sql)?;
+        let parsed = self.parse_statement_for_session(Some(session), sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
         self.execute_parsed_statement_core(session, parsed, sql_fingerprint, params, mode, controls)
     }

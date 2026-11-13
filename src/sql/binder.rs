@@ -21,6 +21,8 @@ mod json_extract;
 mod json_functions;
 mod like_predicates;
 mod pagination_references;
+#[path = "binder/record_sources.rs"]
+mod record_sources;
 #[path = "binder/string_operators.rs"]
 mod string_operators;
 mod symmetric_between;
@@ -118,6 +120,8 @@ mod aliases;
 mod json_predicates;
 #[path = "binder/own_qualifier.rs"]
 mod own_qualifier;
+#[path = "binder/whole_row.rs"]
+mod whole_row;
 pub(crate) use aliases::qualifier as alias_row_qualifier;
 #[path = "binder/cte_bodies.rs"]
 pub(crate) mod cte_bodies;
@@ -127,6 +131,7 @@ mod nested_qualifiers;
 mod projections;
 #[path = "binder/recursive.rs"]
 mod recursive;
+mod routine_replace;
 #[path = "binder/routines.rs"]
 mod routines;
 #[path = "binder/schema.rs"]
@@ -225,6 +230,20 @@ pub(crate) fn parameter_data_type_for_oid_in_database(
     if vector_oid.is_some_and(|vector_oid| i64::from(oid) == vector_oid) {
         return Some(DataType::Vector(None));
     }
+    if let Some(composite) = u32::try_from(oid)
+        .ok()
+        .and_then(|oid| catalog.get_composite_type_by_oid(oid))
+        .filter(|composite| composite.database.eq_ignore_ascii_case(database))
+    {
+        return Some(DataType::Composite(composite.descriptor()));
+    }
+    if let Some(domain) = u32::try_from(oid)
+        .ok()
+        .and_then(|oid| catalog.get_domain_type_by_oid(oid))
+        .filter(|domain| domain.database.eq_ignore_ascii_case(database))
+    {
+        return Some(domain.base);
+    }
     parameter_data_type_for_oid(oid)
 }
 
@@ -280,8 +299,9 @@ pub(crate) fn bind_initial_with_controls(
     context: &BindingContext,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<BoundStatement, CassieError> {
-    alias_admission::validate(&statement, controls)?;
+    alias_admission::validate(&statement, catalog, context, controls)?;
     let mut statement = statement;
+    whole_row::rewrite(&mut statement, catalog, context)?;
     subquery_types::annotate_unbound(&mut statement, catalog, context);
     let mut statement = bind_statement(statement, catalog, &CteScope::new(controls), context)?;
     subquery_types::annotate(&mut statement, catalog, context)?;
@@ -551,6 +571,13 @@ fn bind_catalog_route(
             schema::bind_reindex(statement, catalog, context),
             QueryStatement::Reindex,
         ),
+        CatalogStatement::Extension(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::Extension(statement),
+        )),
+        CatalogStatement::Type(statement) => {
+            Ok(parsed_statement(raw_sql, QueryStatement::Type(statement)))
+        }
         statement => bind_catalog_definition_route(statement, catalog, raw_sql, context),
     }
 }
@@ -616,10 +643,6 @@ fn bind_catalog_definition_route(
             bind_alter_schema(statement, catalog, context),
             QueryStatement::AlterSchema,
         ),
-        CatalogStatement::Extension(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::Extension(statement),
-        )),
         CatalogStatement::CreateView(statement) => bind_catalog_statement(
             raw_sql,
             bind_create_view(statement, catalog, context),
@@ -657,6 +680,8 @@ fn bind_catalog_definition_route(
         | CatalogStatement::CreateIndex(_)
         | CatalogStatement::DropIndex(_)
         | CatalogStatement::AlterIndex(_)
+        | CatalogStatement::Extension(_)
+        | CatalogStatement::Type(_)
         | CatalogStatement::Reindex(_) => unreachable!("routine and index routes are extracted"),
     }
 }

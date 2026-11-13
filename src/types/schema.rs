@@ -23,8 +23,12 @@ pub enum DataType {
     Boolean,
     Name,
     Text,
-    Char { length: Option<u32> },
-    Varchar { length: Option<u32> },
+    Char {
+        length: Option<u32>,
+    },
+    Varchar {
+        length: Option<u32>,
+    },
     Uuid,
     Bytea,
     Date,
@@ -35,6 +39,10 @@ pub enum DataType {
     Jsonb,
     JsonPath,
     Array(Box<DataType>),
+    /// A named composite type or the transient `record` of a `ROW(...)` value.
+    Composite(super::CompositeRef),
+    /// A named domain (#828); SQL resolution flattens it to its base type.
+    Domain(super::DomainRef),
     ObjectId(super::ObjectIdKind),
     Extended(super::extended::ExtendedType),
 }
@@ -81,6 +89,8 @@ impl DataType {
             Self::Jsonb => "jsonb".to_string(),
             Self::JsonPath => "jsonpath".to_string(),
             Self::Array(inner) => format!("{}[]", inner.type_name()),
+            Self::Composite(descriptor) => descriptor.name.clone(),
+            Self::Domain(descriptor) => descriptor.name.clone(),
             Self::ObjectId(kind) => kind.name().to_string(),
             Self::Extended(kind) => kind.type_name(),
         }
@@ -92,9 +102,12 @@ impl DataType {
         match type_metadata(self) {
             TypeMetadata::Scalar(metadata) => i64::from(metadata.oid),
             TypeMetadata::Vector => 0,
+            TypeMetadata::Composite(descriptor) => i64::from(descriptor.oid),
             TypeMetadata::Array(inner) => {
                 let element = match inner {
                     Self::Vector(_) => return 0,
+                    // A composite array's OID is allocated with its element type.
+                    Self::Composite(descriptor) => return i64::from(descriptor.array_oid),
                     other => other.type_oid(),
                 };
                 u32::try_from(element)
@@ -109,7 +122,7 @@ impl DataType {
     pub fn typlen(&self) -> i16 {
         match type_metadata(self) {
             TypeMetadata::Scalar(metadata) => metadata.typlen,
-            TypeMetadata::Vector | TypeMetadata::Array(_) => -1,
+            TypeMetadata::Vector | TypeMetadata::Array(_) | TypeMetadata::Composite(_) => -1,
         }
     }
 
@@ -130,7 +143,29 @@ impl DataType {
             Self::Vector(Some(dimensions)) => i32::try_from(*dimensions).unwrap_or(-1),
             Self::Extended(kind) => kind.typmod(),
             Self::Array(element) => element.atttypmod(),
+            Self::Domain(descriptor) => descriptor.base.atttypmod(),
             _ => -1,
+        }
+    }
+}
+
+impl DataType {
+    /// The type SQL resolution sees: a domain is its base type, anything else
+    /// is itself.
+    #[must_use]
+    pub fn flattened(&self) -> &Self {
+        match self {
+            Self::Domain(descriptor) => descriptor.base.flattened(),
+            other => other,
+        }
+    }
+
+    /// The domain this declared type names, if any.
+    #[must_use]
+    pub const fn domain(&self) -> Option<&super::DomainRef> {
+        match self {
+            Self::Domain(descriptor) => Some(descriptor),
+            _ => None,
         }
     }
 }

@@ -1,0 +1,86 @@
+//! Startup reconciliation of embedded composite descriptors (#828).
+//!
+//! `ALTER TYPE` persists the type and every dependent in its own database in
+//! one Midge transaction. A dependent in another database, and a table's
+//! derived row type after `ALTER TABLE`, are written by a later transaction,
+//! so a crash between the writes can leave a dependent carrying a descriptor
+//! that differs from the persisted type (or, for a table row type, from the
+//! table's current columns). The persisted composite type, or for a row type
+//! the table's current columns, is the authority: hydration replaces every
+//! divergent embedded copy in memory.
+
+use std::collections::HashMap;
+
+use super::Catalog;
+use crate::types::composite::CompositeRef;
+use crate::types::DataType;
+
+fn reconciled(data_type: &DataType, types: &HashMap<u32, CompositeRef>) -> Option<DataType> {
+    match data_type {
+        DataType::Composite(embedded) => types
+            .get(&embedded.oid)
+            .filter(|authoritative| *authoritative != embedded)
+            .map(|authoritative| DataType::Composite(authoritative.clone())),
+        DataType::Array(inner) => {
+            reconciled(inner, types).map(|element| DataType::Array(Box::new(element)))
+        }
+        _ => None,
+    }
+}
+
+impl Catalog {
+    /// Replaces table and view column descriptors that differ from the
+    /// registered composite type with the same OID. Returns how many changed.
+    #[must_use]
+    pub fn reconcile_embedded_composites(&self) -> usize {
+        let mut types: HashMap<u32, CompositeRef> = self
+            .list_composite_types()
+            .iter()
+            .map(|meta| (meta.type_oid(), meta.descriptor()))
+            .collect();
+        // Embedded copies of a row type are stored without domain constraints
+        // (live domains are enforced at write time), so compare against that form.
+        types.extend(
+            self.list_collections()
+                .into_iter()
+                .filter_map(|collection| {
+                    self.relation_row_type_unconstrained(&collection.name)
+                        .map(|descriptor| (descriptor.oid, descriptor))
+                }),
+        );
+        if types.is_empty() {
+            return 0;
+        }
+        let mut changes = Vec::new();
+        for (table, schema) in self.schemas.read().iter() {
+            for field in &schema.fields {
+                if let Some(data_type) = reconciled(&field.data_type, &types) {
+                    changes.push((table.clone(), field.name.clone(), data_type));
+                }
+            }
+        }
+        let count = changes.len();
+        for (table, column, data_type) in changes {
+            self.set_collection_field_type(&table, &column, data_type);
+        }
+        let mut healed = 0;
+        for mut view in self.list_views() {
+            let mut touched = false;
+            for field in &mut view.schema.fields {
+                if let Some(data_type) = reconciled(&field.data_type, &types) {
+                    field.data_type = data_type;
+                    touched = true;
+                }
+            }
+            if touched {
+                healed += 1;
+                self.register_view(view);
+            }
+        }
+        count + healed
+    }
+}
+
+#[cfg(test)]
+#[path = "composite_reconcile_tests.rs"]
+mod tests;

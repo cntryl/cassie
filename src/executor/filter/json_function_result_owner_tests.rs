@@ -118,6 +118,7 @@ fn should_preserve_user_json_function_with_null_or_error_once() {
                 return_type: crate::types::DataType::Jsonb,
                 volatility: crate::catalog::Volatility::Immutable,
                 body: body.into(),
+                object_id: 0,
             },
         )]);
         let context = EvalContext {

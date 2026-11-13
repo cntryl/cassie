@@ -349,7 +349,8 @@ fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
         | QueryStatement::DropView(_)
         | QueryStatement::DropSchema(_)
         | QueryStatement::AlterSchema(_)
-        | QueryStatement::Extension(_) => None,
+        | QueryStatement::Extension(_)
+        | QueryStatement::Type(_) => None,
     }
 }
 

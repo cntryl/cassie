@@ -11,6 +11,7 @@ fn schema() -> CollectionSchema {
         fields: vec![FieldMeta {
             name: "nullable".into(),
             data_type: DataType::Jsonb,
+            domain: None,
             is_indexed: false,
             boost: None,
         }],

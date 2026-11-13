@@ -1,10 +1,10 @@
-//! `regproc`, `regprocedure`, `regoper` and `regoperator` over the built-in
-//! `pg_proc` and `pg_operator` rows.
-use super::names::{builtin_type_oid, qualified_name, quote_identifier, signature, Identifier};
+//! `regoper` and `regoperator` over the built-in `pg_operator` rows. Routine
+//! names resolve in `user_routines`.
+use super::names::{builtin_type_oid, qualified_name, signature, Identifier};
 use crate::catalog::builtin_identity::builtin_identities;
 use crate::types::{ObjectIdKind, ObjectIdentifierError};
 
-/// The routine or operator name with an optional `pg_catalog` qualifier;
+/// The operator name with an optional `pg_catalog` qualifier;
 /// `None` names an object in a schema that holds no built-ins.
 fn builtin_name(text: &str) -> Result<Option<String>, ObjectIdentifierError> {
     let parts = qualified_name(text)?;
@@ -14,33 +14,6 @@ fn builtin_name(text: &str) -> Result<Option<String>, ObjectIdentifierError> {
         [_, _] => Ok(None),
         _ => Err(ObjectIdentifierError::InvalidName(text.to_string())),
     }
-}
-
-pub(super) fn resolve_proc(text: &str) -> Result<Option<u32>, ObjectIdentifierError> {
-    let Some(name) = builtin_name(text)? else {
-        return Ok(None);
-    };
-    let mut candidates = builtin_identities().procs_named(&name);
-    match (candidates.next(), candidates.next()) {
-        (None, _) => Ok(None),
-        (Some(row), None) => Ok(Some(row.oid)),
-        (Some(_), Some(_)) => Err(ObjectIdentifierError::Ambiguous {
-            kind: ObjectIdKind::RegProc,
-            name: text.trim().to_string(),
-        }),
-    }
-}
-
-pub(super) fn resolve_procedure(text: &str) -> Result<Option<u32>, ObjectIdentifierError> {
-    let (name, arguments) = signature(text)?;
-    let argument_types = argument_type_oids(&arguments)?;
-    let Some(name) = builtin_name(&name)? else {
-        return Ok(None);
-    };
-    Ok(builtin_identities()
-        .procs_named(&name)
-        .find(|row| row.argument_types == argument_types)
-        .map(|row| row.oid))
 }
 
 pub(super) fn resolve_operator(text: &str) -> Result<Option<u32>, ObjectIdentifierError> {
@@ -95,25 +68,6 @@ fn operand_type_oid(text: &str) -> Result<u32, ObjectIdentifierError> {
     argument_type_oids(std::slice::from_ref(&text.to_string())).map(|oids| oids[0])
 }
 
-pub(super) fn proc_label(oid: u32) -> Option<String> {
-    let identities = builtin_identities();
-    let row = identities.proc_by_oid(oid)?;
-    let unique = identities.procs_named(&row.name).nth(1).is_none();
-    Some(qualify_unless(unique, &row.name))
-}
-
-pub(super) fn procedure_label(oid: u32) -> Option<String> {
-    let identities = builtin_identities();
-    let row = identities.proc_by_oid(oid)?;
-    let arguments = row
-        .argument_types
-        .iter()
-        .map(|oid| type_display(*oid))
-        .collect::<Vec<_>>()
-        .join(",");
-    Some(format!("{}({arguments})", quote_identifier(&row.name)))
-}
-
 pub(super) fn operator_label(oid: u32) -> Option<String> {
     let identities = builtin_identities();
     let row = identities.operator_by_oid(oid)?;
@@ -142,14 +96,6 @@ pub(super) fn operator_signature_label(oid: u32) -> Option<String> {
     ))
 }
 
-fn qualify_unless(unique: bool, name: &str) -> String {
-    if unique {
-        quote_identifier(name)
-    } else {
-        format!("pg_catalog.{}", quote_identifier(name))
-    }
-}
-
 fn type_display(oid: u32) -> String {
     builtin_identities()
         .type_by_oid(oid)
@@ -158,35 +104,7 @@ fn type_display(oid: u32) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        operator_signature_label, procedure_label, resolve_operator_signature, resolve_proc,
-        resolve_procedure,
-    };
-
-    #[test]
-    fn should_resolve_builtin_routine_signatures_by_argument_identity() {
-        // Arrange
-        let spellings = ["pg_catalog.abs(integer)", "abs(int4)", "ABS( INTEGER )"];
-
-        // Act
-        let oids = spellings.map(|spelling| resolve_procedure(spelling).ok().flatten());
-
-        // Assert
-        assert_eq!(oids, [Some(1397), Some(1397), Some(1397)]);
-        assert_eq!(procedure_label(1397).as_deref(), Some("abs(integer)"));
-    }
-
-    #[test]
-    fn should_reject_an_overloaded_bare_routine_name() {
-        // Arrange
-        let name = "pg_catalog.abs";
-
-        // Act
-        let resolved = resolve_proc(name);
-
-        // Assert
-        assert!(resolved.is_err());
-    }
+    use super::{operator_signature_label, resolve_operator_signature};
 
     #[test]
     fn should_resolve_operator_signatures_with_none_operands() {

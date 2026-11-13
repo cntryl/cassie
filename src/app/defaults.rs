@@ -72,7 +72,10 @@ impl Cassie {
             .collect::<Vec<_>>();
         let mut payload = serde_json::Value::Object(serde_json::Map::new());
         apply_default_values(self, session, &mut payload, &constraints)?;
-        Ok(payload.get(field).cloned())
+        Ok(payload
+            .get(field)
+            .cloned()
+            .or_else(|| self.domain_default_json(collection, field)))
     }
 }
 
@@ -114,6 +117,7 @@ impl Cassie {
         if !constraints.is_empty() {
             apply_default_values(self, session, &mut payload, &constraints)?;
         }
+        self.apply_domain_defaults(collection, &mut payload)?;
         if let Some(object) = payload.as_object_mut() {
             for field in explicit_json_nulls {
                 object.remove(*field);

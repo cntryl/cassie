@@ -234,6 +234,7 @@ pub(crate) fn cte_collection_schema_with_functions(
                     .map(|field| crate::catalog::FieldMeta {
                         name: field.name,
                         data_type: field.data_type,
+                        domain: None,
                         is_indexed: false,
                         boost: None,
                     })
@@ -704,6 +705,9 @@ pub(super) fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType>
         .map(|field| field.data_type.clone())
 }
 
+#[path = "inference_composite.rs"]
+mod composite;
+pub(crate) use composite::{composite_field_type, validate_field_access};
 #[path = "inference_numeric.rs"]
 mod numeric;
 use numeric::{arithmetic_type, numeric_function_type, power_type};

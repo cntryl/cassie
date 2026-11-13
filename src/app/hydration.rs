@@ -17,6 +17,7 @@ impl Cassie {
         self.hydrate_operational_metadata()?;
         self.hydrate_collection_cardinality_stats()?;
         self.hydrate_programmable_metadata()?;
+        let _healed = self.catalog.reconcile_embedded_composites();
         self.hydrate_time_series_metadata()?;
         self.hydrate_maintenance_debt()?;
         self.hydrate_roles()?;
@@ -98,6 +99,10 @@ impl Cassie {
             .midge
             .projection_metadata(name)?
             .unwrap_or_else(|| crate::catalog::ProjectionMeta::new(name, 1));
+        // Every column change bumps the persisted schema version, which is the
+        // monotone revision of the table's row type.
+        self.catalog
+            .set_row_type_revision(name, u64::from(projection_metadata.schema_version));
         self.catalog
             .register_projection_metadata(projection_metadata);
         Ok(())
@@ -224,6 +229,24 @@ impl Cassie {
         self.runtime.record_storage_access("schema", false, true);
         for metadata in extensions {
             self.catalog.register_extension(metadata);
+        }
+
+        let composite_types = self.midge.list_composite_types().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list composite type metadata: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in composite_types {
+            self.catalog.register_composite_type(metadata);
+        }
+
+        let domain_types = self.midge.list_domain_types().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list domain type metadata: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in domain_types {
+            self.catalog.register_domain_type(metadata);
         }
 
         let functions = self.midge.list_functions().map_err(|error| {

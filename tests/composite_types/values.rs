@@ -1,0 +1,425 @@
+//! Composite columns, ROW constructors, casts and field access.
+
+use crate::support_composite_types::{first_column_text, only_text};
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use cassie::types::Value;
+
+fn fixture(label: &str) -> SqlFixture {
+    sql_fixture(
+        label,
+        &[
+            "CREATE TYPE address AS (street text, zip int)",
+            "CREATE TYPE person AS (name text, home address)",
+            "CREATE TABLE people (id int, p person, a address)",
+        ],
+    )
+}
+
+fn text(fixture: &SqlFixture, sql: &str) -> Option<String> {
+    only_text(&fixture.rows(sql))
+}
+
+#[test]
+fn should_round_trip_composite_columns_through_insert_select() {
+    // Arrange
+    let fixture = fixture("composite_round_trip");
+    fixture
+        .execute(
+            "INSERT INTO people VALUES \
+             (1, ROW('Ann', ROW('1 Main St', 12345)), ROW('x y', 1)), \
+             (2, NULL, ROW(NULL, NULL)), \
+             (3, ROW('Bob', NULL), NULL)",
+        )
+        .unwrap();
+
+    // Act
+    let people = first_column_text(&fixture.rows("SELECT p::text FROM people ORDER BY id"));
+    let addresses = first_column_text(&fixture.rows("SELECT a::text FROM people ORDER BY id"));
+
+    // Assert
+    assert_eq!(
+        people,
+        vec![
+            Some("(Ann,\"(\"\"1 Main St\"\",12345)\")".to_owned()),
+            None,
+            Some("(Bob,)".to_owned()),
+        ]
+    );
+    assert_eq!(
+        addresses,
+        vec![Some("(\"x y\",1)".to_owned()), Some("(,)".to_owned()), None]
+    );
+}
+
+#[test]
+fn should_write_composite_columns_from_text_literals() {
+    // Arrange
+    let fixture = fixture("composite_update");
+    fixture
+        .execute("INSERT INTO people (id, a) VALUES (1, '(old,1)')")
+        .unwrap();
+
+    // Act
+    fixture
+        .execute("UPDATE people SET a = ROW('new', 2) WHERE id = 1")
+        .unwrap();
+    let updated = text(&fixture, "SELECT a::text FROM people WHERE id = 1");
+
+    // Assert
+    assert_eq!(updated, Some("(new,2)".to_owned()));
+}
+
+#[test]
+fn should_distinguish_sql_null_records_from_all_null_field_records() {
+    // Arrange
+    let fixture = fixture("composite_null_vs_all_null");
+    fixture
+        .execute("INSERT INTO people (id, a) VALUES (1, NULL), (2, ROW(NULL, NULL))")
+        .unwrap();
+
+    // Act
+    let rendered = first_column_text(&fixture.rows("SELECT a::text FROM people ORDER BY id"));
+    let present =
+        fixture.rows("SELECT id FROM people WHERE a IS NOT DISTINCT FROM NULL ORDER BY id");
+
+    // Assert
+    assert_eq!(rendered, vec![None, Some("(,)".to_owned())]);
+    assert_eq!(present, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_apply_postgresql_is_null_rules_to_records() {
+    // Arrange
+    let fixture = fixture("composite_is_null");
+    fixture
+        .execute(
+            "INSERT INTO people (id, p) VALUES \
+             (1, ROW('Ann', ROW('1 Main', 1))), (2, NULL), (3, ROW('Bob', NULL))",
+        )
+        .unwrap();
+
+    // Act
+    let is_null = fixture.rows("SELECT id FROM people WHERE p IS NULL ORDER BY id");
+    let is_not_null = fixture.rows("SELECT id FROM people WHERE p IS NOT NULL ORDER BY id");
+
+    // Assert
+    assert_eq!(is_null, vec![vec![Value::Int64(2)]]);
+    assert_eq!(
+        is_not_null,
+        vec![vec![Value::Int64(1)]],
+        "a partly NULL record is neither NULL nor NOT NULL"
+    );
+}
+
+#[test]
+fn should_apply_is_null_rules_to_row_constructors() {
+    // Arrange
+    let fixture = sql_fixture("composite_row_is_null", &[]);
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT ROW(1, 'x') IS NULL, ROW(NULL, NULL) IS NULL, \
+         ROW(NULL, 1) IS NULL, ROW(NULL, 1) IS NOT NULL",
+    );
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(false)
+        ]]
+    );
+}
+
+#[test]
+fn should_select_fields_from_columns() {
+    // Arrange
+    let fixture = fixture("composite_field_access");
+    fixture
+        .execute(
+            "INSERT INTO people VALUES \
+             (1, ROW('Ann', ROW('1 Main St', 12345)), ROW('x y', 1)), (2, NULL, NULL)",
+        )
+        .unwrap();
+
+    // Act
+    let names = first_column_text(&fixture.rows("SELECT (p).name FROM people ORDER BY id"));
+    let streets =
+        first_column_text(&fixture.rows("SELECT (people.a).street FROM people ORDER BY id"));
+    let nested = fixture.rows("SELECT ((p).home).zip FROM people ORDER BY id");
+
+    // Assert
+    assert_eq!(names, vec![Some("Ann".to_owned()), None]);
+    assert_eq!(streets, vec![Some("x y".to_owned()), None]);
+    assert_eq!(nested, vec![vec![Value::Int64(12345)], vec![Value::Null]]);
+}
+
+#[test]
+fn should_select_a_field_from_an_expression() {
+    // Arrange
+    let fixture = fixture("composite_field_expression");
+
+    // Act
+    let expression = text(&fixture, "SELECT (ROW('a', 1)::address).street");
+
+    // Assert
+    assert_eq!(expression, Some("a".to_owned()));
+}
+
+#[test]
+fn should_reject_unknown_fields_with_sqlstate_42703() {
+    // Arrange
+    let fixture = fixture("composite_unknown_field");
+
+    // Act
+    let unknown = fixture.error("SELECT (a).missing FROM people");
+
+    // Assert
+    assert_eq!(unknown.sql_state(), "42703");
+}
+
+#[test]
+fn should_reject_field_selection_on_scalars_with_sqlstate_42809() {
+    // Arrange
+    let fixture = fixture("composite_scalar_field");
+
+    // Act
+    let scalar = fixture.error("SELECT (id).street FROM people");
+
+    // Assert
+    assert_eq!(scalar.sql_state(), "42809");
+}
+
+#[test]
+fn should_cast_row_constructors_to_named_types() {
+    // Arrange
+    let fixture = fixture("composite_row_casts");
+
+    // Act
+    let from_row = text(&fixture, "SELECT ROW('a', 1)::address::text");
+    let implicit = text(&fixture, "SELECT ('a', 1)::address::text");
+
+    // Assert
+    assert_eq!(from_row, Some("(a,1)".to_owned()));
+    assert_eq!(implicit, Some("(a,1)".to_owned()));
+}
+
+#[test]
+fn should_cast_text_literals_to_named_types() {
+    // Arrange
+    let fixture = fixture("composite_text_casts");
+
+    // Act
+    let from_text = text(&fixture, "SELECT '(\"a b\",2)'::address::text");
+    let all_null = text(&fixture, "SELECT '(,)'::address::text");
+
+    // Assert
+    assert_eq!(from_text, Some("(\"a b\",2)".to_owned()));
+    assert_eq!(all_null, Some("(,)".to_owned()));
+}
+
+#[test]
+fn should_report_postgresql_errors_for_arity_mismatched_row_casts() {
+    // Arrange
+    let fixture = fixture("composite_cast_arity");
+
+    // Act
+    let too_few = fixture.error("SELECT ROW(1)::address");
+    let too_many = fixture.error("SELECT ROW(1, 2, 3)::address");
+
+    // Assert
+    assert_eq!(too_few.sql_state(), "42846");
+    assert_eq!(too_many.sql_state(), "42846");
+}
+
+#[test]
+fn should_report_malformed_record_literals_with_sqlstate_22p02() {
+    // Arrange
+    let fixture = fixture("composite_malformed_literals");
+
+    // Act
+    let errors = [
+        fixture.error("SELECT '(a)'::address"),
+        fixture.error("SELECT '(a,1,2)'::address"),
+        fixture.error("SELECT 'a,1'::address"),
+        fixture.error("SELECT '(a,1)x'::address"),
+    ];
+
+    // Assert
+    for error in errors {
+        assert_eq!(error.sql_state(), "22P02");
+    }
+}
+
+#[test]
+fn should_reject_anonymous_records_as_stored_columns() {
+    // Arrange
+    let fixture = sql_fixture("composite_anonymous_column", &[]);
+
+    // Act
+    let error = fixture.error("CREATE TABLE bad (r record)");
+
+    // Assert
+    assert!(
+        matches!(error.sql_state(), "42704" | "42P16" | "0A000"),
+        "RECORD must not be a column type"
+    );
+}
+
+#[test]
+fn should_reject_indexes_on_composite_columns() {
+    // Arrange
+    let fixture = fixture("composite_no_index");
+
+    // Act
+    let index = fixture.error("CREATE INDEX people_a ON people (a)");
+
+    // Assert
+    assert_eq!(index.sql_state(), "0A000");
+}
+
+#[test]
+fn should_reject_unique_constraints_on_composite_columns() {
+    // Arrange
+    let fixture = fixture("composite_no_unique");
+
+    // Act
+    let unique = fixture.error("CREATE TABLE u (a address UNIQUE)");
+
+    // Assert
+    assert_eq!(unique.sql_state(), "0A000");
+}
+
+const SEED_PEOPLE: &str = "INSERT INTO people VALUES (1, NULL, ROW('x y', 7)), (2, NULL, NULL)";
+
+#[test]
+fn should_select_a_field_through_a_derived_table() {
+    // Arrange
+    let fixture = fixture("composite_field_derived");
+
+    // Act
+    let street = text(
+        &fixture,
+        "SELECT (r).street FROM (SELECT ROW('a', 1)::address AS r) s",
+    );
+
+    // Assert
+    assert_eq!(street, Some("a".to_owned()));
+}
+
+#[test]
+fn should_select_a_field_through_a_cte() {
+    // Arrange
+    let fixture = fixture("composite_field_cte");
+    fixture.execute(SEED_PEOPLE).unwrap();
+
+    // Act
+    let streets = first_column_text(
+        &fixture.rows("WITH c AS (SELECT id, a FROM people) SELECT (a).street FROM c ORDER BY id"),
+    );
+
+    // Assert
+    assert_eq!(streets, vec![Some("x y".to_owned()), None]);
+}
+
+#[test]
+fn should_select_a_field_through_a_table_alias() {
+    // Arrange
+    let fixture = fixture("composite_field_alias");
+    fixture.execute(SEED_PEOPLE).unwrap();
+
+    // Act
+    let streets =
+        first_column_text(&fixture.rows("SELECT (p.a).street FROM people p ORDER BY p.id"));
+
+    // Assert
+    assert_eq!(streets, vec![Some("x y".to_owned()), None]);
+}
+
+#[test]
+fn should_select_qualified_fields_from_joined_sources_sharing_a_column_name() {
+    // Arrange
+    let fixture = fixture("composite_field_join");
+    fixture.execute(SEED_PEOPLE).unwrap();
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT (x.a).street, (y.a).zip FROM people x JOIN people y ON x.id = y.id \
+         WHERE x.id = 1",
+    );
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![Value::String("x y".into()), Value::Int64(7)]]
+    );
+}
+
+#[test]
+fn should_select_a_field_through_a_view_over_a_composite_column() {
+    // Arrange
+    let fixture = fixture("composite_view_field");
+    fixture
+        .execute("INSERT INTO people (id, a) VALUES (1, ROW('1 Main St', 12345))")
+        .unwrap();
+    fixture
+        .execute("CREATE VIEW people_view AS SELECT a FROM people")
+        .unwrap();
+
+    // Act
+    let street = text(&fixture, "SELECT (a).street FROM people_view");
+
+    // Assert
+    assert_eq!(street.as_deref(), Some("1 Main St"));
+}
+
+#[test]
+fn should_resolve_type_names_inside_a_view_body() {
+    // Arrange
+    let fixture = fixture("composite_view_cast");
+    fixture
+        .execute("CREATE VIEW cast_view AS SELECT ('(7 Elm,9)'::address).street AS street")
+        .unwrap();
+
+    // Act
+    let street = text(&fixture, "SELECT street FROM cast_view");
+
+    // Assert
+    assert_eq!(street.as_deref(), Some("7 Elm"));
+}
+
+#[test]
+fn should_execute_prepared_statements_with_composite_parameter_types() {
+    // Arrange
+    let fixture = fixture("composite_prepare_execute");
+    fixture
+        .execute("PREPARE street_of(address) AS SELECT ($1).street")
+        .unwrap();
+
+    // Act
+    let street = text(&fixture, "EXECUTE street_of('(9 Oak,3)')");
+
+    // Assert
+    assert_eq!(street.as_deref(), Some("9 Oak"));
+}
+
+#[test]
+fn should_insert_composite_columns_through_create_table_as() {
+    // Arrange
+    let fixture = fixture("composite_ctas");
+    fixture
+        .execute("INSERT INTO people (id, a) VALUES (1, ROW('1 Main St', 12345))")
+        .unwrap();
+    fixture
+        .execute("CREATE TABLE people_copy AS SELECT id, a FROM people")
+        .unwrap();
+
+    // Act
+    let copied = text(&fixture, "SELECT (a).street FROM people_copy");
+
+    // Assert
+    assert_eq!(copied.as_deref(), Some("1 Main St"));
+}

@@ -20,6 +20,8 @@ mod like_predicates;
 mod numeric_literals;
 #[path = "qualified_operators.rs"]
 mod qualified_operators;
+#[path = "record_syntax.rs"]
+mod record_syntax;
 #[path = "row_predicates.rs"]
 mod row_predicates;
 #[path = "string_literals.rs"]
@@ -481,7 +483,7 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
             cast_positions[index + 1]
         };
         let data_type = super::lexical::trim_separators(&raw[position + 2..type_end]);
-        let target = parse_data_type(data_type)?;
+        let target = super::domain_scope::parse_declared_data_type(data_type)?;
         if index == 0 {
             expr = exact_numeric_operand(expr, operand_sql, &target);
         }
@@ -737,6 +739,12 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if let Some(subquery) = subquery_syntax::scalar(raw)? {
         return Ok(subquery);
     }
+    if let Some(field) = record_syntax::field_access(raw)? {
+        return Ok(field);
+    }
+    if let Some(row) = record_syntax::row_constructor(raw)? {
+        return Ok(row);
+    }
     if let Some(inner) = strip_parentheses(raw) {
         return parse_expression(inner);
     }
@@ -898,7 +906,8 @@ pub(super) fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError>
         .ok_or_else(|| SqlError::new("CAST requires parenthesized expression".into()))?;
     let (expr_raw, type_raw) = split_top_level(inner, " as ")
         .ok_or_else(|| SqlError::new("CAST requires AS type clause".into()))?;
-    let data_type = parse_data_type(super::lexical::trim_separators(type_raw))?;
+    let data_type =
+        super::domain_scope::parse_declared_data_type(super::lexical::trim_separators(type_raw))?;
     let operand = parse_expression(expr_raw)?;
 
     Ok(Some(Expr::Cast {

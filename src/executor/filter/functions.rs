@@ -748,7 +748,7 @@ fn array_element_type(value: &Value) -> Option<crate::types::DataType> {
         Value::String(_) => crate::types::DataType::Text,
         Value::Vector(vector) => crate::types::DataType::Vector(Some(vector.dimension())),
         Value::Json(_) => crate::types::DataType::Json,
-        Value::Typed(value) => crate::types::DataType::Extended(value.kind()),
+        Value::Typed(value) => value.extended_data_type(),
     })
 }
 

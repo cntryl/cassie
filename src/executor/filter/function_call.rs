@@ -88,22 +88,18 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         return evaluate_user_defined_function(&name, row, context, args);
     }
 
-    if let Some(memory) = context.memory {
-        let bytes = args.iter().try_fold(1024, |bytes, value| {
-            crate::executor::retained_memory::add(
-                bytes,
-                crate::executor::retained_memory::mul(
-                    super::super::cast_admission::value_workspace_bytes(value)?,
-                    8,
-                )?,
-            )
-        })?;
-        memory.grow(bytes)?;
-    }
+    reserve_argument_workspace(context, &args)?;
 
     if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
         return evaluate_array_constructor(function, row, args);
     }
+    if name == crate::sql::ast::ROW_CONSTRUCTOR_FUNCTION {
+        return Ok(evaluate_row_constructor(args));
+    }
+    if name == crate::sql::ast::FIELD_ACCESS_FUNCTION {
+        return evaluate_field_access(function, args);
+    }
+    reject_record_arguments(local_name, &args)?;
 
     if let Some(result) = json_builders::evaluate(function, row, &args, context) {
         return result;
@@ -131,6 +127,23 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         }
     }
     Ok(result)
+}
+
+fn reserve_argument_workspace(context: EvalContext<'_>, args: &[Value]) -> Result<(), QueryError> {
+    let Some(memory) = context.memory else {
+        return Ok(());
+    };
+    let bytes = args.iter().try_fold(1024, |bytes, value| {
+        crate::executor::retained_memory::add(
+            bytes,
+            crate::executor::retained_memory::mul(
+                super::super::cast_admission::value_workspace_bytes(value)?,
+                8,
+            )?,
+        )
+    })?;
+    memory.grow(bytes)?;
+    Ok(())
 }
 
 fn evaluate_argument_values<R: RowAccess + ?Sized>(
@@ -167,6 +180,110 @@ fn evaluate_argument_values<R: RowAccess + ?Sized>(
             Ok::<Value, QueryError>(value)
         })
         .collect()
+}
+
+/// Built-ins that accept a record argument; every other function over a
+/// record is undefined, as in PostgreSQL (`function abs(record) does not exist`).
+const RECORD_TOLERANT_FUNCTIONS: &[&str] = &[
+    "pg_typeof",
+    "nullif",
+    "greatest",
+    "least",
+    "num_nulls",
+    "num_nonnulls",
+    "to_json",
+    "to_jsonb",
+    "row_to_json",
+    "concat",
+    "concat_ws",
+    "format",
+    "quote_nullable",
+    "json_build_object",
+    "jsonb_build_object",
+    "json_build_array",
+    "jsonb_build_array",
+];
+
+fn reject_record_arguments(name: &str, args: &[Value]) -> Result<(), QueryError> {
+    let is_record =
+        |value: &Value| matches!(value, Value::Typed(typed) if typed.as_record().is_some());
+    if !args.iter().any(is_record) || RECORD_TOLERANT_FUNCTIONS.contains(&name) {
+        return Ok(());
+    }
+    let types = args
+        .iter()
+        .map(|value| match value {
+            Value::Typed(typed) => typed.as_record().map_or_else(
+                || crate::types::composite::value_data_type(value).type_name(),
+                |record| record.descriptor().name.clone(),
+            ),
+            other => crate::types::composite::value_data_type(other).type_name(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(crate::app::CassieError::from(
+        crate::app::DiagnosticError::new(
+            "42883",
+            format!("function {name}({types}) does not exist"),
+        )
+        .with_hint(
+            "No function matches the given name and argument types. You might need to add explicit type casts.",
+        ),
+    )
+    .into())
+}
+
+/// `ROW(a, b, ...)`: an anonymous record whose field types follow the values.
+fn evaluate_row_constructor(args: Vec<Value>) -> Value {
+    let fields = args
+        .into_iter()
+        .map(|value| {
+            let data_type = crate::types::composite::value_data_type(&value);
+            (value, data_type)
+        })
+        .collect();
+    Value::Typed(crate::types::typed::TypedValue::Record(
+        crate::types::RecordValue::anonymous(fields),
+    ))
+}
+
+/// `(record).field`: NULL for a NULL record, the named field otherwise.
+fn evaluate_field_access(function: &FunctionCall, args: Vec<Value>) -> Result<Value, QueryError> {
+    let Some(super::Expr::StringLiteral(field)) = function.args.get(1) else {
+        return Err(QueryError::General(
+            "field selection requires a field name".into(),
+        ));
+    };
+    if field == crate::sql::ast::FIELD_ACCESS_ALL {
+        return Err(crate::app::CassieError::from(crate::app::DiagnosticError::new(
+            "0A000",
+            "(expression).* expansion is supported only for a column or cast in the SELECT list"
+                .to_string(),
+        ))
+        .into());
+    }
+    match args.into_iter().next() {
+        None | Some(Value::Null) => Ok(Value::Null),
+        Some(Value::Typed(crate::types::typed::TypedValue::Record(record))) => {
+            record.field(field).cloned().ok_or_else(|| {
+                crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                    "42703",
+                    format!(
+                        "column \"{field}\" not found in data type {}",
+                        record.descriptor().name
+                    ),
+                ))
+                .into()
+            })
+        }
+        Some(_) => Err(
+            crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                "42809",
+                format!("column notation .{field} applied to a non-composite value"),
+            ))
+            .into(),
+        ),
+    }
 }
 
 fn evaluate_array_constructor<R: RowAccess + ?Sized>(

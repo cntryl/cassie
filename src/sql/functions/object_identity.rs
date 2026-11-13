@@ -1,6 +1,7 @@
-//! `pg_typeof` and the `to_reg*` catalog lookups.
+//! `pg_typeof`, the `to_reg*` catalog lookups and the `pg_identify_object`
+//! FROM source.
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
-use crate::types::ObjectIdKind;
+use crate::types::{DataType, ObjectIdKind};
 
 const fn lookup(id: FunctionId, name: &'static str, kind: ObjectIdKind) -> ScalarFunction {
     ScalarFunction {
@@ -58,4 +59,22 @@ pub(crate) fn lookup_kind(name: &str) -> Option<ObjectIdKind> {
             FunctionReturnType::ObjectId(kind) => Some(kind),
             _ => None,
         })
+}
+
+/// Whether `name` is `pg_identify_object`, a record-valued function selected
+/// only as a FROM source.
+#[must_use]
+pub(crate) fn is_identify_object(name: &str) -> bool {
+    let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
+    local.eq_ignore_ascii_case("pg_identify_object")
+}
+
+/// The `type`, `schema`, `name` and `identity` columns `pg_identify_object`
+/// returns.
+#[must_use]
+pub(crate) fn identify_object_columns() -> Vec<(String, DataType)> {
+    ["type", "schema", "name", "identity"]
+        .into_iter()
+        .map(|column| (column.to_owned(), DataType::Text))
+        .collect()
 }

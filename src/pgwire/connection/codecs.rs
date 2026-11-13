@@ -7,6 +7,9 @@ mod timetz_error;
 #[path = "codecs/jsonb.rs"]
 mod jsonb;
 
+#[path = "codecs/record.rs"]
+pub(super) mod record;
+
 use crate::executor::ColumnMeta;
 use crate::types::builtin::{
     builtin_for_oid, BuiltinKind as BinaryCodecKind, BuiltinType as BinaryCodec,
@@ -29,6 +32,9 @@ const MICROSECONDS_PER_DAY: i64 = 86_400_000_000;
 /// Renders `value` with PostgreSQL's text output function for the column's
 /// declared `type_oid`.
 pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
+    if let Some(record) = record::as_record(value) {
+        return record::text(record);
+    }
     if type_oid == 3802 {
         return jsonb::text(value);
     }
@@ -120,6 +126,9 @@ pub(super) fn value_to_binary_with_typmod_and_vector(
 ) -> io::Result<Vec<u8>> {
     if is_vector {
         return encode_vector(value, atttypmod);
+    }
+    if let Some(record) = record::as_record(value) {
+        return record::binary(record);
     }
     if let Some(encoded) = encode_special_binary_type(value, type_oid, atttypmod) {
         return encoded;
@@ -272,8 +281,8 @@ fn binary_codec_for_oid(type_oid: i64) -> io::Result<&'static BinaryCodec> {
         .ok_or_else(|| unsupported_codec(type_oid))
 }
 
-fn validate_binary_oid(type_oid: i64, is_vector: bool) -> io::Result<()> {
-    if is_vector {
+fn validate_binary_oid(type_oid: i64, is_vector: bool, is_record: bool) -> io::Result<()> {
+    if is_vector || is_record {
         return Ok(());
     }
     if type_oid == POSTGRES_INTERNAL_CHAR_OID {
@@ -312,7 +321,7 @@ pub(super) fn validate_result_formats(
     }
     for (index, column) in columns.iter().enumerate() {
         if result_format_for_index(result_formats, index) == 1 {
-            validate_binary_oid(column.type_oid, column.is_vector())?;
+            validate_binary_oid(column.type_oid, column.is_vector(), column.is_record)?;
         }
     }
     Ok(())

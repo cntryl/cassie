@@ -11,8 +11,12 @@ use super::VirtualRow;
 mod acl;
 #[path = "virtual_views_pg/collation.rs"]
 pub(super) mod collation;
+#[path = "virtual_views_pg/composite_catalogs.rs"]
+mod composite_catalogs;
 #[path = "virtual_views_pg/descriptions.rs"]
 pub(super) mod descriptions;
+#[path = "virtual_views_pg/domain_catalogs.rs"]
+mod domain_catalogs;
 #[path = "virtual_views_pg/index_definitions.rs"]
 mod index_definitions;
 #[path = "virtual_views_pg/type_identity.rs"]
@@ -210,6 +214,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
             })
             .map(|index| class_row(catalog, &index.name, "i", Some(&index), current_database)),
     );
+    rows.extend(composite_catalogs::class_rows(catalog, current_database));
     rows.sort_by_key(row_sort_key);
     rows
 }
@@ -241,7 +246,7 @@ pub(super) fn pg_attribute(
             } else {
                 field.name.clone()
             };
-            rows.push(attribute_row(
+            let mut row = attribute_row(
                 catalog,
                 &collection.name,
                 &AttributeSpec {
@@ -252,7 +257,11 @@ pub(super) fn pg_attribute(
                     is_dropped: field.retired,
                 },
                 current_database,
-            ));
+            );
+            if let Some(domain) = field.data_type.domain().filter(|_| !field.retired) {
+                domain_catalogs::mark_domain_column(&mut row, domain);
+            }
+            rows.push(row);
         }
     }
     for view in catalog.list_views() {
@@ -305,6 +314,10 @@ pub(super) fn pg_attribute(
             ));
         }
     }
+    rows.extend(composite_catalogs::attribute_rows(
+        catalog,
+        current_database,
+    ));
     rows.sort_by_key(row_sort_key);
     Ok(rows)
 }
@@ -425,6 +438,8 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
             i64::from(type_oid),
         ))
     }));
+    rows.extend(composite_catalogs::type_rows(catalog, current_database));
+    rows.extend(domain_catalogs::type_rows(catalog, current_database));
     rows.sort_by_key(row_sort_key);
     rows
 }
@@ -551,9 +566,11 @@ fn class_row(
         ),
         string("relnamespace", &schema_name),
         int_value("relnamespace_oid", namespace_oid(catalog, &namespace)),
-        // Relation row-type identities are selected by #828 but do not exist
-        // until its composite/domain contract is implemented.
-        int_value("reltype", 0),
+        // Tables own a derived row type; views, sequences and indexes do not.
+        int_value(
+            "reltype",
+            composite_catalogs::relation_reltype(catalog, kind, name),
+        ),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
         string(

@@ -142,6 +142,8 @@ pub enum ObjectIdentifierError {
     Undefined { kind: ObjectIdKind, name: String },
     /// A bare `regproc`/`regoper` name matches several overloads.
     Ambiguous { kind: ObjectIdKind, name: String },
+    /// A qualified name names a schema the role has no `USAGE` on.
+    PermissionDenied { schema: String },
 }
 
 impl ObjectIdentifierError {
@@ -153,6 +155,7 @@ impl ObjectIdentifierError {
             Self::OutOfRange(_) => "22003",
             Self::InvalidName(_) => "42602",
             Self::Ambiguous { .. } => "42725",
+            Self::PermissionDenied { .. } => "42501",
             Self::Undefined { kind, .. } => match kind {
                 ObjectIdKind::RegClass => "42P01",
                 ObjectIdKind::RegProc
@@ -202,6 +205,9 @@ impl std::fmt::Display for ObjectIdentifierError {
                 } else {
                     write!(formatter, "{object} \"{name}\" does not exist")
                 }
+            }
+            Self::PermissionDenied { schema } => {
+                write!(formatter, "permission denied for schema {schema}")
             }
             Self::Ambiguous { kind, name } => {
                 let object = if matches!(kind, ObjectIdKind::RegOper) {

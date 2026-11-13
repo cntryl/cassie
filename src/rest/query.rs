@@ -3,7 +3,7 @@ use crate::catalog::IndexKind;
 use crate::catalog::RelationId;
 use crate::executor::ColumnMeta;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
-use crate::sql::ast::{ExtensionAction, QueryStatement, TransactionAction};
+use crate::sql::ast::{ExtensionAction, QueryStatement, TransactionAction, TypeAction};
 
 mod owned;
 pub use owned::{RestQueryExplainResponse, RestQueryResult};
@@ -164,7 +164,7 @@ pub(crate) fn validate_with_session_and_cancellation(
     if cancellation.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }
-    let parsed = crate::sql::parse_statement(request.sql.as_str())?;
+    let parsed = cassie.parse_statement_for_session(Some(session), request.sql.as_str())?;
     session.authorize_statement(&parsed.statement)?;
     cassie.authorize_role_object_access(session, &parsed.statement)?;
     let command = command_name(&parsed.statement).to_string();
@@ -554,6 +554,12 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::CallProcedure(_) => "CALL",
         QueryStatement::DropSchema(_) => "DROP SCHEMA",
         QueryStatement::AlterSchema(_) => "ALTER SCHEMA",
+        QueryStatement::Type(statement) => match &statement.action {
+            TypeAction::Create { .. } => "CREATE TYPE",
+            TypeAction::Drop { .. } => "DROP TYPE",
+            TypeAction::Alter { .. } => "ALTER TYPE",
+            TypeAction::Domain(action) => action.command_tag(),
+        },
         QueryStatement::Extension(statement) => match &statement.action {
             ExtensionAction::Create { .. } => "CREATE EXTENSION",
             ExtensionAction::SetSchema { .. } | ExtensionAction::Update { .. } => "ALTER EXTENSION",

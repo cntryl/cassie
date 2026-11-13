@@ -6,7 +6,7 @@ pub(super) fn parse_relation_path(raw: &str) -> Result<IdentifierPath, SqlError>
     IdentifierPath::parse(raw).map_err(SqlError::new)
 }
 
-pub(super) fn parse_identifier(raw: &str) -> Result<String, SqlError> {
+pub(in crate::sql::parser) fn parse_identifier(raw: &str) -> Result<String, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
         return Ok(String::new());
@@ -40,7 +40,7 @@ pub(super) fn parse_identifier(raw: &str) -> Result<String, SqlError> {
     Ok(crate::sql::identifier_text::prefix(raw).to_ascii_lowercase())
 }
 
-pub(super) fn parse_column_identifier(raw: &str) -> Result<String, SqlError> {
+pub(in crate::sql::parser) fn parse_column_identifier(raw: &str) -> Result<String, SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
         return Ok(String::new());

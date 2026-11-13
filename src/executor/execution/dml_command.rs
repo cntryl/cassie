@@ -320,6 +320,9 @@ fn execute_schema_object_group(
         LogicalCommand::Extension(statement) => Some(CommandExecution::invalidating(
             super::extension_command::execute(cassie, session, statement, controls),
         )),
+        LogicalCommand::Type(statement) => Some(CommandExecution::invalidating(
+            super::type_command::execute(cassie, session, statement, controls),
+        )),
         LogicalCommand::CreateRole(statement) => Some(CommandExecution::invalidating(
             super::role_command::create_role(cassie, session, statement, controls),
         )),
@@ -438,6 +441,13 @@ fn execute_create_function_command(
             return_type: statement.return_type.clone(),
             volatility: Volatility::from(statement.volatility.clone()),
             body: statement.body.clone(),
+            object_id: routine_object_id(
+                cassie,
+                cassie
+                    .catalog
+                    .get_function(&statement.name)
+                    .map(|existing| existing.object_id),
+            )?,
         };
 
         let output = super::command_output::empty("CREATE FUNCTION", controls)?;
@@ -449,6 +459,15 @@ fn execute_create_function_command(
 
         Ok(output)
     })())
+}
+
+/// The identity of a routine being created: a replaced routine keeps its
+/// identity, and a new or legacy (zero) one draws from the common counter.
+fn routine_object_id(cassie: &Cassie, existing: Option<u64>) -> Result<u64, QueryError> {
+    match existing {
+        Some(object_id) if object_id != 0 => Ok(object_id),
+        _ => cassie.midge.allocate_object_id().map_err(QueryError::from),
+    }
 }
 
 fn execute_drop_function_command(
@@ -493,6 +512,13 @@ fn execute_create_procedure_command(
                 })
                 .collect(),
             body: statement.body.clone(),
+            object_id: routine_object_id(
+                cassie,
+                cassie
+                    .catalog
+                    .get_procedure(&statement.name)
+                    .map(|existing| existing.object_id),
+            )?,
         };
 
         let output = super::command_output::empty("CREATE PROCEDURE", controls)?;

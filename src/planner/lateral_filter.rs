@@ -73,7 +73,10 @@ pub(crate) fn push_into_lateral_join(plan: &mut LogicalPlan) {
         return;
     };
     let QuerySource::Join {
-        right, kind, on, ..
+        left,
+        right,
+        kind,
+        on,
     } = &mut plan.source
     else {
         return;
@@ -81,11 +84,13 @@ pub(crate) fn push_into_lateral_join(plan: &mut LogicalPlan) {
     if !matches!(kind, JoinKind::Cross | JoinKind::Inner) || !is_lateral_generated(right) {
         return;
     }
+    let mut qualifiers = Vec::new();
+    collect_qualifiers(&[&**left, &**right], &mut qualifiers);
     let mut terms = Vec::new();
     conjuncts(filter, &mut terms);
     let mut selected = terms
         .into_iter()
-        .filter(|term| simple_columns(term, &mut Vec::new()))
+        .filter(|term| owned_by(term, &qualifiers))
         .cloned()
         .collect::<Vec<_>>();
     if selected.is_empty() {
@@ -104,4 +109,46 @@ pub(crate) fn push_into_lateral_join(plan: &mut LogicalPlan) {
     }
     *on = combined;
     *kind = JoinKind::Inner;
+}
+
+/// Names that qualify columns of the given sources.
+fn collect_qualifiers(sources: &[&QuerySource], out: &mut Vec<String>) {
+    for source in sources {
+        match source {
+            // An alias hides the names inside the aliased source.
+            QuerySource::Aliased { alias, .. } | QuerySource::Subquery { alias, .. } => {
+                // Bound columns carry the runtime row qualifier derived from the alias.
+                out.push(crate::sql::binder::alias_row_qualifier(alias));
+                out.push(alias.clone());
+            }
+            QuerySource::Collection(path) => {
+                let full = path.to_string();
+                if let Some((_, last)) = full.rsplit_once('.') {
+                    out.push(last.to_owned());
+                }
+                out.push(full);
+            }
+            QuerySource::TableSample { source, .. } => collect_qualifiers(&[&**source], out),
+            QuerySource::Join { left, right, .. } => collect_qualifiers(&[&**left, &**right], out),
+            QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+                out.push(name.clone());
+            }
+            QuerySource::Values { .. } | QuerySource::SingleRow => {}
+        }
+    }
+}
+
+/// Whether the term is eligible and every column it reads is qualified by one of this join's
+/// own sources. Unqualified or foreign (outer-scope) columns are not provably local, and an
+/// `ON` clause has no outer scope attached, so such a term must stay in the `WHERE`.
+fn owned_by(term: &Expr, qualifiers: &[String]) -> bool {
+    let mut names = Vec::new();
+    simple_columns(term, &mut names)
+        && names.iter().all(|name| {
+            name.rsplit_once('.').is_some_and(|(qualifier, _)| {
+                qualifiers
+                    .iter()
+                    .any(|owner| owner.eq_ignore_ascii_case(qualifier))
+            })
+        })
 }

@@ -37,6 +37,7 @@ fn register_function(catalog: &Catalog, name: &str, input: DataType) {
         return_type: DataType::Text,
         volatility: Volatility::Immutable,
         body: "CAST(value AS TEXT)".to_owned(),
+        object_id: 0,
     });
 }
 

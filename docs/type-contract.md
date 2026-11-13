@@ -320,7 +320,7 @@ and compatibility boundaries remain until the owning acceptance cases pass.
 ### #828
 
 Add CREATE TYPE name AS (...), relation row types, ROW construction/casts/field access,
-typed JSON recordset outputs, and CREATE/ALTER/DROP DOMAIN over already supported
+typed JSON recordset outputs (implemented by the JSON recordset increment), and CREATE/ALTER/DROP DOMAIN over already supported
 scalar/container families. Allocate stable database-scoped type/array OIDs from Cassie's
 object allocator rather than copying arbitrary PostgreSQL user OIDs. Preserve field
 order, per-field logical identity and dropped-field positions; distinguish SQL NULL
@@ -343,6 +343,258 @@ field count/OID/length framing; named composites use allocated OIDs, transient R
 uses 2249/contextual typmod. Domain output uses base codecs where SQL resolution
 flattens it. Catalog/schema/constraint/row changes publish in one family and survive
 restart/image restore; failed validation publishes nothing.
+
+#### #828 increment 1 status (composite types and ROW)
+
+Increment 1 implements `CREATE TYPE [schema.]name AS (field type, ...)`,
+`DROP TYPE [IF EXISTS] name [RESTRICT]` (`2BP01` on dependents, `42710`
+duplicate, `42704` missing, `3F000` missing schema), composite-typed table
+columns, `ROW(...)` and implicit `(a, b)` constructors, `ROW(...)::t` and
+`'(x,1)'::t` casts, `(expr).field` selection, PostgreSQL record text
+input/output, binary RECORD output, the CRB1 tag 0x0F payload (version u8=1,
+type OID u32, descriptor revision u64, field count u32, recursively framed
+nullable values, big-endian; tag 0x10 carries domains, see the domain status below) and the
+`pg_type`/`pg_class`/`pg_attribute`/`regtype` rows. Type, array-type and
+`relkind = 'c'` relation OIDs come from `Midge::allocate_object_id` and are
+durable. The code and its regressions are authored; they have not been
+compiled or executed (assembler-owned gate). Pending or excluded:
+
+- enums keep deterministic `0A000` or `42704` outcomes (`ALTER TYPE`, relation row
+  types, `(expr).*` and domains are described under increment 2 below; the JSON
+  recordset functions and `JSON_TABLE` are implemented and described in
+  `docs/feature-support.md`);
+- arrays of composite types (`name[]` columns and casts) are rejected with
+  `0A000` although the `_name` array type row and OID exist;
+- composite columns cannot carry `DEFAULT`, `PRIMARY KEY`, `UNIQUE` or an
+  index; `CREATE TABLE AS` with a RECORD column is not yet rejected;
+- binary parameter input of composite types, `COPY` of composite columns and
+  `DROP TYPE ... CASCADE` with dependents are not implemented;
+- record ordering uses an order-preserving key that is exact for equality and
+  for text, integer, float and boolean fields; fields of other families order
+  by their typed key bytes;
+- Describe of a statement parsed without a session resolves composite names against the
+  default search path; routine (`CREATE PROCEDURE`) bodies parse without the session type
+  scope, so a composite type name inside a procedure body fails with `42704`;
+- one simple-query string cannot `CREATE TYPE` and use the type in a later
+  statement of the same string (all statements are parsed first);
+- `DROP TYPE` dependents cover composite fields and table columns only, not
+  views, materialized views, projections or function signatures;
+- concurrent `CREATE TYPE` of one name is not one atomic step (check,
+  identity allocation and publication are separate), like extensions;
+- `TypedValue::send_binary` for a record returns empty bytes on an encode
+  error; the wire path (`codecs/record.rs`) propagates errors, so this is
+  reachable only through `COPY BINARY` and similar direct callers;
+- a prepared statement holds the descriptor from Parse time; after `DROP TYPE`
+  plus `CREATE TYPE` of the same name it fails closed with `42846`;
+- anonymous `ROW(...)` field types are best effort (integers report
+  `bigint`, so a binary RECORD field OID is 20 where PostgreSQL sends 23);
+- btree indexes and `UNIQUE` on record columns are `0A000` although
+  PostgreSQL supports them;
+- database image restore fails closed: restoring an image that contains
+  composite types returns `0A000` until the image rewrite re-keys the
+  `composite-type` family and re-allocates type identities;
+- `DROP DATABASE` discards the database's composite types, and
+  `DROP SCHEMA ... CASCADE` is rejected with `2BP01` while an object outside
+  the schema uses one of its types. This is a deliberate stricter difference:
+  PostgreSQL would cascade-drop the dependent column instead;
+- polymorphic (`anyelement`) user-defined functions called with a record
+  argument are rejected with `42883` in this increment, although PostgreSQL
+  accepts them;
+- comparing a record column with a text column or untyped literal returns
+  `0A000` ("input of anonymous composite types is not implemented"), where
+  PostgreSQL returns `42883` for the column case;
+- a composite type owns a `pg_class` row, so it shares the relation namespace with
+  tables, views, sequences and indexes (`42P07` for `CREATE TABLE/VIEW/SEQUENCE/INDEX`
+  over a composite type name; `CREATE TABLE IF NOT EXISTS` over a type name skips, as
+  in PostgreSQL, but `CREATE SEQUENCE/INDEX IF NOT EXISTS` over a type name still
+  raise `42P07` where PostgreSQL skips). `CREATE TYPE` over any occupied relation or
+  type name is `42710`. A domain has no `pg_class` row and lives in the type namespace
+  only; see the domain status below for how it collides.
+
+#### #828 increment 2 status (ALTER TYPE, relation row types, cleanups)
+
+The code and its regressions are authored; they have not been compiled or executed
+(assembler-owned gate). Selected contract, verified against PostgreSQL 18.6:
+
+- `ALTER TYPE name RENAME TO | SET SCHEMA | OWNER TO` and
+  `ALTER TYPE name RENAME ATTRIBUTE a TO b | ADD ATTRIBUTE a type | DROP ATTRIBUTE
+  [IF EXISTS] a | ALTER ATTRIBUTE a [SET DATA] TYPE t`, each optionally followed by
+  `CASCADE`/`RESTRICT` (both behave alike: Cassie has no typed tables). One action per
+  statement. A table name is `42809` ("is not a composite type"), a missing type `42704`,
+  a duplicate attribute `42701`, a missing attribute `42703`, a rename onto an existing
+  relation `42P07` (`42710` when the occupant is a domain), a move onto an existing
+  table, view, composite type or domain `42710` (`42P07` for a sequence or index), a missing schema `3F000`, a
+  missing role `42704`, a self-containing type `42P16`.
+- Versioned descriptors: a descriptor carries `revision` and `dropped_positions`. The
+  physical slot list only grows. `ADD ATTRIBUTE` appends a slot, `DROP ATTRIBUTE`
+  records the slot as dropped (its position is retained, a re-added attribute gets a
+  fresh slot), `RENAME ATTRIBUTE` and type renames keep slots. A stored value is a prefix
+  of the current layout, so rows written under any earlier revision decode with added
+  attributes NULL and dropped attributes hidden. Storage JSON and the CRB1 0x0F payload
+  carry one entry per physical slot; the payload format is unchanged.
+- `ALTER ATTRIBUTE ... TYPE` would have to rewrite stored values, so it is `0A000`
+  ("cannot alter type X because column t.c uses it") while any table column holds the
+  type directly or through another composite type, as in PostgreSQL. It runs, with no
+  data conversion, on an unused type.
+- Every change re-embeds the new descriptor in other composite types, table columns
+  (schema, row schema and projection `schema_version`) and view column types. A Midge
+  transaction spans one column family and each Cassie database is one family, so the type
+  and every dependent in the type's own database commit in ONE transaction
+  (`Midge::publish_composite_group`); the in-memory catalog changes only after commit.
+  Residual exception: a dependent in a different database is a second transaction,
+  published after the type. The type is always persisted first, so an interruption can
+  only leave a dependent on an older revision (never newer than the type), and the
+  failure path and hydration (`Catalog::reconcile_embedded_composites`) roll such copies
+  forward to the persisted type. Materialized-view and projection storage schemas are
+  collection schemas like tables, so a composite column in one is covered by the same
+  stored-use guard and re-embedding; this is not yet separately exercised. A table's derived row type is re-embedded by a second transaction after
+  the `ALTER TABLE` commits; hydration and the failure path reconcile table row types
+  too (the derived descriptor is the authority), so an interruption between the two heals
+  at the next start. Routine
+  signatures are not re-embedded. `ALTER ATTRIBUTE ... TYPE` reports a missing attribute
+  (`42703`) before the stored-use `0A000`.
+- Relation row types: every table owns a composite type named like the table. Its
+  descriptor is derived from the table's current columns. Its `pg_type.oid` and array OID
+  are allocated from the same Midge object-id allocator as every other catalog object when
+  the table is created, persisted on the collection metadata (`row_type_object_id`,
+  `row_array_object_id`) and therefore stable across renames and restarts, always below
+  the `2^31` user-OID limit and resolvable through `regtype` (`reltype::regtype`). The
+  descriptor revision is the table's persisted projection `schema_version`, which only
+  grows (ADD, DROP and RENAME COLUMN each bump it). `pg_class.reltype`, `pg_type` (`typtype = 'c'`, `typrelid` = table) and the `_name`
+  array row are published. A table name works as a column type, a cast target
+  (`ROW(...)::t`, `'(1,x)'::t`) and a PREPARE parameter type. For a single-table `SELECT`,
+  a bare table name or alias is the whole row (`SELECT t FROM t`), `(t).col` selects a
+  field, `ROW(t.*)` expands to the columns and `(expr).*` expands a composite column, table
+  row or cast in the SELECT list (`0A000` for any other operand). Whole-row forms are not
+  rewritten inside subqueries, CTEs, DML or views. A CTE named like the table or alias
+  shadows it (no whole-row rewrite). A bare table name that is not a real column of that
+  table, used in a join, set operation, `GROUP BY`, `HAVING` or `DISTINCT ON`, is `0A000`
+  (PostgreSQL accepts these; Cassie reports the limit instead of a missing column).
+- Table DDL keeps the row type in sync: `ADD COLUMN`, `RENAME COLUMN`, `RENAME TO` and
+  `SET SCHEMA` re-embed the derived descriptor; stored values read the added column as
+  NULL. `DROP TABLE` is `2BP01` (`0A000` with `CASCADE`) while another column or composite
+  type holds its row type. `ALTER TABLE ... DROP COLUMN` is `0A000` while the row type is
+  stored in another column; PostgreSQL permits it, so this is a deliberate stricter
+  difference (Cassie keeps no dropped-column history for table row types).
+  `ALTER TABLE ... ALTER COLUMN ... TYPE` is `0A000` ("cannot alter table "t" because
+  column "u.x" uses its row type") while the row type is stored, as in PostgreSQL.
+- Known limitations: in an unscoped instance a domain label (`regtype`) does not see an earlier-schema table row type that shadows the domain, so it prints `posint` where PostgreSQL prints `public.posint` (scoped instances qualify correctly); views, sequences and indexes have `reltype = 0` (PostgreSQL gives
+  views a row type); `CREATE TABLE ... OF type` typed tables do not exist; renaming a
+  table does not change its row-type revision; a row type embedded in another table's
+  column is re-embedded only by the table DDL paths above.
+- Cleanups: `TypedValue::kind()` returns `Option<ExtendedType>` (`None` for a record)
+  instead of a sentinel; a stored record that contradicts its column descriptor is
+  `XX001` at row decode (and in the typed scan paths) instead of reading as NULL; the
+  session type scope covers views, `PREPARE`/`EXECUTE`, `COPY` and the `CREATE TABLE AS`
+  reparse; a repeatable-read session resolves type names against its snapshot catalog;
+  binary result formats admit a record only for columns flagged `ColumnMeta::is_record`
+  (named composites and `ROW(...)`), replacing the OID-range heuristic.
+
+#### #828 increment 2 status (domain types)
+
+Authored, not yet executed (compilation is deferred to the assembled batch):
+
+- `CREATE DOMAIN name [AS] base [DEFAULT expr] [NOT NULL | NULL] [CONSTRAINT n] CHECK (...)`
+  over scalar and array base types; `ALTER DOMAIN` SET/DROP DEFAULT, SET/DROP NOT NULL,
+  ADD CONSTRAINT CHECK [NOT VALID], DROP CONSTRAINT [IF EXISTS], VALIDATE CONSTRAINT,
+  RENAME TO and RENAME CONSTRAINT; `DROP DOMAIN [IF EXISTS] [RESTRICT]` with `2BP01`
+  detail for dependent table columns. Domain DDL shares the `CREATE TYPE` statement,
+  transaction and catalog-publication paths, so it is transactional.
+- Domain-typed table columns and `x::d` casts. Enforcement runs on INSERT, UPDATE,
+  COPY and casts: `23514` for a failed CHECK (constraint name in the message) and
+  `23502` for NULL against NOT NULL. CHECK is satisfied by TRUE or NULL. A domain
+  DEFAULT applies only when the column has no default of its own.
+- `VALUE` in a CHECK is the checked value. CHECK bodies are stored as SQL text and
+  evaluated by the scalar evaluator; unnamed checks are named `{domain}_check`,
+  `{domain}_check1` and so on.
+- `ALTER DOMAIN ADD CHECK` and `SET NOT NULL` validate existing rows and publish
+  nothing on failure, and validation sees the session's own staged rows. `NOT VALID`
+  checks are enforced on INSERT/COPY and on every newly assigned value of an UPDATE or
+  `ON CONFLICT DO UPDATE`; only an unchanged legacy value is exempt until validated.
+- `ALTER TABLE ADD COLUMN` of a domain column enforces the domain NOT NULL and CHECK
+  constraints on a populated table and backfills the domain DEFAULT. A domain shares the
+  type namespace with composite types, table, view and materialized-view row types and
+  other domains, and always collides with them as `42710`. Sequence and index names live
+  only in the relation namespace and do not collide with a domain (PostgreSQL 18.6),
+  except that `CREATE SEQUENCE` over a domain name is `42710`. `ON CONFLICT DO NOTHING` still raises `23514` / `23502`
+  or `DO UPDATE` for a violating proposed value. `pg_attribute.atttypmod` of a domain
+  column is `-1`. A domain named like a table, view, sequence or composite type is
+  `42710` for `CREATE TABLE [IF NOT EXISTS]`, `CREATE VIEW`, `CREATE MATERIALIZED VIEW`,
+  `CREATE SEQUENCE` and `CREATE TYPE`, and `CREATE DOMAIN` collides with tables, views,
+  composite types and other domains; a domain may share a sequence or index name.
+  `ALTER TABLE/MATERIALIZED VIEW ... RENAME TO` or `ALTER TABLE ... SET SCHEMA` onto a domain
+  name is `42710` (`ALTER VIEW` is not implemented and stays `0A000`), onto a composite type name `42P07`; `ALTER SEQUENCE` and `ALTER INDEX`
+  renames onto a domain name are accepted, as in PostgreSQL.
+- `ALTER TYPE <domain> RENAME TO | SET SCHEMA` and `DROP TYPE <domain>` act on the domain
+  (`ALTER TYPE <domain> ADD ATTRIBUTE ...` is `42P01`, `OWNER TO` is `0A000`);
+  `ALTER TYPE <composite> RENAME TO <domain>` is `42710`.
+- A table's row type keeps the domain of a domain column: `'(-1)'::t`, `ROW(-1)::t` and
+  `jsonb_populate_record(NULL::t, ...)` raise `23514`/`23502` as in PostgreSQL.
+- Whole-row reads (`SELECT t FROM t`, `t::text`) never revalidate stored values; a row
+  type's domain fields resolve the live domain descriptor by OID when the statement is
+  parsed, so `ALTER DOMAIN` is seen by later casts. `(row).field` infers the base type.
+  A column whose type is another table's row type stores that row type with its domain
+  fields flattened and enforces the live domains of the row type by OID on INSERT and
+  UPDATE, one level deep: a row-type field that is itself another table's row type is not descended into (PostgreSQL enforces at any depth), and `UPDATE t SET r.a = ...` field assignment is not supported (the target is rejected as an unknown column). Known divergences: binary `record_send`/`record_recv` carry
+  the domain OID per field for casts and user composites (as PostgreSQL), but a
+  whole-row value (`SELECT t FROM t`) is built from an unconstrained descriptor and
+  sends the base OID; a `JSON_TABLE` `EXISTS PATH` column of a domain type casts the
+  boolean to the domain even when the path is not found (PostgreSQL raises `42804`);
+  bind-time re-parse of view bodies uses the live catalog, not the open transaction's
+  overlay or REPEATABLE READ snapshot, so a domain created in the same open
+  transaction as `CREATE VIEW` is not seen by the bind step; a null-safe expression
+  `DEFAULT` that casts to a domain (for example `DEFAULT lower('A')::d`) is folded
+  against an empty catalog and fails with `42704` (plain literal casts such as
+  `DEFAULT 5::d` are stripped and accepted).
+- View, materialized view and materialized projection bodies, and their dependency
+  and rename re-checks, resolve domain, composite and row-type names against the
+  catalog and search path of the statement.
+- Domain names are accepted as column types of `json[b]_to_record[set]` `AS t(a d)`
+  lists and `JSON_TABLE` columns: the value converts to the base type, then the domain is
+  enforced (`23514`; a `JSON_TABLE` column under its default `ON ERROR` yields NULL).
+- Known divergences: `UPDATE t SET q = c` where the stored value already equals the
+  constant `c` and violates a `NOT VALID` check is accepted (PostgreSQL re-coerces the
+  constant and rejects); a column with its own volatile DEFAULT falls back to the domain
+  default when added to a populated table; adding a column whose domain default is
+  `gen_random_uuid()` to a populated table is `0A000` (a single value would not be
+  distinct per row).
+- Flattening: operators and functions resolve through the base type, and
+  RowDescription, `atttypmod` and parameter types report the base OID. A table column
+  keeps its domain identity separately (`FieldMeta.domain`), so `ALTER DOMAIN` never
+  rewrites rows; enforcement looks the live descriptor up by OID.
+- Catalog: `pg_type` rows with `typtype = 'd'`, `typbasetype`, `typtypmod`,
+  `typnotnull` and a `_name` array row; `pg_attribute.atttypid` of a domain column is
+  the domain OID; `'d'::regtype` resolves and prints. `typdefault` and
+  `pg_constraint` rows for domain checks are not published.
+- CRB1 tag `0x10`: version u8 = 1, type OID u32, descriptor revision u64, one framed
+  base value. Decoding yields the base value; a NULL base inside a payload is corrupt.
+
+Rejected with `0A000` (documented limitations, not regressions):
+
+- domains over composite types (including a table's row type), over other domains, and
+  over arrays of those;
+- arrays of domains (`d[]`) and composite attributes of domain type; a domain name is
+  only recognised in column definitions, casts, `json[b]_to_record[set]` definition lists
+  and `JSON_TABLE` columns, so function signatures, sequences and `CREATE TYPE`
+  attributes report the type as missing (`42704`);
+- `DEFAULT <expr>::domain` literal folding resolves no catalog names;
+- `COLLATE` on a domain, `ALTER DOMAIN OWNER TO` and `ALTER DOMAIN ... SET SCHEMA` (use
+  `ALTER TYPE <domain> SET SCHEMA`);
+- `DROP DOMAIN ... CASCADE` when dependents exist (use `RESTRICT` semantics);
+- restoring a database image that contains domain types fails closed;
+- prepared statements keep the descriptor seen at Parse time.
+
+#### Residual divergences from PostgreSQL 18.6 (#828, #818; accepted, documented)
+
+- `(expr).*` on an expression that is not a composite is `0A000`; PostgreSQL gives `42809`.
+- Binary record output re-parses the rendered text of each field, so `timestamptz` and
+  domain fields are approximate, and whole-row values send base type OIDs.
+- Views have `pg_class.reltype = 0`; PostgreSQL gives views a non-zero row type.
+- A plain `CREATE FUNCTION` does not detect a procedure of the same name; PostgreSQL gives
+  `42723` because functions and procedures share `pg_proc`.
+- Routine owner checks are not enforced.
+- `CREATE OR REPLACE FUNCTION/PROCEDURE` with a different argument list is `0A000`, because
+  Cassie has no routine overloads.
 
 ### #843, #844
 

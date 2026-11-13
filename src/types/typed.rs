@@ -31,6 +31,8 @@ pub enum TypedValue {
     /// Microseconds since 2000-01-01 00:00 UTC.
     TimestampTz(i64),
     Interval(Interval),
+    /// A named composite or anonymous `ROW(...)` value (#828).
+    Record(super::composite::RecordValue),
 }
 
 /// A totally ordered, hashable key with PostgreSQL ordering semantics.
@@ -54,27 +56,42 @@ pub enum TypedKey {
     TimestampTz(i64),
     /// 30-day months and 24-hour days, as `interval_cmp` orders them.
     Interval(i128),
+    /// A record's field-wise btree key (`record_cmp` order).
+    Record(Vec<u8>),
 }
 
 impl TypedValue {
+    /// The extended family of this value, or `None` for a record, which belongs
+    /// to no extended family. Code that routes by family handles `None`
+    /// explicitly instead of receiving a placeholder kind.
     #[must_use]
-    pub const fn kind(&self) -> ExtendedType {
+    pub const fn kind(&self) -> Option<ExtendedType> {
         match self {
-            Self::Real(_) => ExtendedType::Real,
-            Self::Numeric(_) => ExtendedType::Numeric(None),
-            Self::Inet(_) => ExtendedType::Inet,
-            Self::Cidr(_) => ExtendedType::Cidr,
-            Self::Macaddr(_) => ExtendedType::Macaddr,
-            Self::Macaddr8(_) => ExtendedType::Macaddr8,
-            Self::PgLsn(_) => ExtendedType::PgLsn,
-            Self::Bit(_) => ExtendedType::Bit { length: None },
-            Self::VarBit(_) => ExtendedType::VarBit { length: None },
-            Self::Date(_) => ExtendedType::Date,
-            Self::Time(_) => ExtendedType::Time { precision: None },
-            Self::TimeTz(_) => ExtendedType::TimeTz { precision: None },
-            Self::Timestamp(_) => ExtendedType::Timestamp { precision: None },
-            Self::TimestampTz(_) => ExtendedType::TimestampTz { precision: None },
-            Self::Interval(_) => ExtendedType::Interval { typmod: -1 },
+            Self::Real(_) => Some(ExtendedType::Real),
+            Self::Numeric(_) => Some(ExtendedType::Numeric(None)),
+            Self::Inet(_) => Some(ExtendedType::Inet),
+            Self::Cidr(_) => Some(ExtendedType::Cidr),
+            Self::Macaddr(_) => Some(ExtendedType::Macaddr),
+            Self::Macaddr8(_) => Some(ExtendedType::Macaddr8),
+            Self::PgLsn(_) => Some(ExtendedType::PgLsn),
+            Self::Bit(_) => Some(ExtendedType::Bit { length: None }),
+            Self::VarBit(_) => Some(ExtendedType::VarBit { length: None }),
+            Self::Date(_) => Some(ExtendedType::Date),
+            Self::Time(_) => Some(ExtendedType::Time { precision: None }),
+            Self::TimeTz(_) => Some(ExtendedType::TimeTz { precision: None }),
+            Self::Timestamp(_) => Some(ExtendedType::Timestamp { precision: None }),
+            Self::TimestampTz(_) => Some(ExtendedType::TimestampTz { precision: None }),
+            Self::Interval(_) => Some(ExtendedType::Interval { typmod: -1 }),
+            Self::Record(_) => None,
+        }
+    }
+
+    /// The record this value carries, if any.
+    #[must_use]
+    pub const fn as_record(&self) -> Option<&super::composite::RecordValue> {
+        match self {
+            Self::Record(record) => Some(record),
+            _ => None,
         }
     }
 
@@ -87,12 +104,36 @@ impl TypedValue {
     /// The schema type this value belongs to; the natively carried
     /// `date`/`time`/`timestamp` map back to their existing schema types.
     #[must_use]
-    pub const fn data_type(&self) -> super::DataType {
+    pub fn data_type(&self) -> super::DataType {
         match self {
+            Self::Record(record) => super::DataType::Composite(record.descriptor().clone()),
             Self::Date(_) => super::DataType::Date,
             Self::Time(_) => super::DataType::Time,
             Self::Timestamp(_) => super::DataType::Timestamp,
-            other => super::DataType::Extended(other.kind()),
+            other => other
+                .kind()
+                .map_or(super::DataType::Text, super::DataType::Extended),
+        }
+    }
+
+    /// Like [`Self::data_type`] but keeping `date`/`time`/`timestamp` as their
+    /// extended kinds, as the typed-expression sites expect.
+    #[must_use]
+    pub fn extended_data_type(&self) -> super::DataType {
+        match self {
+            Self::Record(record) => super::DataType::Composite(record.descriptor().clone()),
+            other => other
+                .kind()
+                .map_or(super::DataType::Text, super::DataType::Extended),
+        }
+    }
+
+    /// The wire type OID of this value.
+    #[must_use]
+    pub fn wire_type_oid(&self) -> i64 {
+        match self {
+            Self::Record(record) => i64::from(record.descriptor().oid),
+            other => other.kind().map_or(0, |kind| i64::from(kind.type_oid())),
         }
     }
 
@@ -116,12 +157,16 @@ impl TypedValue {
             Self::Macaddr8(value) => network::format_mac(value),
             Self::PgLsn(value) => pg_lsn::format_text(*value),
             Self::Bit(value) | Self::VarBit(value) => bit_string::format_text(value),
+            Self::Record(value) => super::composite::format_record(value, session),
         }
     }
 
     /// The JSON carrier stored in documents; storage re-encodes it natively.
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
+        if let Self::Record(record) = self {
+            return super::composite::record_to_storage_json(record);
+        }
         serde_json::Value::String(self.text())
     }
 
@@ -147,6 +192,7 @@ impl TypedValue {
             Self::Timestamp(value) => TypedKey::Timestamp(*value),
             Self::TimestampTz(value) => TypedKey::TimestampTz(*value),
             Self::Interval(value) => TypedKey::Interval(value.order_key()),
+            Self::Record(value) => TypedKey::Record(super::composite::record_key(value)),
         }
     }
 
@@ -155,6 +201,7 @@ impl TypedValue {
     pub fn heap_bytes(&self) -> usize {
         match self {
             Self::Bit(value) | Self::VarBit(value) => value.heap_bytes(),
+            Self::Record(value) => value.heap_bytes(),
             Self::Numeric(numeric::Numeric::Finite { mantissa, .. }) => {
                 usize::try_from(mantissa.bits().div_ceil(8)).unwrap_or(usize::MAX)
             }
@@ -192,6 +239,12 @@ impl TypedValue {
             }
             Self::TimeTz(value) => temporal::send_timetz(value),
             Self::Interval(value) => temporal::send_interval(value),
+            Self::Record(value) => {
+                super::composite::wire::send_record_binary(value, |field, data_type| {
+                    super::composite::wire::default_field_binary(field, data_type)
+                })
+                .unwrap_or_default()
+            }
         }
     }
 
@@ -213,7 +266,8 @@ impl TypedValue {
             | Self::TimeTz(_)
             | Self::Timestamp(_)
             | Self::TimestampTz(_)
-            | Self::Interval(_) => None,
+            | Self::Interval(_)
+            | Self::Record(_) => None,
         }
     }
 }

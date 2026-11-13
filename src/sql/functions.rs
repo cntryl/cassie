@@ -16,7 +16,7 @@ pub(crate) mod regression;
 mod sequences;
 pub(crate) mod statistical;
 pub(crate) use numeric_identity::has_unselected_numeric;
-pub(crate) use object_identity::lookup_kind as object_lookup_kind;
+pub(crate) use object_identity::{is_identify_object, lookup_kind as object_lookup_kind};
 pub(crate) use percentile_identity::percentile_function_for_column;
 pub(crate) use sequences::SEQUENCE_FUNCTION_NAMES;
 mod runtime;
@@ -151,6 +151,7 @@ pub enum FunctionId {
     SessionUser,
     CurrentRole,
     QuoteIdent,
+    QuoteNullable,
     FormatType,
     PgGetExpr,
     PgGetIndexDef,

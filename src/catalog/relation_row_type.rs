@@ -132,19 +132,22 @@ impl Catalog {
     }
 
     /// The table whose row type or row array type has `pg_type.oid` `oid`,
-    /// with its descriptor and whether `oid` names the array type.
+    /// with its descriptor and whether `oid` names the array type. The table
+    /// is named by its stored (schema-qualifying) name.
     #[must_use]
     pub fn relation_row_type_by_oid(&self, oid: u32) -> Option<(String, CompositeRef, bool)> {
-        self.list_collections().into_iter().find_map(|collection| {
-            let descriptor = self.relation_row_type(&collection.name)?;
-            if descriptor.oid == oid {
-                Some((collection.name, descriptor, false))
-            } else if descriptor.array_oid == oid {
-                Some((collection.name, descriptor, true))
-            } else {
-                None
-            }
-        })
+        self.list_collections_canonical()
+            .into_iter()
+            .find_map(|collection| {
+                let descriptor = self.relation_row_type(&collection.name)?;
+                if descriptor.oid == oid {
+                    Some((collection.name, descriptor, false))
+                } else if descriptor.array_oid == oid {
+                    Some((collection.name, descriptor, true))
+                } else {
+                    None
+                }
+            })
     }
 
     /// Row types of every table of `database`, for `pg_type` and `pg_class`.

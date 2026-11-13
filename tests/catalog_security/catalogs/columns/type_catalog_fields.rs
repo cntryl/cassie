@@ -39,7 +39,7 @@ fn should_expose_selected_relation_type_fields_with_non_domain_defaults() {
     let type_columns = catalog_column_names(&fixture, "pg_type");
     let relation_types = fixture
         .execute(
-            "SELECT relname, relkind, reltype FROM pg_catalog.pg_class \
+            "SELECT relname, relkind, reltype <> 0 FROM pg_catalog.pg_class \
              WHERE relname IN ('issue_817_rowtype_probe', 'issue_817_rowtype_view', 'issue_817_rowtype_idx') \
              ORDER BY relname",
         )
@@ -96,17 +96,18 @@ fn should_expose_selected_relation_type_fields_with_non_domain_defaults() {
             vec![
                 Value::String("issue_817_rowtype_idx".to_owned()),
                 Value::String("i".to_owned()),
-                Value::Int64(0),
+                Value::Bool(false),
             ],
             vec![
                 Value::String("issue_817_rowtype_probe".to_owned()),
                 Value::String("r".to_owned()),
-                Value::Int64(0),
+                // PostgreSQL 18.6 oracle: a table owns a row type (reltype <> 0).
+                Value::Bool(true),
             ],
             vec![
                 Value::String("issue_817_rowtype_view".to_owned()),
                 Value::String("v".to_owned()),
-                Value::Int64(0),
+                Value::Bool(false),
             ],
         ]
     );

@@ -7,7 +7,6 @@
 use super::names::quote_identifier;
 use super::{catalog_index_oid, ObjectScope, RelationIdentity};
 use crate::catalog::builtin_identity::{builtin_identities, BuiltinTypeRow};
-use crate::catalog::canonical_relation_name;
 use crate::types::object_id::FIRST_NORMAL_OBJECT_ID;
 
 const RELATION_CLASS: u32 = 1259;
@@ -172,7 +171,7 @@ impl ObjectScope<'_> {
         }) {
             return 'i';
         }
-        let canonical = canonical_relation_name(database, &relation.schema, &relation.name);
+        let canonical = self.stored_relation_name(&relation.schema, &relation.name);
         if self.catalog.get_collection(&canonical).is_some() {
             'r'
         } else if self.catalog.get_view(&canonical).is_some() {
@@ -195,7 +194,7 @@ impl ObjectScope<'_> {
     ) -> Option<String> {
         let position = usize::try_from(sub_id).ok()?.checked_sub(1)?;
         let database = &self.context.database;
-        let canonical = canonical_relation_name(database, &relation.schema, &relation.name);
+        let canonical = self.stored_relation_name(&relation.schema, &relation.name);
         match kind {
             'r' => table_column(&canonical, sub_id),
             'v' => self
@@ -319,11 +318,8 @@ impl ObjectScope<'_> {
         }
         // Every table owns a row type named like the table.
         let (table, _, is_array) = self.catalog.relation_row_type_by_oid(oid)?;
-        Some((
-            crate::catalog::relation_schema_name(&table),
-            crate::catalog::local_name(&table),
-            is_array,
-        ))
+        let (schema, name) = self.stored_relation_parts(&table)?;
+        Some((schema, name, is_array))
     }
 }
 

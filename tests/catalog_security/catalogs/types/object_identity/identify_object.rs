@@ -455,7 +455,9 @@ fn should_identify_a_user_procedure_by_its_signature() {
             Some("procedure"),
             Some("ident"),
             None,
-            Some("ident.touch(text)"),
+            // PostgreSQL 18.6 oracle: format_procedure_qualified schema-qualifies
+            // `text` (it is not an SQL keyword type), unlike `integer`.
+            Some("ident.touch(pg_catalog.text)"),
         ])]
     );
 }

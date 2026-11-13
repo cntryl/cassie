@@ -33,7 +33,7 @@ pub(super) fn bind_create_function(
         )));
     }
 
-    if !statement.if_not_exists && catalog.get_function(&name).is_some() {
+    if !statement.if_not_exists && !statement.or_replace && catalog.get_function(&name).is_some() {
         return Err(CassieError::Planner(format!(
             "function '{name}' already exists"
         )));
@@ -111,7 +111,7 @@ pub(super) fn bind_create_procedure(
         ));
     }
 
-    if !statement.if_not_exists && catalog.get_procedure(&name).is_some() {
+    if !statement.if_not_exists && !statement.or_replace && catalog.get_procedure(&name).is_some() {
         return Err(CassieError::Planner(format!(
             "procedure '{name}' already exists"
         )));

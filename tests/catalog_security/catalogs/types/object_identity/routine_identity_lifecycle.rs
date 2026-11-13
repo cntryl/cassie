@@ -93,12 +93,40 @@ fn should_keep_the_oid_when_a_function_is_redefined() {
 
     // Act
     fixture
-        .execute("CREATE FUNCTION routine_one(x INT) RETURNS INT AS \"x + 100\"")
+        .execute("CREATE OR REPLACE FUNCTION routine_one(x INT) RETURNS INT AS \"x + 100\"")
         .expect("redefine the function");
     let after = oid_of(&fixture, "routine_one(integer)");
 
     // Assert
     assert_eq!(before, after);
+}
+
+#[test]
+fn should_keep_the_oid_when_a_procedure_is_redefined() {
+    // Arrange
+    let fixture = sql_fixture("routine_oid_redefine_procedure", SETUP);
+    let before = oid_of(&fixture, "routine_three(text)");
+
+    // Act
+    fixture
+        .execute("create  or   replace PROCEDURE routine_three(note TEXT) AS \"SELECT 2\"")
+        .expect("redefine the procedure");
+    let after = oid_of(&fixture, "routine_three(text)");
+
+    // Assert
+    assert_eq!(before, after);
+}
+
+#[test]
+fn should_reject_a_duplicate_function_without_or_replace() {
+    // Arrange
+    let fixture = sql_fixture("routine_oid_duplicate", SETUP);
+
+    // Act
+    let result = fixture.execute("CREATE FUNCTION routine_one(x INT) RETURNS INT AS \"x + 100\"");
+
+    // Assert
+    assert!(result.is_err());
 }
 
 #[test]

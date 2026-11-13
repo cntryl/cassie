@@ -9,7 +9,7 @@ use crate::catalog::builtin_identity::{
 };
 use crate::catalog::{
     canonical_identifier_component, canonical_relation_name, canonical_schema_name, local_name,
-    relation_schema_name, Catalog, DEFAULT_SCHEMA,
+    Catalog, DEFAULT_SCHEMA,
 };
 use crate::sql::binder::BindingContext;
 use crate::types::object_id::{parse_oid_text, FIRST_NORMAL_OBJECT_ID};
@@ -248,7 +248,7 @@ impl<'a> ObjectScope<'a> {
     /// `regtype` output for a table's row type or its array type.
     fn relation_row_type_label(&self, oid: u32) -> Option<String> {
         let (table, _, is_array) = self.catalog.relation_row_type_by_oid(oid)?;
-        let local = super::local_name(&table);
+        let (schema, local) = self.stored_relation_parts(&table)?;
         let search_order = self.context.relation_search_order();
         let visible = self
             .catalog
@@ -261,11 +261,7 @@ impl<'a> ObjectScope<'a> {
         let name = if visible {
             quote_identifier(&local)
         } else {
-            format!(
-                "{}.{}",
-                quote_identifier(&super::relation_schema_name(&table)),
-                quote_identifier(&local)
-            )
+            format!("{}.{}", quote_identifier(&schema), quote_identifier(&local))
         };
         Some(format!("{name}{}", if is_array { "[]" } else { "" }))
     }
@@ -339,6 +335,26 @@ impl<'a> ObjectScope<'a> {
         })
     }
 
+    /// The name a table, view or sequence is stored under: the database
+    /// canonical name, or the unscoped name of an instance without databases.
+    fn stored_relation_name(&self, schema: &str, name: &str) -> String {
+        let canonical = canonical_relation_name(&self.context.database, schema, name);
+        let exists = |stored: &str| {
+            self.catalog.get_collection(stored).is_some()
+                || self.catalog.get_view(stored).is_some()
+                || self.catalog.get_sequence(stored).is_some()
+        };
+        if exists(&canonical) || !self.catalog.list_databases().is_empty() {
+            return canonical;
+        }
+        let unscoped = Self::unscoped_relation_name(&canonical, schema, name);
+        if exists(&unscoped) {
+            unscoped
+        } else {
+            canonical
+        }
+    }
+
     /// The name an unscoped catalog stores a relation under: bare for
     /// `public`, `schema.name` elsewhere, and database-qualified when a
     /// component needs escaping.
@@ -364,22 +380,44 @@ impl<'a> ObjectScope<'a> {
                 {
                     return None;
                 }
-                let relation = crate::catalog::RelationId::parse_canonical(&index.collection)?;
-                if !relation
-                    .database
-                    .eq_ignore_ascii_case(&self.context.database)
-                    || !relation.schema.eq_ignore_ascii_case(schema)
+                let (index_schema, _) = self.stored_relation_parts(&index.collection)?;
+                if !index_schema.eq_ignore_ascii_case(schema)
                     || !local_name(&index.name).eq_ignore_ascii_case(name)
                 {
                     return None;
                 }
-                let oid = catalog_index_oid(&index);
                 Some(RelationIdentity {
-                    oid,
-                    schema: relation_schema_name(&index.collection),
+                    oid: catalog_index_oid(&index),
+                    schema: index_schema,
                     name: local_name(&index.name),
                 })
             })
+    }
+
+    /// The schema and relation name of a stored relation name that belongs to
+    /// the session database. Names scoped to another database yield `None`; an
+    /// instance without databases stores unscoped `schema.name` or bare names.
+    fn stored_relation_parts(&self, stored: &str) -> Option<(String, String)> {
+        match crate::catalog::parse_name(stored).ok()? {
+            crate::catalog::ParsedName::DatabaseQualified {
+                database,
+                schema,
+                name,
+            } => database
+                .eq_ignore_ascii_case(&self.context.database)
+                .then_some((schema, name)),
+            crate::catalog::ParsedName::SchemaQualified { schema, name }
+                if self.catalog.list_databases().is_empty() =>
+            {
+                Some((schema, name))
+            }
+            crate::catalog::ParsedName::Unqualified(name)
+                if self.catalog.list_databases().is_empty() =>
+            {
+                Some((DEFAULT_SCHEMA.to_string(), name))
+            }
+            _ => None,
+        }
     }
 
     fn relation_by_oid(&self, oid: u32) -> Option<RelationIdentity> {
@@ -407,32 +445,21 @@ impl<'a> ObjectScope<'a> {
                 name: metadata.local_name(),
             });
         }
-        if let Some(index) =
-            self.catalog
-                .logical_indexes_snapshot()
-                .into_iter()
-                .find(|index| {
-                    self.catalog
-                        .is_published_in_postgresql_catalogs(index, Some(&self.context.database))
-                        && catalog_index_oid(index) == oid
-                        && crate::catalog::RelationId::parse_canonical(&index.collection)
-                            .is_some_and(|relation| {
-                                relation
-                                    .database
-                                    .eq_ignore_ascii_case(&self.context.database)
-                            })
-                })
+        if let Some(index) = self
+            .catalog
+            .logical_indexes_snapshot()
+            .into_iter()
+            .find(|index| {
+                self.catalog
+                    .is_published_in_postgresql_catalogs(index, Some(&self.context.database))
+                    && catalog_index_oid(index) == oid
+                    && self.stored_relation_parts(&index.collection).is_some()
+            })
         {
-            let relation = crate::catalog::RelationId::parse_canonical(&index.collection)?;
-            if !relation
-                .database
-                .eq_ignore_ascii_case(&self.context.database)
-            {
-                return None;
-            }
+            let (schema, _) = self.stored_relation_parts(&index.collection)?;
             return Some(RelationIdentity {
                 oid,
-                schema: relation.schema,
+                schema,
                 name: local_name(&index.name),
             });
         }
@@ -469,18 +496,8 @@ impl<'a> ObjectScope<'a> {
                     })
                     .map(|projection| projection.collection)
             })?;
-        let relation = crate::catalog::RelationId::parse_canonical(&name)?;
-        if !relation
-            .database
-            .eq_ignore_ascii_case(&self.context.database)
-        {
-            return None;
-        }
-        Some(RelationIdentity {
-            oid,
-            schema: relation.schema,
-            name: relation.name,
-        })
+        let (schema, name) = self.stored_relation_parts(&name)?;
+        Some(RelationIdentity { oid, schema, name })
     }
 
     /// The canonical catalog name of the user relation with `oid`.

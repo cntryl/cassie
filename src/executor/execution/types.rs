@@ -18,6 +18,53 @@ pub struct ColumnMeta {
     /// send the rendered record text in binary `record_send` layout.
     #[serde(skip)]
     pub record_type: Option<crate::types::CompositeRef>,
+    /// Set for a named enum column (`t`) or an enum array column (`t[]`):
+    /// user-range type OIDs have no builtin codec, so pgwire sends the label
+    /// (`enum_send`) and `array_send` over labels from this description.
+    #[serde(skip)]
+    pub enum_column: Option<EnumColumn>,
+}
+
+/// The wire identity of an enum or enum-array result column (#827).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EnumColumn {
+    /// `pg_type.oid` of the enum type itself (the array element type).
+    pub element_oid: i64,
+    pub is_array: bool,
+}
+
+impl EnumColumn {
+    /// The enum description of `data_type`, if it is an enum or enum array.
+    #[must_use]
+    pub fn of(data_type: &DataType) -> Option<Self> {
+        match data_type {
+            DataType::Enum(descriptor) => Some(Self {
+                element_oid: i64::from(descriptor.oid),
+                is_array: false,
+            }),
+            DataType::Array(inner) => match inner.as_ref() {
+                DataType::Enum(descriptor) => Some(Self {
+                    element_oid: i64::from(descriptor.oid),
+                    is_array: true,
+                }),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// The `pg_type.oid` the column reports in `RowDescription`.
+    #[must_use]
+    pub fn wire_oid(data_type: &DataType) -> Option<i64> {
+        match data_type {
+            DataType::Enum(descriptor) => Some(i64::from(descriptor.oid)),
+            DataType::Array(inner) => match inner.as_ref() {
+                DataType::Enum(descriptor) => Some(i64::from(descriptor.array_oid)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 impl ColumnMeta {
@@ -27,11 +74,18 @@ impl ColumnMeta {
 
     pub fn from_data_type(name: impl Into<String>, data_type: &DataType) -> Self {
         let data_type_name = data_type.type_name();
+        let enum_column = EnumColumn::of(data_type);
         Self {
             name: name.into(),
             data_type: data_type_name,
-            type_oid: data_type.type_oid(),
-            typlen: data_type.typlen(),
+            // An enum column reports the enum's own OID (its array OID for an
+            // array), never `text`.
+            type_oid: EnumColumn::wire_oid(data_type).unwrap_or_else(|| data_type.type_oid()),
+            typlen: match data_type {
+                DataType::Enum(_) => 4,
+                _ if enum_column.is_some() => -1,
+                _ => data_type.typlen(),
+            },
             atttypmod: data_type.atttypmod(),
             format_code: 0,
             nullable: true,
@@ -40,7 +94,15 @@ impl ColumnMeta {
                 DataType::Composite(descriptor) => Some(descriptor.clone()),
                 _ => None,
             },
+            enum_column,
         }
+    }
+
+    /// Whether the column's user-range type OID has a pgwire codec of its own
+    /// (a record, enum or enum array) rather than a builtin one.
+    #[must_use]
+    pub fn user_codec(&self) -> bool {
+        self.is_record || self.enum_column.is_some()
     }
 
     pub(crate) fn is_vector(&self) -> bool {
@@ -53,6 +115,10 @@ impl ColumnMeta {
 }
 
 pub use super::query_result::QueryResult;
+
+#[cfg(test)]
+#[path = "enum_column_tests.rs"]
+mod enum_column_tests;
 
 #[cfg(test)]
 #[path = "result_ownership_tests.rs"]

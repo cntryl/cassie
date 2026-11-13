@@ -193,15 +193,6 @@ const REGISTRIES: &[(&str, Fields)] = &[
         ],
     ),
     (
-        "pg_catalog.pg_enum",
-        &[
-            ("oid", 26),
-            ("enumtypid", 26),
-            ("enumsortorder", 700),
-            ("enumlabel", 19),
-        ],
-    ),
-    (
         "pg_catalog.pg_partitioned_table",
         &[
             ("partrelid", 26),

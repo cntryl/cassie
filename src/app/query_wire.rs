@@ -96,10 +96,10 @@ impl Cassie {
             .and_then(CassieSession::current_database)
             .unwrap_or(&self.default_database);
         for column in &mut columns {
-            // Record columns carry their own flag (table row types have no
-            // composite catalog entry); their display name is not a
-            // parseable scalar type name.
-            let is_record_column = column.is_record
+            // Record and enum columns carry their own description (table row
+            // types have no composite catalog entry); their display name is
+            // not a parseable scalar type name.
+            let is_record_column = column.user_codec()
                 || u32::try_from(column.type_oid).is_ok_and(|oid| {
                     oid == crate::types::composite::RECORD_OID
                         || self.catalog.get_composite_type_by_oid(oid).is_some()

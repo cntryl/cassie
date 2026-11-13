@@ -74,6 +74,7 @@ mod access;
 mod cache;
 mod copy_csv;
 pub(crate) mod copy_decode;
+pub(crate) mod enum_parameters;
 mod error;
 mod session;
 mod session_objects;

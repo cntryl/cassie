@@ -316,6 +316,12 @@ impl ObjectScope<'_> {
         if let Some(metadata) = self.catalog.get_domain_type_by_array_oid(oid) {
             return Some((metadata.schema_name(), metadata.local_name(), true));
         }
+        if let Some(metadata) = self.catalog.get_enum_type_by_oid(oid) {
+            return Some((metadata.schema_name(), metadata.local_name(), false));
+        }
+        if let Some(metadata) = self.catalog.get_enum_type_by_array_oid(oid) {
+            return Some((metadata.schema_name(), metadata.local_name(), true));
+        }
         // Every table owns a row type named like the table.
         let (table, _, is_array) = self.catalog.relation_row_type_by_oid(oid)?;
         let (schema, name) = self.stored_relation_parts(&table)?;

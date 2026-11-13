@@ -128,7 +128,9 @@ pub(super) fn bind_select_with_lateral_fields(
     super::coalesce_results::validate_select(&select, catalog, context)?;
 
     if let Some(set) = set {
-        let right = bind_select(*set.right, catalog, &scope, context)?;
+        // The right branch of a lateral derived table sees the same outer-row columns.
+        let right =
+            bind_select_with_lateral_fields(*set.right, catalog, &scope, lateral_fields, context)?;
         select.set = Some(Box::new(SelectSet {
             operator: set.operator,
             right: Box::new(right),

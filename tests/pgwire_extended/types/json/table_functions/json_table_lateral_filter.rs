@@ -49,6 +49,42 @@ fn should_keep_outer_correlated_conjuncts_given_a_lateral_derived_table() {
 }
 
 #[test]
+fn should_resolve_outer_columns_given_a_set_operation_branch_in_a_lateral_derived_table() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM lf_outer AS t, LATERAL \
+         (SELECT 0 AS v WHERE false \
+          UNION ALL SELECT e.value::text::int FROM {INNER} WHERE a.id = t.id) AS s \
+         ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_lateral_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_resolve_outer_columns_given_both_set_operation_branches_in_a_lateral_derived_table() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM lf_outer AS t, LATERAL \
+         (SELECT e.value::text::int AS v FROM {INNER} WHERE a.id = t.id \
+          UNION ALL SELECT e.value::text::int FROM {INNER} WHERE a.id = t.id) AS s \
+         ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_lateral_rows(
+        &sql,
+        &[
+            &[Some("1"), Some("10")],
+            &[Some("1"), Some("10")],
+            &[Some("2"), Some("20")],
+            &[Some("2"), Some("20")],
+        ],
+    );
+}
+
+#[test]
 fn should_keep_outer_correlated_conjuncts_given_a_correlated_scalar_subquery() {
     // Arrange
     let sql = format!(

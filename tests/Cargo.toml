@@ -67,6 +67,10 @@ name = "catalog_security"
 path = "catalog_security.rs"
 
 [[test]]
+name = "columnar_surface"
+path = "columnar_surface.rs"
+
+[[test]]
 name = "compatibility"
 path = "compatibility.rs"
 

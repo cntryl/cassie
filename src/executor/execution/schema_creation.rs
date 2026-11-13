@@ -747,9 +747,11 @@ pub(super) fn create_index(
         .collection_storage_mode(&storage_table)
         .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage);
     if is_column_store && matches!(statement.kind, catalog::IndexKind::Column) {
-        return Err(QueryError::General(
+        return Err(CassieError::from(crate::app::DiagnosticError::new(
+            "0A000",
             "column indexes are not supported on column-store tables".to_string(),
-        ));
+        ))
+        .into());
     }
     let metadata = catalog::IndexMeta {
         definition_semantics_version: 1,

@@ -95,3 +95,13 @@ fn should_keep_outer_correlated_conjuncts_given_a_correlated_scalar_subquery() {
     // Assert
     assert_lateral_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
 }
+
+#[test]
+fn should_skip_failing_rows_given_a_values_aliased_outer_input_and_a_cross_join_lateral() {
+    // Arrange
+    let sql = "SELECT t.id, e.value FROM (VALUES (1, '[7]'::jsonb), (2, '3'::jsonb)) AS t(id, j) \
+               CROSS JOIN LATERAL jsonb_array_elements(t.j) AS e WHERE t.id = 1";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1"), Some("7")]]);
+}

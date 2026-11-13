@@ -134,6 +134,7 @@ impl Catalog {
         (*self.composite_types.write()).clone_from(&snapshot.composite_types.read());
         (*self.domain_types.write()).clone_from(&snapshot.domain_types.read());
         (*self.enum_types.write()).clone_from(&snapshot.enum_types.read());
+        self.clear_uncommitted_enum_labels();
         (*self.sequences.write()).clone_from(&snapshot.sequences.read());
         (*self.rollups.write()).clone_from(&snapshot.rollups.read());
         (*self.retention_policies.write()).clone_from(&snapshot.retention_policies.read());

@@ -4,9 +4,10 @@
 //! `docs/type-contract.md`.
 use serde::{Deserialize, Serialize};
 
+use super::domain_types::same_stored_relation;
 use super::{
-    canonical_relation_name, local_name, name_matches, parse_name, relation_schema_name, Catalog,
-    ParsedName,
+    canonical_relation_name, local_name, name_matches, parse_name, relation_database_name,
+    relation_schema_name, Catalog, ParsedName,
 };
 use crate::types::enum_type::{EnumMember, EnumRef, EnumType};
 use crate::types::DataType;
@@ -184,4 +185,72 @@ impl Catalog {
             } => self.get_enum_type(&canonical_relation_name(&database, &schema, &name)),
         }
     }
+
+    /// Whether an enum type in the same schema (and database, when both names
+    /// are canonical) as the relation `name` has its local name. A table, view
+    /// or materialized view row type would collide with it (`42710`).
+    pub(super) fn enum_owns_relation_name(&self, name: &str) -> bool {
+        self.enum_types
+            .read()
+            .values()
+            .any(|metadata| same_stored_relation(&metadata.name, name))
+    }
+
+    /// Objects that keep the enum type `oid` alive, phrased as PostgreSQL
+    /// phrases the `DROP TYPE` dependency detail (`column c of table t`).
+    /// Composite fields and domain bases cannot hold an enum in v0.4.
+    #[must_use]
+    pub fn enum_type_dependents(&self, oid: u32) -> Vec<String> {
+        let mut dependents = Vec::new();
+        for schema in self.schemas.read().values() {
+            for field in &schema.fields {
+                if data_type_depends_on_enum(&field.data_type, oid) {
+                    dependents.push(format!(
+                        "column {} of table {}",
+                        field.name,
+                        local_name(&schema.collection)
+                    ));
+                }
+            }
+        }
+        dependents.sort();
+        dependents
+    }
+
+    /// Removes every enum type of `database` from the catalog (database drop).
+    pub fn unregister_enum_types_for_database(&self, database: &str) {
+        self.enum_types
+            .write()
+            .retain(|_, metadata| !metadata.database.eq_ignore_ascii_case(database));
+        self.bump_version();
+    }
+
+    /// Enum types declared in `schema` of `database`, for `DROP SCHEMA`
+    /// dependency checks.
+    #[must_use]
+    pub fn enum_types_in_schema(&self, database: &str, schema: &str) -> Vec<EnumTypeMeta> {
+        self.list_enum_types()
+            .into_iter()
+            .filter(|metadata| {
+                relation_database_name(&metadata.name)
+                    .is_some_and(|name| name.eq_ignore_ascii_case(database))
+                    && metadata.schema_name().eq_ignore_ascii_case(schema)
+            })
+            .collect()
+    }
+
+    /// Clears the in-memory `uncommitted` flag of every member. Transaction
+    /// publication calls this on the published map: committed labels are
+    /// usable by everyone (`55P04` only guards the open transaction).
+    pub fn clear_uncommitted_enum_labels(&self) {
+        for metadata in self.enum_types.write().values_mut() {
+            for member in &mut metadata.members {
+                member.uncommitted = false;
+            }
+        }
+    }
 }
+
+#[cfg(test)]
+#[path = "enum_types_tests.rs"]
+mod tests;

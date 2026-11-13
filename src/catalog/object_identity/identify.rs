@@ -125,10 +125,10 @@ impl ObjectScope<'_> {
         sub_id: i32,
         table_column: &dyn Fn(&str, i32) -> Option<String>,
     ) -> ObjectIdentity {
-        let column_suffix = if sub_id == 0 { "" } else { " column" };
         let Some(relation) = self.relation_by_oid(oid) else {
-            return ObjectIdentity::missing(&format!("relation{column_suffix}"));
+            return ObjectIdentity::missing("relation");
         };
+        let column_suffix = if sub_id == 0 { "" } else { " column" };
         let kind = self.relation_kind(&relation);
         let object_type = format!("{}{column_suffix}", relation_description(kind));
         if sub_id == 0 {

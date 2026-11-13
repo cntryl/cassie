@@ -1,4 +1,3 @@
-use super::stable_routine_oid;
 use crate::catalog::object_identity::ObjectScope;
 use crate::catalog::{Catalog, FunctionArgMeta, FunctionMeta, ProcedureMeta, Volatility};
 use crate::sql::binder::BindingContext;
@@ -13,6 +12,14 @@ fn argument(data_type: DataType) -> FunctionArgMeta {
     }
 }
 
+/// A stable identity per canonical name, standing in for the allocator.
+fn object_id_of(canonical: &str) -> u64 {
+    canonical
+        .bytes()
+        .fold(1_u64, |id, byte| (id * 31 + u64::from(byte)) % 1_000_003)
+        + 1
+}
+
 fn register_function(catalog: &Catalog, canonical: &str, arguments: Vec<DataType>) {
     catalog.register_function(FunctionMeta {
         name: canonical.to_string(),
@@ -20,6 +27,7 @@ fn register_function(catalog: &Catalog, canonical: &str, arguments: Vec<DataType
         return_type: DataType::Int,
         volatility: Volatility::Immutable,
         body: "1".to_string(),
+        object_id: object_id_of(canonical),
     });
 }
 
@@ -32,44 +40,6 @@ fn context(search_path: &[&str]) -> BindingContext {
 
 fn canonical(schema: &str, name: &str) -> String {
     format!("{DATABASE}.{schema}.{name}")
-}
-
-#[test]
-fn should_keep_routine_oid_stable_across_name_case() {
-    // Arrange
-    let name = "tenant.public.Rate";
-
-    // Act
-    let upper = stable_routine_oid('f', name);
-    let lower = stable_routine_oid('f', &name.to_ascii_lowercase());
-
-    // Assert
-    assert_eq!(upper, lower);
-}
-
-#[test]
-fn should_distinguish_function_and_procedure_oids_for_one_name() {
-    // Arrange
-    let name = "tenant.public.rate";
-
-    // Act
-    let function = stable_routine_oid('f', name);
-    let procedure = stable_routine_oid('p', name);
-
-    // Assert
-    assert_ne!(function, procedure);
-}
-
-#[test]
-fn should_place_routine_oids_above_the_catalog_allocator_range() {
-    // Arrange
-    let name = "tenant.public.rate";
-
-    // Act
-    let oid = stable_routine_oid('f', name);
-
-    // Assert
-    assert!(oid >= 0x8000_0000);
 }
 
 #[test]
@@ -278,6 +248,7 @@ fn should_resolve_a_user_procedure_by_signature() {
         name: canonical("public", "refresh"),
         args: vec![argument(DataType::Text)],
         body: "SELECT 1".to_string(),
+        object_id: object_id_of("refresh"),
     });
     let context = context(&["public"]);
     let scope = ObjectScope::new(&catalog, &context);
@@ -308,4 +279,26 @@ fn should_report_an_undefined_argument_type_in_a_user_signature() {
 
     // Assert
     assert_eq!(resolved.err().map(|error| error.sqlstate()), Some("42704"));
+}
+
+#[test]
+fn should_publish_no_oid_for_a_routine_stored_without_an_identity() {
+    // Arrange
+    let catalog = Catalog::new();
+    catalog.register_function(FunctionMeta {
+        name: canonical("public", "legacy"),
+        args: vec![argument(DataType::Int)],
+        return_type: DataType::Int,
+        volatility: Volatility::Immutable,
+        body: "1".to_string(),
+        object_id: 0,
+    });
+    let context = context(&["public"]);
+    let scope = ObjectScope::new(&catalog, &context);
+
+    // Act
+    let resolved = scope.resolve(ObjectIdKind::RegProcedure, "legacy(integer)");
+
+    // Assert
+    assert!(matches!(resolved, Ok(None)));
 }

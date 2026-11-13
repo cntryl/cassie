@@ -1,9 +1,9 @@
 //! `regproc` and `regprocedure` over the built-in `pg_proc` rows together with
 //! the database's user-defined functions and procedures.
 //!
-//! A user routine has no stored object identity. Its OID is derived from the
-//! routine kind and canonical name, so it is stable across restart and
-//! `CREATE OR REPLACE`, and distinct from the OIDs of other routines.
+//! A user routine's OID comes from the `object_id` allocated when it was
+//! created, so it survives restart and `CREATE OR REPLACE` and is never reused.
+//! A routine stored without an `object_id` publishes no OID.
 use super::names::{builtin_type_oid, qualified_name, quote_identifier, signature};
 use super::ObjectScope;
 use crate::catalog::builtin_identity::{builtin_array_oid, builtin_identities, BuiltinProcRow};
@@ -35,22 +35,6 @@ impl Routine {
             arguments: row.argument_types.clone(),
         }
     }
-}
-
-/// Stable catalog OID of a user routine, keyed by kind and canonical name.
-fn stable_routine_oid(kind: char, canonical: &str) -> u32 {
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in "routine:"
-        .bytes()
-        .chain(kind.to_string().bytes())
-        .chain(*b":")
-        .chain(canonical.to_ascii_lowercase().bytes())
-    {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    let oid_range = u64::from(u32::MAX - 0x8000_0000);
-    u32::try_from(hash % oid_range).unwrap_or(0) | 0x8000_0000
 }
 
 impl ObjectScope<'_> {
@@ -202,22 +186,28 @@ impl ObjectScope<'_> {
 
     /// The user-defined functions and procedures of the session's database.
     pub(super) fn user_routines(&self) -> Vec<Routine> {
-        let functions = self
-            .catalog
-            .list_functions()
-            .into_iter()
-            .map(|function| (function.name, function.args, FUNCTION_KIND));
-        let procedures = self
-            .catalog
-            .list_procedures()
-            .into_iter()
-            .map(|procedure| (procedure.name, procedure.args, PROCEDURE_KIND));
+        let functions = self.catalog.list_functions().into_iter().map(|function| {
+            (
+                function.name,
+                function.args,
+                function.object_id,
+                FUNCTION_KIND,
+            )
+        });
+        let procedures = self.catalog.list_procedures().into_iter().map(|procedure| {
+            (
+                procedure.name,
+                procedure.args,
+                procedure.object_id,
+                PROCEDURE_KIND,
+            )
+        });
         functions
             .chain(procedures)
-            .filter_map(|(canonical, arguments, kind)| {
+            .filter_map(|(canonical, arguments, object_id, kind)| {
                 let (schema, name) = self.routine_location(&canonical)?;
                 Some(Routine {
-                    oid: stable_routine_oid(kind, &canonical),
+                    oid: super::normal_oid(object_id)?,
                     schema,
                     name,
                     kind,

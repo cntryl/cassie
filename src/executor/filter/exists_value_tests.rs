@@ -127,6 +127,7 @@ fn should_resolve_selected_function_arguments_once() {
             return_type: crate::types::DataType::Boolean,
             volatility: crate::catalog::Volatility::Immutable,
             body: "x".into(),
+            object_id: 0,
         },
     )]);
     let calls = Cell::new(0);
@@ -170,6 +171,7 @@ fn should_preserve_unclassified_function_body_errors() {
             return_type: crate::types::DataType::Boolean,
             volatility: crate::catalog::Volatility::Immutable,
             body: "EXISTS(SELECT 1)".into(),
+            object_id: 0,
         },
     )]);
     let calls = Cell::new(0);

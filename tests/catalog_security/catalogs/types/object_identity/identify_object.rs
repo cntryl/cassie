@@ -455,6 +455,21 @@ fn should_return_only_the_class_description_for_a_missing_relation() {
 }
 
 #[test]
+fn should_omit_the_column_suffix_for_a_missing_relation_with_a_sub_object() {
+    // Arrange
+    let fixture = fixture("identify_missing_relation_column");
+
+    // Act
+    let rows = identified(&fixture, "'pg_class'::regclass, 4000000000, 1");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![identity_row([Some("relation"), None, None, None])]
+    );
+}
+
+#[test]
 fn should_return_only_the_class_description_for_a_missing_type() {
     // Arrange
     let fixture = fixture("identify_missing_type");

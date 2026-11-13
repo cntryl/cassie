@@ -54,6 +54,9 @@ pub(super) fn parameter_type_oids(params: &[Value]) -> Vec<i32> {
             Value::String(_) => 25,
             Value::Vector(_) => crate::sql::binder::VECTOR_PARAMETER_TYPE_OID,
             Value::Json(_) => 114,
+            Value::Array(array) if super::enum_parameters::array_oid(array).is_some() => {
+                super::enum_parameters::array_oid(array).unwrap_or(0)
+            }
             Value::Array(array) => array
                 .elements()
                 .first()
@@ -122,7 +125,8 @@ pub(super) fn parameter_shape_for_oids(oids: &[i32]) -> Vec<crate::runtime::Para
                     | DataType::Timestamp
                     | DataType::JsonPath
                     | DataType::Composite(_)
-                    | DataType::Domain(_),
+                    | DataType::Domain(_)
+                    | DataType::Enum(_),
                 ) => ParameterShape::String,
                 Some(DataType::Vector(Some(dimensions))) => ParameterShape::Vector(dimensions),
                 Some(DataType::Vector(None)) => ParameterShape::Vector(0),

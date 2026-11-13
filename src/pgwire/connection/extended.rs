@@ -54,13 +54,15 @@ use super::{ConnectionStep, PgwireReader};
 use crate::app::{unsupported_sql_error, Cassie, CassieError, CassieSession};
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement};
-use crate::runtime::{ExecutionMode, QueryMemoryReservation, RuntimeState};
+use crate::runtime::{ExecutionMode, RuntimeState};
 use crate::types::Value;
 
 #[path = "extended/portal_state.rs"]
 mod portal_state;
 #[path = "extended/portal_streaming.rs"]
 mod portal_streaming;
+#[path = "extended/bind_parameters.rs"]
+mod bind_parameters;
 #[path = "extended/text_parameters.rs"]
 mod text_parameters;
 use portal_state::{
@@ -338,12 +340,11 @@ async fn handle_bind(
     validate_format_count(parameter_formats.len(), parameters.len(), "parameter")?;
 
     let vector_oid = session_vector_oid(&cassie, session);
-    let (values, parameter_memory) = decode_bind_parameters_with_vector_oid(
-        &parameters,
-        &parameter_formats,
-        &prepared.parameter_types,
+    let enum_columns = bind_parameters::enum_columns(&cassie, session, &prepared.parameter_types);
+    let (values, parameter_memory) = bind_parameters::decode(
+        (&parameters, &parameter_formats, &prepared.parameter_types),
         &state.portal_memory_controls,
-        vector_oid,
+        (vector_oid, &enum_columns),
     )?;
 
     let prepared_id = prepared.id;
@@ -395,35 +396,6 @@ fn session_vector_oid(cassie: &Cassie, session: &CassieSession) -> Option<i32> {
         &crate::types::DataType::Vector(None),
     )
     .and_then(|oid| i32::try_from(oid).ok())
-}
-
-fn decode_bind_parameters_with_vector_oid(
-    parameters: &[Option<Vec<u8>>],
-    parameter_formats: &[i16],
-    parameter_types: &[i32],
-    controls: &crate::runtime::QueryExecutionControls,
-    vector_oid: Option<i32>,
-) -> Result<(Vec<Value>, Vec<QueryMemoryReservation>), ExtendedQueryError> {
-    let decoded_parameters = parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            decode_parameter_with_vector(
-                parameter.as_deref(),
-                format_for_index(parameter_formats, index),
-                parameter_types[index],
-                index,
-                controls,
-                vector_oid.is_some_and(|vector_oid| parameter_types[index] == vector_oid),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let (values, parameter_memory): (Vec<_>, Vec<_>) = decoded_parameters
-        .into_iter()
-        .map(|parameter| (parameter.value, parameter.memory))
-        .unzip();
-    let parameter_memory = parameter_memory.into_iter().flatten().collect();
-    Ok((values, parameter_memory))
 }
 
 async fn handle_describe(

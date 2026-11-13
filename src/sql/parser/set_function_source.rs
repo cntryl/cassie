@@ -12,12 +12,19 @@ pub(super) fn parse(raw: &str) -> Result<Option<QuerySource>, SqlError> {
     }
     let close = lexical::matching_paren(raw, open)
         .ok_or_else(|| SqlError::new("invalid UNNEST table-function call".into()))?;
+    if crate::sql::table_sources::is_json_table(raw[..open].trim()) {
+        return super::json_table_source::parse(raw, open, close).map(Some);
+    }
     let function = parse_function(&raw[..=close])?
         .ok_or_else(|| SqlError::new("invalid UNNEST table-function call".into()))?;
     let tail = lexical::trim_separators(&raw[close + 1..]);
     let ordinal_end = lexical::pattern_end(tail, 0, "with ordinality");
     let with_ordinality = ordinal_end.is_some();
     let tail = ordinal_end.map_or(tail, |end| &tail[end..]);
+    if let Some(record) = crate::sql::table_sources::record_source(&function.name) {
+        return super::record_function_source::parse(function, record, tail, with_ordinality)
+            .map(Some);
+    }
     let json = crate::sql::table_sources::json_element_source(&function.name);
     let unnest = crate::sql::table_sources::is_unnest(&function.name);
     let default_name = if let Some(json) = json {
@@ -37,6 +44,7 @@ pub(super) fn parse(raw: &str) -> Result<Option<QuerySource>, SqlError> {
         function,
         lateral: true,
         with_ordinality,
+        form: None,
     };
     let aliased = relation_alias::parse(source, tail)?;
     let (source, alias, mut column_aliases, explicit_alias) = match aliased {

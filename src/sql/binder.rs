@@ -21,6 +21,8 @@ mod json_extract;
 mod json_functions;
 mod like_predicates;
 mod pagination_references;
+#[path = "binder/record_sources.rs"]
+mod record_sources;
 #[path = "binder/string_operators.rs"]
 mod string_operators;
 mod symmetric_between;

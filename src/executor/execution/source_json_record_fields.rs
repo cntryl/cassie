@@ -1,0 +1,160 @@
+//! Conversion of JSON values into typed record fields (`populate_record` semantics).
+//!
+//! A missing key keeps the base value, a JSON `null` is SQL NULL, nested objects fill
+//! composite fields, nested arrays fill array fields, and every other value is converted
+//! through the text input of the target type.
+use super::source_json_fragment::{Fragment, Kind};
+use super::{QueryError, Value};
+use crate::app::{CassieError, DiagnosticError};
+use crate::types::typed::TypedValue;
+use crate::types::{CompositeRef, DataType, RecordValue, SqlArray};
+
+fn diagnostic(state: &'static str, message: impl Into<String>) -> QueryError {
+    QueryError::from(CassieError::from(DiagnosticError::new(state, message)))
+}
+
+/// The error for a top-level document that is not a JSON object.
+pub(super) fn not_an_object(kind: Kind) -> QueryError {
+    diagnostic(
+        "22023",
+        format!(
+            "cannot call populate_composite on {}",
+            if kind == Kind::Array {
+                "an array"
+            } else {
+                "a scalar"
+            }
+        ),
+    )
+}
+
+/// The base record's field values when it is a non-NULL record of the expected width.
+pub(super) fn base_fields(base: Option<&Value>, width: usize) -> Option<&[Value]> {
+    match base {
+        Some(Value::Typed(TypedValue::Record(record))) if record.fields().len() == width => {
+            Some(record.fields())
+        }
+        _ => None,
+    }
+}
+
+/// Values of `fields` taken from the last object member with the same (case-sensitive) name.
+pub(super) fn field_values(
+    members: Vec<(String, Fragment)>,
+    fields: &[(&str, &DataType)],
+    base: Option<&[Value]>,
+) -> Result<Vec<Value>, QueryError> {
+    let mut members = members
+        .into_iter()
+        .map(|(key, fragment)| (key, Some(fragment)))
+        .collect::<Vec<_>>();
+    let mut values = Vec::with_capacity(fields.len());
+    for (index, (name, data_type)) in fields.iter().enumerate() {
+        let base_value = base.and_then(|values| values.get(index));
+        let found = members
+            .iter()
+            .rposition(|(key, fragment)| key == *name && fragment.is_some());
+        let fragment = found.and_then(|position| members[position].1.take());
+        values.push(match fragment {
+            Some(fragment) => convert(fragment, data_type, base_value, name)?,
+            None => base_value.cloned().unwrap_or(Value::Null),
+        });
+    }
+    Ok(values)
+}
+
+/// Converts one JSON value into a value of `target`. `hint` names the key for diagnostics.
+pub(super) fn convert(
+    fragment: Fragment,
+    target: &DataType,
+    base: Option<&Value>,
+    hint: &str,
+) -> Result<Value, QueryError> {
+    if fragment.kind() == Kind::Null {
+        return Ok(Value::Null);
+    }
+    match target {
+        DataType::Json => Ok(Value::String(fragment.json_text()?)),
+        DataType::Jsonb => Ok(Value::Json(fragment.tree()?)),
+        DataType::Composite(descriptor) => composite(fragment, descriptor, base),
+        DataType::Array(element) => array(fragment, target, element, hint),
+        _ => scalar(&fragment, target),
+    }
+}
+
+fn scalar(fragment: &Fragment, target: &DataType) -> Result<Value, QueryError> {
+    let text = match fragment.kind() {
+        Kind::Array | Kind::Object => fragment.json_text()?,
+        _ => fragment.scalar_text()?,
+    };
+    if matches!(target, DataType::Text) {
+        return Ok(Value::String(text));
+    }
+    super::filter::cast_value(&Value::String(text), target)
+}
+
+fn composite(
+    fragment: Fragment,
+    descriptor: &CompositeRef,
+    base: Option<&Value>,
+) -> Result<Value, QueryError> {
+    match fragment.kind() {
+        Kind::Object => {
+            let members = fragment.members()?;
+            let fields = descriptor
+                .fields
+                .iter()
+                .map(|field| (field.name.as_str(), &field.data_type))
+                .collect::<Vec<_>>();
+            let base = base_fields(base, fields.len());
+            let values = field_values(members, &fields, base)?;
+            let record = RecordValue::new(descriptor.clone(), values)
+                .map_err(|message| diagnostic("XX000", message))?;
+            Ok(Value::Typed(TypedValue::Record(record)))
+        }
+        Kind::String => super::filter::cast_value(
+            &Value::String(fragment.scalar_text()?),
+            &DataType::Composite(descriptor.clone()),
+        ),
+        kind => Err(not_an_object(kind)),
+    }
+}
+
+fn array(
+    fragment: Fragment,
+    target: &DataType,
+    element: &DataType,
+    hint: &str,
+) -> Result<Value, QueryError> {
+    match fragment.kind() {
+        Kind::Array => array_elements(fragment, element),
+        Kind::String => super::filter::cast_value(&Value::String(fragment.scalar_text()?), target),
+        _ => {
+            let error = DiagnosticError::new("22P02", "expected JSON array")
+                .with_hint(format!("See the value of key \"{hint}\"."));
+            Err(QueryError::from(CassieError::from(error)))
+        }
+    }
+}
+
+/// Builds a rectangular array; JSON-typed elements stay one-dimensional.
+fn array_elements(fragment: Fragment, element: &DataType) -> Result<Value, QueryError> {
+    let items = fragment.elements()?;
+    let json_elements = matches!(element, DataType::Json | DataType::Jsonb);
+    let mut values = Vec::with_capacity(items.len());
+    for item in items {
+        if !json_elements && item.kind() == Kind::Array {
+            values.push(array_elements(item, element)?);
+        } else {
+            values.push(convert(item, element, None, "")?);
+        }
+    }
+    SqlArray::from_nested_values(values)
+        .map(Value::Array)
+        .map_err(|_| {
+            let error = DiagnosticError::new("22P02", "malformed JSON array").with_detail(
+                "Multidimensional arrays must have sub-arrays with matching dimensions.",
+            );
+            QueryError::from(CassieError::from(error))
+        })
+}

@@ -61,6 +61,29 @@ impl Fold<'_, '_> {
             }
             return Ok(Some(Summary::known(document)));
         }
+        if let Some(record) = table_sources::record_source(&function.name) {
+            // Only the document slot is JSON typed; a populate base keeps its own type.
+            let document = if record.binary { 3802 } else { 114 };
+            if let Some(summary) = self.summaries.values[frame.start..]
+                .iter_mut()
+                .nth(record.document_index())
+                .filter(|summary| matches!(summary.oid, 0 | 705))
+            {
+                self.occurrences.coerce(summary, document, false)?;
+            }
+            return Ok(Some(Summary::known(document)));
+        }
+        if table_sources::is_json_table(&function.name) {
+            // The context item is JSONB; PASSING values keep their own types.
+            if let Some(summary) = self.summaries.values[frame.start..]
+                .iter_mut()
+                .next()
+                .filter(|summary| matches!(summary.oid, 0 | 705))
+            {
+                self.occurrences.coerce(summary, 3802, false)?;
+            }
+            return Ok(Some(Summary::known(3802)));
+        }
         if !table_sources::is_series(&function.name) {
             return Ok(None);
         }

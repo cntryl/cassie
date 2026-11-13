@@ -159,6 +159,7 @@ fn should_parse_graph_table_function_source() {
         function,
         lateral,
         with_ordinality,
+        ..
     } = statement.source
     else {
         panic!("expected table function source");

@@ -249,6 +249,27 @@ fn json_element_family(
     let Some(argument) = function.args.first() else {
         return Ok(());
     };
+    document_family(argument, json.binary, &json.function_name(), types)
+}
+
+/// The document argument of `json[b]_to_record[set]` / `json[b]_populate_record[set]`.
+fn record_document_family(
+    function: &crate::sql::ast::FunctionCall,
+    record: table_sources::RecordSource,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    let Some(argument) = function.args.get(record.document_index()) else {
+        return Ok(());
+    };
+    document_family(argument, record.binary, &record.function_name(), types)
+}
+
+fn document_family(
+    argument: &Expr,
+    binary: bool,
+    function_name: &str,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
     let known = match argument {
         Expr::Column(_) => types.expression_type(argument),
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
@@ -256,11 +277,11 @@ fn json_element_family(
     };
     match known {
         None | Some(DataType::Null) => Ok(()),
-        Some(DataType::Json) if !json.binary => Ok(()),
-        Some(DataType::Jsonb) if json.binary => Ok(()),
+        Some(DataType::Json) if !binary => Ok(()),
+        Some(DataType::Jsonb) if binary => Ok(()),
         Some(_) => Err(CassieError::from(crate::app::DiagnosticError::new(
             "42883",
-            format!("function {}(...) does not exist", json.function_name()),
+            format!("function {function_name}(...) does not exist"),
         ))),
     }
 }
@@ -298,6 +319,9 @@ fn source(
             function_arguments(function, types, catalog, context, parameters)?;
             if let Some(json) = table_sources::json_element_source(&function.name) {
                 json_element_family(function, json, types)?;
+            }
+            if let Some(record) = table_sources::record_source(&function.name) {
+                record_document_family(function, record, types)?;
             }
             if table_sources::is_generated(&function.name) {
                 for argument in &mut function.args {

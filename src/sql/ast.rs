@@ -30,6 +30,13 @@ pub use ast_object_comment::{CommentOnObjectKind, CommentOnStatement};
 
 #[path = "ast_query.rs"]
 mod ast_query;
+#[path = "ast_table_function.rs"]
+mod ast_table_function;
+pub use ast_table_function::{
+    ExistsBehavior, JsonBehavior, JsonQuotes, JsonTableColumn, JsonTableExistsColumn,
+    JsonTableNested, JsonTableRootError, JsonTableSpec, JsonTableValueColumn, JsonWrapper,
+    RecordColumn, TableFunctionForm,
+};
 #[path = "ast_session.rs"]
 mod ast_session;
 pub use ast_session::{

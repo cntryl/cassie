@@ -138,3 +138,24 @@ mod json_elements_errors;
 
 #[path = "../table_functions/json_elements_limits.rs"]
 mod json_elements_limits;
+
+#[path = "../table_functions/json_records_support.rs"]
+mod json_records_support;
+
+#[path = "../table_functions/json_records_values.rs"]
+mod json_records_values;
+
+#[path = "../table_functions/json_records_errors.rs"]
+mod json_records_errors;
+
+#[path = "../table_functions/json_table_values.rs"]
+mod json_table_values;
+
+#[path = "../table_functions/json_table_nested.rs"]
+mod json_table_nested;
+
+#[path = "../table_functions/json_table_lateral_filter.rs"]
+mod json_table_lateral_filter;
+
+#[path = "../table_functions/json_records_limits.rs"]
+mod json_records_limits;

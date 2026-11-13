@@ -17,6 +17,7 @@ pub(super) fn execute(
         function,
         lateral,
         with_ordinality,
+        form,
     } = source
     else {
         unreachable!("table function dispatch requires a table function");
@@ -37,6 +38,27 @@ pub(super) fn execute(
             env,
             function,
             *with_ordinality,
+            outer_row,
+            row_budget,
+            ctes,
+        );
+    }
+    if crate::sql::table_sources::record_source(&function.name).is_some() {
+        return super::source_json_records::execute(
+            env,
+            function,
+            form.as_deref(),
+            *with_ordinality,
+            outer_row,
+            row_budget,
+            ctes,
+        );
+    }
+    if crate::sql::table_sources::is_json_table(&function.name) {
+        return super::source_json_table::execute(
+            env,
+            function,
+            form.as_deref(),
             outer_row,
             row_budget,
             ctes,

@@ -589,20 +589,9 @@ pub(super) fn bind_query_source_with_lateral_fields(
         QuerySource::Collection(name) => bind_collection_source(&name, catalog, scope, context),
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
         QuerySource::SingleRow => Ok(QuerySource::SingleRow),
-        QuerySource::TableFunction {
-            name,
-            function,
-            lateral,
-            with_ordinality,
-        } => bind_table_function(
-            name,
-            function,
-            lateral,
-            with_ordinality,
-            catalog,
-            lateral_fields,
-            context,
-        ),
+        source @ QuerySource::TableFunction { .. } => {
+            bind_table_function(source, catalog, lateral_fields, context)
+        }
         QuerySource::Subquery {
             alias,
             select,

@@ -15,10 +15,16 @@ mod query_select;
 #[path = "relation_alias.rs"]
 mod relation_alias;
 
+#[path = "json_table_columns.rs"]
+mod json_table_columns;
+#[path = "json_table_source.rs"]
+mod json_table_source;
 #[path = "query_cte.rs"]
 mod query_cte;
 #[path = "query_table_sample.rs"]
 mod query_table_sample;
+#[path = "record_function_source.rs"]
+mod record_function_source;
 #[path = "set_function_source.rs"]
 mod set_function_source;
 use query_cte::parse_cte_definitions;
@@ -669,12 +675,14 @@ pub(super) fn mark_source_lateral(source: QuerySource) -> QuerySource {
             name,
             function,
             with_ordinality,
+            form,
             ..
         } => QuerySource::TableFunction {
             name,
             function,
             lateral: true,
             with_ordinality,
+            form,
         },
         other => other,
     }
@@ -788,6 +796,7 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
                     function,
                     lateral,
                     with_ordinality: false,
+                    form: None,
                 },
                 &raw[close + 1..],
             );
@@ -815,6 +824,7 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
                 function,
                 lateral,
                 with_ordinality: false,
+                form: None,
             });
         }
     }
@@ -844,6 +854,7 @@ fn parse_jsonpath_table_function(
             function,
             lateral,
             with_ordinality: false,
+            form: None,
         },
         &raw[close + 1..],
     )

@@ -84,6 +84,9 @@ pub enum QuerySource {
         lateral: bool,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         with_ordinality: bool,
+        /// Column definition list or `JSON_TABLE` specification of a generated source.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        form: Option<Box<super::TableFunctionForm>>,
     },
     Subquery {
         alias: String,

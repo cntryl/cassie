@@ -805,7 +805,7 @@ fn collect_fulltext_fields_from_function(
 }
 
 pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan {
-    LogicalPlan {
+    let mut plan = LogicalPlan {
         command: None,
         source: select.source.clone(),
         collection: execution_source_name(&select.source),
@@ -820,7 +820,11 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
         limit: select.limit.clone(),
         offset: select.offset.clone(),
         set: select.set.clone(),
-    }
+    };
+    // Derived tables and set-operation branches run through this plan, so an outer-only
+    // predicate must reach the lateral join's left side exactly as it does for a top-level query.
+    crate::planner::lateral_filter::push_into_lateral_join(&mut plan);
+    plan
 }
 
 fn execution_source_name(source: &QuerySource) -> String {

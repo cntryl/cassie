@@ -156,11 +156,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1645,
-    "rust_files": 1608,
-    "rust_test_declarations": 9547,
+    "files": 1646,
+    "rust_files": 1609,
+    "rust_test_declarations": 9557,
     "python_test_declarations": 22,
-    "registered_rust_instances": 9548,
+    "registered_rust_instances": 9558,
     "unregistered_rust_tests": [
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_publish_pgcrypto_extension_transactionally",
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_restore_pgcrypto_namespace_after_savepoint_rollback",
@@ -188072,6 +188072,316 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_read_declared_columns_given_a_bound_recordset_parameter",
+      "name": "should_read_declared_columns_given_a_bound_recordset_parameter",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 21,
+      "end_line": 28,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_read_declared_columns_given_a_bound_recordset_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_return_no_rows_given_a_null_recordset_parameter",
+      "name": "should_return_no_rows_given_a_null_recordset_parameter",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 31,
+      "end_line": 39,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_return_no_rows_given_a_null_recordset_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_reject_malformed_json_given_a_bound_recordset_parameter",
+      "name": "should_reject_malformed_json_given_a_bound_recordset_parameter",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 42,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_reject_malformed_json_given_a_bound_recordset_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_reject_a_non_array_document_given_a_bound_recordset_parameter",
+      "name": "should_reject_a_non_array_document_given_a_bound_recordset_parameter",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 53,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_reject_a_non_array_document_given_a_bound_recordset_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_expand_elements_given_an_unspecified_type_array_elements_parameter",
+      "name": "should_expand_elements_given_an_unspecified_type_array_elements_parameter",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 63,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_expand_elements_given_an_unspecified_type_array_elements_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_expand_members_given_an_unspecified_type_each_parameter",
+      "name": "should_expand_members_given_an_unspecified_type_each_parameter",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 73,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_expand_members_given_an_unspecified_type_each_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_reject_an_object_given_an_array_elements_parameter",
+      "name": "should_reject_an_object_given_an_array_elements_parameter",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 86,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_reject_an_object_given_an_array_elements_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_project_columns_given_a_bound_json_table_context",
+      "name": "should_project_columns_given_a_bound_json_table_context",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 96,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_project_columns_given_a_bound_json_table_context"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_return_no_rows_given_a_null_json_table_context",
+      "name": "should_return_no_rows_given_a_null_json_table_context",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 106,
+      "end_line": 114,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_return_no_rows_given_a_null_json_table_context"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs::should_reject_malformed_json_given_a_bound_json_table_context",
+      "name": "should_reject_malformed_json_given_a_bound_json_table_context",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "line": 117,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_records_parameters::should_reject_malformed_json_given_a_bound_json_table_context"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/types/json/table_functions/json_records_values.rs::should_project_declared_columns_given_a_jsonb_object",
       "name": "should_project_declared_columns_given_a_jsonb_object",
       "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_values.rs",
@@ -311110,8 +311420,8 @@
       "current_file": "tests/pgwire_extended/types/json/constructors/errors.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 161,
-      "sha256": "ef68cc6d4ad0c754924ff4cc3d88953b58f9d8a26680559ff2ee635fb4b89486",
+      "lines": 164,
+      "sha256": "67430e2f156653a36256be228eb2d7e176e28062851014e6e56f332fc7670d5c",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_types"
@@ -312012,6 +312322,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/types/json/table_functions/json_records_limits.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 124,
+      "sha256": "8ad72457999d28f53a33db9c4cede9828fc878719499d632598e988f84b00e58",
+      "test_declarations": 10,
+      "registered_suites": [
+        "pgwire_types"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/json/table_functions/json_records_parameters.rs"
       ],
       "line_limit": 1000
     },

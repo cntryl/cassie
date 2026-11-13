@@ -3,18 +3,27 @@ use super::{
     validate_expression, BindingContext, CassieError, Catalog, DataType, Expr, FunctionCall,
     HashMap, HashSet, QuerySource, Schema,
 };
-fn validate_graph_table_function(
+use crate::sql::ast::TableFunctionForm;
+fn validate_series(
     function: &FunctionCall,
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
+    if !(2..=4).contains(&function.args.len()) || function.has_modifiers() {
+        return Err(crate::sql::series_signature::undefined());
+    }
+    for argument in &function.args {
+        validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
+    }
+    Ok(())
+}
+
+fn validate_graph_table_function(
+    function: &FunctionCall,
+    form: Option<&TableFunctionForm>,
+    lateral_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
     if crate::sql::table_sources::is_series(&function.name) {
-        if !(2..=4).contains(&function.args.len()) || function.has_modifiers() {
-            return Err(crate::sql::series_signature::undefined());
-        }
-        for argument in &function.args {
-            validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
-        }
-        return Ok(());
+        return validate_series(function, lateral_fields);
     }
     if crate::sql::table_sources::is_unnest(&function.name) {
         if function.args.is_empty() || function.has_modifiers() {
@@ -42,6 +51,9 @@ fn validate_graph_table_function(
     }
     if let Some(source) = crate::sql::table_sources::json_element_source(&function.name) {
         return validate_json_element_function(function, source, lateral_fields);
+    }
+    if let Some(result) = super::record_sources::validate(function, form, lateral_fields) {
+        return result;
     }
     if crate::sql::functions::is_server_file_helper(&function.name) {
         return Err(crate::sql::functions::reject_server_file_access());
@@ -151,6 +163,7 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
         name,
         function,
         with_ordinality,
+        form,
         ..
     } = source
     else {
@@ -179,6 +192,13 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
     }
     if let Some(json) = crate::sql::table_sources::json_element_source(&function.name) {
         return crate::sql::table_sources::json_element_columns(json, *with_ordinality);
+    }
+    if let Some(columns) = crate::sql::table_sources::record_output_columns(
+        function,
+        *with_ordinality,
+        form.as_deref(),
+    ) {
+        return columns;
     }
     if name.eq_ignore_ascii_case("jsonb_path_query")
         || name.eq_ignore_ascii_case("jsonb_path_query_tz")
@@ -269,21 +289,29 @@ pub(super) fn typed_columns(
 }
 
 pub(super) fn bind(
-    name: String,
-    mut function: FunctionCall,
-    lateral: bool,
-    with_ordinality: bool,
+    source: QuerySource,
     catalog: &Catalog,
     lateral_fields: &HashSet<String>,
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
-    validate_graph_table_function(&function, lateral_fields)?;
+    let QuerySource::TableFunction {
+        name,
+        mut function,
+        lateral,
+        with_ordinality,
+        form,
+    } = source
+    else {
+        unreachable!("table function binding requires a table function");
+    };
+    validate_graph_table_function(&function, form.as_deref(), lateral_fields)?;
     if crate::sql::table_sources::is_generated(&function.name) {
         return Ok(QuerySource::TableFunction {
             name,
             function,
             lateral,
             with_ordinality,
+            form,
         });
     }
     if crate::sql::functions::is_options_table(&function.name) {
@@ -320,6 +348,7 @@ pub(super) fn bind(
         function,
         lateral,
         with_ordinality,
+        form,
     })
 }
 

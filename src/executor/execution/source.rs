@@ -11,6 +11,16 @@ mod pull_tests;
 mod source_identify_object;
 #[path = "source_json_elements.rs"]
 mod source_json_elements;
+#[path = "source_json_fragment.rs"]
+mod source_json_fragment;
+#[path = "source_json_record_fields.rs"]
+mod source_json_record_fields;
+#[path = "source_json_records.rs"]
+mod source_json_records;
+#[path = "source_json_table.rs"]
+mod source_json_table;
+#[path = "source_json_table_columns.rs"]
+mod source_json_table_columns;
 #[path = "source_options.rs"]
 mod source_options;
 #[path = "source_pull.rs"]

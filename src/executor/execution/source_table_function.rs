@@ -17,6 +17,7 @@ pub(super) fn execute(
         function,
         lateral,
         with_ordinality,
+        form,
     } = source
     else {
         unreachable!("table function dispatch requires a table function");
@@ -41,6 +42,15 @@ pub(super) fn execute(
             row_budget,
             ctes,
         );
+    }
+    if let Some(result) = super::source_json_records::dispatch(
+        env,
+        function,
+        (form.as_deref(), *with_ordinality),
+        (outer_row, row_budget),
+        ctes,
+    ) {
+        return result;
     }
     if crate::sql::table_sources::json_element_source(&function.name).is_some() {
         return super::source_json_elements::execute(

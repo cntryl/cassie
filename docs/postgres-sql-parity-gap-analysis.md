@@ -100,7 +100,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | Date/time functions and clocks | DEFAULT-only | #815 |
 | Array functions | Absent | #807 |
 | JSON functions, SQL/JSON constructors and query functions | Absent | #810 |
-| JSON table functions, JSON_TABLE | Absent | #829 |
+| JSON table functions, JSON_TABLE | Selected FROM-source forms implemented and awaiting the integration gate (see [feature support](feature-support.md)); SELECT-list use unselected | #829 |
 | Selected UNNEST, generate_series and WITH ORDINALITY | Absent; selected finite contract in [table sources](set-returning-sources.md) | #808 |
 | generate_subscripts, generic ROWS FROM and projection-list SRFs | Unselected neighboring forms; former grouping under #808 was planning inventory | Separate scope decision required; not #808 acceptance |
 | bytea, hashing, encoding, UUID functions | Absent | #816 |

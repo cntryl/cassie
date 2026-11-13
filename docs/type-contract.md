@@ -478,7 +478,7 @@ The code and its regressions are authored; they have not been compiled or execut
   difference (Cassie keeps no dropped-column history for table row types).
   `ALTER TABLE ... ALTER COLUMN ... TYPE` is `0A000` ("cannot alter table "t" because
   column "u.x" uses its row type") while the row type is stored, as in PostgreSQL.
-- Known limitations: views, sequences and indexes have `reltype = 0` (PostgreSQL gives
+- Known limitations: in an unscoped instance a domain label (`regtype`) does not see an earlier-schema table row type that shadows the domain, so it prints `posint` where PostgreSQL prints `public.posint` (scoped instances qualify correctly); views, sequences and indexes have `reltype = 0` (PostgreSQL gives
   views a row type); `CREATE TABLE ... OF type` typed tables do not exist; renaming a
   table does not change its row-type revision; a row type embedded in another table's
   column is re-embedded only by the table DDL paths above.

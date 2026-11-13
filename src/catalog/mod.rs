@@ -67,7 +67,7 @@ pub use constraints::{
     DefaultSequenceOwnership, FieldConstraint, IdentityGeneration, NotNullOwnership,
     UniqueNullPolicy,
 };
-pub use domain_types::{DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
+pub use domain_types::{same_stored_relation, DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
 pub use graphs::GraphMeta;
 pub use indexes::{
     ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,

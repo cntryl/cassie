@@ -680,3 +680,63 @@ fn should_reject_renaming_a_table_onto_a_composite_type_name_with_sqlstate_42p07
     // Assert
     assert_eq!(error.sql_state(), "42P07");
 }
+
+#[test]
+fn should_reject_a_table_named_like_a_domain_in_the_same_non_default_schema() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_then_table_same_schema",
+        &["CREATE SCHEMA s", "CREATE DOMAIN s.tt AS int"],
+    );
+
+    // Act
+    let error = fixture.error("CREATE TABLE s.tt (x int)");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_accept_a_table_named_like_a_domain_of_another_schema() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_then_table_other_schema",
+        &["CREATE SCHEMA s", "CREATE DOMAIN public.tt AS int"],
+    );
+
+    // Act
+    let created = fixture.execute("CREATE TABLE s.tt (x int)");
+
+    // Assert
+    assert!(created.is_ok(), "different schemas do not collide");
+}
+
+#[test]
+fn should_reject_a_domain_named_like_a_table_in_the_same_non_default_schema() {
+    // Arrange
+    let fixture = sql_fixture(
+        "table_then_domain_same_schema",
+        &["CREATE SCHEMA s", "CREATE TABLE s.tt (x int)"],
+    );
+
+    // Act
+    let error = fixture.error("CREATE DOMAIN s.tt AS int");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_accept_a_domain_named_like_a_table_of_another_schema() {
+    // Arrange
+    let fixture = sql_fixture(
+        "table_then_domain_other_schema",
+        &["CREATE SCHEMA s", "CREATE TABLE s.tt (x int)"],
+    );
+
+    // Act
+    let created = fixture.execute("CREATE DOMAIN public.tt AS int");
+
+    // Assert
+    assert!(created.is_ok(), "different schemas do not collide");
+}

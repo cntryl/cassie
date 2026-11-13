@@ -278,3 +278,38 @@ fn should_preserve_sql_null_given_tuple_conflict_assignment_when_defaults_are_pr
         vec![vec![Value::Bool(true)]]
     );
 }
+
+#[test]
+fn should_apply_a_quoted_array_literal_column_default() {
+    // Arrange
+    let fixture = sql_fixture(
+        "insert-array-literal-default",
+        &["CREATE TABLE array_default (id INT PRIMARY KEY, numbers INT[] DEFAULT '{1,2}', \
+           labels TEXT[] DEFAULT '{a,b}')"],
+    );
+
+    // Act
+    let omitted = fixture.execute("INSERT INTO array_default (id) VALUES (1)");
+    let explicit = fixture.execute("INSERT INTO array_default VALUES (2, DEFAULT, DEFAULT)");
+    let rows =
+        fixture.rows("SELECT id, numbers::text, labels::text FROM array_default ORDER BY id");
+
+    // Assert
+    assert!(omitted.is_ok(), "an omitted array column takes its default");
+    assert!(explicit.is_ok(), "DEFAULT cells take the array default");
+    assert_eq!(
+        rows,
+        vec![
+            vec![
+                Value::Int64(1),
+                Value::String("{1,2}".into()),
+                Value::String("{a,b}".into())
+            ],
+            vec![
+                Value::Int64(2),
+                Value::String("{1,2}".into()),
+                Value::String("{a,b}".into())
+            ],
+        ]
+    );
+}

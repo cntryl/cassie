@@ -39,6 +39,7 @@ pub(super) fn execute(
         ),
         DomainAction::Alter { name, alteration } => alter(
             cassie,
+            session,
             &database,
             &context.relation_search_order(),
             name,
@@ -90,12 +91,22 @@ fn creation_target(
     }
 }
 
-/// A domain shares the type namespace with composite types, tables and views.
-fn type_name_taken(cassie: &Cassie, canonical: &str) -> bool {
-    cassie.catalog.domain_type_exists(canonical)
+/// A domain shares the type namespace with composite types and the relation
+/// namespace with tables, views, sequences and indexes.
+fn type_name_taken(
+    cassie: &Cassie,
+    database: &str,
+    canonical: &str,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<bool, QueryError> {
+    Ok(cassie.catalog.domain_type_exists(canonical)
         || cassie.catalog.composite_type_exists(canonical)
         || cassie.catalog.get_schema(canonical).is_some()
         || cassie.catalog.relation_exists(canonical)
+        || cassie.catalog.sequence_exists(canonical)
+        || cassie
+            .catalog
+            .index_relation_name_occupied(canonical, database, false, controls)?)
 }
 
 fn validate_base(base: &DataType) -> Result<(), QueryError> {
@@ -270,7 +281,7 @@ fn create(
         ));
     }
     let canonical = canonical_relation_name(database, &schema, &name);
-    if type_name_taken(cassie, &canonical) {
+    if type_name_taken(cassie, database, &canonical, Some(controls))? {
         return Err(diagnostic(
             "42710",
             format!("type \"{name}\" already exists"),
@@ -363,6 +374,7 @@ enum Altered {
 
 fn add_check(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     updated: &mut DomainTypeMeta,
     check: &DomainCheckDefinition,
     not_valid: bool,
@@ -382,12 +394,13 @@ fn add_check(
         .cloned()
         .ok_or_else(|| diagnostic("XX000", "added domain constraint is missing".into()))?;
     cassie
-        .validate_domain_rows(updated.type_oid(), &DomainRowRule::Check(&added))
+        .validate_domain_rows(session, updated.type_oid(), &DomainRowRule::Check(&added))
         .map_err(QueryError::from)
 }
 
 fn validate_constraint(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     updated: &mut DomainTypeMeta,
     name: &str,
 ) -> Result<(), QueryError> {
@@ -406,7 +419,7 @@ fn validate_constraint(
     check.validated = true;
     let validated = check.clone();
     cassie
-        .validate_domain_rows(oid, &DomainRowRule::Check(&validated))
+        .validate_domain_rows(session, oid, &DomainRowRule::Check(&validated))
         .map_err(QueryError::from)
 }
 
@@ -449,7 +462,7 @@ fn rename_domain(
     };
     let schema = updated.schema_name();
     let canonical = canonical_relation_name(database, &schema, &new_name);
-    if type_name_taken(cassie, &canonical) {
+    if type_name_taken(cassie, database, &canonical, None)? {
         return Err(diagnostic(
             "42710",
             format!("type \"{new_name}\" already exists in schema \"{schema}\""),
@@ -461,6 +474,7 @@ fn rename_domain(
 
 fn apply_alteration(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     meta: &DomainTypeMeta,
     database: &str,
     alteration: &DomainAlteration,
@@ -475,14 +489,14 @@ fn apply_alteration(
         DomainAlteration::SetNotNull => {
             if !meta.not_null {
                 cassie
-                    .validate_domain_rows(meta.type_oid(), &DomainRowRule::NotNull)
+                    .validate_domain_rows(session, meta.type_oid(), &DomainRowRule::NotNull)
                     .map_err(QueryError::from)?;
             }
             updated.not_null = true;
         }
         DomainAlteration::DropNotNull => updated.not_null = false,
         DomainAlteration::AddCheck { check, not_valid } => {
-            add_check(cassie, &mut updated, check, *not_valid)?;
+            add_check(cassie, session, &mut updated, check, *not_valid)?;
         }
         DomainAlteration::DropConstraint { name, if_exists } => {
             let position = updated
@@ -498,7 +512,7 @@ fn apply_alteration(
             }
         }
         DomainAlteration::ValidateConstraint { name } => {
-            validate_constraint(cassie, &mut updated, name)?;
+            validate_constraint(cassie, session, &mut updated, name)?;
         }
         DomainAlteration::RenameConstraint { from, to } => {
             rename_constraint(&mut updated, from, to)?;
@@ -512,6 +526,7 @@ fn apply_alteration(
 
 fn alter(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     database: &str,
     search_order: &[&str],
     raw_name: &str,
@@ -524,7 +539,7 @@ fn alter(
             format!("type \"{raw_name}\" does not exist"),
         ));
     };
-    let altered = apply_alteration(cassie, &meta, database, alteration)?;
+    let altered = apply_alteration(cassie, session, &meta, database, alteration)?;
     let output = empty_command("ALTER DOMAIN", controls)?;
     if let Altered::Changed(updated) = altered {
         publish(cassie, &meta, *updated)?;

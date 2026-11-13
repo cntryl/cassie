@@ -103,7 +103,7 @@ impl Cassie {
         let constraints = self.catalog.get_constraints(collection);
         canonical_values::canonicalize_typed_values(&schema.fields, &mut payload);
         Self::validate_payload_schema(collection, &schema, &payload)?;
-        self.validate_domain_columns(&schema, &payload, false)?;
+        self.validate_domain_columns(None, collection, &schema, &payload, None)?;
         self.validate_row_constraints(collection, &payload, &constraints)?;
         Ok(payload)
     }
@@ -155,7 +155,7 @@ impl Cassie {
         canonical_values::canonicalize_typed_values(&schema.fields, &mut payload);
 
         Self::validate_payload_schema(collection, &schema, &payload)?;
-        self.validate_domain_columns(&schema, &payload, exclude_id.is_some())?;
+        self.validate_domain_columns(session, collection, &schema, &payload, exclude_id)?;
 
         let indexes = self.catalog.list_vector_indexes(collection);
         if !indexes.is_empty() {

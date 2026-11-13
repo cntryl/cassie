@@ -3,6 +3,14 @@
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 use cassie::types::Value;
 
+fn with_small(label: &str) -> SqlFixture {
+    let fixture = fixture(label);
+    fixture
+        .execute("ALTER DOMAIN qty ADD CONSTRAINT small CHECK (VALUE < 100)")
+        .unwrap();
+    fixture
+}
+
 fn fixture(label: &str) -> SqlFixture {
     sql_fixture(
         label,
@@ -110,46 +118,127 @@ fn should_stop_applying_a_dropped_domain_default() {
 }
 
 #[test]
-fn should_drop_a_named_constraint_and_tolerate_if_exists() {
+fn should_stop_enforcing_a_dropped_constraint() {
     // Arrange
-    let fixture = fixture("domain_alter_drop_constraint");
-    fixture
-        .execute("ALTER DOMAIN qty ADD CONSTRAINT small CHECK (VALUE < 100)")
-        .unwrap();
+    let fixture = with_small("domain_alter_drop_constraint");
 
     // Act
     fixture
         .execute("ALTER DOMAIN qty DROP CONSTRAINT small")
         .unwrap();
-    let again = fixture.execute("ALTER DOMAIN qty DROP CONSTRAINT IF EXISTS small");
-    let missing = fixture.error("ALTER DOMAIN qty DROP CONSTRAINT small");
     let accepted = fixture.execute("INSERT INTO items VALUES (3, 500)");
 
     // Assert
-    assert!(again.is_ok(), "IF EXISTS tolerates a missing constraint");
-    assert_eq!(missing.sql_state(), "42704");
     assert!(accepted.is_ok(), "dropped constraint no longer enforces");
 }
 
 #[test]
-fn should_accept_not_valid_check_for_existing_rows_but_enforce_it_on_insert() {
+fn should_tolerate_drop_constraint_if_exists_for_a_missing_constraint() {
     // Arrange
-    let fixture = fixture("domain_alter_not_valid");
+    let fixture = with_small("domain_alter_drop_constraint_if_exists");
+
+    // Act
+    let dropped = fixture.execute("ALTER DOMAIN qty DROP CONSTRAINT IF EXISTS nothing");
+
+    // Assert
+    assert!(dropped.is_ok(), "IF EXISTS tolerates a missing constraint");
+}
+
+#[test]
+fn should_reject_dropping_a_missing_constraint_with_sqlstate_42704() {
+    // Arrange
+    let fixture = with_small("domain_alter_drop_missing_constraint");
+
+    // Act
+    let error = fixture.error("ALTER DOMAIN qty DROP CONSTRAINT nothing");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42704");
+}
+
+#[test]
+fn should_enforce_a_not_valid_check_on_insert() {
+    // Arrange
+    let fixture = fixture("domain_alter_not_valid_insert");
     fixture
         .execute("ALTER DOMAIN qty ADD CONSTRAINT small CHECK (VALUE < 3) NOT VALID")
         .unwrap();
 
     // Act
     let insert = fixture.error("INSERT INTO items VALUES (3, 10)");
-    let validate = fixture.error("ALTER DOMAIN qty VALIDATE CONSTRAINT small");
 
     // Assert
     assert_eq!(insert.sql_state(), "23514");
+}
+
+#[test]
+fn should_reject_validating_a_check_that_an_existing_row_violates() {
+    // Arrange
+    let fixture = fixture("domain_alter_not_valid_validate");
+    fixture
+        .execute("ALTER DOMAIN qty ADD CONSTRAINT small CHECK (VALUE < 3) NOT VALID")
+        .unwrap();
+
+    // Act
+    let validate = fixture.error("ALTER DOMAIN qty VALIDATE CONSTRAINT small");
+
+    // Assert
     assert_eq!(
         validate.sql_state(),
         "23514",
         "row 1 still violates the check"
     );
+}
+
+#[test]
+fn should_reject_an_update_assigning_a_value_that_violates_a_not_valid_check() {
+    // Arrange
+    let fixture = fixture("domain_alter_not_valid_update_assigned");
+    fixture
+        .execute("ALTER DOMAIN qty ADD CONSTRAINT lt3 CHECK (VALUE < 3) NOT VALID")
+        .unwrap();
+
+    // Act
+    let error = fixture.error("UPDATE items SET q = 7 WHERE id = 1");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_update_another_column_when_a_not_valid_check_is_violated_by_an_unchanged_value() {
+    // Arrange
+    let fixture = fixture("domain_alter_not_valid_update_unchanged");
+    fixture
+        .execute("ALTER DOMAIN qty ADD CONSTRAINT lt3 CHECK (VALUE < 3) NOT VALID")
+        .unwrap();
+
+    // Act
+    let updated = fixture.execute("UPDATE items SET id = 10 WHERE id = 1");
+
+    // Assert
+    assert!(updated.is_ok(), "an unchanged legacy value stays updatable");
+}
+
+#[test]
+fn should_reject_an_upsert_update_assigning_a_value_that_violates_a_not_valid_check() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_alter_not_valid_upsert",
+        &[
+            "CREATE DOMAIN qty AS int",
+            "CREATE TABLE items (id int PRIMARY KEY, q qty)",
+            "INSERT INTO items VALUES (1, 5)",
+            "ALTER DOMAIN qty ADD CONSTRAINT lt3 CHECK (VALUE < 3) NOT VALID",
+        ],
+    );
+
+    // Act
+    let error =
+        fixture.error("INSERT INTO items VALUES (1, 1) ON CONFLICT (id) DO UPDATE SET q = 7");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
 }
 
 #[test]
@@ -192,22 +281,35 @@ fn should_report_the_new_name_after_a_constraint_rename() {
 }
 
 #[test]
-fn should_keep_columns_working_after_a_domain_rename() {
+fn should_stop_resolving_the_old_name_after_a_domain_rename() {
     // Arrange
-    let fixture = fixture("domain_alter_rename");
-    fixture
-        .execute("ALTER DOMAIN qty ADD CONSTRAINT small CHECK (VALUE < 100)")
-        .unwrap();
-
-    // Act
+    let fixture = fixture("domain_alter_rename_old_name");
     fixture
         .execute("ALTER DOMAIN qty RENAME TO amount")
         .unwrap();
+
+    // Act
     let old_name = fixture.execute("SELECT (1)::qty");
-    let error = fixture.error("INSERT INTO items VALUES (3, 500)");
 
     // Assert
     assert!(old_name.is_err(), "the old name no longer resolves");
+}
+
+#[test]
+fn should_keep_enforcing_column_rules_after_a_domain_rename() {
+    // Arrange
+    let fixture = fixture("domain_alter_rename_rules");
+    fixture
+        .execute("ALTER DOMAIN qty ADD CONSTRAINT small CHECK (VALUE < 100)")
+        .unwrap();
+    fixture
+        .execute("ALTER DOMAIN qty RENAME TO amount")
+        .unwrap();
+
+    // Act
+    let error = fixture.error("INSERT INTO items VALUES (3, 500)");
+
+    // Assert
     assert_eq!(error.sql_state(), "23514", "the column keeps its rules");
 }
 
@@ -255,5 +357,52 @@ fn should_roll_back_an_alter_domain_in_a_transaction() {
     assert!(
         accepted.is_ok(),
         "rolled-back ALTER DOMAIN left no constraint"
+    );
+}
+
+#[test]
+fn should_validate_staged_rows_of_the_same_transaction_when_adding_a_check() {
+    // Arrange
+    let fixture = fixture("domain_alter_staged_rows");
+    fixture.execute("BEGIN").unwrap();
+    fixture.execute("INSERT INTO items VALUES (9, 99)").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER DOMAIN qty ADD CONSTRAINT small CHECK (VALUE < 3)");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_report_the_check_that_sorts_first_by_name() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_check_ordering",
+        &["CREATE DOMAIN d AS int CONSTRAINT zz CHECK (VALUE > 10) CONSTRAINT aa CHECK (VALUE > 20)"],
+    );
+
+    // Act
+    let message = fixture.error("SELECT (1)::d").to_string();
+
+    // Assert
+    assert!(message.contains("\"aa\""), "aa sorts before zz: {message}");
+}
+
+#[test]
+fn should_number_unnamed_checks_after_the_first() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_unnamed_checks",
+        &["CREATE DOMAIN multi AS int CHECK (VALUE > 0) CHECK (VALUE < 10)"],
+    );
+
+    // Act
+    let message = fixture.error("SELECT (50)::multi").to_string();
+
+    // Assert
+    assert!(
+        message.contains("multi_check1"),
+        "second check is numbered: {message}"
     );
 }

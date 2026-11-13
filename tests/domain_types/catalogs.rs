@@ -113,3 +113,21 @@ fn should_remove_the_pg_type_rows_of_a_dropped_domain() {
     // Assert
     assert_eq!(rows, vec![vec![Value::Int64(0)]]);
 }
+
+#[test]
+fn should_report_typmod_minus_one_for_a_domain_column_over_varchar() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_attribute_typmod",
+        &[
+            "CREATE DOMAIN code AS varchar(8)",
+            "CREATE TABLE t (c code)",
+        ],
+    );
+
+    // Act
+    let rows = fixture.rows("SELECT atttypmod FROM pg_attribute WHERE attname = 'c'");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(-1)]]);
+}

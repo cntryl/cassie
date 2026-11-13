@@ -628,6 +628,8 @@ fn alter_table_add_column(
         .with_collection_write_gates(&gated_collections, || {
             cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
             cassie.validate_existing_foreign_key_rows(table, constraints)?;
+            let default_value =
+                cassie.domain_add_column_default(table, data_type, default_value.clone())?;
 
             let field_schema = FieldSchema {
                 name: field.to_string(),
@@ -639,7 +641,7 @@ fn alter_table_add_column(
                 .alter_collection_add_column_with_default(
                     table,
                     field_schema.clone(),
-                    default_value.clone(),
+                    default_value,
                 )
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie

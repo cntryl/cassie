@@ -180,6 +180,23 @@ impl Catalog {
         }
     }
 
+    /// Rejects a relation name already taken by a domain (`42P07`), because
+    /// domains share the relation namespace as composite types do.
+    ///
+    /// # Errors
+    ///
+    /// Returns the diagnostic when a domain owns `name`.
+    pub fn reject_domain_relation_name(&self, name: &str) -> Result<(), crate::app::CassieError> {
+        if self.domain_type_exists(name) {
+            return Err(crate::app::DiagnosticError::new(
+                "42P07",
+                format!("relation \"{}\" already exists", local_name(name)),
+            )
+            .into());
+        }
+        Ok(())
+    }
+
     /// Tables that keep the domain `oid` alive, phrased as PostgreSQL phrases
     /// the `DROP DOMAIN` dependency detail (`column c of table t`).
     #[must_use]

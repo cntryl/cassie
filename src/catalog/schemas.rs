@@ -40,15 +40,6 @@ impl FieldMeta {
             },
         }
     }
-
-    /// The type this column was declared with: its domain, else its data type.
-    #[must_use]
-    pub fn declared_type(&self) -> DataType {
-        self.domain.as_ref().map_or_else(
-            || self.data_type.clone(),
-            |domain| DataType::Domain(domain.clone()),
-        )
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

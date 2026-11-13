@@ -112,6 +112,7 @@ fn create(
     // A composite type owns a pg_class row, so it shares the relation
     // namespace with tables, views, sequences and indexes.
     if cassie.catalog.composite_type_exists(&canonical)
+        || cassie.catalog.domain_type_exists(&canonical)
         || cassie.catalog.get_schema(&canonical).is_some()
         || cassie.catalog.relation_exists(&canonical)
         || cassie.catalog.sequence_exists(&canonical)

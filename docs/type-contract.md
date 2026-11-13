@@ -435,9 +435,15 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
 - `VALUE` in a CHECK is the checked value. CHECK bodies are stored as SQL text and
   evaluated by the scalar evaluator; unnamed checks are named `{domain}_check`,
   `{domain}_check1` and so on.
-- `ALTER DOMAIN ADD CHECK` and `SET NOT NULL` validate committed rows and publish
-  nothing on failure. `NOT VALID` checks are enforced on INSERT/COPY and skipped on
-  UPDATE until validated.
+- `ALTER DOMAIN ADD CHECK` and `SET NOT NULL` validate existing rows and publish
+  nothing on failure, and validation sees the session's own staged rows. `NOT VALID`
+  checks are enforced on INSERT/COPY and on every newly assigned value of an UPDATE or
+  `ON CONFLICT DO UPDATE`; only an unchanged legacy value is exempt until validated.
+- `ALTER TABLE ADD COLUMN` of a domain column enforces the domain NOT NULL and CHECK
+  constraints on a populated table and backfills the domain DEFAULT. Domain names share
+  the type and relation namespace with composite types, tables, views, sequences and
+  indexes (`42710` / `42P07`). `ON CONFLICT DO NOTHING` still raises `23514` / `23502`
+  for a violating proposed value. `pg_attribute.atttypmod` of a domain column is `-1`.
 - Flattening: operators and functions resolve through the base type, and
   RowDescription, `atttypmod` and parameter types report the base OID. A table column
   keeps its domain identity separately (`FieldMeta.domain`), so `ALTER DOMAIN` never

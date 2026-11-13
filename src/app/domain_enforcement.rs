@@ -5,7 +5,7 @@
 //! descriptor in the catalog decides the default, NOT NULL flag and CHECK
 //! constraints, so `ALTER DOMAIN` takes effect without rewriting a table.
 
-use super::{field_value_is_sql_null, Cassie, CassieError, DiagnosticError};
+use super::{field_value_is_sql_null, Cassie, CassieError, CassieSession, DiagnosticError};
 use crate::catalog::{CollectionSchema, FieldMeta};
 use crate::executor::filter::{evaluate_check, first_violation};
 use crate::types::{DomainCheck, DomainRef, DomainType, Value};
@@ -96,14 +96,17 @@ impl Cassie {
     }
 
     /// Enforces NOT NULL and CHECK constraints of every domain column of the
-    /// row `payload`. An update skips CHECK constraints added `NOT VALID`,
-    /// because the unchanged legacy values they were not checked against stay
-    /// updatable, as in PostgreSQL.
+    /// row `payload`. When `exclude_id` names the row being replaced, CHECK
+    /// constraints added `NOT VALID` are skipped for columns whose value did
+    /// not change, because legacy values they were never checked against stay
+    /// updatable; newly assigned values are always checked, as in PostgreSQL.
     pub(crate) fn validate_domain_columns(
         &self,
+        session: Option<&CassieSession>,
+        collection: &str,
         schema: &CollectionSchema,
         payload: &serde_json::Value,
-        is_update: bool,
+        exclude_id: Option<&str>,
     ) -> Result<(), CassieError> {
         if schema.fields.iter().all(|field| field.domain.is_none()) {
             return Ok(());
@@ -111,12 +114,31 @@ impl Cassie {
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
         })?;
+        let mut before: Option<Option<serde_json::Value>> = None;
         for field in &schema.fields {
             let Some(mut domain) = self.live_domain(field).map(|domain| (*domain).clone()) else {
                 continue;
             };
-            if is_update {
-                domain.checks.retain(|check| check.validated);
+            let has_unvalidated = domain.checks.iter().any(|check| !check.validated);
+            if let (true, Some(id)) = (has_unvalidated, exclude_id) {
+                if before.is_none() {
+                    before = Some(
+                        self.get_document_for_session(session, collection, id)?
+                            .map(|document| document.payload),
+                    );
+                }
+                let unchanged = before
+                    .as_ref()
+                    .and_then(Option::as_ref)
+                    .and_then(serde_json::Value::as_object)
+                    .is_some_and(|old| {
+                        let old = old.get(&field.name).filter(|value| !value.is_null());
+                        let new = object.get(&field.name).filter(|value| !value.is_null());
+                        old == new
+                    });
+                if unchanged {
+                    domain.checks.retain(|check| check.validated);
+                }
             }
             let value = payload_value(field, object.get(&field.name));
             if let Some(violation) = first_violation(&domain, &value).map_err(CassieError::from)? {
@@ -126,10 +148,64 @@ impl Cassie {
         Ok(())
     }
 
+    /// The default backfilled into existing rows when a column of type
+    /// `data_type` is added to `table`, after checking it against the domain.
+    ///
+    /// The column's own default wins; otherwise the domain default applies. A
+    /// populated table must satisfy the domain's NOT NULL and CHECK constraints
+    /// with the backfilled value, as in PostgreSQL (`23502` / `23514`).
+    pub(crate) fn domain_add_column_default(
+        &self,
+        table: &str,
+        data_type: &crate::types::DataType,
+        column_default: Option<serde_json::Value>,
+    ) -> Result<Option<serde_json::Value>, CassieError> {
+        let Some(snapshot) = data_type.domain() else {
+            return Ok(column_default);
+        };
+        let domain = self
+            .catalog
+            .get_domain_type_by_oid(snapshot.oid)
+            .map_or_else(|| snapshot.clone(), |meta| meta.descriptor());
+        let populated = self
+            .scan_documents_batched_for_session(None, table, 1)?
+            .into_iter()
+            .flatten()
+            .next()
+            .is_some();
+        let default = column_default.or_else(|| default_json(&domain));
+        if domain
+            .default
+            .as_ref()
+            .is_some_and(|d| d.expression.is_some() && d.value.is_none())
+            && default.is_none()
+            && populated
+        {
+            return Err(DiagnosticError::new(
+                "0A000",
+                "adding a column whose domain has a volatile DEFAULT to a populated table is not supported".to_string(),
+            )
+            .into());
+        }
+        if populated {
+            let value = default
+                .as_ref()
+                .filter(|value| !value.is_null())
+                .map_or(Value::Null, |value| {
+                    crate::executor::scan::json_to_typed_value(value, data_type.flattened())
+                });
+            if let Some(violation) = first_violation(&domain, &value).map_err(CassieError::from)? {
+                return Err(violation.into_error(&domain).into());
+            }
+        }
+        Ok(default)
+    }
+
     /// Checks every stored value of every column declared with the domain
     /// `oid` against `rule`; nothing is published by the caller on failure.
     pub(crate) fn validate_domain_rows(
         &self,
+        session: Option<&CassieSession>,
         oid: u32,
         rule: &DomainRowRule<'_>,
     ) -> Result<(), CassieError> {
@@ -141,7 +217,7 @@ impl Cassie {
                 continue;
             };
             for document in self
-                .scan_documents_batched_for_session(None, &collection, SCAN_BATCH_SIZE)?
+                .scan_documents_batched_for_session(session, &collection, SCAN_BATCH_SIZE)?
                 .into_iter()
                 .flatten()
             {

@@ -70,4 +70,6 @@ pub(super) fn mark_domain_column(row: &mut VirtualRow, domain: &crate::types::Do
         "atttypid",
         int_value("atttypid", i64::from(domain.oid)),
     );
+    // PostgreSQL keeps the base typmod on the domain, not on its columns.
+    replace(row, "atttypmod", int_value("atttypmod", -1));
 }

@@ -19,6 +19,8 @@ fn failure(state: &'static str, message: String) -> QueryError {
 struct Argument {
     descriptor: Option<EnumRef>,
     value: Option<EnumValue>,
+    /// An unknown-typed literal, resolved against the other argument's enum.
+    label: Option<String>,
 }
 
 fn declared_enum(expr: &Expr) -> Option<EnumRef> {
@@ -39,6 +41,13 @@ fn argument<R: RowAccess + ?Sized>(
     let value = match super::super::evaluate_expr_value_with_context(row, expr, context)? {
         Value::Typed(TypedValue::Enum(value)) => Some(value),
         Value::Null => None,
+        Value::String(label) if matches!(expr, Expr::StringLiteral(_)) => {
+            return Ok(Argument {
+                descriptor: None,
+                value: None,
+                label: Some(label),
+            });
+        }
         _ => {
             return Err(failure(
                 "42804",
@@ -47,7 +56,11 @@ fn argument<R: RowAccess + ?Sized>(
         }
     };
     let descriptor = declared_enum(expr).or_else(|| value.as_ref().map(|v| v.descriptor().clone()));
-    Ok(Argument { descriptor, value })
+    Ok(Argument {
+        descriptor,
+        value,
+        label: None,
+    })
 }
 
 fn typed(descriptor: &EnumRef, member_id: u64) -> Option<Value> {
@@ -134,7 +147,7 @@ fn evaluate<R: RowAccess + ?Sized>(
     row: &R,
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
-    let arguments = function
+    let mut arguments = function
         .args
         .iter()
         .map(|expr| argument(expr, row, context))
@@ -148,6 +161,14 @@ fn evaluate<R: RowAccess + ?Sized>(
                 "could not determine polymorphic type because input has type unknown".to_owned(),
             )
         })?;
+    for argument in &mut arguments {
+        if let Some(label) = argument.label.take() {
+            let value = EnumValue::parse_label(&descriptor, &label).map_err(|error| {
+                QueryError::Cassie(CassieError::from(crate::executor::filter::enum_cast::input_diagnostic(&error)))
+            })?;
+            argument.value = Some(value);
+        }
+    }
     match id {
         FunctionId::EnumFirst => boundary(&descriptor, true),
         FunctionId::EnumLast => boundary(&descriptor, false),

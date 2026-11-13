@@ -64,7 +64,7 @@ pub(in crate::catalog::virtual_views) fn enum_schema() -> Vec<(String, DataType)
         super::oid("oid"),
         super::oid("enumtypid"),
         ("enumsortorder".to_owned(), DataType::Float),
-        ("enumlabel".to_owned(), DataType::Name),
+        ("enumlabel".to_owned(), DataType::Text),
     ]
 }
 

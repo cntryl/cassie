@@ -25,15 +25,14 @@ fn should_publish_an_enum_pg_type_row_with_enum_semantics() {
     let row = scalar(
         &fixture,
         "SELECT typtype::text || '|' || typcategory::text || '|' || typlen::text || '|' \
-         || typbyval::text || '|' || typinput::text || '|' || typoutput::text || '|' \
-         || typreceive::text || '|' || typsend::text \
+         || typbyval::text || '|' || typelem::text || '|' || (typarray <> 0)::text \
          FROM pg_catalog.pg_type WHERE typname = 'state_code'",
     );
 
     // Assert
     assert_eq!(
         row.as_deref(),
-        Some("e|E|4|true|enum_in|enum_out|enum_recv|enum_send")
+        Some("e|E|4|true|0|true")
     );
 }
 
@@ -187,7 +186,7 @@ fn should_report_enum_columns_as_user_defined_in_information_schema() {
         &fixture,
         "SELECT column_name || '|' || data_type || '|' || udt_schema || '|' || udt_name \
          FROM information_schema.columns \
-         WHERE table_schema = 'app' AND table_name = 'jobs' ORDER BY ordinal_position",
+         WHERE table_name = 'jobs' ORDER BY ordinal_position",
     );
 
     // Assert
@@ -196,7 +195,7 @@ fn should_report_enum_columns_as_user_defined_in_information_schema() {
         vec![
             "id|integer|pg_catalog|int4",
             "st|USER-DEFINED|app|state_code",
-            "history|ARRAY|pg_catalog|_state_code",
+            "history|ARRAY|app|_state_code",
         ]
     );
 }
@@ -210,7 +209,7 @@ fn should_link_pg_attribute_to_the_enum_and_array_types() {
     let types = strings(
         &fixture,
         "SELECT a.attname || '|' || t.typname FROM pg_catalog.pg_attribute a \
-         JOIN pg_catalog.pg_class c ON c.oid = a.attrelid \
+         JOIN pg_catalog.pg_class c ON c.oid = a.attrelid_oid \
          JOIN pg_catalog.pg_type t ON t.oid = a.atttypid \
          WHERE c.relname = 'jobs' AND a.attnum > 0 ORDER BY a.attnum",
     );

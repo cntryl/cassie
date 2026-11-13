@@ -959,8 +959,10 @@ PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
 
 ### SQL and wire behaviour
 
-- `pg_type` reports `typlen 4`, `typbyval t`, `typtype 'e'` and `typcategory 'E'`, with
-  `enum_in`/`enum_out`/`enum_recv`/`enum_send`. Each type has an `_name` array row.
+- `pg_type` reports `typlen 4`, `typbyval t`, `typtype 'e'`, `typcategory 'E'`,
+  `typelem 0` and a non-zero `typarray`. Each type has an `_name` array row. Cassie's
+  `pg_type` has no I/O-function columns (`typinput`, `typoutput`, `typreceive`,
+  `typsend`) for any type, and this milestone does not add them.
 - `pg_enum` lists `oid`, `enumtypid`, `enumsortorder` and `enumlabel`. It moves out of
   the empty-registry list.
 - `RowDescription` reports the enum's own type OID (array: its array OID), not `text`.

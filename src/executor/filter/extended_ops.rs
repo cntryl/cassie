@@ -62,6 +62,11 @@ pub(super) fn binary(
     op: &BinaryOp,
     right: &ScalarValue,
 ) -> Option<Result<ScalarValue, QueryError>> {
+    if matches!(op, BinaryOp::Quantified { .. }) {
+        // `x op ANY|ALL (array)` unpacks the array first; each element then
+        // meets this module through the element comparison.
+        return None;
+    }
     let null = matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null);
     if !owned(left) && !owned(right) {
         return matches!(op, BinaryOp::Typed { .. }).then(|| {
@@ -100,6 +105,11 @@ fn comparison(
     right: &ScalarValue,
     null: bool,
 ) -> Option<Result<ScalarValue, QueryError>> {
+    if !null {
+        if let Some(Err(error)) = enum_label_input(left, right) {
+            return Some(Err(error));
+        }
+    }
     if !null && record_against_text(left, right) {
         return Some(Err(QueryError::Cassie(CassieError::from(
             crate::app::DiagnosticError::new(
@@ -137,6 +147,23 @@ fn comparison(
         }
         _ => None,
     }
+}
+
+/// An enum compared with an untyped label: the label must be valid input for
+/// the enum (`22P02`/`55P04`), as PostgreSQL resolves it with `enum_in`.
+fn enum_label_input(left: &ScalarValue, right: &ScalarValue) -> Option<Result<(), QueryError>> {
+    let (value, label) = match (left, right) {
+        (ScalarValue::Typed(TypedValue::Enum(value)), ScalarValue::Str(label))
+        | (ScalarValue::Str(label), ScalarValue::Typed(TypedValue::Enum(value))) => (value, label),
+        _ => return None,
+    };
+    Some(
+        EnumValue::parse_label(value.descriptor(), label)
+            .map(|_| ())
+            .map_err(|error| {
+                QueryError::Cassie(CassieError::from(super::enum_cast::input_diagnostic(&error)))
+            }),
+    )
 }
 
 /// A record compared with an untyped string literal, which PostgreSQL cannot

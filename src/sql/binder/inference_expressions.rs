@@ -50,7 +50,8 @@ pub(crate) fn infer_expr_type(
             user_functions,
             parameter_types,
         ),
-        Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        // A cast to a domain yields its base type; only the cast enforces it.
+        Expr::Cast { data_type, .. } => Some(data_type.flattened().clone()),
         Expr::Collate { expr, .. } => {
             infer_expr_type(expr, source_schema, user_functions, parameter_types)
         }
@@ -279,7 +280,8 @@ pub(crate) fn known_expr_type(
 ) -> Option<DataType> {
     match expr {
         Expr::Column(name) => crate::sql::field_type_for_column(field_types, name).cloned(),
-        Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        // A cast to a domain yields its base type; only the cast enforces it.
+        Expr::Cast { data_type, .. } => Some(data_type.flattened().clone()),
         Expr::Collate { expr, .. } => known_expr_type(expr, field_types),
         Expr::ArraySubscript { array, subscripts } => Some(array_subscript_result_type(
             known_expr_type(array, field_types)?,

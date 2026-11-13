@@ -703,3 +703,56 @@ fn should_infer_bare_virtual_catalog_columns_without_an_owned_source_map() {
     assert!(matches!(canceled, Err(ParameterAdmissionError::Canceled)));
     assert_eq!(canceled_controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_type_parameters_compared_with_enum_columns_by_the_enum_oid() {
+    // Arrange
+    let catalog = Catalog::new();
+    let enum_type = crate::catalog::EnumTypeMeta {
+        format_version: crate::catalog::ENUM_TYPE_FORMAT_VERSION,
+        database: "postgres".to_owned(),
+        name: "postgres.public.state_code".to_owned(),
+        object_id: 1,
+        array_object_id: 2,
+        owner_oid: 10,
+        revision: 1,
+        members: vec![crate::types::EnumMember {
+            member_id: 3,
+            label: "open".to_owned(),
+            sort_order: 1.0,
+            uncommitted: false,
+        }],
+    };
+    let descriptor = enum_type.descriptor();
+    let (type_oid, array_oid) = (enum_type.type_oid(), enum_type.array_oid());
+    catalog.register_enum_type(enum_type);
+    catalog.register_collection(
+        "postgres.public.fold_scope_enum",
+        vec![
+            (
+                "st".to_string(),
+                crate::types::DataType::Enum(descriptor.clone()),
+            ),
+            (
+                "history".to_string(),
+                crate::types::DataType::Array(Box::new(crate::types::DataType::Enum(descriptor))),
+            ),
+        ],
+    );
+    let controls = controls(1_024 * 1_024);
+    let admitted = |sql: &str| {
+        let statement = parse_statement(sql).expect("enum comparison SQL");
+        checked_parse_parameter_types(&statement, &[], &catalog, &controls)
+            .map(|admitted| admitted.types().to_vec())
+            .map_err(|_| "parameter admission rejected the comparison")
+    };
+
+    // Act
+    let scalar = admitted("SELECT 1 FROM fold_scope_enum WHERE st = $1");
+    let array = admitted("SELECT 1 FROM fold_scope_enum WHERE history = $1");
+
+    // Assert
+    assert_eq!(scalar, Ok(vec![i32::try_from(type_oid).expect("oid")]));
+    assert_eq!(array, Ok(vec![i32::try_from(array_oid).expect("oid")]));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

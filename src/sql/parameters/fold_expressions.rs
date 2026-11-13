@@ -53,9 +53,7 @@ impl Fold<'_, '_> {
             }
             ast::Expr::NumberLiteral(_) => Ok(Summary::known(701)),
             ast::Expr::NumericLiteral(_) => Ok(Summary::known(1700)),
-            ast::Expr::Column(name) => Ok(self
-                .column_oid(frame.context, name)
-                .map_or_else(Summary::unqualified, Summary::known)),
+            ast::Expr::Column(name) => Ok(self.column_summary(frame.context, name)),
             ast::Expr::UnaryNumeric { expr, op } => Ok(
                 if matches!(
                     op,

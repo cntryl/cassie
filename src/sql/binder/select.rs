@@ -176,6 +176,7 @@ pub(super) fn canonicalize_typed_predicate_literals(
     expr: &mut Expr,
     field_types: &crate::sql::FieldTypeMap,
 ) -> Result<(), CassieError> {
+    super::unknown_literals::coerce(expr, field_types);
     match expr {
         Expr::RowCompare(comparison) => {
             for field in comparison.left.iter_mut().chain(&mut comparison.right) {

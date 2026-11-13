@@ -148,6 +148,8 @@ pub(crate) use view_dependencies::select_referenced_relations;
 mod search_field_case;
 #[path = "binder/select.rs"]
 mod select;
+#[path = "binder/unknown_literals.rs"]
+mod unknown_literals;
 #[path = "binder/set_width.rs"]
 mod set_width;
 #[path = "binder/source_schema.rs"]

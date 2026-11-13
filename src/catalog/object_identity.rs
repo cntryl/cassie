@@ -15,6 +15,8 @@ use crate::sql::binder::BindingContext;
 use crate::types::object_id::{parse_oid_text, FIRST_NORMAL_OBJECT_ID};
 use crate::types::{ObjectIdKind, ObjectIdentifierError};
 
+#[path = "object_identity/enum_types.rs"]
+mod enum_types;
 #[path = "object_identity/identify.rs"]
 mod identify;
 #[path = "object_identity/names.rs"]
@@ -190,7 +192,8 @@ impl<'a> ObjectScope<'a> {
                 .type_by_oid(oid)
                 .map(|row| row.display.clone())
                 .or_else(|| self.user_type_label(oid))
-                .or_else(|| self.domain_type_label(oid)),
+                .or_else(|| self.domain_type_label(oid))
+                .or_else(|| self.enum_type_label(oid)),
             ObjectIdKind::RegNamespace => {
                 self.namespace_name(oid).map(|name| quote_identifier(&name))
             }
@@ -210,7 +213,7 @@ impl<'a> ObjectScope<'a> {
         label.unwrap_or_else(|| oid.to_string())
     }
 
-    /// A user composite type named by `text`, or its `[]` array type.
+    /// A user composite, domain or enum type named by `text`, or its `[]` array type.
     fn resolve_user_type(&self, text: &str) -> Option<u32> {
         let search_order = self.context.relation_search_order();
         let resolve = |name: &str| {
@@ -225,6 +228,9 @@ impl<'a> ObjectScope<'a> {
             self.catalog
                 .resolve_domain_type(&self.context.database, &search_order, name)
         };
+        if let Some(oid) = self.resolve_enum_type_oid(text) {
+            return Some(oid);
+        }
         if let Some(base) = text.trim_end().strip_suffix("[]") {
             let base = base.trim_end();
             return resolve(base)
@@ -258,6 +264,7 @@ impl<'a> ObjectScope<'a> {
             .find(|schema| {
                 let canonical = canonical_relation_name(&self.context.database, schema, &local);
                 self.catalog.domain_type_exists(&canonical)
+                    || self.catalog.enum_type_exists(&canonical)
                     || self.catalog.composite_type_exists(&canonical)
                     || self.catalog.relation_row_type(&canonical).is_some()
             })

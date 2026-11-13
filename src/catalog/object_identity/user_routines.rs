@@ -265,6 +265,13 @@ impl ObjectScope<'_> {
                 descriptor.oid
             };
         }
+        if let DataType::Enum(descriptor) = element {
+            return if is_array {
+                descriptor.array_oid
+            } else {
+                descriptor.oid
+            };
+        }
         let oid = super::type_oid_for_database(self.catalog, &self.context.database, element)
             .and_then(|oid| u32::try_from(oid).ok())
             .unwrap_or(0);

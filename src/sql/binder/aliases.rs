@@ -581,11 +581,23 @@ fn qualified_wildcard_namespace<'a>(
                 .is_some_and(|qualifier| space.name == qualifier || space.qualifier == qualifier)
                 || space.name == rendered_qualifier
                 || space.qualifier == rendered_qualifier
+                || names_unaliased_relation(space, rendered_qualifier)
         })
         .ok_or_else(|| {
             let qualifier = qualifier.unwrap_or_else(|| rendered_qualifier.to_string());
             CassieError::Planner(format!("unknown relation qualifier '{qualifier}'"))
         })
+}
+
+/// An unaliased relation is addressed by any trailing part of its resolved
+/// path: `t`, `schema.t` or `database.schema.t`.
+fn names_unaliased_relation(space: &Namespace, written: &str) -> bool {
+    space.name == space.qualifier
+        && crate::catalog::qualifier_variants(written)
+            .first()
+            .is_some_and(|written| {
+                crate::catalog::qualifier_variants(&space.name).contains(written)
+            })
 }
 
 fn unknown_wildcard_qualifier(name: &str) -> CassieError {

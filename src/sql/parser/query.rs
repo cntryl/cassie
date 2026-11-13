@@ -169,6 +169,7 @@ pub(super) fn parse_projection_item_with_named_windows(
             expr
         }
     };
+    let alias = alias.or_else(|| cast_output_name(&expr));
     Ok(match expr {
         Expr::Function(function) => SelectItem::Function {
             function: *function,
@@ -239,6 +240,21 @@ fn split_bare_alias(raw: &str) -> Option<(&str, String)> {
     let label =
         super::identifiers::normalize_identifier(label).unwrap_or_else(|_| label.to_string());
     Some((left, label))
+}
+
+/// PostgreSQL names an unaliased cast of a column after that column, so
+/// `SELECT e::text` returns a column `e` and `ORDER BY e` sorts the output.
+fn cast_output_name(expr: &Expr) -> Option<String> {
+    let Expr::Cast { expr: operand, .. } = expr else {
+        return None;
+    };
+    match operand.as_ref() {
+        Expr::Column(name) => crate::sql::ColumnIdentifierPath::parse(name)
+            .ok()
+            .map(|path| path.declared_name()),
+        nested @ Expr::Cast { .. } => cast_output_name(nested),
+        _ => None,
+    }
 }
 
 fn parse_window_function_with_named_windows(

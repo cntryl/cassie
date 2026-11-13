@@ -219,3 +219,101 @@ fn should_compare_text_with_array_shaped_string_literal() {
         vec![vec![Value::String("array".to_string())]]
     );
 }
+
+fn typed_literal_probe() -> (cassie::app::Cassie, cassie::app::CassieSession) {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE typed_literal_probe (id INT PRIMARY KEY, small SMALLINT, big BIGINT, \
+         ratio FLOAT8, amount NUMERIC, numbers INT[])",
+        "INSERT INTO typed_literal_probe VALUES (1, 3, 9, 2.5, 1.5, ARRAY[1,2]), \
+         (2, 4, 10, 3.5, 2.5, ARRAY[3])",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("seed typed literal probe");
+    }
+    (cassie, session)
+}
+
+#[test]
+fn should_compare_typed_columns_with_quoted_literals() {
+    // Arrange
+    let (cassie, session) = typed_literal_probe();
+
+    // Act
+    let matched = [
+        "id = '1'",
+        "'1' = id",
+        "small = '3'",
+        "big = '9'",
+        "ratio = '2.5'",
+        "amount = '1.5'",
+        "numbers = '{1,2}'",
+        "id < '2'",
+        "id IN ('1', '7')",
+        "id BETWEEN '0' AND '1'",
+        "id IS NOT DISTINCT FROM '1'",
+    ]
+    .map(|predicate| {
+        cassie
+            .execute_sql(
+                &session,
+                &format!("SELECT id FROM typed_literal_probe WHERE {predicate}"),
+                vec![],
+            )
+            .map(|result| result.rows().to_vec())
+    });
+
+    // Assert
+    for rows in matched {
+        assert!(rows.is_ok_and(|rows| rows == [vec![Value::Int64(1)]]));
+    }
+}
+
+#[test]
+fn should_apply_quoted_literal_predicates_when_updating_and_deleting() {
+    // Arrange
+    let (cassie, session) = typed_literal_probe();
+
+    // Act
+    let updated = cassie.execute_sql(
+        &session,
+        "UPDATE typed_literal_probe SET ratio = 9.5 WHERE small = '3'",
+        vec![],
+    );
+    let deleted = cassie.execute_sql(
+        &session,
+        "DELETE FROM typed_literal_probe WHERE big = '10'",
+        vec![],
+    );
+    let rows = cassie
+        .execute_sql(
+            &session,
+            "SELECT id, ratio FROM typed_literal_probe ORDER BY id",
+            vec![],
+        )
+        .map(|result| result.rows().to_vec());
+
+    // Assert
+    assert!(updated.is_ok(), "UPDATE accepts the quoted literal");
+    assert!(deleted.is_ok(), "DELETE accepts the quoted literal");
+    assert!(rows.is_ok_and(|rows| rows == [vec![Value::Int64(1), Value::Float64(9.5)]]));
+}
+
+#[test]
+fn should_reject_a_quoted_literal_that_is_not_valid_for_the_compared_column() {
+    // Arrange
+    let (cassie, session) = typed_literal_probe();
+
+    // Act
+    let error = cassie.execute_sql(
+        &session,
+        "SELECT id FROM typed_literal_probe WHERE id = 'x'",
+        vec![],
+    );
+
+    // Assert
+    assert!(error.is_err_and(|error| error.sql_state() == "22P02"));
+}

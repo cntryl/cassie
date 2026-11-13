@@ -269,9 +269,10 @@ The scoped evidence and ordered gate results are in the
 | Discard until Sync | Recovery marker independent of origin. Implicit work is rolled back promptly; explicit failure remains failed. | Exactly one `I` or `E` at Sync. |
 
 CommandComplete and Flush do not publish implicit writes. Commit precedes a
-successful ReadyForQuery. Commit failure emits an error and resolves implicit
-ownership to idle or explicit ownership to failed; never emit successful ready
-with an unresolved commit. Socket loss cannot undo an already completed commit.
+successful ReadyForQuery. Commit failure emits an error, publishes nothing and
+resolves both implicit and explicit ownership to idle, as PostgreSQL ends the
+block when COMMIT itself fails; never emit successful ready with an unresolved
+commit. Socket loss cannot undo an already completed commit.
 
 ### Selected standalone table publication correction (2026-11-04)
 

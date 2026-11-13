@@ -17,7 +17,7 @@ pub(super) fn cancel_before_index_guard_if_armed() {
 }
 
 #[test]
-fn should_fail_transaction_when_index_commit_guard_is_cancelled() {
+fn should_end_transaction_when_index_commit_guard_is_cancelled() {
     // Arrange
     let fixture = Fixture::new();
     let session = fixture.cassie.create_session("tester", None);
@@ -47,9 +47,8 @@ fn should_fail_transaction_when_index_commit_guard_is_cancelled() {
 
     // Assert
     assert!(matches!(result, Err(CassieError::QueryCanceled)));
-    assert_eq!(session.transaction_status(), "failed");
+    assert_eq!(session.transaction_status(), "idle");
     assert_eq!(controls.current_query_memory_bytes(), 0);
-    session.rollback_transaction();
     assert!(fixture
         .cassie
         .midge

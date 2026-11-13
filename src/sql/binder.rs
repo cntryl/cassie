@@ -154,6 +154,8 @@ mod set_width;
 mod source_schema;
 #[path = "binder/subquery_types.rs"]
 mod subquery_types;
+#[path = "binder/unknown_literals.rs"]
+mod unknown_literals;
 #[path = "binder/validation.rs"]
 mod validation;
 #[path = "binder/wildcard.rs"]

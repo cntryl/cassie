@@ -191,11 +191,21 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
         }
         DataType::Domain(descriptor) => coerce_default_literal(&descriptor.base, value),
         DataType::Enum(descriptor) => coerce_enum_default(descriptor, value),
-        DataType::Null
-        | DataType::Bytea
-        | DataType::JsonPath
-        | DataType::Vector(_)
-        | DataType::Array(_) => Ok(value),
+        DataType::Array(_) => coerce_array_default(data_type, value),
+        DataType::Null | DataType::Bytea | DataType::JsonPath | DataType::Vector(_) => Ok(value),
+    }
+}
+
+/// An array column default written as a quoted literal such as `'{1,2}'` is
+/// stored in the array storage form that a written row carries.
+fn coerce_array_default(data_type: &DataType, value: Value) -> Result<Value, String> {
+    let Value::String(text) = value else {
+        return Ok(value);
+    };
+    match crate::executor::filter::cast_value(&crate::types::Value::String(text), data_type) {
+        Ok(crate::types::Value::Array(array)) => Ok(array.to_storage_json()),
+        Ok(_) => Err("array DEFAULT literal did not produce an array".to_string()),
+        Err(error) => Err(error.to_string()),
     }
 }
 

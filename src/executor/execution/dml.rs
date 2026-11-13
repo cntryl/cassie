@@ -125,7 +125,61 @@ pub(super) fn value_to_json_for_field(
         return value_to_json(&assigned);
     }
 
+    if let Some(fitted) = fit_character_length(value, data_type) {
+        return value_to_json(&fitted);
+    }
+
     value_to_json(value)
+}
+
+/// Assignment to a length-limited character column drops excess trailing
+/// spaces, as the SQL standard requires. Any other excess keeps its length
+/// and is rejected with `22001` by payload validation.
+fn fit_character_length(value: &Value, data_type: &DataType) -> Option<Value> {
+    let limit = match data_type {
+        DataType::Varchar {
+            length: Some(length),
+        } => *length as usize,
+        DataType::Char { length } => length.unwrap_or(1) as usize,
+        _ => return None,
+    };
+    let Value::String(text) = value else {
+        return None;
+    };
+    let (kept, _) = text.char_indices().nth(limit)?;
+    text[kept..]
+        .chars()
+        .all(|excess| excess == ' ')
+        .then(|| Value::String(text[..kept].to_string()))
+}
+
+/// The type an untyped string literal is converted to when it is assigned to
+/// a column of `data_type`. Other column types accept their text form as is.
+fn unknown_literal_target(data_type: &DataType) -> Option<&DataType> {
+    match data_type {
+        DataType::Domain(descriptor) => unknown_literal_target(&descriptor.base),
+        DataType::SmallInt
+        | DataType::Int
+        | DataType::BigInt
+        | DataType::Float
+        | DataType::Boolean
+        | DataType::Array(_) => Some(data_type),
+        _ => None,
+    }
+}
+
+/// An untyped string literal takes the type of the column it is assigned to,
+/// as `INSERT INTO t (int_column) VALUES ('7')` does in PostgreSQL.
+pub(super) fn unknown_literal_value(
+    value: Value,
+    data_type: &DataType,
+) -> Result<Value, QueryError> {
+    match unknown_literal_target(data_type) {
+        Some(target) if matches!(value, Value::String(_)) => {
+            crate::executor::filter::cast_value(&value, target)
+        }
+        _ => Ok(value),
+    }
 }
 
 /// The assignment cast of a native `numeric` or `real` value into a

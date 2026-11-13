@@ -157,9 +157,10 @@ impl Cassie {
         held_publication: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
-        let repeatable_write = session.is_repeatable_read_write();
         let result = self.commit_transaction_inner(session, held_publication, controls);
-        if repeatable_write && result.is_err() {
+        // PostgreSQL ends the block when COMMIT itself fails: nothing is
+        // published and the session returns to idle without a ROLLBACK.
+        if result.is_err() && (session.is_transaction_active() || session.is_transaction_failed()) {
             session.rollback_transaction();
         }
         result

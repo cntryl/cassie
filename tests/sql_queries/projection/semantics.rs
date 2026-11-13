@@ -604,7 +604,11 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
             explicit_null.payload.get("summary"),
             Some(serde_json::Value::Null)
         ));
-        assert!(missing.payload.get("summary").is_none());
+        // Column-authoritative tables store an omitted field as an explicit SQL NULL.
+        assert!(matches!(
+            missing.payload.get("summary"),
+            Some(serde_json::Value::Null)
+        ));
 
         let plan = explain_plan_text(&explain);
         assert_explain_contains(plan, "storage_mode", "column-store");
@@ -647,7 +651,7 @@ fn should_create_column_store_tables_without_feature_gate() {
 }
 
 #[test]
-fn should_reject_column_store_schema_rewrites_before_partial_write() {
+fn should_add_a_column_to_a_column_store_table() {
     // Arrange
     let path = data_dir("column_store_schema_rewrite");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -668,19 +672,20 @@ fn should_reject_column_store_schema_rewrites_before_partial_write() {
             .unwrap();
 
         // Act
-        let error = cassie
+        cassie
             .execute_sql(
                 &session,
                 "ALTER TABLE sql_column_store_schema_rewrite ADD COLUMN summary TEXT",
                 vec![],
             )
-            .expect_err("column-store schema rewrite should fail");
-        let columns = cassie.describe_sql("SELECT title FROM sql_column_store_schema_rewrite").unwrap();
+            .expect("column-store tables accept ADD COLUMN");
+        let columns = cassie
+            .describe_sql("SELECT title, summary FROM sql_column_store_schema_rewrite")
+            .unwrap();
 
         // Assert
-        assert!(error.to_string().contains("column-store"));
-        assert_eq!(columns.len(), 1);
-        assert_eq!(columns[0].name, "title");
+        assert_eq!(columns.len(), 2);
+        assert_eq!(columns[1].name, "summary");
 
         let _ = std::fs::remove_dir_all(path);
     });

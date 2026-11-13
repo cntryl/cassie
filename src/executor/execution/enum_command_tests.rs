@@ -180,7 +180,12 @@ fn should_keep_member_ids_when_adding_and_renaming_values() {
 
     // Act
     run(&cassie, &session, "ALTER TYPE t ADD VALUE 'c' BEFORE 'b'").expect("add");
-    run(&cassie, &session, "ALTER TYPE t RENAME VALUE 'a' TO 'first'").expect("rename");
+    run(
+        &cassie,
+        &session,
+        "ALTER TYPE t RENAME VALUE 'a' TO 'first'",
+    )
+    .expect("rename");
 
     // Assert
     let after = cassie.catalog.get_enum_type("t").expect("type").members;
@@ -204,7 +209,11 @@ fn should_report_add_value_errors_with_postgresql_sqlstates() {
         &session,
         &format!("ALTER TYPE t ADD VALUE '{}'", "q".repeat(64)),
     );
-    let if_not_exists = run(&cassie, &session, "ALTER TYPE t ADD VALUE IF NOT EXISTS 'a'");
+    let if_not_exists = run(
+        &cassie,
+        &session,
+        "ALTER TYPE t ADD VALUE IF NOT EXISTS 'a'",
+    );
 
     // Assert
     assert_eq!(duplicate.sql_state(), "42710");
@@ -258,7 +267,12 @@ fn should_refresh_the_descriptor_embedded_in_columns_after_each_alteration() {
     // Arrange
     let (cassie, session) = fixture();
     run(&cassie, &session, "CREATE TYPE t AS ENUM ('a')").expect("create");
-    run(&cassie, &session, "CREATE TABLE tbl (id BIGINT, kind t, kinds t[])").expect("table");
+    run(
+        &cassie,
+        &session,
+        "CREATE TABLE tbl (id BIGINT, kind t, kinds t[])",
+    )
+    .expect("table");
 
     // Act
     run(&cassie, &session, "ALTER TYPE t ADD VALUE 'b'").expect("add");
@@ -298,7 +312,12 @@ fn should_reject_drop_with_dependent_columns_and_allow_drop_without() {
     let (cassie, session) = fixture();
     run(&cassie, &session, "CREATE TYPE used AS ENUM ('a')").expect("create");
     run(&cassie, &session, "CREATE TYPE free AS ENUM ('a')").expect("create");
-    run(&cassie, &session, "CREATE TABLE tbl (id BIGINT, kinds used[])").expect("table");
+    run(
+        &cassie,
+        &session,
+        "CREATE TABLE tbl (id BIGINT, kinds used[])",
+    )
+    .expect("table");
 
     // Act
     let restricted = failure(&cassie, &session, "DROP TYPE used");

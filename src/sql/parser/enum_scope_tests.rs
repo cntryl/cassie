@@ -22,10 +22,7 @@ fn mood() -> EnumRef {
 
 fn resolver() -> EnumResolver {
     let descriptor = mood();
-    Rc::new(move |raw: &str| {
-        raw.eq_ignore_ascii_case("mood")
-            .then(|| descriptor.clone())
-    })
+    Rc::new(move |raw: &str| raw.eq_ignore_ascii_case("mood").then(|| descriptor.clone()))
 }
 
 #[test]

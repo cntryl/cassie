@@ -116,7 +116,9 @@ pub(super) fn alter(
     alteration: &TypeAlteration,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    if let Some(result) = super::enum_command::alter_if_enum(cassie, scope, raw_name, alteration, controls)? {
+    if let Some(result) =
+        super::enum_command::alter_if_enum(cassie, scope, raw_name, alteration, controls)?
+    {
         return Ok(result);
     }
     if let Some(result) = alter_domain(cassie, scope, raw_name, alteration, controls)? {

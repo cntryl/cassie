@@ -36,10 +36,9 @@ fn validate_label(label: &str) -> Result<(), QueryError> {
         return Ok(());
     }
     Err(CassieError::from(
-        DiagnosticError::new("42602", format!("invalid enum label \"{label}\""))
-            .with_detail(format!(
-                "Labels must be {MAX_ENUM_LABEL_BYTES} bytes or less."
-            )),
+        DiagnosticError::new("42602", format!("invalid enum label \"{label}\"")).with_detail(
+            format!("Labels must be {MAX_ENUM_LABEL_BYTES} bytes or less."),
+        ),
     )
     .into())
 }
@@ -242,7 +241,10 @@ fn add_value(
     let plan = current
         .plan_added_value(label, placement)
         .map_err(alter_error)?;
-    let member_id = cassie.midge.allocate_object_id().map_err(QueryError::from)?;
+    let member_id = cassie
+        .midge
+        .allocate_object_id()
+        .map_err(QueryError::from)?;
     let uncommitted = existed_before_transaction(cassie, session, current);
     let next = current.with_added_value(plan, label.to_owned(), member_id, uncommitted);
     publish(cassie, current, &next)
@@ -289,11 +291,7 @@ fn set_schema(
 /// Persists `next`, re-embeds it in every column and view that carries a copy,
 /// and swaps the catalog. The type and its dependents commit in one Midge
 /// transaction.
-fn publish(
-    cassie: &Cassie,
-    current: &EnumTypeMeta,
-    next: &EnumTypeMeta,
-) -> Result<(), QueryError> {
+fn publish(cassie: &Cassie, current: &EnumTypeMeta, next: &EnumTypeMeta) -> Result<(), QueryError> {
     let renamed = !current.name.eq_ignore_ascii_case(&next.name);
     let propagation = cassie.catalog.propagate_enum_change(&next.descriptor());
     cassie

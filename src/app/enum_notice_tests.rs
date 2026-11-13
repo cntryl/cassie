@@ -17,8 +17,7 @@ fn should_notify_when_if_not_exists_names_an_existing_label() {
     cassie
         .execute_sql(&session, "CREATE TYPE mood AS ENUM ('sad')", vec![])
         .expect("create");
-    let parsed =
-        parse_statement("ALTER TYPE mood ADD VALUE IF NOT EXISTS 'sad'").expect("parse");
+    let parsed = parse_statement("ALTER TYPE mood ADD VALUE IF NOT EXISTS 'sad'").expect("parse");
 
     // Act
     let notice = cassie.enum_add_value_skip_notice(&session, &parsed);

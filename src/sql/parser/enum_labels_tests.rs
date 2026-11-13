@@ -1,4 +1,6 @@
-use super::{parse_add_value, parse_label_list, parse_rename_value, strip_enum_keyword, take_label};
+use super::{
+    parse_add_value, parse_label_list, parse_rename_value, strip_enum_keyword, take_label,
+};
 use crate::sql::SqlErrorKind;
 use crate::types::EnumValuePlacement;
 
@@ -36,7 +38,10 @@ fn should_parse_labels_containing_commas_and_parentheses() {
     let labels = parse_label_list(inner).expect("labels");
 
     // Assert
-    assert_eq!(labels, vec!["a,b".to_owned(), ")".to_owned(), String::new()]);
+    assert_eq!(
+        labels,
+        vec!["a,b".to_owned(), ")".to_owned(), String::new()]
+    );
 }
 
 #[test]

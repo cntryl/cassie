@@ -32,7 +32,10 @@ fn should_resolve_an_unqualified_name_through_the_search_order() {
     let missing = catalog.resolve_enum_type("db", &["public"], "mood");
 
     // Assert
-    assert_eq!(found.map(|metadata| metadata.name), Some("db.app.mood".to_owned()));
+    assert_eq!(
+        found.map(|metadata| metadata.name),
+        Some("db.app.mood".to_owned())
+    );
     assert!(missing.is_none());
 }
 

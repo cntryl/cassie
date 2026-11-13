@@ -555,7 +555,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::DropSchema(_) => "DROP SCHEMA",
         QueryStatement::AlterSchema(_) => "ALTER SCHEMA",
         QueryStatement::Type(statement) => match &statement.action {
-            TypeAction::Create { .. } => "CREATE TYPE",
+            TypeAction::Create { .. } | TypeAction::CreateEnum { .. } => "CREATE TYPE",
             TypeAction::Drop { .. } => "DROP TYPE",
             TypeAction::Alter { .. } => "ALTER TYPE",
             TypeAction::Domain(action) => action.command_tag(),

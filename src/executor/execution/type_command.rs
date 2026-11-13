@@ -184,8 +184,7 @@ pub(super) fn relation_name_occupied(
 /// reports a domain as a type collision (`42710`) and anything else as a
 /// relation collision (`42P07`).
 pub(super) fn rename_collision(cassie: &Cassie, canonical: &str, new_name: &str) -> QueryError {
-    if cassie.catalog.domain_type_exists(canonical) || cassie.catalog.enum_type_exists(canonical)
-    {
+    if cassie.catalog.domain_type_exists(canonical) || cassie.catalog.enum_type_exists(canonical) {
         return diagnostic("42710", format!("type \"{new_name}\" already exists"));
     }
     diagnostic("42P07", format!("relation \"{new_name}\" already exists"))

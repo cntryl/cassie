@@ -159,3 +159,6 @@ mod json_table_lateral_filter;
 
 #[path = "../table_functions/json_records_limits.rs"]
 mod json_records_limits;
+
+#[path = "../table_functions/json_records_parameters.rs"]
+mod json_records_parameters;

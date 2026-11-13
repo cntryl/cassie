@@ -17,6 +17,8 @@ mod cast_source;
 use cast_source::cast_source_type;
 #[path = "decimal_literals.rs"]
 mod decimal_literals;
+#[path = "enum_operands.rs"]
+mod enum_operands;
 #[path = "declared_functions.rs"]
 mod declared_functions;
 #[path = "math_signatures.rs"]
@@ -514,6 +516,7 @@ fn validate_binary(
     ) {
         validate_collation_pair(left, right)?;
         null_safe_comparison::qualify(op, left, right, types)?;
+        enum_operands::qualify_pair(op, left, right, types)?;
         canonicalize_boolean_pair(left, right, types)?;
         decimal_literals::narrow_pair(left, right, types);
         coerce_numeric_pair(left, right, types, catalog);
@@ -545,6 +548,7 @@ fn validate_in_list(
     validate_expression(expr, types, catalog, context)?;
     for value in values {
         canonicalize_boolean_pair(expr, value, types)?;
+        enum_operands::qualify_pair(&BinaryOp::Eq, expr, value, types)?;
         decimal_literals::narrow_pair(expr, value, types);
         validate_expression(value, types, catalog, context)?;
     }
@@ -613,6 +617,8 @@ fn validate_between_expression(
     canonicalize_boolean_pair(expr, low, types)?;
     canonicalize_boolean_pair(expr, high, types)?;
     canonicalize_boolean_pair(low, high, types)?;
+    enum_operands::qualify_pair(&BinaryOp::Gte, expr, low, types)?;
+    enum_operands::qualify_pair(&BinaryOp::Lte, expr, high, types)?;
     decimal_literals::narrow_pair(expr, low, types);
     decimal_literals::narrow_pair(expr, high, types);
     validate_expression(expr, types, catalog, context)?;

@@ -2,6 +2,8 @@
 use super::{BinaryOp, QueryError, ScalarValue};
 use crate::app::CassieError;
 use crate::types::extended::{operations, TypeInputError, TypedOperator};
+use crate::types::typed::TypedValue;
+use crate::types::EnumValue;
 
 fn error(error: TypeInputError) -> QueryError {
     QueryError::Cassie(CassieError::TypeInput(error))
@@ -21,7 +23,15 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
         return None;
     }
     match (left, right) {
-        (ScalarValue::Typed(left), ScalarValue::Typed(right)) => operations::compare(left, right),
+        (ScalarValue::Typed(left), ScalarValue::Typed(right)) => {
+            enum_order(left, right).unwrap_or_else(|| operations::compare(left, right))
+        }
+        (ScalarValue::Typed(TypedValue::Enum(value)), ScalarValue::Str(text)) => {
+            // An untyped label meets the enum's input function.
+            EnumValue::parse_label(value.descriptor(), text)
+                .ok()
+                .map(|other| value.order_key().cmp(&other.order_key()))
+        }
         (ScalarValue::Typed(typed), ScalarValue::Str(text)) => typed
             .kind()
             .and_then(|kind| kind.parse_text(text).ok())
@@ -31,6 +41,18 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
         }
         _ => None,
     }
+}
+
+/// Orders two enum values of the same type by sort order. `None` when either
+/// side is not an enum; `Some(None)` for two different enum types.
+fn enum_order(left: &TypedValue, right: &TypedValue) -> Option<Option<std::cmp::Ordering>> {
+    let (TypedValue::Enum(left), TypedValue::Enum(right)) = (left, right) else {
+        return None;
+    };
+    Some(
+        (left.descriptor().oid == right.descriptor().oid)
+            .then(|| left.order_key().cmp(&right.order_key())),
+    )
 }
 
 /// Evaluates `left op right` when either operand belongs to an owned family;
@@ -127,6 +149,7 @@ fn record_against_text(left: &ScalarValue, right: &ScalarValue) -> bool {
 
 fn type_label(value: &ScalarValue) -> String {
     match value {
+        ScalarValue::Typed(TypedValue::Enum(value)) => value.descriptor().name.clone(),
         ScalarValue::Typed(typed) => typed.as_record().map_or_else(
             || {
                 typed

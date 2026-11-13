@@ -1,4 +1,4 @@
-//! pg_type, pg_class, pg_attribute and regtype publication for composite types.
+//! `pg_type`, `pg_class`, `pg_attribute` and `regtype` publication for composite types.
 
 use crate::support_composite_types::{first_column_text, only_text};
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};

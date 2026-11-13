@@ -1,4 +1,4 @@
-//! RowDescription reports the base type OID of a domain column.
+//! `RowDescription` reports the base type OID of a domain column.
 
 use crate::support_pgwire as wire;
 use crate::support_type_metadata_contract as fixture;

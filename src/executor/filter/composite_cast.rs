@@ -6,7 +6,7 @@ use crate::executor::QueryError;
 use crate::runtime::QueryExecutionControls;
 use crate::types::composite::{parse_record_text, RecordInputError};
 use crate::types::typed::TypedValue;
-use crate::types::{CompositeRef, RecordValue, Value};
+use crate::types::{CompositeRef, RecordValue};
 
 enum CastFailure {
     Input(RecordInputError),

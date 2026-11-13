@@ -1,4 +1,4 @@
-//! Record text and binary framing, RowDescription OIDs and parameter input.
+//! Record text and binary framing, `RowDescription` OIDs and parameter input.
 
 use crate::support_pgwire as wire;
 use crate::support_type_metadata_contract as fixture;

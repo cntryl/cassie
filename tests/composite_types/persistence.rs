@@ -180,7 +180,7 @@ fn should_keep_the_table_row_type_revision_across_restart() {
             .list_collections_canonical()
             .into_iter()
             .map(|collection| collection.name)
-            .find(|name| name == "homes" || name.ends_with(".homes"))
+            .find(|name| name.rsplit('.').next() == Some("homes"))
             .expect("homes is registered");
         cassie
             .catalog

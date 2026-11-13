@@ -1,4 +1,4 @@
-//! pg_type, pg_attribute and regtype publication for domain types.
+//! `pg_type`, `pg_attribute` and `regtype` publication for domain types.
 
 use crate::support_composite_types::only_text;
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};

@@ -134,9 +134,7 @@ fn create_table_gated(
     controls: &QueryExecutionControls,
 ) -> Result<CreationOutcome, QueryError> {
     if statement.if_not_exists
-        && (cassie.catalog.relation_exists(table)
-            || cassie.catalog.composite_type_exists(table)
-            || cassie.catalog.domain_type_exists(table))
+        && (cassie.catalog.relation_exists(table) || cassie.catalog.composite_type_exists(table))
     {
         return CreationOutcome::unchanged("CREATE TABLE", controls);
     }

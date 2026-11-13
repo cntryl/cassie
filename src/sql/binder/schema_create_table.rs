@@ -22,12 +22,13 @@ pub fn bind_create_table(
     }
     if !statement.if_not_exists {
         catalog.reject_composite_relation_name(&name)?;
-        catalog.reject_domain_relation_name(&name)?;
     }
+    // A domain is not a relation, so IF NOT EXISTS cannot skip it: the table's
+    // row type would collide with the domain (42710).
+    catalog.reject_domain_relation_name(&name)?;
     let already_exists = catalog.relation_exists(&name)
         || virtual_views::schema(&name).is_some()
-        || catalog.composite_type_exists(&name)
-        || catalog.domain_type_exists(&name);
+        || catalog.composite_type_exists(&name);
     if !statement.if_not_exists && already_exists {
         return Err(CassieError::Planner(format!(
             "collection '{name}' already exists"

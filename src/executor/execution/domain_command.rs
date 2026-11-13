@@ -91,22 +91,14 @@ fn creation_target(
     }
 }
 
-/// A domain shares the type namespace with composite types and the relation
-/// namespace with tables, views, sequences and indexes.
-fn type_name_taken(
-    cassie: &Cassie,
-    database: &str,
-    canonical: &str,
-    controls: Option<&QueryExecutionControls>,
-) -> Result<bool, QueryError> {
-    Ok(cassie.catalog.domain_type_exists(canonical)
+/// A domain shares the type namespace with composite types and with the row
+/// types of tables and views. Sequence and index names do not collide with it
+/// (PostgreSQL accepts a domain named like a sequence or an index).
+fn type_name_taken(cassie: &Cassie, canonical: &str) -> bool {
+    cassie.catalog.domain_type_exists(canonical)
         || cassie.catalog.composite_type_exists(canonical)
         || cassie.catalog.get_schema(canonical).is_some()
         || cassie.catalog.relation_exists(canonical)
-        || cassie.catalog.sequence_exists(canonical)
-        || cassie
-            .catalog
-            .index_relation_name_occupied(canonical, database, false, controls)?)
 }
 
 fn validate_base(base: &DataType) -> Result<(), QueryError> {
@@ -281,7 +273,7 @@ fn create(
         ));
     }
     let canonical = canonical_relation_name(database, &schema, &name);
-    if type_name_taken(cassie, database, &canonical, Some(controls))? {
+    if type_name_taken(cassie, &canonical) {
         return Err(diagnostic(
             "42710",
             format!("type \"{name}\" already exists"),
@@ -462,7 +454,7 @@ fn rename_domain(
     };
     let schema = updated.schema_name();
     let canonical = canonical_relation_name(database, &schema, &new_name);
-    if type_name_taken(cassie, database, &canonical, None)? {
+    if type_name_taken(cassie, &canonical) {
         return Err(diagnostic(
             "42710",
             format!("type \"{new_name}\" already exists in schema \"{schema}\""),

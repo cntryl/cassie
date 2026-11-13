@@ -510,6 +510,15 @@ fn execute_insert_payload(
                 filter,
                 ..
             } => {
+                // The proposed row is coerced to the column domains before the
+                // conflict is handled, so it must satisfy them on its own.
+                context.cassie.validate_domain_columns(
+                    context.session,
+                    &context.statement.table,
+                    context.schema,
+                    &payload,
+                    None,
+                )?;
                 reject_second_conflict_update(&conflict_id, affected_row_ids)?;
                 execute_insert_conflict_update(
                     context,

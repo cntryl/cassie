@@ -237,39 +237,66 @@ fn should_reject_create_type_over_an_existing_domain_name() {
 }
 
 #[test]
-fn should_reject_create_table_over_an_existing_domain_name() {
+fn should_reject_create_table_over_an_existing_domain_name_with_sqlstate_42710() {
     // Arrange
     let fixture = fixture_with_posint("domain_name_vs_create_table");
 
     // Act
-    let result = fixture.execute("CREATE TABLE posint (id int)");
+    let error = fixture.error("CREATE TABLE posint (id int)");
 
     // Assert
-    assert!(result.is_err(), "a domain owns the relation name");
+    assert_eq!(error.sql_state(), "42710");
 }
 
 #[test]
-fn should_skip_create_table_if_not_exists_over_an_existing_domain_name() {
+fn should_reject_create_table_if_not_exists_over_an_existing_domain_name() {
     // Arrange
     let fixture = fixture_with_posint("domain_name_vs_create_table_if_not_exists");
 
     // Act
-    let result = fixture.execute("CREATE TABLE IF NOT EXISTS posint (id int)");
+    let error = fixture.error("CREATE TABLE IF NOT EXISTS posint (id int)");
 
     // Assert
-    assert!(result.is_ok(), "IF NOT EXISTS skips over the domain name");
+    assert_eq!(error.sql_state(), "42710");
 }
 
 #[test]
-fn should_reject_create_domain_over_an_existing_sequence_name() {
+fn should_reject_create_sequence_over_an_existing_domain_name_with_sqlstate_42710() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_name_vs_sequence_create");
+
+    // Act
+    let error = fixture.error("CREATE SEQUENCE posint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_reject_create_view_over_an_existing_domain_name_with_sqlstate_42710() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_name_vs_view");
+
+    // Act
+    let error = fixture.error("CREATE VIEW posint AS SELECT 1");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_allow_a_domain_named_like_a_sequence() {
     // Arrange
     let fixture = sql_fixture("domain_name_vs_sequence", &["CREATE SEQUENCE posint"]);
 
     // Act
-    let error = fixture.error(POSITIVE);
+    let created = fixture.execute(POSITIVE);
 
     // Assert
-    assert_eq!(error.sql_state(), "42710");
+    assert!(
+        created.is_ok(),
+        "a sequence name does not collide with a domain"
+    );
 }
 
 #[test]
@@ -388,4 +415,64 @@ fn should_round_trip_domains_over_numeric_jsonb_or_timestamp_bases() {
             cassie::types::Value::String("2026-01-02 03:04:05".into()),
         ]]
     );
+}
+
+#[test]
+fn should_reject_backfilling_a_per_row_volatile_domain_default_into_a_populated_table() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_add_column_uuid",
+        &[
+            "CREATE DOMAIN du AS uuid DEFAULT gen_random_uuid()",
+            "CREATE TABLE items (id int)",
+            "INSERT INTO items VALUES (1), (2)",
+        ],
+    );
+
+    // Act
+    let error = fixture.error("ALTER TABLE items ADD COLUMN u du");
+
+    // Assert
+    assert_eq!(error.sql_state(), "0A000");
+}
+
+#[test]
+fn should_backfill_a_stable_volatile_domain_default() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_add_column_now",
+        &[
+            "CREATE DOMAIN stamp AS timestamptz DEFAULT now()",
+            "CREATE TABLE items (id int)",
+            "INSERT INTO items VALUES (1), (2)",
+        ],
+    );
+
+    // Act
+    let added = fixture.execute("ALTER TABLE items ADD COLUMN s stamp");
+    let rows = fixture.rows("SELECT count(s) FROM items");
+
+    // Assert
+    assert!(added.is_ok(), "now() is statement stable");
+    assert_eq!(rows, vec![vec![cassie::types::Value::Int64(2)]]);
+}
+
+#[test]
+fn should_see_staged_rows_when_adding_a_not_null_domain_column() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_add_column_staged",
+        &[
+            "CREATE DOMAIN req AS int NOT NULL",
+            "CREATE TABLE items (id int)",
+        ],
+    );
+    fixture.execute("BEGIN").unwrap();
+    fixture.execute("INSERT INTO items VALUES (1)").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER TABLE items ADD COLUMN r req");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23502");
 }

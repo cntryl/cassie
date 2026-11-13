@@ -156,6 +156,7 @@ impl Cassie {
     /// with the backfilled value, as in PostgreSQL (`23502` / `23514`).
     pub(crate) fn domain_add_column_default(
         &self,
+        session: Option<&CassieSession>,
         table: &str,
         data_type: &crate::types::DataType,
         column_default: Option<serde_json::Value>,
@@ -168,25 +169,29 @@ impl Cassie {
             .get_domain_type_by_oid(snapshot.oid)
             .map_or_else(|| snapshot.clone(), |meta| meta.descriptor());
         let populated = self
-            .scan_documents_batched_for_session(None, table, 1)?
+            .scan_documents_batched_for_session(session, table, 1)?
             .into_iter()
             .flatten()
             .next()
             .is_some();
-        let default = column_default.or_else(|| default_json(&domain));
-        if domain
-            .default
-            .as_ref()
-            .is_some_and(|d| d.expression.is_some() && d.value.is_none())
-            && default.is_none()
-            && populated
-        {
+        // gen_random_uuid() yields a distinct value per row in PostgreSQL, and
+        // a single backfilled value would not; now()/CURRENT_* are statement
+        // stable and may be backfilled once.
+        let per_row_volatile = column_default.is_none()
+            && domain.default.as_ref().is_some_and(|default| {
+                default
+                    .expression
+                    .as_deref()
+                    .is_some_and(|sql| sql.to_ascii_lowercase().contains("gen_random_uuid"))
+            });
+        if populated && per_row_volatile {
             return Err(DiagnosticError::new(
                 "0A000",
-                "adding a column whose domain has a volatile DEFAULT to a populated table is not supported".to_string(),
+                "adding a column whose domain default is a per-row volatile function to a populated table is not supported".to_string(),
             )
             .into());
         }
+        let default = column_default.or_else(|| default_json(&domain));
         if populated {
             let value = default
                 .as_ref()

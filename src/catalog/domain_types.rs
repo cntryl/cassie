@@ -180,8 +180,8 @@ impl Catalog {
         }
     }
 
-    /// Rejects a relation name already taken by a domain (`42P07`), because
-    /// domains share the relation namespace as composite types do.
+    /// Rejects a relation name already taken by a domain (`42710`), because
+    /// the relation's row type would collide with the domain, as in PostgreSQL.
     ///
     /// # Errors
     ///
@@ -189,8 +189,8 @@ impl Catalog {
     pub fn reject_domain_relation_name(&self, name: &str) -> Result<(), crate::app::CassieError> {
         if self.domain_type_exists(name) {
             return Err(crate::app::DiagnosticError::new(
-                "42P07",
-                format!("relation \"{}\" already exists", local_name(name)),
+                "42710",
+                format!("type \"{}\" already exists", local_name(name)),
             )
             .into());
         }

@@ -331,3 +331,23 @@ fn should_name_the_generated_constraint_in_the_check_violation_message() {
     // Assert
     assert!(message.contains("posint_check"), "names the constraint");
 }
+
+#[test]
+fn should_reject_a_violating_proposed_row_even_when_do_update_does_not_assign_it() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_on_conflict_do_update_proposed",
+        &[
+            "CREATE DOMAIN posint AS int CHECK (VALUE > 0)",
+            "CREATE TABLE items (id int PRIMARY KEY, q posint)",
+            "INSERT INTO items VALUES (1, 5)",
+        ],
+    );
+
+    // Act
+    let error =
+        fixture.error("INSERT INTO items VALUES (1, -9) ON CONFLICT (id) DO UPDATE SET id = 1");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}

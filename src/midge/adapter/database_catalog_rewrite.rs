@@ -405,6 +405,21 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn should_fail_closed_when_restoring_domain_type_records() {
+        // Arrange
+        let key = crate::midge::adapter::key_encoding::domain_type_key("analytics.public.d");
+
+        // Act
+        let result = rewrite_database_data_entry(&key, b"{}", "restored");
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(crate::app::CassieError::Unsupported(_))
+        ));
+    }
+
     fn rewrite(family: &str, value: &serde_json::Value) -> serde_json::Value {
         let raw = serde_json::to_vec(&value).expect("catalog value");
         let rewritten = rewrite_catalog_value(family, &raw, "analytics", "restored")

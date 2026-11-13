@@ -477,6 +477,7 @@ fn execute_alter_table_operation(
             if_not_exists,
         } => alter_table_add_column(
             cassie,
+            session,
             &statement.table,
             field,
             data_type,
@@ -589,6 +590,7 @@ fn staged_add_column_default(
 
 fn alter_table_add_column(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     table: &str,
     field: &str,
     data_type: &DataType,
@@ -628,8 +630,12 @@ fn alter_table_add_column(
         .with_collection_write_gates(&gated_collections, || {
             cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
             cassie.validate_existing_foreign_key_rows(table, constraints)?;
-            let default_value =
-                cassie.domain_add_column_default(table, data_type, default_value.clone())?;
+            let default_value = cassie.domain_add_column_default(
+                session,
+                table,
+                data_type,
+                default_value.clone(),
+            )?;
 
             let field_schema = FieldSchema {
                 name: field.to_string(),

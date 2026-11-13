@@ -443,7 +443,16 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   constraints on a populated table and backfills the domain DEFAULT. Domain names share
   the type and relation namespace with composite types, tables, views, sequences and
   indexes (`42710` / `42P07`). `ON CONFLICT DO NOTHING` still raises `23514` / `23502`
-  for a violating proposed value. `pg_attribute.atttypmod` of a domain column is `-1`.
+  or `DO UPDATE` for a violating proposed value. `pg_attribute.atttypmod` of a domain
+  column is `-1`. A domain named like a table, view, sequence or composite type is
+  `42710` for `CREATE TABLE [IF NOT EXISTS]`, `CREATE VIEW`, `CREATE SEQUENCE` and
+  `CREATE TYPE`; a domain may share a sequence or index name.
+- Known divergences: `UPDATE t SET q = c` where the stored value already equals the
+  constant `c` and violates a `NOT VALID` check is accepted (PostgreSQL re-coerces the
+  constant and rejects); a column with its own volatile DEFAULT falls back to the domain
+  default when added to a populated table; adding a column whose domain default is
+  `gen_random_uuid()` to a populated table is `0A000` (a single value would not be
+  distinct per row).
 - Flattening: operators and functions resolve through the base type, and
   RowDescription, `atttypmod` and parameter types report the base OID. A table column
   keeps its domain identity separately (`FieldMeta.domain`), so `ALTER DOMAIN` never

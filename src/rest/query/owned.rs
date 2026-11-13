@@ -254,6 +254,9 @@ fn convert_value(
         Value::String(value) => Ok(serde_json::Value::String(copy_text(value, controls)?)),
         Value::Json(value) => Ok(value.clone()),
         Value::Array(value) => Ok(value.to_nested_json()),
+        Value::Typed(crate::types::typed::TypedValue::Enum(value)) => {
+            Ok(serde_json::Value::String(copy_text(value.label(), controls)?))
+        }
         Value::Typed(value) => Ok(value.to_json()),
         Value::Vector(value) => {
             let mut values = fresh_vec(value.values.len())?;

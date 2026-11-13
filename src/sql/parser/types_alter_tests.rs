@@ -1,7 +1,7 @@
 use super::parse_alter_type_statement;
 use crate::sql::ast::{QueryStatement, TypeAction, TypeAlteration};
 use crate::sql::SqlErrorKind;
-use crate::types::DataType;
+use crate::types::{DataType, EnumValuePlacement};
 
 fn alteration(sql: &str) -> TypeAlteration {
     let parsed = parse_alter_type_statement(sql).expect("parse ALTER TYPE");
@@ -127,15 +127,49 @@ fn should_parse_owner_to() {
 }
 
 #[test]
-fn should_reject_enum_value_changes_as_unsupported() {
+fn should_parse_add_value_with_placement() {
     // Arrange
-    let sql = "ALTER TYPE mood ADD VALUE 'ok'";
+    let sql = "ALTER TYPE mood ADD VALUE IF NOT EXISTS 'ok' BEFORE 'happy'";
 
     // Act
-    let error = parse_alter_type_statement(sql).expect_err("enum value");
+    let parsed = alteration(sql);
 
     // Assert
-    assert_eq!(error.kind(), SqlErrorKind::Unsupported);
+    assert!(matches!(
+        parsed,
+        TypeAlteration::AddValue { label, if_not_exists: true, placement: Some(EnumValuePlacement::Before(neighbour)) }
+            if label == "ok" && neighbour == "happy"
+    ));
+}
+
+#[test]
+fn should_parse_add_value_whose_label_contains_a_comma() {
+    // Arrange
+    let sql = "ALTER TYPE mood ADD VALUE 'a, b'";
+
+    // Act
+    let parsed = alteration(sql);
+
+    // Assert
+    assert!(matches!(
+        parsed,
+        TypeAlteration::AddValue { label, placement: None, .. } if label == "a, b"
+    ));
+}
+
+#[test]
+fn should_parse_rename_value() {
+    // Arrange
+    let sql = "ALTER TYPE mood RENAME VALUE 'sad' TO 'blue'";
+
+    // Act
+    let parsed = alteration(sql);
+
+    // Assert
+    assert!(matches!(
+        parsed,
+        TypeAlteration::RenameValue { from, to } if from == "sad" && to == "blue"
+    ));
 }
 
 #[test]

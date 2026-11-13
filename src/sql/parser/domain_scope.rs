@@ -40,14 +40,17 @@ fn resolve_named_domain(raw: &str) -> Option<DomainRef> {
     resolver(raw.trim())
 }
 
-/// Parses a column or cast target type, resolving a domain name when the text
-/// is not a built-in type.
+/// Parses a column or cast target type, resolving an enum (or enum array) or a
+/// domain name when the text is not a built-in type.
 pub(super) fn parse_declared_data_type(raw: &str) -> Result<DataType, SqlError> {
     let error = match parse_data_type(raw) {
         Ok(data_type) => return Ok(data_type),
         Err(error) => error,
     };
     let trimmed = raw.trim();
+    if let Some(data_type) = super::enum_scope::parse_enum_type(trimmed) {
+        return Ok(data_type);
+    }
     if let Some(element) = trimmed.strip_suffix("[]") {
         if resolve_named_domain(element).is_some() {
             return Err(SqlError::unsupported(

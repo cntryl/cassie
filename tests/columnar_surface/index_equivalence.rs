@@ -326,61 +326,33 @@ fn should_maintain_time_series_indexes_on_column_tables() {
 }
 
 #[test]
-fn should_maintain_graph_indexes_on_column_backing_tables() {
+fn should_reject_converting_graph_backing_tables_to_columnar() {
     // Arrange
     with_pair(|pair| {
-        // Backing tables of `CREATE GRAPH` have no selector; convert them
-        // with the lane-A `SET ACCESS METHOD` statement.
-        for graph in ["gr", "gc"] {
-            pair.run(&format!("CREATE GRAPH {graph}"));
-        }
-        for table in ["gc_nodes", "gc_edges"] {
-            pair.run(&format!("ALTER TABLE {table} SET ACCESS METHOD columnar"));
-        }
-        let edge = |graph: &str, id: &str, from: &str, to: &str| {
-            format!(
-                "INSERT INTO {graph}_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) \
-                 VALUES ('{id}','n','{from}','n','{to}','r',1)"
-            )
-        };
-        let neighbors = |graph: &str, node: &str, direction: &str| {
-            pair.sorted(&format!(
-                "SELECT node_id FROM graph_neighbors('{graph}','n','{node}','{direction}','*',10)"
-            ))
-        };
-        let check = |stage: &str| {
-            for (node, direction) in [("A", "out"), ("B", "out"), ("B", "in"), ("C", "in")] {
-                assert_eq!(
-                    neighbors("gc", node, direction),
-                    neighbors("gr", node, direction),
-                    "{stage}: {node} {direction}"
-                );
-            }
-        };
+        pair.run("CREATE GRAPH gx");
+        pair.run(
+            "INSERT INTO gx_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) \
+             VALUES ('e1','n','A','n','B','r',1)",
+        );
+
         // Act
+        let nodes = pair.sqlstate("ALTER TABLE gx_nodes SET ACCESS METHOD columnar");
+        let edges = pair.sqlstate("ALTER TABLE gx_edges SET ACCESS METHOD columnar");
+
         // Assert
-        for graph in ["gr", "gc"] {
-            for (id, from, to) in [("e1", "A", "B"), ("e2", "A", "C"), ("e3", "B", "C")] {
-                pair.run(&edge(graph, id, from, to));
-            }
-        }
-        check("build");
-        for graph in ["gr", "gc"] {
-            pair.run(&edge(graph, "e4", "C", "A"));
-            pair.run(&format!("DELETE FROM {graph}_edges WHERE edge_id = 'e2'"));
-            pair.run(&format!(
-                "UPDATE {graph}_edges SET target_id = 'A' WHERE edge_id = 'e3'"
-            ));
-        }
-        check("mutation");
-        for graph in ["gr", "gc"] {
-            pair.run("BEGIN");
-            pair.run(&edge(graph, "e9", "B", "A"));
-            pair.run(&format!("DELETE FROM {graph}_edges WHERE edge_id = 'e1'"));
-            pair.run("ROLLBACK");
-        }
-        check("rollback");
-        assert_ne!(neighbors("gc", "A", "out"), Vec::<Vec<Value>>::new());
+        assert_eq!(nodes, "0A000");
+        assert_eq!(edges, "0A000");
+        assert_eq!(
+            pair.sorted("SELECT storage_mode FROM pg_catalog.pg_table_storage WHERE tablename IN ('gx_nodes', 'gx_edges')"),
+            vec![
+                vec![Value::String("row-store".to_string())],
+                vec![Value::String("row-store".to_string())],
+            ]
+        );
+        assert_eq!(
+            pair.sorted("SELECT node_id FROM graph_neighbors('gx','n','A','out','*',10)"),
+            vec![vec![Value::String("B".to_string())]]
+        );
     });
 }
 

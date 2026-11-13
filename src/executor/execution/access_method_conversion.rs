@@ -35,6 +35,7 @@ pub(super) fn set_access_method(
         return Ok(());
     }
     if target.uses_column_store_storage() {
+        reject_graph_backing_table(cassie, table)?;
         reject_column_accelerator(cassie, table)?;
     }
     controls.check_interruption()?;
@@ -59,6 +60,23 @@ pub(super) fn set_access_method(
         cassie.bump_schema_epoch_and_invalidate_query_cache()?;
     }
     drop(reservations);
+    Ok(())
+}
+
+/// Graph node and edge backing tables stay row-authoritative: graph
+/// traversal is outside the column-authoritative table contract.
+fn reject_graph_backing_table(cassie: &Cassie, table: &str) -> Result<(), QueryError> {
+    let backs_graph = cassie.catalog.list_graphs().into_iter().find(|graph| {
+        graph.node_collection.eq_ignore_ascii_case(table)
+            || graph.edge_collection.eq_ignore_ascii_case(table)
+    });
+    if let Some(graph) = backs_graph {
+        return Err(CassieError::Unsupported(format!(
+            "cannot convert '{table}' to columnar: it backs graph '{}', and graph tables stay row-authoritative",
+            graph.name
+        ))
+        .into());
+    }
     Ok(())
 }
 

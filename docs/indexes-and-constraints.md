@@ -39,9 +39,10 @@ status in the table above applies to both.
 | NOT NULL, CHECK, DEFAULT, identity, generated columns, domains | Supported | Supported, same SQLSTATEs |
 | PRIMARY KEY, UNIQUE, `ON CONFLICT` | Supported | Supported, same SQLSTATEs |
 | FOREIGN KEY (referencing or referenced side, either mode) | Supported | Supported, including referential actions |
-| Scalar btree, hash, unique, partial, expression indexes | Supported | Supported |
+| Scalar btree, unique, partial, expression indexes | Supported | Supported |
 | Full-text BM25, vector HNSW/IVFFlat, hybrid retrieval | Supported | Supported |
-| Time-series and graph adjacency indexes | Supported | Supported |
+| Time-series indexes | Supported | Supported |
+| Graph backing tables (`CREATE GRAPH`) | Supported | Not available: graph tables stay row-authoritative; converting one fails with `0A000` |
 | `CREATE INDEX ... USING column` (column-batch accelerator) | Supported | `0A000`, nothing published: the table is already column-authoritative |
 
 Equivalence evidence: [constraints](../tests/columnar_surface/constraint_equivalence.rs)

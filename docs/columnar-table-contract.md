@@ -80,15 +80,20 @@ Column tables support the same surface as row tables:
   PRIMARY KEY, UNIQUE, domains, and FOREIGN KEY with a column table as either
   the referencing or the referenced side. Semantics and SQLSTATEs equal those
   of row tables.
-- **Derived indexes**: scalar (btree, unique, partial, expression; hash is rejected with `0A000` as for row tables),
-  full-text BM25, vector (HNSW, IVFFlat), hybrid retrieval, time-series and
-  graph. They are built and maintained from authoritative field values.
+- **Derived indexes**: scalar (btree, unique, partial, expression; hash is
+  rejected with `0A000` as for row tables), full-text BM25, vector (HNSW,
+  IVFFlat), hybrid retrieval and time-series. They are built and maintained
+  from authoritative field values.
 
 Not supported, rejected with `0A000` before any change:
 
 - `CREATE INDEX ... USING column` on a column table, because it is already
   column-authoritative.
 - Any table access method other than `heap` and `columnar`.
+- Graphs. `CREATE GRAPH` node and edge backing tables are always
+  row-authoritative, and `ALTER TABLE ... SET ACCESS METHOD columnar` on one
+  fails. Graph traversal does not need column storage (owner direction,
+  2026-11-13).
 
 ## Write and transaction semantics
 
@@ -105,7 +110,7 @@ and [pgwire transaction contract](pgwire-transaction-contract.md):
 
 **No-row-blob invariant.** No ingress path may write a `\x10` row blob or a
 legacy document key for a column table. This covers INSERT, UPDATE, DELETE,
-COPY, TRUNCATE, the time-series and graph writers, fresh-document writes,
+COPY, TRUNCATE, the time-series writers, fresh-document writes,
 schema and column-type rewrites, and conversion. No read path may consult a
 row blob for a column table. A focused test scans the family's raw keys after
 each ingress path to prove it.

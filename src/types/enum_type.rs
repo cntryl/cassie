@@ -186,6 +186,24 @@ pub fn sort_order_at(position: usize) -> f32 {
     u16::try_from(position + 1).map_or(f32::MAX, f32::from)
 }
 
+impl EnumType {
+    /// Whether `document` is the stored form of one of this type's members.
+    #[must_use]
+    pub fn has_storage_member(&self, document: &serde_json::Value) -> bool {
+        EnumValue::storage_member_id(document).is_some_and(|id| self.member(id).is_some())
+    }
+}
+
+/// Whether `data_type` is a named enum or an array of one.
+#[must_use]
+pub const fn is_enum_family(data_type: &super::DataType) -> bool {
+    match data_type {
+        super::DataType::Enum(_) => true,
+        super::DataType::Array(element) => matches!(**element, super::DataType::Enum(_)),
+        _ => false,
+    }
+}
+
 /// A shared, serializable handle to an immutable descriptor.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumRef(Arc<EnumType>);

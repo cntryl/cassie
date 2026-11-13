@@ -1,6 +1,6 @@
 //! Scalar indexes on enum columns are keyed by member ID: equality and IN probes
 //! survive RENAME VALUE and ADD VALUE, while ranges and ORDER BY follow sort order.
-//! Authored against the v0.4.0 contract; not yet executed.
+//! Authored against the v0.4.0 contract.
 
 use crate::support_enum_types::{scalar, strings};
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};

@@ -7,6 +7,7 @@ use super::{EvalContext, FunctionCall, QueryError, RowAccess, Value};
 use crate::app::{CassieError, DiagnosticError};
 use crate::sql::ast::Expr;
 use crate::sql::functions::FunctionId;
+use crate::types::enum_type::{EnumInputError, EnumMember};
 use crate::types::typed::TypedValue;
 use crate::types::{ArrayDimension, DataType, EnumRef, EnumValue, SqlArray};
 
@@ -63,8 +64,24 @@ fn argument<R: RowAccess + ?Sized>(
     })
 }
 
-fn typed(descriptor: &EnumRef, member_id: u64) -> Option<Value> {
-    EnumValue::new(descriptor.clone(), member_id).map(|value| Value::Typed(TypedValue::Enum(value)))
+fn input_failure(error: &EnumInputError) -> QueryError {
+    QueryError::Cassie(CassieError::from(
+        crate::executor::filter::enum_cast::input_diagnostic(error),
+    ))
+}
+
+/// A returned member. PostgreSQL rejects returning a label added in the open
+/// transaction to a type that existed before it (`55P04`), as on input.
+fn output(descriptor: &EnumRef, member: &EnumMember) -> Result<Value, QueryError> {
+    if member.uncommitted {
+        return Err(input_failure(&EnumInputError::UncommittedLabel {
+            type_name: descriptor.name.clone(),
+            label: member.label.clone(),
+        }));
+    }
+    EnumValue::new(descriptor.clone(), member.member_id)
+        .map(|value| Value::Typed(TypedValue::Enum(value)))
+        .ok_or_else(|| failure("XX000", format!("enum {} lost a member", descriptor.name)))
 }
 
 fn boundary(descriptor: &EnumRef, first: bool) -> Result<Value, QueryError> {
@@ -73,14 +90,13 @@ fn boundary(descriptor: &EnumRef, first: bool) -> Result<Value, QueryError> {
     } else {
         descriptor.members.last()
     };
-    member
-        .and_then(|member| typed(descriptor, member.member_id))
-        .ok_or_else(|| {
-            failure(
-                "55000",
-                format!("enum {} contains no values", descriptor.name),
-            )
-        })
+    let member = member.ok_or_else(|| {
+        failure(
+            "55000",
+            format!("enum {} contains no values", descriptor.name),
+        )
+    })?;
+    output(descriptor, member)
 }
 
 fn position(descriptor: &EnumRef, value: &EnumValue) -> Option<usize> {
@@ -110,8 +126,8 @@ fn range(
     }
     let elements = descriptor.members[start..=end]
         .iter()
-        .filter_map(|member| typed(descriptor, member.member_id))
-        .collect::<Vec<_>>();
+        .map(|member| output(descriptor, member))
+        .collect::<Result<Vec<_>, _>>()?;
     let length = i32::try_from(elements.len())
         .map_err(|_| failure("54000", "enum range exceeds the array limit".to_owned()))?;
     SqlArray::new(
@@ -163,11 +179,8 @@ fn evaluate<R: RowAccess + ?Sized>(
         })?;
     for argument in &mut arguments {
         if let Some(label) = argument.label.take() {
-            let value = EnumValue::parse_label(&descriptor, &label).map_err(|error| {
-                QueryError::Cassie(CassieError::from(
-                    crate::executor::filter::enum_cast::input_diagnostic(&error),
-                ))
-            })?;
+            let value = EnumValue::parse_label(&descriptor, &label)
+                .map_err(|error| input_failure(&error))?;
             argument.value = Some(value);
         }
     }

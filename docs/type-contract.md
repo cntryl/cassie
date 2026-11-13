@@ -873,6 +873,7 @@ Not part of v0.4.0, rejected deterministically with `0A000`:
 - `DROP TYPE ... CASCADE` when dependents exist. This matches composite and domain types.
 - Enums as composite fields or as domain base types.
 - Enum values in COPY.
+- `ALTER TABLE ... ALTER COLUMN ... TYPE` to an enum or enum array type.
 - Range types over enums.
 
 PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
@@ -908,6 +909,9 @@ PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
   the normal `NULLS LAST`/`FIRST` rules.
 - Comparing values of two different enum types, or an enum with a `text`-typed operand,
   is `42883`.
+- An unknown literal compared with an enum (`=`, `IN`, `BETWEEN`, `ANY('{...}')`) is
+  validated as enum input when the statement is bound. A bad label raises `22P02`
+  even when no row reaches the comparison.
 
 ### Durable representation
 
@@ -948,7 +952,9 @@ PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
   snapshot delta.
 - `ADD VALUE` inside an explicit transaction follows PostgreSQL 18:
   - If the type existed before the transaction, using the new label in that transaction
-    raises `55P04`.
+    raises `55P04`. This covers input (literals, casts, parameters, comparisons) and
+    output: `enum_last` or `enum_range` raises `55P04` when its result would include the
+    label, while `enum_first` and ranges that stop before it still succeed.
   - If the type was created in the same transaction, the new label is usable immediately.
 - Dependencies are computed by scanning, like composite types: table columns and
   arrays, defaults, and view or materialized-view outputs.

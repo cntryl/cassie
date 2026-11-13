@@ -1,7 +1,7 @@
 //! Enum values: literals, coercion, ordering, grouping, operators, helper
 //! functions and arrays. Declared order (low < medium < high) differs from
 //! alphabetical order (high < low < medium) so ordering mistakes are visible.
-//! Authored against the PostgreSQL 18.6 oracle; not yet executed.
+//! Authored against the PostgreSQL 18.6 oracle.
 
 use crate::support_enum_types::{scalar, strings};
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
@@ -111,6 +111,27 @@ fn should_reject_an_invalid_label_with_sqlstate_22p02() {
         any_literal,
         array_literal,
     ] {
+        assert_eq!(error.sql_state(), "22P02");
+    }
+}
+
+#[test]
+fn should_reject_an_invalid_label_even_when_no_row_reaches_the_comparison() {
+    // Arrange
+    let fixture = fixture("enum_values_invalid_label_without_rows");
+    fixture
+        .execute("CREATE TABLE empty_tasks (id int PRIMARY KEY, p priority)")
+        .unwrap();
+
+    // Act
+    let empty_table = fixture.error("SELECT id FROM empty_tasks WHERE p = 'urgent'");
+    let in_list = fixture.error("SELECT id FROM empty_tasks WHERE p IN ('low', 'urgent')");
+    let any_literal = fixture.error("SELECT id FROM empty_tasks WHERE p = ANY('{low,urgent}')");
+    let between = fixture.error("SELECT id FROM empty_tasks WHERE p BETWEEN 'low' AND 'urgent'");
+    let short_circuited = fixture.error("SELECT id FROM tasks WHERE false AND p = 'urgent'");
+
+    // Assert
+    for error in [empty_table, in_list, any_literal, between, short_circuited] {
         assert_eq!(error.sql_state(), "22P02");
     }
 }

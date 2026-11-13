@@ -1,5 +1,5 @@
 //! ALTER TYPE on enums: ADD VALUE, RENAME VALUE, RENAME TO, SET SCHEMA, OWNER TO.
-//! Authored against the PostgreSQL 18.6 oracle; not yet executed.
+//! Authored against the PostgreSQL 18.6 oracle.
 
 use crate::support_enum_types::{scalar, strings};
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};

@@ -72,6 +72,16 @@ pub(super) fn enum_field_error(type_text: &str, error: SqlError) -> SqlError {
     error
 }
 
+/// The error for `ALTER COLUMN ... TYPE` naming an enum: converting stored
+/// values to enum member ids is not part of this version (`0A000`); any other
+/// failure is passed through.
+pub(super) fn enum_column_type_error(type_text: &str, error: SqlError) -> SqlError {
+    if parse_enum_type(type_text).is_some() {
+        return SqlError::unsupported("ALTER COLUMN TYPE to an enum type is not supported".into());
+    }
+    error
+}
+
 #[cfg(test)]
 #[path = "enum_scope_tests.rs"]
 mod tests;

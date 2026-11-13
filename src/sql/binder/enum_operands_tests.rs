@@ -48,3 +48,36 @@ fn should_recognise_only_enum_typed_operands() {
     assert_eq!(found.map(|found| found.oid), Some(300_001));
     assert!(absent.is_none());
 }
+
+#[test]
+fn should_validate_an_unknown_literal_label_when_binding_the_comparison() {
+    // Arrange
+    let target = mood();
+    let mut valid = Expr::StringLiteral("sad".to_string());
+    let mut invalid = Expr::StringLiteral("glad".to_string());
+
+    // Act
+    let accepted = coerce(&BinaryOp::Eq, &target, &mut valid, None, true);
+    let rejected = coerce(&BinaryOp::Eq, &target, &mut invalid, None, true);
+
+    // Assert
+    assert!(accepted.is_ok());
+    assert!(matches!(valid, Expr::Cast { .. }));
+    assert!(matches!(rejected, Err(error) if error.sql_state() == "22P02"));
+}
+
+#[test]
+fn should_validate_each_label_of_an_unknown_array_literal() {
+    // Arrange
+    let target = mood();
+
+    // Act
+    let valid = validate_array_labels(&target, "{sad,NULL}");
+    let invalid = validate_array_labels(&target, "{sad,glad}");
+    let malformed = validate_array_labels(&target, "sad");
+
+    // Assert
+    assert!(valid.is_ok());
+    assert!(matches!(invalid, Err(error) if error.sql_state() == "22P02"));
+    assert!(malformed.is_ok());
+}

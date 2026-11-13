@@ -1,5 +1,5 @@
 //! Enum DDL inside explicit transactions, savepoints and across sessions.
-//! Authored against the PostgreSQL 18.6 oracle; not yet executed.
+//! Authored against the PostgreSQL 18.6 oracle.
 
 use crate::support_enum_types::{execute_on, scalar, strings};
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
@@ -96,6 +96,29 @@ fn should_reject_inserting_a_label_added_in_the_same_transaction_with_sqlstate_5
     // Assert
     assert_eq!(insert.sql_state(), "55P04");
     assert_eq!(rows, vec!["1"]);
+}
+
+#[test]
+fn should_reject_enum_functions_returning_a_label_added_in_the_same_transaction() {
+    // Arrange
+    let fixture = fixture("enum_tx_add_then_range");
+    fixture.execute("BEGIN").unwrap();
+    fixture
+        .execute("ALTER TYPE state_code ADD VALUE 'archived'")
+        .unwrap();
+    fixture.execute("SAVEPOINT probe").unwrap();
+
+    // Act
+    let first = scalar(&fixture, "SELECT enum_first(NULL::state_code)::text");
+    let range = fixture.error(RANGE);
+    fixture.execute("ROLLBACK TO SAVEPOINT probe").unwrap();
+    let last = fixture.error("SELECT enum_last(NULL::state_code)::text");
+    fixture.execute("ROLLBACK").unwrap();
+
+    // Assert
+    assert_eq!(first.as_deref(), Some("open"));
+    assert_eq!(range.sql_state(), "55P04");
+    assert_eq!(last.sql_state(), "55P04");
 }
 
 #[test]

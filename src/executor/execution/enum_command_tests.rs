@@ -1,5 +1,5 @@
 //! Enum DDL laws: lifecycle, errors, dependents and transaction visibility.
-//! Written before the implementation and not yet executed.
+//! Written before the implementation.
 
 use crate::app::{Cassie, CassieError, CassieSession};
 use crate::config::CassieRuntimeConfig;

@@ -1,5 +1,5 @@
 //! CREATE TYPE ... AS ENUM and DROP TYPE lifecycle and errors (#827 contract).
-//! Authored against the PostgreSQL 18.6 oracle; not yet executed.
+//! Authored against the PostgreSQL 18.6 oracle.
 
 use crate::support_enum_types::{scalar, strings};
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
@@ -339,6 +339,25 @@ fn should_reject_an_enum_as_a_domain_base_type_with_sqlstate_0a000() {
 
     // Assert
     assert_eq!(error.sql_state(), "0A000");
+}
+
+#[test]
+fn should_reject_altering_a_column_to_an_enum_type_with_sqlstate_0a000() {
+    // Arrange
+    let fixture = fixture_with_state("enum_alter_column_type");
+    fixture
+        .execute("CREATE TABLE tickets (id int PRIMARY KEY, s text)")
+        .unwrap();
+
+    // Act
+    let scalar_target =
+        fixture.error("ALTER TABLE tickets ALTER COLUMN s TYPE state_code USING s::state_code");
+    let array_target =
+        fixture.error("ALTER TABLE tickets ALTER COLUMN s TYPE state_code[] USING NULL");
+
+    // Assert
+    assert_eq!(scalar_target.sql_state(), "0A000");
+    assert_eq!(array_target.sql_state(), "0A000");
 }
 
 #[test]

@@ -108,3 +108,41 @@ fn should_return_an_empty_array_when_the_lower_bound_follows_the_upper() {
     // Assert
     assert_eq!(reversed, Value::Array(SqlArray::empty()));
 }
+
+fn with_uncommitted_last(labels: &[&str]) -> EnumRef {
+    let mut descriptor = (*mood(labels)).clone();
+    descriptor.members.last_mut().expect("a member").uncommitted = true;
+    EnumRef::new(descriptor)
+}
+
+#[test]
+fn should_reject_returning_an_uncommitted_member_with_55p04() {
+    // Arrange
+    let descriptor = with_uncommitted_last(&["sad", "ok", "new"]);
+    let sad = member(&descriptor, "sad");
+
+    // Act
+    let last = boundary(&descriptor, false);
+    let all = range(&descriptor, None, None);
+    let from_sad = range(&descriptor, Some(&sad), None);
+
+    // Assert
+    for result in [&last, &all, &from_sad] {
+        assert!(matches!(result, Err(QueryError::Cassie(error)) if error.sql_state() == "55P04"));
+    }
+}
+
+#[test]
+fn should_return_committed_members_around_an_uncommitted_one() {
+    // Arrange
+    let descriptor = with_uncommitted_last(&["sad", "ok", "new"]);
+    let ok = member(&descriptor, "ok");
+
+    // Act
+    let first = boundary(&descriptor, true).expect("first");
+    let up_to_ok = range(&descriptor, None, Some(&ok)).expect("range");
+
+    // Assert
+    assert!(matches!(&first, Value::Typed(TypedValue::Enum(v)) if v.label() == "sad"));
+    assert_eq!(labels(&up_to_ok), vec!["sad", "ok"]);
+}

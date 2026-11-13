@@ -1,5 +1,5 @@
 //! `pg_type`, `pg_enum`, `information_schema` and `regtype` presentation of enum types.
-//! Authored against the PostgreSQL 18.6 oracle; not yet executed.
+//! Authored against the PostgreSQL 18.6 oracle.
 
 use crate::support_enum_types::{scalar, strings};
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};

@@ -367,15 +367,15 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/domain_types.rs` | cargo_target | 26 | 0 | domain_types | keep | `tests/domain_types.rs` |
 | `tests/enum_types/alter.rs` | test_module | 473 | 24 | enum_types | move_with_module_alias | `tests/enum_types/semantics/alter.rs` |
 | `tests/enum_types/catalogs.rs` | test_module | 274 | 11 | enum_types | move_with_module_alias | `tests/enum_types/semantics/catalogs.rs` |
-| `tests/enum_types/ddl.rs` | test_module | 426 | 25 | enum_types | move_with_module_alias | `tests/enum_types/ddl/ddl.rs` |
+| `tests/enum_types/ddl.rs` | test_module | 445 | 26 | enum_types | move_with_module_alias | `tests/enum_types/ddl/ddl.rs` |
 | `tests/enum_types/indexes.rs` | test_module | 255 | 10 | enum_types | move_with_module_alias | `tests/enum_types/indexes/indexes.rs` |
 | `tests/enum_types/persistence.rs` | test_module | 344 | 9 | enum_types | move_with_module_alias | `tests/enum_types/semantics/persistence.rs` |
 | `tests/enum_types/runtime/arrays.rs` | test_module | 58 | 3 | enum_types | move_with_module_alias | `tests/enum_types/types/arrays/arrays.rs` |
 | `tests/enum_types/runtime/casts.rs` | test_module | 81 | 4 | enum_types | move_with_module_alias | `tests/enum_types/grammar/casts.rs` |
 | `tests/enum_types/runtime/comparison.rs` | test_module | 122 | 7 | enum_types | move_with_module_alias | `tests/enum_types/predicates/comparison.rs` |
 | `tests/enum_types/runtime/functions.rs` | test_module | 80 | 4 | enum_types | move_with_module_alias | `tests/enum_types/routines/functions.rs` |
-| `tests/enum_types/transactions.rs` | test_module | 317 | 14 | enum_types | move_with_module_alias | `tests/enum_types/transactions/transactions.rs` |
-| `tests/enum_types/values.rs` | test_module | 491 | 22 | enum_types | split_by_contract | `tests/enum_types/aggregates/core/values.rs`; `tests/enum_types/relations/values.rs` |
+| `tests/enum_types/transactions.rs` | test_module | 340 | 15 | enum_types | move_with_module_alias | `tests/enum_types/transactions/transactions.rs` |
+| `tests/enum_types/values.rs` | test_module | 512 | 23 | enum_types | split_by_contract | `tests/enum_types/aggregates/core/values.rs`; `tests/enum_types/relations/values.rs` |
 | `tests/enum_types/wire.rs` | test_module | 369 | 13 | enum_types | move_with_module_alias | `tests/enum_types/semantics/wire.rs` |
 | `tests/enum_types.rs` | cargo_target | 44 | 0 | enum_types | keep | `tests/enum_types.rs` |
 | `tests/executor/commands/semantics.rs` | test_module | 846 | 13 | executor | keep | `tests/executor/commands/semantics.rs` |

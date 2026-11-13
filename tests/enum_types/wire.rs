@@ -1,6 +1,6 @@
 //! pgwire framing of enums: `RowDescription` OIDs, text and binary results,
 //! parameters typed by the enum OID and error reporting.
-//! Authored against the v0.4.0 contract; not yet executed.
+//! Authored against the v0.4.0 contract.
 
 use crate::support_enum_types::{run_with_enum_oids, EnumOids};
 use crate::support_pgwire as wire;

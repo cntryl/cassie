@@ -503,6 +503,7 @@ fn validate_binary(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<(), CassieError> {
+    enum_operands::qualify_quantified(op, left, right, types)?;
     if matches!(
         op,
         BinaryOp::Eq

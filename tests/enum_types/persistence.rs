@@ -1,5 +1,5 @@
 //! Enum types, labels, rows and member identities survive restart on local storage.
-//! Authored against the v0.4.0 contract; not yet executed.
+//! Authored against the v0.4.0 contract.
 
 use crate::support_composite_types::LocalStore;
 use crate::support_enum_types::cell_text;

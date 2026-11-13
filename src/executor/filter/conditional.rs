@@ -98,6 +98,12 @@ fn compare(left: &Value, right: &Value, float: bool) -> Result<Ordering, QueryEr
         return Ok(ordering);
     }
     match (left, right) {
+        (
+            Value::Typed(crate::types::typed::TypedValue::Enum(left)),
+            Value::Typed(crate::types::typed::TypedValue::Enum(right)),
+        ) if left.descriptor().oid == right.descriptor().oid => {
+            Ok(left.order_key().cmp(&right.order_key()))
+        }
         (Value::Bool(left), Value::Bool(right)) => Ok(left.cmp(right)),
         (Value::String(left), Value::String(right)) => Ok(super::compare_text(left, right)),
         _ => Err(QueryError::General(

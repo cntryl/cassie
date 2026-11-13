@@ -71,10 +71,15 @@ fn prepare_read(
         schema.fields.iter().any(|field| {
             crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
                 == crate::sql::ColumnIdentifierPath::reference_field_key(spec.order_column)
-                && matches!(field.data_type, crate::types::DataType::Array(_))
+                && matches!(
+                    field.data_type,
+                    crate::types::DataType::Array(_) | crate::types::DataType::Enum(_)
+                )
         })
     }) {
-        // Shared typed top-k preserves elementwise ARRAY ordering.
+        // Shared typed top-k preserves elementwise ARRAY ordering and the
+        // descriptor sort order of a named enum, whose stored document is its
+        // member id rather than an order key.
         return Ok(None);
     }
     let projection = accounted_ordered_projection(spec.projection, controls)?;

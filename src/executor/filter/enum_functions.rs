@@ -34,6 +34,18 @@ fn declared_enum(expr: &Expr) -> Option<EnumRef> {
     }
 }
 
+/// The declared enum of a column argument. A NULL column value carries no
+/// descriptor, so the type comes from the row's column metadata.
+fn column_enum<R: RowAccess + ?Sized>(expr: &Expr, row: &R) -> Option<EnumRef> {
+    let Expr::Column(name) = expr else {
+        return None;
+    };
+    match row.column_type(name)?.flattened() {
+        DataType::Enum(descriptor) => Some(descriptor.clone()),
+        _ => None,
+    }
+}
+
 fn argument<R: RowAccess + ?Sized>(
     expr: &Expr,
     row: &R,
@@ -56,7 +68,9 @@ fn argument<R: RowAccess + ?Sized>(
             ))
         }
     };
-    let descriptor = declared_enum(expr).or_else(|| value.as_ref().map(|v| v.descriptor().clone()));
+    let descriptor = declared_enum(expr)
+        .or_else(|| value.as_ref().map(|v| v.descriptor().clone()))
+        .or_else(|| column_enum(expr, row));
     Ok(Argument {
         descriptor,
         value,
@@ -177,6 +191,23 @@ fn evaluate<R: RowAccess + ?Sized>(
                 "could not determine polymorphic type because input has type unknown".to_owned(),
             )
         })?;
+    if let Some(other) = arguments
+        .iter()
+        .filter_map(|argument| argument.descriptor.as_ref())
+        .find(|other| other.oid != descriptor.oid)
+    {
+        // `anyenum` arguments must be one enum type; PostgreSQL finds no
+        // function for a mixed pair.
+        return Err(failure(
+            "42883",
+            format!(
+                "function {}({}, {}) does not exist",
+                function.name.to_ascii_lowercase(),
+                descriptor.name,
+                other.name
+            ),
+        ));
+    }
     for argument in &mut arguments {
         if let Some(label) = argument.label.take() {
             let value = EnumValue::parse_label(&descriptor, &label)

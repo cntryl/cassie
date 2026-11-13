@@ -367,3 +367,27 @@ fn should_report_the_dependent_column_in_the_drop_restrict_detail() {
         "detail names the dependent column"
     );
 }
+
+#[test]
+fn should_describe_a_quantified_parameter_with_the_enum_family_oid() {
+    // Arrange
+    let build = |_| {
+        vec![
+            describe_only("SELECT id FROM jobs WHERE st = ANY($1)"),
+            describe_only("SELECT id FROM jobs WHERE $1 = ANY(history)"),
+        ]
+    };
+
+    // Act
+    let (oids, batches) = run_with_enum_oids("enum-wire-quantified-param", &SETUP, build);
+
+    // Assert
+    assert_eq!(
+        parameter_descriptions(&batches[0]),
+        vec![vec![oids.array_oid]]
+    );
+    assert_eq!(
+        parameter_descriptions(&batches[1]),
+        vec![vec![oids.type_oid]]
+    );
+}

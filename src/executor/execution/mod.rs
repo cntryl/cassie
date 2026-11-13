@@ -159,6 +159,8 @@ mod domain_command;
 mod domain_schema_scope;
 mod enum_command;
 mod enum_schema_scope;
+mod enum_view_text;
+mod enum_views;
 mod extension_command;
 mod retention;
 mod role_command;

@@ -391,6 +391,7 @@ pub(super) fn validate_value(
     if expected == Some(&DataType::Boolean) {
         require_boolean(expr, types, "Boolean assignment")?;
     }
+    enum_operands::validate_assignment(expr, types, expected)?;
     validate_expression(expr, types, catalog, context)?;
     super::conditional_types::validate_expression(expr, types)?;
     Ok(())

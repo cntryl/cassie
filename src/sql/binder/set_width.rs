@@ -7,6 +7,23 @@
 use super::wildcard::wildcard_output_fields;
 use super::{CassieError, Catalog, CommonTableExpression, HashMap, SelectItem, SelectStatement};
 
+#[path = "set_enum_types.rs"]
+mod enum_types;
+
+/// Rejects a set operation whose paired output columns are two different
+/// named enum types (`42846`).
+///
+/// # Errors
+///
+/// Returns the diagnostic naming both types.
+pub(super) fn validate_set_operand_types(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    context: &super::BindingContext,
+) -> Result<(), CassieError> {
+    enum_types::validate(select, catalog, context)
+}
+
 /// Rejects a set operation whose left operand and right operand (the right
 /// chain's leading SELECT) have different static output widths. A width that
 /// cannot be resolved statically is left to the executor's row check.

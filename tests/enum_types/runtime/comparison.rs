@@ -120,3 +120,90 @@ fn should_reject_an_unknown_literal_label_with_22p02() {
     // Assert
     assert_eq!(error.sql_state(), "22P02");
 }
+
+/// A two-column table whose enum gained a member before the first one, so
+/// member ids and sort order disagree.
+fn reordered_fixture(label: &str) -> SqlFixture {
+    sql_fixture(
+        label,
+        &[
+            "CREATE TYPE tier AS ENUM ('m', 'z')",
+            "CREATE TABLE ranked (id int PRIMARY KEY, e tier)",
+            "ALTER TYPE tier ADD VALUE 'a' BEFORE 'm'",
+            "INSERT INTO ranked VALUES (1, 'z'), (2, 'm'), (3, 'a')",
+        ],
+    )
+}
+
+#[test]
+fn should_order_a_limited_read_by_sort_order_not_member_id() {
+    // Arrange
+    let fixture = reordered_fixture("enum_top_k_ascending");
+
+    // Act
+    let rows = fixture.rows("SELECT id, e::text FROM ranked ORDER BY e LIMIT 2");
+    let bare = fixture.rows("SELECT id, e FROM ranked ORDER BY e LIMIT 2");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Int64(3), Value::String("a".to_string())],
+            vec![Value::Int64(2), Value::String("m".to_string())],
+        ]
+    );
+    assert_eq!(
+        bare.iter().map(|row| row[0].clone()).collect::<Vec<_>>(),
+        vec![Value::Int64(3), Value::Int64(2)]
+    );
+}
+
+#[test]
+fn should_order_a_limited_descending_read_by_sort_order() {
+    // Arrange
+    let fixture = reordered_fixture("enum_top_k_descending");
+
+    // Act
+    let top = fixture.rows("SELECT id, e FROM ranked ORDER BY e DESC LIMIT 1");
+    let paged = fixture.rows("SELECT id, e FROM ranked ORDER BY e LIMIT 1 OFFSET 1");
+
+    // Assert
+    assert_eq!(
+        top.iter().map(|row| row[0].clone()).collect::<Vec<_>>(),
+        vec![Value::Int64(1)]
+    );
+    assert_eq!(
+        paged.iter().map(|row| row[0].clone()).collect::<Vec<_>>(),
+        vec![Value::Int64(2)]
+    );
+}
+
+#[test]
+fn should_reject_a_set_operation_over_two_enum_types_with_42846() {
+    // Arrange
+    let fixture = fixture("enum_set_operation_mixed");
+
+    // Act
+    let union = fixture.error("SELECT 'ok'::mood UNION SELECT 'sad'::other");
+    let intersect = fixture.error("SELECT m FROM days INTERSECT SELECT 'sad'::other");
+    let same = fixture.rows("SELECT 'ok'::mood::text UNION SELECT 'ok'::mood::text");
+
+    // Assert
+    assert_eq!(union.sql_state(), "42846");
+    assert_eq!(intersect.sql_state(), "42846");
+    assert_eq!(same.len(), 1);
+}
+
+#[test]
+fn should_union_two_branches_of_the_same_enum_type() {
+    // Arrange
+    let fixture = fixture("enum_set_operation_same");
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT x::text FROM (SELECT 'happy'::mood AS x UNION SELECT 'sad'::mood) u ORDER BY x",
+    );
+
+    // Assert
+    assert_eq!(texts(&rows), vec!["sad", "happy"]);
+}

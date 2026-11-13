@@ -844,6 +844,9 @@ fn default_expression(value: &serde_json::Value, data_type: &crate::types::DataT
     if value.is_null() {
         return "NULL".to_string();
     }
+    if let Some(rendered) = crate::catalog::enum_types::default_expression(value, data_type) {
+        return rendered;
+    }
     if let Some(value) = value.as_str() {
         if matches!(
             data_type,

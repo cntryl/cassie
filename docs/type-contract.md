@@ -957,10 +957,37 @@ PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
     label, while `enum_first` and ranges that stop before it still succeed.
   - If the type was created in the same transaction, the new label is usable immediately.
 - Dependencies are computed by scanning, like composite types: table columns and
-  arrays, defaults, and view or materialized-view outputs.
+  arrays, defaults, view or materialized-view outputs, routine arguments and results,
+  and views whose definition casts to the type without exposing it as an output.
   - `DROP TYPE ... RESTRICT` with dependents raises `2BP01` with PostgreSQL's
-    `column c of table t` detail.
+    `column c of table t`, `view v` and `column c of materialized view m` details.
+    Internal materialized-view output table names are never shown.
+  - A view is re-bound from its stored SQL text, so that text is its dependency
+    record. `RENAME VALUE`, `RENAME TO` and `SET SCHEMA` rewrite, in the same
+    publication, each label literal the view reads as input of the enum and each
+    reference to the type name. A view that does not bind when the type is altered,
+    and materialized-view definitions, are not rewritten.
   - `DROP SCHEMA`/`DROP DATABASE` follow the composite type rules.
+- `ALTER TYPE` and `DROP TYPE` resolve an unqualified name through the search path
+  across enum, composite and domain types: the first schema that declares the name
+  decides which object it denotes.
+- Table `CHECK` constraints on an enum column compare members. The literal is bound to
+  the member's storage form when the constraint is created (unknown label: `22P02`),
+  ordering operators use sort order, and `RENAME VALUE` keeps the constraint on the same
+  member.
+- A set operation, `greatest`, `least` or `enum_range` over two different enum types has
+  no common type. `greatest`, `least` and `nullif` accept arguments of one enum type; an
+  unknown literal beside an enum argument is not yet coerced there.
+- An enum column accepts an unknown literal, a parameter, or an expression of the same
+  enum. A `text`-typed column, cast or function result has no assignment cast (`42804`).
+- An unknown literal compared with an enum array (`es = '{a,b}'`) or searched in one
+  (`array_position(es, 'a')`) is input of the element enum. `e = ANY($1)` infers the
+  enum's array type for `$1`, and `$1 = ANY(es)` the element enum.
+- `information_schema.columns.column_default` renders an enum default as
+  `'label'::type`.
+- Quoted type names are matched case-insensitively, like every relation and type name
+  in the catalog. PostgreSQL distinguishes `"Mood"` from `mood`; this is a catalog-wide
+  divergence, not an enum-specific one.
 - Labels are 1–63 bytes. A longer label raises `42602`.
 
 ### SQL and wire behaviour
@@ -988,6 +1015,11 @@ PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
 | Label longer than 63 bytes | `42602` |
 | Cast between enum and an integer type | `42846` |
 | Comparison with `text` or another enum type | `42883` |
+| `enum_range`/`enum_first`/`enum_last` over two enum types | `42883` |
+| `e = ANY(ARRAY['a'])` with a `text[]` constructor | `42883` |
+| Set operation, `greatest` or `least` over two enum types | `42846` |
+| `text`-typed or other-enum expression assigned to an enum column | `42804` |
+| Row violating a `CHECK` on an enum column | `23514` |
 | `enum_first`/`enum_last` on an empty enum | `55000` |
 | Use of an uncommitted added label | `55P04` |
 | Drop with dependents | `2BP01` |

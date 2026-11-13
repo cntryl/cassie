@@ -261,6 +261,15 @@ fn drop_types(
     let mut domains = Vec::new();
     let mut enums = Vec::new();
     for raw in names {
+        // An enum earlier in the search path than any same-named composite or
+        // domain type is the object the name denotes (#827).
+        if let Some(enum_type) =
+            super::enum_command::resolve_first_in_path(cassie, database, search_order, raw)
+        {
+            super::enum_command::ensure_droppable(cassie, &enum_type, cascade)?;
+            enums.push(enum_type);
+            continue;
+        }
         let Some(metadata) = cassie
             .catalog
             .resolve_composite_type(database, search_order, raw)

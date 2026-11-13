@@ -358,6 +358,7 @@ impl Fold<'_, '_> {
         if let Some(summary) = self.json_key_operator(op, frame)? {
             return Ok(Some(summary));
         }
+        self.enum_quantified(op, frame)?;
         if matches!(
             op,
             ast::BinaryOp::And | ast::BinaryOp::Or | ast::BinaryOp::Quantified { .. }

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde_json::Value as Json;
 
 use super::source_json_fragment::{evaluate_argument, Fragment, Kind};
-use super::source_json_record_fields::{check_length, convert};
+use super::source_json_record_fields::{convert, fit_length};
 use super::{CteContext, QueryError, SourceExecutionEnv, Value};
 use crate::app::{CassieError, DiagnosticError};
 use crate::sql::ast::{
@@ -199,8 +199,10 @@ fn value_step(column: &JsonTableValueColumn, mut items: Vec<Json>) -> Step {
     }
     let single = items.len() == 1 && !matches!(items[0], Json::Array(_) | Json::Object(_));
     if !single {
+        // Several items are a cardinality error; one array or object is a shape error.
+        let state = if items.len() > 1 { "22034" } else { "2203F" };
         return Step::Soft(diagnostic(
-            "22034",
+            state,
             format!(
                 "JSON path expression for column \"{}\" must return single scalar item",
                 column.name
@@ -270,7 +272,7 @@ fn convert_item(
             (Kind::String, JsonQuotes::Omit) => fragment.scalar_text()?,
             _ => fragment.json_text()?,
         };
-        check_length(&text, base)?;
+        let text = fit_length(text, base)?;
         return super::filter::cast_value(&Value::String(text), &column.data_type);
     }
     if item.is_null() && matches!(base, DataType::Json | DataType::Jsonb) {

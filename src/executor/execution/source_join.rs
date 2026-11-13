@@ -344,6 +344,14 @@ struct JoinPredicateContext<'a> {
     ctes: &'a CteContext,
 }
 
+/// Whether the row declares `name` itself. Unlike `get`, a qualified name does not fall back to
+/// its bare column, so generated sources whose columns are named `column1` never shadow the
+/// preserved side.
+fn declares(row: &BatchRow, name: &str) -> bool {
+    row.entries().iter().any(|(key, _)| key == name)
+        || row.aliases().iter().any(|(alias, _)| alias == name)
+}
+
 /// Evaluates the `ON` conjuncts that read only preserved-side columns before the lateral right
 /// side is expanded for `left`. Anything that is not a plain, side-effect-free left-only term is
 /// left to the ordinary post-join evaluation, so this can only skip rows the join would drop.
@@ -363,7 +371,7 @@ pub(super) fn left_terms_pass(
             || names.is_empty()
             || !names
                 .iter()
-                .all(|name| left.get(name).is_some() && right_template.get(name).is_none())
+                .all(|name| left.get(name).is_some() && !declares(right_template, name))
         {
             continue;
         }

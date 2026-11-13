@@ -6,6 +6,7 @@
 use cassie::app::{Cassie, CassieSession};
 use cassie::midge::adapter::StorageFamily;
 
+mod alter;
 mod corruption;
 mod no_row_blob;
 

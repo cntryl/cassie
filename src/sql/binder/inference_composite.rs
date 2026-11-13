@@ -19,6 +19,11 @@ pub(crate) fn composite_field_type(
         )
         .into());
     }
+    // A declared parameter (or another operand typed only at execution) has no
+    // static type here; the evaluator checks the bound value instead.
+    if matches!(operand_type, DataType::Null) {
+        return Ok(DataType::Null);
+    }
     let DataType::Composite(descriptor) = operand_type else {
         return Err(crate::app::DiagnosticError::new(
             "42809",

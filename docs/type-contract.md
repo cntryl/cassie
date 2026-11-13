@@ -479,6 +479,50 @@ The code and its regressions are authored; they have not been compiled or execut
   difference (Cassie keeps no dropped-column history for table row types).
   `ALTER TABLE ... ALTER COLUMN ... TYPE` is `0A000` ("cannot alter table "t" because
   column "u.x" uses its row type") while the row type is stored, as in PostgreSQL.
+- Record field rules settled by the v0.3.0 adversarial review (2026-11-13):
+  - a `json`/`jsonb` field carries a document, in a constructed record and in a stored one,
+    so `(v).j -> 'a'`, `@>`, `jsonb_typeof` and record equality behave as for a column;
+  - a `char(n)`/`varchar(n)` field follows column assignment on `INSERT`/`UPDATE` and in
+    record text input (`'(abcd)'::t`): excess blanks are discarded, other excess text is
+    `22001`. Only an explicit `ROW(...)::t` cast truncates, as in PostgreSQL. `char(n)`
+    fields keep Cassie's canonical unpadded form;
+  - `INSERT ... ON CONFLICT DO UPDATE` sees `EXCLUDED.c` of a composite column as the typed
+    record: `SET c = EXCLUDED.c` and `(EXCLUDED.c).field` work;
+  - a record written before `ALTER TYPE ... ADD ATTRIBUTE` (or `ALTER TABLE ... ADD COLUMN`
+    for a row type) in the same transaction commits; the added slot is NULL;
+  - record order (`<`, `ORDER BY`, `DISTINCT`) compares typed fields by value (`numeric`,
+    `date` including `infinity`, and the other extended families), field by field with a
+    NULL field last;
+  - `ROW(...) IN (ROW(...), ...)` compares constructors field by field, so a NULL field in
+    an otherwise equal pair yields NULL, as `ROW(...) = ROW(...)` does;
+  - in `ORDER BY` and `GROUP BY` a bare name that matches an output alias is that output
+    column, even when it is also the table's name; `DISTINCT ON` still reports `0A000`. A
+    whole-row name inside a window's arguments, `PARTITION BY` or `ORDER BY` is `0A000`;
+  - the alias of a derived table is its row when every output column name is evident
+    (explicit names, aliases, or `*` over one table): `SELECT x FROM (SELECT a, b FROM t) x`
+    returns the anonymous record `(a,b)`. A derived column named like the alias wins. Other
+    shapes, and the alias of a table function, are not rewritten;
+  - a table cannot gain a column of its own row type, directly or through a composite type
+    or another table's row type (`42P16`), for `ADD COLUMN` and `ALTER COLUMN ... TYPE`;
+  - views keep their definition as SQL text and bind types and attributes by name. `ALTER
+    TYPE ... RENAME TO` and `RENAME ATTRIBUTE` are therefore refused with `0A000` while a
+    view's definition names the type or selects the attribute (PostgreSQL keeps the view
+    working; Cassie reports the limit instead of leaving a view that no longer runs).
+    `DROP ATTRIBUTE` of an attribute a view selects is `2BP01`, as in PostgreSQL. The check
+    reads the definition's words, so an unrelated identifier of the same name also blocks;
+  - `PREPARE p(t) AS SELECT ($1).field` is accepted for a declared composite or row-type
+    parameter; `EXECUTE` casts the argument to the declared type;
+  - a `uuid` or `bytea` field compares with an untyped literal like a column of that type
+    (`(v).u = 'a0ee...'`). Other field types share the engine's general rule that an
+    untyped literal is text (`(v).i = '7'` is rejected exactly as `i = '7'` is on a column);
+  - `record::text` uses the session `TimeZone`, `DateStyle` and `IntervalStyle`, like the
+    record's own output;
+  - attribute names are exact after identifier folding: `(a int, "A" int)` is two
+    attributes, and `RENAME ATTRIBUTE a TO a` is `42701`. Type names still resolve
+    case-insensitively, like every relation name in the catalog;
+  - `DROP TYPE <table>` is `2BP01` ("cannot drop type t because table t requires it"). A
+    `CHECK` on a record field and an index on a record field are `0A000`;
+  - non-finite `float8` field values are rejected, as they are for a `float8` column.
 - Known limitations: in an unscoped instance a domain label (`regtype`) does not see an earlier-schema table row type that shadows the domain, so it prints `posint` where PostgreSQL prints `public.posint` (scoped instances qualify correctly); views, sequences and indexes have `reltype = 0` (PostgreSQL gives
   views a row type); `CREATE TABLE ... OF type` typed tables do not exist; renaming a
   table does not change its row-type revision; a row type embedded in another table's

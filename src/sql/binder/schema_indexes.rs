@@ -978,6 +978,11 @@ fn validate_index_expression_function(
             function.name
         )));
     }
+    if normalized == crate::sql::ast::FIELD_ACCESS_FUNCTION {
+        return Err(CassieError::Unsupported(
+            "an index on a field of a composite column is not supported".into(),
+        ));
+    }
     let Some(definition) = crate::sql::functions::registry()
         .into_iter()
         .find(|entry| entry.name.eq_ignore_ascii_case(&normalized))

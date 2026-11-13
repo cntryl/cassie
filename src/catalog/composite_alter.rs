@@ -45,11 +45,8 @@ impl CompositeTypeMeta {
     }
 
     fn reject_duplicate(&self, name: &str) -> Result<(), TypeAlterError> {
-        if self
-            .fields
-            .iter()
-            .any(|field| field.name.eq_ignore_ascii_case(name))
-        {
+        // Names arrive folded: unquoted lower case, quoted exactly as written.
+        if self.fields.iter().any(|field| field.name == name) {
             return Err(TypeAlterError::new(
                 "42701",
                 format!(
@@ -102,9 +99,8 @@ impl CompositeTypeMeta {
     /// `42703` when `from` is missing, `42701` when `to` exists.
     pub fn with_renamed_attribute(&self, from: &str, to: &str) -> Result<Self, TypeAlterError> {
         let index = self.require_attribute(from)?;
-        if !from.eq_ignore_ascii_case(to) {
-            self.reject_duplicate(to)?;
-        }
+        // Renaming an attribute to its own name is a duplicate too (`42701`).
+        self.reject_duplicate(to)?;
         let mut next = self.clone();
         to.clone_into(&mut next.fields[index].name);
         next.revision += 1;
@@ -150,6 +146,37 @@ impl CompositeTypeMeta {
         }
         Ok(())
     }
+}
+
+fn is_identifier_character(character: char) -> bool {
+    character.is_alphanumeric() || matches!(character, '_' | '$')
+}
+
+/// The lower-cased identifier-like words of a stored view definition.
+fn identifier_tokens(query: &str) -> Vec<String> {
+    query
+        .split(|character: char| !is_identifier_character(character))
+        .filter(|token| !token.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect()
+}
+
+/// Whether `query` selects a field called `attribute` (`.name` or `."name"`).
+fn selects_field(query: &str, attribute: &str) -> bool {
+    let lowered = query.to_ascii_lowercase();
+    let name = attribute.to_ascii_lowercase();
+    [format!(".{name}"), format!(".\"{name}\"")]
+        .iter()
+        .any(|pattern| {
+            lowered
+                .match_indices(pattern.as_str())
+                .any(|(start, found)| {
+                    !lowered[start + found.len()..]
+                        .chars()
+                        .next()
+                        .is_some_and(is_identifier_character)
+                })
+        })
 }
 
 /// `data_type` with every embedded composite replaced from `replacements`, or
@@ -260,6 +287,56 @@ impl Catalog {
             columns: self.retyped_columns(&replacements),
             views: self.retyped_views(&replacements),
         }
+    }
+
+    /// Views whose stored definition names the type (`attribute` is `None`) or
+    /// selects `attribute` from a value of the type. A view keeps its SQL text
+    /// and binds types and attributes by name, so such a view would stop
+    /// working if the name changed or the attribute went away.
+    #[must_use]
+    pub fn views_naming_composite(
+        &self,
+        metadata: &CompositeTypeMeta,
+        attribute: Option<&str>,
+    ) -> Vec<String> {
+        let oid = metadata.type_oid();
+        let type_name = metadata.local_name().to_ascii_lowercase();
+        let carriers = self
+            .schemas
+            .read()
+            .values()
+            .filter(|schema| {
+                schema
+                    .fields
+                    .iter()
+                    .any(|field| data_type_depends_on(&field.data_type, oid))
+            })
+            .map(|schema| local_name(&schema.collection).to_ascii_lowercase())
+            .collect::<Vec<_>>();
+        let mut views = self
+            .list_views()
+            .into_iter()
+            .filter(|view| {
+                let tokens = identifier_tokens(&view.query);
+                let names_type = tokens.contains(&type_name);
+                match attribute {
+                    None => names_type,
+                    Some(attribute) => {
+                        let reads_value = names_type
+                            || tokens.iter().any(|token| carriers.contains(token))
+                            || view
+                                .schema
+                                .fields
+                                .iter()
+                                .any(|field| data_type_depends_on(&field.data_type, oid));
+                        reads_value && selects_field(&view.query, attribute)
+                    }
+                }
+            })
+            .map(|view| local_name(&view.name))
+            .collect::<Vec<_>>();
+        views.sort();
+        views
     }
 
     fn retyped_columns(&self, replacements: &HashMap<u32, CompositeRef>) -> Vec<ColumnRetype> {

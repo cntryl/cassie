@@ -543,14 +543,18 @@ fn validate_typed_string_comparison(
     right: &Expr,
     field_types: &crate::sql::FieldTypeMap,
 ) -> Result<bool, CassieError> {
-    let (
-        (Expr::Column(column), Expr::StringLiteral(literal))
-        | (Expr::StringLiteral(literal), Expr::Column(column)),
-    ) = ((left, right),)
+    let ((typed, Expr::StringLiteral(literal)) | (Expr::StringLiteral(literal), typed)) =
+        (left, right)
     else {
         return Ok(false);
     };
-    match crate::sql::field_type_for_column(field_types, column) {
+    // A field selected from a composite column is typed like a column.
+    let data_type = match typed {
+        Expr::Column(column) => crate::sql::field_type_for_column(field_types, column).cloned(),
+        Expr::Function(function) => super::inference::validate_field_access(function, field_types)?,
+        _ => None,
+    };
+    match data_type {
         Some(DataType::Uuid) => {
             uuid::Uuid::parse_str(literal)
                 .map_err(|_| CassieError::Planner(format!("invalid UUID literal '{literal}'")))?;

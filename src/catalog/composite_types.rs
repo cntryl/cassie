@@ -29,6 +29,9 @@ pub struct CompositeTypeMeta {
     pub owner_oid: u32,
     pub revision: u64,
     pub fields: Vec<CompositeField>,
+    /// Physical slots of dropped attributes (see `CompositeType::dropped_positions`).
+    #[serde(default)]
+    pub dropped_positions: Vec<usize>,
 }
 
 impl CompositeTypeMeta {
@@ -41,6 +44,7 @@ impl CompositeTypeMeta {
             qualified_name: self.name.clone(),
             name: local_name(&self.name),
             revision: self.revision,
+            dropped_positions: self.dropped_positions.clone(),
             fields: self.fields.clone(),
         })
     }

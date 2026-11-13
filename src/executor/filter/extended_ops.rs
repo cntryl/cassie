@@ -24,8 +24,7 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
         (ScalarValue::Typed(left), ScalarValue::Typed(right)) => operations::compare(left, right),
         (ScalarValue::Typed(typed), ScalarValue::Str(text)) => typed
             .kind()
-            .parse_text(text)
-            .ok()
+            .and_then(|kind| kind.parse_text(text).ok())
             .and_then(|other| operations::compare(typed, &other)),
         (ScalarValue::Str(_), ScalarValue::Typed(_)) => {
             compare(right, left).map(std::cmp::Ordering::reverse)
@@ -129,7 +128,12 @@ fn record_against_text(left: &ScalarValue, right: &ScalarValue) -> bool {
 fn type_label(value: &ScalarValue) -> String {
     match value {
         ScalarValue::Typed(typed) => typed.as_record().map_or_else(
-            || typed.kind().name().to_string(),
+            || {
+                typed
+                    .kind()
+                    .map_or("record", crate::types::extended::ExtendedType::name)
+                    .to_string()
+            },
             |record| record.descriptor().name.clone(),
         ),
         ScalarValue::Int(_) => "integer".to_string(),

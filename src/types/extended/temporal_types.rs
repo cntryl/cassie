@@ -400,7 +400,10 @@ pub fn convert(
             TypedValue::Time(value.micros.rem_euclid(USECS_PER_DAY))
         }
         (value, target) => {
-            return Err(cannot_cast(display_name(value.kind()), target));
+            return Err(cannot_cast(
+                value.kind().map_or("record", display_name),
+                target,
+            ));
         }
     };
     apply_typmod(converted, target)

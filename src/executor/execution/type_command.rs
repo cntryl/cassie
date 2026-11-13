@@ -1,4 +1,4 @@
-//! `CREATE TYPE ... AS (...)` and `DROP TYPE` for composite types (#828).
+//! `CREATE TYPE ... AS (...)`, `DROP TYPE` and the `ALTER TYPE` dispatch (#828).
 
 use super::command_output::empty as empty_command;
 use super::{Cassie, CassieSession, QueryError, QueryResult};
@@ -11,7 +11,7 @@ use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{TypeAction, TypeAttribute, TypeStatement};
 use crate::types::{CompositeField, DataType};
 
-const ROOT_OID: u32 = 10;
+pub(super) const ROOT_OID: u32 = 10;
 /// First revision of a newly created composite descriptor.
 const INITIAL_REVISION: u64 = 1;
 
@@ -35,6 +35,16 @@ pub(super) fn execute(
             attributes,
             controls,
         ),
+        TypeAction::Alter { name, alteration } => super::type_alter::alter(
+            cassie,
+            &super::type_alter::AlterScope {
+                database: &database,
+                search_order: &context.relation_search_order(),
+            },
+            name,
+            alteration,
+            controls,
+        ),
         TypeAction::Drop {
             names,
             if_exists,
@@ -51,7 +61,7 @@ pub(super) fn execute(
     }
 }
 
-fn diagnostic(state: &'static str, message: String) -> QueryError {
+pub(super) fn diagnostic(state: &'static str, message: String) -> QueryError {
     CassieError::from(DiagnosticError::new(state, message)).into()
 }
 
@@ -106,19 +116,7 @@ fn create(
         ));
     }
     let canonical = canonical_relation_name(database, &schema, &name);
-    // A composite type owns a pg_class row, so it shares the relation
-    // namespace with tables, views, sequences and indexes.
-    if cassie.catalog.composite_type_exists(&canonical)
-        || cassie.catalog.get_schema(&canonical).is_some()
-        || cassie.catalog.relation_exists(&canonical)
-        || cassie.catalog.sequence_exists(&canonical)
-        || cassie.catalog.index_relation_name_occupied(
-            &canonical,
-            database,
-            false,
-            Some(controls),
-        )?
-    {
+    if relation_name_occupied(cassie, database, &canonical, controls)? {
         return Err(diagnostic(
             "42710",
             format!("type \"{name}\" already exists"),
@@ -137,6 +135,7 @@ fn create(
         owner_oid: ROOT_OID,
         revision: INITIAL_REVISION,
         fields,
+        dropped_positions: Vec::new(),
     };
     cassie
         .midge
@@ -144,6 +143,37 @@ fn create(
         .map_err(QueryError::from)?;
     cassie.catalog.register_composite_type(metadata);
     Ok(output)
+}
+
+/// A composite type owns a pg_class row, so it shares the relation namespace
+/// with tables, views, sequences and indexes.
+pub(super) fn relation_name_occupied(
+    cassie: &Cassie,
+    database: &str,
+    canonical: &str,
+    controls: &QueryExecutionControls,
+) -> Result<bool, QueryError> {
+    Ok(cassie.catalog.composite_type_exists(canonical)
+        || cassie.catalog.get_schema(canonical).is_some()
+        || cassie.catalog.relation_exists(canonical)
+        || cassie.catalog.sequence_exists(canonical)
+        || cassie.catalog.index_relation_name_occupied(
+            canonical,
+            database,
+            false,
+            Some(controls),
+        )?)
+}
+
+/// Arrays of composite types are not stored yet.
+pub(super) fn reject_composite_array(data_type: &DataType) -> Result<(), QueryError> {
+    if matches!(data_type, DataType::Array(inner) if matches!(**inner, DataType::Composite(_))) {
+        return Err(diagnostic(
+            "0A000",
+            "arrays of composite types are not supported".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn validated_fields(attributes: &[TypeAttribute]) -> Result<Vec<CompositeField>, QueryError> {
@@ -158,13 +188,7 @@ fn validated_fields(attributes: &[TypeAttribute]) -> Result<Vec<CompositeField>,
                 format!("column \"{}\" specified more than once", attribute.name),
             ));
         }
-        if matches!(attribute.data_type, DataType::Array(ref inner) if matches!(**inner, DataType::Composite(_)))
-        {
-            return Err(diagnostic(
-                "0A000",
-                "arrays of composite types are not supported".into(),
-            ));
-        }
+        reject_composite_array(&attribute.data_type)?;
         fields.push(CompositeField {
             name: attribute.name.clone(),
             data_type: attribute.data_type.clone(),

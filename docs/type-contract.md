@@ -359,9 +359,9 @@ nullable values, big-endian; tag 0x10 stays reserved for domains) and the
 durable. The code and its regressions are authored; they have not been
 compiled or executed (assembler-owned gate). Pending or excluded:
 
-- domains, `ALTER TYPE`, relation row types (a table name used as a type),
-  `(expr).*` expansion, JSON recordset functions and enums keep deterministic
-  `0A000` or `42704` outcomes;
+- domains, JSON recordset functions and enums keep deterministic `0A000` or `42704`
+  outcomes (domains are owned by their own increment; `ALTER TYPE`, relation row
+  types and `(expr).*` are described under increment 2 below);
 - arrays of composite types (`name[]` columns and casts) are rejected with
   `0A000` although the `_name` array type row and OID exist;
 - composite columns cannot carry `DEFAULT`, `PRIMARY KEY`, `UNIQUE` or an
@@ -371,30 +371,20 @@ compiled or executed (assembler-owned gate). Pending or excluded:
 - record ordering uses an order-preserving key that is exact for equality and
   for text, integer, float and boolean fields; fields of other families order
   by their typed key bytes;
-- unscoped reparse paths fail closed with an unknown-type error instead of
-  resolving composite names: SQL `PREPARE p(address)`/`EXECUTE`, `COPY (query)`,
-  view and routine bodies, the `CREATE TABLE AS` insert reparse, and Describe
-  of a statement without a session (default search path). A view over a
-  composite type is therefore not usable yet;
+- Describe of a statement parsed without a session resolves composite names against the
+  default search path; routine (`CREATE PROCEDURE`) bodies parse without the session type
+  scope, so a composite type name inside a procedure body fails with `42704`;
 - one simple-query string cannot `CREATE TYPE` and use the type in a later
   statement of the same string (all statements are parsed first);
 - `DROP TYPE` dependents cover composite fields and table columns only, not
   views, materialized views, projections or function signatures;
 - concurrent `CREATE TYPE` of one name is not one atomic step (check,
   identity allocation and publication are separate), like extensions;
-- `TypedValue::kind()` returns a sentinel (`Interval` with typmod `i32::MIN`)
-  for records. No silent misbehavior was found in review, only
-  interval-flavoured error text (for example `date_trunc('day', ROW(1,2))`);
-  replace it with an `Option`/dedicated kind enum before domains or
-  `ALTER TYPE`;
 - `TypedValue::send_binary` for a record returns empty bytes on an encode
   error; the wire path (`codecs/record.rs`) propagates errors, so this is
   reachable only through `COPY BINARY` and similar direct callers;
 - a prepared statement holds the descriptor from Parse time; after `DROP TYPE`
   plus `CREATE TYPE` of the same name it fails closed with `42846`;
-- a stored record that does not match its column descriptor (OID or field
-  count) reads as SQL NULL with an error log rather than an error, because
-  `json_to_typed_value` is infallible; make it fallible before `ALTER TYPE`;
 - anonymous `ROW(...)` field types are best effort (integers report
   `bigint`, so a binary RECORD field OID is 20 where PostgreSQL sends 23);
 - btree indexes and `UNIQUE` on record columns are `0A000` although
@@ -417,6 +407,61 @@ compiled or executed (assembler-owned gate). Pending or excluded:
   `CREATE TABLE/VIEW/SEQUENCE/INDEX` over a type name is `42P07` (`CREATE TABLE IF NOT EXISTS`
   over a type name skips, as in PostgreSQL, but `CREATE SEQUENCE/INDEX IF NOT
   EXISTS` over a type name still raise `42P07` where PostgreSQL skips).
+
+#### #828 increment 2 status (ALTER TYPE, relation row types, cleanups)
+
+The code and its regressions are authored; they have not been compiled or executed
+(assembler-owned gate). Selected contract, verified against PostgreSQL 18.6:
+
+- `ALTER TYPE name RENAME TO | SET SCHEMA | OWNER TO` and
+  `ALTER TYPE name RENAME ATTRIBUTE a TO b | ADD ATTRIBUTE a type | DROP ATTRIBUTE
+  [IF EXISTS] a | ALTER ATTRIBUTE a [SET DATA] TYPE t`, each optionally followed by
+  `CASCADE`/`RESTRICT` (both behave alike: Cassie has no typed tables). One action per
+  statement. A table name is `42809` ("is not a composite type"), a missing type `42704`,
+  a duplicate attribute `42701`, a missing attribute `42703`, a rename onto an existing
+  relation `42P07`, a move onto an existing type `42710`, a missing schema `3F000`, a
+  missing role `42704`, a self-containing type `42P16`.
+- Versioned descriptors: a descriptor carries `revision` and `dropped_positions`. The
+  physical slot list only grows. `ADD ATTRIBUTE` appends a slot, `DROP ATTRIBUTE`
+  records the slot as dropped (its position is retained, a re-added attribute gets a
+  fresh slot), `RENAME ATTRIBUTE` and type renames keep slots. A stored value is a prefix
+  of the current layout, so rows written under any earlier revision decode with added
+  attributes NULL and dropped attributes hidden. Storage JSON and the CRB1 0x0F payload
+  carry one entry per physical slot; the payload format is unchanged.
+- `ALTER ATTRIBUTE ... TYPE` would have to rewrite stored values, so it is `0A000`
+  ("cannot alter type X because column t.c uses it") while any table column holds the
+  type directly or through another composite type, as in PostgreSQL. It runs, with no
+  data conversion, on an unused type.
+- Every change re-embeds the new descriptor in other composite types, table columns
+  (through `alter_collection_column_type`, which bumps the table's schema version) and
+  view column types. The steps are individually atomic, not one transaction: a crash
+  part way can leave embedded copies on the previous revision, which still decode stored
+  rows because layouts are prefixes. Materialized views, projections and routine
+  signatures are not re-embedded.
+- Relation row types: every table owns a composite type named like the table. Its
+  descriptor is derived from the table's current columns; its `pg_type.oid` and array OID
+  are derived from the table's persisted storage identity, so renames and restarts keep
+  them. `pg_class.reltype`, `pg_type` (`typtype = 'c'`, `typrelid` = table) and the `_name`
+  array row are published. A table name works as a column type, a cast target
+  (`ROW(...)::t`, `'(1,x)'::t`) and a PREPARE parameter type. For a single-table `SELECT`,
+  a bare table name or alias is the whole row (`SELECT t FROM t`), `(t).col` selects a
+  field, `ROW(t.*)` expands to the columns and `(expr).*` expands a composite column, table
+  row or cast in the SELECT list (`0A000` for any other operand). Whole-row forms are not
+  rewritten inside subqueries, joins, CTEs, DML or views.
+- Table DDL keeps the row type in sync: `ADD COLUMN`, `RENAME COLUMN`, `RENAME TO` and
+  `SET SCHEMA` re-embed the derived descriptor; stored values read the added column as
+  NULL. `DROP TABLE` is `2BP01` (`0A000` with `CASCADE`) while another column or composite
+  type holds its row type. `ALTER TABLE ... DROP COLUMN` is `0A000` while the row type is
+  stored in another column; PostgreSQL permits it, so this is a deliberate stricter
+  difference (Cassie keeps no dropped-column history for table row types).
+- Cleanups: `TypedValue::kind()` returns `Option<ExtendedType>` (`None` for a record)
+  instead of a sentinel; a stored record that contradicts its column descriptor is
+  `XX001` at row decode (and in the typed scan paths) instead of reading as NULL; the
+  session type scope covers views, `PREPARE`/`EXECUTE`, `COPY` and the `CREATE TABLE AS`
+  reparse; a repeatable-read session resolves type names against its snapshot catalog;
+  binary result formats admit a record only for columns flagged `ColumnMeta::is_record`
+  (named composites and `ROW(...)`), replacing the OID-range heuristic.
+
 
 ### #843, #844
 

@@ -85,7 +85,7 @@ impl Cassie {
         execute: &ExecuteStatement,
         call: SessionObjectCall<'_>,
     ) -> Result<QueryResult, CassieError> {
-        let parsed = bound_statement(session, execute)?;
+        let parsed = bound_statement(self, session, execute)?;
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
         self.execute_bound_statement(
             session,
@@ -103,7 +103,7 @@ impl Cassie {
         execute: &ExecuteStatement,
         wire_output: bool,
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
-        let parsed = bound_statement(session, execute)?;
+        let parsed = bound_statement(self, session, execute)?;
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
         if wire_output {
             self.describe_pgwire_parsed_statement_for_session(session, parsed, fingerprint, &[])
@@ -171,6 +171,7 @@ fn parameter_oid(
 /// The prepared body with each `$n` replaced by its argument coerced to the
 /// declared parameter type, as PostgreSQL evaluates `EXECUTE` arguments.
 fn bound_statement(
+    cassie: &Cassie,
     session: &CassieSession,
     execute: &ExecuteStatement,
 ) -> Result<crate::sql::ast::ParsedStatement, CassieError> {
@@ -189,7 +190,7 @@ fn bound_statement(
             format!("CAST(({argument}) AS {declared})")
         })
     });
-    Ok(crate::sql::parser::parse_statement(&sql)?)
+    cassie.parse_statement_for_session(Some(session), &sql)
 }
 
 /// `pg_prepared_statements.parameter_types` text for one declared slot.

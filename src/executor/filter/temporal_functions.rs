@@ -29,7 +29,9 @@ fn argument_error(name: &str, args: &[Value]) -> QueryError {
     let types = args
         .iter()
         .map(|value| match value {
-            Value::Typed(typed) => crate::types::extended::temporal_display_name(typed.kind()),
+            Value::Typed(typed) => typed
+                .kind()
+                .map_or("record", crate::types::extended::temporal_display_name),
             Value::Int64(_) => "integer",
             Value::Float64(_) => "double precision",
             Value::Bool(_) => "boolean",
@@ -48,7 +50,7 @@ fn coerce(
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<TypedValue, QueryError> {
     match value {
-        Value::Typed(typed) if typed.kind() == kind.base() => Ok(typed.clone()),
+        Value::Typed(typed) if typed.kind() == Some(kind.base()) => Ok(typed.clone()),
         Value::Typed(typed) => convert_temporal(typed, kind, session).map_err(type_error),
         Value::String(text) => controls.map_or_else(
             || kind.parse_text_in(text, session).map_err(type_error),
@@ -594,7 +596,7 @@ fn overlaps(
         .iter()
         .find_map(|value| match value {
             Value::Typed(TypedValue::Interval(_)) | Value::Null | Value::String(_) => None,
-            Value::Typed(typed) => Some(typed.kind()),
+            Value::Typed(typed) => typed.kind(),
             _ => None,
         })
         .unwrap_or(TIMESTAMPTZ);

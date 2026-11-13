@@ -86,14 +86,17 @@ fn resolve_unknown(
     let ScalarValue::Str(text) = value else {
         return Ok(operand(value));
     };
+    let Some(partner_kind) = partner.kind() else {
+        return Ok(None);
+    };
     let kind = match op {
         BinaryOp::Add | BinaryOp::Sub if !matches!(partner, TypedValue::Interval(_)) => {
             if let Ok(interval) = parse_as(text, INTERVAL, session) {
                 return Ok(Some(Operand::Typed(interval)));
             }
-            partner.kind()
+            partner_kind
         }
-        _ => partner.kind(),
+        _ => partner_kind,
     };
     parse_as(text, kind, session).map(|typed| Some(Operand::Typed(typed)))
 }
@@ -198,7 +201,9 @@ fn concatenate(left: &ScalarValue, right: &ScalarValue, session: &TemporalSessio
 
 fn operand_type(value: &Operand) -> &'static str {
     match value {
-        Operand::Typed(typed) => crate::types::extended::temporal_display_name(typed.kind()),
+        Operand::Typed(typed) => typed
+            .kind()
+            .map_or("record", crate::types::extended::temporal_display_name),
         Operand::Number(Number::Int(_)) => "integer",
         Operand::Number(Number::Float(_)) => "double precision",
     }
@@ -242,7 +247,7 @@ pub(super) fn compare_scalars(left: &ScalarValue, right: &ScalarValue) -> Option
     let partner = temporal(left).or_else(|| temporal(right))?;
     let resolve = |value: &ScalarValue| match value {
         ScalarValue::Typed(typed) => Some(typed.clone()),
-        ScalarValue::Str(text) => partner.kind().parse_text_in(text, session).ok(),
+        ScalarValue::Str(text) => partner.kind()?.parse_text_in(text, session).ok(),
         _ => None,
     };
     ops::compare(&resolve(left)?, &resolve(right)?, session)

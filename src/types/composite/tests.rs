@@ -204,11 +204,13 @@ fn should_round_trip_the_storage_json_form() {
     // Act
     let json = record_to_storage_json(&record);
     let restored = record_from_storage_json(&json, &descriptor, &mut |value, _| {
-        Value::String(value.as_str().unwrap_or_default().to_string())
+        Ok(Value::String(
+            value.as_str().unwrap_or_default().to_string(),
+        ))
     });
 
     // Assert
-    assert_eq!(restored, Some(record));
+    assert_eq!(restored, Ok(record));
 }
 
 #[test]
@@ -237,7 +239,9 @@ fn should_reject_stored_records_that_do_not_match_the_descriptor() {
     short_type.fields.truncate(1);
     let fewer_fields = CompositeRef::new(short_type);
     let mut convert = |value: &serde_json::Value, _: &DataType| {
-        Value::String(value.as_str().unwrap_or_default().to_string())
+        Ok(Value::String(
+            value.as_str().unwrap_or_default().to_string(),
+        ))
     };
 
     // Act
@@ -245,6 +249,97 @@ fn should_reject_stored_records_that_do_not_match_the_descriptor() {
     let wrong_count = record_from_storage_json(&json, &fewer_fields, &mut convert);
 
     // Assert
-    assert_eq!(wrong_oid, None);
-    assert_eq!(wrong_count, None);
+    assert!(wrong_oid.is_err());
+    assert!(wrong_count.is_err());
+}
+
+fn convert_text(value: &serde_json::Value, _: &DataType) -> Result<Value, StoredRecordError> {
+    Ok(Value::String(
+        value.as_str().unwrap_or_default().to_string(),
+    ))
+}
+
+fn layout(fields: &[&str], dropped: Vec<usize>) -> CompositeRef {
+    let mut descriptor = CompositeType::anonymous(vec![DataType::Text; fields.len()]);
+    descriptor.oid = 300_001;
+    descriptor.name = "layout".to_string();
+    for (field, name) in descriptor.fields.iter_mut().zip(fields) {
+        field.name = (*name).to_string();
+    }
+    descriptor.dropped_positions = dropped;
+    CompositeRef::new(descriptor)
+}
+
+fn stored(oid: u32, slots: &[serde_json::Value]) -> serde_json::Value {
+    serde_json::json!({ (RECORD_STORAGE_KEY): { "oid": oid, "revision": 1, "fields": slots } })
+}
+
+#[test]
+fn should_read_added_attributes_as_null_for_values_written_under_an_older_revision() {
+    // Arrange
+    let current = layout(&["a", "b", "c"], Vec::new());
+    let json = stored(300_001, &[serde_json::json!("x"), serde_json::json!("y")]);
+
+    // Act
+    let restored = record_from_storage_json(&json, &current, &mut convert_text).expect("restore");
+
+    // Assert
+    assert_eq!(restored.fields(), &[text("x"), text("y"), Value::Null]);
+}
+
+#[test]
+fn should_hide_dropped_attribute_slots_when_reading_stored_values() {
+    // Arrange
+    let current = layout(&["a", "c"], vec![1]);
+    let json = stored(
+        300_001,
+        &[
+            serde_json::json!("x"),
+            serde_json::json!("hidden"),
+            serde_json::json!("z"),
+        ],
+    );
+
+    // Act
+    let restored = record_from_storage_json(&json, &current, &mut convert_text).expect("restore");
+
+    // Assert
+    assert_eq!(restored.fields(), &[text("x"), text("z")]);
+}
+
+#[test]
+fn should_write_null_in_dropped_attribute_slots_of_the_storage_json() {
+    // Arrange
+    let current = layout(&["a", "c"], vec![1]);
+    let record = RecordValue::new(current, vec![text("x"), text("z")]).expect("record");
+
+    // Act
+    let json = record_to_storage_json(&record);
+
+    // Assert
+    let slots = json[RECORD_STORAGE_KEY]["fields"]
+        .as_array()
+        .expect("slots")
+        .clone();
+    assert_eq!(
+        slots,
+        vec![
+            serde_json::json!("x"),
+            serde_json::Value::Null,
+            serde_json::json!("z")
+        ]
+    );
+}
+
+#[test]
+fn should_reject_stored_values_with_more_slots_than_the_descriptor() {
+    // Arrange
+    let current = layout(&["a"], Vec::new());
+    let json = stored(300_001, &[serde_json::json!("x"), serde_json::json!("y")]);
+
+    // Act
+    let restored = record_from_storage_json(&json, &current, &mut convert_text);
+
+    // Assert
+    assert!(restored.is_err());
 }

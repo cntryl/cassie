@@ -36,7 +36,13 @@ pub struct CompositeType {
     /// Schema-local type name (`record` when anonymous).
     pub name: String,
     pub revision: u64,
+    /// The live (visible) fields in declaration order.
     pub fields: Vec<CompositeField>,
+    /// Physical slot indexes of dropped attributes, ascending. A stored value
+    /// keeps one slot per attribute ever added, so a dropped attribute keeps
+    /// its position and only its (ignored) bytes remain in old rows.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dropped_positions: Vec<usize>,
 }
 
 impl CompositeType {
@@ -50,6 +56,7 @@ impl CompositeType {
             qualified_name: String::new(),
             name: "record".to_string(),
             revision: 0,
+            dropped_positions: Vec::new(),
             fields: field_types
                 .into_iter()
                 .enumerate()
@@ -64,6 +71,21 @@ impl CompositeType {
     #[must_use]
     pub const fn is_anonymous(&self) -> bool {
         self.oid == RECORD_OID
+    }
+
+    /// Number of physical slots a value written at this revision carries:
+    /// live fields plus dropped attribute positions.
+    #[must_use]
+    pub fn physical_len(&self) -> usize {
+        self.fields.len() + self.dropped_positions.len()
+    }
+
+    /// The physical slot of every live field, in declaration order.
+    #[must_use]
+    pub fn physical_positions(&self) -> Vec<usize> {
+        (0..self.physical_len())
+            .filter(|slot| !self.dropped_positions.contains(slot))
+            .collect()
     }
 
     /// The zero-based position of the field called `name`.

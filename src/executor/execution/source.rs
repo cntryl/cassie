@@ -201,7 +201,9 @@ fn execute_view_source(
     view: &crate::catalog::ViewMeta,
     qualify: bool,
 ) -> SourceExecution {
-    let parsed = crate::sql::parser::parse_statement(&view.query)
+    let parsed = env
+        .cassie
+        .parse_statement_for_session(env.session, &view.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
     crate::sql::definition_guard::view(view).map_err(QueryError::Cassie)?;
     let logical = build_logical_plan_in_session(env.cassie, env.session, &parsed)?;

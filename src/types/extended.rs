@@ -457,7 +457,7 @@ impl ExtendedType {
                 .map(TypedValue::Numeric);
         }
         match (self, value) {
-            (_, super::Value::Typed(typed)) if typed.kind() == self => Ok(typed.clone()),
+            (_, super::Value::Typed(typed)) if typed.kind() == Some(self) => Ok(typed.clone()),
             (
                 Self::Inet
                 | Self::Cidr

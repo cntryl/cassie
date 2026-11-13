@@ -4,21 +4,50 @@ use serde_json::{Map, Number};
 use super::{CompositeRef, RecordValue, RECORD_STORAGE_KEY};
 use crate::types::{DataType, Value};
 
+/// A stored record document that cannot be read as a value of its column type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredRecordError(String);
+
+impl StoredRecordError {
+    #[must_use]
+    pub fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+}
+
+impl std::fmt::Display for StoredRecordError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for StoredRecordError {}
+
 /// The JSON document that carries a record through the row store. Storage
 /// re-encodes it as a CRB1 composite payload; SQL NULL is plain JSON `null`.
+///
+/// `fields` follows the physical layout of the descriptor: one entry per slot,
+/// with `null` at the position of every dropped attribute.
 #[must_use]
 pub fn record_to_storage_json(record: &RecordValue) -> serde_json::Value {
     let descriptor = record.descriptor();
+    let mut live = record.fields().iter().map(field_to_storage_json);
+    let slots = (0..descriptor.physical_len())
+        .map(|slot| {
+            if descriptor.dropped_positions.contains(&slot) {
+                serde_json::Value::Null
+            } else {
+                live.next().unwrap_or(serde_json::Value::Null)
+            }
+        })
+        .collect();
     let mut body = Map::new();
     body.insert("oid".to_string(), serde_json::Value::from(descriptor.oid));
     body.insert(
         "revision".to_string(),
         serde_json::Value::from(descriptor.revision),
     );
-    body.insert(
-        "fields".to_string(),
-        serde_json::Value::Array(record.fields().iter().map(field_to_storage_json).collect()),
-    );
+    body.insert("fields".to_string(), serde_json::Value::Array(slots));
     let mut object = Map::new();
     object.insert(
         RECORD_STORAGE_KEY.to_string(),
@@ -54,33 +83,61 @@ fn field_to_storage_json(value: &Value) -> serde_json::Value {
 }
 
 /// Rebuilds a record of `descriptor` from its storage JSON, converting each
-/// field with `field_from_json`.
-#[must_use]
+/// live field with `field_from_json`.
+///
+/// A value written under an older revision carries fewer physical slots; the
+/// attributes added since read as NULL and dropped slots are skipped.
+///
+/// # Errors
+///
+/// Returns [`StoredRecordError`] when the document is not a record of this
+/// type, carries more slots than the descriptor, or a field cannot be read.
 pub fn record_from_storage_json(
     json: &serde_json::Value,
     descriptor: &CompositeRef,
-    field_from_json: &mut dyn FnMut(&serde_json::Value, &DataType) -> Value,
-) -> Option<RecordValue> {
-    let body = json.as_object()?.get(RECORD_STORAGE_KEY)?.as_object()?;
-    if body.get("oid")?.as_u64() != Some(u64::from(descriptor.oid)) {
-        return None;
+    field_from_json: &mut dyn FnMut(
+        &serde_json::Value,
+        &DataType,
+    ) -> Result<Value, StoredRecordError>,
+) -> Result<RecordValue, StoredRecordError> {
+    let mismatch = || {
+        StoredRecordError::new(format!(
+            "stored value does not match composite type {}",
+            descriptor.name
+        ))
+    };
+    let body = json
+        .as_object()
+        .and_then(|object| object.get(RECORD_STORAGE_KEY))
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(mismatch)?;
+    if body.get("oid").and_then(serde_json::Value::as_u64) != Some(u64::from(descriptor.oid)) {
+        return Err(mismatch());
     }
-    let stored = body.get("fields")?.as_array()?;
-    if stored.len() != descriptor.fields.len() {
-        return None;
+    let stored = body
+        .get("fields")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(mismatch)?;
+    if stored.len() > descriptor.physical_len() {
+        return Err(StoredRecordError::new(format!(
+            "stored value of composite type {} has {} fields but the type has {}",
+            descriptor.name,
+            stored.len(),
+            descriptor.physical_len()
+        )));
     }
-    let values = stored
+    let mut values = Vec::with_capacity(descriptor.fields.len());
+    for (field, slot) in descriptor
+        .fields
         .iter()
-        .zip(&descriptor.fields)
-        .map(|(value, field)| {
-            if value.is_null() {
-                Value::Null
-            } else {
-                field_from_json(value, &field.data_type)
-            }
-        })
-        .collect();
-    RecordValue::new(descriptor.clone(), values).ok()
+        .zip(descriptor.physical_positions())
+    {
+        values.push(match stored.get(slot) {
+            None | Some(serde_json::Value::Null) => Value::Null,
+            Some(value) => field_from_json(value, &field.data_type)?,
+        });
+    }
+    RecordValue::new(descriptor.clone(), values).map_err(StoredRecordError::new)
 }
 
 /// `record_send`: field count, then per field its type OID and length-prefixed

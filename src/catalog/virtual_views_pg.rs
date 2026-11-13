@@ -433,6 +433,10 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
         ))
     }));
     rows.extend(composite_catalogs::type_rows(catalog, current_database));
+    rows.extend(composite_catalogs::relation_type_rows(
+        catalog,
+        current_database,
+    ));
     rows.sort_by_key(row_sort_key);
     rows
 }
@@ -559,9 +563,17 @@ fn class_row(
         ),
         string("relnamespace", &schema_name),
         int_value("relnamespace_oid", namespace_oid(catalog, &namespace)),
-        // Relation row-type identities are selected by #828 but do not exist
-        // until its composite/domain contract is implemented.
-        int_value("reltype", 0),
+        // Tables own a derived row type; views, sequences and indexes do not.
+        int_value(
+            "reltype",
+            if kind == "r" {
+                catalog
+                    .relation_row_type(name)
+                    .map_or(0, |row_type| i64::from(row_type.oid))
+            } else {
+                0
+            },
+        ),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
         string(

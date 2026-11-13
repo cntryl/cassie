@@ -199,6 +199,7 @@ metadata_heap!(crate::catalog::composite_types::CompositeTypeMeta {
     owner_oid,
     revision,
     fields,
+    dropped_positions,
 });
 
 metadata_heap!(crate::catalog::programs::VectorCatalogIdentitySet {

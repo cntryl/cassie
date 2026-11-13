@@ -780,25 +780,43 @@ fn json_to_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
+/// Like [`json_to_typed_value`] but a stored record that contradicts its column
+/// type is a data-corruption error (`XX001`) instead of SQL NULL.
+///
+/// # Errors
+/// Returns `XX001` when a stored record does not match its descriptor.
+pub(crate) fn try_json_to_typed_value(
+    value: &serde_json::Value,
+    data_type: &DataType,
+) -> Result<Value, CassieError> {
+    let DataType::Composite(descriptor) = data_type else {
+        return Ok(json_to_typed_value(value, data_type));
+    };
+    if value.is_null() {
+        return Ok(Value::Null);
+    }
+    crate::types::composite::record_from_storage_json(
+        value,
+        descriptor,
+        &mut |field, field_type| {
+            try_json_to_typed_value(field, field_type)
+                .map_err(|error| crate::types::composite::StoredRecordError::new(error.to_string()))
+        },
+    )
+    .map(|record| Value::Typed(crate::types::typed::TypedValue::Record(record)))
+    .map_err(|error| {
+        crate::app::DiagnosticError::new("XX001", format!("corrupt stored value: {error}")).into()
+    })
+}
+
 pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
-    if let DataType::Composite(descriptor) = data_type {
-        return crate::types::composite::record_from_storage_json(
-            value,
-            descriptor,
-            &mut json_to_typed_value,
-        )
-        .map_or_else(
-            || {
-                if !value.is_null() {
-                    tracing::error!(
-                        type_name = %descriptor.name,
-                        "stored composite value does not match its column descriptor"
-                    );
-                }
-                Value::Null
-            },
-            |record| Value::Typed(crate::types::typed::TypedValue::Record(record)),
-        );
+    if matches!(data_type, DataType::Composite(_)) {
+        // Row decoding already rejects mismatched composite documents; this
+        // infallible entry point serves callers that cannot report an error.
+        return try_json_to_typed_value(value, data_type).unwrap_or_else(|error| {
+            tracing::error!(%error, "stored composite value does not match its column descriptor");
+            Value::Null
+        });
     }
     if let DataType::Array(element_type) = data_type {
         if value

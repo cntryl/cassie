@@ -35,13 +35,6 @@ pub enum TypedValue {
     Record(super::composite::RecordValue),
 }
 
-/// The reserved [`ExtendedType`] that [`TypedValue::kind`] reports for a record.
-///
-/// A record belongs to no extended family and no SQL type name parses to this
-/// value, so it never equals a real extended type. Code that routes by family
-/// must test [`TypedValue::as_record`] first.
-const RECORD_KIND: ExtendedType = ExtendedType::Interval { typmod: i32::MIN };
-
 /// A totally ordered, hashable key with PostgreSQL ordering semantics.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TypedKey {
@@ -68,25 +61,28 @@ pub enum TypedKey {
 }
 
 impl TypedValue {
+    /// The extended family of this value, or `None` for a record, which belongs
+    /// to no extended family. Code that routes by family handles `None`
+    /// explicitly instead of receiving a placeholder kind.
     #[must_use]
-    pub const fn kind(&self) -> ExtendedType {
+    pub const fn kind(&self) -> Option<ExtendedType> {
         match self {
-            Self::Real(_) => ExtendedType::Real,
-            Self::Numeric(_) => ExtendedType::Numeric(None),
-            Self::Inet(_) => ExtendedType::Inet,
-            Self::Cidr(_) => ExtendedType::Cidr,
-            Self::Macaddr(_) => ExtendedType::Macaddr,
-            Self::Macaddr8(_) => ExtendedType::Macaddr8,
-            Self::PgLsn(_) => ExtendedType::PgLsn,
-            Self::Bit(_) => ExtendedType::Bit { length: None },
-            Self::VarBit(_) => ExtendedType::VarBit { length: None },
-            Self::Date(_) => ExtendedType::Date,
-            Self::Time(_) => ExtendedType::Time { precision: None },
-            Self::TimeTz(_) => ExtendedType::TimeTz { precision: None },
-            Self::Timestamp(_) => ExtendedType::Timestamp { precision: None },
-            Self::TimestampTz(_) => ExtendedType::TimestampTz { precision: None },
-            Self::Interval(_) => ExtendedType::Interval { typmod: -1 },
-            Self::Record(_) => RECORD_KIND,
+            Self::Real(_) => Some(ExtendedType::Real),
+            Self::Numeric(_) => Some(ExtendedType::Numeric(None)),
+            Self::Inet(_) => Some(ExtendedType::Inet),
+            Self::Cidr(_) => Some(ExtendedType::Cidr),
+            Self::Macaddr(_) => Some(ExtendedType::Macaddr),
+            Self::Macaddr8(_) => Some(ExtendedType::Macaddr8),
+            Self::PgLsn(_) => Some(ExtendedType::PgLsn),
+            Self::Bit(_) => Some(ExtendedType::Bit { length: None }),
+            Self::VarBit(_) => Some(ExtendedType::VarBit { length: None }),
+            Self::Date(_) => Some(ExtendedType::Date),
+            Self::Time(_) => Some(ExtendedType::Time { precision: None }),
+            Self::TimeTz(_) => Some(ExtendedType::TimeTz { precision: None }),
+            Self::Timestamp(_) => Some(ExtendedType::Timestamp { precision: None }),
+            Self::TimestampTz(_) => Some(ExtendedType::TimestampTz { precision: None }),
+            Self::Interval(_) => Some(ExtendedType::Interval { typmod: -1 }),
+            Self::Record(_) => None,
         }
     }
 
@@ -114,7 +110,9 @@ impl TypedValue {
             Self::Date(_) => super::DataType::Date,
             Self::Time(_) => super::DataType::Time,
             Self::Timestamp(_) => super::DataType::Timestamp,
-            other => super::DataType::Extended(other.kind()),
+            other => other
+                .kind()
+                .map_or(super::DataType::Text, super::DataType::Extended),
         }
     }
 
@@ -124,7 +122,9 @@ impl TypedValue {
     pub fn extended_data_type(&self) -> super::DataType {
         match self {
             Self::Record(record) => super::DataType::Composite(record.descriptor().clone()),
-            other => super::DataType::Extended(other.kind()),
+            other => other
+                .kind()
+                .map_or(super::DataType::Text, super::DataType::Extended),
         }
     }
 
@@ -133,7 +133,7 @@ impl TypedValue {
     pub fn wire_type_oid(&self) -> i64 {
         match self {
             Self::Record(record) => i64::from(record.descriptor().oid),
-            other => i64::from(other.kind().type_oid()),
+            other => other.kind().map_or(0, |kind| i64::from(kind.type_oid())),
         }
     }
 

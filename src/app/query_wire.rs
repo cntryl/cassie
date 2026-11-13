@@ -96,12 +96,14 @@ impl Cassie {
             .and_then(CassieSession::current_database)
             .unwrap_or(&self.default_database);
         for column in &mut columns {
-            // Record columns are identified by their type OID; their display
-            // name is not a parseable scalar type name.
-            let is_record_column = u32::try_from(column.type_oid).is_ok_and(|oid| {
-                oid == crate::types::composite::RECORD_OID
-                    || self.catalog.get_composite_type_by_oid(oid).is_some()
-            });
+            // Record columns carry their own flag (table row types have no
+            // composite catalog entry); their display name is not a
+            // parseable scalar type name.
+            let is_record_column = column.is_record
+                || u32::try_from(column.type_oid).is_ok_and(|oid| {
+                    oid == crate::types::composite::RECORD_OID
+                        || self.catalog.get_composite_type_by_oid(oid).is_some()
+                });
             if is_record_column {
                 continue;
             }

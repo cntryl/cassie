@@ -9,6 +9,12 @@ use cassie_test_support::support_type_metadata_contract;
 #[path = "composite_types/ddl.rs"]
 mod ddl;
 
+#[path = "composite_types/alter.rs"]
+mod alter;
+
+#[path = "composite_types/row_types.rs"]
+mod row_types;
+
 #[path = "composite_types/values.rs"]
 mod values;
 

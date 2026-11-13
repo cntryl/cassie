@@ -82,14 +82,16 @@ pub(super) fn class_rows(catalog: &Catalog, current_database: Option<&str>) -> V
 pub(super) fn attribute_rows(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for metadata in visible(catalog, current_database) {
-        for (index, field) in metadata.fields.iter().enumerate() {
+        // A dropped attribute keeps its physical slot, so live attnums can skip it.
+        let slots = metadata.descriptor().physical_positions();
+        for (field, slot) in metadata.fields.iter().zip(slots) {
             let mut row = attribute_row(
                 catalog,
                 &metadata.name,
                 &AttributeSpec {
                     field_name: &field.name,
                     data_type: &field.data_type,
-                    attnum: i64::try_from(index + 1).unwrap_or(i64::MAX),
+                    attnum: i64::try_from(slot + 1).unwrap_or(i64::MAX),
                     constraint: None,
                     is_dropped: false,
                 },
@@ -102,6 +104,52 @@ pub(super) fn attribute_rows(catalog: &Catalog, current_database: Option<&str>) 
             );
             rows.push(row);
         }
+    }
+    rows
+}
+
+/// The row type of each table and its `_name` array type, as `pg_type` rows
+/// with `typtype = 'c'` and `typrelid` set to the table.
+pub(super) fn relation_type_rows(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+) -> Vec<VirtualRow> {
+    let mut rows = Vec::new();
+    for (table, _, descriptor) in catalog.list_relation_row_types(current_database) {
+        let namespace = crate::catalog::RelationId::parse_canonical(&table).map_or_else(
+            || crate::catalog::relation_schema_name(&table),
+            |relation| canonical_schema_name(&relation.database, &relation.schema),
+        );
+        let composite = DataType::Composite(descriptor.clone());
+        let mut row = type_row_with_oid(catalog, &composite, &namespace, i64::from(descriptor.oid));
+        replace(
+            &mut row,
+            "typarray",
+            int_value("typarray", i64::from(descriptor.array_oid)),
+        );
+        replace(
+            &mut row,
+            "typrelid",
+            int_value("typrelid", super::relation_oid(catalog, &table)),
+        );
+        rows.push(row);
+
+        let array = DataType::Array(Box::new(composite));
+        let mut row =
+            type_row_with_oid(catalog, &array, &namespace, i64::from(descriptor.array_oid));
+        replace(
+            &mut row,
+            "typname",
+            string("typname", format!("_{}", descriptor.name)),
+        );
+        replace(&mut row, "typtype", string("typtype", "b"));
+        replace(
+            &mut row,
+            "typelem",
+            int_value("typelem", i64::from(descriptor.oid)),
+        );
+        replace(&mut row, "typarray", int_value("typarray", 0));
+        rows.push(row);
     }
     rows
 }

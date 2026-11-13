@@ -172,6 +172,7 @@ mod truncate;
 mod type_scope;
 #[path = "parser/types.rs"]
 mod types;
+mod types_alter;
 pub use type_scope::{with_type_scope, TypeResolver};
 #[path = "parser/with_statement.rs"]
 mod with_statement;
@@ -409,6 +410,9 @@ fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedSta
     }
     if starts_statement(lower, "drop type") {
         return Ok(Some(types::parse_drop_type_statement(trimmed)?));
+    }
+    if starts_statement(lower, "alter type") {
+        return Ok(Some(types_alter::parse_alter_type_statement(trimmed)?));
     }
     if starts_statement(lower, "create collation") {
         return Err(SqlError::unsupported(

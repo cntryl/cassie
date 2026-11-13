@@ -535,7 +535,11 @@ impl<'a> RowDirectory<'a> {
             )));
         }
         let bytes = &self.payload[offset..offset + len];
-        decode_directory_value(type_tag, bytes).map(Some)
+        let decoded = decode_directory_value(type_tag, bytes)?;
+        if let DataType::Composite(descriptor) = &field.data_type {
+            composite::check_stored(descriptor, &decoded)?;
+        }
+        Ok(Some(decoded))
     }
 }
 

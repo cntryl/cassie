@@ -226,7 +226,7 @@ fn bind_copy_from_stdin(
     let binding_sql = request
         .table_binding_sql()
         .ok_or_else(|| CassieError::Parse("COPY FROM STDIN requires a table target".to_string()))?;
-    let parsed = crate::sql::parser::parse_statement(&binding_sql)?;
+    let parsed = cassie.parse_statement_for_session(Some(session), &binding_sql)?;
     session.authorize_statement(&parsed.statement)?;
     cassie.authorize_role_object_access(session, &parsed.statement)?;
     Cassie::ensure_transaction_recovery(session, &parsed)?;
@@ -311,7 +311,7 @@ fn bind_copy_to_stdout(
         _ => None,
     };
     let query_sql = request.query_sql(table_columns.as_deref());
-    let parsed = crate::sql::parser::parse_statement(&query_sql)?;
+    let parsed = cassie.parse_statement_for_session(Some(session), &query_sql)?;
     if !matches!(
         &parsed.statement,
         crate::sql::ast::QueryStatement::Select(_)

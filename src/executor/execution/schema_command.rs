@@ -98,7 +98,8 @@ fn create_view_gated(
         .into());
     }
 
-    let parsed = crate::sql::parser::parse_statement(&statement.query)
+    let parsed = cassie
+        .parse_statement_for_session(session, &statement.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let context = cassie.binding_context_for_session(session);
     let bound = crate::sql::binder::bind_with_context(parsed, &cassie.catalog, &context)
@@ -241,6 +242,7 @@ fn drop_table_target(
     if if_exists && !cassie.catalog.exists(table) {
         return Ok(());
     }
+    super::type_alter::reject_row_type_dependents(cassie, table, cascade)?;
     let dependent_views = views_depending_on(cassie, table, None);
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("table", table, &dependent_views));
@@ -415,7 +417,15 @@ pub(super) fn alter_table(
     let output = empty_command("ALTER TABLE", controls)?;
     let staged_default =
         session.and_then(|session| staged_add_column_default(cassie, session, statement));
+    let row_type_identity = cassie
+        .catalog
+        .get_collection(&statement.table)
+        .map(|collection| collection.storage_id);
+    super::type_alter::reject_drop_column_in_use(cassie, &statement.table, &statement.operation)?;
     execute_alter_table_operation(cassie, session, statement, is_column_store, controls)?;
+    if let Some(storage_id) = row_type_identity {
+        super::type_alter::refresh_relation_row_type(cassie, storage_id)?;
+    }
     if let (Some(session), Some((field, default_value))) = (session, staged_default) {
         session
             .apply_literal_default_to_staged_rows(&statement.table, &field, &default_value)

@@ -23,7 +23,7 @@ mod ast_extension;
 pub use ast_extension::{ExtensionAction, ExtensionStatement};
 #[path = "ast_type.rs"]
 mod ast_type;
-pub use ast_type::{TypeAction, TypeAttribute, TypeStatement};
+pub use ast_type::{TypeAction, TypeAlteration, TypeAttribute, TypeStatement};
 #[path = "ast_object_comment.rs"]
 mod ast_object_comment;
 pub use ast_object_comment::{CommentOnObjectKind, CommentOnStatement};
@@ -62,7 +62,7 @@ pub use ast_query::{
     CteSearchOrder, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem,
     SelectSet, SelectStatement, SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp,
     WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
-    ARRAY_CONSTRUCTOR_FUNCTION, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION,
+    ARRAY_CONSTRUCTOR_FUNCTION, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION,
     VARIADIC_ARRAY_ARGUMENT_FUNCTION,
 };
 

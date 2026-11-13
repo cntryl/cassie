@@ -102,6 +102,7 @@ pub(super) fn normalize_element(
         | DataType::Vector(_)
         | DataType::Array(_)
         | DataType::Null => Ok(value),
+        DataType::Enum(descriptor) => enum_element(descriptor, &value),
         DataType::Composite(_) => Err("arrays of composite types are not supported".to_string()),
         DataType::Domain(_) => Err("arrays of domain types are not supported".to_string()),
     }
@@ -169,4 +170,30 @@ fn normalize_integer(value: &JsonValue, minimum: i64, maximum: i64) -> Result<Js
         .filter(|number| (minimum..=maximum).contains(number))
         .map(JsonValue::from)
         .ok_or_else(|| "integer array element is outside its declared domain".to_string())
+}
+
+/// Normalizes one enum array element to the stored scalar form
+/// `{"$cassie_enum_v1": member_id}`. Label text goes through `enum_in`; a
+/// stored document must name a member of `descriptor`.
+pub(crate) fn enum_element(
+    descriptor: &crate::types::EnumType,
+    value: &JsonValue,
+) -> Result<JsonValue, String> {
+    use crate::types::{EnumRef, EnumValue};
+
+    if let Some(member_id) = EnumValue::storage_member_id(value) {
+        return descriptor
+            .member(member_id)
+            .map(|_| value.clone())
+            .ok_or_else(|| format!("unknown member id {member_id} for enum {}", descriptor.name));
+    }
+    let JsonValue::String(label) = value else {
+        return Err(format!(
+            "enum array element expects a label of {}",
+            descriptor.name
+        ));
+    };
+    EnumValue::parse_label(&EnumRef::new(descriptor.clone()), label)
+        .map(|parsed| parsed.to_storage_json())
+        .map_err(|error| error.message())
 }

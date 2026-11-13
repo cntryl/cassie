@@ -640,6 +640,9 @@ fn scalar_from_json(value: &JsonValue, data_type: &DataType) -> Result<Value, St
         | Type::Char { .. }
         | Type::Varchar { .. }
         | Type::JsonPath => value.as_str().map(|text| Value::String(text.to_owned())),
+        Type::Enum(descriptor) => {
+            return super::array::elements::enum_element(descriptor, value).map(Value::Json)
+        }
         Type::Array(_) | Type::Composite(_) | Type::Domain(_) | Type::Null => None,
     }
     .ok_or_else(|| {

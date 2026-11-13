@@ -382,6 +382,9 @@ mod casts;
 pub(crate) mod character_arrays;
 #[path = "filter/composite_cast.rs"]
 mod composite_cast;
+#[path = "filter/domain_check.rs"]
+mod domain_check;
+pub(crate) use domain_check::{evaluate_check, first_violation, DomainViolation};
 #[path = "filter/constants.rs"]
 mod constants;
 mod like_predicate;
@@ -561,7 +564,10 @@ fn cast_scalar(
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
     if matches!(value, ScalarValue::Null) {
-        return Ok(ScalarValue::Null);
+        return match data_type {
+            DataType::Domain(domain) => domain_check::cast_null(domain),
+            _ => Ok(ScalarValue::Null),
+        };
     }
     if let Some(result) = temporal::cast(value, data_type, controls) {
         return result;
@@ -657,6 +663,7 @@ fn cast_scalar(
             cast_vector_scalar(value, *expected_dimensions, controls)
         }
         DataType::Composite(descriptor) => composite_cast::cast(value, descriptor, controls),
+        DataType::Domain(domain) => domain_check::cast(value, domain, controls),
     }
 }
 

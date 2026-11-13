@@ -159,6 +159,7 @@ metadata_heap!(crate::catalog::cardinality::FieldHistogramBucket {
 metadata_heap!(crate::catalog::schemas::FieldMeta {
     name,
     data_type,
+    domain,
     is_indexed,
     boost,
 });
@@ -652,4 +653,52 @@ unit_enum_heap!(crate::catalog::programs::Volatility {
     Immutable,
     Stable,
     Volatile
+});
+
+// A domain descriptor is shared behind an `Arc`; a clone retains no copy.
+impl HeapBytes for crate::types::DomainRef {
+    fn heap_bytes(
+        &self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<usize, crate::app::CassieError> {
+        controls.check_interruption()?;
+        Ok(0)
+    }
+}
+
+impl crate::catalog::metadata::snapshot::exact_eq::ExactMetadataEq for crate::types::DomainRef {
+    fn exact_eq(
+        &self,
+        other: &Self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<bool, crate::app::CassieError> {
+        controls.check_interruption()?;
+        Ok(self == other)
+    }
+}
+
+metadata_heap!(crate::types::DomainDefault {
+    sql,
+    value,
+    expression,
+});
+
+metadata_heap!(crate::types::DomainCheck {
+    name,
+    sql,
+    validated,
+});
+
+metadata_heap!(crate::catalog::domain_types::DomainTypeMeta {
+    format_version,
+    database,
+    name,
+    object_id,
+    array_object_id,
+    owner_oid,
+    revision,
+    base,
+    not_null,
+    default,
+    checks,
 });

@@ -21,6 +21,11 @@ pub use ast_schema::{AlterTableOperation, AlterTableStatement, IdentityAlteratio
 #[path = "ast_extension.rs"]
 mod ast_extension;
 pub use ast_extension::{ExtensionAction, ExtensionStatement};
+#[path = "ast_domain.rs"]
+mod ast_domain;
+pub use ast_domain::{
+    DomainAction, DomainAlteration, DomainCheckDefinition, DomainDefaultDefinition,
+};
 #[path = "ast_type.rs"]
 mod ast_type;
 pub use ast_type::{TypeAction, TypeAttribute, TypeStatement};

@@ -42,6 +42,7 @@ pub(super) fn category(data_type: &DataType, builtin: Option<&BuiltinTypeRow>) -
         DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
         DataType::Array(_) => "A".to_string(),
         DataType::Composite(_) => "C".to_string(),
+        DataType::Domain(descriptor) => category(&descriptor.base, builtin),
         DataType::Extended(kind) => kind.category().to_string(),
     }
 }

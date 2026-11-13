@@ -237,6 +237,7 @@ fn field(name: &str, data_type: DataType) -> FieldMeta {
     FieldMeta {
         name: name.to_owned(),
         data_type,
+        domain: None,
         is_indexed: false,
         boost: None,
     }

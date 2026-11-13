@@ -149,6 +149,13 @@ pub(crate) fn rewrite_database_data_entry(
                 .into(),
         ));
     }
+    if key_family(key) == Some("domain-type") {
+        return Err(CassieError::Unsupported(
+            "database image restore of domain types is not supported yet (#828); \
+             drop the image's domain types before backup"
+                .into(),
+        ));
+    }
     if key_family(key) != Some("object-comment") {
         return Ok(value.to_vec());
     }

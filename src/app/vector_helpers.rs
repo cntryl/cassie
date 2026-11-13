@@ -172,6 +172,7 @@ mod tests {
                 .map(|(name, data_type)| FieldMeta {
                     name: (*name).to_string(),
                     data_type: data_type.clone(),
+                    domain: None,
                     is_indexed: false,
                     boost: None,
                 })

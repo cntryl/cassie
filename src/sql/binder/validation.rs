@@ -676,7 +676,7 @@ fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
         )
 }
 
-pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
+pub(super) fn data_type_family(data_type: &DataType) -> OperandFamily {
     match data_type {
         DataType::SmallInt
         | DataType::Int
@@ -702,6 +702,7 @@ pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
         | DataType::Array(_)
         | DataType::Null => OperandFamily::Other,
         DataType::Composite(_) => OperandFamily::Record,
+        DataType::Domain(descriptor) => data_type_family(&descriptor.base),
     }
 }
 

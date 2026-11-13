@@ -41,6 +41,8 @@ pub enum DataType {
     Array(Box<DataType>),
     /// A named composite type or the transient `record` of a `ROW(...)` value.
     Composite(super::CompositeRef),
+    /// A named domain (#828); SQL resolution flattens it to its base type.
+    Domain(super::DomainRef),
     ObjectId(super::ObjectIdKind),
     Extended(super::extended::ExtendedType),
 }
@@ -88,6 +90,7 @@ impl DataType {
             Self::JsonPath => "jsonpath".to_string(),
             Self::Array(inner) => format!("{}[]", inner.type_name()),
             Self::Composite(descriptor) => descriptor.name.clone(),
+            Self::Domain(descriptor) => descriptor.name.clone(),
             Self::ObjectId(kind) => kind.name().to_string(),
             Self::Extended(kind) => kind.type_name(),
         }
@@ -140,7 +143,29 @@ impl DataType {
             Self::Vector(Some(dimensions)) => i32::try_from(*dimensions).unwrap_or(-1),
             Self::Extended(kind) => kind.typmod(),
             Self::Array(element) => element.atttypmod(),
+            Self::Domain(descriptor) => descriptor.base.atttypmod(),
             _ => -1,
+        }
+    }
+}
+
+impl DataType {
+    /// The type SQL resolution sees: a domain is its base type, anything else
+    /// is itself.
+    #[must_use]
+    pub fn flattened(&self) -> &Self {
+        match self {
+            Self::Domain(descriptor) => descriptor.base.flattened(),
+            other => other,
+        }
+    }
+
+    /// The domain this declared type names, if any.
+    #[must_use]
+    pub const fn domain(&self) -> Option<&super::DomainRef> {
+        match self {
+            Self::Domain(descriptor) => Some(descriptor),
+            _ => None,
         }
     }
 }

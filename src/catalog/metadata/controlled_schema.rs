@@ -111,6 +111,7 @@ pub(super) fn view_schema_to_collection_schema(name: &str, schema: &Schema) -> C
             .map(|field| FieldMeta {
                 name: field.name.clone(),
                 data_type: field.data_type.clone(),
+                domain: None,
                 is_indexed: false,
                 boost: None,
             })

@@ -7,6 +7,7 @@ pub mod composite_unique;
 pub mod consistency;
 pub mod constraints;
 mod controlled_name;
+pub mod domain_types;
 pub(crate) use controlled_name::name_matches_controlled;
 pub(crate) use controlled_name::trim_checked as trim_catalog_name_controlled;
 pub mod function_resolution;
@@ -63,6 +64,7 @@ pub use constraints::{
     DefaultSequenceOwnership, FieldConstraint, IdentityGeneration, NotNullOwnership,
     UniqueNullPolicy,
 };
+pub use domain_types::{DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
 pub use graphs::GraphMeta;
 pub use indexes::{
     ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,

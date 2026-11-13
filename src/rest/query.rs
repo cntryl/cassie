@@ -557,6 +557,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::Type(statement) => match &statement.action {
             TypeAction::Create { .. } => "CREATE TYPE",
             TypeAction::Drop { .. } => "DROP TYPE",
+            TypeAction::Domain(action) => action.command_tag(),
         },
         QueryStatement::Extension(statement) => match &statement.action {
             ExtensionAction::Create { .. } => "CREATE EXTENSION",

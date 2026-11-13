@@ -103,6 +103,7 @@ impl Cassie {
         let constraints = self.catalog.get_constraints(collection);
         canonical_values::canonicalize_typed_values(&schema.fields, &mut payload);
         Self::validate_payload_schema(collection, &schema, &payload)?;
+        self.validate_domain_columns(&schema, &payload, false)?;
         self.validate_row_constraints(collection, &payload, &constraints)?;
         Ok(payload)
     }
@@ -148,9 +149,13 @@ impl Cassie {
         if apply_defaults && !constraints.is_empty() {
             super::defaults::apply_default_values(self, session, &mut payload, &constraints)?;
         }
+        if apply_defaults {
+            self.apply_domain_defaults(collection, &mut payload)?;
+        }
         canonical_values::canonicalize_typed_values(&schema.fields, &mut payload);
 
         Self::validate_payload_schema(collection, &schema, &payload)?;
+        self.validate_domain_columns(&schema, &payload, exclude_id.is_some())?;
 
         let indexes = self.catalog.list_vector_indexes(collection);
         if !indexes.is_empty() {
@@ -489,6 +494,9 @@ impl Cassie {
             crate::types::DataType::Array(inner) => Self::validate_array(field, inner, value),
             crate::types::DataType::Composite(descriptor) => {
                 Self::validate_record(field, descriptor, value)
+            }
+            crate::types::DataType::Domain(descriptor) => {
+                Self::validate_value_against_data_type(field, &descriptor.base, value)
             }
         }
     }

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use super::{Cassie, CassieError, CassieSession};
 use crate::sql::ast::ParsedStatement;
-use crate::sql::{parse_statement, with_type_scope, TypeResolver};
+use crate::sql::{parse_statement, with_domain_scope, with_type_scope, TypeResolver};
 use crate::types::CompositeRef;
 
 impl Cassie {
@@ -40,10 +40,14 @@ impl Cassie {
         session: Option<&CassieSession>,
         sql: &str,
     ) -> Result<ParsedStatement, CassieError> {
-        if !self.type_catalog(session).has_composite_types() {
+        let catalog = self.type_catalog(session);
+        if !catalog.has_composite_types() && !catalog.has_domain_types() {
             return Ok(parse_statement(sql)?);
         }
         let resolver = self.composite_type_resolver(session);
-        Ok(with_type_scope(resolver, || parse_statement(sql))?)
+        let domains = self.domain_type_resolver(session);
+        Ok(with_domain_scope(domains, || {
+            with_type_scope(resolver, || parse_statement(sql))
+        })?)
     }
 }

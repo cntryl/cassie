@@ -556,12 +556,12 @@ fn apply_bound_alter_to_schema(schema: &mut CollectionSchema, operation: &AlterT
                 crate::sql::ColumnIdentifierPath::stored_field_key(&stored.name)
                     == crate::sql::ColumnIdentifierPath::stored_field_key(field)
             }) {
-                schema.fields.push(crate::catalog::FieldMeta {
-                    name: field.clone(),
-                    data_type: data_type.clone(),
-                    is_indexed: false,
-                    boost: None,
-                });
+                schema.fields.push(crate::catalog::FieldMeta::declared(
+                    field.clone(),
+                    data_type.clone(),
+                    false,
+                    None,
+                ));
             }
         }
         AlterTableOperation::DropColumn { field, .. } => {

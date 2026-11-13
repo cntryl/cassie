@@ -35,6 +35,9 @@ pub(super) fn execute(
             attributes,
             controls,
         ),
+        TypeAction::Domain(action) => {
+            super::domain_command::execute(cassie, session, action, controls)
+        }
         TypeAction::Drop {
             names,
             if_exists,

@@ -42,7 +42,10 @@ pub use ast::{
 pub use binder::{bind, BoundStatement};
 pub(crate) use column_identifier::ColumnIdentifierPath;
 pub use functions::registry;
-pub use parser::{parse_statement, with_type_scope, SqlError, SqlErrorKind, TypeResolver};
+pub use parser::{
+    parse_statement, with_domain_scope, with_type_scope, DomainResolver, SqlError, SqlErrorKind,
+    TypeResolver,
+};
 
 #[cfg(test)]
 pub(crate) use parameters::checked_parse_parameter_types_in_scope;

@@ -120,7 +120,8 @@ impl<'a> ObjectScope<'a> {
             ObjectIdKind::RegType => builtin_identities()
                 .type_by_oid(oid)
                 .map(|row| row.display.clone())
-                .or_else(|| self.user_type_label(oid)),
+                .or_else(|| self.user_type_label(oid))
+                .or_else(|| self.domain_type_label(oid)),
             ObjectIdKind::RegNamespace => {
                 self.namespace_name(oid).map(|name| quote_identifier(&name))
             }
@@ -147,10 +148,50 @@ impl<'a> ObjectScope<'a> {
             self.catalog
                 .resolve_composite_type(&self.context.database, &search_order, name)
         };
+        let resolve_domain = |name: &str| {
+            self.catalog
+                .resolve_domain_type(&self.context.database, &search_order, name)
+        };
         if let Some(base) = text.trim_end().strip_suffix("[]") {
-            return resolve(base.trim_end()).map(|metadata| metadata.array_oid());
+            let base = base.trim_end();
+            return resolve(base)
+                .map(|metadata| metadata.array_oid())
+                .or_else(|| resolve_domain(base).map(|metadata| metadata.array_oid()));
         }
-        resolve(text).map(|metadata| metadata.type_oid())
+        resolve(text)
+            .map(|metadata| metadata.type_oid())
+            .or_else(|| resolve_domain(text).map(|metadata| metadata.type_oid()))
+    }
+
+    /// `regtype` output for a user domain type or its array type.
+    fn domain_type_label(&self, oid: u32) -> Option<String> {
+        let (metadata, suffix) = self.catalog.get_domain_type_by_oid(oid).map_or_else(
+            || {
+                self.catalog
+                    .get_domain_type_by_array_oid(oid)
+                    .map(|metadata| (metadata, "[]"))
+            },
+            |metadata| Some((metadata, "")),
+        )?;
+        let search_order = self.context.relation_search_order();
+        let visible = self
+            .catalog
+            .resolve_domain_type(
+                &self.context.database,
+                &search_order,
+                &quote_identifier(&metadata.local_name()),
+            )
+            .is_some_and(|found| found.type_oid() == metadata.type_oid());
+        let name = if visible {
+            quote_identifier(&metadata.local_name())
+        } else {
+            format!(
+                "{}.{}",
+                quote_identifier(&metadata.schema_name()),
+                quote_identifier(&metadata.local_name())
+            )
+        };
+        Some(format!("{name}{suffix}"))
     }
 
     /// `regtype` output for a user composite type or its array type.

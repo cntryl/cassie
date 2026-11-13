@@ -50,7 +50,7 @@ pub(super) fn bind_column_default(
         return Ok(());
     }
     if let Some(expression) = default_expression {
-        if !crate::catalog::volatile_default_accepts(expression, data_type) {
+        if !crate::catalog::volatile_default_accepts(expression, data_type.flattened()) {
             return Err(CassieError::Planner(format!(
                 "DEFAULT {expression} cannot be used for column '{field}' of type {}",
                 data_type.type_name()

@@ -5,6 +5,7 @@ use crate::types::{ArrayDimension, DataType, FieldSchema, Schema, SqlArray, Valu
 use uuid::Uuid;
 
 mod composite;
+mod domain;
 mod encoding;
 
 use self::encoding::encode_value;
@@ -26,8 +27,10 @@ const TYPE_ARRAY: u8 = 0x0C;
 const TYPE_BYTEA: u8 = 0x0D;
 /// An extended type: the type OID, then its PostgreSQL binary form.
 const TYPE_EXTENDED: u8 = 0x0E;
-/// A named composite value; `0x10` is reserved for domains.
+/// A named composite value.
 const TYPE_COMPOSITE: u8 = 0x0F;
+/// A named domain value wrapping one framed base value.
+const TYPE_DOMAIN: u8 = 0x10;
 
 pub(crate) fn encode_compact_value(
     data_type: &DataType,
@@ -562,6 +565,7 @@ fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Valu
             | TYPE_BYTEA
             | TYPE_EXTENDED
             | TYPE_COMPOSITE
+            | TYPE_DOMAIN
     ) {
         write_varint(u64::try_from(bytes.len()).unwrap_or(u64::MAX), &mut framed);
         framed.extend_from_slice(bytes);
@@ -607,6 +611,7 @@ fn expected_type_tag(data_type: &DataType) -> u8 {
         DataType::Vector(_) => TYPE_VECTOR_F32,
         DataType::Extended(_) => TYPE_EXTENDED,
         DataType::Composite(_) => TYPE_COMPOSITE,
+        DataType::Domain(_) => TYPE_DOMAIN,
     }
 }
 
@@ -730,6 +735,7 @@ fn decode_value(
         }
         TYPE_ARRAY => decode_array(cursor, controls),
         TYPE_COMPOSITE => composite::decode_composite(cursor, controls),
+        TYPE_DOMAIN => domain::decode_domain(cursor, controls),
         TYPE_EXTENDED => {
             let bytes = cursor.read_len_prefixed()?;
             let (oid, payload) = bytes

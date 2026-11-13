@@ -199,6 +199,8 @@ pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
         DataType::Vector(_) => return TypeMetadata::Vector,
         DataType::Array(inner) => return TypeMetadata::Array(inner),
         DataType::Composite(descriptor) => return TypeMetadata::Composite(descriptor),
+        // A domain reports its base type's identity on the wire and in SQL.
+        DataType::Domain(descriptor) => return type_metadata(&descriptor.base),
     };
     TypeMetadata::Scalar(kind.metadata())
 }

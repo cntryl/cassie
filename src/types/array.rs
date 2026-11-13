@@ -635,6 +635,7 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
         DataType::Array(_) => Err("array-of-array types are not supported".to_string()),
         DataType::JsonPath => Err("JSONPATH arrays are not supported".to_string()),
         DataType::Composite(_) => Err("arrays of composite types are not supported".to_string()),
+        DataType::Domain(_) => Err("arrays of domain types are not supported".to_string()),
         DataType::Null
         | DataType::Name
         | DataType::Text

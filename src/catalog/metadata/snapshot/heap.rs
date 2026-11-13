@@ -159,6 +159,7 @@ impl HeapBytes for DataType {
             // A composite descriptor is shared behind an `Arc`; a clone
             // retains no copy.
             Self::Composite(_)
+            | Self::Domain(_)
             | Self::Null
             | Self::SmallInt
             | Self::Int

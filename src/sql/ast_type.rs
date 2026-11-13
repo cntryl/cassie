@@ -21,6 +21,8 @@ pub enum TypeAction {
         if_exists: bool,
         cascade: bool,
     },
+    /// `CREATE`, `ALTER` or `DROP DOMAIN` (#828).
+    Domain(super::DomainAction),
 }
 
 /// A finite `CREATE TYPE ... AS (...)` or `DROP TYPE` statement.
@@ -36,6 +38,7 @@ impl TypeStatement {
         match &self.action {
             TypeAction::Create { name, .. } => name,
             TypeAction::Drop { names, .. } => names.first().map_or("", String::as_str),
+            TypeAction::Domain(action) => action.name(),
         }
     }
 }

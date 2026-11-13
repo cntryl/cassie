@@ -105,3 +105,44 @@ fn should_skip_failing_rows_given_a_values_aliased_outer_input_and_a_cross_join_
     // Assert
     assert_rows(sql, &[&[Some("1"), Some("7")]]);
 }
+
+const VALUES_INNER: &str = "(VALUES (1, '[10]'::jsonb), (2, '[20]'::jsonb)) AS a(id, d), \
+    LATERAL jsonb_array_elements(a.d) AS e";
+
+#[test]
+fn should_compare_the_outer_values_column_given_a_lateral_derived_table_over_values() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM (VALUES (1), (2)) AS t(id), LATERAL \
+         (SELECT e.value::text::int AS v FROM {VALUES_INNER} WHERE a.id = t.id) AS s \
+         ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_compare_the_outer_values_column_given_a_correlated_scalar_subquery_over_values() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, (SELECT max(e.value::text::int) FROM {VALUES_INNER} WHERE a.id = t.id) \
+         FROM (VALUES (1), (2)) AS t(id) ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_pair_rows_by_the_outer_values_column_given_reordered_inner_values() {
+    // Arrange
+    let sql = "SELECT t.id, (SELECT max(e.value::text::int) FROM \
+               (VALUES (2, '[10, 30]'::jsonb), (1, '[20]'::jsonb)) AS a(id, d), \
+               LATERAL jsonb_array_elements(a.d) AS e \
+               WHERE a.id = t.id AND e.value::text::int > 10) \
+               FROM (VALUES (1), (2)) AS t(id) ORDER BY 1";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1"), Some("20")], &[Some("2"), Some("30")]]);
+}

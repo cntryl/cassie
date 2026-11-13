@@ -1,0 +1,81 @@
+//! Enum casts and assignment: labels in, labels out, 42846 between families.
+
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use cassie::types::Value;
+
+fn fixture(label: &str) -> SqlFixture {
+    sql_fixture(
+        label,
+        &[
+            "CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')",
+            "CREATE TYPE other AS ENUM ('sad')",
+            "CREATE TABLE days (id int, m mood)",
+        ],
+    )
+}
+
+#[test]
+fn should_cast_text_to_an_enum_and_back_to_its_label() {
+    // Arrange
+    let fixture = fixture("enum_cast_round_trip");
+
+    // Act
+    let rows = fixture.rows("SELECT CAST('ok' AS mood)::text, 'happy'::mood::varchar");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![
+            Value::String("ok".to_string()),
+            Value::String("happy".to_string())
+        ]]
+    );
+}
+
+#[test]
+fn should_reject_an_unknown_label_cast_with_22p02() {
+    // Arrange
+    let fixture = fixture("enum_cast_unknown");
+
+    // Act
+    let error = fixture.error("SELECT 'furious'::mood");
+
+    // Assert
+    assert_eq!(error.sql_state(), "22P02");
+}
+
+#[test]
+fn should_reject_integer_and_cross_enum_casts_with_42846() {
+    // Arrange
+    let fixture = fixture("enum_cast_families");
+
+    // Act
+    let to_integer = fixture.error("SELECT 'ok'::mood::int");
+    let from_integer = fixture.error("SELECT 1::mood");
+    let cross = fixture.error("SELECT 'sad'::mood::other");
+
+    // Assert
+    assert_eq!(to_integer.sql_state(), "42846");
+    assert_eq!(from_integer.sql_state(), "42846");
+    assert_eq!(cross.sql_state(), "42846");
+}
+
+#[test]
+fn should_assign_labels_on_insert_and_update() {
+    // Arrange
+    let fixture = fixture("enum_assign");
+    fixture
+        .execute("INSERT INTO days VALUES (1, 'sad')")
+        .unwrap();
+
+    // Act
+    fixture
+        .execute("UPDATE days SET m = 'happy' WHERE id = 1")
+        .unwrap();
+    let rows = fixture.rows("SELECT m::text FROM days");
+    let error = fixture.error("INSERT INTO days VALUES (2, 'furious')");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::String("happy".to_string())]]);
+    assert_eq!(error.sql_state(), "22P02");
+}

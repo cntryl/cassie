@@ -83,6 +83,10 @@ name = "domain_types"
 path = "domain_types.rs"
 
 [[test]]
+name = "enum_values"
+path = "enum_values.rs"
+
+[[test]]
 name = "constraint_ingress"
 path = "constraint_ingress.rs"
 

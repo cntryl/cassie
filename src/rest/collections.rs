@@ -128,6 +128,10 @@ fn create_in_namespace(
                 return Err(collection_already_exists(&collection));
             };
             metadata.storage_id = storage_id;
+            if let Some(stored) = cassie.midge.collection_metadata(&collection)? {
+                metadata.row_type_object_id = stored.row_type_object_id;
+                metadata.row_array_object_id = stored.row_array_object_id;
+            }
 
             cassie.catalog.register_collection_meta_with_constraints(
                 metadata.clone(),

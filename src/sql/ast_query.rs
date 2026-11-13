@@ -260,6 +260,8 @@ pub const ROW_CONSTRUCTOR_FUNCTION: &str = "__cassie_row_constructor";
 /// Internal marker for `(expr).field`; the arguments are the composite
 /// expression and the field name as a string literal.
 pub const FIELD_ACCESS_FUNCTION: &str = "__cassie_field_access";
+/// The field name of `(expr).*`, which the binder expands in a SELECT list.
+pub const FIELD_ACCESS_ALL: &str = "*";
 
 /// Whether `name` is one of the internal record-syntax markers.
 #[must_use]

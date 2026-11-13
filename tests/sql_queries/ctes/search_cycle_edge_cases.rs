@@ -409,3 +409,24 @@ fn should_return_combined_search_cycle_columns() {
         ]
     );
 }
+
+#[test]
+fn should_flag_the_breadth_first_search_column_as_a_record() {
+    // Arrange
+    let fixture = sql_fixture("search-breadth-first-record-flag", &[]);
+
+    // Act
+    let result = fixture
+        .execute(
+            "WITH RECURSIVE walk(n) AS (SELECT 1::INT4 UNION ALL SELECT n + 1::INT4 FROM walk WHERE n < 2) SEARCH BREADTH FIRST BY n SET sequence SELECT n, sequence FROM walk ORDER BY sequence",
+        )
+        .expect("breadth-first search query");
+
+    // Assert
+    let sequence = result
+        .columns()
+        .iter()
+        .find(|column| column.name == "sequence")
+        .expect("sequence column");
+    assert!(sequence.is_record);
+}

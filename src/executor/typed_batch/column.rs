@@ -556,7 +556,7 @@ impl Column {
         for value in field.values() {
             check_controls(controls)?;
             memory.try_grow(crate::runtime::accounted::json::retained_bytes(value)?)?;
-            let mut value = crate::executor::scan::json_to_typed_value(value, data_type);
+            let mut value = crate::executor::scan::try_json_to_typed_value(value, data_type)?;
             crate::executor::scan::hydrate_character_array_value(
                 &mut value,
                 data_type,

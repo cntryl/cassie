@@ -118,6 +118,8 @@ mod aliases;
 mod json_predicates;
 #[path = "binder/own_qualifier.rs"]
 mod own_qualifier;
+#[path = "binder/whole_row.rs"]
+mod whole_row;
 pub(crate) use aliases::qualifier as alias_row_qualifier;
 #[path = "binder/cte_bodies.rs"]
 pub(crate) mod cte_bodies;
@@ -289,6 +291,7 @@ pub(crate) fn bind_initial_with_controls(
 ) -> Result<BoundStatement, CassieError> {
     alias_admission::validate(&statement, controls)?;
     let mut statement = statement;
+    whole_row::rewrite(&mut statement, catalog, context)?;
     subquery_types::annotate_unbound(&mut statement, catalog, context);
     let mut statement = bind_statement(statement, catalog, &CteScope::new(controls), context)?;
     subquery_types::annotate(&mut statement, catalog, context)?;

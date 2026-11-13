@@ -333,14 +333,17 @@ identity lookup, namespace lookup, and table SELECT authorization.
 
 The descriptor additions selected by #828 are present: rows for the currently
 supported types report `typnotnull = false` and `typtypmod = -1`, and
-`pg_class.reltype = 0` for tables, views and sequences while Cassie has no
-automatic row-type identity for them. User composite types add a `pg_type` row
+`pg_class.reltype` is the derived row-type OID for tables (see below) and 0 for
+views and sequences. User composite types add a `pg_type` row
 (`typtype = 'c'`, `typcategory = 'C'`, `typrelid`, `typarray`), a `_name`
 array `pg_type` row, a `pg_class` row with `relkind = 'c'` whose `reltype` is
 the type OID, and one `pg_attribute` row per field. These rows are authored
-under #828 increment 1 and are not yet executed; table row types and domains
-remain unsupported and are not PostgreSQL row-type parity. #828 owns the future database-scoped
-row-type and domain OIDs. Enum rows remain deferred to #827; broad routines,
+under #828 increment 1 and are not yet executed. Increment 2 (also authored, not
+executed) adds a row type per table: a `pg_type` row (`typtype = 'c'`, `typrelid` = the
+table) and `_name` array row with OIDs allocated by the Midge object-id allocator
+and persisted on the table (below `2^31`, stable across rename and restart), and `pg_attribute` rows of a
+composite type use physical attribute numbers, so a dropped attribute leaves a gap.
+Domains remain unsupported. #828 owns the future database-scoped domain OIDs. Enum rows remain deferred to #827; broad routines,
 dependency families, sequences, and partitions remain unselected except for
 separately documented finite workflows.
 

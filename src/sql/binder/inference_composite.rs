@@ -11,6 +11,14 @@ pub(crate) fn composite_field_type(
     operand_type: &DataType,
     field: &str,
 ) -> Result<DataType, CassieError> {
+    if field == crate::sql::ast::FIELD_ACCESS_ALL {
+        return Err(crate::app::DiagnosticError::new(
+            "0A000",
+            "(expression).* expansion is supported only for a column or cast in the SELECT list"
+                .to_string(),
+        )
+        .into());
+    }
     let DataType::Composite(descriptor) = operand_type else {
         return Err(crate::app::DiagnosticError::new(
             "42809",

@@ -28,6 +28,7 @@ pub fn column(name: &str, boolean: bool) -> ColumnMeta {
         atttypmod: -1,
         format_code: 0,
         nullable: true,
+        is_record: false,
     }
 }
 

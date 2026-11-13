@@ -12,6 +12,7 @@ fn expected_columns() -> Vec<ColumnMeta> {
             atttypmod: -1,
             format_code: 0,
             nullable: true,
+            is_record: false,
         },
         ColumnMeta {
             name: "note".into(),
@@ -21,6 +22,7 @@ fn expected_columns() -> Vec<ColumnMeta> {
             atttypmod: -1,
             format_code: 0,
             nullable: true,
+            is_record: false,
         },
     ]
 }

@@ -9,6 +9,7 @@ fn pair_type() -> CompositeType {
         qualified_name: "db.public.pair".to_string(),
         name: "pair".to_string(),
         revision: 7,
+        dropped_positions: Vec::new(),
         fields: vec![
             CompositeField {
                 name: "key".to_string(),
@@ -112,6 +113,7 @@ fn should_round_trip_a_nested_record() {
         qualified_name: "db.public.wrapper".to_string(),
         name: "wrapper".to_string(),
         revision: 1,
+        dropped_positions: Vec::new(),
         fields: vec![CompositeField {
             name: "inner".to_string(),
             data_type: DataType::Composite(CompositeRef::new(inner.clone())),

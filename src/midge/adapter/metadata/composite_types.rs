@@ -1,5 +1,6 @@
 use super::super::key_encoding;
 use super::{CassieError, Midge};
+use crate::catalog::composite_alter::CompositeGroup;
 use crate::catalog::{CompositeTypeMeta, COMPOSITE_TYPE_FORMAT_VERSION};
 
 fn validate_composite_type(metadata: &CompositeTypeMeta) -> Result<(), CassieError> {
@@ -91,5 +92,75 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
+    }
+}
+
+impl Midge {
+    /// The database family that stores `relation` (a canonical table or view name).
+    #[must_use]
+    pub fn relation_database(&self, relation: &str) -> String {
+        let canonical = self.canonical_collection_name(relation);
+        crate::catalog::relation_database_name(&canonical)
+            .unwrap_or_else(|| self.default_database.clone())
+    }
+
+    /// Publish one database's share of a composite change atomically: the
+    /// type metadata, every dependent type, each embedded table schema, row
+    /// schema and projection version, and every view.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation fails or the transaction cannot be
+    /// published; nothing from the group is then visible.
+    pub fn publish_composite_group(&self, group: &CompositeGroup) -> Result<(), CassieError> {
+        for metadata in group.target.iter().chain(&group.types) {
+            validate_composite_type(metadata)?;
+        }
+        let mut tables: Vec<String> = group
+            .columns
+            .iter()
+            .map(|column| self.canonical_collection_name(&column.table))
+            .collect();
+        tables.sort();
+        tables.dedup();
+        let gates: Vec<_> = tables
+            .iter()
+            .map(|table| self.collection_write_gate(table))
+            .collect();
+        let _guards: Vec<_> = gates.iter().map(|gate| gate.lock()).collect();
+        let mut tx = self
+            .begin_database_adapter_tx(&group.database, cntryl_midge::TransactionMode::ReadWrite)?;
+        tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
+        for column in &group.columns {
+            let table = self.canonical_collection_name(&column.table);
+            self.stage_column_type(&mut tx, &table, &column.column, column.data_type.clone())?;
+        }
+        for view in &group.views {
+            crate::sql::definition_guard::view(view)?;
+            self.require_definition_version(view.definition_semantics_version)?;
+            let mut view = view.clone();
+            view.name = self.canonical_collection_name(&view.name);
+            let value =
+                serde_json::to_vec(&view).map_err(|error| CassieError::Parse(error.to_string()))?;
+            tx.put(Self::view_key(&view.name), value, None)
+                .map_err(CassieError::from)?;
+        }
+        for metadata in group.target.iter().chain(&group.types) {
+            let value = serde_json::to_vec(metadata).map_err(|error| {
+                CassieError::Parse(format!("serialize composite type metadata: {error}"))
+            })?;
+            tx.put(
+                key_encoding::composite_type_key(&metadata.name),
+                value,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+        if let Some(old) = &group.deleted_type {
+            tx.delete(key_encoding::composite_type_key(old))
+                .map_err(CassieError::from)?;
+        }
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 }

@@ -281,8 +281,8 @@ fn binary_codec_for_oid(type_oid: i64) -> io::Result<&'static BinaryCodec> {
         .ok_or_else(|| unsupported_codec(type_oid))
 }
 
-fn validate_binary_oid(type_oid: i64, is_vector: bool) -> io::Result<()> {
-    if is_vector {
+fn validate_binary_oid(type_oid: i64, is_vector: bool, is_record: bool) -> io::Result<()> {
+    if is_vector || is_record {
         return Ok(());
     }
     if type_oid == POSTGRES_INTERNAL_CHAR_OID {
@@ -295,20 +295,9 @@ fn validate_binary_oid(type_oid: i64, is_vector: bool) -> io::Result<()> {
         binary_codec_for_oid(type_oid - OID_ARRAY_BASE).map(|_| ())
     } else if let Some(element_oid) = builtin_array_element_oid(type_oid) {
         binary_codec_for_oid(element_oid).map(|_| ())
-    } else if is_record_oid(type_oid) {
-        // Record values use `record_send`; a non-record value under a user
-        // OID fails when the row is encoded.
-        Ok(())
     } else {
         binary_codec_for_oid(type_oid).map(|_| ())
     }
-}
-
-/// The anonymous RECORD OID or an allocated (user) type OID, which only
-/// composite types occupy on the result path.
-fn is_record_oid(type_oid: i64) -> bool {
-    type_oid == i64::from(crate::types::composite::RECORD_OID)
-        || type_oid >= i64::from(crate::types::object_id::FIRST_NORMAL_OBJECT_ID)
 }
 
 pub(super) fn validate_result_formats(
@@ -332,7 +321,7 @@ pub(super) fn validate_result_formats(
     }
     for (index, column) in columns.iter().enumerate() {
         if result_format_for_index(result_formats, index) == 1 {
-            validate_binary_oid(column.type_oid, column.is_vector())?;
+            validate_binary_oid(column.type_oid, column.is_vector(), column.is_record)?;
         }
     }
     Ok(())

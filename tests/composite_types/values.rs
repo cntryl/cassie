@@ -359,18 +359,67 @@ fn should_select_qualified_fields_from_joined_sources_sharing_a_column_name() {
 }
 
 #[test]
-fn should_fail_closed_for_views_over_composite_columns() {
+fn should_select_a_field_through_a_view_over_a_composite_column() {
     // Arrange
-    let fixture = fixture("composite_view_fail_closed");
+    let fixture = fixture("composite_view_field");
+    fixture
+        .execute("INSERT INTO people (id, a) VALUES (1, ROW('1 Main St', 12345))")
+        .unwrap();
+    fixture
+        .execute("CREATE VIEW people_view AS SELECT a FROM people")
+        .unwrap();
 
     // Act
-    let outcome = fixture
-        .execute("CREATE VIEW people_view AS SELECT a FROM people")
-        .and_then(|_| fixture.execute("SELECT (a).street FROM people_view"));
+    let street = text(&fixture, "SELECT (a).street FROM people_view");
 
     // Assert
-    assert!(
-        outcome.is_err(),
-        "views over composite types are documented as unsupported"
-    );
+    assert_eq!(street.as_deref(), Some("1 Main St"));
+}
+
+#[test]
+fn should_resolve_type_names_inside_a_view_body() {
+    // Arrange
+    let fixture = fixture("composite_view_cast");
+    fixture
+        .execute("CREATE VIEW cast_view AS SELECT ('(7 Elm,9)'::address).street AS street")
+        .unwrap();
+
+    // Act
+    let street = text(&fixture, "SELECT street FROM cast_view");
+
+    // Assert
+    assert_eq!(street.as_deref(), Some("7 Elm"));
+}
+
+#[test]
+fn should_execute_prepared_statements_with_composite_parameter_types() {
+    // Arrange
+    let fixture = fixture("composite_prepare_execute");
+    fixture
+        .execute("PREPARE street_of(address) AS SELECT ($1).street")
+        .unwrap();
+
+    // Act
+    let street = text(&fixture, "EXECUTE street_of('(9 Oak,3)')");
+
+    // Assert
+    assert_eq!(street.as_deref(), Some("9 Oak"));
+}
+
+#[test]
+fn should_insert_composite_columns_through_create_table_as() {
+    // Arrange
+    let fixture = fixture("composite_ctas");
+    fixture
+        .execute("INSERT INTO people (id, a) VALUES (1, ROW('1 Main St', 12345))")
+        .unwrap();
+    fixture
+        .execute("CREATE TABLE people_copy AS SELECT id, a FROM people")
+        .unwrap();
+
+    // Act
+    let copied = text(&fixture, "SELECT (a).street FROM people_copy");
+
+    // Assert
+    assert_eq!(copied.as_deref(), Some("1 Main St"));
 }

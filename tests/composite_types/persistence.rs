@@ -123,3 +123,98 @@ fn should_not_persist_a_rolled_back_create_type() {
     // Assert
     assert!(recreated.is_ok(), "rolled-back type left no durable trace");
 }
+
+#[test]
+fn should_read_rows_written_under_older_revisions_after_restart() {
+    // Arrange
+    let store = LocalStore::new("composite_restart_alter");
+    seed(&store);
+    {
+        let cassie = store.open();
+        run(&cassie, "ALTER TYPE address ADD ATTRIBUTE city text");
+        run(&cassie, "ALTER TYPE address DROP ATTRIBUTE street");
+        run(&cassie, "INSERT INTO homes VALUES (4, ROW(44, 'Oslo'))");
+    }
+
+    // Act
+    let cassie = store.open();
+    let rows = first_column_text(&run(&cassie, "SELECT a::text FROM homes ORDER BY id"));
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            Some("(1,)".to_owned()),
+            None,
+            Some("(,)".to_owned()),
+            Some("(44,Oslo)".to_owned()),
+        ]
+    );
+}
+
+#[test]
+fn should_keep_a_renamed_type_across_restart() {
+    // Arrange
+    let store = LocalStore::new("composite_restart_rename");
+    seed(&store);
+    {
+        let cassie = store.open();
+        run(&cassie, "ALTER TYPE address RENAME TO place");
+    }
+
+    // Act
+    let cassie = store.open();
+    let cast = only_text(&run(&cassie, "SELECT '(z,9)'::place::text"));
+
+    // Assert
+    assert_eq!(cast, Some("(z,9)".to_owned()));
+}
+
+#[test]
+fn should_keep_the_table_row_type_revision_across_restart() {
+    // Arrange
+    let store = LocalStore::new("composite_restart_row_revision");
+    let revision = |cassie: &Cassie| {
+        let name = cassie
+            .catalog
+            .list_collections_canonical()
+            .into_iter()
+            .map(|collection| collection.name)
+            .find(|name| name.ends_with(".homes"))
+            .expect("homes is registered");
+        cassie
+            .catalog
+            .relation_row_type(&name)
+            .expect("row type")
+            .revision
+    };
+    seed(&store);
+    let before = {
+        let cassie = store.open();
+        run(&cassie, "ALTER TABLE homes ADD COLUMN note text");
+        run(&cassie, "ALTER TABLE homes RENAME COLUMN note TO memo");
+        revision(&cassie)
+    };
+
+    // Act
+    let after = revision(&store.open());
+
+    // Assert
+    assert_eq!(before, after);
+}
+
+#[test]
+fn should_keep_the_table_row_type_oid_across_restart() {
+    // Arrange
+    let store = LocalStore::new("composite_restart_row_oid");
+    seed(&store);
+    let oid_sql = "SELECT reltype::text FROM pg_class WHERE relname = 'homes'";
+    let before = only_text(&run(&store.open(), oid_sql));
+
+    // Act
+    let after = only_text(&run(&store.open(), oid_sql));
+
+    // Assert
+    assert!(before.is_some());
+    assert_eq!(before, after);
+}

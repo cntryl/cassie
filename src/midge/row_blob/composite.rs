@@ -43,7 +43,7 @@ pub(super) fn encode_composite(
         .get("fields")
         .and_then(serde_json::Value::as_array)
         .ok_or_else(invalid)?;
-    if fields.len() != descriptor.fields.len() {
+    if fields.len() != descriptor.physical_len() {
         return Err(invalid());
     }
 
@@ -53,11 +53,17 @@ pub(super) fn encode_composite(
     let count = u32::try_from(fields.len())
         .map_err(|_| CassieError::Parse("composite field count overflow".to_string()))?;
     out.extend_from_slice(&count.to_be_bytes());
-    for (stored, field) in fields.iter().zip(&descriptor.fields) {
-        let (tag, data) = if stored.is_null() {
-            (TYPE_NULL, Vec::new())
+    let mut live = descriptor.fields.iter();
+    for (slot, stored) in fields.iter().enumerate() {
+        // A dropped attribute keeps its slot but never carries a value.
+        let field = if descriptor.dropped_positions.contains(&slot) {
+            None
         } else {
-            encode_value(&field.data_type, stored)?
+            live.next()
+        };
+        let (tag, data) = match field {
+            Some(field) if !stored.is_null() => encode_value(&field.data_type, stored)?,
+            _ => (TYPE_NULL, Vec::new()),
         };
         out.push(tag);
         match tag {
@@ -71,6 +77,65 @@ pub(super) fn encode_composite(
         }
     }
     Ok((TYPE_COMPOSITE, out))
+}
+
+/// Verifies that a decoded composite document belongs to `descriptor`: same
+/// type identity and no more slots than the type has ever had. Values written
+/// under an older revision carry fewer slots and stay valid.
+///
+/// # Errors
+/// Returns a `XX001` data-corruption error when the stored value contradicts
+/// its column type.
+pub(super) fn check_stored(
+    descriptor: &CompositeType,
+    value: &serde_json::Value,
+) -> Result<(), CassieError> {
+    let corrupt = |detail: String| {
+        CassieError::from(crate::app::DiagnosticError::new(
+            "XX001",
+            format!(
+                "stored composite value does not match type {}: {detail}",
+                descriptor.name
+            ),
+        ))
+    };
+    let body = value
+        .as_object()
+        .and_then(|object| object.get(RECORD_STORAGE_KEY))
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| corrupt("not a record document".to_string()))?;
+    let oid = body.get("oid").and_then(serde_json::Value::as_u64);
+    if oid != Some(u64::from(descriptor.oid)) {
+        return Err(corrupt(format!(
+            "type identity {oid:?} differs from {}",
+            descriptor.oid
+        )));
+    }
+    let slots = body
+        .get("fields")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| corrupt("missing field list".to_string()))?;
+    if slots.len() > descriptor.physical_len() {
+        return Err(corrupt(format!(
+            "{} fields stored but the type has {}",
+            slots.len(),
+            descriptor.physical_len()
+        )));
+    }
+    for (field, slot) in descriptor
+        .fields
+        .iter()
+        .zip(descriptor.physical_positions())
+    {
+        if let (crate::types::DataType::Composite(nested), Some(stored)) =
+            (&field.data_type, slots.get(slot))
+        {
+            if !stored.is_null() {
+                check_stored(nested, stored)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Decodes one length-prefixed composite payload from `cursor` into the record

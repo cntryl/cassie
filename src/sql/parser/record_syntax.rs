@@ -4,7 +4,9 @@
 //! expression tree gains no new variants.
 use super::super::lexical;
 use super::{parse_expression, row_predicates, Expr, SqlError};
-use crate::sql::ast::{FunctionCall, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION};
+use crate::sql::ast::{
+    FunctionCall, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION,
+};
 
 /// `ROW(a, b)` and `(a, b)` outside a row predicate.
 pub(super) fn row_constructor(raw: &str) -> Result<Option<Expr>, SqlError> {
@@ -54,10 +56,9 @@ pub(super) fn field_access(raw: &str) -> Result<Option<Expr>, SqlError> {
 }
 
 fn take_field_name(raw: &str) -> Result<(String, &str), SqlError> {
-    if raw.starts_with('*') {
-        return Err(SqlError::unsupported(
-            "(expression).* expansion is not supported for composite values".into(),
-        ));
+    if let Some(rest) = raw.strip_prefix('*') {
+        // `(expr).*` is expanded by the binder, which knows the composite type.
+        return Ok((FIELD_ACCESS_ALL.to_owned(), rest));
     }
     if let Some(body) = raw.strip_prefix('"') {
         let Some((decoded, consumed)) = crate::sql::identifier_text::quoted(

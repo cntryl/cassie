@@ -254,6 +254,14 @@ fn evaluate_field_access(function: &FunctionCall, args: Vec<Value>) -> Result<Va
             "field selection requires a field name".into(),
         ));
     };
+    if field == crate::sql::ast::FIELD_ACCESS_ALL {
+        return Err(crate::app::CassieError::from(crate::app::DiagnosticError::new(
+            "0A000",
+            "(expression).* expansion is supported only for a column or cast in the SELECT list"
+                .to_string(),
+        ))
+        .into());
+    }
     match args.into_iter().next() {
         None | Some(Value::Null) => Ok(Value::Null),
         Some(Value::Typed(crate::types::typed::TypedValue::Record(record))) => {

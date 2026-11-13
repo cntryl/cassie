@@ -9,6 +9,18 @@ pub struct TypeAttribute {
     pub data_type: DataType,
 }
 
+/// One `ALTER TYPE` change of a composite type.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TypeAlteration {
+    RenameTo { new_name: String },
+    RenameAttribute { from: String, to: String },
+    AddAttribute { attribute: TypeAttribute },
+    DropAttribute { name: String, if_exists: bool },
+    AlterAttributeType { name: String, data_type: DataType },
+    SetSchema { schema: String },
+    OwnerTo { owner: String },
+}
+
 /// One composite type lifecycle operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TypeAction {
@@ -20,6 +32,10 @@ pub enum TypeAction {
         names: Vec<String>,
         if_exists: bool,
         cascade: bool,
+    },
+    Alter {
+        name: String,
+        alteration: TypeAlteration,
     },
 }
 
@@ -34,7 +50,7 @@ impl TypeStatement {
     #[must_use]
     pub fn name(&self) -> &str {
         match &self.action {
-            TypeAction::Create { name, .. } => name,
+            TypeAction::Create { name, .. } | TypeAction::Alter { name, .. } => name,
             TypeAction::Drop { names, .. } => names.first().map_or("", String::as_str),
         }
     }

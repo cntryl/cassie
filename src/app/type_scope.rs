@@ -9,10 +9,18 @@ use crate::types::CompositeRef;
 
 impl Cassie {
     /// The catalog `session` reads types from: a type created inside its open
-    /// transaction lives in the catalog overlay until commit.
+    /// transaction lives in the catalog overlay until commit, and a
+    /// repeatable-read transaction reads its snapshot.
     fn type_catalog(&self, session: Option<&CassieSession>) -> crate::catalog::Catalog {
         session
             .and_then(CassieSession::transaction_catalog_overlay)
+            .or_else(|| {
+                // REPEATABLE READ executes against its snapshot, so names must
+                // resolve against the same descriptors.
+                session
+                    .and_then(CassieSession::transaction_catalog_snapshot)
+                    .map(|snapshot| snapshot.catalog().clone())
+            })
             .unwrap_or_else(|| self.catalog.clone())
     }
 
@@ -31,6 +39,8 @@ impl Cassie {
             catalog
                 .resolve_composite_type(&database, &order, raw)
                 .map(|metadata| metadata.descriptor())
+                // Every table owns a row type named like the table.
+                .or_else(|| catalog.resolve_relation_row_type(&database, &order, raw))
         })
     }
 
@@ -40,7 +50,8 @@ impl Cassie {
         session: Option<&CassieSession>,
         sql: &str,
     ) -> Result<ParsedStatement, CassieError> {
-        if !self.type_catalog(session).has_composite_types() {
+        let catalog = self.type_catalog(session);
+        if !catalog.has_composite_types() && !catalog.has_collections() {
             return Ok(parse_statement(sql)?);
         }
         let resolver = self.composite_type_resolver(session);

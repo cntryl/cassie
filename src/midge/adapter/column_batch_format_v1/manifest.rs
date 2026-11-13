@@ -410,7 +410,13 @@ fn encode_value(out: &mut Vec<u8>, value: &Value) -> Result<(), CassieError> {
         }
         Value::Typed(value) => {
             out.push(7);
-            write_u32(out, value.kind().type_oid());
+            write_u32(
+                out,
+                value.kind().map_or(
+                    crate::types::composite::RECORD_OID,
+                    crate::types::extended::ExtendedType::type_oid,
+                ),
+            );
             write_bytes(out, &value.send_binary())?;
         }
         Value::Array(value) => {

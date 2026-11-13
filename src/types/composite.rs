@@ -22,6 +22,7 @@ pub use record::{value_data_type, RecordValue};
 pub use text::{format_record, format_record_with, parse_record_text, RecordInputError};
 pub use wire::{
     receive_record_binary, record_from_storage_json, record_to_storage_json, send_record_binary,
+    StoredRecordError,
 };
 
 #[cfg(test)]

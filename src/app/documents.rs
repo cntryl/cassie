@@ -682,13 +682,20 @@ impl Cassie {
         let Some(stored) = stored else {
             return Self::invalid_vector(field, "a composite record");
         };
-        if stored.len() != descriptor.fields.len() {
+        if stored.len() != descriptor.physical_len() {
             return Self::invalid_vector(
                 field,
-                format!("a composite record of {} fields", descriptor.fields.len()),
+                format!("a composite record of {} fields", descriptor.physical_len()),
             );
         }
-        for (value, declared) in stored.iter().zip(&descriptor.fields) {
+        for (declared, slot) in descriptor
+            .fields
+            .iter()
+            .zip(descriptor.physical_positions())
+        {
+            let Some(value) = stored.get(slot) else {
+                continue;
+            };
             if !value.is_null() {
                 Self::validate_value_against_data_type(
                     &format!("{field}.{}", declared.name),

@@ -492,6 +492,7 @@ pub(crate) fn apply_recursive_cte_record_oids_for_query(
                 continue;
             };
             column.type_oid = *oid;
+            column.is_record |= *oid == 2249;
         }
         return;
     }
@@ -506,6 +507,7 @@ pub(crate) fn apply_recursive_cte_record_oids_for_query(
             continue;
         };
         column.type_oid = *oid;
+        column.is_record |= *oid == 2249;
     }
 }
 

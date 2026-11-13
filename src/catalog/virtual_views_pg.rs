@@ -559,9 +559,11 @@ fn class_row(
         ),
         string("relnamespace", &schema_name),
         int_value("relnamespace_oid", namespace_oid(catalog, &namespace)),
-        // Relation row-type identities are selected by #828 but do not exist
-        // until its composite/domain contract is implemented.
-        int_value("reltype", 0),
+        // Tables own a derived row type; views, sequences and indexes do not.
+        int_value(
+            "reltype",
+            composite_catalogs::relation_reltype(catalog, kind, name),
+        ),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
         string(

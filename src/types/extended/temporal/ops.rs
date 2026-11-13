@@ -344,7 +344,7 @@ fn common(
         (Tstz(_), Date(date)) => (left.clone(), Tstz(zoned(as_timestamp(*date)?))),
         (Ts(local), Tstz(_)) => (Tstz(zoned(*local)), right.clone()),
         (Tstz(_), Ts(local)) => (left.clone(), Tstz(zoned(*local))),
-        _ if left.kind() == right.kind() => (left.clone(), right.clone()),
+        _ if left.kind().is_some() && left.kind() == right.kind() => (left.clone(), right.clone()),
         _ => return None,
     })
 }

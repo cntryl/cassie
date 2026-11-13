@@ -191,6 +191,16 @@ fn create_table_gated(
             .save_constraints(table, constraints.as_slice())
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
+    // Creation paths return only the storage identity; the allocator-backed
+    // row-type identities were persisted with the metadata.
+    if let Some(stored) = cassie
+        .midge
+        .collection_metadata(table)
+        .map_err(QueryError::from)?
+    {
+        collection_meta.row_type_object_id = stored.row_type_object_id;
+        collection_meta.row_array_object_id = stored.row_array_object_id;
+    }
     if statement.like.is_none() {
         for index in &initial_indexes {
             // A retry after a failed publication completes the journal the

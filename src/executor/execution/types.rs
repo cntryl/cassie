@@ -11,6 +11,9 @@ pub struct ColumnMeta {
     pub atttypmod: i32,
     pub format_code: i16,
     pub nullable: bool,
+    /// Whether the column carries a record (named composite or anonymous
+    /// `ROW(...)`), which is the only family with a user-range binary codec.
+    pub is_record: bool,
 }
 
 impl ColumnMeta {
@@ -28,6 +31,7 @@ impl ColumnMeta {
             atttypmod: data_type.atttypmod(),
             format_code: 0,
             nullable: true,
+            is_record: matches!(data_type, DataType::Composite(_)),
         }
     }
 

@@ -384,7 +384,7 @@ pub(crate) mod character_arrays;
 mod composite_cast;
 #[path = "filter/domain_check.rs"]
 mod domain_check;
-pub(crate) use domain_check::{evaluate_check, first_violation, DomainViolation};
+pub(crate) use domain_check::{evaluate_check, first_violation};
 #[path = "filter/constants.rs"]
 mod constants;
 mod like_predicate;

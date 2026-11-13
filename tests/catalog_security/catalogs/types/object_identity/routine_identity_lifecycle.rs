@@ -138,6 +138,7 @@ fn should_keep_a_function_oid_across_restart() {
             .execute_sql(&session, query, vec![])
             .expect("resolve before restart")
             .rows()
+            .to_vec()
     };
 
     // Act
@@ -147,7 +148,8 @@ fn should_keep_a_function_oid_across_restart() {
     let after = cassie
         .execute_sql(&session, query, vec![])
         .expect("resolve after restart")
-        .rows();
+        .rows()
+        .to_vec();
 
     // Assert
     assert_eq!(before, after);

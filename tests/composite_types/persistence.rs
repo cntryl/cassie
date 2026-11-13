@@ -177,7 +177,7 @@ fn should_keep_the_table_row_type_revision_across_restart() {
     let revision = |cassie: &Cassie| {
         let name = cassie
             .catalog
-            .list_collections_canonical()
+            .list_collections()
             .into_iter()
             .map(|collection| collection.name)
             .find(|name| name.ends_with(".homes"))

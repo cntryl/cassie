@@ -446,7 +446,8 @@ fn parse_field_data_type(
                 Some(crate::catalog::serial_sequence_name(table, field)),
             ))
         }
-        _ => crate::sql::parser::domain_scope::parse_declared_data_type(raw).map(|data_type| (data_type, None)),
+        _ => crate::sql::parser::domain_scope::parse_declared_data_type(raw)
+            .map(|data_type| (data_type, None)),
     }
 }
 

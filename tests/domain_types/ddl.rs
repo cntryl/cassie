@@ -76,7 +76,9 @@ fn should_accept_drop_domain_if_exists_for_a_missing_domain() {
 fn should_reject_drop_domain_with_a_dependent_column_with_sqlstate_2bp01() {
     // Arrange
     let fixture = fixture_with_posint("domain_drop_dependent");
-    fixture.rows("CREATE TABLE items (id int, qty posint)");
+    fixture
+        .execute("CREATE TABLE items (id int, qty posint)")
+        .expect("create the table");
 
     // Act
     let error = fixture.error("DROP DOMAIN posint");
@@ -89,7 +91,9 @@ fn should_reject_drop_domain_with_a_dependent_column_with_sqlstate_2bp01() {
 fn should_allow_drop_domain_once_no_column_depends_on_it() {
     // Arrange
     let fixture = fixture_with_posint("domain_drop_after_table");
-    fixture.rows("CREATE TABLE items (id int, qty posint)");
+    fixture
+        .execute("CREATE TABLE items (id int, qty posint)")
+        .expect("create the table");
     fixture.execute("DROP TABLE items").unwrap();
 
     // Act

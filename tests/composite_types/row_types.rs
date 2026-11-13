@@ -404,7 +404,7 @@ fn revision_of(fixture: &SqlFixture, table: &str) -> u64 {
     let name = fixture
         .cassie
         .catalog
-        .list_collections_canonical()
+        .list_collections()
         .into_iter()
         .map(|collection| collection.name)
         .find(|name| name.ends_with(&suffix))

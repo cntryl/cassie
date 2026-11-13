@@ -1,7 +1,8 @@
-# v0.2 object identifier contract (#818)
+# v0.3.0 object identifier contract (#818)
 
 This document defines Cassie's finite `regclass`, `regnamespace`, `regtype`,
-and `regprocedure` conversion and lookup contract for v0.2.0. It is limited to
+and `regprocedure` conversion and lookup contract (established for v0.2.0 and
+extended for user routines and types in v0.3.0). It is limited to
 the built-in identities and real catalog objects selected below; PostgreSQL
 syntax adjacent to these cases does not imply broader support.
 
@@ -31,7 +32,7 @@ catalog or sequence-operation support.
 | `regclass` casts and `to_regclass(text)` | Resolve real relation identities, including supported tables, views, materialized views, sequences, and indexes. Unqualified names search implicit `pg_catalog` followed by the session `search_path`; qualified names honor quoted identifiers. Stored relation identity is scoped to the active database. Text output qualifies a relation when the search path would otherwise identify a different object. | Cast input for a missing relation reports an undefined-relation error. `to_regclass` returns SQL `NULL`. |
 | `regnamespace` casts and `to_regnamespace(text)` | Resolve a single schema name to built-in or stored namespace identity in the active database. Quoted schema identifiers are parsed as identifiers; a namespace from another database is not returned. | Cast input for a missing schema reports an undefined-schema error. `to_regnamespace` returns SQL `NULL`. |
 | `regtype` casts and `to_regtype(text)` | Resolve one built-in type name, optionally qualified by `pg_catalog`, from the pinned type registry. SQL aliases and quoted identifiers are supported. Typmods do not change the base type OID. Array suffixes `[]` and repeated `[]` or `[integer-constant]` dimensions map to the registered array type OID; comments are treated as whitespace. | A valid but unknown or non-`pg_catalog` type returns `NULL` from `to_regtype`; a cast reports an undefined-type error. Invalid array suffix syntax, out-of-range bounds, and non-SQL whitespace in a bound report SQLSTATE `42601`, including through `to_regtype`. User composite types, table row types and domains resolve through the search path with their allocator-backed OIDs (#828). |
-| `regprocedure` casts and `to_regprocedure(text)` | Resolve a pinned built-in routine by exact argument type OIDs. The name may be unqualified or qualified by `pg_catalog`; identifier quoting is honored. Argument types must resolve in the built-in type registry. Overloads select distinct routine identities by signature, and output retains the selected routine OID. | A well-formed missing overload or malformed helper input returns `NULL` from `to_regprocedure`; a cast reports an undefined-function or input-syntax error. User-defined functions and procedures resolve by exact argument types (built-in and composite types) through the search path; a bare `regproc` name that denotes several routines reports `42725`. Each routine's OID is the identity allocated from the common counter when it was created; it survives restart and redefinition, a dropped and recreated routine gets a new one, and a routine stored before identities existed publishes none. User routine names match case-insensitively, because the catalog keys them that way, so quoted names that differ only in case are not distinguished. General `pg_proc` rows for user routines are outside this contract. |
+| `regprocedure` casts and `to_regprocedure(text)` | Resolve a pinned built-in routine by exact argument type OIDs. The name may be unqualified or qualified by `pg_catalog`; identifier quoting is honored. Argument types must resolve in the built-in type registry. Overloads of built-in routines select distinct routine identities by signature, and output retains the selected routine OID. | A well-formed missing overload or malformed helper input returns `NULL` from `to_regprocedure`; a cast reports an undefined-function or input-syntax error. User-defined functions and procedures resolve by exact argument types (built-in and composite types) through the search path; a bare `regproc` name that denotes several routines reports `42725`. Each routine's OID is the identity allocated from the common counter when it was created; it survives restart and redefinition, a dropped and recreated routine gets a new one, and a routine stored before identities existed publishes none. User routine names match case-insensitively, because the catalog keys them that way, so quoted names that differ only in case are not distinguished. General `pg_proc` rows for user routines are outside this contract. |
 
 The aliases retain their PostgreSQL 18 type OIDs (`regclass` 2205,
 `regnamespace` 4089, `regtype` 2206, and `regprocedure` 2202). The selected
@@ -55,8 +56,14 @@ contract.
   signature argument types. A missing helper lookup returns SQL `NULL`; a cast
   reports undefined function. Malformed helper signatures also return SQL
   `NULL`, matching PostgreSQL 18.6's `to_regprocedure` behavior.
-- No privilege-aware search-path visibility is claimed. It is the remaining
-  #831 dependency described below.
+- Unqualified lookups are privilege-aware: schemas without `USAGE` are skipped
+  (see Visibility below). Qualified lookups do not require `USAGE`, which
+  differs from PostgreSQL (it reports 42501 for a qualified name in a schema
+  without `USAGE`).
+- Cassie has no routine overloads within a schema: `CREATE OR REPLACE
+  FUNCTION|PROCEDURE` with a changed argument list is `0A000` and does not
+  replace the routine. See [Type Contract](type-contract.md) for the related
+  routine, row-type and owner-check limits.
 
 The relevant source is `src/catalog/object_identity.rs`,
 `src/catalog/object_identity/names.rs`,
@@ -64,18 +71,18 @@ The relevant source is `src/catalog/object_identity.rs`,
 `src/executor/filter/object_ids.rs`. Built-in type and routine identities are
 read from the pinned data under `src/catalog/builtin_identity/`.
 
-## Visibility dependency
+## Visibility
 
-Privilege-aware search-path visibility remains blocked by #831 and is not
-claimed as implemented here. Current `BindingContext` carries database and
-`search_path` but no authenticated principal. `RoleMeta` stores database
-grants only; `pg_namespace.nspacl` is currently an empty text value, and
-`has_schema_privilege` returns `true` without checking grants. The relation
-search order therefore does not filter schemas by `USAGE`. Once #831 supplies
-the named schema-usage contract, its integration must add regressions proving
-that inaccessible schemas are skipped during unqualified resolution and that
-qualified lookups follow that contract. Until then this acceptance item is
-open, and this issue must not be marked complete.
+Unqualified `regclass`, `regtype`, `regprocedure` and `regproc` resolution
+skips schemas on the `search_path` for which the authenticated role lacks
+`USAGE`; `to_reg*` returns `NULL` and a cast reports the undefined-object
+error until the role has `USAGE`, independent of the object's own privileges.
+PostgreSQL 18.6 agrees (unqualified `to_regprocedure('f(integer)')` and
+`to_regtype('t')` are `NULL` and the casts fail for a role without `USAGE`).
+Qualified names bypass the filter (a documented divergence). #831 is closed.
+Evidence:
+[`identifier_visibility.rs`](../tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs)
+covers `regclass` and the user routine and type lookups.
 
 ## Evidence
 

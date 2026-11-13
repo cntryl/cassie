@@ -66,8 +66,14 @@ pub(super) fn execute(
     if row_budget == Some(0) {
         return Ok((Vec::new(), Vec::new()));
     }
-    let declared = table_sources::record_declared_columns(function, form)
+    let mut declared = table_sources::record_declared_columns(function, form)
         .ok_or_else(|| QueryError::General("record expansion requires a row type".into()))?;
+    if matches!(form, Some(TableFunctionForm::Columns(_))) {
+        // A column definition list carries lookup keys; object keys match the identifiers.
+        for (name, _) in &mut declared {
+            *name = table_sources::json_member_name(name);
+        }
+    }
     let columns = table_sources::record_output_columns(function, ordinal, form)
         .ok_or_else(|| QueryError::General("record expansion requires a row type".into()))?;
     let base = if record.populate {
@@ -156,9 +162,10 @@ fn set_rows(
     rows.try_reserve_exact(take).map_err(|error| {
         CassieError::ResourceLimit(format!("unable to retain JSON record rows: {error}"))
     })?;
-    // PostgreSQL validates every element's shape before returning rows.
-    let mut objects = Vec::with_capacity(take);
-    for element in elements.into_iter().take(take) {
+    // PostgreSQL converts the elements in order, so the first failure wins: a conversion
+    // error in an earlier object is reported before a later element that is not an object.
+    // Rows are published only after every element converted.
+    for (index, element) in elements.into_iter().take(take).enumerate() {
         env.controls.check_interruption()?;
         if element.kind() != Kind::Object {
             return Err(diagnostic(
@@ -166,10 +173,6 @@ fn set_rows(
                 format!("argument of {name} must be an array of objects"),
             ));
         }
-        objects.push(element);
-    }
-    for (index, element) in objects.into_iter().enumerate() {
-        env.controls.check_interruption()?;
         let values = convert_object(element, shape)?;
         rows.push(builder.finish(values, index + 1)?);
     }

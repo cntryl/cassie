@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde_json::Value as Json;
 
 use super::source_json_fragment::{evaluate_argument, Fragment, Kind};
-use super::source_json_record_fields::{convert, fit_length};
+use super::source_json_record_fields::{convert, fit_length, not_an_object};
 use super::{CteContext, QueryError, SourceExecutionEnv, Value};
 use crate::app::{CassieError, DiagnosticError};
 use crate::sql::ast::{
@@ -275,6 +275,18 @@ fn convert_item(
         let text = fit_length(text, base)?;
         return super::filter::cast_value(&Value::String(text), &column.data_type);
     }
+    if textual {
+        // `JSON_VALUE` returns a JSON boolean as SQL boolean, whose text is `t` or `f`.
+        if let Json::Bool(flag) = item {
+            let text = fit_length(if flag { "t" } else { "f" }.to_owned(), base)?;
+            return super::filter::cast_value(&Value::String(text), &column.data_type);
+        }
+    }
+    if query {
+        if let Some(value) = convert_query_item(column, &item, quotes) {
+            return value;
+        }
+    }
     if item.is_null() && matches!(base, DataType::Json | DataType::Jsonb) {
         return Ok(if *base == DataType::Json {
             Value::String("null".into())
@@ -283,4 +295,54 @@ fn convert_item(
         });
     }
     convert(Fragment::Tree(item), &column.data_type, None, &column.name)
+}
+
+/// `JSON_QUERY` conversions that depend on the quotes behavior. `OMIT QUOTES` reads the item's
+/// text (a string's content) through the column type's input, or as a JSON document for
+/// `json`/`jsonb`. `KEEP QUOTES` keeps a JSON string, which a composite or array column rejects
+/// and any other non-JSON column reads with its quotes. `None` leaves the item to the ordinary
+/// conversion.
+fn convert_query_item(
+    column: &JsonTableValueColumn,
+    item: &Json,
+    quotes: JsonQuotes,
+) -> Option<Result<Value, QueryError>> {
+    if item.is_null() {
+        return None;
+    }
+    let base = column.data_type.flattened();
+    let json_target = matches!(base, DataType::Json | DataType::Jsonb);
+    let string = match item {
+        Json::String(text) => Some(text.as_str()),
+        _ => None,
+    };
+    let input = |text: String| super::filter::cast_value(&Value::String(text), &column.data_type);
+    let rendered = || {
+        crate::types::jsonb::format(item)
+            .map_err(|error| QueryError::from(CassieError::TypeInput(error)))
+    };
+    match (quotes, json_target, string) {
+        (JsonQuotes::Omit, true, Some(text)) => Some(
+            serde_json::from_str::<Json>(text)
+                .map_err(|_| diagnostic("22P02", "invalid input syntax for type json"))
+                .and_then(|document| {
+                    convert(
+                        Fragment::Tree(document),
+                        &column.data_type,
+                        None,
+                        &column.name,
+                    )
+                }),
+        ),
+        (JsonQuotes::Omit, false, Some(text)) => Some(input(text.to_owned())),
+        (JsonQuotes::Omit, false, None) => Some(rendered().and_then(input)),
+        (_, false, Some(text)) => Some(match base {
+            DataType::Composite(_) => Err(not_an_object(Kind::String)),
+            DataType::Array(_) => Err(diagnostic("22P02", "expected JSON array")),
+            // Date and time input ignores the surrounding quotes.
+            DataType::Date | DataType::Time | DataType::Timestamp => input(text.to_owned()),
+            _ => rendered().and_then(input),
+        }),
+        _ => None,
+    }
 }

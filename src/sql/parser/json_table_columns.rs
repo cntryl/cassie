@@ -268,8 +268,9 @@ impl<'a> Cursor<'a> {
     }
 }
 
-/// The default row pattern of a column, `$."name"`.
+/// The default row pattern of a column, `$."name"`, for the identifier the column declares.
 fn default_path(name: &str) -> String {
+    let name = crate::sql::table_sources::json_member_name(name);
     format!("$.\"{}\"", name.replace('\\', "\\\\").replace('"', "\\\""))
 }
 

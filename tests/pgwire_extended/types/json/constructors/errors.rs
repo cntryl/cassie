@@ -162,3 +162,24 @@ mod json_records_limits;
 
 #[path = "../table_functions/json_records_parameters.rs"]
 mod json_records_parameters;
+
+#[path = "../table_functions/json_source_outer_joins.rs"]
+mod json_source_outer_joins;
+
+#[path = "../table_functions/json_records_quoted_names.rs"]
+mod json_records_quoted_names;
+
+#[path = "../table_functions/json_table_passing.rs"]
+mod json_table_passing;
+
+#[path = "../table_functions/json_lateral_guards.rs"]
+mod json_lateral_guards;
+
+#[path = "../table_functions/json_table_quotes.rs"]
+mod json_table_quotes;
+
+#[path = "../table_functions/json_source_labels.rs"]
+mod json_source_labels;
+
+#[path = "../table_functions/json_source_error_order.rs"]
+mod json_source_error_order;

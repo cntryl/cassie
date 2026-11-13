@@ -33,9 +33,15 @@ pub(super) fn filter_rows_per_outer_row(
     search_context: Option<&filter::SearchContext>,
 ) -> Result<Vec<Batch>, QueryError> {
     let qualifier = outer_qualifier(source);
+    let mut terms = Vec::new();
+    crate::planner::lateral_filter::conjuncts(filter_expr, &mut terms);
+    terms.retain(|term| !term.contains_subquery());
     let mut kept = Vec::new();
     for row in batch::flatten_batches(batches) {
         super::check_timeout(context.controls)?;
+        if rejected_without_subquery(context, &terms, &row, search_context) {
+            continue;
+        }
         let outer = qualified_outer_row(context, source, &row, qualifier.as_deref())?;
         let row_context = ExistsResolutionContext {
             outer_row: Some(&outer),
@@ -52,6 +58,31 @@ pub(super) fn filter_rows_per_outer_row(
         )?);
     }
     Ok(batch::chunk_rows(kept, batch::DEFAULT_BATCH_SIZE))
+}
+
+/// Whether a subquery-free conjunct of the filter is already false or NULL for `row`, so the
+/// row is removed without running its subqueries (PostgreSQL evaluates such quals first). A
+/// conjunct that cannot be evaluated here decides nothing.
+fn rejected_without_subquery(
+    context: &ExistsResolutionContext<'_>,
+    terms: &[&Expr],
+    row: &BatchRow,
+    search_context: Option<&filter::SearchContext>,
+) -> bool {
+    terms.iter().any(|term| {
+        matches!(
+            filter::evaluate_expr_value(
+                row,
+                term,
+                context.params,
+                search_context,
+                context.user_functions,
+                context.session,
+                None,
+            ),
+            Ok(crate::types::Value::Bool(false) | crate::types::Value::Null)
+        )
+    })
 }
 
 /// The name the enclosing relation's columns are qualified with, for a

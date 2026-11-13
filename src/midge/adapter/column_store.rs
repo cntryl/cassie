@@ -196,6 +196,7 @@ impl Midge {
         initial: InitialCollectionContents<'_>,
     ) -> Result<(bool, u64), CassieError> {
         self.admit_initial_definitions(initial)?;
+        self.require_collection_storage_layout(metadata)?;
         let name = self.canonical_collection_name(name);
         let write_gate = self.collection_write_gate(&name);
         let _write_guard = write_gate.lock();

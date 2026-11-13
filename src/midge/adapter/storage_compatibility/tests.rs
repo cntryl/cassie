@@ -6,6 +6,7 @@ use crate::midge::adapter::{key_encoding, StorageFamily};
 const V1: &str = "cassie-midge-layout-v1-0.1.0";
 const V2: &str = "cassie-midge-layout-v2-0.2.0";
 const V3: &str = "cassie-midge-layout-v3-0.2.0-index-generation";
+const V4: &str = "cassie-midge-layout-v4-0.5.0-columnar";
 
 fn memory_store() -> Midge {
     let store = Midge::new_in_memory("postgres").expect("memory store");
@@ -491,4 +492,51 @@ fn should_stop_definition_publication_when_minimum_reader_admission_fails() {
     assert!(rejected.is_err());
     assert_eq!(before, after);
     assert_eq!(marker(&store), b"cassie-midge-layout-v99");
+}
+
+#[test]
+fn should_order_the_columnar_layout_after_the_index_generation_layout() {
+    // Arrange
+    let store = memory_store();
+    store.require_storage_layout_version(V3).expect("v3");
+
+    // Act
+    store.require_storage_layout_version(V4).expect("v4");
+    store
+        .require_storage_layout_version(V3)
+        .expect("older requirement");
+
+    // Assert
+    assert_eq!(marker(&store), V4.as_bytes());
+    assert_eq!(store.storage_layout_version().expect("version"), V4);
+    assert!(Midge::supports_storage_layout_version(V4));
+}
+
+#[test]
+fn should_raise_the_layout_only_for_a_column_authoritative_table() {
+    // Arrange
+    let store = memory_store();
+    let row = crate::catalog::CollectionMeta::new_with_storage_mode(
+        "row_table",
+        None,
+        crate::catalog::CollectionStorageMode::RowStore,
+    );
+    let column = crate::catalog::CollectionMeta::new_with_storage_mode(
+        "column_table",
+        None,
+        crate::catalog::CollectionStorageMode::ColumnStore,
+    );
+
+    // Act
+    store
+        .require_collection_storage_layout(&row)
+        .expect("row table");
+    let after_row = marker(&store);
+    store
+        .require_collection_storage_layout(&column)
+        .expect("column table");
+
+    // Assert
+    assert_ne!(after_row, V4.as_bytes());
+    assert_eq!(marker(&store), V4.as_bytes());
 }

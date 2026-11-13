@@ -197,6 +197,23 @@ fn storage_mode(
         .map_or("unknown", |mode| mode.as_str())
 }
 
+/// The table's authoritative storage layout, independent of any derived accelerator.
+fn storage_authority(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> &'static str {
+    match cassie.catalog.collection_storage_mode(&physical.collection) {
+        Some(mode) if mode.uses_column_store_storage() => "columnar",
+        Some(_) => "row",
+        None => "unknown",
+    }
+}
+
+/// The derived column-batch accelerator a read selected, never an authority.
+fn storage_accelerator(physical: &crate::planner::physical::PhysicalPlan) -> &str {
+    non_empty_or_none(physical.read.column_batch_index.as_deref().unwrap_or(""))
+}
+
 fn non_empty_or_none(value: &str) -> &str {
     if value.is_empty() {
         "none"

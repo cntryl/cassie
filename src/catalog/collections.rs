@@ -32,6 +32,17 @@ pub struct CollectionMeta {
     pub storage_version: u16,
 }
 
+/// Per-table storage format revision this binary can read and write.
+pub const SUPPORTED_COLLECTION_STORAGE_VERSION: u16 = 1;
+
+impl CollectionMeta {
+    /// Whether this binary understands the table's persisted storage format.
+    #[must_use]
+    pub fn has_supported_storage_version(&self) -> bool {
+        self.storage_version == SUPPORTED_COLLECTION_STORAGE_VERSION
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum CollectionStorageMode {
@@ -442,7 +453,7 @@ fn initial_row_type_revision() -> u64 {
 }
 
 fn default_collection_storage_version() -> u16 {
-    1
+    SUPPORTED_COLLECTION_STORAGE_VERSION
 }
 
 impl ProjectionMeta {

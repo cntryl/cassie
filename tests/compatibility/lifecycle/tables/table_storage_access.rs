@@ -234,7 +234,7 @@ fn should_reject_unsupported_table_access_methods_without_publishing_the_table()
 
         // Act
         let result = client
-            .batch_execute("CREATE TABLE compat_unsupported_table_access (id INT) USING columnar")
+            .batch_execute("CREATE TABLE compat_unsupported_table_access (id INT) USING brin")
             .await;
         let error = result.expect_err("unsupported table access methods should be rejected");
         let relation_count: i64 = client

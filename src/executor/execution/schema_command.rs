@@ -8,6 +8,8 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 
+#[path = "access_method_conversion.rs"]
+mod access_method_conversion;
 #[path = "schema_using.rs"]
 mod using;
 
@@ -449,16 +451,6 @@ pub(super) fn alter_table(
     Ok(output)
 }
 
-fn set_access_method(access_method: &str) -> Result<(), QueryError> {
-    if access_method == "heap" {
-        Ok(())
-    } else {
-        Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
-            format!("unsupported ALTER TABLE access method '{access_method}'"),
-        )))
-    }
-}
-
 fn execute_alter_table_operation(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -528,7 +520,14 @@ fn execute_alter_table_operation(
         AlterTableOperation::SetSchema { schema } => {
             alter_table_set_schema(cassie, session, &statement.table, schema)
         }
-        AlterTableOperation::SetAccessMethod { access_method } => set_access_method(access_method),
+        AlterTableOperation::SetAccessMethod { access_method } => {
+            access_method_conversion::set_access_method(
+                cassie,
+                &statement.table,
+                access_method,
+                controls,
+            )
+        }
         AlterTableOperation::AlterColumnSetDefault {
             field,
             default_value,

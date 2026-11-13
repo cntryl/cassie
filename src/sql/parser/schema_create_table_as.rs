@@ -8,7 +8,7 @@ pub(super) fn parse_create_table_as_statement(
     let Some(as_position) = super::find_top_level_keyword(rest, 0, "as") else {
         return Ok(None);
     };
-    let (table, column_names) = parse_target(rest[..as_position].trim())?;
+    let (table, column_names, storage_mode) = parse_target(rest[..as_position].trim())?;
     let raw_query = rest[as_position + 2..].trim();
     let (raw_query, with_data) = strip_data_option(raw_query);
     if raw_query.is_empty() {
@@ -46,7 +46,7 @@ pub(super) fn parse_create_table_as_statement(
             table,
             fields: Vec::new(),
             if_not_exists,
-            storage_mode: crate::catalog::CollectionStorageMode::RowStore,
+            storage_mode,
             as_query: Some(crate::sql::ast::CreateTableAsClause {
                 query: Box::new(query),
                 column_names,
@@ -57,13 +57,19 @@ pub(super) fn parse_create_table_as_statement(
     }))
 }
 
-fn parse_target(
-    target: &str,
-) -> Result<(crate::sql::ast::IdentifierPath, Vec<String>), super::SqlError> {
-    let target = super::schema_access_methods::strip_create_table_target_access_method(
-        target,
-        "CREATE TABLE",
-    )?;
+type CreateTableAsTarget = (
+    crate::sql::ast::IdentifierPath,
+    Vec<String>,
+    crate::catalog::CollectionStorageMode,
+);
+
+fn parse_target(target: &str) -> Result<CreateTableAsTarget, super::SqlError> {
+    let (target, storage_mode) =
+        super::schema_access_methods::strip_create_table_target_access_method(
+            target,
+            "CREATE TABLE",
+        )?;
+    let storage_mode = storage_mode.unwrap_or(crate::catalog::CollectionStorageMode::RowStore);
 
     if let Some(open) = target.find('(') {
         let close = super::find_matching_paren(target, open)
@@ -80,9 +86,13 @@ fn parse_target(
                 "CREATE TABLE AS column list cannot be empty".into(),
             ));
         }
-        return Ok((table, column_names));
+        return Ok((table, column_names, storage_mode));
     }
-    Ok((super::parse_relation_path(target)?, Vec::new()))
+    Ok((
+        super::parse_relation_path(target)?,
+        Vec::new(),
+        storage_mode,
+    ))
 }
 
 fn strip_data_option(query: &str) -> (&str, bool) {

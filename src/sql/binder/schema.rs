@@ -817,7 +817,7 @@ fn validate_alter_rename_column(
 }
 
 fn validate_alter_table_access_method(access_method: &str) -> Result<(), CassieError> {
-    if access_method == "heap" {
+    if matches!(access_method, "heap" | "columnar") {
         return Ok(());
     }
     Err(CassieError::Unsupported(format!(

@@ -345,6 +345,22 @@ fn mentions_in_unsupported_clauses(select: &SelectStatement, bindings: &Bindings
         .any(|expr| mentions_whole_row(expr, bindings))
 }
 
+/// Whether every source of `source` is a plain table, so `table_bindings`
+/// knows all columns in scope. A derived table, VALUES list or function source
+/// may expose any column name, so a bare name is then left to the binder.
+fn columns_all_known(source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Collection(_) => true,
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            matches!(source.as_ref(), QuerySource::Collection(_))
+        }
+        QuerySource::Join { left, right, .. } => {
+            columns_all_known(left) && columns_all_known(right)
+        }
+        _ => false,
+    }
+}
+
 /// The tables `select` reads, without those shadowed by a CTE of `ctes`.
 fn select_bindings(
     select: &SelectStatement,
@@ -353,6 +369,9 @@ fn select_bindings(
     context: &BindingContext,
 ) -> Bindings {
     let mut bindings = Vec::new();
+    if !columns_all_known(&select.source) {
+        return bindings;
+    }
     table_bindings(&select.source, catalog, context, &mut bindings);
     bindings.retain(|(binding, _)| {
         !ctes.iter().any(|cte| cte.eq_ignore_ascii_case(binding))

@@ -443,7 +443,10 @@ The code and its regressions are authored; they have not been compiled or execut
   failure path and hydration (`Catalog::reconcile_embedded_composites`) roll such copies
   forward to the persisted type. Materialized-view and projection storage schemas are
   collection schemas like tables, so a composite column in one is covered by the same
-  stored-use guard and re-embedding; this is not yet separately exercised. Routine
+  stored-use guard and re-embedding; this is not yet separately exercised. A table's derived row type is re-embedded by a second transaction after
+  the `ALTER TABLE` commits; hydration and the failure path reconcile table row types
+  too (the derived descriptor is the authority), so an interruption between the two heals
+  at the next start. Routine
   signatures are not re-embedded. `ALTER ATTRIBUTE ... TYPE` reports a missing attribute
   (`42703`) before the stored-use `0A000`.
 - Relation row types: every table owns a composite type named like the table. Its

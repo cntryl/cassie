@@ -608,3 +608,15 @@ fn should_keep_the_table_attribute_count_after_a_rolled_back_add_column() {
     // Assert
     assert_eq!(count.as_deref(), Some("2"));
 }
+
+#[test]
+fn should_read_a_derived_table_column_named_like_the_joined_table() {
+    // Arrange
+    let fixture = fixture("row_type_derived_table_column_wins");
+
+    // Act
+    let value = text(&fixture, "SELECT t FROM t JOIN (SELECT 1 AS t) d ON true");
+
+    // Assert
+    assert_eq!(value.as_deref(), Some("1"));
+}

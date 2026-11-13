@@ -4,7 +4,8 @@
 //! before it persists the type itself; each write is its own Midge
 //! transaction because the objects can live in different databases. A crash
 //! between the writes leaves a dependent carrying a descriptor that differs
-//! from the persisted type. The persisted type is authoritative: hydration
+//! from the persisted type (or, for a table row type, from the table's
+//! current columns). The authority is: hydration
 //! replaces every divergent embedded copy in memory.
 use std::collections::HashMap;
 
@@ -29,11 +30,16 @@ impl Catalog {
     /// Replaces table and view column descriptors that differ from the
     /// registered composite type with the same OID. Returns how many changed.
     pub fn reconcile_embedded_composites(&self) -> usize {
-        let types: HashMap<u32, CompositeRef> = self
+        let mut types: HashMap<u32, CompositeRef> = self
             .list_composite_types()
             .iter()
             .map(|meta| (meta.type_oid(), meta.descriptor()))
             .collect();
+        types.extend(
+            self.list_relation_row_types(None)
+                .into_iter()
+                .map(|(_, _, descriptor)| (descriptor.oid, descriptor)),
+        );
         if types.is_empty() {
             return 0;
         }

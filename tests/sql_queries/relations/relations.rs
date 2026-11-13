@@ -243,11 +243,9 @@ fn should_expand_an_unaliased_table_star_in_a_database_scoped_session() {
     let bare = run("SELECT issue_800_employees.* FROM issue_800_employees WHERE dept_id = 10");
     let schema_qualified =
         run("SELECT public.issue_800_employees.* FROM public.issue_800_employees WHERE id = 2");
-    let joined = run(
-        "SELECT issue_800_departments.*, issue_800_employees.name \
+    let joined = run("SELECT issue_800_departments.*, issue_800_employees.name \
          FROM issue_800_employees JOIN issue_800_departments \
-         ON issue_800_employees.dept_id = issue_800_departments.dept_id",
-    );
+         ON issue_800_employees.dept_id = issue_800_departments.dept_id");
 
     // Assert
     let ada = vec![

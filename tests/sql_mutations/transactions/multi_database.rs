@@ -56,7 +56,11 @@ fn should_create_tables_in_both_databases_inside_transactions_after_create_datab
     let cassie = super::super::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");
     let admin = cassie.create_session("tester", Some("postgres".to_string()));
-    run(&cassie, &admin, "CREATE TABLE before_split (id INT PRIMARY KEY)");
+    run(
+        &cassie,
+        &admin,
+        "CREATE TABLE before_split (id INT PRIMARY KEY)",
+    );
     run(&cassie, &admin, "CREATE DATABASE tenant_two");
     let (postgres, tenant) = sessions(&cassie);
 
@@ -87,13 +91,21 @@ fn should_alter_and_index_a_table_inside_a_transaction_after_create_database() {
 
     // Act
     run(&cassie, &session, "BEGIN");
-    run(&cassie, &session, "ALTER TABLE split_items ADD COLUMN qty INT");
+    run(
+        &cassie,
+        &session,
+        "ALTER TABLE split_items ADD COLUMN qty INT",
+    );
     run(
         &cassie,
         &session,
         "CREATE INDEX split_items_label_idx ON split_items (label)",
     );
-    run(&cassie, &session, "UPDATE split_items SET qty = 7 WHERE id = 1");
+    run(
+        &cassie,
+        &session,
+        "UPDATE split_items SET qty = 7 WHERE id = 1",
+    );
     run(&cassie, &session, "COMMIT");
     let rows = run(
         &cassie,
@@ -122,7 +134,11 @@ fn should_roll_back_a_transactional_table_while_another_database_exists() {
 
     // Act
     run(&cassie, &session, "BEGIN");
-    run(&cassie, &session, "CREATE TABLE discarded (id INT PRIMARY KEY)");
+    run(
+        &cassie,
+        &session,
+        "CREATE TABLE discarded (id INT PRIMARY KEY)",
+    );
     run(&cassie, &session, "ROLLBACK");
     let visible = run(
         &cassie,

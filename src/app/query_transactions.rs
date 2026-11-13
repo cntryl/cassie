@@ -160,8 +160,7 @@ impl Cassie {
         let result = self.commit_transaction_inner(session, held_publication, controls);
         // PostgreSQL ends the block when COMMIT itself fails: nothing is
         // published and the session returns to idle without a ROLLBACK.
-        if result.is_err() && (session.is_transaction_active() || session.is_transaction_failed())
-        {
+        if result.is_err() && (session.is_transaction_active() || session.is_transaction_failed()) {
             session.rollback_transaction();
         }
         result

@@ -27,7 +27,8 @@ fn should_name_an_unaliased_column_cast_after_the_column() {
     let fixture = fixture("cast-output-name");
 
     // Act
-    let result = fixture.execute("SELECT e::text, CAST(f AS varchar), cast_names.e::bigint FROM cast_names");
+    let result =
+        fixture.execute("SELECT e::text, CAST(f AS varchar), cast_names.e::bigint FROM cast_names");
 
     // Assert
     assert!(result.is_ok_and(|result| column_names(&result) == ["e", "f", "e"]));

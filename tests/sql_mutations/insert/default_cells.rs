@@ -284,8 +284,10 @@ fn should_apply_a_quoted_array_literal_column_default() {
     // Arrange
     let fixture = sql_fixture(
         "insert-array-literal-default",
-        &["CREATE TABLE array_default (id INT PRIMARY KEY, numbers INT[] DEFAULT '{1,2}', \
-           labels TEXT[] DEFAULT '{a,b}')"],
+        &[
+            "CREATE TABLE array_default (id INT PRIMARY KEY, numbers INT[] DEFAULT '{1,2}', \
+           labels TEXT[] DEFAULT '{a,b}')",
+        ],
     );
 
     // Act

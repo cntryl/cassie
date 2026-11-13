@@ -156,6 +156,13 @@ pub(crate) fn rewrite_database_data_entry(
                 .into(),
         ));
     }
+    if key_family(key) == Some("enum-type") {
+        return Err(CassieError::Unsupported(
+            "database image restore of enum types is not supported yet (#827); \
+             drop the image's enum types before backup"
+                .into(),
+        ));
+    }
     if key_family(key) != Some("object-comment") {
         return Ok(value.to_vec());
     }
@@ -409,6 +416,21 @@ mod tests {
     fn should_fail_closed_when_restoring_domain_type_records() {
         // Arrange
         let key = crate::midge::adapter::key_encoding::domain_type_key("analytics.public.d");
+
+        // Act
+        let result = rewrite_database_data_entry(&key, b"{}", "restored");
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(crate::app::CassieError::Unsupported(_))
+        ));
+    }
+
+    #[test]
+    fn should_fail_closed_when_restoring_enum_type_records() {
+        // Arrange
+        let key = crate::midge::adapter::key_encoding::enum_type_key("analytics.public.e");
 
         // Act
         let result = rewrite_database_data_entry(&key, b"{}", "restored");

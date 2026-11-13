@@ -3,6 +3,9 @@ use cntryl_lexkey::{Encoder, LexKey};
 use crate::app::CassieError;
 use crate::catalog::split_identifier_path;
 
+#[path = "key_encoding/enum_types.rs"]
+mod enum_types;
+pub(super) use enum_types::{enum_type_key, enum_type_prefix};
 #[path = "key_encoding/fulltext.rs"]
 mod fulltext;
 #[path = "key_encoding/graph.rs"]

@@ -152,3 +152,25 @@ fn should_drop_every_enum_of_a_database() {
     // Assert
     assert!(!catalog.has_enum_types());
 }
+
+#[test]
+fn should_clear_uncommitted_flags_in_embedded_column_descriptors() {
+    // Arrange
+    let catalog = Catalog::new();
+    let metadata = meta("db.public.mood", 1000);
+    catalog.register_enum_type(metadata.clone());
+    catalog.register_collection(
+        "db.public.t",
+        vec![("a".to_owned(), DataType::Enum(metadata.descriptor()))],
+    );
+
+    // Act
+    catalog.clear_uncommitted_enum_labels();
+
+    // Assert
+    let schema = catalog.get_schema("db.public.t").expect("schema");
+    let DataType::Enum(embedded) = &schema.fields[0].data_type else {
+        panic!("expected an enum column");
+    };
+    assert!(embedded.members.iter().all(|member| !member.uncommitted));
+}

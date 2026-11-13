@@ -79,7 +79,7 @@ fn should_place_a_value_before_the_first_member_below_its_sort_order() {
 
     // Assert
     assert_eq!(labels(&next), ["ok", "sad", "happy"]);
-    assert!((next.members[0].sort_order - 0.0).abs() < f32::EPSILON);
+    assert!(next.members[0].sort_order.abs() < f32::EPSILON);
 }
 
 #[test]

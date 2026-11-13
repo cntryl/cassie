@@ -263,15 +263,20 @@ impl Catalog {
             .collect()
     }
 
-    /// Clears the in-memory `uncommitted` flag of every member. Transaction
-    /// publication calls this on the published map: committed labels are
-    /// usable by everyone (`55P04` only guards the open transaction).
+    /// Clears the in-memory `uncommitted` flag of every member and of every
+    /// column and view copy of a descriptor. Transaction publication calls
+    /// this after it copies the maps: committed labels are usable by everyone
+    /// (`55P04` only guards the open transaction).
     pub fn clear_uncommitted_enum_labels(&self) {
-        for metadata in self.enum_types.write().values_mut() {
-            for member in &mut metadata.members {
-                member.uncommitted = false;
+        {
+            let mut types = self.enum_types.write();
+            for metadata in types.values_mut() {
+                for member in &mut metadata.members {
+                    member.uncommitted = false;
+                }
             }
         }
+        let _refreshed = self.reconcile_embedded_enums();
     }
 }
 

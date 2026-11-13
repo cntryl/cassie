@@ -16,7 +16,7 @@ fn mood(revision: u64, labels: &[&str]) -> EnumTypeMeta {
             .iter()
             .enumerate()
             .map(|(position, label)| EnumMember {
-                member_id: 31_000 + position as u64,
+                member_id: 31_000 + u64::try_from(position).expect("small position"),
                 label: (*label).to_owned(),
                 sort_order: crate::types::enum_type::sort_order_at(position),
                 uncommitted: false,

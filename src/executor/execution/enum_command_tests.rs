@@ -19,9 +19,7 @@ fn run(cassie: &Cassie, session: &CassieSession, sql: &str) -> Result<String, Ca
 }
 
 fn failure(cassie: &Cassie, session: &CassieSession, sql: &str) -> CassieError {
-    run(cassie, session, sql)
-        .err()
-        .expect("statement should fail")
+    run(cassie, session, sql).expect_err("statement should fail")
 }
 
 fn labels(cassie: &Cassie, name: &str) -> Vec<String> {

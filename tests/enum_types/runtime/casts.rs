@@ -79,3 +79,67 @@ fn should_assign_labels_on_writes() {
     assert_eq!(rows, vec![vec![Value::String("happy".to_string())]]);
     assert_eq!(error.sql_state(), "22P02");
 }
+
+#[test]
+fn should_reject_assigning_a_text_typed_expression_to_an_enum_column_with_42804() {
+    // Arrange
+    let fixture = sql_fixture(
+        "enum_assignment_text_expression",
+        &[
+            "CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')",
+            "CREATE TYPE other AS ENUM ('sad')",
+            "CREATE TABLE days (id int, m mood, t text)",
+            "INSERT INTO days VALUES (1, 'ok', 'sad')",
+        ],
+    );
+
+    // Act
+    let update = fixture.error("UPDATE days SET m = t");
+    let insert_select = fixture.error("INSERT INTO days (id, m) SELECT 2, t FROM days");
+    let cast = fixture.error("INSERT INTO days (id, m) VALUES (3, 'sad'::text)");
+    let other_enum = fixture.error("INSERT INTO days (id, m) VALUES (4, 'sad'::other)");
+    let rows = fixture.rows("SELECT id, m::text FROM days ORDER BY id");
+
+    // Assert
+    assert_eq!(update.sql_state(), "42804");
+    assert_eq!(insert_select.sql_state(), "42804");
+    assert_eq!(cast.sql_state(), "42804");
+    assert_eq!(other_enum.sql_state(), "42804");
+    assert_eq!(
+        rows,
+        vec![vec![Value::Int64(1), Value::String("ok".to_string())]]
+    );
+}
+
+#[test]
+fn should_still_assign_same_enum_expressions_to_an_enum_column() {
+    // Arrange
+    let fixture = sql_fixture(
+        "enum_assignment_allowed",
+        &[
+            "CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')",
+            "CREATE TABLE days (id int, m mood, previous mood)",
+            "INSERT INTO days VALUES (1, 'ok', 'sad')",
+        ],
+    );
+
+    // Act
+    let from_column = fixture.execute("UPDATE days SET m = previous WHERE id = 1");
+    let from_cast = fixture.execute("INSERT INTO days (id, m) VALUES (2, 'happy'::mood)");
+    let from_select =
+        fixture.execute("INSERT INTO days (id, m) SELECT 3, m FROM days WHERE id = 1");
+    let rows = fixture.rows("SELECT m::text FROM days ORDER BY id");
+
+    // Assert
+    assert!(from_column.is_ok());
+    assert!(from_cast.is_ok());
+    assert!(from_select.is_ok());
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::String("sad".to_string())],
+            vec![Value::String("happy".to_string())],
+            vec![Value::String("sad".to_string())],
+        ]
+    );
+}

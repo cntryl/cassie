@@ -136,6 +136,7 @@ pub(super) fn bind_select_with_lateral_fields(
             right: Box::new(right),
         }));
         super::set_width::validate_set_operand_widths(&select, catalog)?;
+        super::set_width::validate_set_operand_types(&select, catalog, context)?;
     }
 
     validate_functions(&select, catalog, context)?;

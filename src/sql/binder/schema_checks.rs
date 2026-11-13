@@ -6,6 +6,18 @@ use crate::sql::ast::FieldDefinition;
 use crate::types::DataType;
 use std::collections::HashSet;
 
+#[path = "schema_enum_checks.rs"]
+mod enum_checks;
+
+/// Prepares null-safe checks, then resolves named enum literals to members.
+fn prepare_checks(
+    constraints: &mut [FieldConstraint],
+    fields: &[crate::types::FieldSchema],
+) -> Result<(), CassieError> {
+    crate::sql::binder::bound_checks::prepare(constraints, fields)?;
+    enum_checks::bind(constraints, fields)
+}
+
 /// Binds simple CHECK literals before returning the existing own-constraint
 /// snapshot used to resolve CREATE TABLE's uniqueness and foreign keys.
 pub(super) fn bind_create_checks(
@@ -38,7 +50,7 @@ pub(super) fn bind_create_checks(
         .collect::<Vec<_>>();
     for field in fields.iter_mut() {
         bind_checks(&mut field.constraints, &booleans)?;
-        crate::sql::binder::bound_checks::prepare(&mut field.constraints, &typed_fields)?;
+        prepare_checks(&mut field.constraints, &typed_fields)?;
     }
     Ok(fields
         .iter()
@@ -96,9 +108,9 @@ pub(super) fn bind_alter_checks(
             data_type: data_type.clone(),
             nullable: true,
         });
-        crate::sql::binder::bound_checks::prepare(constraints, &fields)
+        prepare_checks(constraints, &fields)
     } else if let AlterTableOperation::AddConstraint { constraints } = operation {
-        crate::sql::binder::bound_checks::prepare(constraints, &fields)
+        prepare_checks(constraints, &fields)
     } else {
         Ok(())
     }

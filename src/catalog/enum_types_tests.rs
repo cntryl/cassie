@@ -174,3 +174,72 @@ fn should_clear_uncommitted_flags_in_embedded_column_descriptors() {
     };
     assert!(embedded.members.iter().all(|member| !member.uncommitted));
 }
+
+#[test]
+fn should_report_a_view_whose_output_has_the_type_as_a_dependent() {
+    // Arrange
+    let catalog = Catalog::new();
+    let metadata = meta("db.public.mood", 2000);
+    catalog.register_enum_type(metadata.clone());
+    catalog.register_view(crate::catalog::ViewMeta::new(
+        "db.public.moods",
+        "SELECT 'sad'::mood AS m",
+        crate::types::Schema {
+            fields: vec![crate::types::FieldSchema {
+                name: "m".to_owned(),
+                data_type: DataType::Enum(metadata.descriptor()),
+                nullable: true,
+            }],
+        },
+    ));
+
+    // Act
+    let details = catalog
+        .enum_type_dependents(metadata.type_oid())
+        .iter()
+        .map(|dependent| dependent.detail("mood"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(details, vec!["view moods depends on type mood".to_owned()]);
+}
+
+#[test]
+fn should_name_a_materialized_view_instead_of_its_output_tables() {
+    // Arrange
+    let catalog = Catalog::new();
+    let metadata = meta("db.public.mood", 3000);
+    let column = || vec![("m".to_owned(), DataType::Enum(metadata.descriptor()))];
+    catalog.register_enum_type(metadata.clone());
+    catalog.register_collection("db.public.__cassie_projection_daily_v1", column());
+    catalog.register_collection("db.public.__cassie_projection_daily_v2", column());
+
+    // Act
+    let details = catalog
+        .enum_type_dependents(metadata.type_oid())
+        .iter()
+        .map(|dependent| dependent.detail("mood"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(
+        details,
+        vec!["column m of materialized view daily depends on type mood".to_owned()]
+    );
+}
+
+#[test]
+fn should_render_an_enum_default_as_a_label_cast() {
+    // Arrange
+    let metadata = meta("db.public.mood", 4000);
+    let data_type = DataType::Enum(metadata.descriptor());
+    let stored = serde_json::json!({ crate::types::enum_type::ENUM_STORAGE_KEY: 4010 });
+
+    // Act
+    let rendered = super::default_expression(&stored, &data_type);
+    let other = super::default_expression(&stored, &DataType::Text);
+
+    // Assert
+    assert_eq!(rendered.as_deref(), Some("'sad'::mood"));
+    assert!(other.is_none());
+}

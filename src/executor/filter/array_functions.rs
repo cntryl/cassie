@@ -3,6 +3,8 @@ use super::{QueryError, Value};
 use std::fmt::Write as _;
 #[path = "array_admission.rs"]
 mod admission;
+#[path = "array_enum_search.rs"]
+mod enum_search;
 
 pub(super) fn evaluate(
     name: &str,
@@ -482,6 +484,8 @@ fn array_position(args: &[Value]) -> Result<Value, QueryError> {
         };
     };
     check_search_dimensions(array)?;
+    let search = enum_search::search_value(array, search)?;
+    let search = search.as_ref();
     let Some(dimension) = array.dimensions().first() else {
         return Ok(Value::Null);
     };
@@ -519,6 +523,8 @@ fn array_positions(args: &[Value]) -> Result<Value, QueryError> {
         };
     };
     check_search_dimensions(array)?;
+    let search = enum_search::search_value(array, search)?;
+    let search = search.as_ref();
     let elements = array.elements();
     let Some(dimension) = array.dimensions().first() else {
         return Ok(Value::Array(crate::types::SqlArray::empty()));

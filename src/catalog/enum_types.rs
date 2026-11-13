@@ -92,6 +92,49 @@ impl EnumDependent {
     }
 }
 
+/// Prefix of the internal table that stores one version of a materialized
+/// view's output (`__cassie_projection_<view>_<version>`).
+const PROJECTION_OUTPUT_PREFIX: &str = "__cassie_projection_";
+
+/// PostgreSQL's name for the relation `collection` in a dependency detail:
+/// `table t`, or `materialized view v` for a materialized view's output table,
+/// whose internal name is never shown.
+fn dependent_relation(collection: &str) -> String {
+    let local = local_name(collection);
+    match local
+        .strip_prefix(PROJECTION_OUTPUT_PREFIX)
+        .and_then(|versioned| versioned.rsplit_once('_'))
+    {
+        Some((view, _version)) if !view.is_empty() => format!("materialized view {view}"),
+        _ => format!("table {local}"),
+    }
+}
+
+/// The canonical output-table name of a materialized view without its
+/// version suffix, or `None` for any other relation.
+fn projection_output_stem(collection: &str) -> Option<&str> {
+    let (stem, _version) = collection.rsplit_once('_')?;
+    stem.rsplit('.')
+        .next()
+        .is_some_and(|local| local.starts_with(PROJECTION_OUTPUT_PREFIX))
+        .then_some(stem)
+}
+
+/// PostgreSQL's rendering of an enum column default, `'label'::type`, from
+/// the stored member form. `None` for any other column type or value.
+#[must_use]
+pub fn default_expression(value: &serde_json::Value, data_type: &DataType) -> Option<String> {
+    let DataType::Enum(descriptor) = data_type.flattened() else {
+        return None;
+    };
+    let member = descriptor.member(crate::types::EnumValue::storage_member_id(value)?)?;
+    Some(format!(
+        "'{}'::{}",
+        member.label.replace('\'', "''"),
+        descriptor.name
+    ))
+}
+
 /// Whether `data_type` is, or arrays, the enum type `oid`.
 #[must_use]
 pub fn data_type_depends_on_enum(data_type: &DataType, oid: u32) -> bool {
@@ -230,28 +273,56 @@ impl Catalog {
             .any(|metadata| same_stored_relation(&metadata.name, name))
     }
 
-    /// Table columns that keep the enum type `oid` alive. Composite fields
-    /// and domain bases cannot hold an enum in v0.4.
+    /// Table columns, materialized views and views that keep the enum type
+    /// `oid` alive. Composite fields and domain bases cannot hold an enum in
+    /// v0.4. A view counts when one of its output columns has the type; a view
+    /// that only casts to it internally is found from its definition by the
+    /// `DROP TYPE` command.
     #[must_use]
     pub fn enum_type_dependents(&self, oid: u32) -> Vec<EnumDependent> {
         let mut dependents = Vec::new();
         for schema in self.schemas.read().values() {
+            let relation = dependent_relation(&schema.collection);
             for field in &schema.fields {
                 if data_type_depends_on_enum(&field.data_type, oid) {
                     dependents.push(EnumDependent {
                         owner: schema.collection.clone(),
-                        phrase: format!(
-                            "column {} of table {}",
-                            field.name,
-                            local_name(&schema.collection)
-                        ),
+                        phrase: format!("column {} of {relation}", field.name),
                         array: matches!(field.data_type, DataType::Array(_)),
                     });
                 }
             }
         }
+        for view in self.list_views() {
+            if let Some(field) = view
+                .schema
+                .fields
+                .iter()
+                .find(|field| data_type_depends_on_enum(&field.data_type, oid))
+            {
+                dependents.push(EnumDependent {
+                    owner: view.name.clone(),
+                    phrase: format!("view {}", local_name(&view.name)),
+                    array: matches!(field.data_type, DataType::Array(_)),
+                });
+            }
+        }
+        // Functions and procedures with an argument or result of the type.
+        dependents.extend(self.routine_dependents_on_type(oid).into_iter().map(
+            |(owner, phrase)| EnumDependent {
+                owner,
+                phrase,
+                array: false,
+            },
+        ));
         dependents
             .sort_by(|left, right| (&left.owner, &left.phrase).cmp(&(&right.owner, &right.phrase)));
+        // Every version of a materialized view's output names the same object.
+        dependents.dedup_by(|next, kept| {
+            next.phrase == kept.phrase
+                && projection_output_stem(&next.owner)
+                    .is_some_and(|stem| projection_output_stem(&kept.owner) == Some(stem))
+        });
         dependents
     }
 

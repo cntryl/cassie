@@ -29,6 +29,7 @@ pub(super) fn result_type(name: &str, arguments: &[DataType]) -> Result<DataType
                 )
                 | DataType::Text
                 | DataType::Boolean
+                | DataType::Enum(_)
         ) {
             return Err(CassieError::Unsupported(format!(
                 "{name} argument type is outside the selected conditional expression contract"
@@ -54,6 +55,21 @@ pub(super) fn result_type(name: &str, arguments: &[DataType]) -> Result<DataType
 }
 
 fn incompatible_types(name: &str, left: &DataType, right: &DataType) -> CassieError {
+    if let (DataType::Enum(left), DataType::Enum(right)) = (left, right) {
+        if !name.eq_ignore_ascii_case("nullif") {
+            // Two named enum types have no common type (#827).
+            return crate::app::DiagnosticError::new(
+                "42846",
+                format!(
+                    "{} could not convert type {} to {}",
+                    name.to_ascii_uppercase(),
+                    right.name,
+                    left.name
+                ),
+            )
+            .into();
+        }
+    }
     let left = super::values::pg_name(left);
     let right = super::values::pg_name(right);
     let message = if name.eq_ignore_ascii_case("nullif") {

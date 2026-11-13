@@ -3,9 +3,9 @@ use crate::types::DataType;
 use uuid::Uuid;
 
 use super::{
-    decode_bytea, write_varint, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_DATE, TYPE_EXTENDED,
-    TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID,
-    TYPE_VECTOR_F32,
+    decode_bytea, write_varint, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_DATE, TYPE_ENUM,
+    TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
+    TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
 
 pub(super) fn encode_value(
@@ -83,6 +83,7 @@ pub(super) fn encode_value(
         DataType::Array(inner) => encode_array_value(inner, value),
         DataType::Composite(descriptor) => super::composite::encode_composite(descriptor, value),
         DataType::Domain(descriptor) => super::domain::encode_domain(descriptor, value),
+        DataType::Enum(descriptor) => super::enum_value::encode_enum(descriptor, value),
         DataType::Json | DataType::Jsonb => {
             let encoded = serde_json::to_vec(value)
                 .map_err(|error| CassieError::Parse(format!("invalid json field: {error}")))?;
@@ -251,7 +252,7 @@ fn encode_array_value(
         match value_type {
             TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID => out.extend_from_slice(&value_data),
             TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME
-            | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA | TYPE_EXTENDED => {
+            | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA | TYPE_EXTENDED | TYPE_ENUM => {
                 write_varint(
                     u64::try_from(value_data.len()).unwrap_or(u64::MAX),
                     &mut out,

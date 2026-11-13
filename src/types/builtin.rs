@@ -172,6 +172,8 @@ pub(crate) enum TypeMetadata<'a> {
     Array(&'a DataType),
     /// A named composite or transient record; its identity is in the descriptor.
     Composite(&'a super::CompositeRef),
+    /// A named enum type (#827); its identity is in the descriptor.
+    Enum(&'a super::EnumRef),
 }
 
 pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
@@ -199,6 +201,7 @@ pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
         DataType::Vector(_) => return TypeMetadata::Vector,
         DataType::Array(inner) => return TypeMetadata::Array(inner),
         DataType::Composite(descriptor) => return TypeMetadata::Composite(descriptor),
+        DataType::Enum(descriptor) => return TypeMetadata::Enum(descriptor),
         // A domain reports its base type's identity on the wire and in SQL.
         DataType::Domain(descriptor) => return type_metadata(&descriptor.base),
     };

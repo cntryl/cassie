@@ -575,6 +575,9 @@ pub struct EnforceRetentionPolicyStatement {
 pub struct CreateFunctionStatement {
     pub name: String,
     pub if_not_exists: bool,
+    /// `CREATE OR REPLACE`: an existing function of this name is redefined.
+    #[serde(default)]
+    pub or_replace: bool,
     pub args: Vec<FunctionArg>,
     pub return_type: DataType,
     pub volatility: Volatility,
@@ -591,6 +594,9 @@ pub struct DropFunctionStatement {
 pub struct CreateProcedureStatement {
     pub name: String,
     pub if_not_exists: bool,
+    /// `CREATE OR REPLACE`: an existing procedure of this name is redefined.
+    #[serde(default)]
+    pub or_replace: bool,
     pub args: Vec<FunctionArg>,
     pub body: String,
 }

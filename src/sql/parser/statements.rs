@@ -125,9 +125,30 @@ pub(super) fn is_unsupported_transaction_control_statement(lower: &str) -> bool 
         || (is_set_transaction && !is_selected_set_transaction)
 }
 
+/// Splits `CREATE [OR REPLACE] FUNCTION|PROCEDURE` from the rest of the
+/// statement, reporting whether `OR REPLACE` was written.
+fn routine_clause_start<'a>(trimmed: &'a str, noun: &str) -> (bool, &'a str) {
+    let rest = strip_word(trimmed, "create").unwrap_or(trimmed);
+    let replaced = strip_word(rest, "or").and_then(|after_or| strip_word(after_or, "replace"));
+    let rest = replaced.unwrap_or(rest);
+    (
+        replaced.is_some(),
+        strip_word(rest, noun).unwrap_or(rest).trim(),
+    )
+}
+
+/// The text after a leading case-insensitive `word` and its whitespace.
+fn strip_word<'a>(text: &'a str, word: &str) -> Option<&'a str> {
+    let text = text.trim_start();
+    let head = text.get(..word.len())?;
+    let tail = &text[word.len()..];
+    (head.eq_ignore_ascii_case(word) && tail.starts_with(char::is_whitespace))
+        .then(|| tail.trim_start())
+}
+
 pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    let rest = trimmed[15..].trim();
+    let (or_replace, rest) = routine_clause_start(trimmed, "function");
     if rest.to_lowercase().contains("security definer") {
         return Err(SqlError::new(
             "SECURITY DEFINER is not supported in this version".into(),
@@ -171,6 +192,7 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
         statement: QueryStatement::CreateFunction(CreateFunctionStatement {
             name: name.to_string(),
             if_not_exists,
+            or_replace,
             args,
             return_type,
             volatility,
@@ -181,7 +203,7 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
 
 pub(super) fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    let rest = trimmed[16..].trim();
+    let (or_replace, rest) = routine_clause_start(trimmed, "procedure");
     if rest.to_lowercase().contains("security definer") {
         return Err(SqlError::new(
             "SECURITY DEFINER is not supported in this version".into(),
@@ -219,6 +241,7 @@ pub(super) fn parse_create_procedure_statement(sql: &str) -> Result<ParsedStatem
         statement: QueryStatement::CreateProcedure(CreateProcedureStatement {
             name: name.to_string(),
             if_not_exists,
+            or_replace,
             args,
             body,
         }),

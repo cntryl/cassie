@@ -79,6 +79,10 @@ name = "composite_types"
 path = "composite_types.rs"
 
 [[test]]
+name = "domain_types"
+path = "domain_types.rs"
+
+[[test]]
 name = "constraint_ingress"
 path = "constraint_ingress.rs"
 

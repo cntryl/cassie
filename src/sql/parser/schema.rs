@@ -54,7 +54,7 @@ pub(super) use schema_indexes::{
     parse_index_options, parse_reindex_statement,
 };
 use schema_like::{is_like_table_element, parse_create_table_like_clause};
-use schema_literals::parse_constant_literal;
+pub(super) use schema_literals::parse_constant_literal;
 pub(super) use schema_literals::parse_constraint_literal;
 use schema_sequences::parse_alter_column_operation;
 use schema_table_constraints::{

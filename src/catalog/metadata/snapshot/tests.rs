@@ -100,6 +100,7 @@ fn should_admit_complete_sparse_snapshot_backing() {
         data_type: crate::types::DataType::Array(Box::new(crate::types::DataType::Array(
             Box::new(crate::types::DataType::Text),
         ))),
+        domain: None,
         is_indexed: false,
         boost: None,
     });

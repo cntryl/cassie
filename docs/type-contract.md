@@ -486,6 +486,65 @@ The code and its regressions are authored; they have not been compiled or execut
   binary result formats admit a record only for columns flagged `ColumnMeta::is_record`
   (named composites and `ROW(...)`), replacing the OID-range heuristic.
 
+#### #828 increment 2 status (domain types)
+
+Authored, not yet executed (compilation is deferred to the assembled batch):
+
+- `CREATE DOMAIN name [AS] base [DEFAULT expr] [NOT NULL | NULL] [CONSTRAINT n] CHECK (...)`
+  over scalar and array base types; `ALTER DOMAIN` SET/DROP DEFAULT, SET/DROP NOT NULL,
+  ADD CONSTRAINT CHECK [NOT VALID], DROP CONSTRAINT [IF EXISTS], VALIDATE CONSTRAINT,
+  RENAME TO and RENAME CONSTRAINT; `DROP DOMAIN [IF EXISTS] [RESTRICT]` with `2BP01`
+  detail for dependent table columns. Domain DDL shares the `CREATE TYPE` statement,
+  transaction and catalog-publication paths, so it is transactional.
+- Domain-typed table columns and `x::d` casts. Enforcement runs on INSERT, UPDATE,
+  COPY and casts: `23514` for a failed CHECK (constraint name in the message) and
+  `23502` for NULL against NOT NULL. CHECK is satisfied by TRUE or NULL. A domain
+  DEFAULT applies only when the column has no default of its own.
+- `VALUE` in a CHECK is the checked value. CHECK bodies are stored as SQL text and
+  evaluated by the scalar evaluator; unnamed checks are named `{domain}_check`,
+  `{domain}_check1` and so on.
+- `ALTER DOMAIN ADD CHECK` and `SET NOT NULL` validate existing rows and publish
+  nothing on failure, and validation sees the session's own staged rows. `NOT VALID`
+  checks are enforced on INSERT/COPY and on every newly assigned value of an UPDATE or
+  `ON CONFLICT DO UPDATE`; only an unchanged legacy value is exempt until validated.
+- `ALTER TABLE ADD COLUMN` of a domain column enforces the domain NOT NULL and CHECK
+  constraints on a populated table and backfills the domain DEFAULT. Domain names share
+  the type and relation namespace with composite types, tables, views, sequences and
+  indexes (`42710` / `42P07`). `ON CONFLICT DO NOTHING` still raises `23514` / `23502`
+  or `DO UPDATE` for a violating proposed value. `pg_attribute.atttypmod` of a domain
+  column is `-1`. A domain named like a table, view, sequence or composite type is
+  `42710` for `CREATE TABLE [IF NOT EXISTS]`, `CREATE VIEW`, `CREATE MATERIALIZED VIEW`,
+  `CREATE SEQUENCE` and `CREATE TYPE`, and `CREATE DOMAIN` collides with tables, views,
+  composite types and other domains; a domain may share a sequence or index name.
+- Known divergences: `UPDATE t SET q = c` where the stored value already equals the
+  constant `c` and violates a `NOT VALID` check is accepted (PostgreSQL re-coerces the
+  constant and rejects); a column with its own volatile DEFAULT falls back to the domain
+  default when added to a populated table; adding a column whose domain default is
+  `gen_random_uuid()` to a populated table is `0A000` (a single value would not be
+  distinct per row).
+- Flattening: operators and functions resolve through the base type, and
+  RowDescription, `atttypmod` and parameter types report the base OID. A table column
+  keeps its domain identity separately (`FieldMeta.domain`), so `ALTER DOMAIN` never
+  rewrites rows; enforcement looks the live descriptor up by OID.
+- Catalog: `pg_type` rows with `typtype = 'd'`, `typbasetype`, `typtypmod`,
+  `typnotnull` and a `_name` array row; `pg_attribute.atttypid` of a domain column is
+  the domain OID; `'d'::regtype` resolves and prints. `typdefault` and
+  `pg_constraint` rows for domain checks are not published.
+- CRB1 tag `0x10`: version u8 = 1, type OID u32, descriptor revision u64, one framed
+  base value. Decoding yields the base value; a NULL base inside a payload is corrupt.
+
+Rejected with `0A000` (documented limitations, not regressions):
+
+- domains over composite types, over other domains, and over arrays of those;
+- arrays of domains (`d[]`) and composite attributes of domain type; a domain name is
+  only recognised in column definitions and casts, so function signatures, sequences
+  and `CREATE TYPE` attributes report the type as missing;
+- `COLLATE` on a domain, `ALTER DOMAIN OWNER TO` and `SET SCHEMA`;
+- `DROP DOMAIN ... CASCADE` when dependents exist (use `RESTRICT` semantics);
+- restoring a database image that contains domain types fails closed;
+- reparse paths that run without a session type scope (views, `PREPARE`,
+  `COPY (query)`, `CREATE TABLE AS`) do not resolve domain names yet;
+- prepared statements keep the descriptor seen at Parse time.
 
 ### #843, #844
 

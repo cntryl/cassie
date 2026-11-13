@@ -56,8 +56,8 @@ In the current source, [`virtual_views_pg.rs`](../src/catalog/virtual_views_pg.r
 declares and builds the selected base `pg_namespace`, `pg_class`, `pg_type`,
 and `pg_attribute` rows. Their existence does not complete the dependent
 workflows: user object resolution still belongs to #818, selected
-domain type rows are absent until #828, composite type rows are authored but
-not yet executed, and extension catalog rows
+domain and composite type rows are authored (#828) but not yet executed; domain rows carry no
+`typdefault` and no `pg_constraint` rows, and extension catalog rows
 remain empty until #843. `nspowner` and
 `relowner` currently describe the bootstrap `root`; `nspacl` and `relacl` are
 empty. Role-aware schema/table grant reporting remains with #831.

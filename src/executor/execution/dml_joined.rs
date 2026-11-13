@@ -506,6 +506,7 @@ pub(crate) fn joined_returning_schema(
         fields.push(FieldMeta {
             name: field.qualified_name(),
             data_type: field.data_type.clone(),
+            domain: None,
             is_indexed: false,
             boost: None,
         });
@@ -514,6 +515,7 @@ pub(crate) fn joined_returning_schema(
         fields.push(FieldMeta {
             name: crate::sql::ast::MERGE_ACTION_COLUMN.to_string(),
             data_type: crate::types::DataType::Text,
+            domain: None,
             is_indexed: false,
             boost: None,
         });

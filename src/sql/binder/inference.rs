@@ -234,6 +234,7 @@ pub(crate) fn cte_collection_schema_with_functions(
                     .map(|field| crate::catalog::FieldMeta {
                         name: field.name,
                         data_type: field.data_type,
+                        domain: None,
                         is_indexed: false,
                         boost: None,
                     })

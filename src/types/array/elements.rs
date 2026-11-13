@@ -103,6 +103,7 @@ pub(super) fn normalize_element(
         | DataType::Array(_)
         | DataType::Null => Ok(value),
         DataType::Composite(_) => Err("arrays of composite types are not supported".to_string()),
+        DataType::Domain(_) => Err("arrays of domain types are not supported".to_string()),
     }
 }
 

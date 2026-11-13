@@ -45,6 +45,9 @@ pub(super) fn execute(
             alteration,
             controls,
         ),
+        TypeAction::Domain(action) => {
+            super::domain_command::execute(cassie, session, action, controls)
+        }
         TypeAction::Drop {
             names,
             if_exists,
@@ -154,6 +157,7 @@ pub(super) fn relation_name_occupied(
     controls: &QueryExecutionControls,
 ) -> Result<bool, QueryError> {
     Ok(cassie.catalog.composite_type_exists(canonical)
+        || cassie.catalog.domain_type_exists(canonical)
         || cassie.catalog.get_schema(canonical).is_some()
         || cassie.catalog.relation_exists(canonical)
         || cassie.catalog.sequence_exists(canonical)

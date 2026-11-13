@@ -240,6 +240,15 @@ impl Cassie {
             self.catalog.register_composite_type(metadata);
         }
 
+        let domain_types = self.midge.list_domain_types().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list domain type metadata: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in domain_types {
+            self.catalog.register_domain_type(metadata);
+        }
+
         let functions = self.midge.list_functions().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list functions: {error}"))

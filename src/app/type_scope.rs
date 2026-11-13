@@ -4,14 +4,14 @@ use std::rc::Rc;
 
 use super::{Cassie, CassieError, CassieSession};
 use crate::sql::ast::ParsedStatement;
-use crate::sql::{parse_statement, with_type_scope, TypeResolver};
+use crate::sql::{parse_statement, with_domain_scope, with_type_scope, TypeResolver};
 use crate::types::CompositeRef;
 
 impl Cassie {
     /// The catalog `session` reads types from: a type created inside its open
     /// transaction lives in the catalog overlay until commit, and a
     /// repeatable-read transaction reads its snapshot.
-    fn type_catalog(&self, session: Option<&CassieSession>) -> crate::catalog::Catalog {
+    pub(super) fn type_catalog(&self, session: Option<&CassieSession>) -> crate::catalog::Catalog {
         session
             .and_then(CassieSession::transaction_catalog_overlay)
             .or_else(|| {
@@ -51,10 +51,16 @@ impl Cassie {
         sql: &str,
     ) -> Result<ParsedStatement, CassieError> {
         let catalog = self.type_catalog(session);
-        if !catalog.has_composite_types() && !catalog.has_collections() {
+        if !catalog.has_composite_types()
+            && !catalog.has_collections()
+            && !catalog.has_domain_types()
+        {
             return Ok(parse_statement(sql)?);
         }
         let resolver = self.composite_type_resolver(session);
-        Ok(with_type_scope(resolver, || parse_statement(sql))?)
+        let domains = self.domain_type_resolver(session);
+        Ok(with_domain_scope(domains, || {
+            with_type_scope(resolver, || parse_statement(sql))
+        })?)
     }
 }

@@ -23,6 +23,9 @@ pub fn bind_create_table(
     if !statement.if_not_exists {
         catalog.reject_composite_relation_name(&name)?;
     }
+    // A domain is not a relation, so IF NOT EXISTS cannot skip it: the table's
+    // row type would collide with the domain (42710).
+    catalog.reject_domain_relation_name(&name)?;
     let already_exists = catalog.relation_exists(&name)
         || virtual_views::schema(&name).is_some()
         || catalog.composite_type_exists(&name);

@@ -15,6 +15,8 @@ pub(super) mod collation;
 mod composite_catalogs;
 #[path = "virtual_views_pg/descriptions.rs"]
 pub(super) mod descriptions;
+#[path = "virtual_views_pg/domain_catalogs.rs"]
+mod domain_catalogs;
 #[path = "virtual_views_pg/index_definitions.rs"]
 mod index_definitions;
 #[path = "virtual_views_pg/type_identity.rs"]
@@ -244,7 +246,7 @@ pub(super) fn pg_attribute(
             } else {
                 field.name.clone()
             };
-            rows.push(attribute_row(
+            let mut row = attribute_row(
                 catalog,
                 &collection.name,
                 &AttributeSpec {
@@ -255,7 +257,11 @@ pub(super) fn pg_attribute(
                     is_dropped: field.retired,
                 },
                 current_database,
-            ));
+            );
+            if let Some(domain) = field.data_type.domain().filter(|_| !field.retired) {
+                domain_catalogs::mark_domain_column(&mut row, domain);
+            }
+            rows.push(row);
         }
     }
     for view in catalog.list_views() {
@@ -433,6 +439,7 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
         ))
     }));
     rows.extend(composite_catalogs::type_rows(catalog, current_database));
+    rows.extend(domain_catalogs::type_rows(catalog, current_database));
     rows.sort_by_key(row_sort_key);
     rows
 }

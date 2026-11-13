@@ -101,6 +101,7 @@ pub(crate) fn derived_source_schema_with_parameters(
             .map(|field| crate::catalog::FieldMeta {
                 name: field.name,
                 data_type: field.data_type,
+                domain: None,
                 is_indexed: false,
                 boost: None,
             })
@@ -133,6 +134,7 @@ pub(crate) fn joined_source_schema(
             .map(|field| crate::catalog::FieldMeta {
                 name: field.name,
                 data_type: field.data_type,
+                domain: None,
                 is_indexed: false,
                 boost: None,
             })

@@ -721,6 +721,10 @@ fn copy_value_to_json(
             "COPY into composite field '{}' is pending under #828",
             field.name
         ))),
+        DataType::Domain(_) => Err(CassieError::Unsupported(format!(
+            "COPY field '{}' reached the text parser as an unflattened domain",
+            field.name
+        ))),
         DataType::Json | DataType::Jsonb => unreachable!("JSON fields use the controlled parser"),
     }?;
     Ok((value, None))

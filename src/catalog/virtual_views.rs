@@ -848,6 +848,7 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::JsonPath => "jsonpath".to_string(),
         DataType::Array(inner) => format!("{}[]", inner.type_name()),
         DataType::Composite(_) => "USER-DEFINED".to_string(),
+        DataType::Domain(descriptor) => data_type_name(&descriptor.base),
         DataType::ObjectId(kind) => kind.name().to_string(),
         DataType::Extended(kind) => kind.name().to_string(),
     }

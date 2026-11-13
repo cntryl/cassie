@@ -1,8 +1,10 @@
+#[cfg(test)]
+use super::parse_data_type;
 use super::schema_identifiers::parse_column_identifier;
 use super::schema_references::parse_references_target;
 use super::{
-    parse_check_constraint, parse_constant_literal, parse_data_type, tokenize_schema_field,
-    FieldConstraint, FieldDefinition, SqlError,
+    parse_check_constraint, parse_constant_literal, tokenize_schema_field, FieldConstraint,
+    FieldDefinition, SqlError,
 };
 use crate::catalog::DefaultSequenceOwnership;
 
@@ -444,7 +446,7 @@ fn parse_field_data_type(
                 Some(crate::catalog::serial_sequence_name(table, field)),
             ))
         }
-        _ => parse_data_type(raw).map(|data_type| (data_type, None)),
+        _ => super::domain_scope::parse_declared_data_type(raw).map(|data_type| (data_type, None)),
     }
 }
 

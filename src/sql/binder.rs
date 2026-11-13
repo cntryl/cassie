@@ -234,6 +234,13 @@ pub(crate) fn parameter_data_type_for_oid_in_database(
     {
         return Some(DataType::Composite(composite.descriptor()));
     }
+    if let Some(domain) = u32::try_from(oid)
+        .ok()
+        .and_then(|oid| catalog.get_domain_type_by_oid(oid))
+        .filter(|domain| domain.database.eq_ignore_ascii_case(database))
+    {
+        return Some(domain.base);
+    }
     parameter_data_type_for_oid(oid)
 }
 

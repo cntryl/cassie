@@ -22,6 +22,7 @@ fn should_hydrate_character_images_using_exact_returning_field_types() {
         .map(|(name, data_type)| FieldMeta {
             name: name.into(),
             data_type,
+            domain: None,
             is_indexed: false,
             boost: None,
         })

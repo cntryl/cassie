@@ -69,7 +69,8 @@ mod types;
 pub use query_result::{OwnedQueryRows, QueryResultBuilder};
 use types::ExecutionBreakdownDurations;
 pub use types::{
-    ColumnMeta, ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError, QueryResult,
+    ColumnMeta, EnumColumn, ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError,
+    QueryResult,
 };
 
 mod constant_planning;

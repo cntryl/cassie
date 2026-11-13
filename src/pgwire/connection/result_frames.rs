@@ -194,15 +194,19 @@ fn scratch_bytes(
                 .columns()
                 .get(index)
                 .is_some_and(ColumnMeta::is_vector);
-            let mut cell = cell_bytes(
-                value,
-                oid,
-                atttypmod,
-                format,
-                postgres_array_text,
-                is_vector,
-            )?;
-            if format == 0 && array_element_oid(oid).is_some() {
+            let enum_column = result.columns().get(index).and_then(|column| column.enum_column);
+            let mut cell = match enum_column {
+                Some(column) => enum_cell_bytes(value, column)?,
+                None => cell_bytes(
+                    value,
+                    oid,
+                    atttypmod,
+                    format,
+                    postgres_array_text,
+                    is_vector,
+                )?,
+            };
+            if enum_column.is_none() && format == 0 && array_element_oid(oid).is_some() {
                 let mut extra = 0;
                 if let Value::Array(array) = value {
                     if array
@@ -312,6 +316,28 @@ fn cell_bytes(
         _ => encoded,
     };
     Ok(CellBytes { encoded, scratch })
+}
+
+/// Labels are sent as their UTF-8 bytes in both formats; an enum array adds
+/// the `array_send` header and one length word per element to its text bound.
+fn enum_cell_bytes(
+    value: &Value,
+    column: crate::executor::EnumColumn,
+) -> Result<CellBytes, CassieError> {
+    if matches!(value, Value::Null) || !column.is_array {
+        return text_bytes(value);
+    }
+    let text = postgres_array_text_bytes(value, 0)?;
+    let elements = match value {
+        Value::Array(array) => array.len(),
+        Value::Json(serde_json::Value::Array(values)) => values.len(),
+        _ => 0,
+    };
+    let framing = add(12 + 6 * 8, mul(elements, 4)?)?;
+    Ok(CellBytes {
+        encoded: add(text.encoded, framing)?,
+        scratch: add(text.scratch, framing)?,
+    })
 }
 
 fn bpchar_cell_bytes(value: &Value, atttypmod: i32) -> Result<CellBytes, CassieError> {

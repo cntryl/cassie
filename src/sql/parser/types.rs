@@ -27,10 +27,8 @@ pub(super) fn parse_create_type_statement(sql: &str) -> Result<ParsedStatement, 
     let body = if let Some(after_as) = lower.strip_prefix("as") {
         let offset = after_name.len() - after_as.len();
         let body = after_name[offset..].trim_start();
-        if body.to_ascii_lowercase().starts_with("enum") {
-            return Err(SqlError::unsupported(
-                "CREATE TYPE AS ENUM is not supported in this version".into(),
-            ));
+        if let Some(after_enum) = super::enum_labels::strip_enum_keyword(body) {
+            return super::enum_labels::parse_create_enum(trimmed, name, after_enum);
         }
         if body.to_ascii_lowercase().starts_with("range") {
             return Err(SqlError::unsupported(
@@ -72,7 +70,8 @@ pub(super) fn parse_create_type_statement(sql: &str) -> Result<ParsedStatement, 
             }
             attributes.push(TypeAttribute {
                 name: field,
-                data_type: parse_data_type(type_text)?,
+                data_type: parse_data_type(type_text)
+                    .map_err(|error| super::enum_scope::enum_field_error(type_text, error))?,
             });
         }
     }

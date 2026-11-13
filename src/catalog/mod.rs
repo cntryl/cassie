@@ -10,6 +10,8 @@ pub mod consistency;
 pub mod constraints;
 mod controlled_name;
 pub mod domain_types;
+pub mod enum_alter;
+pub mod enum_reconcile;
 pub mod enum_types;
 pub(crate) use controlled_name::name_matches_controlled;
 pub(crate) use controlled_name::trim_checked as trim_catalog_name_controlled;

@@ -45,8 +45,8 @@ pub(crate) use catalog_scope::parse_statement_in_catalog;
 pub(crate) use column_identifier::ColumnIdentifierPath;
 pub use functions::registry;
 pub use parser::{
-    parse_statement, with_domain_scope, with_type_scope, DomainResolver, SqlError, SqlErrorKind,
-    TypeResolver,
+    parse_statement, with_domain_scope, with_enum_scope, with_type_scope, DomainResolver,
+    EnumResolver, SqlError, SqlErrorKind, TypeResolver,
 };
 
 #[cfg(test)]

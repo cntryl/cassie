@@ -1,6 +1,7 @@
 use super::{format_text_array, parse_text_array};
 use crate::types::enum_type::{sort_order_at, ENUM_STORAGE_KEY};
-use crate::types::{DataType, EnumMember, EnumRef, EnumType, SqlArray, Value};
+use crate::types::typed::TypedValue;
+use crate::types::{DataType, EnumMember, EnumRef, EnumType, EnumValue, SqlArray, Value};
 
 fn mood() -> EnumRef {
     EnumRef::new(EnumType {
@@ -50,9 +51,10 @@ fn should_reject_an_unknown_label_in_an_enum_array_literal() {
 }
 
 #[test]
-fn should_build_a_sql_array_of_enum_documents_from_labels_and_documents() {
+fn should_build_a_sql_array_of_enum_values_from_labels_and_documents() {
     // Arrange
-    let element_type = DataType::Enum(mood());
+    let descriptor = mood();
+    let element_type = DataType::Enum(descriptor.clone());
     let source = serde_json::json!(["ok", { ENUM_STORAGE_KEY: 7_002 }, null]);
 
     // Act
@@ -62,8 +64,12 @@ fn should_build_a_sql_array_of_enum_documents_from_labels_and_documents() {
     assert_eq!(
         array.elements(),
         &[
-            Value::Json(serde_json::json!({ ENUM_STORAGE_KEY: 7_001 })),
-            Value::Json(serde_json::json!({ ENUM_STORAGE_KEY: 7_002 })),
+            Value::Typed(TypedValue::Enum(
+                EnumValue::new(descriptor.clone(), 7_001).expect("ok member")
+            )),
+            Value::Typed(TypedValue::Enum(
+                EnumValue::new(descriptor.clone(), 7_002).expect("happy member")
+            )),
             Value::Null,
         ]
     );

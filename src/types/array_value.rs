@@ -313,7 +313,13 @@ impl SqlArray {
         let elements = self
             .elements
             .iter()
-            .map(serde_json::to_value)
+            .map(|element| match element {
+                // An enum element is stored as its member id, never with its descriptor.
+                Value::Typed(crate::types::typed::TypedValue::Enum(value)) => {
+                    serde_json::to_value(Value::Json(value.to_storage_json()))
+                }
+                other => serde_json::to_value(other),
+            })
             .collect::<Result<Vec<_>, _>>()
             .expect("SQL array values are serializable");
         let mut envelope = serde_json::Map::new();
@@ -641,7 +647,11 @@ fn scalar_from_json(value: &JsonValue, data_type: &DataType) -> Result<Value, St
         | Type::Varchar { .. }
         | Type::JsonPath => value.as_str().map(|text| Value::String(text.to_owned())),
         Type::Enum(descriptor) => {
-            return super::array::elements::enum_element(descriptor, value).map(Value::Json)
+            let document = super::array::elements::enum_element(descriptor, value)?;
+            return crate::types::EnumValue::storage_member_id(&document)
+                .and_then(|member_id| crate::types::EnumValue::new(descriptor.clone(), member_id))
+                .map(|enum_value| Value::Typed(crate::types::typed::TypedValue::Enum(enum_value)))
+                .ok_or_else(|| "invalid enum array element".to_string());
         }
         Type::Array(_) | Type::Composite(_) | Type::Domain(_) | Type::Null => None,
     }

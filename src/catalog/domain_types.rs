@@ -180,6 +180,23 @@ impl Catalog {
         }
     }
 
+    /// Whether a domain in the same schema (and database, when `name` is
+    /// canonical) as the relation `name` has its local name. Unlike
+    /// [`Self::domain_type_exists`] this never matches a same-named domain of
+    /// another schema through a bare, unscoped relation name.
+    fn domain_owns_relation_name(&self, name: &str) -> bool {
+        let schema = relation_schema_name(name);
+        let local = local_name(name);
+        let database = relation_database_name(name);
+        self.domain_types.read().values().any(|metadata| {
+            metadata.local_name().eq_ignore_ascii_case(&local)
+                && metadata.schema_name().eq_ignore_ascii_case(&schema)
+                && database
+                    .as_deref()
+                    .is_none_or(|database| metadata.database.eq_ignore_ascii_case(database))
+        })
+    }
+
     /// Rejects a relation name already taken by a domain (`42710`), because
     /// the relation's row type would collide with the domain, as in PostgreSQL.
     ///
@@ -187,7 +204,7 @@ impl Catalog {
     ///
     /// Returns the diagnostic when a domain owns `name`.
     pub fn reject_domain_relation_name(&self, name: &str) -> Result<(), crate::app::CassieError> {
-        if self.domain_type_exists(name) {
+        if self.domain_owns_relation_name(name) {
             return Err(crate::app::DiagnosticError::new(
                 "42710",
                 format!("type \"{}\" already exists", local_name(name)),

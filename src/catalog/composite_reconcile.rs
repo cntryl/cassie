@@ -38,10 +38,15 @@ impl Catalog {
             .iter()
             .map(|meta| (meta.type_oid(), meta.descriptor()))
             .collect();
+        // Embedded copies of a row type are stored without domain constraints
+        // (live domains are enforced at write time), so compare against that form.
         types.extend(
-            self.list_relation_row_types(None)
+            self.list_collections()
                 .into_iter()
-                .map(|(_, _, descriptor)| (descriptor.oid, descriptor)),
+                .filter_map(|collection| {
+                    self.relation_row_type_unconstrained(&collection.name)
+                        .map(|descriptor| (descriptor.oid, descriptor))
+                }),
         );
         if types.is_empty() {
             return 0;

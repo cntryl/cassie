@@ -130,3 +130,48 @@ fn should_not_persist_a_rolled_back_create_domain() {
         "rolled-back domain left no durable trace"
     );
 }
+
+// Authored with the gate fixes: dependent row-type columns after hydration (review J1).
+
+fn seed_row_type_column(store: &LocalStore) {
+    let cassie = store.open();
+    run(&cassie, "CREATE DOMAIN posint AS int CHECK (VALUE > 0)");
+    run(&cassie, "CREATE TABLE dt (a posint)");
+    run(&cassie, "CREATE TABLE holder (r dt)");
+}
+
+#[test]
+fn should_stop_enforcing_a_dropped_check_on_a_row_type_column_after_restart() {
+    // Arrange
+    let store = LocalStore::new("domain_restart_row_column_drop");
+    seed_row_type_column(&store);
+    let cassie = store.open();
+    run(&cassie, "ALTER DOMAIN posint DROP CONSTRAINT posint_check");
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    let inserted = cassie.execute_sql(&session, "INSERT INTO holder VALUES ('(-1)')", vec![]);
+
+    // Assert
+    assert!(
+        inserted.is_ok(),
+        "the dropped check must not be enforced from a re-embedded snapshot"
+    );
+}
+
+#[test]
+fn should_reconcile_no_columns_when_hydration_runs_again() {
+    // Arrange
+    let store = LocalStore::new("domain_restart_row_column_reconcile");
+    seed_row_type_column(&store);
+    let cassie = store.open();
+
+    // Act
+    let reconciled = cassie.catalog.reconcile_embedded_composites();
+
+    // Assert
+    assert_eq!(
+        reconciled, 0,
+        "flattened embedded row types are authoritative"
+    );
+}

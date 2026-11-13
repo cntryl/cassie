@@ -136,22 +136,31 @@ fn should_report_typmod_minus_one_for_a_domain_column_over_varchar() {
 
 #[test]
 fn should_qualify_a_domain_label_when_an_earlier_schema_holds_a_table_row_type_of_that_name() {
-    // Arrange
-    let fixture = sql_fixture(
-        "domain_regtype_shadowed_by_row_type",
-        &[
-            "CREATE SCHEMA a",
-            "CREATE TABLE a.posint (x int)",
-            "CREATE DOMAIN public.posint AS int",
-        ],
-    );
-    fixture.execute("SET search_path TO a, public").unwrap();
+    // Arrange: a database-scoped session, so tables carry their schema.
+    let fixture = sql_fixture("domain_regtype_shadowed_by_row_type", &[]);
+    fixture.execute_as_root("CREATE DATABASE scratch").unwrap();
+    let session = fixture
+        .cassie
+        .create_session("tester", Some("scratch".to_owned()));
+    for sql in [
+        "CREATE SCHEMA a",
+        "CREATE TABLE a.posint (x int)",
+        "CREATE DOMAIN public.posint AS int",
+        "SET search_path TO a, public",
+    ] {
+        fixture.cassie.execute_sql(&session, sql, vec![]).unwrap();
+    }
 
     // Act
-    let label =
-        only_text(&fixture.rows(
+    let rows = fixture
+        .cassie
+        .execute_sql(
+            &session,
             "SELECT oid::regtype::text FROM pg_type WHERE typname = 'posint' AND typtype = 'd'",
-        ));
+            vec![],
+        )
+        .unwrap();
+    let label = only_text(rows.rows());
 
     // Assert
     assert_eq!(label.as_deref(), Some("public.posint"));

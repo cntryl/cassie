@@ -613,8 +613,9 @@ fn should_reject_renaming_a_table_onto_a_domain_name_with_sqlstate_42710() {
 }
 
 #[test]
-fn should_reject_renaming_a_view_onto_a_domain_name_with_sqlstate_42710() {
-    // Arrange
+fn should_reject_altering_a_view_with_sqlstate_0a000_until_alter_view_exists() {
+    // Arrange: Cassie has no ALTER VIEW, so a view rename onto a domain name is unreachable
+    // (PostgreSQL 18.6 would give 42710).
     let fixture = fixture_with_posint("domain_rename_view_onto_domain");
     fixture.execute("CREATE VIEW vv AS SELECT 1 AS x").unwrap();
 
@@ -622,7 +623,7 @@ fn should_reject_renaming_a_view_onto_a_domain_name_with_sqlstate_42710() {
     let error = fixture.error("ALTER VIEW vv RENAME TO posint");
 
     // Assert
-    assert_eq!(error.sql_state(), "42710");
+    assert_eq!(error.sql_state(), "0A000");
 }
 
 #[test]
@@ -642,14 +643,25 @@ fn should_reject_renaming_a_materialized_view_onto_a_domain_name_with_sqlstate_4
 
 #[test]
 fn should_reject_moving_a_table_onto_a_domain_name_in_another_schema_with_sqlstate_42710() {
-    // Arrange
-    let fixture = fixture_with_posint("domain_set_schema_table_onto_domain");
-    fixture.execute("CREATE SCHEMA s").unwrap();
-    fixture.execute("CREATE DOMAIN s.tt AS int").unwrap();
-    fixture.execute("CREATE TABLE tt (x int)").unwrap();
+    // Arrange: a database-scoped session, so tables have a canonical identity to move.
+    let fixture = sql_fixture("domain_set_schema_table_onto_domain", &[]);
+    fixture.execute_as_root("CREATE DATABASE scratch").unwrap();
+    let session = fixture
+        .cassie
+        .create_session("tester", Some("scratch".to_owned()));
+    for sql in [
+        "CREATE SCHEMA s",
+        "CREATE DOMAIN s.tt AS int",
+        "CREATE TABLE tt (x int)",
+    ] {
+        fixture.cassie.execute_sql(&session, sql, vec![]).unwrap();
+    }
 
     // Act
-    let error = fixture.error("ALTER TABLE tt SET SCHEMA s");
+    let error = fixture
+        .cassie
+        .execute_sql(&session, "ALTER TABLE tt SET SCHEMA s", vec![])
+        .unwrap_err();
 
     // Assert
     assert_eq!(error.sql_state(), "42710");

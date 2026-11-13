@@ -603,3 +603,20 @@ fn should_enforce_an_added_domain_check_on_a_row_type_column_insert() {
     // Assert
     assert_eq!(error.sql_state(), "23514");
 }
+
+// Authored with the gate fixes (review J3): attribute assignment is not a bypass.
+
+#[test]
+fn should_reject_field_assignment_on_a_row_type_column() {
+    // Arrange
+    let fixture = row_column_fixture("domain_row_column_field_assignment");
+    fixture
+        .execute("INSERT INTO holder VALUES ('(5)')")
+        .unwrap();
+
+    // Act
+    let result = fixture.execute("UPDATE holder SET r.a = -1");
+
+    // Assert
+    assert!(result.is_err(), "field assignment must not skip the domain");
+}

@@ -522,8 +522,8 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   `42710` for `CREATE TABLE [IF NOT EXISTS]`, `CREATE VIEW`, `CREATE MATERIALIZED VIEW`,
   `CREATE SEQUENCE` and `CREATE TYPE`, and `CREATE DOMAIN` collides with tables, views,
   composite types and other domains; a domain may share a sequence or index name.
-  `ALTER TABLE/VIEW/MATERIALIZED VIEW ... RENAME TO` or `SET SCHEMA` onto a domain name
-  is `42710`, onto a composite type name `42P07`; `ALTER SEQUENCE` and `ALTER INDEX`
+  `ALTER TABLE/MATERIALIZED VIEW ... RENAME TO` or `ALTER TABLE ... SET SCHEMA` onto a domain
+  name is `42710` (`ALTER VIEW` is not implemented and stays `0A000`), onto a composite type name `42P07`; `ALTER SEQUENCE` and `ALTER INDEX`
   renames onto a domain name are accepted, as in PostgreSQL.
 - `ALTER TYPE <domain> RENAME TO | SET SCHEMA` and `DROP TYPE <domain>` act on the domain
   (`ALTER TYPE <domain> ADD ATTRIBUTE ...` is `42P01`, `OWNER TO` is `0A000`);
@@ -535,7 +535,7 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   parsed, so `ALTER DOMAIN` is seen by later casts. `(row).field` infers the base type.
   A column whose type is another table's row type stores that row type with its domain
   fields flattened and enforces the live domains of the row type by OID on INSERT and
-  UPDATE (one level deep). Known divergences: binary `record_send`/`record_recv` carry
+  UPDATE, one level deep: a row-type field that is itself another table's row type is not descended into (PostgreSQL enforces at any depth), and `UPDATE t SET r.a = ...` field assignment is not supported (the target is rejected as an unknown column). Known divergences: binary `record_send`/`record_recv` carry
   the domain OID per field for casts and user composites (as PostgreSQL), but a
   whole-row value (`SELECT t FROM t`) is built from an unconstrained descriptor and
   sends the base OID; a `JSON_TABLE` `EXISTS PATH` column of a domain type casts the

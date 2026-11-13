@@ -521,9 +521,15 @@ fn load_source_batches(
 ) -> SourceExecution {
     // A lateral body keeps its own qualifiers (the binder only strips them
     // when no outer row is combined in), so its rows need qualified aliases.
+    // Every plan reaches its source here, so a WHERE conjunct that guards a lateral
+    // set-returning source applies before the expansion for INSERT ... SELECT, CREATE TABLE AS
+    // and correlated subqueries exactly as it does for a top-level SELECT.
+    let pushed = crate::planner::lateral_filter::pushed_source(plan, &|name| {
+        outer_row.is_some_and(|row| row.get(name).is_some())
+    });
     let (mut batches, text_fields) = execute_query_source(
         env,
-        &plan.source,
+        pushed.as_ref().unwrap_or(&plan.source),
         cte_context,
         outer_row.is_some(),
         outer_row,

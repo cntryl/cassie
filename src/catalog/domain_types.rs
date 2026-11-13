@@ -71,6 +71,31 @@ impl DomainTypeMeta {
     }
 }
 
+/// The schema of a relation name stored bare (`public`), schema-qualified or
+/// canonical.
+fn stored_schema(name: &str) -> String {
+    match parse_name(name) {
+        Ok(
+            ParsedName::SchemaQualified { schema, .. }
+            | ParsedName::DatabaseQualified { schema, .. },
+        ) => schema,
+        _ => super::DEFAULT_SCHEMA.to_owned(),
+    }
+}
+
+/// Whether two stored relation or type names denote the same object: equal
+/// local names in equal schemas, with the database compared only when both
+/// names are canonical. Handles bare, `schema.name` and canonical spellings.
+#[must_use]
+pub fn same_stored_relation(left: &str, right: &str) -> bool {
+    local_name(left).eq_ignore_ascii_case(&local_name(right))
+        && stored_schema(left).eq_ignore_ascii_case(&stored_schema(right))
+        && match (relation_database_name(left), relation_database_name(right)) {
+            (Some(left), Some(right)) => left.eq_ignore_ascii_case(&right),
+            _ => true,
+        }
+}
+
 impl Catalog {
     pub fn register_domain_type(&self, metadata: DomainTypeMeta) {
         self.domain_types
@@ -180,21 +205,15 @@ impl Catalog {
         }
     }
 
-    /// Whether a domain in the same schema (and database, when `name` is
+    /// Whether a domain in the same schema (and database, when both names are
     /// canonical) as the relation `name` has its local name. Unlike
     /// [`Self::domain_type_exists`] this never matches a same-named domain of
     /// another schema through a bare, unscoped relation name.
     fn domain_owns_relation_name(&self, name: &str) -> bool {
-        let schema = relation_schema_name(name);
-        let local = local_name(name);
-        let database = relation_database_name(name);
-        self.domain_types.read().values().any(|metadata| {
-            metadata.local_name().eq_ignore_ascii_case(&local)
-                && metadata.schema_name().eq_ignore_ascii_case(&schema)
-                && database
-                    .as_deref()
-                    .is_none_or(|database| metadata.database.eq_ignore_ascii_case(database))
-        })
+        self.domain_types
+            .read()
+            .values()
+            .any(|metadata| same_stored_relation(&metadata.name, name))
     }
 
     /// Rejects a relation name already taken by a domain (`42710`), because

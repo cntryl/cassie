@@ -320,7 +320,7 @@ and compatibility boundaries remain until the owning acceptance cases pass.
 ### #828
 
 Add CREATE TYPE name AS (...), relation row types, ROW construction/casts/field access,
-typed JSON recordset outputs, and CREATE/ALTER/DROP DOMAIN over already supported
+typed JSON recordset outputs (implemented by the JSON recordset increment), and CREATE/ALTER/DROP DOMAIN over already supported
 scalar/container families. Allocate stable database-scoped type/array OIDs from Cassie's
 object allocator rather than copying arbitrary PostgreSQL user OIDs. Preserve field
 order, per-field logical identity and dropped-field positions; distinguish SQL NULL
@@ -359,9 +359,10 @@ nullable values, big-endian; tag 0x10 carries domains, see the domain status bel
 durable. The code and its regressions are authored; they have not been
 compiled or executed (assembler-owned gate). Pending or excluded:
 
-- JSON recordset functions and enums keep deterministic `0A000` or `42704`
-  outcomes (`ALTER TYPE`, relation row types, `(expr).*` and domains are described
-  under increment 2 below);
+- enums keep deterministic `0A000` or `42704` outcomes (`ALTER TYPE`, relation row
+  types, `(expr).*` and domains are described under increment 2 below; the JSON
+  recordset functions and `JSON_TABLE` are implemented and described in
+  `docs/feature-support.md`);
 - arrays of composite types (`name[]` columns and casts) are rejected with
   `0A000` although the `_name` array type row and OID exist;
 - composite columns cannot carry `DEFAULT`, `PRIMARY KEY`, `UNIQUE` or an
@@ -402,11 +403,13 @@ compiled or executed (assembler-owned gate). Pending or excluded:
 - comparing a record column with a text column or untyped literal returns
   `0A000` ("input of anonymous composite types is not implemented"), where
   PostgreSQL returns `42883` for the column case;
-- a composite type shares the relation namespace with tables, views, sequences,
-  indexes and domains: `CREATE TYPE` over such a name is `42710`, and
-  `CREATE TABLE/VIEW/SEQUENCE/INDEX` over a type name is `42P07` (`CREATE TABLE IF NOT EXISTS`
-  over a type name skips, as in PostgreSQL, but `CREATE SEQUENCE/INDEX IF NOT
-  EXISTS` over a type name still raise `42P07` where PostgreSQL skips).
+- a composite type owns a `pg_class` row, so it shares the relation namespace with
+  tables, views, sequences and indexes (`42P07` for `CREATE TABLE/VIEW/SEQUENCE/INDEX`
+  over a composite type name; `CREATE TABLE IF NOT EXISTS` over a type name skips, as
+  in PostgreSQL, but `CREATE SEQUENCE/INDEX IF NOT EXISTS` over a type name still
+  raise `42P07` where PostgreSQL skips). `CREATE TYPE` over any occupied relation or
+  type name is `42710`. A domain has no `pg_class` row and lives in the type namespace
+  only; see the domain status below for how it collides.
 
 #### #828 increment 2 status (ALTER TYPE, relation row types, cleanups)
 
@@ -419,7 +422,8 @@ The code and its regressions are authored; they have not been compiled or execut
   `CASCADE`/`RESTRICT` (both behave alike: Cassie has no typed tables). One action per
   statement. A table name is `42809` ("is not a composite type"), a missing type `42704`,
   a duplicate attribute `42701`, a missing attribute `42703`, a rename onto an existing
-  relation `42P07`, a move onto an existing type `42710`, a missing schema `3F000`, a
+  relation `42P07` (`42710` when the occupant is a domain), a move onto an existing
+  table, view, composite type or domain `42710` (`42P07` for a sequence or index), a missing schema `3F000`, a
   missing role `42704`, a self-containing type `42P16`.
 - Versioned descriptors: a descriptor carries `revision` and `dropped_positions`. The
   physical slot list only grows. `ADD ATTRIBUTE` appends a slot, `DROP ATTRIBUTE`
@@ -508,14 +512,30 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   checks are enforced on INSERT/COPY and on every newly assigned value of an UPDATE or
   `ON CONFLICT DO UPDATE`; only an unchanged legacy value is exempt until validated.
 - `ALTER TABLE ADD COLUMN` of a domain column enforces the domain NOT NULL and CHECK
-  constraints on a populated table and backfills the domain DEFAULT. Domain names share
-  the type and relation namespace with composite types, tables, views, sequences and
-  indexes (`42710` / `42P07`). `ON CONFLICT DO NOTHING` still raises `23514` / `23502`
+  constraints on a populated table and backfills the domain DEFAULT. A domain shares the
+  type namespace with composite types, table, view and materialized-view row types and
+  other domains, and always collides with them as `42710`. Sequence and index names live
+  only in the relation namespace and do not collide with a domain (PostgreSQL 18.6),
+  except that `CREATE SEQUENCE` over a domain name is `42710`. `ON CONFLICT DO NOTHING` still raises `23514` / `23502`
   or `DO UPDATE` for a violating proposed value. `pg_attribute.atttypmod` of a domain
   column is `-1`. A domain named like a table, view, sequence or composite type is
   `42710` for `CREATE TABLE [IF NOT EXISTS]`, `CREATE VIEW`, `CREATE MATERIALIZED VIEW`,
   `CREATE SEQUENCE` and `CREATE TYPE`, and `CREATE DOMAIN` collides with tables, views,
   composite types and other domains; a domain may share a sequence or index name.
+  `ALTER TABLE/VIEW/MATERIALIZED VIEW ... RENAME TO` or `SET SCHEMA` onto a domain name
+  is `42710`, onto a composite type name `42P07`; `ALTER SEQUENCE` and `ALTER INDEX`
+  renames onto a domain name are accepted, as in PostgreSQL.
+- `ALTER TYPE <domain> RENAME TO | SET SCHEMA` and `DROP TYPE <domain>` act on the domain
+  (`ALTER TYPE <domain> ADD ATTRIBUTE ...` is `42P01`, `OWNER TO` is `0A000`);
+  `ALTER TYPE <composite> RENAME TO <domain>` is `42710`.
+- A table's row type keeps the domain of a domain column: `'(-1)'::t`, `ROW(-1)::t` and
+  `jsonb_populate_record(NULL::t, ...)` raise `23514`/`23502` as in PostgreSQL.
+- View, materialized view and materialized projection bodies, and their dependency
+  and rename re-checks, resolve domain, composite and row-type names against the
+  catalog and search path of the statement.
+- Domain names are accepted as column types of `json[b]_to_record[set]` `AS t(a d)`
+  lists and `JSON_TABLE` columns: the value converts to the base type, then the domain is
+  enforced (`23514`; a `JSON_TABLE` column under its default `ON ERROR` yields NULL).
 - Known divergences: `UPDATE t SET q = c` where the stored value already equals the
   constant `c` and violates a `NOT VALID` check is accepted (PostgreSQL re-coerces the
   constant and rejects); a column with its own volatile DEFAULT falls back to the domain
@@ -538,9 +558,12 @@ Rejected with `0A000` (documented limitations, not regressions):
 - domains over composite types (including a table's row type), over other domains, and
   over arrays of those;
 - arrays of domains (`d[]`) and composite attributes of domain type; a domain name is
-  only recognised in column definitions and casts, so function signatures, sequences
-  and `CREATE TYPE` attributes report the type as missing;
-- `COLLATE` on a domain, `ALTER DOMAIN OWNER TO` and `SET SCHEMA`;
+  only recognised in column definitions, casts, `json[b]_to_record[set]` definition lists
+  and `JSON_TABLE` columns, so function signatures, sequences and `CREATE TYPE`
+  attributes report the type as missing (`42704`);
+- `DEFAULT <expr>::domain` literal folding resolves no catalog names;
+- `COLLATE` on a domain, `ALTER DOMAIN OWNER TO` and `ALTER DOMAIN ... SET SCHEMA` (use
+  `ALTER TYPE <domain> SET SCHEMA`);
 - `DROP DOMAIN ... CASCADE` when dependents exist (use `RESTRICT` semantics);
 - restoring a database image that contains domain types fails closed;
 - prepared statements keep the descriptor seen at Parse time.

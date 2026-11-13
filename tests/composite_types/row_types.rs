@@ -620,3 +620,20 @@ fn should_read_a_derived_table_column_named_like_the_joined_table() {
     // Assert
     assert_eq!(value.as_deref(), Some("1"));
 }
+
+// Authored, not run: view-body re-parse scope for row types (integration review F1).
+
+#[test]
+fn should_create_a_view_over_a_row_type_cast() {
+    // Arrange
+    let fixture = fixture("row_type_view_cast");
+    fixture
+        .execute("CREATE VIEW row_cast AS SELECT ('(5,z)'::t).name AS n")
+        .unwrap();
+
+    // Act
+    let name = text(&fixture, "SELECT n FROM row_cast");
+
+    // Assert
+    assert_eq!(name.as_deref(), Some("z"));
+}

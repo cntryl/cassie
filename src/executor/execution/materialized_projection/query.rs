@@ -9,7 +9,7 @@ pub(super) fn plan_projection_query(
     _user_functions: &HashMap<String, FunctionMeta>,
     context: &crate::sql::binder::BindingContext,
 ) -> Result<ProjectionBuildPlan, QueryError> {
-    let parsed = crate::sql::parser::parse_statement(query)
+    let parsed = crate::sql::parse_statement_in_catalog(&cassie.catalog, context, query)
         .map_err(|error| QueryError::General(error.to_string()))?;
     crate::sql::definition_guard::statement(&parsed).map_err(QueryError::Cassie)?;
     if crate::sql::parameter_count(&parsed) != 0 {

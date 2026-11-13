@@ -536,3 +536,135 @@ fn should_forget_a_databases_domains_when_it_is_dropped_then_recreated() {
         "the old domain OID no longer resolves"
     );
 }
+
+// Authored, not run: view-body re-parse scope (integration review F1).
+
+#[test]
+fn should_create_a_view_over_a_domain_cast() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_view_cast");
+    fixture
+        .execute("CREATE VIEW five AS SELECT 5::posint AS x")
+        .unwrap();
+
+    // Act
+    let rows = fixture.rows("SELECT x FROM five");
+
+    // Assert
+    assert_eq!(rows, vec![vec![cassie::types::Value::Int64(5)]]);
+}
+
+#[test]
+fn should_create_a_materialized_view_over_a_domain_column() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_matview_column",
+        &[
+            POSITIVE,
+            "CREATE TABLE items (id int, qty posint)",
+            "INSERT INTO items VALUES (1, 7)",
+        ],
+    );
+    fixture
+        .execute("CREATE MATERIALIZED VIEW item_qty AS SELECT qty::posint AS q FROM items")
+        .unwrap();
+
+    // Act
+    let rows = fixture.rows("SELECT q FROM item_qty");
+
+    // Assert
+    assert_eq!(rows, vec![vec![cassie::types::Value::Int64(7)]]);
+}
+
+#[test]
+fn should_rename_a_materialized_view_while_a_stored_view_names_a_domain() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_matview_rename_with_view");
+    fixture
+        .execute("CREATE VIEW five AS SELECT 5::posint AS x")
+        .unwrap();
+    fixture
+        .execute("CREATE MATERIALIZED VIEW one AS SELECT 1 AS y")
+        .unwrap();
+
+    // Act
+    let renamed = fixture.execute("ALTER MATERIALIZED VIEW one RENAME TO uno");
+
+    // Assert
+    assert!(
+        renamed.is_ok(),
+        "a stored view body that names a domain must still bind during the rename check"
+    );
+}
+
+// Authored, not run: relation renames and moves onto type names (integration review F5).
+
+#[test]
+fn should_reject_renaming_a_table_onto_a_domain_name_with_sqlstate_42710() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_rename_table_onto_domain");
+    fixture.execute("CREATE TABLE tt (x int)").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER TABLE tt RENAME TO posint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_reject_renaming_a_view_onto_a_domain_name_with_sqlstate_42710() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_rename_view_onto_domain");
+    fixture.execute("CREATE VIEW vv AS SELECT 1 AS x").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER VIEW vv RENAME TO posint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_reject_renaming_a_materialized_view_onto_a_domain_name_with_sqlstate_42710() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_rename_matview_onto_domain");
+    fixture
+        .execute("CREATE MATERIALIZED VIEW mv AS SELECT 1 AS x")
+        .unwrap();
+
+    // Act
+    let error = fixture.error("ALTER MATERIALIZED VIEW mv RENAME TO posint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_reject_moving_a_table_onto_a_domain_name_in_another_schema_with_sqlstate_42710() {
+    // Arrange
+    let fixture = fixture_with_posint("domain_set_schema_table_onto_domain");
+    fixture.execute("CREATE SCHEMA s").unwrap();
+    fixture.execute("CREATE DOMAIN s.tt AS int").unwrap();
+    fixture.execute("CREATE TABLE tt (x int)").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER TABLE tt SET SCHEMA s");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_reject_renaming_a_table_onto_a_composite_type_name_with_sqlstate_42p07() {
+    // Arrange: a composite type owns a pg_class row, so PostgreSQL 18.6 reports a relation collision.
+    let fixture = fixture_with_posint("domain_rename_table_onto_composite");
+    fixture.execute("CREATE TYPE comp AS (a int)").unwrap();
+    fixture.execute("CREATE TABLE tt (x int)").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER TABLE tt RENAME TO comp");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42P07");
+}

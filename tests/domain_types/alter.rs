@@ -406,3 +406,154 @@ fn should_number_unnamed_checks_after_the_first() {
         "second check is numbered: {message}"
     );
 }
+
+// Authored, not run: ALTER TYPE / DROP TYPE on a domain (integration review F4).
+
+fn type_fixture(label: &str) -> SqlFixture {
+    sql_fixture(
+        label,
+        &[
+            "CREATE DOMAIN posint AS int CHECK (VALUE > 0)",
+            "CREATE TYPE comp AS (a int)",
+            "CREATE TABLE tt (x int)",
+            "CREATE SEQUENCE sq",
+        ],
+    )
+}
+
+#[test]
+fn should_rename_a_domain_through_alter_type() {
+    // Arrange
+    let fixture = type_fixture("domain_alter_type_rename");
+    fixture
+        .execute("ALTER TYPE posint RENAME TO positive")
+        .unwrap();
+
+    // Act
+    let rows = fixture.rows("SELECT (5)::positive");
+    let old_name = fixture.execute("SELECT (5)::posint");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(5)]]);
+    assert!(old_name.is_err(), "the old name no longer resolves");
+}
+
+#[test]
+fn should_move_a_domain_to_another_schema_through_alter_type() {
+    // Arrange
+    let fixture = type_fixture("domain_alter_type_set_schema");
+    fixture.execute("CREATE SCHEMA s").unwrap();
+    fixture.execute("ALTER TYPE posint SET SCHEMA s").unwrap();
+
+    // Act
+    let rows = fixture.rows("SELECT (5)::s.posint");
+    let error = fixture.error("SELECT (-5)::s.posint");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(5)]]);
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_drop_a_domain_through_drop_type() {
+    // Arrange
+    let fixture = type_fixture("domain_drop_type");
+
+    // Act
+    let dropped = fixture.execute("DROP TYPE posint");
+    let after_drop = fixture.execute("SELECT (5)::posint");
+
+    // Assert
+    assert!(dropped.is_ok(), "DROP TYPE must drop a domain");
+    assert!(after_drop.is_err(), "the dropped domain no longer resolves");
+}
+
+#[test]
+fn should_drop_a_domain_with_a_composite_type_in_one_drop_type() {
+    // Arrange
+    let fixture = type_fixture("domain_drop_type_mixed");
+
+    // Act
+    let dropped = fixture.execute("DROP TYPE posint, comp");
+
+    // Assert
+    assert!(dropped.is_ok(), "DROP TYPE names a domain and a composite");
+    assert!(fixture.execute("SELECT (5)::posint").is_err());
+}
+
+#[test]
+fn should_reject_drop_type_of_a_domain_with_dependents_with_sqlstate_2bp01() {
+    // Arrange
+    let fixture = type_fixture("domain_drop_type_dependents");
+    fixture.execute("CREATE TABLE dt (a posint)").unwrap();
+
+    // Act
+    let error = fixture.error("DROP TYPE posint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "2BP01");
+}
+
+#[test]
+fn should_reject_adding_an_attribute_to_a_domain_with_sqlstate_42p01() {
+    // Arrange
+    let fixture = type_fixture("domain_alter_type_add_attribute");
+
+    // Act
+    let error = fixture.error("ALTER TYPE posint ADD ATTRIBUTE b int");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42P01");
+}
+
+#[test]
+fn should_reject_renaming_a_composite_type_onto_a_domain_name_with_sqlstate_42710() {
+    // Arrange
+    let fixture = type_fixture("domain_composite_rename_onto_domain");
+
+    // Act
+    let error = fixture.error("ALTER TYPE comp RENAME TO posint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_reject_renaming_a_composite_type_onto_a_table_name_with_sqlstate_42p07() {
+    // Arrange
+    let fixture = type_fixture("domain_composite_rename_onto_table");
+
+    // Act
+    let error = fixture.error("ALTER TYPE comp RENAME TO tt");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42P07");
+}
+
+#[test]
+fn should_reject_moving_a_composite_type_onto_a_domain_name_with_sqlstate_42710() {
+    // Arrange
+    let fixture = type_fixture("domain_composite_set_schema_onto_domain");
+    fixture.execute("CREATE SCHEMA s").unwrap();
+    fixture.execute("CREATE DOMAIN s.comp AS int").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER TYPE comp SET SCHEMA s");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}
+
+#[test]
+fn should_reject_moving_a_composite_type_onto_a_sequence_name_with_sqlstate_42p07() {
+    // Arrange: a sequence has no row type, so PostgreSQL 18.6 reports a relation collision.
+    let fixture = type_fixture("domain_composite_set_schema_onto_sequence");
+    fixture.execute("CREATE SCHEMA s").unwrap();
+    fixture.execute("CREATE SEQUENCE s.comp").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER TYPE comp SET SCHEMA s");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42P07");
+}

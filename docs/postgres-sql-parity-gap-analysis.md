@@ -82,7 +82,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | Enum types | Absent | #827 |
 | Range and multirange types | Absent | #905 |
 | Collations, including ICU | Absent | #796 |
-| Composite, record, domain types | Absent | #828 |
+| Composite, record, domain types | Partial: composite types, relation row types, ROW and domains authored under #828 (not yet qualified); enums, ranges and arrays of composites/domains absent | #828 |
 | bit / varbit | Absent | #816 |
 | inet, cidr, macaddr, macaddr8 | Absent | #816, #793 |
 | tsvector, tsquery | Absent | #799, #793 |
@@ -123,7 +123,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | Sequence options, ALTER SEQUENCE, OWNED BY | Absent | #841 |
 | Temporary tables | Absent | #838 |
 | LIST, RANGE, HASH partitioning | Absent | #840 |
-| CREATE TYPE (enum, composite, range), DOMAIN | Absent | #827, #828, #905 |
+| CREATE TYPE (enum, composite, range), DOMAIN | Partial: composite `CREATE TYPE` and `CREATE/ALTER/DROP DOMAIN` authored under #828; enum and range absent | #827, #828, #905 |
 | CREATE EXTENSION | Absent | #843 |
 | Transactional DDL | Partial: selected explicit schema/table/scalar-index lifecycle; implicit and unselected DDL remain standalone only | #833 |
 | **Routines and triggers** | | |

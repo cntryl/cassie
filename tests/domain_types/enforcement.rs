@@ -351,3 +351,154 @@ fn should_reject_a_violating_proposed_row_even_when_do_update_does_not_assign_it
     // Assert
     assert_eq!(error.sql_state(), "23514");
 }
+
+// Authored, not run: domains through table row types and JSON record sources
+// (integration review F2 and F3).
+
+fn row_type_fixture(label: &str) -> SqlFixture {
+    sql_fixture(
+        label,
+        &[
+            "CREATE DOMAIN posint AS int CHECK (VALUE > 0)",
+            "CREATE DOMAIN req AS int NOT NULL",
+            "CREATE TABLE dt (a posint)",
+            "CREATE TABLE rt (a req)",
+        ],
+    )
+}
+
+#[test]
+fn should_reject_a_text_literal_cast_to_a_row_type_violating_a_domain_check() {
+    // Arrange
+    let fixture = row_type_fixture("domain_row_type_text_literal");
+
+    // Act
+    let error = fixture.error("SELECT '(-1)'::dt");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_reject_a_row_constructor_cast_to_a_row_type_violating_a_domain_check() {
+    // Arrange
+    let fixture = row_type_fixture("domain_row_type_row_constructor");
+
+    // Act
+    let error = fixture.error("SELECT row(-1)::dt");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_reject_populate_record_into_a_row_type_violating_a_domain_check() {
+    // Arrange
+    let fixture = row_type_fixture("domain_row_type_populate_record");
+
+    // Act
+    let error = fixture.error("SELECT * FROM jsonb_populate_record(null::dt, '{\"a\":-1}')");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_accept_a_row_type_cast_satisfying_the_domain_check() {
+    // Arrange
+    let fixture = row_type_fixture("domain_row_type_valid_cast");
+
+    // Act
+    let rows = fixture.rows("SELECT ('(3)'::dt).a");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(3)]]);
+}
+
+#[test]
+fn should_reject_a_row_constructor_null_cast_to_a_row_type_with_a_not_null_domain() {
+    // Arrange
+    let fixture = row_type_fixture("domain_row_type_not_null");
+
+    // Act
+    let error = fixture.error("SELECT row(NULL::int)::rt");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23502");
+}
+
+#[test]
+fn should_convert_a_domain_column_of_jsonb_to_record() {
+    // Arrange
+    let fixture = row_type_fixture("domain_jsonb_to_record_ok");
+
+    // Act
+    let rows = fixture.rows("SELECT * FROM jsonb_to_record('{\"a\":1}') AS t(a posint)");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_reject_a_jsonb_to_record_value_violating_the_domain_check() {
+    // Arrange
+    let fixture = row_type_fixture("domain_jsonb_to_record_violation");
+
+    // Act
+    let error = fixture.error("SELECT * FROM jsonb_to_record('{\"a\":-1}') AS t(a posint)");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_reject_a_json_to_recordset_value_violating_the_domain_check() {
+    // Arrange
+    let fixture = row_type_fixture("domain_json_to_recordset_violation");
+
+    // Act
+    let error = fixture.error("SELECT * FROM json_to_recordset('[{\"a\":-1}]') AS t(a posint)");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_yield_null_for_a_json_table_domain_violation_under_the_default_on_error() {
+    // Arrange: PostgreSQL 18.6 turns the conversion error into NULL by default.
+    let fixture = row_type_fixture("domain_json_table_default_on_error");
+
+    // Act
+    let rows = fixture
+        .rows("SELECT * FROM JSON_TABLE('{\"a\":-1}'::jsonb, '$' COLUMNS (a posint PATH '$.a'))");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Null]]);
+}
+
+#[test]
+fn should_reject_a_json_table_domain_violation_under_a_column_error_on_error() {
+    // Arrange
+    let fixture = row_type_fixture("domain_json_table_error_on_error");
+
+    // Act
+    let error = fixture.error(
+        "SELECT * FROM JSON_TABLE('{\"a\":-1}'::jsonb, '$' COLUMNS (a posint PATH '$.a' ERROR ON ERROR))",
+    );
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}
+
+#[test]
+fn should_return_a_json_table_value_satisfying_the_domain_check() {
+    // Arrange
+    let fixture = row_type_fixture("domain_json_table_valid");
+
+    // Act
+    let rows = fixture
+        .rows("SELECT * FROM JSON_TABLE('{\"a\":3}'::jsonb, '$' COLUMNS (a posint PATH '$.a'))");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(3)]]);
+}

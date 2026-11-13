@@ -298,7 +298,7 @@ pub(crate) fn bind_initial_with_controls(
     context: &BindingContext,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<BoundStatement, CassieError> {
-    alias_admission::validate(&statement, controls)?;
+    alias_admission::validate(&statement, catalog, context, controls)?;
     let mut statement = statement;
     whole_row::rewrite(&mut statement, catalog, context)?;
     subquery_types::annotate_unbound(&mut statement, catalog, context);

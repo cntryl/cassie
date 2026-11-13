@@ -136,10 +136,10 @@ fn collect_columns(entries: &[JsonTableColumn], out: &mut Vec<(String, DataType)
         match entry {
             JsonTableColumn::Ordinality { name } => out.push((name.clone(), DataType::Int)),
             JsonTableColumn::Value(column) => {
-                out.push((column.name.clone(), column.data_type.clone()));
+                out.push((column.name.clone(), column.data_type.flattened().clone()));
             }
             JsonTableColumn::Exists(column) => {
-                out.push((column.name.clone(), column.data_type.clone()));
+                out.push((column.name.clone(), column.data_type.flattened().clone()));
             }
             JsonTableColumn::Nested(nested) => collect_columns(&nested.columns, out),
         }

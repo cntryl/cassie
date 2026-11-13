@@ -72,7 +72,7 @@ pub fn format_record_with(
             Value::Typed(TypedValue::Record(nested)) => {
                 format_record_with(nested, &mut *field_text)
             }
-            other => field_text(other, &field.data_type),
+            other => field_text(other, field.data_type.flattened()),
         };
         push_record_field(&mut out, &text);
     }

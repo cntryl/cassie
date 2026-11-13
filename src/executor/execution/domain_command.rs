@@ -464,6 +464,40 @@ fn rename_domain(
     Ok(())
 }
 
+fn move_domain(
+    cassie: &Cassie,
+    updated: &mut DomainTypeMeta,
+    database: &str,
+    schema: &str,
+) -> Result<(), QueryError> {
+    if is_system_schema(schema) {
+        return Err(diagnostic(
+            "42501",
+            format!("permission denied to move type into schema \"{schema}\""),
+        ));
+    }
+    if !(schema.eq_ignore_ascii_case(DEFAULT_SCHEMA)
+        || cassie
+            .catalog
+            .namespace_exists(&canonical_schema_name(database, schema)))
+    {
+        return Err(diagnostic(
+            "3F000",
+            format!("schema \"{schema}\" does not exist"),
+        ));
+    }
+    let local = updated.local_name();
+    let canonical = canonical_relation_name(database, schema, &local);
+    if type_name_taken(cassie, &canonical) {
+        return Err(diagnostic(
+            "42710",
+            format!("type \"{local}\" already exists in schema \"{schema}\""),
+        ));
+    }
+    updated.name = canonical;
+    Ok(())
+}
+
 fn apply_alteration(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -512,8 +546,31 @@ fn apply_alteration(
         DomainAlteration::RenameTo(new_name) => {
             rename_domain(cassie, &mut updated, database, new_name)?;
         }
+        DomainAlteration::SetSchema(schema) => {
+            if schema.eq_ignore_ascii_case(&meta.schema_name()) {
+                return Ok(Altered::Unchanged);
+            }
+            move_domain(cassie, &mut updated, database, schema)?;
+        }
     }
     Ok(Altered::Changed(Box::new(updated)))
+}
+
+/// Applies `alteration` to a domain named by `ALTER TYPE`, which reports the
+/// `ALTER TYPE` command tag.
+pub(super) fn alter_through_type(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    meta: &DomainTypeMeta,
+    alteration: &DomainAlteration,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let altered = apply_alteration(cassie, session, meta, &meta.database, alteration)?;
+    let output = empty_command("ALTER TYPE", controls)?;
+    if let Altered::Changed(updated) = altered {
+        publish(cassie, meta, *updated)?;
+    }
+    Ok(output)
 }
 
 fn alter(
@@ -539,6 +596,59 @@ fn alter(
     Ok(output)
 }
 
+/// Checks that nothing keeps `metadata` alive, as `DROP DOMAIN` and `DROP TYPE` do.
+pub(super) fn ensure_droppable(
+    cassie: &Cassie,
+    metadata: &DomainTypeMeta,
+    cascade: bool,
+) -> Result<(), QueryError> {
+    let dependents = cassie.catalog.domain_type_dependents(metadata.type_oid());
+    if dependents.is_empty() {
+        return Ok(());
+    }
+    if cascade {
+        return Err(diagnostic(
+            "0A000",
+            format!(
+                "DROP DOMAIN ... CASCADE of \"{}\" with dependent objects is not supported",
+                metadata.local_name()
+            ),
+        ));
+    }
+    Err(CassieError::from(
+        DiagnosticError::new(
+            "2BP01",
+            format!(
+                "cannot drop type {} because other objects depend on it",
+                metadata.local_name()
+            ),
+        )
+        .with_detail(
+            dependents
+                .iter()
+                .map(|dependent| format!("{dependent} depends on type {}", metadata.local_name()))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .with_hint("Use DROP ... CASCADE to drop the dependent objects too."),
+    )
+    .into())
+}
+
+/// Removes a validated domain from storage and the catalog.
+pub(super) fn remove_domain(
+    cassie: &Cassie,
+    database: &str,
+    metadata: &DomainTypeMeta,
+) -> Result<(), QueryError> {
+    cassie
+        .midge
+        .delete_domain_type(database, &metadata.name)
+        .map_err(QueryError::from)?;
+    cassie.catalog.unregister_domain_type(&metadata.name);
+    Ok(())
+}
+
 fn drop_domains(
     cassie: &Cassie,
     database: &str,
@@ -558,47 +668,12 @@ fn drop_domains(
                 format!("type \"{raw}\" does not exist"),
             ));
         };
-        let dependents = cassie.catalog.domain_type_dependents(metadata.type_oid());
-        if !dependents.is_empty() {
-            if cascade {
-                return Err(diagnostic(
-                    "0A000",
-                    format!(
-                        "DROP DOMAIN ... CASCADE of \"{}\" with dependent objects is not supported",
-                        metadata.local_name()
-                    ),
-                ));
-            }
-            return Err(CassieError::from(
-                DiagnosticError::new(
-                    "2BP01",
-                    format!(
-                        "cannot drop type {} because other objects depend on it",
-                        metadata.local_name()
-                    ),
-                )
-                .with_detail(
-                    dependents
-                        .iter()
-                        .map(|dependent| {
-                            format!("{dependent} depends on type {}", metadata.local_name())
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                )
-                .with_hint("Use DROP ... CASCADE to drop the dependent objects too."),
-            )
-            .into());
-        }
+        ensure_droppable(cassie, &metadata, cascade)?;
         targets.push(metadata);
     }
     let output = empty_command("DROP DOMAIN", controls)?;
     for metadata in targets {
-        cassie
-            .midge
-            .delete_domain_type(database, &metadata.name)
-            .map_err(QueryError::from)?;
-        cassie.catalog.unregister_domain_type(&metadata.name);
+        remove_domain(cassie, database, &metadata)?;
     }
     Ok(output)
 }

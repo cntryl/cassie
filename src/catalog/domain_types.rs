@@ -197,6 +197,20 @@ impl Catalog {
         Ok(())
     }
 
+    /// Rejects renaming or moving a table, view or materialized view onto a
+    /// name its row type cannot take: a domain holds it (`42710`, the type
+    /// namespace) or a composite type does (`42P07`, its `pg_class` row), as
+    /// PostgreSQL 18 reports each. Sequences and indexes have no row type, so
+    /// they never call this.
+    ///
+    /// # Errors
+    ///
+    /// Returns the diagnostic when a domain or composite type owns `name`.
+    pub fn reject_relation_move_target(&self, name: &str) -> Result<(), crate::app::CassieError> {
+        self.reject_domain_relation_name(name)?;
+        self.reject_composite_relation_name(name)
+    }
+
     /// Tables that keep the domain `oid` alive, phrased as PostgreSQL phrases
     /// the `DROP DOMAIN` dependency detail (`column c of table t`).
     #[must_use]

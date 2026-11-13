@@ -8,6 +8,7 @@ use crate::types::DataType;
 
 pub mod ast;
 pub mod binder;
+pub(crate) mod catalog_scope;
 mod column_identifier;
 pub(crate) mod definition_guard;
 pub mod functions;
@@ -40,6 +41,7 @@ pub use ast::{
     StatementFamily, StatementRoute, StatementRouteRef, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
+pub(crate) use catalog_scope::parse_statement_in_catalog;
 pub(crate) use column_identifier::ColumnIdentifierPath;
 pub use functions::registry;
 pub use parser::{

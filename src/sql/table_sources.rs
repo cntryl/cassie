@@ -97,7 +97,7 @@ pub(crate) fn is_query_column(column: &JsonTableValueColumn) -> bool {
         || column.wrapper != JsonWrapper::Unspecified
         || column.quotes != JsonQuotes::Unspecified
         || matches!(
-            column.data_type,
+            column.data_type.flattened(),
             DataType::Json | DataType::Jsonb | DataType::Array(_) | DataType::Composite(_)
         )
 }
@@ -147,7 +147,8 @@ pub(crate) fn record_output_columns(
     let mut columns = record_declared_columns(function, form)?
         .into_iter()
         .enumerate()
-        .map(|(index, (_, data_type))| (physical_name(index), data_type))
+        // Output columns are typed by the base type; the domain only constrains values.
+        .map(|(index, (_, data_type))| (physical_name(index), data_type.flattened().clone()))
         .collect::<Vec<_>>();
     if with_ordinality {
         columns.push((physical_name(columns.len()), DataType::BigInt));

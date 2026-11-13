@@ -8,7 +8,7 @@ mod timetz_error;
 mod jsonb;
 
 #[path = "codecs/record.rs"]
-mod record;
+pub(super) mod record;
 
 use crate::executor::ColumnMeta;
 use crate::types::builtin::{

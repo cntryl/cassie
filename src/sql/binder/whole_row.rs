@@ -59,6 +59,33 @@ fn row_constructor(args: Vec<Expr>) -> Expr {
 }
 
 impl RowScope {
+    /// A scope that owns no table: nothing is a whole-row name.
+    fn detached() -> Self {
+        Self {
+            binding: String::new(),
+            row_type: CompositeRef::new(crate::types::composite::CompositeType {
+                oid: 0,
+                array_oid: 0,
+                qualified_name: String::new(),
+                name: String::new(),
+                revision: 0,
+                dropped_positions: Vec::new(),
+                fields: Vec::new(),
+            }),
+            schema_types: Vec::new(),
+        }
+    }
+
+    /// Expands a `(expr).*` item and leaves every other item unchanged.
+    fn expand_item(&self, item: SelectItem) -> Result<Vec<SelectItem>, CassieError> {
+        let expr = match &item {
+            SelectItem::Function { function, .. } => Expr::Function(Box::new(function.clone())),
+            SelectItem::Expr { expr, .. } => expr.clone(),
+            _ => return Ok(vec![item]),
+        };
+        Ok(self.expand_all_fields(&expr)?.unwrap_or_else(|| vec![item]))
+    }
+
     /// A column called like the table makes the bare name a column reference.
     fn names_a_column(&self) -> bool {
         self.row_type
@@ -279,6 +306,22 @@ fn table_bindings(
 
 type Bindings = Vec<(String, Vec<String>)>;
 
+/// Every alias given to a table of `source`.
+fn aliases_of(source: &QuerySource, out: &mut Vec<String>) {
+    match source {
+        QuerySource::Aliased { source, alias, .. } => {
+            out.push(alias.to_ascii_lowercase());
+            aliases_of(source, out);
+        }
+        QuerySource::TableSample { source, .. } => aliases_of(source, out),
+        QuerySource::Join { left, right, .. } => {
+            aliases_of(left, out);
+            aliases_of(right, out);
+        }
+        _ => {}
+    }
+}
+
 /// A bare name is a whole-row reference when it names a table of this FROM
 /// clause and no table of that clause has a column of the same name (a column
 /// wins, as in PostgreSQL).
@@ -403,7 +446,13 @@ fn has_unsupported_whole_row(
     let ctes: Vec<String> = select.ctes.iter().map(|cte| cte.name.clone()).collect();
     let mut current = select;
     loop {
-        let bindings = select_bindings(current, &ctes, catalog, context);
+        let mut bindings = select_bindings(current, &ctes, catalog, context);
+        if !is_single_table(current, &bindings) {
+            // The binder resolves an aliased table's row within a join itself.
+            let mut aliases = Vec::new();
+            aliases_of(&current.source, &mut aliases);
+            bindings.retain(|(binding, _)| !aliases.iter().any(|alias| alias == binding));
+        }
         let unsupported = if is_single_table(current, &bindings) && std::ptr::eq(current, select) {
             mentions_in_unsupported_clauses(current, &bindings)
         } else {
@@ -442,10 +491,20 @@ pub(super) fn rewrite(
     }
     let ctes: Vec<String> = select.ctes.iter().map(|cte| cte.name.clone()).collect();
     let bindings = select_bindings(select, &ctes, catalog, context);
-    if !is_single_table(select, &bindings) {
-        return Ok(());
-    }
-    let Some(scope) = scope_for(select, catalog, context) else {
+    let scope = if is_single_table(select, &bindings) {
+        scope_for(select, catalog, context)
+    } else {
+        None
+    };
+    let Some(scope) = scope else {
+        // No table row to name: only `(CAST).*` in the SELECT list can expand.
+        let detached = RowScope::detached();
+        let items = std::mem::take(&mut select.projection);
+        let mut expanded = Vec::with_capacity(items.len());
+        for item in items {
+            expanded.extend(detached.expand_item(item)?);
+        }
+        select.projection = expanded;
         return Ok(());
     };
     let items = std::mem::take(&mut select.projection);

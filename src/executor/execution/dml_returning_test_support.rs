@@ -331,6 +331,7 @@ pub(super) fn column(name: &str, data_type: &str, oid: i64, typlen: i16) -> Colu
         format_code: 0,
         nullable: true,
         is_record: false,
+        record_type: None,
     }
 }
 

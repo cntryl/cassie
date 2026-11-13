@@ -146,6 +146,7 @@ fn should_return_search_path_from_show_statement() {
                 format_code: 0,
                 nullable: true,
                 is_record: false,
+                record_type: None,
             }]
         );
         assert_eq!(

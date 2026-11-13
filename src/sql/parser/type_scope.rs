@@ -32,6 +32,16 @@ pub fn with_type_scope<R>(resolver: TypeResolver, parse: impl FnOnce() -> R) -> 
     parse()
 }
 
+/// Parses a declared data type name, resolving composite and domain names
+/// against the installed scopes.
+///
+/// # Errors
+///
+/// Returns the parse error when `raw` names neither a built-in nor a scoped type.
+pub fn parse_data_type_in_scope(raw: &str) -> Result<crate::types::DataType, super::SqlError> {
+    super::domain_scope::parse_declared_data_type(raw)
+}
+
 /// Resolves `raw` against the installed scope, if any.
 pub(super) fn resolve_named_type(raw: &str) -> Option<CompositeRef> {
     let resolver = RESOLVER.with(|slot| slot.borrow().clone())?;

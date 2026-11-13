@@ -14,6 +14,10 @@ pub struct ColumnMeta {
     /// Whether the column carries a record (named composite or anonymous
     /// `ROW(...)`), which is the only family with a user-range binary codec.
     pub is_record: bool,
+    /// The descriptor behind a named record column, which pgwire needs to
+    /// send the rendered record text in binary `record_send` layout.
+    #[serde(skip)]
+    pub record_type: Option<crate::types::CompositeRef>,
 }
 
 impl ColumnMeta {
@@ -32,6 +36,10 @@ impl ColumnMeta {
             format_code: 0,
             nullable: true,
             is_record: matches!(data_type, DataType::Composite(_)),
+            record_type: match data_type {
+                DataType::Composite(descriptor) => Some(descriptor.clone()),
+                _ => None,
+            },
         }
     }
 

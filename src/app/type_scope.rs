@@ -63,4 +63,21 @@ impl Cassie {
             with_type_scope(resolver, || parse_statement(sql))
         })?)
     }
+
+    /// Parses a data type name with `session`'s composite and domain type
+    /// names in scope (declared PREPARE parameters, CTAS result columns).
+    pub(crate) fn parse_data_type_for_session(
+        &self,
+        session: Option<&CassieSession>,
+        raw: &str,
+    ) -> Result<crate::types::DataType, String> {
+        let resolver = self.composite_type_resolver(session);
+        let domains = self.domain_type_resolver(session);
+        with_domain_scope(domains, || {
+            with_type_scope(resolver, || {
+                crate::sql::parser::parse_data_type_in_scope(raw)
+            })
+        })
+        .map_err(|error| error.to_string())
+    }
 }

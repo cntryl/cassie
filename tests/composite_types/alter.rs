@@ -319,7 +319,7 @@ fn should_publish_new_attributes_in_pg_attribute() {
 
     // Act
     let names = first_column_text(&fixture.rows(
-        "SELECT attname FROM pg_attribute a JOIN pg_type t ON a.attrelid = t.typrelid \
+        "SELECT attname FROM pg_attribute a JOIN pg_type t ON a.attrelid_oid = t.typrelid \
          WHERE t.typname = 'address' AND a.attnum > 0 ORDER BY a.attnum",
     ));
 
@@ -377,7 +377,7 @@ fn should_keep_the_attribute_count_after_a_rolled_back_add_attribute() {
     let count = text(
         &fixture,
         "SELECT count(*)::text FROM pg_attribute a \
-         JOIN pg_class c ON c.oid = a.attrelid WHERE c.relname = 'address' AND a.attnum > 0",
+         JOIN pg_class c ON c.oid = a.attrelid_oid WHERE c.relname = 'address' AND a.attnum > 0",
     );
 
     // Assert

@@ -120,7 +120,8 @@ pub(super) fn parse_projection_item_with_named_windows(
     if token == "*" {
         return Ok(SelectItem::Wildcard);
     }
-    if token.ends_with(".*") {
+    // `(expr).*` is a field expansion of an expression, not a qualified wildcard.
+    if token.ends_with(".*") && !token.starts_with('(') {
         let path = crate::sql::ColumnIdentifierPath::parse_sql(token).map_err(SqlError::new)?;
         if path.is_qualified() && path.final_name() == "*" {
             return Ok(SelectItem::Column {

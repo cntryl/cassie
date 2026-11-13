@@ -602,7 +602,7 @@ fn should_keep_the_table_attribute_count_after_a_rolled_back_add_column() {
     let count = text(
         &fixture,
         "SELECT count(*)::text FROM pg_attribute a \
-         JOIN pg_class c ON c.oid = a.attrelid WHERE c.relname = 't' AND a.attnum > 0",
+         JOIN pg_class c ON c.oid = a.attrelid_oid WHERE c.relname = 't' AND a.attnum > 0",
     );
 
     // Assert

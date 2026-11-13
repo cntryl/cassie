@@ -112,7 +112,12 @@ pub(super) fn value_to_json_for_field(
         || crate::types::enum_type::is_enum_family(data_type))
         && !matches!(value, Value::Null)
     {
-        let assigned = crate::executor::filter::cast_value(value, data_type)?;
+        let assigned = match data_type {
+            DataType::Composite(descriptor) => {
+                crate::executor::filter::assign_record(value, descriptor)?
+            }
+            _ => crate::executor::filter::cast_value(value, data_type)?,
+        };
         return value_to_json(&assigned);
     }
 

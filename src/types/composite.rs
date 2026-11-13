@@ -17,7 +17,7 @@ pub mod wire;
 pub use descriptor::{
     CompositeField, CompositeRef, CompositeType, RECORD_ARRAY_OID, RECORD_OID, RECORD_STORAGE_KEY,
 };
-pub use key::record_key;
+pub use key::{record_key, RecordKey};
 pub use record::{value_data_type, RecordValue};
 pub use text::{format_record, format_record_with, parse_record_text, RecordInputError};
 pub use wire::{

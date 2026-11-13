@@ -400,3 +400,45 @@ fn should_reject_stored_values_with_more_slots_than_the_descriptor() {
     // Assert
     assert!(restored.is_err());
 }
+
+fn typed_record(value: crate::types::typed::TypedValue) -> RecordValue {
+    text_record(vec![Value::Typed(value)])
+}
+
+#[test]
+fn should_order_numeric_fields_by_value() {
+    // Arrange
+    let numeric = |text: &str| {
+        typed_record(crate::types::typed::TypedValue::Numeric(
+            crate::types::extended::numeric::parse_text(text).expect("numeric"),
+        ))
+    };
+    let records = [
+        numeric("-50"),
+        numeric("-5"),
+        numeric("3"),
+        numeric("10"),
+        numeric("100"),
+    ];
+
+    // Act
+    let keys = records.map(|record| record_key(&record));
+
+    // Assert
+    assert!(keys.windows(2).all(|pair| pair[0] < pair[1]));
+}
+
+#[test]
+fn should_order_an_infinite_date_after_every_finite_date() {
+    // Arrange
+    let records = [
+        typed_record(crate::types::typed::TypedValue::Date(9_506)),
+        typed_record(crate::types::typed::TypedValue::Date(i32::MAX)),
+    ];
+
+    // Act
+    let [finite, infinite] = records.map(|record| record_key(&record));
+
+    // Assert
+    assert!(finite < infinite);
+}

@@ -1,8 +1,8 @@
 //! `COLUMNS (...)` clauses of `JSON_TABLE`: ordinality, value, `EXISTS` and `NESTED` columns.
 
+use super::super::domain_scope::parse_declared_data_type;
 use super::super::identifiers::normalize_column_identifier;
 use super::super::lexical;
-use super::super::schema::parse_data_type;
 use super::{parse_expression, split_csv, SqlError};
 use crate::sql::ast::{
     ExistsBehavior, Expr, JsonBehavior, JsonQuotes, JsonTableColumn, JsonTableExistsColumn,
@@ -170,7 +170,7 @@ impl<'a> Cursor<'a> {
             return Err(self.near());
         }
         let text = &self.definition[self.tokens[first].start..self.tokens[self.at - 1].end];
-        parse_data_type(text)
+        parse_declared_data_type(text)
     }
 
     fn wrapper(&mut self) -> Result<Option<JsonWrapper>, SqlError> {

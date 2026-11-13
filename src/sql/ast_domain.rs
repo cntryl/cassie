@@ -44,6 +44,8 @@ pub enum DomainAlteration {
         to: String,
     },
     RenameTo(String),
+    /// Reached through `ALTER TYPE <domain> SET SCHEMA`.
+    SetSchema(String),
 }
 
 /// One domain lifecycle operation.

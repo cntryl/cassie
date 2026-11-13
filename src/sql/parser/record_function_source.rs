@@ -1,9 +1,9 @@
 //! Column definition lists of `json[b]_to_record[set]` and aliases of
 //! `json[b]_populate_record[set]` FROM sources.
 
+use super::super::domain_scope::parse_declared_data_type;
 use super::super::identifiers::normalize_column_identifier;
 use super::super::lexical;
-use super::super::schema::parse_data_type;
 use super::json_table_source::alias_with_declared_columns;
 use super::{split_csv, QuerySource, SqlError};
 use crate::sql::ast::{FunctionCall, RecordColumn, TableFunctionForm};
@@ -95,7 +95,7 @@ fn parse_definition(definition: &str) -> Result<RecordColumn, SqlError> {
     }
     Ok(RecordColumn {
         name: normalize_column_identifier(&definition[..name_end])?,
-        data_type: parse_data_type(type_text)?,
+        data_type: parse_declared_data_type(type_text)?,
     })
 }
 

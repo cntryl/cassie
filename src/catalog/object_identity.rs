@@ -186,14 +186,19 @@ impl<'a> ObjectScope<'a> {
             |metadata| Some((metadata, "")),
         )?;
         let search_order = self.context.relation_search_order();
-        let visible = self
-            .catalog
-            .resolve_domain_type(
-                &self.context.database,
-                &search_order,
-                &quote_identifier(&metadata.local_name()),
-            )
-            .is_some_and(|found| found.type_oid() == metadata.type_oid());
+        // Like PostgreSQL's TypeIsVisible, the first schema on the search path
+        // that holds any type of this name (domain, composite or table row
+        // type) decides: the domain is visible only when that schema is its own.
+        let local = metadata.local_name();
+        let visible = search_order
+            .iter()
+            .find(|schema| {
+                let canonical = canonical_relation_name(&self.context.database, schema, &local);
+                self.catalog.domain_type_exists(&canonical)
+                    || self.catalog.composite_type_exists(&canonical)
+                    || self.catalog.relation_row_type(&canonical).is_some()
+            })
+            .is_some_and(|schema| schema.eq_ignore_ascii_case(&metadata.schema_name()));
         let name = if visible {
             quote_identifier(&metadata.local_name())
         } else {

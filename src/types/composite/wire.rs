@@ -134,7 +134,7 @@ pub fn record_from_storage_json(
     {
         values.push(match stored.get(slot) {
             None | Some(serde_json::Value::Null) => Value::Null,
-            Some(value) => field_from_json(value, &field.data_type)?,
+            Some(value) => field_from_json(value, field.data_type.flattened())?,
         });
     }
     RecordValue::new(descriptor.clone(), values).map_err(StoredRecordError::new)
@@ -154,13 +154,13 @@ pub fn send_record_binary<E: From<String>>(
         .map_err(|_| E::from("record has too many fields".to_string()))?;
     let mut out = count.to_be_bytes().to_vec();
     for (value, field) in record.fields().iter().zip(&record.descriptor().fields) {
-        let oid = u32::try_from(field.data_type.type_oid()).unwrap_or(0);
+        let oid = u32::try_from(field.data_type.flattened().type_oid()).unwrap_or(0);
         out.extend_from_slice(&oid.to_be_bytes());
         if value.is_null() {
             out.extend_from_slice(&(-1_i32).to_be_bytes());
             continue;
         }
-        let bytes = field_binary(value, &field.data_type)?;
+        let bytes = field_binary(value, field.data_type.flattened())?;
         let length = i32::try_from(bytes.len())
             .map_err(|_| E::from("record field is too large".to_string()))?;
         out.extend_from_slice(&length.to_be_bytes());
@@ -208,7 +208,7 @@ pub fn receive_record_binary(
         }
         let (field_bytes, rest) = cursor.split_at(length);
         cursor = rest;
-        values.push(field_value(&field.data_type, field_bytes)?);
+        values.push(field_value(field.data_type.flattened(), field_bytes)?);
     }
     if !cursor.is_empty() {
         return Err("improper binary format in record column".to_string());

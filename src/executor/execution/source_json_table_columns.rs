@@ -186,7 +186,7 @@ impl<'a, 'e> Evaluator<'a, 'e> {
                 ExistsBehavior::False | ExistsBehavior::Unspecified => Value::Bool(false),
             },
         };
-        if matches!(column.data_type, DataType::Boolean) || found.is_null() {
+        if matches!(column.data_type.flattened(), DataType::Boolean) || found.is_null() {
             return Ok(found);
         }
         super::filter::cast_value(&found, &column.data_type)
@@ -260,8 +260,9 @@ fn convert_item(
     quotes: JsonQuotes,
 ) -> Result<Value, QueryError> {
     let query = table_sources::is_query_column(column);
+    let base = column.data_type.flattened();
     let textual = matches!(
-        column.data_type,
+        base,
         DataType::Text | DataType::Varchar { .. } | DataType::Char { .. }
     );
     if query && textual {
@@ -270,11 +271,11 @@ fn convert_item(
             (Kind::String, JsonQuotes::Omit) => fragment.scalar_text()?,
             _ => fragment.json_text()?,
         };
-        check_length(&text, &column.data_type)?;
+        check_length(&text, base)?;
         return super::filter::cast_value(&Value::String(text), &column.data_type);
     }
-    if item.is_null() && matches!(column.data_type, DataType::Json | DataType::Jsonb) {
-        return Ok(if column.data_type == DataType::Json {
+    if item.is_null() && matches!(base, DataType::Json | DataType::Jsonb) {
+        return Ok(if *base == DataType::Json {
             Value::String("null".into())
         } else {
             Value::Json(Json::Null)

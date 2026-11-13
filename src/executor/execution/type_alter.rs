@@ -7,19 +7,23 @@
 //! values rewritten is rejected before any mutation.
 
 use super::command_output::empty as empty_command;
-use super::type_command::{diagnostic, reject_composite_array, relation_name_occupied, ROOT_OID};
+use super::type_command::{
+    diagnostic, reject_composite_array, relation_name_occupied, rename_collision,
+    set_schema_collision, ROOT_OID,
+};
 use super::type_publish::{publish_change, Altered};
-use super::{Cassie, QueryError, QueryResult};
+use super::{Cassie, CassieSession, QueryError, QueryResult};
 use crate::catalog::composite_alter::TypeAlterError;
 use crate::catalog::{
     canonical_relation_name, canonical_schema_name, is_system_schema, CompositeTypeMeta,
     DEFAULT_SCHEMA,
 };
 use crate::runtime::QueryExecutionControls;
-use crate::sql::ast::TypeAlteration;
+use crate::sql::ast::{DomainAlteration, TypeAlteration};
 
 /// The session context a type name resolves in.
 pub(super) struct AlterScope<'a> {
+    pub session: Option<&'a CassieSession>,
     pub database: &'a str,
     pub search_order: &'a [&'a str],
 }
@@ -58,6 +62,49 @@ fn resolve_target(
     ))
 }
 
+/// `ALTER TYPE` on a domain: rename and set schema act on the domain, every
+/// other action fails the way PostgreSQL does (a domain has no attributes).
+/// Returns `None` when `raw` does not name a domain.
+fn alter_domain(
+    cassie: &Cassie,
+    scope: &AlterScope<'_>,
+    raw: &str,
+    alteration: &TypeAlteration,
+    controls: &QueryExecutionControls,
+) -> Result<Option<QueryResult>, QueryError> {
+    if cassie
+        .catalog
+        .resolve_composite_type(scope.database, scope.search_order, raw)
+        .is_some()
+    {
+        return Ok(None);
+    }
+    let Some(domain) = cassie
+        .catalog
+        .resolve_domain_type(scope.database, scope.search_order, raw)
+    else {
+        return Ok(None);
+    };
+    let translated = match alteration {
+        TypeAlteration::RenameTo { new_name } => DomainAlteration::RenameTo(new_name.clone()),
+        TypeAlteration::SetSchema { schema } => DomainAlteration::SetSchema(schema.clone()),
+        TypeAlteration::OwnerTo { .. } => {
+            return Err(diagnostic(
+                "0A000",
+                "ALTER TYPE ... OWNER TO is not supported for domains".into(),
+            ));
+        }
+        _ => {
+            return Err(diagnostic(
+                "42P01",
+                format!("relation \"{raw}\" does not exist"),
+            ));
+        }
+    };
+    super::domain_command::alter_through_type(cassie, scope.session, &domain, &translated, controls)
+        .map(Some)
+}
+
 pub(super) fn alter(
     cassie: &Cassie,
     scope: &AlterScope<'_>,
@@ -65,6 +112,9 @@ pub(super) fn alter(
     alteration: &TypeAlteration,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    if let Some(result) = alter_domain(cassie, scope, raw_name, alteration, controls)? {
+        return Ok(result);
+    }
     let current = resolve_target(cassie, scope, raw_name)?;
     let output = empty_command("ALTER TYPE", controls)?;
     match alteration {
@@ -72,10 +122,7 @@ pub(super) fn alter(
             let canonical =
                 canonical_relation_name(scope.database, &current.schema_name(), new_name);
             if relation_name_occupied(cassie, scope.database, &canonical, controls)? {
-                return Err(diagnostic(
-                    "42P07",
-                    format!("relation \"{new_name}\" already exists"),
-                ));
+                return Err(rename_collision(cassie, &canonical, new_name));
             }
             publish(cassie, &current, &current.with_name(canonical))?;
         }
@@ -159,12 +206,11 @@ fn set_schema(
     }
     let canonical = canonical_relation_name(scope.database, schema, &current.local_name());
     if relation_name_occupied(cassie, scope.database, &canonical, controls)? {
-        return Err(diagnostic(
-            "42710",
-            format!(
-                "type \"{}\" already exists in schema \"{schema}\"",
-                current.local_name()
-            ),
+        return Err(set_schema_collision(
+            cassie,
+            &canonical,
+            &current.local_name(),
+            schema,
         ));
     }
     publish(cassie, current, &current.with_name(canonical))

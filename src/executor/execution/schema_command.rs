@@ -898,6 +898,7 @@ fn alter_table_rename_table(
     table: &str,
     next_table: &str,
 ) -> Result<(), QueryError> {
+    cassie.catalog.reject_relation_move_target(next_table)?;
     if cassie.catalog.exists(next_table) {
         return Err(QueryError::General(format!(
             "collection '{next_table}' already exists"
@@ -938,6 +939,7 @@ fn alter_table_set_schema(
     if table == next_table {
         return Ok(());
     }
+    cassie.catalog.reject_relation_move_target(&next_table)?;
     if cassie.catalog.exists(&next_table) {
         return Err(QueryError::General(format!(
             "collection '{next_table}' already exists"

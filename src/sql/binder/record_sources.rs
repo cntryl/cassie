@@ -178,7 +178,7 @@ fn string_like(data_type: &DataType) -> bool {
 }
 
 fn validate_value_column(column: &JsonTableValueColumn) -> Result<(), CassieError> {
-    if column.format_json && !string_like(&column.data_type) {
+    if column.format_json && !string_like(column.data_type.flattened()) {
         return Err(CassieError::Unsupported(
             "cannot use JSON format with non-string output types".into(),
         ));

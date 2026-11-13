@@ -71,9 +71,18 @@ pub(super) fn convert(
     hint: &str,
 ) -> Result<Value, QueryError> {
     if fragment.kind() == Kind::Null {
-        return Ok(Value::Null);
+        // A JSON null still meets a NOT NULL domain.
+        return match target {
+            DataType::Domain(_) => super::filter::cast_value(&Value::Null, target),
+            _ => Ok(Value::Null),
+        };
     }
     match target {
+        // Convert to the base type with its own JSON rules, then enforce the domain.
+        DataType::Domain(domain) => {
+            let converted = convert(fragment, &domain.base, base, hint)?;
+            super::filter::cast_value(&converted, target)
+        }
         DataType::Json => Ok(Value::String(fragment.json_text()?)),
         DataType::Jsonb => Ok(Value::Json(fragment.tree()?)),
         DataType::Composite(descriptor) => composite(fragment, descriptor, base),

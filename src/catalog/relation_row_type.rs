@@ -9,6 +9,7 @@ use super::{
 };
 use crate::types::composite::{CompositeField, CompositeRef, CompositeType};
 use crate::types::row_identity::is_row_identity_column;
+use crate::types::DataType;
 
 fn row_fields(schema: &CollectionSchema) -> Vec<CompositeField> {
     schema
@@ -17,7 +18,12 @@ fn row_fields(schema: &CollectionSchema) -> Vec<CompositeField> {
         .filter(|field| !is_row_identity_column(&field.name))
         .map(|field| CompositeField {
             name: field.name.clone(),
-            data_type: field.data_type.clone(),
+            // A domain column keeps its domain so casts into the row type
+            // enforce the constraints, as PostgreSQL's coercion does.
+            data_type: field.domain.as_ref().map_or_else(
+                || field.data_type.clone(),
+                |domain| DataType::Domain(domain.clone()),
+            ),
         })
         .collect()
 }

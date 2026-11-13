@@ -1,8 +1,10 @@
 //! Check visible SQL qualifiers before private alias references are generated.
+use super::BindingContext;
 use super::{
     CassieError, Expr, HashSet, ParsedStatement, QuerySource, QueryStatement, SelectItem,
     SelectStatement,
 };
+use crate::catalog::Catalog;
 use crate::sql::ColumnIdentifierPath;
 
 #[derive(Clone, Default)]
@@ -13,13 +15,23 @@ struct Names {
 
 pub(super) fn validate(
     statement: &ParsedStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<(), CassieError> {
-    Walk { controls, depth: 0 }.statement_names(statement, &Names::default(), false)
+    Walk {
+        catalog,
+        context,
+        controls,
+        depth: 0,
+    }
+    .statement_names(statement, &Names::default(), false)
 }
 
 #[derive(Clone, Copy)]
 struct Walk<'a> {
+    catalog: &'a Catalog,
+    context: &'a BindingContext,
     controls: Option<&'a crate::runtime::QueryExecutionControls>,
     depth: usize,
 }
@@ -41,6 +53,15 @@ impl Walk<'_> {
         }
         Ok(())
     }
+    /// Re-parses a stored body with the catalog's type and domain names in scope.
+    fn reparse(&self, query: &str) -> Result<ParsedStatement, CassieError> {
+        Ok(crate::sql::parse_statement_in_catalog(
+            self.catalog,
+            self.context,
+            query,
+        )?)
+    }
+
     fn child(&self) -> Self {
         Self {
             depth: self.depth + 1,
@@ -130,17 +151,17 @@ impl Walk<'_> {
                 self.items(&delete.returning, outer, active)
             }
             QueryStatement::CreateView(view) => {
-                let parsed = crate::sql::parser::parse_statement(&view.query)?;
+                let parsed = self.reparse(&view.query)?;
                 self.child()
                     .statement_names(&parsed, &Names::default(), false)
             }
             QueryStatement::CreateMaterializedProjection(projection) => {
-                let parsed = crate::sql::parser::parse_statement(&projection.query)?;
+                let parsed = self.reparse(&projection.query)?;
                 self.child()
                     .statement_names(&parsed, &Names::default(), false)
             }
             QueryStatement::CreateMaterializedView(view) => {
-                let parsed = crate::sql::parser::parse_statement(&view.query)?;
+                let parsed = self.reparse(&view.query)?;
                 self.child()
                     .statement_names(&parsed, &Names::default(), false)
             }

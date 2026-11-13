@@ -131,3 +131,28 @@ fn should_report_typmod_minus_one_for_a_domain_column_over_varchar() {
     // Assert
     assert_eq!(rows, vec![vec![Value::Int64(-1)]]);
 }
+
+// Authored, not run: regtype visibility follows the first type-namespace match (review nit).
+
+#[test]
+fn should_qualify_a_domain_label_when_an_earlier_schema_holds_a_table_row_type_of_that_name() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain_regtype_shadowed_by_row_type",
+        &[
+            "CREATE SCHEMA a",
+            "CREATE TABLE a.posint (x int)",
+            "CREATE DOMAIN public.posint AS int",
+        ],
+    );
+    fixture.execute("SET search_path TO a, public").unwrap();
+
+    // Act
+    let label =
+        only_text(&fixture.rows(
+            "SELECT oid::regtype::text FROM pg_type WHERE typname = 'posint' AND typtype = 'd'",
+        ));
+
+    // Assert
+    assert_eq!(label.as_deref(), Some("public.posint"));
+}

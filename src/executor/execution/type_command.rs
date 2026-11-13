@@ -1,6 +1,7 @@
 //! `CREATE TYPE ... AS (...)`, `DROP TYPE` and the `ALTER TYPE` dispatch (#828).
 
 use super::command_output::empty as empty_command;
+use super::domain_command::{ensure_droppable, remove_domain};
 use super::{Cassie, CassieSession, QueryError, QueryResult};
 use crate::app::{CassieError, DiagnosticError};
 use crate::catalog::{
@@ -38,6 +39,7 @@ pub(super) fn execute(
         TypeAction::Alter { name, alteration } => super::type_alter::alter(
             cassie,
             &super::type_alter::AlterScope {
+                session,
                 database: &database,
                 search_order: &context.relation_search_order(),
             },
@@ -169,6 +171,41 @@ pub(super) fn relation_name_occupied(
         )?)
 }
 
+/// The error for renaming a composite type onto an occupied name: PostgreSQL
+/// reports a domain as a type collision (`42710`) and anything else as a
+/// relation collision (`42P07`).
+pub(super) fn rename_collision(cassie: &Cassie, canonical: &str, new_name: &str) -> QueryError {
+    if cassie.catalog.domain_type_exists(canonical) {
+        return diagnostic("42710", format!("type \"{new_name}\" already exists"));
+    }
+    diagnostic("42P07", format!("relation \"{new_name}\" already exists"))
+}
+
+/// The error for moving a composite type onto an occupied name: a name in the
+/// type namespace (tables, views, composite types, domains) is `42710`, a
+/// sequence or index that has no row type is `42P07`.
+pub(super) fn set_schema_collision(
+    cassie: &Cassie,
+    canonical: &str,
+    name: &str,
+    schema: &str,
+) -> QueryError {
+    let in_type_namespace = cassie.catalog.composite_type_exists(canonical)
+        || cassie.catalog.domain_type_exists(canonical)
+        || cassie.catalog.get_schema(canonical).is_some()
+        || cassie.catalog.relation_exists(canonical);
+    if in_type_namespace {
+        return diagnostic(
+            "42710",
+            format!("type \"{name}\" already exists in schema \"{schema}\""),
+        );
+    }
+    diagnostic(
+        "42P07",
+        format!("relation \"{name}\" already exists in schema \"{schema}\""),
+    )
+}
+
 /// Arrays of composite types are not stored yet.
 pub(super) fn reject_composite_array(data_type: &DataType) -> Result<(), QueryError> {
     if matches!(data_type, DataType::Array(inner) if matches!(**inner, DataType::Composite(_))) {
@@ -211,11 +248,20 @@ fn drop_types(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let mut targets = Vec::with_capacity(names.len());
+    let mut domains = Vec::new();
     for raw in names {
         let Some(metadata) = cassie
             .catalog
             .resolve_composite_type(database, search_order, raw)
         else {
+            if let Some(domain) = cassie
+                .catalog
+                .resolve_domain_type(database, search_order, raw)
+            {
+                ensure_droppable(cassie, &domain, cascade)?;
+                domains.push(domain);
+                continue;
+            }
             if if_exists {
                 continue;
             }
@@ -266,6 +312,9 @@ fn drop_types(
             .delete_composite_type(database, &metadata.name)
             .map_err(QueryError::from)?;
         cassie.catalog.unregister_composite_type(&metadata.name);
+    }
+    for domain in &domains {
+        remove_domain(cassie, database, domain)?;
     }
     Ok(output)
 }

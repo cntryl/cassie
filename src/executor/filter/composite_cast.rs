@@ -97,10 +97,7 @@ fn cast_record(
     }
     let mut fields = Vec::with_capacity(target.fields.len());
     for (value, field) in record.fields().iter().zip(&target.fields) {
-        if matches!(value, Value::Null) {
-            fields.push(Value::Null);
-            continue;
-        }
+        // A NULL still meets a NOT NULL domain field.
         fields.push(cast_scalar(&scalar_from_value(value), &field.data_type, controls)?.to_value());
     }
     RecordValue::new(target.clone(), fields).map_err(|message| diagnostic("XX000", message, None))

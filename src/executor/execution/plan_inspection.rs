@@ -237,16 +237,31 @@ fn query_source_uses_view_function(
             if !visited_views.insert(key.clone()) {
                 return false;
             }
-            let uses_function = crate::sql::parser::parse_statement(&view.query)
-                .ok()
-                .and_then(|parsed| match parsed.statement {
-                    QueryStatement::Select(select) => Some(select),
-                    _ => None,
-                })
-                .is_some_and(|select| {
-                    select_uses_function(&select, function_name)
-                        || select_uses_view_function(&select, function_name, catalog, visited_views)
-                });
+            // The stored body resolves type names from the view's own schema.
+            let context = crate::sql::binder::BindingContext::unscoped(
+                crate::catalog::relation_database_name(&view.name)
+                    .unwrap_or_else(|| crate::sql::binder::BindingContext::default().database),
+                vec![
+                    crate::catalog::relation_schema_name(&view.name),
+                    "public".to_string(),
+                ],
+            );
+            let uses_function =
+                crate::sql::parse_statement_in_catalog(catalog, &context, &view.query)
+                    .ok()
+                    .and_then(|parsed| match parsed.statement {
+                        QueryStatement::Select(select) => Some(select),
+                        _ => None,
+                    })
+                    .is_some_and(|select| {
+                        select_uses_function(&select, function_name)
+                            || select_uses_view_function(
+                                &select,
+                                function_name,
+                                catalog,
+                                visited_views,
+                            )
+                    });
             visited_views.remove(&key);
             uses_function
         }

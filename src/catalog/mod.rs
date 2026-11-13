@@ -33,6 +33,7 @@ pub mod schemas;
 pub mod scope;
 pub mod sequence_state;
 pub mod sequences;
+pub mod user_type_resolution;
 pub mod virtual_views;
 
 pub use cardinality::{
@@ -82,6 +83,7 @@ pub use metadata::Catalog;
 pub(crate) use metadata::{ControlledCatalogSnapshot, FunctionInputScope};
 pub use object_comment::{ObjectCommentAddress, ObjectCommentMeta};
 pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
+pub use user_type_resolution::UserType;
 pub(crate) const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_view";
 pub use programs::{
     ExtensionMeta, FunctionArgMeta, FunctionMeta, ProcedureMeta, VectorAnnCatalogIdentityIds,

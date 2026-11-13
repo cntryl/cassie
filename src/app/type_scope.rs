@@ -3,6 +3,7 @@
 use std::rc::Rc;
 
 use super::{Cassie, CassieError, CassieSession};
+use crate::catalog::UserType;
 use crate::sql::ast::ParsedStatement;
 use crate::sql::{
     parse_statement, with_domain_scope, with_enum_scope, with_type_scope, TypeResolver,
@@ -38,11 +39,15 @@ impl Cassie {
             .collect::<Vec<_>>();
         Rc::new(move |raw: &str| -> Option<CompositeRef> {
             let order = search_order.iter().map(String::as_str).collect::<Vec<_>>();
-            catalog
-                .resolve_composite_type(&database, &order, raw)
-                .map(|metadata| metadata.descriptor())
+            // One search-path walk decides among enum, composite, domain and
+            // table row types, so an earlier schema's type of another kind
+            // shadows a composite further along the path.
+            match catalog.resolve_user_type(&database, &order, raw)? {
+                UserType::Composite(metadata) => Some(metadata.descriptor()),
                 // Every table owns a row type named like the table.
-                .or_else(|| catalog.resolve_relation_row_type(&database, &order, raw))
+                UserType::RowType(descriptor) => Some(descriptor),
+                UserType::Enum(_) | UserType::Domain(_) => None,
+            }
         })
     }
 

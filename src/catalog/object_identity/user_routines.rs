@@ -134,12 +134,16 @@ impl ObjectScope<'_> {
         match parts.as_slice() {
             [name] => Ok((None, name.value.clone())),
             [schema, name] => Ok((Some(schema.value.clone()), name.value.clone())),
-            [database, schema, name]
-                if database.value.eq_ignore_ascii_case(&self.context.database) =>
-            {
-                Ok((Some(schema.value.clone()), name.value.clone()))
+            [database, schema, name] => {
+                if database.value.eq_ignore_ascii_case(&self.context.database) {
+                    Ok((Some(schema.value.clone()), name.value.clone()))
+                } else {
+                    Err(ObjectIdentifierError::CrossDatabase(text.to_string()))
+                }
             }
-            _ => Err(ObjectIdentifierError::InvalidName(text.to_string())),
+            _ => Err(ObjectIdentifierError::ImproperQualifiedName(
+                text.to_string(),
+            )),
         }
     }
 
@@ -242,7 +246,7 @@ impl ObjectScope<'_> {
         if let Some(oid) = builtin_type_oid(text)? {
             return Ok(oid);
         }
-        self.resolve_user_type(text)
+        self.resolve_user_type(text)?
             .ok_or_else(|| ObjectIdentifierError::Undefined {
                 kind: ObjectIdKind::RegType,
                 name: text.to_string(),
@@ -266,6 +270,14 @@ impl ObjectScope<'_> {
             };
         }
         if let DataType::Enum(descriptor) = element {
+            return if is_array {
+                descriptor.array_oid
+            } else {
+                descriptor.oid
+            };
+        }
+        // A domain argument is identified by the domain, not its base type.
+        if let DataType::Domain(descriptor) = element {
             return if is_array {
                 descriptor.array_oid
             } else {

@@ -207,14 +207,25 @@ impl ObjectScope<'_> {
             'S' => SEQUENCE_COLUMNS
                 .get(position)
                 .map(|name| (*name).to_string()),
-            'c' => self
-                .catalog
-                .list_composite_types_for_database(database)
-                .into_iter()
-                .find(|metadata| metadata.relation_oid() == relation.oid)?
-                .fields
-                .get(position)
-                .map(|field| field.name.clone()),
+            'c' => {
+                let metadata = self
+                    .catalog
+                    .list_composite_types_for_database(database)
+                    .into_iter()
+                    .find(|metadata| metadata.relation_oid() == relation.oid)?;
+                // `sub_id` is `pg_attribute.attnum`, the physical slot: a
+                // dropped attribute keeps its number and later ones do not shift.
+                if metadata.dropped_positions.contains(&position) {
+                    return Some(dropped_column_name(sub_id));
+                }
+                metadata
+                    .descriptor()
+                    .physical_positions()
+                    .iter()
+                    .position(|slot| *slot == position)
+                    .and_then(|index| metadata.fields.get(index))
+                    .map(|field| field.name.clone())
+            }
             _ => None,
         }
     }
@@ -303,7 +314,7 @@ impl ObjectScope<'_> {
 
     /// Schema, name and array-ness of a user-defined type. Every user type
     /// family registers here, so a new family is identified by adding it.
-    fn user_type_parts(&self, oid: u32) -> Option<(String, String, bool)> {
+    pub(super) fn user_type_parts(&self, oid: u32) -> Option<(String, String, bool)> {
         if let Some(metadata) = self.catalog.get_composite_type_by_oid(oid) {
             return Some((metadata.schema_name(), metadata.local_name(), false));
         }
@@ -327,6 +338,12 @@ impl ObjectScope<'_> {
         let (schema, name) = self.stored_relation_parts(&table)?;
         Some((schema, name, is_array))
     }
+}
+
+/// The `pg_attribute.attname` PostgreSQL gives the dropped column `attnum`.
+#[must_use]
+pub(crate) fn dropped_column_name(attnum: i32) -> String {
+    format!("........pg.dropped.{attnum}........")
 }
 
 /// `format_type_be_qualified` for a built-in type row.

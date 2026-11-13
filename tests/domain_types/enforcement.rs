@@ -565,3 +565,41 @@ fn should_infer_the_base_type_for_arithmetic_on_a_row_type_domain_field() {
         vec![vec![Value::String("integer".into()), Value::Int64(4)]]
     );
 }
+
+// Authored, not run: revision 3 (columns of another table's row type).
+
+fn row_column_fixture(label: &str) -> SqlFixture {
+    let fixture = row_type_fixture(label);
+    fixture.execute("CREATE TABLE holder (r dt)").unwrap();
+    fixture
+}
+
+#[test]
+fn should_stop_enforcing_a_dropped_domain_check_on_a_row_type_column_insert() {
+    // Arrange
+    let fixture = row_column_fixture("domain_row_column_dropped_check");
+    fixture
+        .execute("ALTER DOMAIN posint DROP CONSTRAINT posint_check")
+        .unwrap();
+
+    // Act
+    let inserted = fixture.execute("INSERT INTO holder VALUES ('(-1)')");
+
+    // Assert
+    assert!(inserted.is_ok(), "the dropped check no longer applies");
+}
+
+#[test]
+fn should_enforce_an_added_domain_check_on_a_row_type_column_insert() {
+    // Arrange
+    let fixture = row_column_fixture("domain_row_column_added_check");
+    fixture
+        .execute("ALTER DOMAIN posint ADD CONSTRAINT small CHECK (VALUE < 10)")
+        .unwrap();
+
+    // Act
+    let error = fixture.error("INSERT INTO holder VALUES ('(50)')");
+
+    // Assert
+    assert_eq!(error.sql_state(), "23514");
+}

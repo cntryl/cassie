@@ -11,6 +11,24 @@ use crate::types::composite::{CompositeField, CompositeRef, CompositeType};
 use crate::types::row_identity::is_row_identity_column;
 use crate::types::DataType;
 
+/// `descriptor` with every domain field flattened to its base type. A column
+/// that embeds another table's row type stores this form, so the stale domain
+/// snapshot never enforces; writes check the live domains instead.
+#[must_use]
+pub(crate) fn unconstrained(descriptor: &CompositeRef) -> CompositeRef {
+    CompositeRef::new(CompositeType {
+        fields: descriptor
+            .fields
+            .iter()
+            .map(|field| CompositeField {
+                name: field.name.clone(),
+                data_type: field.data_type.flattened().clone(),
+            })
+            .collect(),
+        ..(**descriptor).clone()
+    })
+}
+
 impl Catalog {
     /// The fields of `schema`'s row type. With `constrained`, a domain column
     /// keeps the domain's live descriptor (resolved by OID, as column

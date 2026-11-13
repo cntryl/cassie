@@ -31,6 +31,17 @@ impl FieldMeta {
                 is_indexed,
                 boost,
             },
+            DataType::Composite(row)
+                if row.fields.iter().any(|f| f.data_type.domain().is_some()) =>
+            {
+                Self {
+                    name,
+                    data_type: DataType::Composite(super::relation_row_type::unconstrained(&row)),
+                    domain: None,
+                    is_indexed,
+                    boost,
+                }
+            }
             other => Self {
                 name,
                 data_type: other,

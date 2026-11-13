@@ -533,8 +533,12 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
 - Whole-row reads (`SELECT t FROM t`, `t::text`) never revalidate stored values; a row
   type's domain fields resolve the live domain descriptor by OID when the statement is
   parsed, so `ALTER DOMAIN` is seen by later casts. `(row).field` infers the base type.
-  Known divergences: binary `record_send`/`record_recv` carry the domain OID per field
-  (as PostgreSQL); a `JSON_TABLE` `EXISTS PATH` column of a domain type casts the
+  A column whose type is another table's row type stores that row type with its domain
+  fields flattened and enforces the live domains of the row type by OID on INSERT and
+  UPDATE (one level deep). Known divergences: binary `record_send`/`record_recv` carry
+  the domain OID per field for casts and user composites (as PostgreSQL), but a
+  whole-row value (`SELECT t FROM t`) is built from an unconstrained descriptor and
+  sends the base OID; a `JSON_TABLE` `EXISTS PATH` column of a domain type casts the
   boolean to the domain even when the path is not found (PostgreSQL raises `42804`);
   bind-time re-parse of view bodies uses the live catalog, not the open transaction's
   overlay or REPEATABLE READ snapshot, so a domain created in the same open

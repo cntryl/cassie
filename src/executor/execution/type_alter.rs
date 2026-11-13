@@ -372,7 +372,10 @@ pub(super) fn refresh_relation_row_type(
             .catalog
             .set_row_type_revision(&collection.name, u64::from(projection.schema_version));
     }
-    let Some(row_type) = cassie.catalog.relation_row_type(&collection.name) else {
+    let Some(row_type) = cassie
+        .catalog
+        .relation_row_type_unconstrained(&collection.name)
+    else {
         return Ok(());
     };
     publish_change(

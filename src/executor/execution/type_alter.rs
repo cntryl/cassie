@@ -45,11 +45,15 @@ fn resolve_target(
     {
         return Ok(metadata);
     }
-    let names_a_relation = scope.search_order.iter().any(|schema| {
-        let canonical = canonical_relation_name(scope.database, schema, raw);
-        cassie.catalog.get_schema(&canonical).is_some()
-            || cassie.catalog.relation_exists(&canonical)
-    });
+    let names_a_relation = cassie
+        .catalog
+        .resolve_relation_row_type(scope.database, scope.search_order, raw)
+        .is_some()
+        || scope.search_order.iter().any(|schema| {
+            let canonical = canonical_relation_name(scope.database, schema, raw);
+            cassie.catalog.get_schema(&canonical).is_some()
+                || cassie.catalog.relation_exists(&canonical)
+        });
     if names_a_relation {
         return Err(diagnostic(
             "42809",

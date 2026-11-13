@@ -55,6 +55,7 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
                 | DataType::Date
                 | DataType::Time
                 | DataType::Timestamp
+                | DataType::ObjectId(_)
                 | DataType::Array(_)
                 // Cassie's established vector extension retains row extrema.
                 | DataType::Vector(_)

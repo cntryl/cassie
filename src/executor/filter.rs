@@ -382,6 +382,7 @@ mod casts;
 pub(crate) mod character_arrays;
 #[path = "filter/composite_cast.rs"]
 mod composite_cast;
+pub(crate) use composite_cast::record_from_text;
 #[path = "filter/domain_check.rs"]
 mod domain_check;
 pub(crate) use domain_check::{evaluate_check, first_violation};

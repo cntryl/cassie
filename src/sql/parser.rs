@@ -178,6 +178,7 @@ mod type_scope;
 mod types;
 mod types_alter;
 pub use domain_scope::{with_domain_scope, DomainResolver};
+pub use type_scope::parse_data_type_in_scope;
 pub use type_scope::{with_type_scope, TypeResolver};
 #[path = "parser/with_statement.rs"]
 mod with_statement;

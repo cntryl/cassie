@@ -54,6 +54,13 @@ fn binary_span(input: &str, start: usize, end: usize, token: &str) -> bool {
     if matches!(token, "%" | "^" | "||" | "|" | "&" | "#") && input[end..].starts_with(['+', '-']) {
         return false;
     }
+    // `(expr).*` selects every field; its `*` has no right operand.
+    if token == "*"
+        && input[..start].ends_with('.')
+        && super::lexical::trim_separators(&input[end..]).is_empty()
+    {
+        return false;
+    }
     let left = super::lexical::trim_separators(&input[..start]);
     if left.is_empty()
         || left.ends_with(operator_character)

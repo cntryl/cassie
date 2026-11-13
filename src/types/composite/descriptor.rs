@@ -99,6 +99,8 @@ impl CompositeType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompositeRef(Arc<CompositeType>);
 
+impl Eq for CompositeRef {}
+
 impl CompositeRef {
     #[must_use]
     pub fn new(descriptor: CompositeType) -> Self {

@@ -130,3 +130,16 @@ pub(super) fn null_test(value: &ScalarValue, negated: bool) -> bool {
         is_null
     }
 }
+
+/// Parses PostgreSQL record text into a record of `descriptor` (the wire layer
+/// sends rendered record text in binary `record_send` layout).
+///
+/// # Errors
+///
+/// Returns the input or field conversion error of a malformed literal.
+pub(crate) fn record_from_text(
+    text: &str,
+    descriptor: &CompositeRef,
+) -> Result<crate::types::Value, QueryError> {
+    cast(&ScalarValue::Str(text.to_owned()), descriptor, None).map(|value| value.to_value())
+}

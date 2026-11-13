@@ -125,8 +125,21 @@ impl Catalog {
 
     /// Records the layout revision of the row type of table `canonical`.
     pub fn set_row_type_revision(&self, canonical: &str, revision: u64) {
-        if let Some(collection) = self.collections.write().get_mut(canonical) {
-            collection.row_type_revision = revision;
+        {
+            // A catalog hydrated from storage may key the table by a name
+            // that only matches `canonical` by scope.
+            let mut collections = self.collections.write();
+            let key = if collections.contains_key(canonical) {
+                Some(canonical.to_owned())
+            } else {
+                collections
+                    .keys()
+                    .find(|stored| super::name_matches(stored, canonical))
+                    .cloned()
+            };
+            if let Some(collection) = key.and_then(|key| collections.get_mut(&key)) {
+                collection.row_type_revision = revision;
+            }
         }
         self.bump_version();
     }
@@ -160,7 +173,7 @@ impl Catalog {
         for collection in self.list_collections() {
             let in_database = database.is_none_or(|database| {
                 super::relation_database_name(&collection.name)
-                    .is_some_and(|name| name.eq_ignore_ascii_case(database))
+                    .is_none_or(|name| name.eq_ignore_ascii_case(database))
             });
             if !in_database {
                 continue;

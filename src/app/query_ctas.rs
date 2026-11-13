@@ -133,7 +133,8 @@ impl Cassie {
                             column.name.clone()
                         }
                     });
-                let data_type = crate::types::DataType::parse_sql(&column.data_type)
+                let data_type = self
+                    .parse_data_type_for_session(Some(session), &column.data_type)
                     .map_err(CassieError::Parse)?;
                 Ok(FieldDefinition {
                     name,

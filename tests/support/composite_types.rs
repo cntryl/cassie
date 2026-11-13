@@ -47,7 +47,7 @@ impl Drop for LocalStore {
     }
 }
 
-/// The single text cell of a one-row, one-column result.
+/// The single text or integer cell of a one-row, one-column result, as text.
 ///
 /// # Panics
 ///
@@ -59,6 +59,7 @@ pub fn only_text(rows: &[Vec<Value>]) -> Option<String> {
     };
     match row.as_slice() {
         [Value::String(text)] => Some(text.clone()),
+        [Value::Int64(number)] => Some(number.to_string()),
         [Value::Null] => None,
         _ => panic!("expected one text cell"),
     }

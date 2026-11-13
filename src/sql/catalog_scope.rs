@@ -10,11 +10,11 @@
 use std::rc::Rc;
 
 use super::binder::BindingContext;
-use super::parser::{parse_statement, with_domain_scope, with_type_scope};
-use super::{DomainResolver, SqlError, TypeResolver};
+use super::parser::{parse_statement, with_domain_scope, with_enum_scope, with_type_scope};
+use super::{DomainResolver, EnumResolver, SqlError, TypeResolver};
 use crate::catalog::Catalog;
 use crate::sql::ast::ParsedStatement;
-use crate::types::{CompositeRef, DomainRef};
+use crate::types::{CompositeRef, DomainRef, EnumRef};
 
 fn search_order(context: &BindingContext) -> Vec<String> {
     context
@@ -49,7 +49,19 @@ fn domain_resolver(catalog: &Catalog, context: &BindingContext) -> DomainResolve
     })
 }
 
-/// Parses `sql` with the composite, row-type and domain names visible in
+fn enum_resolver(catalog: &Catalog, context: &BindingContext) -> EnumResolver {
+    let catalog = catalog.clone();
+    let database = context.database.clone();
+    let order = search_order(context);
+    Rc::new(move |raw: &str| -> Option<EnumRef> {
+        let order = order.iter().map(String::as_str).collect::<Vec<_>>();
+        catalog
+            .resolve_enum_type(&database, &order, raw)
+            .map(|metadata| metadata.descriptor())
+    })
+}
+
+/// Parses `sql` with the composite, row-type, domain and enum names visible in
 /// `catalog` through `context`'s search path in scope.
 ///
 /// # Errors
@@ -60,10 +72,17 @@ pub fn parse_statement_in_catalog(
     context: &BindingContext,
     sql: &str,
 ) -> Result<ParsedStatement, SqlError> {
-    if !catalog.has_composite_types() && !catalog.has_collections() && !catalog.has_domain_types() {
+    if !catalog.has_composite_types()
+        && !catalog.has_collections()
+        && !catalog.has_domain_types()
+        && !catalog.has_enum_types()
+    {
         return parse_statement(sql);
     }
     let domains = domain_resolver(catalog, context);
     let types = type_resolver(catalog, context);
-    with_domain_scope(domains, || with_type_scope(types, || parse_statement(sql)))
+    let enums = enum_resolver(catalog, context);
+    with_enum_scope(enums, || {
+        with_domain_scope(domains, || with_type_scope(types, || parse_statement(sql)))
+    })
 }

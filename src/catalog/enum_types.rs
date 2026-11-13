@@ -72,6 +72,26 @@ impl EnumTypeMeta {
     }
 }
 
+/// One object that keeps an enum type alive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumDependent {
+    /// Canonical name of the owning table.
+    pub owner: String,
+    /// PostgreSQL's phrase, `column c of table t`.
+    pub phrase: String,
+    /// The column is an array of the enum (`depends on type x[]`).
+    pub array: bool,
+}
+
+impl EnumDependent {
+    /// The `DROP TYPE` detail line for the enum named `type_name`.
+    #[must_use]
+    pub fn detail(&self, type_name: &str) -> String {
+        let suffix = if self.array { "[]" } else { "" };
+        format!("{} depends on type {type_name}{suffix}", self.phrase)
+    }
+}
+
 /// Whether `data_type` is, or arrays, the enum type `oid`.
 #[must_use]
 pub fn data_type_depends_on_enum(data_type: &DataType, oid: u32) -> bool {
@@ -196,24 +216,28 @@ impl Catalog {
             .any(|metadata| same_stored_relation(&metadata.name, name))
     }
 
-    /// Objects that keep the enum type `oid` alive, phrased as PostgreSQL
-    /// phrases the `DROP TYPE` dependency detail (`column c of table t`).
-    /// Composite fields and domain bases cannot hold an enum in v0.4.
+    /// Table columns that keep the enum type `oid` alive. Composite fields
+    /// and domain bases cannot hold an enum in v0.4.
     #[must_use]
-    pub fn enum_type_dependents(&self, oid: u32) -> Vec<String> {
+    pub fn enum_type_dependents(&self, oid: u32) -> Vec<EnumDependent> {
         let mut dependents = Vec::new();
         for schema in self.schemas.read().values() {
             for field in &schema.fields {
                 if data_type_depends_on_enum(&field.data_type, oid) {
-                    dependents.push(format!(
-                        "column {} of table {}",
-                        field.name,
-                        local_name(&schema.collection)
-                    ));
+                    dependents.push(EnumDependent {
+                        owner: schema.collection.clone(),
+                        phrase: format!(
+                            "column {} of table {}",
+                            field.name,
+                            local_name(&schema.collection)
+                        ),
+                        array: matches!(field.data_type, DataType::Array(_)),
+                    });
                 }
             }
         }
-        dependents.sort();
+        dependents
+            .sort_by(|left, right| (&left.owner, &left.phrase).cmp(&(&right.owner, &right.phrase)));
         dependents
     }
 

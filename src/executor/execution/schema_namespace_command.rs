@@ -57,12 +57,14 @@ fn drop_schema_composite_types(cassie: &Cassie, schema: &str) -> Result<(), Quer
 /// Refuses `DROP SCHEMA ... CASCADE` while an object outside the schema uses one of its types.
 fn reject_outside_dependents(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
     reject_outside_type_dependents(cassie, schema)?;
+    crate::executor::execution::enum_schema_scope::reject_outside_dependents(cassie, schema)?;
     crate::executor::execution::domain_schema_scope::reject_outside_dependents(cassie, schema)
 }
 
 /// Drops the composite and domain types of `schema`.
 fn drop_schema_types(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
     drop_schema_composite_types(cassie, schema)?;
+    crate::executor::execution::enum_schema_scope::drop_schema_enums(cassie, schema)?;
     crate::executor::execution::domain_schema_scope::drop_schema_domains(cassie, schema)
 }
 
@@ -290,6 +292,9 @@ pub(crate) fn drop_database(
     cassie
         .catalog
         .unregister_domain_types_for_database(&statement.name);
+    cassie
+        .catalog
+        .unregister_enum_types_for_database(&statement.name);
     cassie.catalog.unregister_database(&statement.name);
 
     Ok(output)
@@ -576,6 +581,7 @@ fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
             .into_iter()
             .any(|composite| object_in_schema(&composite.name, schema))
         && !crate::executor::execution::domain_schema_scope::schema_has_domains(cassie, schema)
+        && !crate::executor::execution::enum_schema_scope::schema_has_enums(cassie, schema)
         && !cassie
             .catalog
             .list_graphs()

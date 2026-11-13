@@ -1,10 +1,12 @@
-//! Session-scoped parsing: composite type names resolve against the catalog.
+//! Session-scoped parsing: composite, domain and enum type names resolve against the catalog.
 
 use std::rc::Rc;
 
 use super::{Cassie, CassieError, CassieSession};
 use crate::sql::ast::ParsedStatement;
-use crate::sql::{parse_statement, with_domain_scope, with_type_scope, TypeResolver};
+use crate::sql::{
+    parse_statement, with_domain_scope, with_enum_scope, with_type_scope, TypeResolver,
+};
 use crate::types::CompositeRef;
 
 impl Cassie {
@@ -54,13 +56,17 @@ impl Cassie {
         if !catalog.has_composite_types()
             && !catalog.has_collections()
             && !catalog.has_domain_types()
+            && !catalog.has_enum_types()
         {
             return Ok(parse_statement(sql)?);
         }
         let resolver = self.composite_type_resolver(session);
         let domains = self.domain_type_resolver(session);
-        Ok(with_domain_scope(domains, || {
-            with_type_scope(resolver, || parse_statement(sql))
+        let enums = self.enum_type_resolver(session);
+        Ok(with_enum_scope(enums, || {
+            with_domain_scope(domains, || {
+                with_type_scope(resolver, || parse_statement(sql))
+            })
         })?)
     }
 
@@ -73,9 +79,12 @@ impl Cassie {
     ) -> Result<crate::types::DataType, String> {
         let resolver = self.composite_type_resolver(session);
         let domains = self.domain_type_resolver(session);
-        with_domain_scope(domains, || {
-            with_type_scope(resolver, || {
-                crate::sql::parser::parse_data_type_in_scope(raw)
+        let enums = self.enum_type_resolver(session);
+        with_enum_scope(enums, || {
+            with_domain_scope(domains, || {
+                with_type_scope(resolver, || {
+                    crate::sql::parser::parse_data_type_in_scope(raw)
+                })
             })
         })
         .map_err(|error| error.to_string())

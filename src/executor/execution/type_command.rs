@@ -36,6 +36,14 @@ pub(super) fn execute(
             attributes,
             controls,
         ),
+        TypeAction::CreateEnum { name, labels } => super::enum_command::create(
+            cassie,
+            &database,
+            context.current_schema(),
+            name,
+            labels,
+            controls,
+        ),
         TypeAction::Alter { name, alteration } => super::type_alter::alter(
             cassie,
             &super::type_alter::AlterScope {
@@ -71,7 +79,7 @@ pub(super) fn diagnostic(state: &'static str, message: String) -> QueryError {
 }
 
 /// Splits a requested type name into its schema and unqualified name.
-fn creation_target(
+pub(super) fn creation_target(
     database: &str,
     current_schema: &str,
     raw: &str,
@@ -160,6 +168,7 @@ pub(super) fn relation_name_occupied(
 ) -> Result<bool, QueryError> {
     Ok(cassie.catalog.composite_type_exists(canonical)
         || cassie.catalog.domain_type_exists(canonical)
+        || cassie.catalog.enum_type_exists(canonical)
         || cassie.catalog.get_schema(canonical).is_some()
         || cassie.catalog.relation_exists(canonical)
         || cassie.catalog.sequence_exists(canonical)
@@ -175,7 +184,8 @@ pub(super) fn relation_name_occupied(
 /// reports a domain as a type collision (`42710`) and anything else as a
 /// relation collision (`42P07`).
 pub(super) fn rename_collision(cassie: &Cassie, canonical: &str, new_name: &str) -> QueryError {
-    if cassie.catalog.domain_type_exists(canonical) {
+    if cassie.catalog.domain_type_exists(canonical) || cassie.catalog.enum_type_exists(canonical)
+    {
         return diagnostic("42710", format!("type \"{new_name}\" already exists"));
     }
     diagnostic("42P07", format!("relation \"{new_name}\" already exists"))
@@ -192,6 +202,7 @@ pub(super) fn set_schema_collision(
 ) -> QueryError {
     let in_type_namespace = cassie.catalog.composite_type_exists(canonical)
         || cassie.catalog.domain_type_exists(canonical)
+        || cassie.catalog.enum_type_exists(canonical)
         || cassie.catalog.get_schema(canonical).is_some()
         || cassie.catalog.relation_exists(canonical);
     if in_type_namespace {
@@ -249,6 +260,7 @@ fn drop_types(
 ) -> Result<QueryResult, QueryError> {
     let mut targets = Vec::with_capacity(names.len());
     let mut domains = Vec::new();
+    let mut enums = Vec::new();
     for raw in names {
         let Some(metadata) = cassie
             .catalog
@@ -260,6 +272,14 @@ fn drop_types(
             {
                 ensure_droppable(cassie, &domain, cascade)?;
                 domains.push(domain);
+                continue;
+            }
+            if let Some(enum_type) = cassie
+                .catalog
+                .resolve_enum_type(database, search_order, raw)
+            {
+                super::enum_command::ensure_droppable(cassie, &enum_type, cascade)?;
+                enums.push(enum_type);
                 continue;
             }
             if if_exists {
@@ -315,6 +335,9 @@ fn drop_types(
     }
     for domain in &domains {
         remove_domain(cassie, database, domain)?;
+    }
+    for enum_type in &enums {
+        super::enum_command::remove_enum(cassie, database, enum_type)?;
     }
     Ok(output)
 }

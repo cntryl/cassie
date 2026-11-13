@@ -26,7 +26,8 @@ pub(super) async fn run_batch(
             .map_err(|_| ())?;
     }
     for (statement, parsed) in statements.into_iter().zip(parsed) {
-        let notice = missing_relation_notice(&cassie, session, &parsed);
+        let notice = missing_relation_notice(&cassie, session, &parsed)
+            .or_else(|| cassie.enum_add_value_skip_notice(session, &parsed));
         if !session.is_transaction_active()
             && !session.is_transaction_failed()
             && transactions::eligible(&parsed, &cassie.catalog)

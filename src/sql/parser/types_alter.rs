@@ -51,7 +51,7 @@ fn type_text(raw: &str) -> Result<crate::types::DataType, SqlError> {
             "COLLATE on composite type attributes is not supported".into(),
         ));
     }
-    parse_data_type(raw)
+    parse_data_type(raw).map_err(|error| super::enum_scope::enum_field_error(raw, error))
 }
 
 fn parse_rename(rest: &str) -> Result<TypeAlteration, SqlError> {

@@ -56,12 +56,19 @@ fn should_report_array_columns_of_the_type_as_dependents() {
     );
 
     // Act
-    let dependents = catalog.enum_type_dependents(metadata.type_oid());
+    let details = catalog
+        .enum_type_dependents(metadata.type_oid())
+        .iter()
+        .map(|dependent| dependent.detail("mood"))
+        .collect::<Vec<_>>();
 
     // Assert
     assert_eq!(
-        dependents,
-        vec!["column a of table t".to_owned(), "column b of table t".to_owned()]
+        details,
+        vec![
+            "column a of table t depends on type mood".to_owned(),
+            "column b of table t depends on type mood[]".to_owned(),
+        ]
     );
 }
 

@@ -4,8 +4,8 @@ use super::command_output::empty as empty_command;
 use super::{Cassie, CassieSession, QueryError, QueryResult};
 use crate::app::{CassieError, DiagnosticError, DomainRowRule};
 use crate::catalog::{
-    canonical_relation_name, canonical_schema_name, is_system_schema, parse_name, DomainTypeMeta,
-    ParsedName, DEFAULT_SCHEMA, DOMAIN_TYPE_FORMAT_VERSION,
+    canonical_relation_name, canonical_schema_name, is_system_schema, local_name, parse_name,
+    relation_database_name, DomainTypeMeta, ParsedName, DEFAULT_SCHEMA, DOMAIN_TYPE_FORMAT_VERSION,
 };
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
@@ -99,6 +99,46 @@ fn type_name_taken(cassie: &Cassie, canonical: &str) -> bool {
         || cassie.catalog.composite_type_exists(canonical)
         || cassie.catalog.get_schema(canonical).is_some()
         || cassie.catalog.relation_exists(canonical)
+        || relation_owns_type_name(cassie, canonical)
+}
+
+/// The schema of a relation name stored bare, schema-qualified or canonical.
+fn stored_schema(name: &str) -> String {
+    match parse_name(name) {
+        Ok(
+            ParsedName::SchemaQualified { schema, .. }
+            | ParsedName::DatabaseQualified { schema, .. },
+        ) => schema,
+        _ => DEFAULT_SCHEMA.to_owned(),
+    }
+}
+
+/// Whether a table or view in the same schema (and database, when both names
+/// are canonical) has the local name `canonical`. A stored relation name may
+/// be bare while the requested domain name is canonical, which the suffix
+/// matching in `relation_exists` cannot see.
+fn relation_owns_type_name(cassie: &Cassie, canonical: &str) -> bool {
+    let local = local_name(canonical);
+    let schema = stored_schema(canonical);
+    let database = relation_database_name(canonical);
+    let same_scope = |stored: &str| {
+        local_name(stored).eq_ignore_ascii_case(&local)
+            && stored_schema(stored).eq_ignore_ascii_case(&schema)
+            && match (database.as_deref(), relation_database_name(stored)) {
+                (Some(requested), Some(stored)) => requested.eq_ignore_ascii_case(&stored),
+                _ => true,
+            }
+    };
+    cassie
+        .catalog
+        .list_collections_canonical()
+        .iter()
+        .any(|collection| same_scope(&collection.name))
+        || cassie
+            .catalog
+            .list_views()
+            .iter()
+            .any(|view| same_scope(&view.name))
 }
 
 fn validate_base(base: &DataType) -> Result<(), QueryError> {

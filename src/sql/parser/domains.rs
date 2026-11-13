@@ -3,9 +3,7 @@
 use super::clauses::find_top_level_keyword_span;
 use super::expr::split_csv;
 use super::lexical::{matching_paren, pattern_end, quoted_end, trim_separators};
-use super::schema::{
-    parse_constant_literal, parse_data_type, parse_identifier, parse_if_exists, split_first_token,
-};
+use super::schema::{parse_constant_literal, parse_identifier, parse_if_exists, split_first_token};
 use super::{ParsedStatement, QueryStatement, SqlError};
 use crate::sql::ast::{
     DomainAction, DomainAlteration, DomainCheckDefinition, DomainDefaultDefinition, TypeAction,
@@ -207,7 +205,7 @@ pub(super) fn parse_create_domain_statement(sql: &str) -> Result<ParsedStatement
             "CREATE DOMAIN requires a base type".into(),
         ));
     }
-    let base = parse_data_type(type_text)?;
+    let base = super::domain_scope::parse_declared_data_type(type_text)?;
     let clauses = parse_clauses(&after_name[type_end..])?;
     Ok(statement(
         trimmed,

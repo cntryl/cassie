@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn should_reject_unsupported_create_table_as_access_methods() {
         // Arrange
-        let sql = "CREATE TABLE copied USING columnar AS VALUES (1)";
+        let sql = "CREATE TABLE copied USING brin AS VALUES (1)";
 
         // Act
         let parsed = parser::parse_statement(sql);

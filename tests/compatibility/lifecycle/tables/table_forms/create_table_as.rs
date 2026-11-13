@@ -219,11 +219,11 @@ fn should_reject_unsupported_ctas_access_methods_without_creating_a_table() {
 
         // Act
         let rejected = client
-            .batch_execute("CREATE TABLE compat_ctas_columnar USING columnar AS VALUES (1)")
+            .batch_execute("CREATE TABLE compat_ctas_brin USING brin AS VALUES (1)")
             .await;
         let relation_count = client
             .query_one(
-                "SELECT count(*) FROM pg_class WHERE relname = 'compat_ctas_columnar'",
+                "SELECT count(*) FROM pg_class WHERE relname = 'compat_ctas_brin'",
                 &[],
             )
             .await

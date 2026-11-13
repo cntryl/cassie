@@ -7,6 +7,7 @@ use super::{
     PersistedFulltextCandidateSet, PersistedFulltextDocumentStats, STATE_VERSION,
 };
 use crate::app::CassieError;
+use crate::midge::adapter::column_store::validation as column_validation;
 use crate::midge::adapter::{DocumentRef, Midge};
 use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
@@ -436,11 +437,12 @@ impl Midge {
         if self.collection_uses_column_store(&collection)? {
             let tx = self.begin_data_readonly_tx_for(&collection)?;
             let row_key = Self::column_store_row_key(row_schema.relation_id, id);
-            let exists = tx.get(&row_key).map_err(CassieError::from)?.is_some();
+            let marker = tx.get(&row_key).map_err(CassieError::from)?;
             record_controlled_read(self, controls)?;
-            if !exists {
+            let Some(marker) = marker else {
                 return Ok(None);
-            }
+            };
+            let marker_version = column_validation::decode_marker(&collection, id, &marker)?;
 
             let initial_bytes = checked_accounting_add(
                 std::mem::size_of::<DocumentRef>(),
@@ -458,6 +460,9 @@ impl Midge {
                 let raw = tx.get(&field_key).map_err(CassieError::from)?;
                 record_controlled_read(self, controls)?;
                 let Some(raw) = raw else {
+                    if column_validation::field_is_required(field, marker_version) {
+                        return Err(column_validation::missing_field(&collection, id, field));
+                    }
                     continue;
                 };
                 memory.try_grow(provisional_column_field_bytes(
@@ -466,8 +471,7 @@ impl Midge {
                     field_key.len(),
                     raw.len(),
                 )?)?;
-                let Some(value) =
-                    crate::midge::row_blob::decode_compact_field_value(&field.data_type, &raw)?
+                let Some(value) = column_validation::decode_field(&collection, id, field, &raw)?
                 else {
                     continue;
                 };

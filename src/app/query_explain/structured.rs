@@ -58,7 +58,7 @@ fn plan_attributes(
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<Vec<QueryPlanAttribute>, CassieError> {
     let indexed = attribute_intent(physical.read.selected_index.is_some());
-    let mut values = allocation.vector(7)?;
+    let mut values = allocation.vector(8)?;
     for (label, value, intent) in [
         ("Access path", physical.read.access_path.as_str(), indexed),
         (
@@ -77,7 +77,16 @@ fn plan_attributes(
             "neutral",
         ),
         ("Projection", physical.projection.shape.as_str(), "neutral"),
-        ("Storage", super::storage_mode(cassie, physical), "neutral"),
+        (
+            "Storage",
+            super::storage_authority(cassie, physical),
+            "neutral",
+        ),
+        (
+            "Storage accelerator",
+            super::storage_accelerator(physical),
+            "neutral",
+        ),
         (
             "Freshness",
             projection_freshness(cassie, physical),

@@ -160,13 +160,21 @@ fn should_apply_configured_column_store_deadline_before_decode() {
 
     // Act
     let expired_scan = cursor.next_accounted_document(&midge, &controls);
-    let expired_field = cursor.decode_column_store_document(&second_key, &controls);
+    let expired_field = cursor.decode_column_store_document(
+        &second_key,
+        &schema.schema_version.to_be_bytes(),
+        &controls,
+    );
     controls.deadline = None;
     let first = cursor
         .next_accounted_document(&midge, &controls)
         .expect("timeout zero scan")
         .expect("first document");
-    let decoded_canary = cursor.decode_column_store_document(&second_key, &controls);
+    let decoded_canary = cursor.decode_column_store_document(
+        &second_key,
+        &schema.schema_version.to_be_bytes(),
+        &controls,
+    );
 
     // Assert
     assert!(matches!(expired_scan, Err(CassieError::DeadlineExceeded)));
@@ -177,7 +185,7 @@ fn should_apply_configured_column_store_deadline_before_decode() {
         first.document().payload,
         serde_json::json!({"payload": "first"})
     );
-    assert!(matches!(decoded_canary, Err(CassieError::Parse(_))));
+    assert!(decoded_canary.is_err_and(|error| error.sql_state() == "XX001"));
     drop(first);
     drop(cursor);
     assert_eq!(controls.current_query_memory_bytes(), 0);

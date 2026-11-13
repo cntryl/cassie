@@ -40,7 +40,6 @@ fn should_retain_using_output_admission_until_prepared_values_are_released() {
         cassie: &cassie,
         session: Some(&session),
         controls: &controls,
-        is_column_store: false,
     };
     let expression = crate::sql::parser::parse_expression("octet_length(items[-2])::NUMERIC")
         .expect("using expression");
@@ -78,7 +77,6 @@ fn should_reject_using_padding_before_any_rewrite_mutation() {
         cassie: &cassie,
         session: Some(&session),
         controls: &controls,
-        is_column_store: false,
     };
     let expression =
         crate::sql::parser::parse_expression("octet_length((items::CHAR(1000000)[])[-2])::NUMERIC")
@@ -110,7 +108,6 @@ fn should_cancel_using_preparation_before_rewrite_mutation() {
         cassie: &cassie,
         session: Some(&session),
         controls: &controls,
-        is_column_store: false,
     };
     let expression = crate::sql::parser::parse_expression("octet_length(items[-2])::NUMERIC")
         .expect("using expression");
@@ -142,7 +139,6 @@ fn should_keep_prepared_using_owners_until_the_rewrite_boundary() {
         cassie: &cassie,
         session: Some(&session),
         controls: &controls,
-        is_column_store: false,
     };
     let expression = crate::sql::parser::parse_expression("octet_length(items[-2])::NUMERIC")
         .expect("using expression");

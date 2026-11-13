@@ -448,3 +448,122 @@ fn should_retain_validated_restore_ownership_after_storage_requires_recovery() {
         assert!(!cassie.catalog.database_exists("quarantined_restore"));
     }
 }
+
+const V4: &str = "cassie-midge-layout-v4-0.5.0-columnar";
+
+fn mixed_mode_source() -> Cassie {
+    let cassie = Cassie::new_in_memory_with_config(crate::config::CassieRuntimeConfig::default())
+        .expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE row_docs (id INT, body TEXT)",
+        "CREATE TABLE col_docs (id INT, body TEXT, score DOUBLE PRECISION) USING columnar",
+        "INSERT INTO row_docs VALUES (1, 'row one')",
+        "INSERT INTO col_docs VALUES (2, 'col two', 2.5), (3, NULL, NULL)",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("mixed-mode fixture statement");
+    }
+    cassie
+}
+
+fn text_rows(cassie: &Cassie, database: &str, sql: &str) -> Vec<Vec<String>> {
+    let session = cassie.create_session("tester", Some(database.to_owned()));
+    cassie
+        .execute_sql(&session, sql, vec![])
+        .expect("query")
+        .rows()
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|value| match value {
+                    crate::types::Value::String(text) => text.clone(),
+                    crate::types::Value::Null => "NULL".to_owned(),
+                    other => format!("{other:?}"),
+                })
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+fn should_export_the_columnar_layout_requirement_for_a_database_with_a_column_table() {
+    // Arrange
+    let source = mixed_mode_source();
+
+    // Act
+    let image = collect(source.begin_database_backup("postgres").expect("backup"));
+
+    // Assert
+    assert_eq!(header_layout(&image), V4);
+}
+
+#[test]
+fn should_restore_mixed_mode_database_image_contents() {
+    // Arrange
+    let source = mixed_mode_source();
+    let image = collect(source.begin_database_backup("postgres").expect("backup"));
+    let target = fixture();
+    let mut restore = target.begin_database_restore("restored").expect("staging");
+
+    // Act
+    restore.push_chunk(&image).expect("validated image");
+    restore.finish().expect("publish");
+
+    // Assert
+    assert_eq!(target.midge.storage_layout_version().expect("version"), V4);
+    assert_eq!(
+        text_rows(
+            &target,
+            "restored",
+            "SELECT tablename, storage_mode FROM pg_catalog.pg_table_storage \
+             WHERE tablename IN ('row_docs', 'col_docs') ORDER BY tablename",
+        ),
+        vec![
+            vec!["col_docs".to_owned(), "column-store".to_owned()],
+            vec!["row_docs".to_owned(), "row-store".to_owned()],
+        ]
+    );
+    assert_eq!(
+        text_rows(
+            &target,
+            "restored",
+            "SELECT id::TEXT, body, score::TEXT FROM col_docs ORDER BY id",
+        ),
+        vec![
+            vec!["2".to_owned(), "col two".to_owned(), "2.5".to_owned()],
+            vec!["3".to_owned(), "NULL".to_owned(), "NULL".to_owned()],
+        ]
+    );
+    assert_eq!(
+        text_rows(&target, "restored", "SELECT id::TEXT, body FROM row_docs"),
+        vec![vec!["1".to_owned(), "row one".to_owned()]]
+    );
+}
+
+#[test]
+fn should_reject_an_image_with_a_newer_layout_than_this_binary_supports() {
+    // Arrange
+    let source = mixed_mode_source();
+    let image = with_layout(
+        &collect(source.begin_database_backup("postgres").expect("backup")),
+        "cassie-midge-layout-v5-9.9.9-future",
+    );
+    let target = fixture();
+    let mut restore = target.begin_database_restore("rejected").expect("staging");
+
+    // Act
+    let result = restore.push_chunk(&image);
+    restore.abort().expect("abort");
+
+    // Assert
+    assert!(result.is_err());
+    assert_eq!(target.midge.storage_layout_version().expect("version"), V1);
+    assert!(target
+        .midge
+        .get_database("rejected")
+        .expect("target")
+        .is_none());
+}

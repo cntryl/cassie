@@ -88,8 +88,8 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
         return Err(SqlError::new("missing table name".into()));
     }
 
-    let trailing =
-        schema_access_methods::strip_heap_access_method_clause(trailing, "CREATE TABLE")?;
+    let (trailing, using_mode) =
+        schema_access_methods::strip_table_access_method_clause(trailing, "CREATE TABLE")?;
     let (options, trailing) = parse_index_options(trailing)?;
     if !trailing.is_empty() {
         return Err(SqlError::new(
@@ -107,7 +107,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
         }
     }
 
-    let storage_mode = match options.get("storage") {
+    let with_storage_mode = match options.get("storage") {
         Some(value) => {
             let Some(mode) = crate::catalog::CollectionStorageMode::parse_option(value) else {
                 return Err(SqlError::new(format!(
@@ -120,10 +120,12 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
                         .to_string(),
                 ));
             }
-            mode
+            Some(mode)
         }
-        None => crate::catalog::CollectionStorageMode::RowStore,
+        None => None,
     };
+    let storage_mode =
+        schema_access_methods::reconcile_storage_selectors(using_mode, with_storage_mode)?;
 
     if let Some(key) = options.keys().find(|key| key.as_str() != "storage") {
         return Err(SqlError::new(format!(
@@ -459,13 +461,23 @@ pub(super) fn parse_alter_table_operation(
             .into_iter()
             .map(|action| parse_alter_table_operation(table, action.trim()))
             .collect::<Result<Vec<_>, _>>()
-            .map(|operations| AlterTableOperation::Multiple { operations });
+            .and_then(|operations| {
+                if operations.iter().any(|operation| {
+                    matches!(operation, AlterTableOperation::SetAccessMethod { .. })
+                }) {
+                    return Err(SqlError::unsupported(
+                        "ALTER TABLE SET ACCESS METHOD cannot be combined with other actions"
+                            .to_string(),
+                    ));
+                }
+                Ok(AlterTableOperation::Multiple { operations })
+            });
     }
     let lower = raw.to_lowercase();
     if starts_with_keyword(raw, "set access method") {
         let clause = raw["set access method".len()..].trim_start();
         let (method, trailing) = schema_access_methods::take_access_method_identifier(clause)?;
-        let access_method = schema_access_methods::parse_heap_access_method(method, "ALTER TABLE")?;
+        let access_method = schema_access_methods::parse_alter_table_access_method(method)?;
         if !trailing.trim().is_empty() {
             return Err(SqlError::new(
                 "unexpected tokens after ALTER TABLE access method".to_string(),

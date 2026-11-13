@@ -27,6 +27,27 @@ Status is owned by [Feature Support](feature-support.md); this summary follows t
 | Column-batch indexes | Stable | Covered scans, segment pruning, aggregate acceleration |
 | Retention policies | Experimental | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
 
+## Support by storage mode
+
+Every table is either row-authoritative or column-authoritative (see the
+[columnar table contract](columnar-table-contract.md)). Constraints and derived
+indexes are built and maintained from authoritative field values in both modes;
+status in the table above applies to both.
+
+| Feature | Row table | Column table |
+| --- | --- | --- |
+| NOT NULL, CHECK, DEFAULT, identity, generated columns, domains | Supported | Supported, same SQLSTATEs |
+| PRIMARY KEY, UNIQUE, `ON CONFLICT` | Supported | Supported, same SQLSTATEs |
+| FOREIGN KEY (referencing or referenced side, either mode) | Supported | Supported, including referential actions |
+| Scalar btree, unique, partial, expression indexes | Supported | Supported |
+| Full-text BM25, vector HNSW/IVFFlat, hybrid retrieval | Supported | Supported |
+| Time-series indexes | Supported | Supported |
+| Graph backing tables (`CREATE GRAPH`) | Supported | Not available: graph tables stay row-authoritative; converting one fails with `0A000` |
+| `CREATE INDEX ... USING column` (column-batch accelerator) | Supported | `0A000`, nothing published: the table is already column-authoritative |
+
+Equivalence evidence: [constraints](../tests/columnar_surface/constraint_equivalence.rs)
+and [indexes](../tests/columnar_surface/index_equivalence.rs).
+
 ## Design Rules
 
 - Row blobs remain the correctness fallback.

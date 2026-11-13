@@ -1,9 +1,12 @@
 use super::{
     collect_scan, key_encoding, CassieError, CollectionCardinalityStats, CollectionMeta,
-    CollectionStorageMode, DocumentRef, FieldConstraint, HashSet, IndexKind, IndexMeta, Instant,
-    Midge, MidgeScanTimings, ProjectionMeta, Query, RowFilter, RowSchema, Schema,
+    CollectionStorageMode, FieldConstraint, HashSet, IndexKind, IndexMeta, Midge, ProjectionMeta,
+    Query, RowFilter, RowSchema, Schema,
 };
-use std::time::Duration;
+#[cfg(test)]
+mod golden_tests;
+mod rows;
+pub(super) mod validation;
 
 #[derive(Clone, Copy, Default)]
 struct InitialCollectionContents<'a> {
@@ -193,6 +196,7 @@ impl Midge {
         initial: InitialCollectionContents<'_>,
     ) -> Result<(bool, u64), CassieError> {
         self.admit_initial_definitions(initial)?;
+        self.require_collection_storage_layout(metadata)?;
         let name = self.canonical_collection_name(name);
         let write_gate = self.collection_write_gate(&name);
         let _write_guard = write_gate.lock();
@@ -660,245 +664,6 @@ impl Midge {
         Self::save_collection_metadata_to_tx(tx, &renamed)
     }
 
-    pub(crate) fn load_column_store_document_from_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
-        _collection: &str,
-        id: &str,
-        row_schema: &RowSchema,
-    ) -> Result<Option<serde_json::Value>, CassieError> {
-        if tx
-            .get(&Self::column_store_row_key(row_schema.relation_id, id))
-            .map_err(CassieError::from)?
-            .is_none()
-        {
-            return Ok(None);
-        }
-
-        let mut payload = serde_json::Map::new();
-        for field in row_schema.fields.iter().filter(|field| !field.retired) {
-            let Some(raw) = tx
-                .get(&Self::column_store_field_key(
-                    row_schema.relation_id,
-                    field.field_id,
-                    id,
-                ))
-                .map_err(CassieError::from)?
-            else {
-                continue;
-            };
-            let Some(value) =
-                crate::midge::row_blob::decode_compact_field_value(&field.data_type, &raw)?
-            else {
-                continue;
-            };
-            payload.insert(field.name.clone(), value);
-        }
-
-        Ok(Some(serde_json::Value::Object(payload)))
-    }
-
-    pub(crate) fn write_column_store_document_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
-        _collection: &str,
-        id: &str,
-        payload: &serde_json::Value,
-        row_schema: &RowSchema,
-    ) -> Result<(), CassieError> {
-        let document = payload
-            .as_object()
-            .ok_or_else(|| CassieError::InvalidVector("document must be object".to_string()))?;
-
-        tx.put(
-            Self::column_store_row_key(row_schema.relation_id, id),
-            b"1".to_vec(),
-            None,
-        )
-        .map_err(CassieError::from)?;
-        tx.delete(Self::column_store_deleted_key(row_schema.relation_id, id))
-            .map_err(CassieError::from)?;
-
-        for field in row_schema.fields.iter().filter(|field| !field.retired) {
-            let key = Self::column_store_field_key(row_schema.relation_id, field.field_id, id);
-            if let Some(value) = document.get(&field.name) {
-                tx.put(
-                    key,
-                    crate::midge::row_blob::encode_compact_value(&field.data_type, value)?,
-                    None,
-                )
-                .map_err(CassieError::from)?;
-            } else {
-                tx.delete(key).map_err(CassieError::from)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn delete_column_store_document_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
-        _collection: &str,
-        id: &str,
-        row_schema: &RowSchema,
-    ) -> Result<(), CassieError> {
-        tx.delete(Self::column_store_row_key(row_schema.relation_id, id))
-            .map_err(CassieError::from)?;
-        tx.put(
-            Self::column_store_deleted_key(row_schema.relation_id, id),
-            b"1".to_vec(),
-            None,
-        )
-        .map_err(CassieError::from)?;
-        for field in row_schema.fields.iter().filter(|field| !field.retired) {
-            tx.delete(Self::column_store_field_key(
-                row_schema.relation_id,
-                field.field_id,
-                id,
-            ))
-            .map_err(CassieError::from)?;
-        }
-        Ok(())
-    }
-
-    pub(crate) fn scan_column_store_rows_batched(
-        tx: &crate::midge::adapter::AdapterTransaction,
-        request: ColumnStoreScanRequest<'_>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        let scan_started = Instant::now();
-        let mut row_decode = Duration::ZERO;
-        let mut results = Vec::new();
-        if request.limit == 0 {
-            return Ok((
-                results,
-                MidgeScanTimings {
-                    scan: scan_started.elapsed(),
-                    row_decode,
-                },
-            ));
-        }
-
-        let mut current = Vec::with_capacity(request.batch_size.max(1));
-        let mut emitted = 0usize;
-        let row_prefix = Self::column_store_row_prefix(request.row_schema.relation_id);
-        let scan = collect_scan(
-            tx.scan(&Query::new().prefix(row_prefix.clone().into()))
-                .map_err(CassieError::from)?,
-        )?;
-
-        for (raw_key, _raw_value) in scan {
-            let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
-                continue;
-            };
-
-            let decode_started = Instant::now();
-            let payload = Self::project_column_store_document(
-                tx,
-                request.collection,
-                &id,
-                request.row_schema,
-                request.projection,
-                request.filter,
-            )?;
-            row_decode += decode_started.elapsed();
-            let Some(payload) = payload else {
-                continue;
-            };
-
-            current.push(DocumentRef { id, payload });
-            emitted += 1;
-            if current.len() >= request.batch_size.max(1) {
-                results.push(current);
-                current = Vec::with_capacity(request.batch_size.max(1));
-            }
-            if emitted >= request.limit {
-                if !current.is_empty() {
-                    results.push(current);
-                }
-                return Ok((
-                    results,
-                    MidgeScanTimings {
-                        scan: scan_started.elapsed().saturating_sub(row_decode),
-                        row_decode,
-                    },
-                ));
-            }
-        }
-
-        if !current.is_empty() {
-            results.push(current);
-        }
-
-        Ok((
-            results,
-            MidgeScanTimings {
-                scan: scan_started.elapsed().saturating_sub(row_decode),
-                row_decode,
-            },
-        ))
-    }
-
-    fn project_column_store_document(
-        tx: &crate::midge::adapter::AdapterTransaction,
-        _collection: &str,
-        id: &str,
-        row_schema: &RowSchema,
-        projection: Option<&HashSet<String>>,
-        filter: Option<&RowFilter>,
-    ) -> Result<Option<serde_json::Value>, CassieError> {
-        if let Some(filter) = filter {
-            let Some(filter_field) = row_schema.fields.iter().find(|field| {
-                !field.retired
-                    && crate::sql::ColumnIdentifierPath::parse(&filter.field)
-                        .is_ok_and(|reference| reference.matches_field_name(&field.name))
-            }) else {
-                return Ok(None);
-            };
-            let Some(raw) = tx
-                .get(&Self::column_store_field_key(
-                    row_schema.relation_id,
-                    filter_field.field_id,
-                    id,
-                ))
-                .map_err(CassieError::from)?
-            else {
-                return Ok(None);
-            };
-            let Some(value) =
-                crate::midge::row_blob::decode_compact_field_value(&filter_field.data_type, &raw)?
-            else {
-                return Ok(None);
-            };
-            if value != filter.value {
-                return Ok(None);
-            }
-        }
-
-        let mut object = serde_json::Map::new();
-        for field in row_schema.fields.iter().filter(|field| !field.retired) {
-            let field_key =
-                crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
-            let include = projection.is_none_or(|projection| projection.contains(&field_key));
-            if !include {
-                continue;
-            }
-            let Some(raw) = tx
-                .get(&Self::column_store_field_key(
-                    row_schema.relation_id,
-                    field.field_id,
-                    id,
-                ))
-                .map_err(CassieError::from)?
-            else {
-                continue;
-            };
-            let Some(value) =
-                crate::midge::row_blob::decode_compact_field_value(&field.data_type, &raw)?
-            else {
-                continue;
-            };
-            object.insert(field.name.clone(), value);
-        }
-        Ok(Some(serde_json::Value::Object(object)))
-    }
-
     fn collection_metadata_key(name: &str) -> Vec<u8> {
         key_encoding::collection_metadata_key(name)
     }
@@ -917,6 +682,14 @@ impl Midge {
 
     fn column_store_deleted_key(relation_id: u64, id: &str) -> Vec<u8> {
         key_encoding::column_store_deleted_key(relation_id, id)
+    }
+
+    pub(super) fn column_store_deleted_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::column_store_deleted_prefix(relation_id)
+    }
+
+    pub(super) fn column_store_field_prefix(relation_id: u64, field_id: u32) -> Vec<u8> {
+        key_encoding::column_store_field_prefix(relation_id, field_id)
     }
 
     pub(super) fn column_store_field_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {

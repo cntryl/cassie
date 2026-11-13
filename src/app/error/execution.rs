@@ -27,6 +27,13 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.starts_with("column \"") && message.ends_with("\" specified more than once") {
         return bad_request_descriptor("42701", message.to_owned());
     }
+    if message.starts_with("foreign key constraint '") && message.contains("' still references '") {
+        // NO ACTION / RESTRICT on a referenced parent row.
+        return CassieErrorDescriptor {
+            http_status: 409,
+            ..bad_request_descriptor("23503", message.to_owned())
+        };
+    }
     if message == "negative substring length not allowed" {
         return bad_request_descriptor("22011", message.to_owned());
     }

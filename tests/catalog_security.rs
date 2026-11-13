@@ -15,6 +15,9 @@ mod postgresql18_comment_contract;
 #[path = "catalog_security/catalogs/columns/type_catalog_fields.rs"]
 mod postgresql18_type_catalog_fields;
 
+#[path = "catalog_security/catalogs/columnar_catalog_identity.rs"]
+mod columnar_catalog_identity;
+
 #[path = "support/backend_sessions.rs"]
 mod support_backend_sessions;
 #[path = "support/catalog.rs"]

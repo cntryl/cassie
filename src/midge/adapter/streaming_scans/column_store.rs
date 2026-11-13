@@ -3,12 +3,16 @@ use super::{
     check_controls, key_encoding, AccountedDocument, CassieError, DocumentRef, Midge,
     MidgeRowCursor,
 };
+use crate::midge::adapter::column_store::validation::{
+    decode_field, decode_marker, field_is_required, missing_field,
+};
 use crate::runtime::QueryExecutionControls;
 
 impl MidgeRowCursor {
     pub(super) fn decode_column_store_document(
         &self,
         raw_key: &[u8],
+        raw_marker: &[u8],
         controls: &QueryExecutionControls,
     ) -> Result<Option<AccountedDocument>, CassieError> {
         check_controls(controls)?;
@@ -28,6 +32,7 @@ impl MidgeRowCursor {
         if id.is_empty() {
             return Ok(None);
         }
+        let marker_version = decode_marker(&self.collection, &id, raw_marker)?;
         let mut object = serde_json::Map::new();
         for field in self.row_schema.fields.iter().filter(|field| !field.retired) {
             check_controls(controls)?;
@@ -56,6 +61,9 @@ impl MidgeRowCursor {
                 ))
                 .map_err(CassieError::from)?
             else {
+                if field_is_required(field, marker_version) {
+                    return Err(missing_field(&self.collection, &id, field));
+                }
                 continue;
             };
             check_controls(controls)?;
@@ -70,9 +78,7 @@ impl MidgeRowCursor {
                     .ok_or_else(accounting_overflow)?
             };
             memory.try_grow(field_bytes)?;
-            let Some(value) =
-                crate::midge::row_blob::decode_compact_field_value(&field.data_type, &raw)?
-            else {
+            let Some(value) = decode_field(&self.collection, &id, field, &raw)? else {
                 continue;
             };
             check_controls(controls)?;

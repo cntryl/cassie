@@ -102,16 +102,38 @@ pub(in crate::catalog::virtual_views) fn access_method_rows(
     database: Option<&str>,
 ) -> Vec<VirtualRow> {
     let mut rows = vec![
-        vec![int_value("oid", 2), string("amname", "heap")],
-        vec![int_value("oid", 403), string("amname", "btree")],
-        vec![int_value("oid", 405), string("amname", "hash")],
-        vec![int_value("oid", 2742), string("amname", "gin")],
+        vec![
+            int_value("oid", 2),
+            string("amname", "heap"),
+            string("amtype", "t"),
+        ],
+        vec![
+            int_value("oid", super::COLUMNAR_ACCESS_METHOD_OID),
+            string("amname", "columnar"),
+            string("amtype", "t"),
+        ],
+        vec![
+            int_value("oid", 403),
+            string("amname", "btree"),
+            string("amtype", "i"),
+        ],
+        vec![
+            int_value("oid", 405),
+            string("amname", "hash"),
+            string("amtype", "i"),
+        ],
+        vec![
+            int_value("oid", 2742),
+            string("amname", "gin"),
+            string("amtype", "i"),
+        ],
     ];
     if let Some(vector) = InstalledVectorCatalog::load(catalog, database) {
         rows.extend(vector.methods.into_iter().map(|method| {
             vec![
                 int_value("oid", method.access_method_oid),
                 string("amname", method.name),
+                string("amtype", "i"),
             ]
         }));
     }

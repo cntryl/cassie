@@ -185,6 +185,13 @@ pub(super) fn delete_dropped_field_data(
 ) -> Result<(), CassieError> {
     let (relation_id, field_id) = midge.vector_storage_ids(collection, field)?;
     let mut data_tx = midge.begin_data_rw_tx_for(collection)?;
+    if midge.collection_uses_column_store(collection)? {
+        // A column table keeps each field in its own key range; reclaim the dropped one.
+        Midge::delete_keys_with_prefix(
+            &mut data_tx,
+            Midge::column_store_field_prefix(relation_id, field_id),
+        )?;
+    }
     Midge::delete_normalized_vector_keys_with_prefix(
         &mut data_tx,
         Midge::normalized_vector_prefix(relation_id, field_id),

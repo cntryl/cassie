@@ -137,6 +137,7 @@ impl Midge {
             let Some(payload) =
                 Self::load_column_store_document_from_tx(&tx, &collection, id, &row_schema)?
             else {
+                Self::reject_orphan_column_store_fields(&tx, &collection, id, &row_schema)?;
                 return Ok(None);
             };
             return Ok(Some(DocumentRef {

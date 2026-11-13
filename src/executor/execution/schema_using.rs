@@ -1,7 +1,7 @@
 //! Controlled preparation for the existing row-authoritative USING rewrite.
 use std::mem::size_of;
 
-use super::{ensure_row_store_alter_supported, refresh_table_cardinality_stats};
+use super::refresh_table_cardinality_stats;
 use crate::app::{Cassie, CassieError, CassieSession};
 use crate::catalog::CollectionSchema;
 use crate::executor::filter::{self, EvaluationMemory};
@@ -17,7 +17,6 @@ pub(super) struct Context<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) session: Option<&'a CassieSession>,
     pub(super) controls: &'a QueryExecutionControls,
-    pub(super) is_column_store: bool,
 }
 
 impl Context<'_> {
@@ -137,7 +136,6 @@ impl Context<'_> {
         data_type: &DataType,
         using: &Expr,
     ) -> Result<(), QueryError> {
-        ensure_row_store_alter_supported(self.is_column_store, "ALTER COLUMN TYPE")?;
         let prepared = self.evaluate(table, field, data_type, using)?;
         let (prepared, prepared_memory) = prepared.into_parts();
         let mut writes = AccountedVec::try_new(self.controls)?;

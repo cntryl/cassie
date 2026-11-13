@@ -353,15 +353,15 @@ columns, `ROW(...)` and implicit `(a, b)` constructors, `ROW(...)::t` and
 `'(x,1)'::t` casts, `(expr).field` selection, PostgreSQL record text
 input/output, binary RECORD output, the CRB1 tag 0x0F payload (version u8=1,
 type OID u32, descriptor revision u64, field count u32, recursively framed
-nullable values, big-endian; tag 0x10 stays reserved for domains) and the
+nullable values, big-endian; tag 0x10 carries domains, see the domain status below) and the
 `pg_type`/`pg_class`/`pg_attribute`/`regtype` rows. Type, array-type and
 `relkind = 'c'` relation OIDs come from `Midge::allocate_object_id` and are
 durable. The code and its regressions are authored; they have not been
 compiled or executed (assembler-owned gate). Pending or excluded:
 
-- domains, JSON recordset functions and enums keep deterministic `0A000` or `42704`
-  outcomes (domains are owned by their own increment; `ALTER TYPE`, relation row
-  types and `(expr).*` are described under increment 2 below);
+- JSON recordset functions and enums keep deterministic `0A000` or `42704`
+  outcomes (`ALTER TYPE`, relation row types, `(expr).*` and domains are described
+  under increment 2 below);
 - arrays of composite types (`name[]` columns and casts) are rejected with
   `0A000` although the `_name` array type row and OID exist;
 - composite columns cannot carry `DEFAULT`, `PRIMARY KEY`, `UNIQUE` or an
@@ -402,8 +402,8 @@ compiled or executed (assembler-owned gate). Pending or excluded:
 - comparing a record column with a text column or untyped literal returns
   `0A000` ("input of anonymous composite types is not implemented"), where
   PostgreSQL returns `42883` for the column case;
-- a composite type shares the relation namespace with tables, views, sequences
-  and indexes: `CREATE TYPE` over such a name is `42710`, and
+- a composite type shares the relation namespace with tables, views, sequences,
+  indexes and domains: `CREATE TYPE` over such a name is `42710`, and
   `CREATE TABLE/VIEW/SEQUENCE/INDEX` over a type name is `42P07` (`CREATE TABLE IF NOT EXISTS`
   over a type name skips, as in PostgreSQL, but `CREATE SEQUENCE/INDEX IF NOT
   EXISTS` over a type name still raise `42P07` where PostgreSQL skips).
@@ -535,15 +535,14 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
 
 Rejected with `0A000` (documented limitations, not regressions):
 
-- domains over composite types, over other domains, and over arrays of those;
+- domains over composite types (including a table's row type), over other domains, and
+  over arrays of those;
 - arrays of domains (`d[]`) and composite attributes of domain type; a domain name is
   only recognised in column definitions and casts, so function signatures, sequences
   and `CREATE TYPE` attributes report the type as missing;
 - `COLLATE` on a domain, `ALTER DOMAIN OWNER TO` and `SET SCHEMA`;
 - `DROP DOMAIN ... CASCADE` when dependents exist (use `RESTRICT` semantics);
 - restoring a database image that contains domain types fails closed;
-- reparse paths that run without a session type scope (views, `PREPARE`,
-  `COPY (query)`, `CREATE TABLE AS`) do not resolve domain names yet;
 - prepared statements keep the descriptor seen at Parse time.
 
 ### #843, #844

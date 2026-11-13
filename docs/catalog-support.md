@@ -76,8 +76,8 @@ identity. Regressions are authored but not yet executed:
 returning `type`, `schema`, `name` and `identity` text columns with
 PostgreSQL 18.6 spelling. It identifies the classes Cassie models:
 `pg_class` relations (tables, views, materialized views, indexes, sequences
-and composite-type relations), `pg_type` types (built-in, array and
-composite), `pg_namespace` schemas, `pg_proc` user and built-in routines,
+and composite-type relations), `pg_type` types (built-in, array,
+composite, domain and table row types), `pg_namespace` schemas, `pg_proc` user and built-in routines,
 `pg_extension` extensions and `pg_authid` roles. A sub-object number names a
 column of tables, views, sequences and composite types; indexes, materialized
 views and catalog relations name no column and return only the column type. A
@@ -358,7 +358,10 @@ executed) adds a row type per table: a `pg_type` row (`typtype = 'c'`, `typrelid
 table) and `_name` array row with OIDs allocated by the Midge object-id allocator
 and persisted on the table (below `2^31`, stable across rename and restart), and `pg_attribute` rows of a
 composite type use physical attribute numbers, so a dropped attribute leaves a gap.
-Domains remain unsupported. #828 owns the future database-scoped domain OIDs. Enum rows remain deferred to #827; broad routines,
+Domain types (authored, not yet executed) add a `pg_type` row (`typtype = 'd'`,
+`typbasetype`, `typtypmod`, `typnotnull`) and a `_name` array row with allocator-backed
+OIDs; `pg_attribute.atttypid` of a domain column is the domain OID while `atttypmod` is
+`-1`. Enum rows remain deferred to #827; broad routines,
 dependency families, sequences, and partitions remain unselected except for
 separately documented finite workflows.
 

@@ -7,6 +7,7 @@ use cassie::types::Value;
 const SETUP: &[&str] = &[
     "CREATE SCHEMA ident",
     "CREATE TYPE ident.pair AS (left_side int, right_side text)",
+    "CREATE DOMAIN ident.positive AS int CHECK (VALUE > 0)",
     "CREATE TABLE ident.events (id INT PRIMARY KEY, label TEXT)",
     "CREATE INDEX events_label_idx ON ident.events (label)",
     "CREATE VIEW ident.event_labels AS SELECT label FROM ident.events",
@@ -343,6 +344,49 @@ fn should_identify_a_composite_array_type() {
             Some("ident"),
             Some("_pair"),
             Some("ident.pair[]"),
+        ])]
+    );
+}
+
+#[test]
+fn should_identify_a_domain_type() {
+    // Arrange
+    let fixture = fixture("identify_domain_type");
+
+    // Act
+    let rows = identified(
+        &fixture,
+        "'pg_type'::regclass, 'ident.positive'::regtype, 0",
+    );
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![identity_row([
+            Some("type"),
+            Some("ident"),
+            Some("positive"),
+            Some("ident.positive"),
+        ])]
+    );
+}
+
+#[test]
+fn should_identify_the_row_type_of_a_table() {
+    // Arrange
+    let fixture = fixture("identify_table_row_type");
+
+    // Act
+    let rows = identified(&fixture, "'pg_type'::regclass, 'ident.events'::regtype, 0");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![identity_row([
+            Some("type"),
+            Some("ident"),
+            Some("events"),
+            Some("ident.events"),
         ])]
     );
 }

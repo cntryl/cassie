@@ -1,12 +1,14 @@
 //! Startup reconciliation of embedded composite descriptors (#828).
 //!
-//! `ALTER TYPE` re-embeds the new descriptor in dependent tables and views
-//! before it persists the type itself; each write is its own Midge
-//! transaction because the objects can live in different databases. A crash
-//! between the writes leaves a dependent carrying a descriptor that differs
-//! from the persisted type (or, for a table row type, from the table's
-//! current columns). The authority is: hydration
-//! replaces every divergent embedded copy in memory.
+//! `ALTER TYPE` persists the type and every dependent in its own database in
+//! one Midge transaction. A dependent in another database, and a table's
+//! derived row type after `ALTER TABLE`, are written by a later transaction,
+//! so a crash between the writes can leave a dependent carrying a descriptor
+//! that differs from the persisted type (or, for a table row type, from the
+//! table's current columns). The persisted composite type, or for a row type
+//! the table's current columns, is the authority: hydration replaces every
+//! divergent embedded copy in memory.
+
 use std::collections::HashMap;
 
 use super::Catalog;

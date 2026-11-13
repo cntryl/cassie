@@ -404,10 +404,10 @@ fn revision_of(fixture: &SqlFixture, table: &str) -> u64 {
     let name = fixture
         .cassie
         .catalog
-        .list_collections()
+        .list_collections_canonical()
         .into_iter()
         .map(|collection| collection.name)
-        .find(|name| name.ends_with(&suffix))
+        .find(|name| name == table || name.ends_with(&suffix))
         .expect("table is registered");
     fixture
         .cassie

@@ -58,13 +58,23 @@ impl Catalog {
         search_order: &[&str],
         raw: &str,
     ) -> Option<CompositeRef> {
+        // An unscoped catalog stores tables under their bare or schema-qualified
+        // name, so a name that is not found canonically is tried exactly as written.
+        let exact = |stored: &str| {
+            self.get_collection(stored)
+                .filter(|collection| collection.name.eq_ignore_ascii_case(stored))
+                .and_then(|_| self.relation_row_type(stored))
+        };
         match parse_name(raw).ok()? {
-            ParsedName::Unqualified(name) => search_order.iter().find_map(|schema| {
-                self.relation_row_type(&canonical_relation_name(database, schema, &name))
-            }),
-            ParsedName::SchemaQualified { schema, name } => {
-                self.relation_row_type(&canonical_relation_name(database, &schema, &name))
-            }
+            ParsedName::Unqualified(name) => search_order
+                .iter()
+                .find_map(|schema| {
+                    self.relation_row_type(&canonical_relation_name(database, schema, &name))
+                })
+                .or_else(|| exact(&name)),
+            ParsedName::SchemaQualified { schema, name } => self
+                .relation_row_type(&canonical_relation_name(database, &schema, &name))
+                .or_else(|| exact(&format!("{schema}.{name}"))),
             ParsedName::DatabaseQualified {
                 database,
                 schema,

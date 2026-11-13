@@ -258,7 +258,7 @@ impl Catalog {
     }
 
     #[must_use]
-    pub(crate) fn list_collections_canonical(&self) -> Vec<CollectionMeta> {
+    pub fn list_collections_canonical(&self) -> Vec<CollectionMeta> {
         let collections = self.collections.read();
         let mut out = collections.values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|entry| entry.name.to_ascii_lowercase());

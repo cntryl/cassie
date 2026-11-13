@@ -151,8 +151,9 @@ impl SqlFixture {
     /// Panics when the statement fails.
     #[must_use]
     pub fn rows(&self, sql: &str) -> Vec<Vec<Value>> {
-        let Ok(result) = self.execute(sql) else {
-            panic!("query failed: {sql}");
+        let result = match self.execute(sql) {
+            Ok(result) => result,
+            Err(error) => panic!("query failed: {sql}: {error}"),
         };
         result.rows().to_vec()
     }

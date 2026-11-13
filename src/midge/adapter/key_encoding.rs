@@ -721,6 +721,15 @@ pub(super) fn column_store_deleted_key(relation_id: u64, id: &str) -> Vec<u8> {
     )
 }
 
+pub(super) fn column_store_field_prefix(relation_id: u64, field_id: u32) -> Vec<u8> {
+    let relation = encoded_u64_component(relation_id);
+    let field = field_id.to_be_bytes();
+    prefix(
+        FAMILY_COLUMN_STORE,
+        &[relation.as_slice(), b"f", field.as_slice()],
+    )
+}
+
 pub(super) fn column_store_field_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {
     let relation = encoded_u64_component(relation_id);
     let field = field_id.to_be_bytes();

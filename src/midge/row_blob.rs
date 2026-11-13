@@ -46,21 +46,41 @@ pub(crate) fn encode_compact_value(
     Ok(out)
 }
 
-pub(crate) fn decode_compact_value(bytes: &[u8]) -> Result<serde_json::Value, CassieError> {
-    let (&type_tag, payload) = bytes
-        .split_first()
-        .ok_or_else(|| CassieError::Parse("empty compact value".to_string()))?;
-    decode_directory_value(type_tag, payload)
-}
-
+/// Decodes one stored field value against its declared type.
+///
+/// SQL NULL is tagged `TYPE_NULL`; for JSON columns it decodes to `None`, since
+/// JSON `null` has its own tag. Any other tag must be the one the declared type
+/// writes, so a flipped tag byte cannot decode as a plausible wrong-type value.
 pub(crate) fn decode_compact_field_value(
     data_type: &DataType,
     bytes: &[u8],
 ) -> Result<Option<serde_json::Value>, CassieError> {
-    if matches!(data_type, DataType::Json | DataType::Jsonb) && bytes.first() == Some(&TYPE_NULL) {
-        return Ok(None);
+    let (&type_tag, payload) = bytes
+        .split_first()
+        .ok_or_else(|| CassieError::Parse("empty compact value".to_string()))?;
+    if type_tag == TYPE_NULL {
+        if matches!(data_type, DataType::Json | DataType::Jsonb) {
+            return Ok(None);
+        }
+        return decode_directory_value(type_tag, payload).map(Some);
     }
-    decode_compact_value(bytes).map(Some)
+    let expected = expected_type_tag(data_type);
+    if type_tag != expected {
+        return Err(CassieError::Parse(format!(
+            "stored type tag {type_tag} but the declared type uses type tag {expected}"
+        )));
+    }
+    let decoded = decode_directory_value(type_tag, payload)?;
+    if let DataType::Composite(descriptor) = data_type {
+        composite::check_stored(descriptor, &decoded)?;
+    }
+    enum_value::check_column(data_type, &decoded)?;
+    Ok(Some(decoded))
+}
+
+/// The compact encoding of an explicit SQL NULL, valid for every column type.
+pub(crate) fn encode_compact_sql_null() -> Vec<u8> {
+    vec![TYPE_NULL]
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -83,6 +103,14 @@ pub(crate) struct RowFieldMeta {
     pub data_type: DataType,
     pub nullable: bool,
     pub retired: bool,
+    /// The row-schema version that introduced this field. Rows written at an
+    /// earlier version legitimately have no stored value for it.
+    #[serde(default = "initial_added_version")]
+    pub added_version: u32,
+}
+
+fn initial_added_version() -> u32 {
+    1
 }
 
 impl RowSchema {
@@ -99,6 +127,7 @@ impl RowSchema {
                 data_type: field.data_type.clone(),
                 nullable: field.nullable,
                 retired: false,
+                added_version: 1,
             })
             .collect::<Vec<_>>();
         hydrate_normalized_names(fields.as_mut_slice());
@@ -147,6 +176,7 @@ impl RowSchema {
             data_type: field.data_type,
             nullable: field.nullable,
             retired: false,
+            added_version: self.schema_version + 1,
         });
         self.next_field_id += 1;
         self.schema_version += 1;

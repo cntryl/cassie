@@ -245,6 +245,11 @@ impl Midge {
     ) -> Result<ControlledTimeSeriesDocumentScanOutcome, CassieError> {
         let index = self.resolved_time_series_index(index)?;
         let collection = &index.collection;
+        if self.collection_uses_column_store(collection)? {
+            return Ok(ControlledTimeSeriesDocumentScanOutcome::Fallback(
+                super::COLUMN_STORE_AUTHORITATIVE,
+            ));
+        }
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()

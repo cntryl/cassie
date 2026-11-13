@@ -41,6 +41,10 @@ mod index_field_case;
 #[path = "storage_indexes/indexes/composite_scalar_index_correctness.rs"]
 mod composite_scalar_index_correctness;
 
+// Column-authoritative storage: no-row-blob invariant, corruption and cross-mode atomicity.
+#[path = "storage_indexes/column_store/mod.rs"]
+mod column_store_authority;
+
 // Formerly tests/key_encoding_segment_compaction.rs.
 #[path = "storage_indexes/key_codec/key_encoding_segment_compaction.rs"]
 mod key_encoding_segment_compaction;

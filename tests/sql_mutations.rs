@@ -129,6 +129,10 @@ mod integration_sql_insert_values;
 #[path = "sql_mutations/transactions/transaction_storage_failures.rs"]
 mod integration_sql_transaction_storage_failures;
 
+// One transaction over a row table and a column table (issue #1108).
+#[path = "sql_mutations/transactions/mixed_mode_transactions.rs"]
+mod mixed_mode_transactions;
+
 // Formerly tests/integration_sql_transaction_visibility.rs.
 #[path = "sql_mutations/transactions/transaction_visibility.rs"]
 mod integration_sql_transaction_visibility;

@@ -327,6 +327,11 @@ impl Midge {
         documents: Vec<(String, serde_json::Value)>,
     ) -> Result<(super::documents::DocumentWriteBatchReport, RootHashRecord), CassieError> {
         let collection = self.canonical_collection_name(collection);
+        if self.collection_uses_column_store(&collection)? {
+            return Err(CassieError::Unsupported(
+                "projection output rows require row storage".to_string(),
+            ));
+        }
         let row_schema = self.row_schema(&collection)?;
         let generation = self.collection_generation(&collection)?;
         let mut report = super::documents::DocumentWriteBatchReport::default();
@@ -496,7 +501,7 @@ impl Midge {
         let mut checked_components = Vec::new();
         let mut skipped_components = Vec::new();
         let mut stats = IntegrityCounts::default();
-        let last_error = verify_projection_metadata_component(
+        let mut last_error = verify_projection_metadata_component(
             self,
             collection,
             metadata,
@@ -504,14 +509,22 @@ impl Midge {
             &mut skipped_components,
             &mut stats,
         )?;
-        verify_projection_hash_component(
-            self,
-            collection,
-            hashes,
-            &mut checked_components,
-            &mut skipped_components,
-            &mut stats,
-        )?;
+        let column_violations =
+            verify_column_rows_component(self, collection, &mut checked_components, &mut stats)?;
+        if column_violations.is_empty() {
+            verify_projection_hash_component(
+                self,
+                collection,
+                hashes,
+                &mut checked_components,
+                &mut skipped_components,
+                &mut stats,
+            )?;
+        } else {
+            // Hashes read every row, and the rows are already known to be corrupt.
+            skipped_components.push("hashes".to_string());
+            last_error = last_error.or_else(|| column_violations.into_iter().next());
+        }
         verify_projection_index_component(
             self,
             collection,
@@ -725,6 +738,25 @@ fn verify_projection_metadata_component(
         return Ok(Some("projection metadata is missing".to_string()));
     }
     Ok(None)
+}
+
+/// Verifies a column table's field keys against its live markers (`XX001`
+/// conditions). Row tables have nothing to check here.
+fn verify_column_rows_component(
+    midge: &Midge,
+    collection: &str,
+    checked_components: &mut Vec<String>,
+    stats: &mut IntegrityCounts,
+) -> Result<Vec<String>, CassieError> {
+    if !midge.collection_uses_column_store(collection)? {
+        return Ok(Vec::new());
+    }
+    checked_components.push("column_rows".to_string());
+    let violations = midge.verify_column_store_rows(collection)?;
+    stats.mismatches = stats
+        .mismatches
+        .saturating_add(u64::try_from(violations.len()).unwrap_or(u64::MAX));
+    Ok(violations)
 }
 
 fn verify_projection_hash_component(

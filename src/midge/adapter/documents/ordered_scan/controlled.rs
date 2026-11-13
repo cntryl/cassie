@@ -57,6 +57,11 @@ impl Midge {
         // Loading catalog/schema descriptors remains the documented planning scope. The
         // retained execution clone is separately reserved before it is constructed.
         let collection = self.canonical_collection_name(request.collection);
+        if self.collection_uses_column_store(&collection)? {
+            return Err(CassieError::Unsupported(
+                "ordered row cursors require row storage".to_string(),
+            ));
+        }
         let descriptor = self.row_schema(&collection)?;
         let schema_memory = controls.reserve_query_memory(row_schema_bytes(&descriptor)?)?;
         let row_schema = descriptor.clone();

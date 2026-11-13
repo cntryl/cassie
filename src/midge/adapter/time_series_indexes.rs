@@ -20,6 +20,8 @@ pub(crate) use controlled::{
 
 pub(crate) const INCOMPLETE_BUCKET_MEMBERSHIP: &str = "incomplete-bucket-membership";
 pub(crate) const DANGLING_BUCKET_MEMBERSHIP: &str = "dangling-bucket-membership";
+/// Column tables hold no row blobs, so hit documents cannot be verified from one.
+pub(crate) const COLUMN_STORE_AUTHORITATIVE: &str = "column-store-authoritative";
 pub(crate) const MISSING_BUCKET_METADATA: &str = "missing-bucket-metadata";
 pub(crate) const STALE_BUCKET_METADATA: &str = "stale-bucket-metadata";
 pub(crate) const CORRUPT_BUCKET_METADATA: &str = "corrupt-bucket-metadata";
@@ -702,6 +704,11 @@ impl Midge {
         }
         let index = self.resolved_time_series_index(index)?;
         let collection = &index.collection;
+        if self.collection_uses_column_store(collection)? {
+            return Ok(TimeSeriesDocumentScanOutcome::Fallback(
+                COLUMN_STORE_AUTHORITATIVE,
+            ));
+        }
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()

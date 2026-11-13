@@ -26,6 +26,7 @@ pub(crate) struct MidgeRowCursor {
     pending: Option<AccountedDocument>,
     last_key_memory: Option<QueryMemoryReservation>,
     column_store: bool,
+    collection: String,
 }
 
 impl std::fmt::Debug for MidgeRowCursor {
@@ -149,7 +150,9 @@ impl MidgeRowCursor {
             self.last_key_memory = Some(next_key_memory);
 
             if self.column_store {
-                if let Some(document) = self.decode_column_store_document(&raw_key, controls)? {
+                if let Some(document) =
+                    self.decode_column_store_document(&raw_key, &raw_value, controls)?
+                {
                     push_accounted_document(documents, document)?;
                 }
                 continue;
@@ -245,6 +248,7 @@ impl Midge {
             pending: None,
             last_key_memory: None,
             column_store,
+            collection,
         }))
     }
 

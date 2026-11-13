@@ -115,11 +115,16 @@ Keys, all in family `\x18` with `rel` = `CollectionMeta.storage_id`:
 
 | Key | Meaning |
 | --- | --- |
-| `[rel, 'r', row_id]` | Live marker; value is the row's `RowSchema` version |
+| `[rel, 'r', row_id]` | Live marker; value is the row's `RowSchema` version (`u32` BE) then a write revision (`u64` BE) that every write increments |
 | `[rel, 'f', field_id_be32, row_id]` | One compact-encoded value per non-retired field |
-| `[rel, 'x', row_id]` | Deleted marker; removed when the row is re-inserted |
+| `[rel, 'x', row_id]` | Deleted marker; value is the revision of the delete (`u64` BE), so a re-insert continues the revision; removed when the row is re-inserted |
 
 The keys are field-major, so each column is one contiguous key range.
+A write stores every non-retired field: a field the row omits is an explicit
+SQL NULL value (`0x00`), so a field key is missing only for a field added
+(`RowFieldMeta.added_version`) after the row's marker version. The revision
+makes every update change the marker value, which is what a REPEATABLE READ
+fence compares.
 
 ### Validation and corruption
 

@@ -4,19 +4,26 @@ use super::{
     HashMap, HashSet, QuerySource, Schema,
 };
 use crate::sql::ast::TableFunctionForm;
+fn validate_series(
+    function: &FunctionCall,
+    lateral_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    if !(2..=4).contains(&function.args.len()) || function.has_modifiers() {
+        return Err(crate::sql::series_signature::undefined());
+    }
+    for argument in &function.args {
+        validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
+    }
+    Ok(())
+}
+
 fn validate_graph_table_function(
     function: &FunctionCall,
     form: Option<&TableFunctionForm>,
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
     if crate::sql::table_sources::is_series(&function.name) {
-        if !(2..=4).contains(&function.args.len()) || function.has_modifiers() {
-            return Err(crate::sql::series_signature::undefined());
-        }
-        for argument in &function.args {
-            validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
-        }
-        return Ok(());
+        return validate_series(function, lateral_fields);
     }
     if crate::sql::table_sources::is_unnest(&function.name) {
         if function.args.is_empty() || function.has_modifiers() {
@@ -45,16 +52,8 @@ fn validate_graph_table_function(
     if let Some(source) = crate::sql::table_sources::json_element_source(&function.name) {
         return validate_json_element_function(function, source, lateral_fields);
     }
-    if let Some(record) = crate::sql::table_sources::record_source(&function.name) {
-        return super::record_sources::validate_record_function(
-            function,
-            record,
-            form,
-            lateral_fields,
-        );
-    }
-    if crate::sql::table_sources::is_json_table(&function.name) {
-        return super::record_sources::validate_json_table(function, form, lateral_fields);
+    if let Some(result) = super::record_sources::validate(function, form, lateral_fields) {
+        return result;
     }
     if crate::sql::functions::is_server_file_helper(&function.name) {
         return Err(crate::sql::functions::reject_server_file_access());

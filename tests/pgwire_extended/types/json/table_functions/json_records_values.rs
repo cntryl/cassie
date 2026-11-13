@@ -143,3 +143,68 @@ fn should_bind_per_row_documents_given_a_lateral_join() {
     // Assert
     assert_rows(sql, &[&[Some("1"), Some("1")], &[Some("2"), Some("2")]]);
 }
+
+#[test]
+fn should_return_sql_null_given_a_json_null_value_and_a_base() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_populate_record('(1,z)'::pair, '{\"a\":null}')";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[None, Some("z")]]);
+}
+
+#[test]
+fn should_use_the_last_duplicate_key_given_populate_record_over_json() {
+    // Arrange
+    let sql = "SELECT * FROM json_populate_record(NULL::pair, '{\"a\":1,\"a\":2}')";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("2"), None]]);
+}
+
+#[test]
+fn should_convert_a_json_number_given_a_text_column() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":1.50}') AS x(a text)";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1.50")]]);
+}
+
+#[test]
+fn should_convert_a_json_boolean_given_a_text_column() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":true}') AS x(a text)";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("true")]]);
+}
+
+#[test]
+fn should_keep_unmatched_left_rows_given_left_join_lateral_over_a_recordset() {
+    // Arrange
+    let sql = "SELECT t.id, r.a FROM (VALUES (1, '[{\"a\":5}]'::jsonb), (2, '[]'::jsonb)) \
+               AS t(id, d) LEFT JOIN LATERAL jsonb_to_recordset(t.d) AS r(a int) ON true \
+               ORDER BY t.id";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1"), Some("5")], &[Some("2"), None]]);
+}
+
+#[test]
+fn should_build_a_two_dimensional_array_given_jsonb_array_elements_of_arrays() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":[[1],[2]]}') AS x(a jsonb[])";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("{{1},{2}}")]]);
+}
+
+#[test]
+fn should_keep_a_mixed_list_one_dimensional_given_a_jsonb_array_column() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":[{\"k\":[1]},[2]]}') AS x(a jsonb[])";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("{\"{\\\"k\\\": [1]}\",\"[2]\"}")]]);
+}

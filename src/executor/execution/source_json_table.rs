@@ -46,20 +46,33 @@ pub(super) fn execute(
     let Some(document) = decode_document(env, true, "json_table", context)? else {
         return Ok((Vec::new(), Vec::new()));
     };
-    let document = document.tree()?;
+    let document = document.into_tree()?;
     let mut evaluator = Evaluator::new(env, ctes, Json::Object(passing));
     validate_defaults(&evaluator, &spec.columns)?;
+    let mut sink = Sink::new(env, spec, row_budget)?;
+    // Selected items are copies of parts of the document: reserve their upper bound first.
+    sink.reserve_tree(&document)?;
+    let strict = spec.on_error == JsonTableRootError::Error;
     let roots = match evaluator.items(&spec.path, &document)? {
         Ok(items) => items,
-        Err(message) => match spec.on_error {
-            JsonTableRootError::EmptyArray => Vec::new(),
-            JsonTableRootError::Error => return Err(diagnostic("22039", message)),
-        },
+        Err((state, message)) => {
+            if strict {
+                return Err(diagnostic(state, message));
+            }
+            Vec::new()
+        }
     };
-    let mut sink = Sink::new(env, spec, row_budget)?;
+    let walk = Walk { strict };
     for (index, item) in roots.iter().enumerate() {
         env.controls.check_interruption()?;
-        for row in level_rows(&mut evaluator, &spec.columns, item, index + 1, &mut sink)? {
+        let rows = level_rows(
+            &mut evaluator,
+            &spec.columns,
+            item,
+            index + 1,
+            (&walk, &mut sink),
+        )?;
+        for row in rows {
             if sink.full() {
                 break;
             }
@@ -117,6 +130,11 @@ fn width(columns: &[JsonTableColumn]) -> usize {
         .sum()
 }
 
+/// Walk-wide settings: whether nested path errors raise (root `ERROR ON ERROR`).
+struct Walk {
+    strict: bool,
+}
+
 /// Rows for one item of a path: own columns plus the union of the nested sibling rows.
 /// A parent without nested rows keeps one row with the nested columns NULL.
 fn level_rows(
@@ -124,7 +142,7 @@ fn level_rows(
     columns: &[JsonTableColumn],
     item: &Json,
     ordinal: usize,
-    sink: &mut Sink<'_, '_>,
+    (walk, sink): (&Walk, &mut Sink<'_, '_>),
 ) -> Result<Vec<Vec<Value>>, QueryError> {
     let mut local = Vec::with_capacity(width(columns));
     let mut nested = Vec::new();
@@ -150,9 +168,15 @@ fn level_rows(
     }
     let mut rows = Vec::new();
     for (start, child) in nested {
-        let items = evaluator.items(&child.path, item)?.unwrap_or_default();
+        sink.reserve_tree(item)?;
+        let items = match evaluator.items(&child.path, item)? {
+            Ok(items) => items,
+            Err((state, message)) if walk.strict => return Err(diagnostic(state, message)),
+            Err(_) => Vec::new(),
+        };
         for (index, selected) in items.iter().enumerate() {
-            for part in level_rows(evaluator, &child.columns, selected, index + 1, sink)? {
+            let parts = level_rows(evaluator, &child.columns, selected, index + 1, (walk, sink))?;
+            for part in parts {
                 let mut row = local.clone();
                 row.splice(start..start + part.len(), part);
                 sink.admit(&row)?;
@@ -207,6 +231,13 @@ impl<'a, 'e> Sink<'a, 'e> {
 
     fn full(&self) -> bool {
         self.rows.len() >= self.budget
+    }
+
+    /// Reserves the retained size of a JSON tree that is about to be copied.
+    fn reserve_tree(&mut self, tree: &Json) -> Result<(), QueryError> {
+        self.memory
+            .try_grow(crate::runtime::accounted::json::retained_bytes(tree)?)?;
+        Ok(())
     }
 
     /// Reserves the retained size of a row about to be created.

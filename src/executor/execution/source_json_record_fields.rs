@@ -82,6 +82,33 @@ pub(super) fn convert(
     }
 }
 
+/// Input-function semantics of `varchar(n)` and `char(n)`: too long is an error, never a
+/// truncation (explicit casts truncate, assignments and input do not).
+pub(super) fn check_length(text: &str, target: &DataType) -> Result<(), QueryError> {
+    let (limit, name) = match target {
+        DataType::Varchar {
+            length: Some(limit),
+        } => (*limit, "character varying"),
+        DataType::Char {
+            length: Some(limit),
+        } => (*limit, "character"),
+        _ => return Ok(()),
+    };
+    let allowed = usize::try_from(limit).unwrap_or(usize::MAX);
+    let counted = if matches!(target, DataType::Char { .. }) {
+        text.trim_end_matches(' ').chars().count()
+    } else {
+        text.chars().count()
+    };
+    if counted > allowed {
+        return Err(diagnostic(
+            "22001",
+            format!("value too long for type {name}({limit})"),
+        ));
+    }
+    Ok(())
+}
+
 fn scalar(fragment: &Fragment, target: &DataType) -> Result<Value, QueryError> {
     let text = match fragment.kind() {
         Kind::Array | Kind::Object => fragment.json_text()?,
@@ -90,6 +117,7 @@ fn scalar(fragment: &Fragment, target: &DataType) -> Result<Value, QueryError> {
     if matches!(target, DataType::Text) {
         return Ok(Value::String(text));
     }
+    check_length(&text, target)?;
     super::filter::cast_value(&Value::String(text), target)
 }
 
@@ -141,9 +169,13 @@ fn array(
 fn array_elements(fragment: Fragment, element: &DataType) -> Result<Value, QueryError> {
     let items = fragment.elements()?;
     let json_elements = matches!(element, DataType::Json | DataType::Jsonb);
+    // JSON-typed elements descend only while every item is itself an array; a mixed list
+    // keeps its arrays as one-dimensional JSON values.
+    let descend = !json_elements
+        || (!items.is_empty() && items.iter().all(|item| item.kind() == Kind::Array));
     let mut values = Vec::with_capacity(items.len());
     for item in items {
-        if !json_elements && item.kind() == Kind::Array {
+        if descend && item.kind() == Kind::Array {
             values.push(array_elements(item, element)?);
         } else {
             values.push(convert(item, element, None, "")?);

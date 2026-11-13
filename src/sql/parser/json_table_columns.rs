@@ -284,7 +284,15 @@ fn parse_column(definition: &str) -> Result<JsonTableColumn, SqlError> {
         tokens: tokenize(definition)?,
         at: 0,
     };
-    if cursor.eat("nested") {
+    // `nested` starts a NESTED clause only before `PATH` or a path literal.
+    let nested_clause = cursor.word(0).as_deref() == Some("nested")
+        && (cursor.word(1).as_deref() == Some("path")
+            || cursor
+                .tokens
+                .get(cursor.at + 1)
+                .is_some_and(|token| token.text.starts_with('\'')));
+    if nested_clause {
+        cursor.at += 1;
         return parse_nested(&mut cursor);
     }
     let name = cursor.name()?;

@@ -43,26 +43,14 @@ pub(super) fn execute(
             ctes,
         );
     }
-    if crate::sql::table_sources::record_source(&function.name).is_some() {
-        return super::source_json_records::execute(
-            env,
-            function,
-            form.as_deref(),
-            *with_ordinality,
-            outer_row,
-            row_budget,
-            ctes,
-        );
-    }
-    if crate::sql::table_sources::is_json_table(&function.name) {
-        return super::source_json_table::execute(
-            env,
-            function,
-            form.as_deref(),
-            outer_row,
-            row_budget,
-            ctes,
-        );
+    if let Some(result) = super::source_json_records::dispatch(
+        env,
+        function,
+        (form.as_deref(), *with_ordinality),
+        (outer_row, row_budget),
+        ctes,
+    ) {
+        return result;
     }
     if crate::sql::table_sources::json_element_source(&function.name).is_some() {
         return super::source_json_elements::execute(

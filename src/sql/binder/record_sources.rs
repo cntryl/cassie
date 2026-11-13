@@ -10,8 +10,28 @@ fn diagnostic(state: &'static str, message: impl Into<String>) -> CassieError {
     CassieError::from(DiagnosticError::new(state, message))
 }
 
+/// Validates record-returning functions and `JSON_TABLE`; `None` for any other function.
+pub(super) fn validate(
+    function: &FunctionCall,
+    form: Option<&TableFunctionForm>,
+    lateral_fields: &HashSet<String>,
+) -> Option<Result<(), CassieError>> {
+    if let Some(record) = table_sources::record_source(&function.name) {
+        Some(validate_record_function(
+            function,
+            record,
+            form,
+            lateral_fields,
+        ))
+    } else if table_sources::is_json_table(&function.name) {
+        Some(validate_json_table(function, form, lateral_fields))
+    } else {
+        None
+    }
+}
+
 /// Arity, column definition list and base-type rules of the record-returning functions.
-pub(super) fn validate_record_function(
+fn validate_record_function(
     function: &FunctionCall,
     record: RecordSource,
     form: Option<&TableFunctionForm>,
@@ -68,7 +88,7 @@ fn validate_base(function: &FunctionCall, name: &str) -> Result<(), CassieError>
 }
 
 /// Argument shape, path syntax, name uniqueness and per-column rules of `JSON_TABLE`.
-pub(super) fn validate_json_table(
+fn validate_json_table(
     function: &FunctionCall,
     form: Option<&TableFunctionForm>,
     lateral_fields: &HashSet<String>,
@@ -174,12 +194,15 @@ fn validate_value_column(column: &JsonTableValueColumn) -> Result<(), CassieErro
         ));
     }
     let query = table_sources::is_query_column(column);
-    for behavior in [&column.on_empty, &column.on_error] {
+    for (behavior, clause) in [
+        (&column.on_empty, "ON EMPTY"),
+        (&column.on_error, "ON ERROR"),
+    ] {
         match behavior {
             JsonBehavior::EmptyArray | JsonBehavior::EmptyObject if !query => {
                 return Err(diagnostic(
                     "42601",
-                    format!("invalid ON EMPTY behavior for column \"{}\"", column.name),
+                    format!("invalid {clause} behavior for column \"{}\"", column.name),
                 ));
             }
             JsonBehavior::Default(expression) if !constant_expression(expression) => {
@@ -204,6 +227,11 @@ fn constant_expression(expression: &Expr) -> bool {
         | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => true,
+        Expr::Function(call) => {
+            !crate::sql::functions::is_aggregate_function(&call.name)
+                && !call.has_modifiers()
+                && call.args.iter().all(constant_expression)
+        }
         Expr::Cast { .. }
         | Expr::Binary { .. }
         | Expr::UnaryNumeric { .. }

@@ -33,3 +33,52 @@ fn should_still_raise_given_the_failing_row_is_selected_in_a_derived_table() {
     // Assert
     assert_failure(&sql, "22023", "cannot extract elements from a scalar");
 }
+
+const INNER: &str = "(VALUES (1, '[10]'::jsonb), (2, '[20]'::jsonb)) AS a(id, d), \
+    LATERAL jsonb_array_elements(a.d) AS e";
+
+#[test]
+fn should_keep_outer_correlated_conjuncts_given_a_lateral_derived_table() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM (VALUES (1), (2)) AS t(id), LATERAL \
+         (SELECT e.value::text::int AS v FROM {INNER} WHERE a.id = t.id) AS s ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}
+
+#[test]
+fn should_keep_outer_correlated_conjuncts_given_a_set_operation_branch() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, s.v FROM (VALUES (1), (2)) AS t(id), LATERAL \
+         (SELECT e.value::text::int AS v FROM {INNER} WHERE a.id = t.id \
+          UNION ALL SELECT e.value::text::int FROM {INNER} WHERE a.id = t.id) AS s \
+         ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_rows(
+        &sql,
+        &[
+            &[Some("1"), Some("10")],
+            &[Some("1"), Some("10")],
+            &[Some("2"), Some("20")],
+            &[Some("2"), Some("20")],
+        ],
+    );
+}
+
+#[test]
+fn should_keep_outer_correlated_conjuncts_given_a_correlated_scalar_subquery() {
+    // Arrange
+    let sql = format!(
+        "SELECT t.id, (SELECT max(e.value::text::int) FROM {INNER} WHERE a.id = t.id) \
+         FROM (VALUES (1), (2)) AS t(id) ORDER BY 1"
+    );
+    // Act
+    // Assert
+    assert_rows(&sql, &[&[Some("1"), Some("10")], &[Some("2"), Some("20")]]);
+}

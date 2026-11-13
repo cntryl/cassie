@@ -77,3 +77,48 @@ fn should_reject_an_array_document_given_to_record() {
     // Assert
     assert_failure(sql, "22023", "cannot call populate_composite on an array");
 }
+
+#[test]
+fn should_reject_a_value_longer_than_varchar_given_to_record() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":\"str\"}') AS x(a varchar(2))";
+    // Act
+    // Assert
+    assert_failure(sql, "22001", "value too long");
+}
+
+#[test]
+fn should_reject_ragged_json_array_columns_with_malformed_array() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_record('{\"a\":[[1],[2,3]]}') AS x(a jsonb[])";
+    // Act
+    // Assert
+    assert_failure(sql, "22P02", "malformed JSON array");
+}
+
+#[test]
+fn should_reject_an_object_document_given_json_to_recordset_text_family() {
+    // Arrange
+    let sql = "SELECT * FROM json_to_recordset('{\"a\":1}') AS x(a int)";
+    // Act
+    // Assert
+    assert_failure(sql, "22023", "cannot call json_to_recordset on an object");
+}
+
+#[test]
+fn should_reject_a_scalar_document_given_json_to_recordset_text_family() {
+    // Arrange
+    let sql = "SELECT * FROM json_to_recordset('3') AS x(a int)";
+    // Act
+    // Assert
+    assert_failure(sql, "22023", "cannot call json_to_recordset on a scalar");
+}
+
+#[test]
+fn should_publish_no_rows_given_a_later_non_object_element() {
+    // Arrange
+    let sql = "SELECT * FROM jsonb_to_recordset('[{\"a\":1},3]') AS x(a int)";
+    // Act
+    // Assert
+    assert_failure(sql, "22023", "must be an array of objects");
+}

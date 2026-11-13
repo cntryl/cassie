@@ -151,6 +151,16 @@ fn should_raise_the_column_error_given_error_on_error() {
                COLUMNS (a int PATH '$.a' ERROR ON ERROR))";
     // Act
     // Assert
+    assert_failure(sql, "2203F", "must return single scalar item");
+}
+
+#[test]
+fn should_raise_the_cardinality_error_given_several_items_and_error_on_error() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":[1,2]}'::jsonb, '$' \
+               COLUMNS (a int PATH '$.a[*]' ERROR ON ERROR))";
+    // Act
+    // Assert
     assert_failure(sql, "22034", "must return single scalar item");
 }
 
@@ -175,7 +185,7 @@ fn should_raise_the_root_error_given_error_on_error_at_the_root() {
                COLUMNS (a int PATH '$.a') ERROR ON ERROR)";
     // Act
     // Assert
-    assert_failure(sql, "22039", "x");
+    assert_failure(sql, "2203A", "does not contain key");
 }
 
 #[test]
@@ -200,4 +210,130 @@ fn should_reject_quotes_given_a_wrapper() {
     // Act
     // Assert
     assert_failure(sql, "42601", "QUOTES behavior must not be specified");
+}
+
+#[test]
+fn should_not_wrap_a_single_item_given_a_conditional_wrapper() {
+    // Arrange
+    let sql =
+        "SELECT * FROM JSON_TABLE('{\"a\":1,\"o\":{\"k\":1},\"s\":\"x\"}'::jsonb, '$' COLUMNS (\
+               a jsonb PATH '$.a' WITH CONDITIONAL WRAPPER, \
+               o jsonb PATH '$.o' WITH CONDITIONAL WRAPPER, \
+               s jsonb PATH '$.s' WITH CONDITIONAL WRAPPER))";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1"), Some("{\"k\": 1}"), Some("\"x\"")]]);
+}
+
+#[test]
+fn should_wrap_every_single_item_given_an_unconditional_wrapper() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":1,\"o\":{\"k\":1}}'::jsonb, '$' COLUMNS (\
+               a jsonb PATH '$.a' WITH UNCONDITIONAL WRAPPER, \
+               o jsonb PATH '$.o' WITH UNCONDITIONAL WRAPPER))";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("[1]"), Some("[{\"k\": 1}]")]]);
+}
+
+#[test]
+fn should_raise_a_missing_key_error_given_an_exists_column_with_error_on_error() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":1}'::jsonb, '$' \
+               COLUMNS (c int EXISTS PATH 'strict $.q' ERROR ON ERROR))";
+    // Act
+    // Assert
+    assert_failure(sql, "2203A", "does not contain key");
+}
+
+#[test]
+fn should_return_null_given_a_value_longer_than_varchar_without_on_error() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":\"str\"}'::jsonb, '$' \
+               COLUMNS (b varchar(2) PATH '$.a'))";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[None]]);
+}
+
+#[test]
+fn should_raise_value_too_long_given_varchar_and_error_on_error() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":\"str\"}'::jsonb, '$' \
+               COLUMNS (b varchar(2) PATH '$.a' ERROR ON ERROR))";
+    // Act
+    // Assert
+    assert_failure(sql, "22001", "value too long");
+}
+
+#[test]
+fn should_return_empty_containers_given_empty_behaviors_on_query_columns() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":1}'::jsonb, '$' COLUMNS (\
+               x jsonb PATH '$.zz' EMPTY ARRAY ON EMPTY, \
+               y jsonb PATH '$.zz' EMPTY OBJECT ON EMPTY))";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("[]"), Some("{}")]]);
+}
+
+#[test]
+fn should_reject_empty_array_on_a_scalar_column_naming_the_error_clause() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":1}'::jsonb, '$' \
+               COLUMNS (e text PATH '$.a' EMPTY ARRAY ON ERROR))";
+    // Act
+    // Assert
+    assert_failure(sql, "42601", "invalid ON ERROR behavior");
+}
+
+#[test]
+fn should_accept_a_function_call_default() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"a\":1}'::jsonb, '$' \
+               COLUMNS (v int PATH '$.zz' DEFAULT abs(-1) ON EMPTY))";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1")]]);
+}
+
+#[test]
+fn should_accept_a_column_named_nested() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('{\"nested\":4}'::jsonb, '$' \
+               COLUMNS (nested int PATH '$.nested'))";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("4")]]);
+}
+
+#[test]
+fn should_accept_a_qualified_context_column_named_columns() {
+    // Arrange
+    let sql = "SELECT j.v FROM (SELECT '[7]'::jsonb AS columns) AS t, \
+               JSON_TABLE(t.columns, '$[*]' COLUMNS (v int PATH '$')) AS j";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("7")]]);
+}
+
+#[test]
+fn should_return_null_padding_given_a_failing_nested_path_without_error_on_error() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('[{\"a\":[1]}]'::jsonb, '$[*]' COLUMNS (\
+               p int PATH '$.a[0]', NESTED PATH 'strict $.q' COLUMNS (x int PATH '$')))";
+    // Act
+    // Assert
+    assert_rows(sql, &[&[Some("1"), None]]);
+}
+
+#[test]
+fn should_raise_a_missing_key_error_given_a_failing_nested_path_and_error_on_error() {
+    // Arrange
+    let sql = "SELECT * FROM JSON_TABLE('[{\"a\":[1]}]'::jsonb, '$[*]' COLUMNS (\
+               p int PATH '$.a[0]', NESTED PATH 'strict $.q' COLUMNS (x int PATH '$')) \
+               ERROR ON ERROR)";
+    // Act
+    // Assert
+    assert_failure(sql, "2203A", "does not contain key");
 }

@@ -29,6 +29,27 @@ struct Shape {
     ordinal: bool,
 }
 
+/// Routes record-returning functions and `JSON_TABLE`; `None` for any other function.
+pub(super) fn dispatch(
+    env: &SourceExecutionEnv<'_>,
+    function: &FunctionCall,
+    (form, ordinal): (Option<&TableFunctionForm>, bool),
+    (outer, row_budget): (Option<&BatchRow>, Option<usize>),
+    ctes: &super::CteContext,
+) -> Option<SourceExecution> {
+    if table_sources::record_source(&function.name).is_some() {
+        Some(execute(
+            env, function, form, ordinal, outer, row_budget, ctes,
+        ))
+    } else if table_sources::is_json_table(&function.name) {
+        Some(super::source_json_table::execute(
+            env, function, form, outer, row_budget, ctes,
+        ))
+    } else {
+        None
+    }
+}
+
 pub(super) fn execute(
     env: &SourceExecutionEnv<'_>,
     function: &FunctionCall,
@@ -71,7 +92,7 @@ pub(super) fn execute(
     let rows = if record.set {
         set_rows(env, record, &shape, root, row_budget)?
     } else {
-        single_row(env, record, &shape, root)?
+        single_row(env, &shape, root)?
     };
     Ok((
         super::batch::chunk_rows(rows, super::batch::DEFAULT_BATCH_SIZE),
@@ -81,7 +102,6 @@ pub(super) fn execute(
 
 fn single_row(
     env: &SourceExecutionEnv<'_>,
-    record: RecordSource,
     shape: &Shape,
     root: Option<Fragment>,
 ) -> Result<Vec<BatchRow>, QueryError> {

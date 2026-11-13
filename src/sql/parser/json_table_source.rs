@@ -7,11 +7,24 @@ use super::{parse_expression, relation_alias, split_csv, QuerySource, SqlError};
 use crate::sql::ast::{Expr, FunctionCall, JsonTableRootError, JsonTableSpec, TableFunctionForm};
 use crate::sql::table_sources;
 
+/// The `COLUMNS` keyword, skipping a qualified column such as `t.columns`.
+fn columns_keyword(inner: &str) -> Option<(usize, usize)> {
+    let mut from = 0;
+    loop {
+        let (start, end) = lexical::find_top_level_span(inner, from, "columns")?;
+        if inner[..start].trim_end().ends_with('.') {
+            from = end;
+        } else {
+            return Some((start, end));
+        }
+    }
+}
+
 /// Parses `json_table(...)` followed by an optional alias. `open` and `close` delimit the
 /// call's parentheses in `raw`.
 pub(super) fn parse(raw: &str, open: usize, close: usize) -> Result<QuerySource, SqlError> {
     let inner = &raw[open + 1..close];
-    let (head, after_columns) = lexical::find_top_level_span(inner, 0, "columns")
+    let (head, after_columns) = columns_keyword(inner)
         .map(|(start, end)| (&inner[..start], &inner[end..]))
         .ok_or_else(|| SqlError::syntax("JSON_TABLE requires a COLUMNS clause".into()))?;
     let (context, rest) = split_context(head)?;
@@ -60,6 +73,12 @@ pub(super) fn alias_with_declared_columns(
     tail: &str,
     declared: &[String],
 ) -> Result<QuerySource, SqlError> {
+    // `AS (a int)` names no alias: the function name applies.
+    let tail = if tail.trim().eq_ignore_ascii_case("as") {
+        ""
+    } else {
+        tail
+    };
     let default_alias = match &source {
         QuerySource::TableFunction { function, .. } => table_sources::record_source(&function.name)
             .map_or_else(|| function.name.clone(), |record| record.function_name()),

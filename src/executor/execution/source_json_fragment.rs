@@ -103,6 +103,14 @@ impl Fragment {
         }
     }
 
+    /// The value as a canonical tree, without copying `jsonb` input.
+    pub(super) fn into_tree(self) -> Result<serde_json::Value, QueryError> {
+        match self {
+            Self::Raw(raw) => serde_json::from_str(raw.get()).map_err(nesting),
+            Self::Tree(value) => Ok(value),
+        }
+    }
+
     /// Array elements in order.
     pub(super) fn elements(self) -> Result<Vec<Self>, QueryError> {
         match self {

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde_json::Value as Json;
 
 use super::source_json_fragment::{evaluate_argument, Fragment, Kind};
-use super::source_json_record_fields::convert;
+use super::source_json_record_fields::{check_length, convert};
 use super::{CteContext, QueryError, SourceExecutionEnv, Value};
 use crate::app::{CassieError, DiagnosticError};
 use crate::sql::ast::{
@@ -21,6 +21,28 @@ pub(super) fn diagnostic(state: &'static str, message: impl Into<String>) -> Que
 
 fn owned(item: sql_json_path::json::Cow<'_, Json>) -> Json {
     item.into_owned()
+}
+
+/// A recoverable path evaluation error: SQLSTATE and message.
+pub(super) type PathFailure = (&'static str, String);
+
+/// The PostgreSQL SQLSTATE of a jsonpath evaluation error.
+pub(super) fn eval_state(error: &sql_json_path::EvalError) -> &'static str {
+    use sql_json_path::EvalError as E;
+    match error {
+        E::NoKey(_) => "2203A",
+        E::ArrayAccess | E::WildcardArrayAccess => "22039",
+        E::MemberAccess | E::WildcardMemberAccess => "2203C",
+        E::ArrayIndexOutOfBounds | E::ArrayIndexOutOfRange | E::ArrayIndexNotNumeric => "22033",
+        E::NoVariable(_) => "42704",
+        E::DivisionByZero => "22012",
+        E::UnaryOperandNotNumeric(_)
+        | E::LeftOperandNotNumeric(_)
+        | E::RightOperandNotNumeric(_)
+        | E::MethodNotNumeric(_) => "2203B",
+        E::ExpectSingleBoolean => "22038",
+        _ => "22039",
+    }
 }
 
 /// The outcome of evaluating one column against one item before behaviors apply.
@@ -48,12 +70,13 @@ impl<'a, 'e> Evaluator<'a, 'e> {
         }
     }
 
-    /// The items selected by `path`; a recoverable evaluation error is returned as `Err`.
+    /// The items selected by `path`; a recoverable evaluation error is returned as `Err` with
+    /// its PostgreSQL SQLSTATE and message.
     pub(super) fn items(
         &mut self,
         path: &str,
         item: &Json,
-    ) -> Result<Result<Vec<Json>, String>, QueryError> {
+    ) -> Result<Result<Vec<Json>, PathFailure>, QueryError> {
         self.env.controls.check_interruption()?;
         if !self.paths.contains_key(path) {
             let compiled = sql_json_path::JsonPath::new(path)
@@ -65,8 +88,8 @@ impl<'a, 'e> Evaluator<'a, 'e> {
         };
         match compiled.query_with_vars(item, &self.vars) {
             Ok(items) => Ok(Ok(items.into_iter().map(owned).collect())),
-            Err(error) if error.can_silent() => Ok(Err(error.to_string())),
-            Err(error) => Err(CassieError::Execution(error.to_string()).into()),
+            Err(error) if error.can_silent() => Ok(Err((eval_state(&error), error.to_string()))),
+            Err(error) => Err(diagnostic(eval_state(&error), error.to_string())),
         }
     }
 
@@ -91,7 +114,7 @@ impl<'a, 'e> Evaluator<'a, 'e> {
     ) -> Result<Step, QueryError> {
         let items = match self.items(&column.path, item)? {
             Ok(items) => items,
-            Err(message) => return Ok(Step::Soft(diagnostic("22039", message))),
+            Err((state, message)) => return Ok(Step::Soft(diagnostic(state, message))),
         };
         if table_sources::is_query_column(column) {
             query_step(column, items)
@@ -155,14 +178,14 @@ impl<'a, 'e> Evaluator<'a, 'e> {
     ) -> Result<Value, QueryError> {
         let found = match self.items(&column.path, item)? {
             Ok(items) => Value::Bool(!items.is_empty()),
-            Err(message) => match column.on_error {
-                ExistsBehavior::Error => return Err(diagnostic("22039", message)),
+            Err((state, message)) => match column.on_error {
+                ExistsBehavior::Error => return Err(diagnostic(state, message)),
                 ExistsBehavior::True => Value::Bool(true),
                 ExistsBehavior::Unknown => Value::Null,
                 ExistsBehavior::False | ExistsBehavior::Unspecified => Value::Bool(false),
             },
         };
-        if matches!(column.data_type, DataType::Bool) || found.is_null() {
+        if matches!(column.data_type, DataType::Boolean) || found.is_null() {
             return Ok(found);
         }
         super::filter::cast_value(&found, &column.data_type)
@@ -201,9 +224,7 @@ fn query_step(column: &JsonTableValueColumn, mut items: Vec<Json>) -> Result<Ste
     }
     let wrap = match column.wrapper {
         JsonWrapper::Unconditional => true,
-        JsonWrapper::Conditional => {
-            items.len() > 1 || !matches!(items[0], Json::Array(_) | Json::Object(_))
-        }
+        JsonWrapper::Conditional => items.len() > 1,
         JsonWrapper::Unspecified | JsonWrapper::Without => false,
     };
     let item = if wrap {
@@ -248,6 +269,7 @@ fn convert_item(
             (Kind::String, JsonQuotes::Omit) => fragment.scalar_text()?,
             _ => fragment.json_text()?,
         };
+        check_length(&text, &column.data_type)?;
         return super::filter::cast_value(&Value::String(text), &column.data_type);
     }
     if item.is_null() && matches!(column.data_type, DataType::Json | DataType::Jsonb) {

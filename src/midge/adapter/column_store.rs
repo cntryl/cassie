@@ -175,6 +175,9 @@ impl Midge {
         let storage_id = needs_storage_id
             .then(|| self.allocate_object_id())
             .transpose()?;
+        let row_type_ids = needs_storage_id
+            .then(|| Ok::<_, CassieError>((self.allocate_object_id()?, self.allocate_object_id()?)))
+            .transpose()?;
         let mut tx = self.begin_data_rw_tx_for(&name)?;
 
         let schema_key = Self::collection_schema_key(&name);
@@ -204,6 +207,17 @@ impl Midge {
             })?
         };
         metadata.storage_id = storage_id;
+        match (existing_metadata.as_ref(), row_type_ids) {
+            (Some(existing), _) if existing.row_type_object_id != 0 => {
+                metadata.row_type_object_id = existing.row_type_object_id;
+                metadata.row_array_object_id = existing.row_array_object_id;
+            }
+            (_, Some((row_type, row_array))) => {
+                metadata.row_type_object_id = row_type;
+                metadata.row_array_object_id = row_array;
+            }
+            _ => {}
+        }
         let mut row_schema = RowSchema::from_schema(schema);
         row_schema.relation_id = storage_id;
         if tx

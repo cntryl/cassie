@@ -104,10 +104,10 @@ pub(super) fn alter(
         }
         TypeAlteration::AlterAttributeType { name, data_type } => {
             reject_composite_array(data_type)?;
-            reject_when_stored(cassie, &current)?;
             let next = current
                 .with_retyped_attribute(name, data_type.clone())
                 .map_err(alter_error)?;
+            reject_when_stored(cassie, &current)?;
             publish(cassie, &current, &next)?;
         }
     }
@@ -300,20 +300,24 @@ pub(super) fn reject_row_type_dependents(
     )))
 }
 
-/// Dropping a column of a table whose row type is stored elsewhere would have
-/// to rewrite those stored values, so it is rejected before any mutation.
+/// Dropping or retyping a column of a table whose row type is stored elsewhere
+/// would have to rewrite those stored values, so it is rejected before any
+/// mutation (`0A000`, as PostgreSQL does for a retype).
 pub(super) fn reject_drop_column_in_use(
     cassie: &Cassie,
     table: &str,
     operation: &crate::sql::ast::AlterTableOperation,
 ) -> Result<(), QueryError> {
     use crate::sql::ast::AlterTableOperation;
+    let changes_layout = |inner: &AlterTableOperation| {
+        matches!(
+            inner,
+            AlterTableOperation::DropColumn { .. } | AlterTableOperation::AlterColumnType { .. }
+        )
+    };
     let drops = match operation {
-        AlterTableOperation::DropColumn { .. } => true,
-        AlterTableOperation::Multiple { operations } => operations
-            .iter()
-            .any(|inner| matches!(inner, AlterTableOperation::DropColumn { .. })),
-        _ => false,
+        AlterTableOperation::Multiple { operations } => operations.iter().any(changes_layout),
+        other => changes_layout(other),
     };
     if !drops {
         return Ok(());
@@ -329,7 +333,7 @@ pub(super) fn reject_drop_column_in_use(
         return Err(diagnostic(
             "0A000",
             format!(
-                "cannot drop a column of table \"{}\" because its row type is used by column \"{column}\"",
+                "cannot alter table \"{}\" because column \"{column}\" uses its row type",
                 row_type.name
             ),
         ));
@@ -351,6 +355,16 @@ pub(super) fn refresh_relation_row_type(
     else {
         return Ok(());
     };
+    // The persisted schema version is bumped by every column change.
+    if let Some(projection) = cassie
+        .midge
+        .projection_metadata(&collection.name)
+        .map_err(QueryError::from)?
+    {
+        cassie
+            .catalog
+            .set_row_type_revision(&collection.name, u64::from(projection.schema_version));
+    }
     let Some(row_type) = cassie.catalog.relation_row_type(&collection.name) else {
         return Ok(());
     };

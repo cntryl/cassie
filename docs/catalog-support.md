@@ -340,8 +340,8 @@ array `pg_type` row, a `pg_class` row with `relkind = 'c'` whose `reltype` is
 the type OID, and one `pg_attribute` row per field. These rows are authored
 under #828 increment 1 and are not yet executed. Increment 2 (also authored, not
 executed) adds a row type per table: a `pg_type` row (`typtype = 'c'`, `typrelid` = the
-table) and `_name` array row with OIDs derived from the table's persisted storage
-identity (high bit set, stable across rename and restart), and `pg_attribute` rows of a
+table) and `_name` array row with OIDs allocated by the Midge object-id allocator
+and persisted on the table (below `2^31`, stable across rename and restart), and `pg_attribute` rows of a
 composite type use physical attribute numbers, so a dropped attribute leaves a gap.
 Domains remain unsupported. #828 owns the future database-scoped domain OIDs. Enum rows remain deferred to #827; broad routines,
 dependency families, sequences, and partitions remain unselected except for

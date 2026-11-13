@@ -239,11 +239,117 @@ fn same_call(left: &FunctionCall, right: &FunctionCall) -> bool {
     Expr::Function(Box::new(left.clone())).structurally_eq(&Expr::Function(Box::new(right.clone())))
 }
 
-/// Rewrites whole-row forms of a top-level single-table `SELECT`.
+/// Every table of `source` with the name its row is referenced by and its columns.
+fn table_bindings(
+    source: &QuerySource,
+    catalog: &Catalog,
+    context: &BindingContext,
+    out: &mut Vec<(String, Vec<String>)>,
+) {
+    let columns_of = |path: &str| {
+        let canonical = super::resolve_relation_name(path, catalog, context).ok()?;
+        let schema = catalog.get_schema(&canonical)?;
+        Some((
+            crate::catalog::local_name(&canonical),
+            schema.fields.into_iter().map(|field| field.name).collect(),
+        ))
+    };
+    match source {
+        QuerySource::Collection(path) => {
+            if let Some((name, columns)) = columns_of(path.as_str()) {
+                out.push((name.to_ascii_lowercase(), columns));
+            }
+        }
+        QuerySource::Aliased { source, alias, .. } => {
+            if let QuerySource::Collection(path) = source.as_ref() {
+                if let Some((_, columns)) = columns_of(path.as_str()) {
+                    out.push((alias.to_ascii_lowercase(), columns));
+                }
+            }
+        }
+        QuerySource::TableSample { source, .. } => table_bindings(source, catalog, context, out),
+        QuerySource::Join { left, right, .. } => {
+            table_bindings(left, catalog, context, out);
+            table_bindings(right, catalog, context, out);
+        }
+        _ => {}
+    }
+}
+
+fn mentions_whole_row(expr: &Expr, bindings: &[(String, Vec<String>)]) -> bool {
+    expr.any_descendant_or_self(&mut |node| {
+        matches!(node, Expr::Column(name) if bindings.iter().any(|(binding, columns)| {
+            name.eq_ignore_ascii_case(binding)
+                && !columns.iter().any(|column| column.eq_ignore_ascii_case(name))
+        }))
+    })
+}
+
+fn item_mentions_whole_row(item: &SelectItem, bindings: &[(String, Vec<String>)]) -> bool {
+    match item {
+        SelectItem::Column { name, .. } => bindings.iter().any(|(binding, columns)| {
+            name.eq_ignore_ascii_case(binding)
+                && !columns
+                    .iter()
+                    .any(|column| column.eq_ignore_ascii_case(name))
+        }),
+        SelectItem::Function { function, .. } => {
+            mentions_whole_row(&Expr::Function(Box::new(function.clone())), bindings)
+        }
+        SelectItem::Expr { expr, .. } => mentions_whole_row(expr, bindings),
+        _ => false,
+    }
+}
+
+fn mentions_in_clauses(select: &SelectStatement, bindings: &[(String, Vec<String>)]) -> bool {
+    select
+        .projection
+        .iter()
+        .any(|item| item_mentions_whole_row(item, bindings))
+        || select
+            .filter
+            .iter()
+            .chain(&select.group_by)
+            .chain(select.having.iter())
+            .chain(&select.distinct_on)
+            .any(|expr| mentions_whole_row(expr, bindings))
+        || select
+            .order
+            .iter()
+            .any(|order| mentions_whole_row(&order.expr, bindings))
+}
+
+fn unsupported_whole_row() -> CassieError {
+    crate::app::DiagnosticError::new(
+        "0A000",
+        "a whole-row table reference is supported only in the projection, WHERE and ORDER BY of a single-table SELECT"
+            .to_string(),
+    )
+    .into()
+}
+
+fn mentions_in_unsupported_clauses(
+    select: &SelectStatement,
+    bindings: &[(String, Vec<String>)],
+) -> bool {
+    select
+        .group_by
+        .iter()
+        .chain(select.having.iter())
+        .chain(&select.distinct_on)
+        .any(|expr| mentions_whole_row(expr, bindings))
+}
+
+/// Rewrites whole-row forms of a top-level single-table `SELECT`, and rejects
+/// the shapes it cannot cover instead of letting them fail as a missing column.
+///
+/// A CTE named like the table or alias shadows it: nothing is rewritten.
 ///
 /// # Errors
 ///
-/// Returns SQLSTATE `0A000` for a `(expr).*` whose type is not evident.
+/// Returns SQLSTATE `0A000` for a `(expr).*` whose type is not evident and for
+/// a bare table reference in a join, set operation, `GROUP BY`, `HAVING` or
+/// `DISTINCT ON`.
 pub(super) fn rewrite(
     statement: &mut ParsedStatement,
     catalog: &Catalog,
@@ -252,6 +358,45 @@ pub(super) fn rewrite(
     let QueryStatement::Select(select) = &mut statement.statement else {
         return Ok(());
     };
+    let mut bindings = Vec::new();
+    table_bindings(&select.source, catalog, context, &mut bindings);
+    bindings.retain(|(binding, _)| {
+        !select
+            .ctes
+            .iter()
+            .any(|cte| cte.name.eq_ignore_ascii_case(binding))
+    });
+    if bindings.is_empty() {
+        return Ok(());
+    }
+    let single = bindings.len() == 1
+        && matches!(
+            &select.source,
+            QuerySource::Collection(_) | QuerySource::Aliased { .. }
+        );
+    let mut branches = Vec::new();
+    let mut next = select.set.as_ref();
+    while let Some(set) = next {
+        branches.push(&set.right);
+        next = set.right.set.as_ref();
+    }
+    let unsupported = if single {
+        mentions_in_unsupported_clauses(select, &bindings)
+            || branches
+                .iter()
+                .any(|branch| mentions_in_clauses(branch, &bindings))
+    } else {
+        mentions_in_clauses(select, &bindings)
+            || branches
+                .iter()
+                .any(|branch| mentions_in_clauses(branch, &bindings))
+    };
+    if unsupported {
+        return Err(unsupported_whole_row());
+    }
+    if !single {
+        return Ok(());
+    }
     let Some(scope) = scope_for(select, catalog, context) else {
         return Ok(());
     };

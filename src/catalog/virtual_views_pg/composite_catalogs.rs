@@ -54,6 +54,7 @@ pub(super) fn type_rows(catalog: &Catalog, current_database: Option<&str>) -> Ve
         replace(&mut row, "typarray", int_value("typarray", 0));
         rows.push(row);
     }
+    rows.extend(relation_type_rows(catalog, current_database));
     rows
 }
 
@@ -110,10 +111,7 @@ pub(super) fn attribute_rows(catalog: &Catalog, current_database: Option<&str>) 
 
 /// The row type of each table and its `_name` array type, as `pg_type` rows
 /// with `typtype = 'c'` and `typrelid` set to the table.
-pub(super) fn relation_type_rows(
-    catalog: &Catalog,
-    current_database: Option<&str>,
-) -> Vec<VirtualRow> {
+fn relation_type_rows(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for (table, _, descriptor) in catalog.list_relation_row_types(current_database) {
         let namespace = crate::catalog::RelationId::parse_canonical(&table).map_or_else(
@@ -152,4 +150,15 @@ pub(super) fn relation_type_rows(
         rows.push(row);
     }
     rows
+}
+
+/// `pg_class.reltype`: the derived row type of a table, `0` for every other
+/// relation kind (views have no row type here; see the type contract).
+pub(super) fn relation_reltype(catalog: &Catalog, kind: &str, name: &str) -> i64 {
+    if kind != "r" {
+        return 0;
+    }
+    catalog
+        .relation_row_type(name)
+        .map_or(0, |row_type| i64::from(row_type.oid))
 }

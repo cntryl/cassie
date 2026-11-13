@@ -436,24 +436,47 @@ The code and its regressions are authored; they have not been compiled or execut
   (through `alter_collection_column_type`, which bumps the table's schema version) and
   view column types. The steps are individually atomic, not one transaction: a crash
   part way can leave embedded copies on the previous revision, which still decode stored
-  rows because layouts are prefixes. Materialized views, projections and routine
-  signatures are not re-embedded.
+  rows because layouts are prefixes. Hydration reconciles such leftovers: any table or
+  view column whose embedded descriptor differs from the registered type with the same OID
+  is replaced in memory by the persisted type (`Catalog::reconcile_embedded_composites`),
+  so an interrupted ALTER either completes or reverts to the persisted type. The published
+  Midge adapter commits one transaction per database collection, so a single
+  cross-object transaction is not available; this reconcile is the documented contract
+  exception. Materialized-view
+  and projection storage schemas are collection schemas like tables, so a composite
+  column in one is covered by the same stored-use guard and re-embedding; this is not yet
+  separately exercised, and routine signatures are not re-embedded.
+  `ALTER ATTRIBUTE ... TYPE` reports a missing attribute (`42703`) before the stored-use
+  `0A000`.
 - Relation row types: every table owns a composite type named like the table. Its
-  descriptor is derived from the table's current columns; its `pg_type.oid` and array OID
-  are derived from the table's persisted storage identity, so renames and restarts keep
-  them. `pg_class.reltype`, `pg_type` (`typtype = 'c'`, `typrelid` = table) and the `_name`
+  descriptor is derived from the table's current columns. Its `pg_type.oid` and array OID
+  are allocated from the same Midge object-id allocator as every other catalog object when
+  the table is created, persisted on the collection metadata (`row_type_object_id`,
+  `row_array_object_id`) and therefore stable across renames and restarts, always below
+  the `2^31` user-OID limit and resolvable through `regtype` (`reltype::regtype`). The
+  descriptor revision is the table's persisted projection `schema_version`, which only
+  grows (ADD, DROP and RENAME COLUMN each bump it). `pg_class.reltype`, `pg_type` (`typtype = 'c'`, `typrelid` = table) and the `_name`
   array row are published. A table name works as a column type, a cast target
   (`ROW(...)::t`, `'(1,x)'::t`) and a PREPARE parameter type. For a single-table `SELECT`,
   a bare table name or alias is the whole row (`SELECT t FROM t`), `(t).col` selects a
   field, `ROW(t.*)` expands to the columns and `(expr).*` expands a composite column, table
   row or cast in the SELECT list (`0A000` for any other operand). Whole-row forms are not
-  rewritten inside subqueries, joins, CTEs, DML or views.
+  rewritten inside subqueries, CTEs, DML or views. A CTE named like the table or alias
+  shadows it (no whole-row rewrite). A bare table name that is not a real column of that
+  table, used in a join, set operation, `GROUP BY`, `HAVING` or `DISTINCT ON`, is `0A000`
+  (PostgreSQL accepts these; Cassie reports the limit instead of a missing column).
 - Table DDL keeps the row type in sync: `ADD COLUMN`, `RENAME COLUMN`, `RENAME TO` and
   `SET SCHEMA` re-embed the derived descriptor; stored values read the added column as
   NULL. `DROP TABLE` is `2BP01` (`0A000` with `CASCADE`) while another column or composite
   type holds its row type. `ALTER TABLE ... DROP COLUMN` is `0A000` while the row type is
   stored in another column; PostgreSQL permits it, so this is a deliberate stricter
   difference (Cassie keeps no dropped-column history for table row types).
+  `ALTER TABLE ... ALTER COLUMN ... TYPE` is `0A000` ("cannot alter table "t" because
+  column "u.x" uses its row type") while the row type is stored, as in PostgreSQL.
+- Known limitations: views, sequences and indexes have `reltype = 0` (PostgreSQL gives
+  views a row type); `CREATE TABLE ... OF type` typed tables do not exist; renaming a
+  table does not change its row-type revision; a row type embedded in another table's
+  column is re-embedded only by the table DDL paths above.
 - Cleanups: `TypedValue::kind()` returns `Option<ExtendedType>` (`None` for a record)
   instead of a sentinel; a stored record that contradicts its column descriptor is
   `XX001` at row decode (and in the typed scan paths) instead of reading as NULL; the

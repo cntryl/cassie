@@ -147,14 +147,26 @@ impl<'a> ObjectScope<'a> {
             self.catalog
                 .resolve_composite_type(&self.context.database, &search_order, name)
         };
+        let resolve_row = |name: &str| {
+            self.catalog
+                .resolve_relation_row_type(&self.context.database, &search_order, name)
+        };
         if let Some(base) = text.trim_end().strip_suffix("[]") {
-            return resolve(base.trim_end()).map(|metadata| metadata.array_oid());
+            let base = base.trim_end();
+            return resolve(base)
+                .map(|metadata| metadata.array_oid())
+                .or_else(|| resolve_row(base).map(|row| row.array_oid));
         }
-        resolve(text).map(|metadata| metadata.type_oid())
+        resolve(text)
+            .map(|metadata| metadata.type_oid())
+            .or_else(|| resolve_row(text).map(|row| row.oid))
     }
 
     /// `regtype` output for a user composite type or its array type.
     fn user_type_label(&self, oid: u32) -> Option<String> {
+        if let Some(label) = self.relation_row_type_label(oid) {
+            return Some(label);
+        }
         let (metadata, suffix) = self.catalog.get_composite_type_by_oid(oid).map_or_else(
             || {
                 self.catalog
@@ -182,6 +194,31 @@ impl<'a> ObjectScope<'a> {
             )
         };
         Some(format!("{name}{suffix}"))
+    }
+
+    /// `regtype` output for a table's row type or its array type.
+    fn relation_row_type_label(&self, oid: u32) -> Option<String> {
+        let (table, _, is_array) = self.catalog.relation_row_type_by_oid(oid)?;
+        let local = super::local_name(&table);
+        let search_order = self.context.relation_search_order();
+        let visible = self
+            .catalog
+            .resolve_relation_row_type(
+                &self.context.database,
+                &search_order,
+                &quote_identifier(&local),
+            )
+            .is_some_and(|found| found.oid == oid || found.array_oid == oid);
+        let name = if visible {
+            quote_identifier(&local)
+        } else {
+            format!(
+                "{}.{}",
+                quote_identifier(&super::relation_schema_name(&table)),
+                quote_identifier(&local)
+            )
+        };
+        Some(format!("{name}{}", if is_array { "[]" } else { "" }))
     }
 
     fn resolve_relation(&self, text: &str) -> Result<Option<u32>, ObjectIdentifierError> {

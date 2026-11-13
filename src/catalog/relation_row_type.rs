@@ -10,27 +10,6 @@ use super::{
 use crate::types::composite::{CompositeField, CompositeRef, CompositeType};
 use crate::types::row_identity::is_row_identity_column;
 
-/// Bit that keeps derived row-type OIDs out of the allocator range.
-const DERIVED_OID_FLAG: u32 = 0x8000_0000;
-
-/// A stable `pg_type.oid` derived from a table's `storage_id`; `array` selects
-/// the `_name` array type instead.
-#[must_use]
-pub fn relation_row_type_oid(storage_id: u64, array: bool) -> u32 {
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    let tag = if array {
-        "row-array-type:"
-    } else {
-        "row-type:"
-    };
-    for byte in tag.bytes().chain(storage_id.to_be_bytes()) {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    let range = u64::from(u32::MAX - DERIVED_OID_FLAG);
-    u32::try_from(hash % range).unwrap_or(0) | DERIVED_OID_FLAG
-}
-
 fn row_fields(schema: &CollectionSchema) -> Vec<CompositeField> {
     schema
         .fields
@@ -54,17 +33,17 @@ impl Catalog {
     #[must_use]
     pub fn relation_row_type(&self, canonical: &str) -> Option<CompositeRef> {
         let collection = self.get_collection(canonical)?;
-        if collection.storage_id == 0 {
+        if collection.row_type_object_id == 0 || collection.row_array_object_id == 0 {
             return None;
         }
         let schema = self.get_schema(canonical)?;
         let fields = row_fields(&schema);
         Some(CompositeRef::new(CompositeType {
-            oid: relation_row_type_oid(collection.storage_id, false),
-            array_oid: relation_row_type_oid(collection.storage_id, true),
+            oid: super::object_identity::normal_oid(collection.row_type_object_id)?,
+            array_oid: super::object_identity::normal_oid(collection.row_array_object_id)?,
             qualified_name: collection.name.clone(),
             name: local_name(&collection.name),
-            revision: u64::try_from(fields.len()).unwrap_or(u64::MAX),
+            revision: collection.row_type_revision,
             dropped_positions: Vec::new(),
             fields,
         }))
@@ -92,6 +71,30 @@ impl Catalog {
                 name,
             } => self.relation_row_type(&canonical_relation_name(&database, &schema, &name)),
         }
+    }
+
+    /// Records the layout revision of the row type of table `canonical`.
+    pub fn set_row_type_revision(&self, canonical: &str, revision: u64) {
+        if let Some(collection) = self.collections.write().get_mut(canonical) {
+            collection.row_type_revision = revision;
+        }
+        self.bump_version();
+    }
+
+    /// The table whose row type or row array type has `pg_type.oid` `oid`,
+    /// with its descriptor and whether `oid` names the array type.
+    #[must_use]
+    pub fn relation_row_type_by_oid(&self, oid: u32) -> Option<(String, CompositeRef, bool)> {
+        self.list_collections().into_iter().find_map(|collection| {
+            let descriptor = self.relation_row_type(&collection.name)?;
+            if descriptor.oid == oid {
+                Some((collection.name, descriptor, false))
+            } else if descriptor.array_oid == oid {
+                Some((collection.name, descriptor, true))
+            } else {
+                None
+            }
+        })
     }
 
     /// Row types of every table of `database`, for `pg_type` and `pg_class`.

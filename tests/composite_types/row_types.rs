@@ -267,3 +267,182 @@ fn should_link_pg_class_reltype_to_the_pg_type_row() {
     // Assert
     assert_eq!(linked, vec![Some("true".to_owned())]);
 }
+
+#[test]
+fn should_allocate_distinct_row_type_oids_below_the_user_range_limit() {
+    // Arrange
+    let fixture = fixture("row_type_allocated_oids");
+    fixture.execute("CREATE TABLE u (k int)").unwrap();
+
+    // Act
+    let distinct = first_column_text(&fixture.rows(
+        "SELECT (count(DISTINCT reltype) = 2 AND max(reltype) < 2147483648)::text \
+         FROM pg_class WHERE relname IN ('t', 'u')",
+    ));
+
+    // Assert
+    assert_eq!(distinct, vec![Some("true".to_owned())]);
+}
+
+#[test]
+fn should_resolve_the_row_type_oid_through_regtype() {
+    // Arrange
+    let fixture = fixture("row_type_regtype");
+
+    // Act
+    let name = text(
+        &fixture,
+        "SELECT reltype::regtype::text FROM pg_class WHERE relname = 't'",
+    );
+
+    // Assert
+    assert_eq!(name.as_deref(), Some("t"));
+}
+
+#[test]
+fn should_keep_the_row_type_oid_after_renaming_the_table() {
+    // Arrange
+    let fixture = fixture("row_type_oid_rename");
+    let before = text(
+        &fixture,
+        "SELECT reltype::text FROM pg_class WHERE relname = 't'",
+    );
+    fixture.execute("ALTER TABLE t RENAME TO t2").unwrap();
+
+    // Act
+    let after = text(
+        &fixture,
+        "SELECT reltype::text FROM pg_class WHERE relname = 't2'",
+    );
+
+    // Assert
+    assert_eq!(before, after);
+}
+
+#[test]
+fn should_refuse_changing_a_column_type_whose_row_type_is_stored_with_sqlstate_0a000() {
+    // Arrange
+    let fixture = fixture("row_type_alter_column_type_in_use");
+    fixture.execute("CREATE TABLE u (k int, x t)").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER TABLE t ALTER COLUMN id TYPE bigint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "0A000");
+}
+
+#[test]
+fn should_keep_the_column_type_after_a_refused_alter_column_type() {
+    // Arrange
+    let fixture = fixture("row_type_alter_column_type_kept");
+    fixture.execute("CREATE TABLE u (k int, x t)").unwrap();
+    let _ = fixture.error("ALTER TABLE t ALTER COLUMN id TYPE bigint");
+
+    // Act
+    let id = text(
+        &fixture,
+        "SELECT data_type FROM information_schema.columns \
+         WHERE table_name = 't' AND column_name = 'id'",
+    );
+
+    // Assert
+    assert_eq!(id.as_deref(), Some("integer"));
+}
+
+#[test]
+fn should_not_treat_a_cte_named_like_the_table_as_the_table_row() {
+    // Arrange
+    let fixture = fixture("row_type_cte_shadow");
+
+    // Act
+    let value = text(&fixture, "WITH t AS (SELECT 7 AS v) SELECT t.v FROM t");
+
+    // Assert
+    assert_eq!(value.as_deref(), Some("7"));
+}
+
+#[test]
+fn should_reject_a_whole_row_reference_in_a_join_with_sqlstate_0a000() {
+    // Arrange
+    let fixture = fixture("row_type_whole_row_join");
+    fixture.execute("CREATE TABLE u (k int)").unwrap();
+
+    // Act
+    let error = fixture.error("SELECT t FROM t JOIN u ON u.k = t.id");
+
+    // Assert
+    assert_eq!(error.sql_state(), "0A000");
+}
+
+#[test]
+fn should_reject_a_whole_row_reference_in_group_by_with_sqlstate_0a000() {
+    // Arrange
+    let fixture = fixture("row_type_whole_row_group_by");
+
+    // Act
+    let error = fixture.error("SELECT count(*) FROM t GROUP BY t");
+
+    // Assert
+    assert_eq!(error.sql_state(), "0A000");
+}
+
+#[test]
+fn should_reject_a_whole_row_reference_in_a_set_operation_with_sqlstate_0a000() {
+    // Arrange
+    let fixture = fixture("row_type_whole_row_union");
+
+    // Act
+    let error = fixture.error("SELECT t FROM t UNION ALL SELECT t FROM t");
+
+    // Assert
+    assert_eq!(error.sql_state(), "0A000");
+}
+
+#[test]
+fn should_decode_stored_rows_after_adding_then_renaming_a_column() {
+    // Arrange
+    let fixture = fixture("row_type_add_then_rename");
+    let revision = |fixture: &SqlFixture| {
+        text(
+            fixture,
+            "SELECT (SELECT count(*) FROM pg_attribute a \
+             JOIN pg_class c ON c.oid = a.attrelid WHERE c.relname = 't')::text",
+        )
+    };
+    fixture
+        .execute("ALTER TABLE t ADD COLUMN extra int")
+        .unwrap();
+    fixture.execute("CREATE TABLE u (x t)").unwrap();
+    fixture
+        .execute("INSERT INTO u VALUES (ROW(2, 'y', 5))")
+        .unwrap();
+
+    // Act
+    fixture
+        .execute("ALTER TABLE t RENAME COLUMN extra TO more")
+        .unwrap();
+    let rendered = text(&fixture, "SELECT x::text FROM u");
+
+    // Assert
+    assert!(revision(&fixture).is_some());
+    assert_eq!(rendered.as_deref(), Some("(2,y,5)"));
+}
+
+#[test]
+fn should_roll_back_a_row_type_change_with_its_transaction() {
+    // Arrange
+    let fixture = fixture("row_type_add_column_rollback");
+    fixture.execute("CREATE TABLE u (x t)").unwrap();
+    fixture.execute("BEGIN").unwrap();
+    fixture
+        .execute("ALTER TABLE t ADD COLUMN extra int")
+        .unwrap();
+
+    // Act
+    fixture.execute("ROLLBACK").unwrap();
+    let rendered = text(&fixture, "SELECT t::text FROM t");
+
+    // Assert
+    assert_eq!(rendered.as_deref(), Some("(1,x)"));
+}

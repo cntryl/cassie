@@ -17,6 +17,7 @@ impl Cassie {
         self.hydrate_operational_metadata()?;
         self.hydrate_collection_cardinality_stats()?;
         self.hydrate_programmable_metadata()?;
+        self.catalog.reconcile_embedded_composites();
         self.hydrate_time_series_metadata()?;
         self.hydrate_maintenance_debt()?;
         self.hydrate_roles()?;
@@ -98,6 +99,10 @@ impl Cassie {
             .midge
             .projection_metadata(name)?
             .unwrap_or_else(|| crate::catalog::ProjectionMeta::new(name, 1));
+        // Every column change bumps the persisted schema version, which is the
+        // monotone revision of the table's row type.
+        self.catalog
+            .set_row_type_revision(name, u64::from(projection_metadata.schema_version));
         self.catalog
             .register_projection_metadata(projection_metadata);
         Ok(())

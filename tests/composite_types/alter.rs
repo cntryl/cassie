@@ -357,3 +357,32 @@ fn should_update_view_columns_when_a_type_gains_an_attribute() {
     // Assert
     assert_eq!(city.as_deref(), Some("Oslo"));
 }
+
+#[test]
+fn should_roll_back_add_attribute_with_its_transaction() {
+    // Arrange
+    let fixture = fixture("alter_type_add_rollback");
+    fixture.execute("BEGIN").unwrap();
+    fixture
+        .execute("ALTER TYPE address ADD ATTRIBUTE city text")
+        .unwrap();
+
+    // Act
+    fixture.execute("ROLLBACK").unwrap();
+    let rendered = text(&fixture, "SELECT a::text FROM homes WHERE id = 1");
+
+    // Assert
+    assert_eq!(rendered.as_deref(), Some("(\"1 Main\",11)"));
+}
+
+#[test]
+fn should_report_a_missing_attribute_before_the_stored_use_guard() {
+    // Arrange
+    let fixture = fixture("alter_type_missing_attribute");
+
+    // Act
+    let error = fixture.error("ALTER TYPE address ALTER ATTRIBUTE nope TYPE bigint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42703");
+}

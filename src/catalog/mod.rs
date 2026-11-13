@@ -3,6 +3,7 @@ pub mod cardinality;
 pub mod collections;
 pub mod column_defaults;
 pub mod composite_alter;
+pub mod composite_reconcile;
 pub mod composite_types;
 pub mod composite_unique;
 pub mod consistency;

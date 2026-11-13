@@ -64,6 +64,9 @@ metadata_heap!(crate::catalog::cardinality::CollectionCardinalityStats {
 metadata_heap!(crate::catalog::collections::CollectionMeta {
     name,
     storage_id,
+    row_type_object_id,
+    row_array_object_id,
+    row_type_revision,
     has_ever_had_indexes,
     description,
     storage_mode,

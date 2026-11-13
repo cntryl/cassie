@@ -543,17 +543,34 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   over scalar and array base types; `ALTER DOMAIN` SET/DROP DEFAULT, SET/DROP NOT NULL,
   ADD CONSTRAINT CHECK [NOT VALID], DROP CONSTRAINT [IF EXISTS], VALIDATE CONSTRAINT,
   RENAME TO and RENAME CONSTRAINT; `DROP DOMAIN [IF EXISTS] [RESTRICT]` with `2BP01`
-  detail for dependent table columns. Domain DDL shares the `CREATE TYPE` statement,
-  transaction and catalog-publication paths, so it is transactional.
+  detail for dependent table columns and for views whose definition casts to the
+  domain. `DROP DOMAIN ... CASCADE` (and `DROP SCHEMA ... CASCADE` of the domain's
+  schema) removes those views and the views that select from them; `CASCADE` over a
+  dependent table column stays `0A000`. `RENAME TO` and `SET SCHEMA` rewrite the cast
+  targets (`x::d`, `CAST(x AS d)`) in dependent view definitions to the new
+  schema-qualified name, so the views keep working. View dependencies are found by
+  parsing the stored view text; materialized views are not tracked. Domain DDL shares
+  the `CREATE TYPE` statement, transaction and catalog-publication paths, so it is
+  transactional.
 - Domain-typed table columns and `x::d` casts. Enforcement runs on INSERT, UPDATE,
   COPY and casts: `23514` for a failed CHECK (constraint name in the message) and
   `23502` for NULL against NOT NULL. CHECK is satisfied by TRUE or NULL. A domain
   DEFAULT applies only when the column has no default of its own.
 - `VALUE` in a CHECK is the checked value. CHECK bodies are stored as SQL text and
   evaluated by the scalar evaluator; unnamed checks are named `{domain}_check`,
-  `{domain}_check1` and so on.
+  `{domain}_check1` and so on. Constraint names are case-sensitive once quoted
+  (`"A"` and `a` are distinct). A CHECK is rejected when it is declared if it is
+  evidently not boolean (bare `VALUE` of a non-boolean base, arithmetic, concatenation,
+  a numeric literal or a cast to a non-boolean type: `42804`), calls an unknown function
+  (`42883`) or an aggregate (`42803`). Other type errors still surface when a value is
+  checked. Domain names themselves follow the catalog-wide rule shared with tables and
+  other types: they compare case-insensitively even when quoted.
 - `ALTER DOMAIN ADD CHECK` and `SET NOT NULL` validate existing rows and publish
-  nothing on failure, and validation sees the session's own staged rows. `NOT VALID`
+  nothing on failure, and validation sees the session's own staged rows. While a
+  column typed as a table's row type (directly, nested or as an array element) embeds
+  the domain, `ADD CONSTRAINT` without `NOT VALID`, `VALIDATE CONSTRAINT` and
+  `SET NOT NULL` are `0A000` (`cannot alter type "d" because column "t.c" uses it`),
+  as in PostgreSQL. `NOT VALID`
   checks are enforced on INSERT/COPY and on every newly assigned value of an UPDATE or
   `ON CONFLICT DO UPDATE`; only an unchanged legacy value is exempt until validated.
 - `ALTER TABLE ADD COLUMN` of a domain column enforces the domain NOT NULL and CHECK
@@ -604,7 +621,16 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   `gen_random_uuid()` to a populated table is `0A000` (a single value would not be
   distinct per row).
 - Flattening: operators and functions resolve through the base type, and
-  RowDescription, `atttypmod` and parameter types report the base OID. A table column
+  RowDescription, `atttypmod` and parameter types report the base OID. A cast to a
+  domain parses as `((x::base)::d)::base`: the inner cast types literals and parameters
+  as the base type, the middle cast enforces the domain and the outer cast presents the
+  base type, so `SELECT x::d`, `RETURNING x::d`, view columns, `PREPARE` bodies and
+  aggregates, `COALESCE`, `GREATEST`, `||`, boolean and JSON operators over a domain
+  cast all behave as over the base type. `CREATE TABLE AS` over a single table keeps
+  the domain of each column selected by name or through `*`; computed outputs get the
+  base type. A numeric literal `DEFAULT` of a `numeric` domain keeps its written scale.
+  `format_type(oid, typmod)` prints the name of a domain, enum, composite type or table
+  row type (schema-qualified outside the search path) instead of the OID. A table column
   keeps its domain identity separately (`FieldMeta.domain`), so `ALTER DOMAIN` never
   rewrites rows; enforcement looks the live descriptor up by OID.
 - Catalog: `pg_type` rows with `typtype = 'd'`, `typbasetype`, `typtypmod`,

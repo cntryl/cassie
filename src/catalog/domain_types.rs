@@ -305,6 +305,53 @@ impl Catalog {
         columns
     }
 
+    /// Table columns whose stored value embeds the domain `oid` inside a row
+    /// type, as `(collection, column)`: a column typed as a table's row type
+    /// (directly, nested, or as an array element) when that table has a column
+    /// of the domain. `ALTER DOMAIN` cannot validate values stored this way.
+    #[must_use]
+    pub fn domain_container_columns(&self, oid: u32) -> Vec<(String, String)> {
+        let schemas = self.schemas.read().values().cloned().collect::<Vec<_>>();
+        let mut columns = Vec::new();
+        for schema in &schemas {
+            for field in &schema.fields {
+                if self.type_embeds_domain(&field.data_type, oid, &mut Vec::new()) {
+                    columns.push((schema.collection.clone(), field.name.clone()));
+                }
+            }
+        }
+        columns.sort();
+        columns
+    }
+
+    /// Whether a value of `data_type` holds a value of the domain `oid` in a
+    /// row-type member. `visited` breaks cycles between row types.
+    fn type_embeds_domain(&self, data_type: &DataType, oid: u32, visited: &mut Vec<u32>) -> bool {
+        match data_type {
+            DataType::Array(element) => self.type_embeds_domain(element, oid, visited),
+            DataType::Composite(embedded) => {
+                if visited.contains(&embedded.oid) {
+                    return false;
+                }
+                visited.push(embedded.oid);
+                // A column embeds a flattened copy of a table's row type; the
+                // live row type still names the domains of its columns.
+                let live = self
+                    .relation_row_type_by_oid(embedded.oid)
+                    .map(|(_, live, _)| live);
+                let fields = live.as_ref().map_or(&embedded.fields, |live| &live.fields);
+                fields.iter().any(|member| {
+                    member
+                        .data_type
+                        .domain()
+                        .is_some_and(|domain| domain.oid == oid)
+                        || self.type_embeds_domain(&member.data_type, oid, visited)
+                })
+            }
+            _ => false,
+        }
+    }
+
     /// Removes every domain of `database` from the catalog (database drop).
     pub fn unregister_domain_types_for_database(&self, database: &str) {
         self.domain_types

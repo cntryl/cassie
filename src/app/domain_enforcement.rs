@@ -190,6 +190,70 @@ impl Cassie {
         Ok(())
     }
 
+    /// The domain each `CREATE TABLE AS` output column inherits: a query over
+    /// one table keeps the domain of every column it selects by name (or
+    /// through `*`), as PostgreSQL keeps the column's declared type. Computed
+    /// outputs and other query shapes yield their base type.
+    pub(crate) fn ctas_output_domains(
+        &self,
+        query: &crate::sql::ast::QueryStatement,
+        output_names: &[String],
+    ) -> Vec<Option<DomainRef>> {
+        use crate::sql::ast::{QuerySource, QueryStatement, SelectItem};
+        use crate::sql::ColumnIdentifierPath;
+
+        let none = || vec![None; output_names.len()];
+        let QueryStatement::Select(select) = query else {
+            return none();
+        };
+        let table = match &select.source {
+            QuerySource::Collection(table) => table,
+            QuerySource::Aliased {
+                source,
+                column_aliases,
+                ..
+            } if column_aliases.is_empty() => match &**source {
+                QuerySource::Collection(table) => table,
+                _ => return none(),
+            },
+            _ => return none(),
+        };
+        if select.set.is_some() || !select.group_by.is_empty() {
+            return none();
+        }
+        let Some(schema) = self.catalog.get_schema(table.as_str()) else {
+            return none();
+        };
+        let domain_of = |column: &str| {
+            schema
+                .fields
+                .iter()
+                .find(|field| {
+                    ColumnIdentifierPath::from_field_name(&field.name).lookup_key() == column
+                })
+                .and_then(|field| self.live_domain(field))
+        };
+        if matches!(select.projection.as_slice(), [SelectItem::Wildcard]) {
+            return output_names
+                .iter()
+                .map(|name| domain_of(&ColumnIdentifierPath::from_field_name(name).lookup_key()))
+                .collect();
+        }
+        if select.projection.len() != output_names.len() {
+            return none();
+        }
+        select
+            .projection
+            .iter()
+            .map(|item| match item {
+                SelectItem::Column { name, .. } => ColumnIdentifierPath::parse(name)
+                    .ok()
+                    .and_then(|path| domain_of(&path.field_lookup_key())),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The default backfilled into existing rows when a column of type
     /// `data_type` is added to `table`, after checking it against the domain.
     ///

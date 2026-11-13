@@ -405,6 +405,17 @@ impl<'a> JoinCursor<'a> {
                 let Some(left) = self.left.next(env, ctes)? else {
                     return Ok(None);
                 };
+                if matches!(self.kind, JoinKind::Inner)
+                    && !super::source_join::left_terms_pass(
+                        env,
+                        (&self.source, &*ctes),
+                        &left,
+                        &self.template,
+                        on,
+                    )?
+                {
+                    continue;
+                }
                 self.right = Some(Cursor::open(env, right_source, ctes, Some(&left), true)?);
                 self.current = Some(left);
                 self.matched = false;

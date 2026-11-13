@@ -40,6 +40,9 @@ fn validate_graph_table_function(
         })?;
         return Ok(());
     }
+    if let Some(source) = crate::sql::table_sources::json_element_source(&function.name) {
+        return validate_json_element_function(function, source, lateral_fields);
+    }
     if crate::sql::functions::is_server_file_helper(&function.name) {
         return Err(crate::sql::functions::reject_server_file_access());
     }
@@ -92,6 +95,29 @@ fn validate_graph_table_function(
     for arg in &function.args {
         validate_expression(arg, lateral_fields, &HashSet::new(), false)?;
     }
+    Ok(())
+}
+
+/// Exactly one document argument; family typing happens in `source_bindings`.
+fn validate_json_element_function(
+    function: &FunctionCall,
+    source: crate::sql::table_sources::JsonElementSource,
+    lateral_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let undefined = || {
+        CassieError::from(crate::app::DiagnosticError::new(
+            "42883",
+            format!("function {}(...) does not exist", source.function_name()),
+        ))
+    };
+    let [argument] = function.args.as_slice() else {
+        return Err(undefined());
+    };
+    if function.has_modifiers() {
+        return Err(undefined());
+    }
+    validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
+    // The json/jsonb family check needs column types and runs at the typed bind stage.
     Ok(())
 }
 
@@ -150,6 +176,9 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
             )
         })
         .unwrap_or_default();
+    }
+    if let Some(json) = crate::sql::table_sources::json_element_source(&function.name) {
+        return crate::sql::table_sources::json_element_columns(json, *with_ordinality);
     }
     if name.eq_ignore_ascii_case("jsonb_path_query")
         || name.eq_ignore_ascii_case("jsonb_path_query_tz")

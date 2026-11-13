@@ -7,6 +7,8 @@ mod jsonpath_table;
 #[cfg(test)]
 #[path = "source_pull_tests.rs"]
 mod pull_tests;
+#[path = "source_json_elements.rs"]
+mod source_json_elements;
 #[path = "source_options.rs"]
 mod source_options;
 #[path = "source_pull.rs"]

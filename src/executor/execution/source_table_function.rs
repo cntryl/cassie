@@ -42,6 +42,16 @@ pub(super) fn execute(
             ctes,
         );
     }
+    if crate::sql::table_sources::json_element_source(&function.name).is_some() {
+        return super::source_json_elements::execute(
+            env,
+            function,
+            *with_ordinality,
+            outer_row,
+            row_budget,
+            ctes,
+        );
+    }
     if crate::sql::functions::is_options_table(&function.name) {
         let batches = source_options::execute(env, &function.args[0], outer_row)?;
         return finalize_source_batches(env, batches, Vec::new(), qualify, name);

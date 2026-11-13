@@ -103,7 +103,7 @@ fn subobject_argument(value: &Value) -> Result<Option<i32>, QueryError> {
     match value {
         Value::Null => Ok(None),
         Value::Int64(number) => i32::try_from(*number).map(Some).map_err(|_| {
-            QueryError::Cassie(DiagnosticError::new("22003", "integer out of range".into()).into())
+            QueryError::Cassie(DiagnosticError::new("22003", "integer out of range").into())
         }),
         _ => Err(wrong_argument_type()),
     }

@@ -92,7 +92,8 @@ impl Cassie {
     ) -> Option<serde_json::Value> {
         let schema = self.catalog.get_schema(collection)?;
         let field = schema.fields.iter().find(|entry| entry.name == field)?;
-        default_json(&self.live_domain(field)?)
+        let domain = self.live_domain(field)?;
+        default_json(&domain)
     }
 
     /// Enforces NOT NULL and CHECK constraints of every domain column of the

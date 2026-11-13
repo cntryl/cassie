@@ -13,7 +13,7 @@ use super::{strip_parentheses, SqlError, Value};
 /// value is coerced to the column type when the DDL is bound. Anything else,
 /// such as a column reference or an expression, is an error rather than
 /// being reinterpreted as text.
-pub(super) fn parse_constant_literal(raw: &str) -> Result<Value, SqlError> {
+pub(in crate::sql::parser) fn parse_constant_literal(raw: &str) -> Result<Value, SqlError> {
     let raw = strip_literal_cast(raw.trim());
     if let Some(inner) = strip_parentheses(raw) {
         return parse_constant_literal(inner);

@@ -244,25 +244,10 @@ pub(crate) fn parameter_data_type_for_oid_in_database(
     {
         return Some(domain.base);
     }
-    if let Some(enum_type) = enum_parameter_type(oid, catalog, database) {
+    if let Some(enum_type) = catalog.enum_parameter_type(oid, database) {
         return Some(enum_type);
     }
     parameter_data_type_for_oid(oid)
-}
-
-/// The enum type, or enum array type, a parameter OID names in `database`.
-fn enum_parameter_type(oid: i32, catalog: &Catalog, database: &str) -> Option<DataType> {
-    let oid = u32::try_from(oid).ok()?;
-    let in_database = |metadata: &crate::catalog::EnumTypeMeta| {
-        metadata.database.eq_ignore_ascii_case(database)
-    };
-    if let Some(metadata) = catalog.get_enum_type_by_oid(oid).filter(in_database) {
-        return Some(DataType::Enum(metadata.descriptor()));
-    }
-    catalog
-        .get_enum_type_by_array_oid(oid)
-        .filter(in_database)
-        .map(|metadata| DataType::Array(Box::new(DataType::Enum(metadata.descriptor()))))
 }
 
 /// Replace the active database's vector wire OID with a private marker for

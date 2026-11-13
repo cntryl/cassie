@@ -182,6 +182,20 @@ impl Catalog {
             .collect()
     }
 
+    /// The enum type, or enum array type, a parameter OID names in `database`.
+    #[must_use]
+    pub fn enum_parameter_type(&self, oid: i32, database: &str) -> Option<DataType> {
+        let oid = u32::try_from(oid).ok()?;
+        let in_database =
+            |metadata: &EnumTypeMeta| metadata.database.eq_ignore_ascii_case(database);
+        if let Some(metadata) = self.get_enum_type_by_oid(oid).filter(in_database) {
+            return Some(DataType::Enum(metadata.descriptor()));
+        }
+        self.get_enum_type_by_array_oid(oid)
+            .filter(in_database)
+            .map(|metadata| DataType::Array(Box::new(DataType::Enum(metadata.descriptor()))))
+    }
+
     /// Resolves a type name the way a relation name resolves: an unqualified
     /// name searches `search_order`, a qualified name is exact.
     #[must_use]

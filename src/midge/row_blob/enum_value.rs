@@ -96,12 +96,7 @@ fn check_array(descriptor: &EnumType, value: &serde_json::Value) -> Result<(), C
         match element {
             Value::Null => {}
             Value::Json(document) => check_member(descriptor, document)?,
-            _ => {
-                return Err(corrupt(
-                    descriptor,
-                    "array element is not an enum document",
-                ))
-            }
+            _ => return Err(corrupt(descriptor, "array element is not an enum document")),
         }
     }
     Ok(())

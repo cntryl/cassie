@@ -77,7 +77,7 @@ fn should_use_the_outer_null_marker_for_an_enum_null() {
     let (tag, payload) = encode_value(&data_type, &serde_json::Value::Null).expect("encode NULL");
 
     // Assert
-    assert_eq!(tag, TYPE_NULL);
+    assert_eq!(tag, super::super::TYPE_NULL);
     assert_eq!(payload, Vec::<u8>::new());
 }
 

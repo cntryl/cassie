@@ -27,6 +27,7 @@ pub(super) fn is_transaction_map(name: &str) -> bool {
             | "extensions"
             | "composite_types"
             | "domain_types"
+            | "enum_types"
             | "sequences"
             | "rollups"
             | "retention_policies"

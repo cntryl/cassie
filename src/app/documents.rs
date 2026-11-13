@@ -498,6 +498,8 @@ impl Cassie {
             crate::types::DataType::Domain(descriptor) => {
                 Self::validate_value_against_data_type(field, &descriptor.base, value)
             }
+            crate::types::DataType::Enum(e) if e.has_storage_member(value) => Ok(()),
+            crate::types::DataType::Enum(_) => Self::invalid_vector(field, "an enum member"),
         }
     }
 

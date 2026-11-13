@@ -223,7 +223,7 @@ impl Catalog {
     ///
     /// Returns the diagnostic when a domain owns `name`.
     pub fn reject_domain_relation_name(&self, name: &str) -> Result<(), crate::app::CassieError> {
-        if self.domain_owns_relation_name(name) {
+        if self.domain_owns_relation_name(name) || self.enum_owns_relation_name(name) {
             return Err(crate::app::DiagnosticError::new(
                 "42710",
                 format!("type \"{}\" already exists", local_name(name)),

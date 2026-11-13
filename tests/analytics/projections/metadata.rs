@@ -14,6 +14,7 @@ fn expected_columns() -> Vec<ColumnMeta> {
             nullable: true,
             is_record: false,
             record_type: None,
+            enum_element_oid: None,
         },
         ColumnMeta {
             name: "note".into(),
@@ -25,6 +26,7 @@ fn expected_columns() -> Vec<ColumnMeta> {
             nullable: true,
             is_record: false,
             record_type: None,
+            enum_element_oid: None,
         },
     ]
 }

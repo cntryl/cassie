@@ -29,6 +29,8 @@ mod catalog_sizes;
 mod datum_size;
 #[path = "encoding.rs"]
 mod encoding;
+#[path = "enum_functions.rs"]
+mod enum_functions;
 #[path = "math.rs"]
 pub(super) mod math;
 #[path = "math_functions.rs"]

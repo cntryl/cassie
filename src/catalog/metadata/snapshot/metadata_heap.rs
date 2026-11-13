@@ -712,3 +712,21 @@ metadata_heap!(crate::catalog::domain_types::DomainTypeMeta {
     default,
     checks,
 });
+
+metadata_heap!(crate::types::EnumMember {
+    member_id,
+    label,
+    sort_order,
+    uncommitted,
+});
+
+metadata_heap!(crate::catalog::enum_types::EnumTypeMeta {
+    format_version,
+    database,
+    name,
+    object_id,
+    array_object_id,
+    owner_oid,
+    revision,
+    members,
+});

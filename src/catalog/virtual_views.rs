@@ -394,6 +394,10 @@ fn pg_catalog_core_rows(
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),
         "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog, current_database)),
+        "pg_catalog.pg_enum" => Some(virtual_views_pg::enum_catalogs::enum_rows(
+            catalog,
+            current_database,
+        )),
         "pg_catalog.pg_proc" => Some(virtual_views_procedures::rows(catalog, current_database)),
         _ => virtual_views_empty::rows(name)
             .or_else(|| virtual_views_relations::rows(catalog, name, current_database)),
@@ -633,6 +637,7 @@ fn information_schema_column_row(
     constraint: Option<&FieldConstraint>,
     current_database: Option<&str>,
 ) -> VirtualRow {
+    let enum_udt = virtual_views_pg::enum_catalogs::column_udt(data_type);
     vec![
         string("table_schema", relation_schema_name(relation)),
         string("table_name", local_name(relation)),
@@ -663,8 +668,9 @@ fn information_schema_column_row(
         ),
         string(
             "udt_schema",
-            match data_type {
-                DataType::Composite(descriptor) if !descriptor.is_anonymous() => {
+            match (data_type, enum_udt) {
+                (_, Some((schema, _))) => schema,
+                (DataType::Composite(descriptor), None) if !descriptor.is_anonymous() => {
                     relation_schema_name(&descriptor.qualified_name)
                 }
                 _ => crate::catalog::PG_CATALOG_SCHEMA.to_string(),
@@ -713,6 +719,9 @@ fn is_not_nullable(constraint: Option<&FieldConstraint>) -> bool {
 fn udt_name(data_type: &DataType) -> String {
     use crate::types::builtin::{type_metadata, TypeMetadata};
 
+    if let Some((_, name)) = virtual_views_pg::enum_catalogs::column_udt(data_type) {
+        return name;
+    }
     match type_metadata(data_type) {
         TypeMetadata::Scalar(metadata) => metadata.name.to_owned(),
         TypeMetadata::Vector => "vector".to_owned(),
@@ -721,6 +730,7 @@ fn udt_name(data_type: &DataType) -> String {
             other => format!("_{}", udt_name(other)),
         },
         TypeMetadata::Composite(descriptor) => descriptor.name.clone(),
+        TypeMetadata::Enum(descriptor) => descriptor.name.clone(),
     }
 }
 
@@ -846,8 +856,11 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Json => "json".to_string(),
         DataType::Jsonb => "jsonb".to_string(),
         DataType::JsonPath => "jsonpath".to_string(),
+        DataType::Array(inner) if matches!(inner.as_ref(), DataType::Enum(_)) => {
+            "ARRAY".to_string()
+        }
         DataType::Array(inner) => format!("{}[]", inner.type_name()),
-        DataType::Composite(_) => "USER-DEFINED".to_string(),
+        DataType::Composite(_) | DataType::Enum(_) => "USER-DEFINED".to_string(),
         DataType::Domain(descriptor) => data_type_name(&descriptor.base),
         DataType::ObjectId(kind) => kind.name().to_string(),
         DataType::Extended(kind) => kind.name().to_string(),

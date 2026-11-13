@@ -7,6 +7,7 @@ use uuid::Uuid;
 mod composite;
 mod domain;
 mod encoding;
+mod enum_value;
 
 use self::encoding::encode_value;
 
@@ -31,6 +32,8 @@ const TYPE_EXTENDED: u8 = 0x0E;
 const TYPE_COMPOSITE: u8 = 0x0F;
 /// A named domain value wrapping one framed base value.
 const TYPE_DOMAIN: u8 = 0x10;
+/// A named enum value: version, type OID and immutable member id.
+const TYPE_ENUM: u8 = 0x11;
 
 pub(crate) fn encode_compact_value(
     data_type: &DataType,
@@ -542,6 +545,7 @@ impl<'a> RowDirectory<'a> {
         if let DataType::Composite(descriptor) = &field.data_type {
             composite::check_stored(descriptor, &decoded)?;
         }
+        enum_value::check_column(&field.data_type, &decoded)?;
         Ok(Some(decoded))
     }
 }
@@ -570,6 +574,7 @@ fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Valu
             | TYPE_EXTENDED
             | TYPE_COMPOSITE
             | TYPE_DOMAIN
+            | TYPE_ENUM
     ) {
         write_varint(u64::try_from(bytes.len()).unwrap_or(u64::MAX), &mut framed);
         framed.extend_from_slice(bytes);
@@ -616,6 +621,7 @@ fn expected_type_tag(data_type: &DataType) -> u8 {
         DataType::Extended(_) => TYPE_EXTENDED,
         DataType::Composite(_) => TYPE_COMPOSITE,
         DataType::Domain(_) => TYPE_DOMAIN,
+        DataType::Enum(_) => TYPE_ENUM,
     }
 }
 
@@ -740,6 +746,7 @@ fn decode_value(
         TYPE_ARRAY => decode_array(cursor, controls),
         TYPE_COMPOSITE => composite::decode_composite(cursor, controls),
         TYPE_DOMAIN => domain::decode_domain(cursor, controls),
+        TYPE_ENUM => enum_value::decode_enum(cursor),
         TYPE_EXTENDED => {
             let bytes = cursor.read_len_prefixed()?;
             let (oid, payload) = bytes
@@ -899,7 +906,7 @@ fn value_from_decoded_tag(type_tag: u8, value: serde_json::Value) -> Result<Valu
             })
             .map(crate::types::Vector::new)
             .map(Value::Vector),
-        TYPE_JSON => Some(Value::Json(value)),
+        TYPE_JSON | TYPE_ENUM => Some(Value::Json(value)),
         _ => None,
     }
     .ok_or_else(|| CassieError::Parse(format!("invalid array element for type tag {type_tag}")))

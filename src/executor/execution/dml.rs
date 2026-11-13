@@ -108,7 +108,10 @@ pub(super) fn value_to_json_for_field(
         return vector_literal_to_json(field, text, *dimensions);
     }
 
-    if matches!(data_type, DataType::Composite(_)) && !matches!(value, Value::Null) {
+    if (matches!(data_type, DataType::Composite(_))
+        || crate::types::enum_type::is_enum_family(data_type))
+        && !matches!(value, Value::Null)
+    {
         let assigned = crate::executor::filter::cast_value(value, data_type)?;
         return value_to_json(&assigned);
     }
@@ -244,7 +247,10 @@ fn inserted_row_to_batch_row(
                 && crate::types::json::requires_document_carrier(value)
             {
                 Value::Json(value.clone())
-            } else if matches!(field.data_type, DataType::Array(_) | DataType::Composite(_)) {
+            } else if matches!(
+                field.data_type,
+                DataType::Array(_) | DataType::Composite(_) | DataType::Enum(_)
+            ) {
                 crate::executor::scan::json_to_typed_value(value, &field.data_type)
             } else if let DataType::Extended(kind) = &field.data_type {
                 kind.from_json(value)

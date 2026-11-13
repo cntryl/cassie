@@ -703,3 +703,115 @@ fn should_infer_bare_virtual_catalog_columns_without_an_owned_source_map() {
     assert!(matches!(canceled, Err(ParameterAdmissionError::Canceled)));
     assert_eq!(canceled_controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_type_parameters_compared_with_enum_columns_by_the_enum_oid() {
+    // Arrange
+    let catalog = Catalog::new();
+    let enum_type = crate::catalog::EnumTypeMeta {
+        format_version: crate::catalog::ENUM_TYPE_FORMAT_VERSION,
+        database: "postgres".to_owned(),
+        name: "postgres.public.state_code".to_owned(),
+        object_id: 1,
+        array_object_id: 2,
+        owner_oid: 10,
+        revision: 1,
+        members: vec![crate::types::EnumMember {
+            member_id: 3,
+            label: "open".to_owned(),
+            sort_order: 1.0,
+            uncommitted: false,
+        }],
+    };
+    let descriptor = enum_type.descriptor();
+    let (type_oid, array_oid) = (enum_type.type_oid(), enum_type.array_oid());
+    catalog.register_enum_type(enum_type);
+    catalog.register_collection(
+        "postgres.public.fold_scope_enum",
+        vec![
+            (
+                "st".to_string(),
+                crate::types::DataType::Enum(descriptor.clone()),
+            ),
+            (
+                "history".to_string(),
+                crate::types::DataType::Array(Box::new(crate::types::DataType::Enum(descriptor))),
+            ),
+        ],
+    );
+    let controls = controls(1_024 * 1_024);
+    let admitted = |sql: &str| {
+        let statement = parse_statement(sql).expect("enum comparison SQL");
+        checked_parse_parameter_types(&statement, &[], &catalog, &controls)
+            .map(|admitted| admitted.types().to_vec())
+            .map_err(|_| "parameter admission rejected the comparison")
+    };
+
+    // Act
+    let scalar = admitted("SELECT 1 FROM fold_scope_enum WHERE st = $1");
+    let array = admitted("SELECT 1 FROM fold_scope_enum WHERE history = $1");
+
+    // Assert
+    assert_eq!(scalar, Ok(vec![i32::try_from(type_oid).expect("oid")]));
+    assert_eq!(array, Ok(vec![i32::try_from(array_oid).expect("oid")]));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+fn admitted_types(sql: &str) -> Result<Vec<i32>, &'static str> {
+    let catalog = Catalog::new();
+    let controls = controls(1_024 * 1_024);
+    let statement = parse_statement(sql).expect("catalog introspection SQL");
+    checked_parse_parameter_types(&statement, &[], &catalog, &controls)
+        .map(|admitted| admitted.types().to_vec())
+        .map_err(|_| "parameter admission rejected the catalog query")
+}
+
+#[test]
+fn should_type_parameters_compared_with_pg_catalog_view_columns() {
+    // Arrange
+    let cases = [
+        ("SELECT typname FROM pg_catalog.pg_type WHERE oid = $1", 26),
+        ("SELECT relname FROM pg_catalog.pg_class WHERE oid = $1", 26),
+        (
+            "SELECT enumlabel FROM pg_catalog.pg_enum WHERE enumtypid = $1 ORDER BY enumsortorder",
+            26,
+        ),
+        (
+            "SELECT oid FROM pg_catalog.pg_enum WHERE enumlabel = $1",
+            25,
+        ),
+        ("SELECT typname FROM pg_type WHERE oid = $1", 26),
+    ];
+
+    // Act
+    let outcomes = cases.map(|(sql, _)| admitted_types(sql));
+
+    // Assert
+    for ((sql, expected), outcome) in cases.iter().zip(outcomes) {
+        assert_eq!(outcome, Ok(vec![*expected]), "{sql}");
+    }
+}
+
+#[test]
+fn should_type_tokio_postgres_type_introspection_parameters() {
+    // Arrange
+    let typeinfo = "SELECT t.typname, t.typtype, t.typelem, r.rngsubtype, t.typbasetype, \
+                    n.nspname, t.typrelid FROM pg_catalog.pg_type t \
+                    LEFT OUTER JOIN pg_catalog.pg_range r ON r.rngtypid = t.oid \
+                    INNER JOIN pg_catalog.pg_namespace n ON t.typnamespace = n.oid \
+                    WHERE t.oid = $1";
+    let typeinfo_fallback = "SELECT t.typname, t.typtype, t.typelem, NULL::OID, t.typbasetype, \
+                             n.nspname, t.typrelid FROM pg_catalog.pg_type t \
+                             INNER JOIN pg_catalog.pg_namespace n ON t.typnamespace = n.oid \
+                             WHERE t.oid = $1";
+    let composite = "SELECT attname, atttypid FROM pg_catalog.pg_attribute \
+                     WHERE attrelid = $1 AND NOT attisdropped AND attnum > 0 ORDER BY attnum";
+
+    // Act
+    let outcomes = [typeinfo, typeinfo_fallback, composite].map(admitted_types);
+
+    // Assert
+    assert_eq!(outcomes[0], Ok(vec![26]));
+    assert_eq!(outcomes[1], Ok(vec![26]));
+    assert!(outcomes[2].is_ok());
+}

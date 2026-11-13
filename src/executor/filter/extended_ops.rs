@@ -2,6 +2,8 @@
 use super::{BinaryOp, QueryError, ScalarValue};
 use crate::app::CassieError;
 use crate::types::extended::{operations, TypeInputError, TypedOperator};
+use crate::types::typed::TypedValue;
+use crate::types::EnumValue;
 
 fn error(error: TypeInputError) -> QueryError {
     QueryError::Cassie(CassieError::TypeInput(error))
@@ -21,7 +23,21 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
         return None;
     }
     match (left, right) {
+        (
+            ScalarValue::Typed(TypedValue::Enum(left)),
+            ScalarValue::Typed(TypedValue::Enum(right)),
+        ) => {
+            // Two different enum types have no ordering.
+            (left.descriptor().oid == right.descriptor().oid)
+                .then(|| left.order_key().cmp(&right.order_key()))
+        }
         (ScalarValue::Typed(left), ScalarValue::Typed(right)) => operations::compare(left, right),
+        (ScalarValue::Typed(TypedValue::Enum(value)), ScalarValue::Str(text)) => {
+            // An untyped label meets the enum's input function.
+            EnumValue::parse_label(value.descriptor(), text)
+                .ok()
+                .map(|other| value.order_key().cmp(&other.order_key()))
+        }
         (ScalarValue::Typed(typed), ScalarValue::Str(text)) => typed
             .kind()
             .and_then(|kind| kind.parse_text(text).ok())
@@ -40,6 +56,11 @@ pub(super) fn binary(
     op: &BinaryOp,
     right: &ScalarValue,
 ) -> Option<Result<ScalarValue, QueryError>> {
+    if matches!(op, BinaryOp::Quantified { .. }) {
+        // `x op ANY|ALL (array)` unpacks the array first; each element then
+        // meets this module through the element comparison.
+        return None;
+    }
     let null = matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null);
     if !owned(left) && !owned(right) {
         return matches!(op, BinaryOp::Typed { .. }).then(|| {
@@ -78,6 +99,11 @@ fn comparison(
     right: &ScalarValue,
     null: bool,
 ) -> Option<Result<ScalarValue, QueryError>> {
+    if !null {
+        if let Some(Err(error)) = enum_label_input(left, right) {
+            return Some(Err(error));
+        }
+    }
     if !null && record_against_text(left, right) {
         return Some(Err(QueryError::Cassie(CassieError::from(
             crate::app::DiagnosticError::new(
@@ -117,6 +143,25 @@ fn comparison(
     }
 }
 
+/// An enum compared with an untyped label: the label must be valid input for
+/// the enum (`22P02`/`55P04`), as PostgreSQL resolves it with `enum_in`.
+fn enum_label_input(left: &ScalarValue, right: &ScalarValue) -> Option<Result<(), QueryError>> {
+    let ((ScalarValue::Typed(TypedValue::Enum(value)), ScalarValue::Str(label))
+    | (ScalarValue::Str(label), ScalarValue::Typed(TypedValue::Enum(value)))) = (left, right)
+    else {
+        return None;
+    };
+    Some(
+        EnumValue::parse_label(value.descriptor(), label)
+            .map(|_| ())
+            .map_err(|error| {
+                QueryError::Cassie(CassieError::from(super::enum_cast::input_diagnostic(
+                    &error,
+                )))
+            }),
+    )
+}
+
 /// A record compared with an untyped string literal, which PostgreSQL cannot
 /// coerce to a record type.
 fn record_against_text(left: &ScalarValue, right: &ScalarValue) -> bool {
@@ -127,6 +172,7 @@ fn record_against_text(left: &ScalarValue, right: &ScalarValue) -> bool {
 
 fn type_label(value: &ScalarValue) -> String {
     match value {
+        ScalarValue::Typed(TypedValue::Enum(value)) => value.descriptor().name.clone(),
         ScalarValue::Typed(typed) => typed.as_record().map_or_else(
             || {
                 typed

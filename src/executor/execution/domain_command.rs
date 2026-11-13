@@ -94,8 +94,9 @@ fn creation_target(
 /// A domain shares the type namespace with composite types and with the row
 /// types of tables and views. Sequence and index names do not collide with it
 /// (PostgreSQL accepts a domain named like a sequence or an index).
-fn type_name_taken(cassie: &Cassie, canonical: &str) -> bool {
+pub(super) fn type_name_taken(cassie: &Cassie, canonical: &str) -> bool {
     cassie.catalog.domain_type_exists(canonical)
+        || cassie.catalog.enum_type_exists(canonical)
         || cassie.catalog.composite_type_exists(canonical)
         || cassie.catalog.get_schema(canonical).is_some()
         || cassie.catalog.relation_exists(canonical)
@@ -128,12 +129,19 @@ fn validate_base(base: &DataType) -> Result<(), QueryError> {
     };
     match base {
         DataType::Composite(_) => unsupported("composite types"),
+        DataType::Enum(_) => unsupported("enum types"),
         DataType::Domain(_) => unsupported("domains"),
         DataType::JsonPath | DataType::Null => unsupported("pseudo-types"),
         DataType::Array(inner)
-            if matches!(**inner, DataType::Composite(_) | DataType::Domain(_)) =>
+            if matches!(
+                **inner,
+                DataType::Composite(_) | DataType::Domain(_) | DataType::Enum(_)
+            ) =>
         {
             unsupported("arrays of composite types or domains")
+        }
+        DataType::Array(inner) if matches!(**inner, DataType::Enum(_)) => {
+            unsupported("arrays of enum types")
         }
         _ => Ok(()),
     }

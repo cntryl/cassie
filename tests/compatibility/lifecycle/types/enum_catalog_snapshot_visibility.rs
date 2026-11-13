@@ -58,12 +58,18 @@ async fn observe_enum_catalog_snapshot_case(
         .query_one(&select, &[])
         .await
         .expect("read the enum output and catalog label before the rename");
-    writer
-        .batch_execute(&format!(
-            "BEGIN; ALTER TYPE {type_name} RENAME VALUE 'old' TO 'new'; COMMIT"
-        ))
-        .await
-        .expect("commit the label rename in the writer session");
+    // Cassie runs DDL only as a standalone Query, so the writer transaction is
+    // three Query messages instead of one multi-statement batch.
+    for statement in [
+        "BEGIN".to_owned(),
+        format!("ALTER TYPE {type_name} RENAME VALUE 'old' TO 'new'"),
+        "COMMIT".to_owned(),
+    ] {
+        writer
+            .batch_execute(&statement)
+            .await
+            .expect("commit the label rename in the writer session");
+    }
     let after = reader
         .query_one(&select, &[])
         .await
@@ -105,4 +111,68 @@ async fn observe_enum_catalog_snapshot_case(
         after: after_values,
         output_type_oids,
     }
+}
+
+#[test]
+fn should_resolve_enum_output_against_catalog_snapshot_visibility() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("enum_catalog_snapshot_visibility").await;
+        let (reader, reader_connection) = server.connect().await;
+        let (writer, writer_connection) = server.connect().await;
+
+        let cases = [
+            ("read_committed", "READ COMMITTED", "new"),
+            ("repeatable_read", "REPEATABLE READ", "old"),
+            // SERIALIZABLE is rejected with 0A000 by Cassie's transaction contract.
+        ];
+        let mut observed = Vec::with_capacity(cases.len());
+
+        // Act
+        for (suffix, isolation, expected_catalog_label) in cases {
+            observed.push(
+                observe_enum_catalog_snapshot_case(
+                    &reader,
+                    &writer,
+                    suffix,
+                    isolation,
+                    expected_catalog_label,
+                )
+                .await,
+            );
+        }
+
+        drop(reader);
+        drop(writer);
+        writer_connection.abort();
+        server.shutdown(reader_connection).await;
+        let _ = writer_connection.await;
+
+        // Assert
+        for observation in observed {
+            assert_eq!(
+                observation.before,
+                ("old".to_owned(), "old".to_owned(), observation.enum_oid),
+                "{}",
+                observation.suffix
+            );
+            assert_eq!(
+                observation.after,
+                (
+                    "new".to_owned(),
+                    observation.expected_catalog_label.to_owned(),
+                    observation.enum_oid
+                ),
+                "{}",
+                observation.suffix
+            );
+            assert_eq!(
+                observation.output_type_oids,
+                [25, 25, 20],
+                "{}",
+                observation.suffix
+            );
+        }
+    });
 }

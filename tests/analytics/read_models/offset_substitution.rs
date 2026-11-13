@@ -71,6 +71,7 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
                         nullable: true,
                         is_record: false,
                         record_type: None,
+                        enum_element_oid: None,
                     },
                     ColumnMeta {
                         name: "note".into(),
@@ -82,6 +83,7 @@ fn should_decline_offset_projection_substitution_while_using_unrestricted_twin()
                         nullable: true,
                         is_record: false,
                         record_type: None,
+                        enum_element_oid: None,
                     },
                 ]
             );

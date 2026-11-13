@@ -18,6 +18,55 @@ pub struct ColumnMeta {
     /// send the rendered record text in binary `record_send` layout.
     #[serde(skip)]
     pub record_type: Option<crate::types::CompositeRef>,
+    /// The enum type's OID for a named enum column (`t`) or an enum array
+    /// column (`t[]`; then `type_oid` is the array OID). User-range type OIDs
+    /// have no builtin codec, so pgwire sends the label (`enum_send`) and
+    /// `array_send` over labels; see [`Self::enum_column`]. A bare OID keeps
+    /// the field inside the struct's existing padding.
+    #[serde(skip)]
+    pub enum_element_oid: Option<std::num::NonZeroU32>,
+}
+
+/// The wire identity of an enum or enum-array result column (#827).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EnumColumn {
+    /// `pg_type.oid` of the enum type itself (the array element type).
+    pub element_oid: u32,
+    pub is_array: bool,
+}
+
+impl EnumColumn {
+    /// The enum description of `data_type`, if it is an enum or enum array.
+    #[must_use]
+    pub fn of(data_type: &DataType) -> Option<Self> {
+        match data_type {
+            DataType::Enum(descriptor) => Some(Self {
+                element_oid: descriptor.oid,
+                is_array: false,
+            }),
+            DataType::Array(inner) => match inner.as_ref() {
+                DataType::Enum(descriptor) => Some(Self {
+                    element_oid: descriptor.oid,
+                    is_array: true,
+                }),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// The `pg_type.oid` the column reports in `RowDescription`.
+    #[must_use]
+    pub fn wire_oid(data_type: &DataType) -> Option<i64> {
+        match data_type {
+            DataType::Enum(descriptor) => Some(i64::from(descriptor.oid)),
+            DataType::Array(inner) => match inner.as_ref() {
+                DataType::Enum(descriptor) => Some(i64::from(descriptor.array_oid)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 impl ColumnMeta {
@@ -27,11 +76,20 @@ impl ColumnMeta {
 
     pub fn from_data_type(name: impl Into<String>, data_type: &DataType) -> Self {
         let data_type_name = data_type.type_name();
+        let enum_column = EnumColumn::of(data_type);
+        let enum_element_oid =
+            enum_column.and_then(|column| std::num::NonZeroU32::new(column.element_oid));
         Self {
             name: name.into(),
             data_type: data_type_name,
-            type_oid: data_type.type_oid(),
-            typlen: data_type.typlen(),
+            // An enum column reports the enum's own OID (its array OID for an
+            // array), never `text`.
+            type_oid: EnumColumn::wire_oid(data_type).unwrap_or_else(|| data_type.type_oid()),
+            typlen: match data_type {
+                DataType::Enum(_) => 4,
+                _ if enum_column.is_some() => -1,
+                _ => data_type.typlen(),
+            },
             atttypmod: data_type.atttypmod(),
             format_code: 0,
             nullable: true,
@@ -40,7 +98,26 @@ impl ColumnMeta {
                 DataType::Composite(descriptor) => Some(descriptor.clone()),
                 _ => None,
             },
+            enum_element_oid,
         }
+    }
+
+    /// The enum wire description of this column, if it is an enum or enum
+    /// array column: an array column reports the array OID, not the enum's.
+    #[must_use]
+    pub fn enum_column(&self) -> Option<EnumColumn> {
+        let element_oid = self.enum_element_oid?.get();
+        Some(EnumColumn {
+            element_oid,
+            is_array: self.type_oid != i64::from(element_oid),
+        })
+    }
+
+    /// Whether the column's user-range type OID has a pgwire codec of its own
+    /// (a record, enum or enum array) rather than a builtin one.
+    #[must_use]
+    pub fn user_codec(&self) -> bool {
+        self.is_record || self.enum_element_oid.is_some()
     }
 
     pub(crate) fn is_vector(&self) -> bool {
@@ -53,6 +130,10 @@ impl ColumnMeta {
 }
 
 pub use super::query_result::QueryResult;
+
+#[cfg(test)]
+#[path = "enum_column_tests.rs"]
+mod enum_column_tests;
 
 #[cfg(test)]
 #[path = "result_ownership_tests.rs"]

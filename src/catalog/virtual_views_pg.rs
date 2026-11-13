@@ -17,6 +17,8 @@ mod composite_catalogs;
 pub(super) mod descriptions;
 #[path = "virtual_views_pg/domain_catalogs.rs"]
 mod domain_catalogs;
+#[path = "virtual_views_pg/enum_catalogs.rs"]
+pub(super) mod enum_catalogs;
 #[path = "virtual_views_pg/index_definitions.rs"]
 mod index_definitions;
 #[path = "virtual_views_pg/type_identity.rs"]
@@ -440,6 +442,7 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
     }));
     rows.extend(composite_catalogs::type_rows(catalog, current_database));
     rows.extend(domain_catalogs::type_rows(catalog, current_database));
+    rows.extend(enum_catalogs::type_rows(catalog, current_database));
     rows.sort_by_key(row_sort_key);
     rows
 }

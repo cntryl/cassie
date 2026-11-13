@@ -43,6 +43,8 @@ pub enum DataType {
     Composite(super::CompositeRef),
     /// A named domain (#828); SQL resolution flattens it to its base type.
     Domain(super::DomainRef),
+    /// A named enum type (#827); values are stored by immutable member id.
+    Enum(super::EnumRef),
     ObjectId(super::ObjectIdKind),
     Extended(super::extended::ExtendedType),
 }
@@ -91,6 +93,7 @@ impl DataType {
             Self::Array(inner) => format!("{}[]", inner.type_name()),
             Self::Composite(descriptor) => descriptor.name.clone(),
             Self::Domain(descriptor) => descriptor.name.clone(),
+            Self::Enum(descriptor) => descriptor.name.clone(),
             Self::ObjectId(kind) => kind.name().to_string(),
             Self::Extended(kind) => kind.type_name(),
         }
@@ -103,11 +106,13 @@ impl DataType {
             TypeMetadata::Scalar(metadata) => i64::from(metadata.oid),
             TypeMetadata::Vector => 0,
             TypeMetadata::Composite(descriptor) => i64::from(descriptor.oid),
+            TypeMetadata::Enum(descriptor) => i64::from(descriptor.oid),
             TypeMetadata::Array(inner) => {
                 let element = match inner {
                     Self::Vector(_) => return 0,
                     // A composite array's OID is allocated with its element type.
                     Self::Composite(descriptor) => return i64::from(descriptor.array_oid),
+                    Self::Enum(descriptor) => return i64::from(descriptor.array_oid),
                     other => other.type_oid(),
                 };
                 u32::try_from(element)
@@ -122,6 +127,7 @@ impl DataType {
     pub fn typlen(&self) -> i16 {
         match type_metadata(self) {
             TypeMetadata::Scalar(metadata) => metadata.typlen,
+            TypeMetadata::Enum(_) => 4,
             TypeMetadata::Vector | TypeMetadata::Array(_) | TypeMetadata::Composite(_) => -1,
         }
     }

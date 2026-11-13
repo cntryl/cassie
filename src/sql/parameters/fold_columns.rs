@@ -1,11 +1,28 @@
 //! Source-local OID lookup without adopting another namespace's leaf type.
 
 use super::expressions::oid;
-use super::Fold;
+use super::{Fold, Summary};
 use crate::sql::{ast, binder, ColumnIdentifierPath};
 use crate::types::DataType;
 
 impl Fold<'_, '_> {
+    /// A column operand's input identity. A named enum (or enum array) column
+    /// is a qualified comparison candidate like a primitive column, so a
+    /// compared parameter takes the enum's OID as PostgreSQL resolves it (#827).
+    pub(super) fn column_summary(&self, context: usize, name: &str) -> Summary {
+        let Some(column_oid) = self.column_oid(context, name) else {
+            return Summary::unqualified();
+        };
+        let mut summary = Summary::known(column_oid);
+        if !summary.qualified {
+            summary.qualified = u32::try_from(column_oid).is_ok_and(|type_oid| {
+                self.catalog.get_enum_type_by_oid(type_oid).is_some()
+                    || self.catalog.get_enum_type_by_array_oid(type_oid).is_some()
+            });
+        }
+        summary
+    }
+
     pub(super) fn column_oid(&self, context: usize, name: &str) -> Option<i32> {
         // Identifier projections and canonical qualifier variants remain transient
         // metadata-input work. Retain no parsed path, schema or namespace directory.

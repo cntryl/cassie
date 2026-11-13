@@ -42,6 +42,7 @@ pub(in crate::app) fn prepare_bound_parameters(
         &cassie.catalog,
         database,
     );
+    crate::app::enum_parameters::coerce_declared(&cassie.catalog, database, declared_oids, params)?;
     let effective = super::effective_parameter_type_oids(params, &inference_oids);
     let admitted = admit_parameter_types(
         cassie,

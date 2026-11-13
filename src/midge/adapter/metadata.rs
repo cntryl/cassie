@@ -10,6 +10,8 @@ use crate::catalog::name_matches;
 mod composite_types;
 #[path = "metadata/domain_types.rs"]
 mod domain_types;
+#[path = "metadata/enum_types.rs"]
+mod enum_types;
 #[path = "metadata/extensions.rs"]
 mod extensions;
 #[path = "metadata/index_lifecycle.rs"]

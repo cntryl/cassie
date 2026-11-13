@@ -190,11 +190,44 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
             Err("DEFAULT values for composite columns are pending under #828".to_string())
         }
         DataType::Domain(descriptor) => coerce_default_literal(&descriptor.base, value),
+        DataType::Enum(descriptor) => coerce_enum_default(descriptor, value),
         DataType::Null
         | DataType::Bytea
         | DataType::JsonPath
         | DataType::Vector(_)
         | DataType::Array(_) => Ok(value),
+    }
+}
+
+/// An enum column default is stored as the member's storage form, so a later
+/// `RENAME VALUE` keeps the default pointing at the same member. A value that
+/// already is a storage form of a member of `descriptor` is kept.
+fn coerce_enum_default(descriptor: &crate::types::EnumRef, value: Value) -> Result<Value, String> {
+    match value {
+        Value::String(text) => {
+            match crate::executor::filter::enum_cast::cast_text_to_enum(descriptor, &text) {
+                Ok(crate::types::Value::Typed(crate::types::typed::TypedValue::Enum(member))) => {
+                    Ok(member.to_storage_json())
+                }
+                Ok(_) => Err(format!(
+                    "invalid input value for enum {}: \"{text}\"",
+                    descriptor.name
+                )),
+                Err(error) => Err(error.to_string()),
+            }
+        }
+        other => {
+            let known = crate::types::EnumValue::storage_member_id(&other)
+                .is_some_and(|member_id| descriptor.member(member_id).is_some());
+            if known {
+                Ok(other)
+            } else {
+                Err(format!(
+                    "invalid input value for enum {}: \"{other}\"",
+                    descriptor.name
+                ))
+            }
+        }
     }
 }
 
@@ -391,5 +424,48 @@ mod tests {
                 None
             ]
         );
+    }
+
+    fn mood() -> crate::types::EnumRef {
+        crate::types::EnumRef::new(crate::types::EnumType {
+            oid: 90_001,
+            array_oid: 90_002,
+            qualified_name: "db.public.mood".to_owned(),
+            name: "mood".to_owned(),
+            revision: 1,
+            members: vec![crate::types::EnumMember {
+                member_id: 7,
+                label: "sad".to_owned(),
+                sort_order: 1.0,
+                uncommitted: false,
+            }],
+        })
+    }
+
+    #[test]
+    fn should_keep_an_enum_default_that_is_already_a_member_storage_form() {
+        // Arrange
+        let stored = json!({ crate::types::enum_type::ENUM_STORAGE_KEY: 7 });
+
+        // Act
+        let coerced = coerce_default_literal(&DataType::Enum(mood()), stored.clone());
+
+        // Assert
+        assert_eq!(coerced, Ok(stored));
+    }
+
+    #[test]
+    fn should_reject_an_enum_default_that_is_not_a_member() {
+        // Arrange
+        let unknown = json!({ crate::types::enum_type::ENUM_STORAGE_KEY: 99 });
+        let number = json!(5);
+
+        // Act
+        let unknown_member = coerce_default_literal(&DataType::Enum(mood()), unknown);
+        let wrong_kind = coerce_default_literal(&DataType::Enum(mood()), number);
+
+        // Assert
+        assert!(unknown_member.is_err());
+        assert!(wrong_kind.is_err());
     }
 }

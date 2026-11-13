@@ -405,6 +405,11 @@ is left to an implementation convenience.
 
 ## Named enums — #827
 
+> Superseded where it differs by the
+> [selected v0.4.0 contract](type-contract.md#selected-v040-named-enum-contract-2026-11-13)
+> (CRB1 tag `0x11`, `DROP ... CASCADE` with dependents `0A000`, no enum composite
+> fields or domain bases). Implementation and tests are authored, pending the gate.
+
 1. CREATE/ALTER/DROP TYPE enum and type-qualified literals/casts.
 2. Declared label order, immutable member identity through rename and insertion;
    equality/order/hash and enum polymorphism follow PostgreSQL. Label length and

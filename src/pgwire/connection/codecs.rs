@@ -1,14 +1,13 @@
-#[path = "codecs/temporal_error.rs"]
-mod temporal_error;
-
-#[path = "codecs/timetz_error.rs"]
-mod timetz_error;
-
+#[path = "codecs/enum_value.rs"]
+pub(super) mod enum_value;
 #[path = "codecs/jsonb.rs"]
 mod jsonb;
-
 #[path = "codecs/record.rs"]
 pub(super) mod record;
+#[path = "codecs/temporal_error.rs"]
+mod temporal_error;
+#[path = "codecs/timetz_error.rs"]
+mod timetz_error;
 
 use crate::executor::ColumnMeta;
 use crate::types::builtin::{
@@ -321,7 +320,7 @@ pub(super) fn validate_result_formats(
     }
     for (index, column) in columns.iter().enumerate() {
         if result_format_for_index(result_formats, index) == 1 {
-            validate_binary_oid(column.type_oid, column.is_vector(), column.is_record)?;
+            validate_binary_oid(column.type_oid, column.is_vector(), column.user_codec())?;
         }
     }
     Ok(())

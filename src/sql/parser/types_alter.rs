@@ -1,4 +1,4 @@
-//! `ALTER TYPE` for composite types (#828).
+//! `ALTER TYPE` for composite (#828) and enum (#827) types.
 use super::expr::split_csv;
 use super::schema::{
     parse_column_identifier, parse_data_type, parse_identifier, split_first_token,
@@ -51,7 +51,7 @@ fn type_text(raw: &str) -> Result<crate::types::DataType, SqlError> {
             "COLLATE on composite type attributes is not supported".into(),
         ));
     }
-    parse_data_type(raw)
+    parse_data_type(raw).map_err(|error| super::enum_scope::enum_field_error(raw, error))
 }
 
 fn parse_rename(rest: &str) -> Result<TypeAlteration, SqlError> {
@@ -73,10 +73,9 @@ fn parse_rename(rest: &str) -> Result<TypeAlteration, SqlError> {
             to,
         });
     }
-    if strip_keyword(rest, "value").is_some() {
-        return Err(SqlError::unsupported(
-            "ALTER TYPE ... RENAME VALUE applies to enum types, which are not supported".into(),
-        ));
+    if let Some(after) = strip_keyword(rest, "value") {
+        let (from, to) = super::enum_labels::parse_rename_value(after)?;
+        return Ok(TypeAlteration::RenameValue { from, to });
     }
     Err(syntax("ALTER TYPE RENAME expects TO or ATTRIBUTE"))
 }
@@ -92,12 +91,15 @@ fn parse_add(rest: &str) -> Result<TypeAlteration, SqlError> {
             },
         });
     }
-    if strip_keyword(rest, "value").is_some() {
-        return Err(SqlError::unsupported(
-            "ALTER TYPE ... ADD VALUE applies to enum types, which are not supported".into(),
-        ));
+    if let Some(after) = strip_keyword(rest, "value") {
+        let added = super::enum_labels::parse_add_value(after)?;
+        return Ok(TypeAlteration::AddValue {
+            label: added.label,
+            if_not_exists: added.if_not_exists,
+            placement: added.placement,
+        });
     }
-    Err(syntax("ALTER TYPE ADD expects ATTRIBUTE"))
+    Err(syntax("ALTER TYPE ADD expects ATTRIBUTE or VALUE"))
 }
 
 fn parse_drop(rest: &str) -> Result<TypeAlteration, SqlError> {

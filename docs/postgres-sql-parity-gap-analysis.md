@@ -79,10 +79,10 @@ survey labels are narrower historical observations, not whole-family parity.
 | real / float4 | Absent | #793 |
 | TIMESTAMPTZ, INTERVAL, AT TIME ZONE | Absent | #814 |
 | JSONB as a distinct type | Alias of json | #793, #809, #810 |
-| Enum types | Absent | #827 |
+| Enum types | Partial: named enums authored under #827 per the v0.4.0 contract (not yet qualified); `DROP TYPE ... CASCADE` with dependents, enum composite fields/domain bases, COPY and enum ranges are `0A000` | #827 |
 | Range and multirange types | Absent | #905 |
 | Collations, including ICU | Absent | #796 |
-| Composite, record, domain types | Partial: composite types, relation row types, ROW and domains authored under #828 (not yet qualified); enums, ranges and arrays of composites/domains absent | #828 |
+| Composite, record, domain types | Partial: composite types, relation row types, ROW and domains authored under #828 (not yet qualified); ranges and arrays of composites/domains absent; enums as composite fields or domain bases are `0A000` | #828 |
 | bit / varbit | Absent | #816 |
 | inet, cidr, macaddr, macaddr8 | Absent | #816, #793 |
 | tsvector, tsquery | Absent | #799, #793 |
@@ -123,7 +123,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | Sequence options, ALTER SEQUENCE, OWNED BY | Absent | #841 |
 | Temporary tables | Absent | #838 |
 | LIST, RANGE, HASH partitioning | Absent | #840 |
-| CREATE TYPE (enum, composite, range), DOMAIN | Partial: composite `CREATE TYPE` and `CREATE/ALTER/DROP DOMAIN` authored under #828; enum and range absent | #827, #828, #905 |
+| CREATE TYPE (enum, composite, range), DOMAIN | Partial: composite `CREATE TYPE` and `CREATE/ALTER/DROP DOMAIN` authored under #828; named enum `CREATE/ALTER/DROP TYPE` authored under #827 (not yet qualified); range absent | #827, #828, #905 |
 | CREATE EXTENSION | Absent | #843 |
 | Transactional DDL | Partial: selected explicit schema/table/scalar-index lifecycle; implicit and unselected DDL remain standalone only | #833 |
 | **Routines and triggers** | | |
@@ -145,7 +145,8 @@ survey labels are narrower historical observations, not whole-family parity.
 | **Catalogs** | | |
 | information_schema tables/columns/views/schemata/sequences/constraints | Supported | — |
 | pg_catalog database/namespace/class/attribute/index/attrdef/constraint/roles/settings/type | Supported | #817 (column completeness) |
-| pg_proc, pg_depend, pg_sequence, pg_enum | Absent | #817 |
+| pg_proc, pg_depend, pg_sequence | Absent | #817 |
+| pg_enum | Real rows for named enums authored under #827 (not yet qualified) | #827 |
 | Client-introspection relations (pg_description, pg_inherits, pg_am, pg_trigger, pg_policy, pg_tables, pg_views, pg_stat_activity, information_schema routines/parameters/…) | Absent | #817 |
 | pg_extension, pg_available_extensions | Absent | #843 |
 | **Cross-cutting** | | |

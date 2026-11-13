@@ -122,11 +122,37 @@ pub(crate) fn source_field_type_map_with_parameters(
 fn collection_field_type_map(collection: &str, catalog: &crate::catalog::Catalog) -> FieldTypeMap {
     if crate::catalog::virtual_views::borrowed_information_schema_tables(collection).is_some() {
         FieldTypeMap::new()
+    } else if let Some(schema) = catalog.get_schema(collection) {
+        field_type_map(schema.fields.iter())
     } else {
-        catalog
-            .get_schema(collection)
-            .map_or_default(|schema| field_type_map(schema.fields.iter()))
+        pg_catalog_view_field_type_map(collection)
     }
+}
+
+/// Column types of a `pg_catalog` virtual view, so a parameter compared with
+/// one of its columns (`WHERE oid = $1`) takes that column's type as it does
+/// for a table column. Client type introspection depends on this.
+fn pg_catalog_view_field_type_map(collection: &str) -> FieldTypeMap {
+    let name = collection.trim().to_ascii_lowercase();
+    let qualified = if name.contains('.') {
+        name
+    } else {
+        format!("pg_catalog.{name}")
+    };
+    if !qualified.starts_with("pg_catalog.") {
+        return FieldTypeMap::new();
+    }
+    crate::catalog::virtual_views::schema(&qualified).map_or_default(|fields| {
+        fields
+            .into_iter()
+            .map(|(name, data_type)| {
+                (
+                    crate::sql::ColumnIdentifierPath::from_field_name(&name).lookup_key(),
+                    data_type,
+                )
+            })
+            .collect()
+    })
 }
 
 fn values_field_type_map(rows: &[Vec<ast::Expr>], parameter_types: &[i32]) -> FieldTypeMap {

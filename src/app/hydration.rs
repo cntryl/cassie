@@ -18,6 +18,7 @@ impl Cassie {
         self.hydrate_collection_cardinality_stats()?;
         self.hydrate_programmable_metadata()?;
         let _healed = self.catalog.reconcile_embedded_composites();
+        let _healed_enums = self.catalog.reconcile_embedded_enums();
         self.hydrate_time_series_metadata()?;
         self.hydrate_maintenance_debt()?;
         self.hydrate_roles()?;
@@ -247,6 +248,15 @@ impl Cassie {
         self.runtime.record_storage_access("schema", false, true);
         for metadata in domain_types {
             self.catalog.register_domain_type(metadata);
+        }
+
+        let enum_types = self.midge.list_enum_types().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list enum type metadata: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in enum_types {
+            self.catalog.register_enum_type(metadata);
         }
 
         let functions = self.midge.list_functions().map_err(|error| {

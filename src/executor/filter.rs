@@ -385,6 +385,8 @@ mod composite_cast;
 pub(crate) use composite_cast::record_from_text;
 #[path = "filter/domain_check.rs"]
 mod domain_check;
+#[path = "filter/enum_cast.rs"]
+pub(crate) mod enum_cast;
 pub(crate) use domain_check::{evaluate_check, first_violation};
 #[path = "filter/constants.rs"]
 mod constants;
@@ -589,6 +591,9 @@ fn cast_scalar(
             _ => Ok(ScalarValue::Null),
         };
     }
+    if let Some(result) = enum_cast::cast_from_enum(value, data_type, controls) {
+        return result;
+    }
     if let Some(result) = temporal::cast(value, data_type, controls) {
         return result;
     }
@@ -666,6 +671,7 @@ fn cast_scalar(
         }
         DataType::Composite(descriptor) => composite_cast::cast(value, descriptor, controls),
         DataType::Domain(domain) => domain_check::cast(value, domain, controls),
+        DataType::Enum(descriptor) => enum_cast::into_enum(value, descriptor),
     }
 }
 

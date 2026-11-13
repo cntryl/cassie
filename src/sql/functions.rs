@@ -31,6 +31,7 @@ mod any_value;
 mod arrays;
 mod bitwise;
 mod bytea;
+mod enums;
 pub(crate) mod hashing;
 mod inputs;
 mod retrieval;
@@ -169,6 +170,9 @@ pub enum FunctionId {
     ArrayAppend,
     ArrayPrepend,
     ArrayFill,
+    EnumFirst,
+    EnumLast,
+    EnumRange,
     ArrayToString,
     StringToArray,
     ArrayDims,
@@ -382,6 +386,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(runtime::FUNCTIONS)
         .chain(json::FUNCTIONS)
         .chain(math::FUNCTIONS)
+        .chain(enums::FUNCTIONS)
         .chain(temporal::SLEEP_FUNCTIONS)
         .cloned()
         .collect()
@@ -405,6 +410,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(runtime::FUNCTIONS)
         .chain(json::FUNCTIONS)
         .chain(math::FUNCTIONS)
+        .chain(enums::FUNCTIONS)
         .chain(temporal::FUNCTIONS)
         .chain(temporal::SLEEP_FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))

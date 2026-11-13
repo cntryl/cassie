@@ -166,18 +166,25 @@ fn should_scope_underlying_type_catalogs_given_same_named_tables_and_views_when_
 }
 
 #[test]
-fn should_report_no_builtin_enum_labels_without_user_types() {
+fn should_report_enum_labels_only_for_user_created_enum_types() {
     // Arrange
     let fixture = sql_fixture("issue-817-enum-catalog", &[]);
     fixture.cassie.startup().expect("startup");
+    let before = fixture
+        .execute("SELECT count(*) FROM pg_catalog.pg_enum")
+        .expect("query the PostgreSQL enum catalog before any enum exists");
+    fixture
+        .execute("CREATE TYPE issue_817_state AS ENUM ('open', 'closed')")
+        .expect("create a user enum (#827)");
 
     // Act
-    let selected = fixture
+    let after = fixture
         .execute("SELECT count(*) FROM pg_catalog.pg_enum")
-        .expect("query the PostgreSQL enum catalog");
+        .expect("query the PostgreSQL enum catalog after creating an enum");
 
     // Assert
-    assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+    assert_eq!(before.rows(), vec![vec![Value::Int64(0)]]);
+    assert_eq!(after.rows(), vec![vec![Value::Int64(2)]]);
 }
 
 #[test]

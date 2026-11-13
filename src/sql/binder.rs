@@ -244,6 +244,9 @@ pub(crate) fn parameter_data_type_for_oid_in_database(
     {
         return Some(domain.base);
     }
+    if let Some(enum_type) = catalog.enum_parameter_type(oid, database) {
+        return Some(enum_type);
+    }
     parameter_data_type_for_oid(oid)
 }
 

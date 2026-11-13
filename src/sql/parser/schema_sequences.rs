@@ -27,7 +27,10 @@ pub(super) fn parse_alter_column_operation(raw: &str) -> Result<AlterTableOperat
                 "ALTER COLUMN TYPE requires an explicit USING expression".into(),
             ));
         };
-        let data_type = super::parse_data_type(clause[..using_offset].trim())?;
+        let type_text = clause[..using_offset].trim();
+        let data_type = super::parse_data_type(type_text).map_err(|error| {
+            crate::sql::parser::enum_scope::enum_column_type_error(type_text, error)
+        })?;
         let expression = clause[using_offset + "using".len()..].trim();
         if expression.is_empty() {
             return Err(SqlError::new("USING requires an expression".into()));

@@ -57,6 +57,8 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
                 | DataType::Timestamp
                 | DataType::ObjectId(_)
                 | DataType::Array(_)
+                // Enum values order by declared label order (#827).
+                | DataType::Enum(_)
                 // Cassie's established vector extension retains row extrema.
                 | DataType::Vector(_)
                 | DataType::Extended(ExtendedType::Numeric(_) | ExtendedType::Real)

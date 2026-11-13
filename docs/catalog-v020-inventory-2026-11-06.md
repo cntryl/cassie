@@ -2,8 +2,9 @@
 
 This is source-backed planning for #817 and the dependent work in #818, #828,
 and #843. It does not claim those issues complete or expand Cassie's finite
-catalog ABI. Named enum issue #827 is deferred to v0.4; no enum DDL or rows are
-selected by this increment. The listed fields are the current finite baseline,
+catalog ABI. Named enum issue #827 was deferred to v0.4 and is now specified by the
+[v0.4.0 named enum contract](type-contract.md#selected-v040-named-enum-contract-2026-11-13);
+no enum DDL or rows were selected by the v0.2.0 increment this note inventories. The listed fields are the current finite baseline,
 not an exhaustive selection for the future composite/domain or extension
 contracts. Those owners must document their additional required fields and
 identity/lifecycle rules before implementing dependent catalog rows.
@@ -14,7 +15,7 @@ identity/lifecycle rules before implementing dependent catalog rows.
 | `pg_namespace` | `oid`, `nspname`, `nspowner`, `nspacl`; `virtual_views_pg::namespace_schema` | `oid` and `nspname` now describe OID (26) and NAME (19), respectively. `nspowner` remains experimental INT and `nspacl` experimental TEXT; neither claims PostgreSQL owner or ACL semantics. #818 name/OID resolution and current-database scope; #843 schema placement and transactional lifecycle. |
 | `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions`; `virtual_views_pg::class_schema` | #818 relation identity; #828 relation row types depend on #826. Existing `relnamespace` is a TEXT name with the OID exposed separately as `relnamespace_oid`; do not silently rewrite this established experimental shape. |
 | `pg_attribute` | `attrelid`, `attrelid_oid`, `attname`, `attnum`, `atttypid`, `attnotnull`, `atttypmod`, `atthasdef`, `attisdropped`, `attidentity`, `attgenerated`, `attcollation`; `virtual_views_pg::attribute_schema` | #828 field identity/order and relation lifecycle. Existing `attrelid` is a TEXT relation name with `attrelid_oid` separately; do not claim native OID descriptor parity. |
-| `pg_enum` | Empty registry schema `oid`, `enumtypid`, `enumsortorder`, `enumlabel`; `virtual_views_empty` | Named enums remain absent and deferred under #827; empty rows do not implement enums. |
+| `pg_enum` | Empty registry schema `oid`, `enumtypid`, `enumsortorder`, `enumlabel`; `virtual_views_empty` | v0.2.0 baseline only. Under the v0.4.0 contract (#827, authored, pending the assembler gate) `pg_enum` lists real member rows and is no longer an empty registry. |
 
 #843's finite `pgcrypto`/`vector` extension identities require separate
 extension catalog and lifecycle work, including `pg_available_extensions` and

@@ -69,7 +69,8 @@ mod types;
 pub use query_result::{OwnedQueryRows, QueryResultBuilder};
 use types::ExecutionBreakdownDurations;
 pub use types::{
-    ColumnMeta, ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError, QueryResult,
+    ColumnMeta, EnumColumn, ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError,
+    QueryResult,
 };
 
 mod constant_planning;
@@ -156,6 +157,8 @@ mod projection_repair;
 pub(crate) use projection_repair::repair_projection_column_definitions;
 mod domain_command;
 mod domain_schema_scope;
+mod enum_command;
+mod enum_schema_scope;
 mod extension_command;
 mod retention;
 mod role_command;

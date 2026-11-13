@@ -161,6 +161,10 @@ mod dml_targets;
 mod domain_scope;
 #[path = "parser/domains.rs"]
 mod domains;
+#[path = "parser/enum_labels.rs"]
+mod enum_labels;
+#[path = "parser/enum_scope.rs"]
+mod enum_scope;
 #[path = "parser/expr.rs"]
 mod expr;
 #[path = "parser/extensions.rs"]
@@ -178,6 +182,7 @@ mod type_scope;
 mod types;
 mod types_alter;
 pub use domain_scope::{with_domain_scope, DomainResolver};
+pub use enum_scope::{with_enum_scope, EnumResolver};
 pub use type_scope::parse_data_type_in_scope;
 pub use type_scope::{with_type_scope, TypeResolver};
 #[path = "parser/with_statement.rs"]

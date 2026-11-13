@@ -10,8 +10,11 @@ use super::{
 #[path = "validation_case.rs"]
 mod case;
 use case::case_operand_family;
+#[path = "validation_families.rs"]
+mod families;
 #[path = "validation_vector.rs"]
 mod vector;
+pub(super) use families::data_type_family;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OperandFamily {
@@ -674,36 +677,6 @@ fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
                 OperandFamily::Temporal | OperandFamily::Record
             )
         )
-}
-
-pub(super) fn data_type_family(data_type: &DataType) -> OperandFamily {
-    match data_type {
-        DataType::SmallInt
-        | DataType::Int
-        | DataType::BigInt
-        | DataType::Float
-        | DataType::ObjectId(_) => OperandFamily::Numeric,
-        DataType::Extended(kind) => match kind.family() {
-            crate::types::extended::ExtendedFamily::Numeric => OperandFamily::Numeric,
-            crate::types::extended::ExtendedFamily::Temporal
-            | crate::types::extended::ExtendedFamily::Timespan => OperandFamily::Temporal,
-            family => OperandFamily::Typed(family),
-        },
-        DataType::Boolean => OperandFamily::Boolean,
-        DataType::Name | DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => {
-            OperandFamily::Text
-        }
-        DataType::Date | DataType::Time | DataType::Timestamp => OperandFamily::Temporal,
-        DataType::Vector(_) => OperandFamily::Vector,
-        DataType::Json | DataType::Jsonb => OperandFamily::Json,
-        DataType::JsonPath
-        | DataType::Uuid
-        | DataType::Bytea
-        | DataType::Array(_)
-        | DataType::Null => OperandFamily::Other,
-        DataType::Composite(_) => OperandFamily::Record,
-        DataType::Domain(descriptor) => data_type_family(&descriptor.base),
-    }
 }
 
 pub(super) fn select_contains_parameters(select: &SelectStatement) -> bool {

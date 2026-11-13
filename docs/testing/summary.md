@@ -4,12 +4,12 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1646 |
-| Rust files | 1609 |
-| Rust test declarations | 9557 |
+| Files under `tests/` | 1660 |
+| Rust files | 1623 |
+| Rust test declarations | 9715 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 9558 |
-| Cargo test targets | 38 |
+| Static Rust registration instances | 9716 |
+| Cargo test targets | 39 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 5 |
 | Unresolved module paths | 0 |
@@ -30,13 +30,14 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [analytics](inventory/analytics.md) | 185 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
-| [catalog_security](inventory/catalog_security.md) | 476 | 0 |
-| [compatibility](inventory/compatibility.md) | 476 | 0 |
+| [catalog_security](inventory/catalog_security.md) | 474 | 0 |
+| [compatibility](inventory/compatibility.md) | 487 | 0 |
 | [composite_types](inventory/composite_types.md) | 149 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 87 | 0 |
 | [domain_types](inventory/domain_types.md) | 135 | 0 |
+| [enum_types](inventory/enum_types.md) | 149 | 0 |
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
@@ -85,6 +86,7 @@ Each suite's Cargo target and source root are recorded here.
 | `constraint_ingress` | `tests/constraint_ingress.rs` |
 | `domain_models` | `tests/domain_models.rs` |
 | `domain_types` | `tests/domain_types.rs` |
+| `enum_types` | `tests/enum_types.rs` |
 | `executor` | `tests/executor.rs` |
 | `expression_index_upsert` | `tests/expression_index_upsert.rs` |
 | `json_writes` | `tests/json_writes.rs` |

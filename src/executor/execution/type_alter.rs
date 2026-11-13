@@ -116,6 +116,11 @@ pub(super) fn alter(
     alteration: &TypeAlteration,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    if let Some(result) =
+        super::enum_command::alter_if_enum(cassie, scope, raw_name, alteration, controls)?
+    {
+        return Ok(result);
+    }
     if let Some(result) = alter_domain(cassie, scope, raw_name, alteration, controls)? {
         return Ok(result);
     }
@@ -134,6 +139,12 @@ pub(super) fn alter(
             set_schema(cassie, scope, &current, schema, controls)?;
         }
         TypeAlteration::OwnerTo { owner } => owner_to(cassie, &current, owner)?,
+        TypeAlteration::AddValue { .. } | TypeAlteration::RenameValue { .. } => {
+            return Err(diagnostic(
+                "42809",
+                format!("\"{raw_name}\" is not an enum type"),
+            ));
+        }
         TypeAlteration::RenameAttribute { from, to } => {
             let next = current
                 .with_renamed_attribute(from, to)
@@ -220,16 +231,21 @@ fn set_schema(
     publish(cassie, current, &current.with_name(canonical))
 }
 
-fn owner_to(cassie: &Cassie, current: &CompositeTypeMeta, owner: &str) -> Result<(), QueryError> {
+/// The `pg_authid` OID of the role `owner`, or PostgreSQL's `42704`.
+pub(super) fn owner_oid_for(cassie: &Cassie, owner: &str) -> Result<u32, QueryError> {
     let role = cassie
         .catalog
         .get_role(owner)
         .ok_or_else(|| diagnostic("42704", format!("role \"{owner}\" does not exist")))?;
-    let owner_oid = if role.is_admin && role.object_id == 0 {
+    Ok(if role.is_admin && role.object_id == 0 {
         ROOT_OID
     } else {
         crate::catalog::object_identity::normal_oid(role.object_id).unwrap_or(ROOT_OID)
-    };
+    })
+}
+
+fn owner_to(cassie: &Cassie, current: &CompositeTypeMeta, owner: &str) -> Result<(), QueryError> {
+    let owner_oid = owner_oid_for(cassie, owner)?;
     let mut next = current.clone();
     next.owner_oid = owner_oid;
     cassie

@@ -57,6 +57,16 @@ pub(super) fn probe_comparison_is_exact(
                 ) == Some(std::cmp::Ordering::Equal)
             })
         }),
+        // An enum key is its member id: only a stored-form probe is exact; a label
+        // is resolved by the SQL filter. Enum arrays always use the SQL filter.
+        Some(crate::types::DataType::Enum(_)) => {
+            crate::types::EnumValue::storage_member_id(value).is_some()
+        }
+        Some(crate::types::DataType::Array(element))
+            if matches!(*element, crate::types::DataType::Enum(_)) =>
+        {
+            false
+        }
         _ => true,
     }
 }

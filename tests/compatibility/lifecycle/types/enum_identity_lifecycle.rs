@@ -1,4 +1,28 @@
 use super::*;
+use bytes::{BufMut, BytesMut};
+use tokio_postgres::types::{to_sql_checked, IsNull, Kind, ToSql, Type};
+
+/// An enum parameter: `enum_recv` takes the label's UTF-8 bytes. tokio-postgres
+/// binds `&str` only to text-like types, as against PostgreSQL itself.
+#[derive(Debug)]
+struct EnumLabel(&'static str);
+
+impl ToSql for EnumLabel {
+    fn to_sql(
+        &self,
+        _ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
+        out.put_slice(self.0.as_bytes());
+        Ok(IsNull::No)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        matches!(ty.kind(), Kind::Enum(_))
+    }
+
+    to_sql_checked!();
+}
 
 #[derive(Debug, PartialEq)]
 struct EnumIdentityState {
@@ -119,7 +143,7 @@ fn should_preserve_enum_scalar_result_type_identity() {
                 "SELECT 'open'::compat_enum_result_identity.state_code AS literal, \
                         $1::compat_enum_result_identity.state_code AS parameter, \
                         CAST('done' AS compat_enum_result_identity.state_code) AS cast_value",
-                &[&"active"],
+                &[&EnumLabel("active")],
             )
             .await
             .expect("describe literal, parameter, and cast enum results");
@@ -128,7 +152,7 @@ fn should_preserve_enum_scalar_result_type_identity() {
                 "SELECT 'open'::compat_enum_result_identity.state_code::TEXT, \
                         $1::compat_enum_result_identity.state_code::TEXT, \
                         CAST('done' AS compat_enum_result_identity.state_code)::TEXT",
-                &[&"active"],
+                &[&EnumLabel("active")],
             )
             .await
             .expect("render literal, parameter, and cast enum values as text");
@@ -236,7 +260,7 @@ fn should_compare_enum_values_in_declared_order() {
             .query_one(
                 "SELECT $1::compat_enum_comparison_order < \
                         'done'::compat_enum_comparison_order",
-                &[&"active"],
+                &[&EnumLabel("active")],
             )
             .await
             .expect("compare enum values by their declared label order");
@@ -279,7 +303,7 @@ fn should_reject_unknown_enum_inputs_with_invalid_text_state() {
         let invalid_parameter = client
             .query_one(
                 "SELECT $1::compat_enum_invalid_input.state_code",
-                &[&"missing"],
+                &[&EnumLabel("missing")],
             )
             .await
             .expect_err("reject a bound string that is not an enum label");
@@ -586,7 +610,7 @@ fn should_preserve_enum_result_type_identities_for_bound_parameters() {
         let scalar = client
             .query_one(
                 "SELECT $1::compat_enum_identity_bound.state_code AS state",
-                &[&"ready"],
+                &[&EnumLabel("ready")],
             )
             .await
             .expect("cast a bound string to the named enum type");
@@ -594,7 +618,7 @@ fn should_preserve_enum_result_type_identities_for_bound_parameters() {
             .query_one(
                 "SELECT $1::compat_enum_identity_bound.state_code \
                    > 'open'::compat_enum_identity_bound.state_code",
-                &[&"ready"],
+                &[&EnumLabel("ready")],
             )
             .await
             .expect("compare enum values by declaration order");
@@ -602,7 +626,7 @@ fn should_preserve_enum_result_type_identities_for_bound_parameters() {
             .query_one(
                 "SELECT ARRAY[$1::compat_enum_identity_bound.state_code, \
                               NULL::compat_enum_identity_bound.state_code] AS states",
-                &[&"ready"],
+                &[&EnumLabel("ready")],
             )
             .await
             .expect("construct an array retaining the enum element type");

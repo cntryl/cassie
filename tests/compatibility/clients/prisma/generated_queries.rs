@@ -778,7 +778,7 @@ fn assert_prisma_typed_results(result: &serde_json::Value, enum_fixture_error: O
             {"name": "occurred_at", "oid": 1184, "typmod": 6}
         ])
     );
-    assert!(enum_fixture_error.is_none(), "Cassie rejected enum fixture DDL before Prisma enum delegates ran; this is an enum setup failure, not generated-query evidence: {enum_fixture_error:?}");
+    assert!(enum_fixture_error.is_none(), "Cassie rejected enum fixture DDL before Prisma enum delegates ran; this is an enum setup failure, not generated-query evidence: {}", enum_fixture_error.unwrap_or_default());
     assert_eq!(
         result["enumResult"],
         serde_json::json!({

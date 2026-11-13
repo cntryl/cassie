@@ -100,8 +100,9 @@ fn should_describe_pg_user_mapping_given_no_objects_when_wire_formats_are_crosse
     fixture::assert_empty(&batches, &["oid", "umuser", "umserver", "umoptions"]);
 }
 
+// pg_enum is populated by named enums since #827; with no enum type it exports only the shape.
 #[test]
-fn should_describe_pg_enum_given_no_objects_when_wire_formats_are_crossed() {
+fn should_describe_pg_enum_columns_given_no_enum_types_when_wire_formats_are_crossed() {
     // Arrange
     let sql = "SELECT * FROM pg_catalog.pg_enum LIMIT 0";
     // Act

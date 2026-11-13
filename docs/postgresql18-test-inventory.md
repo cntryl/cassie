@@ -75,7 +75,7 @@ The count below is the number of reconciled remaining-list items for an owner, n
 | [#824](https://github.com/cntryl/cassie/issues/824) | Enhancement: Complete PostgreSQL CHECK, exclusion and temporal constraints | Existing tests retained; runtime acceptance open |
 | [#825](https://github.com/cntryl/cassie/issues/825) | Enhancement: Complete PostgreSQL conflict target and conditional upsert syntax | 2 linked items |
 | [#826](https://github.com/cntryl/cassie/issues/826) | Feature request: Add PostgreSQL table creation, cloning and materialized view forms | Existing tests retained; runtime acceptance open |
-| [#827](https://github.com/cntryl/cassie/issues/827) | Feature request: Add named enum types and typed enum values | Existing tests retained; runtime acceptance open |
+| [#827](https://github.com/cntryl/cassie/issues/827) | Feature request: Add named enum types and typed enum values | `tests/enum_types` suite and `tests/compatibility/lifecycle/types/enum_*.rs` authored against the v0.4.0 contract; unexecuted, runtime acceptance open |
 | [#828](https://github.com/cntryl/cassie/issues/828) | Feature request: Add PostgreSQL composite, record and domain semantics | Existing tests retained; runtime acceptance open |
 | [#829](https://github.com/cntryl/cassie/issues/829) | Feature request: Execute JSON element and recordset table functions | Existing tests retained; runtime acceptance open |
 | [#830](https://github.com/cntryl/cassie/issues/830) | Feature request: Extend SQL routines with signatures and set-returning results | Existing tests retained; runtime acceptance open |

@@ -270,38 +270,6 @@ fn should_report_no_pg_user_mapping_objects_given_a_fresh_catalog_when_the_regis
 }
 
 #[test]
-fn should_report_no_pg_enum_objects_given_a_fresh_catalog_when_the_registry_is_queried() {
-    // Arrange
-    let fixture = sql_fixture("catalog209-empty-pg_enum", &[]);
-    // Act
-    let result = fixture.execute("SELECT count(*) FROM pg_catalog.pg_enum");
-    // Assert
-    assert_eq!(
-        result.expect("empty registry").rows(),
-        &[vec![Value::Int64(0)]]
-    );
-}
-
-#[test]
-fn should_describe_pg_enum_given_a_fresh_catalog_when_no_objects_exist() {
-    // Arrange
-    let fixture = sql_fixture("catalog209-shape-pg_enum", &[]);
-    // Act
-    let result = fixture.execute("SELECT * FROM pg_catalog.pg_enum LIMIT 0");
-    // Assert
-    let result = result.expect("catalog shape");
-    assert_eq!(result.rows(), &[] as &[Vec<Value>]);
-    assert_eq!(
-        result
-            .columns()
-            .iter()
-            .map(|column| column.name.as_str())
-            .collect::<Vec<_>>(),
-        vec!["oid", "enumtypid", "enumsortorder", "enumlabel"]
-    );
-}
-
-#[test]
 fn should_report_no_pg_partitioned_table_objects_given_a_fresh_catalog_when_the_registry_is_queried(
 ) {
     // Arrange

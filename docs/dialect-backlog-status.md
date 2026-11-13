@@ -52,7 +52,7 @@ The [Postgres SQL feature parity milestone](https://github.com/cntryl/cassie/mil
 | [#824](https://github.com/cntryl/cassie/issues/824) | Enhancement: Complete PostgreSQL CHECK, exclusion and temporal constraints | Open |
 | [#825](https://github.com/cntryl/cassie/issues/825) | Enhancement: Complete PostgreSQL conflict target and conditional upsert syntax | Open |
 | [#826](https://github.com/cntryl/cassie/issues/826) | Feature request: Add PostgreSQL table creation, cloning and materialized view forms | Open |
-| [#827](https://github.com/cntryl/cassie/issues/827) | Feature request: Add named enum types and typed enum values | Open |
+| [#827](https://github.com/cntryl/cassie/issues/827) | Feature request: Add named enum types and typed enum values | Open; v0.4.0 contract selected, implementation and tests authored (pending the assembler gate) |
 | [#828](https://github.com/cntryl/cassie/issues/828) | Feature request: Add PostgreSQL composite, record and domain semantics | Open |
 | [#829](https://github.com/cntryl/cassie/issues/829) | Feature request: Execute JSON element and recordset table functions | Open |
 | [#830](https://github.com/cntryl/cassie/issues/830) | Feature request: Extend SQL routines with signatures and set-returning results | Open |

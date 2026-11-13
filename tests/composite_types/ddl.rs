@@ -182,11 +182,9 @@ fn should_keep_deterministic_unsupported_errors_for_excluded_type_forms() {
     let fixture = sql_fixture("composite_excluded_forms", &[]);
 
     // Act
-    let enum_error = fixture.error("CREATE TYPE mood AS ENUM ('sad', 'ok')");
     let range_error = fixture.error("CREATE TYPE span AS RANGE (subtype = int)");
 
-    // Assert
-    assert_eq!(enum_error.sql_state(), "0A000");
+    // Assert (named enums are supported since #827; see tests/enum_types)
     assert_eq!(range_error.sql_state(), "0A000");
 }
 

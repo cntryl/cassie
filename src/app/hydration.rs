@@ -17,7 +17,7 @@ impl Cassie {
         self.hydrate_operational_metadata()?;
         self.hydrate_collection_cardinality_stats()?;
         self.hydrate_programmable_metadata()?;
-        self.catalog.reconcile_embedded_composites();
+        let _healed = self.catalog.reconcile_embedded_composites();
         self.hydrate_time_series_metadata()?;
         self.hydrate_maintenance_debt()?;
         self.hydrate_roles()?;

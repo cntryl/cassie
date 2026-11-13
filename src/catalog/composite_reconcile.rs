@@ -31,6 +31,7 @@ fn reconciled(data_type: &DataType, types: &HashMap<u32, CompositeRef>) -> Optio
 impl Catalog {
     /// Replaces table and view column descriptors that differ from the
     /// registered composite type with the same OID. Returns how many changed.
+    #[must_use]
     pub fn reconcile_embedded_composites(&self) -> usize {
         let mut types: HashMap<u32, CompositeRef> = self
             .list_composite_types()

@@ -120,8 +120,7 @@ impl Fold<'_, '_> {
             // Only the document slot is JSON typed; a populate base keeps its own type.
             let document = if record.binary { 3802 } else { 114 };
             if let Some(summary) = self.summaries.values[frame.start..]
-                .iter_mut()
-                .nth(record.document_index())
+                .get_mut(record.document_index())
                 .filter(|summary| matches!(summary.oid, 0 | 705))
             {
                 self.occurrences.coerce(summary, document, false)?;

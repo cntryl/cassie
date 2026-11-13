@@ -558,6 +558,25 @@ fn cast_vector_scalar(
     Ok(ScalarValue::Str(text.to_string()))
 }
 
+fn cast_jsonpath(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
+    let path = value
+        .as_str()
+        .ok_or_else(|| QueryError::General("cannot cast value to JSONPATH".into()))?;
+    sql_json_path::JsonPath::new(path)
+        .map(|parsed| {
+            let has_variables = path
+                .as_bytes()
+                .windows(2)
+                .any(|pair| pair[0] == b'$' && (pair[1].is_ascii_alphabetic() || pair[1] == b'_'));
+            ScalarValue::Str(if has_variables {
+                path.to_owned()
+            } else {
+                parsed.to_string()
+            })
+        })
+        .map_err(|error| QueryError::Cassie(crate::app::CassieError::Parse(error.to_string())))
+}
+
 fn cast_scalar(
     value: &ScalarValue,
     data_type: &DataType,
@@ -579,25 +598,7 @@ fn cast_scalar(
         DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32, controls),
         DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64, controls),
         DataType::ObjectId(_) => object_ids::cast(value),
-        DataType::JsonPath => {
-            let path = value
-                .as_str()
-                .ok_or_else(|| QueryError::General("cannot cast value to JSONPATH".into()))?;
-            sql_json_path::JsonPath::new(path)
-                .map(|parsed| {
-                    let has_variables = path.as_bytes().windows(2).any(|pair| {
-                        pair[0] == b'$' && (pair[1].is_ascii_alphabetic() || pair[1] == b'_')
-                    });
-                    ScalarValue::Str(if has_variables {
-                        path.to_owned()
-                    } else {
-                        parsed.to_string()
-                    })
-                })
-                .map_err(|error| {
-                    QueryError::Cassie(crate::app::CassieError::Parse(error.to_string()))
-                })
-        }
+        DataType::JsonPath => cast_jsonpath(value),
         DataType::Extended(kind) => kind
             .cast_from(&value.to_value())
             .map(ScalarValue::Typed)

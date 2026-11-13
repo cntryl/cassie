@@ -207,17 +207,7 @@ impl Midge {
             })?
         };
         metadata.storage_id = storage_id;
-        match (existing_metadata.as_ref(), row_type_ids) {
-            (Some(existing), _) if existing.row_type_object_id != 0 => {
-                metadata.row_type_object_id = existing.row_type_object_id;
-                metadata.row_array_object_id = existing.row_array_object_id;
-            }
-            (_, Some((row_type, row_array))) => {
-                metadata.row_type_object_id = row_type;
-                metadata.row_array_object_id = row_array;
-            }
-            _ => {}
-        }
+        assign_row_type_ids(&mut metadata, existing_metadata.as_ref(), row_type_ids);
         let mut row_schema = RowSchema::from_schema(schema);
         row_schema.relation_id = storage_id;
         if tx
@@ -925,5 +915,24 @@ impl Midge {
 
     pub(super) fn column_store_field_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {
         key_encoding::column_store_field_key(relation_id, field_id, id)
+    }
+}
+
+/// Keeps the row-type identities of existing metadata, else adopts the newly allocated pair.
+fn assign_row_type_ids(
+    metadata: &mut CollectionMeta,
+    existing: Option<&CollectionMeta>,
+    allocated: Option<(u64, u64)>,
+) {
+    match (existing, allocated) {
+        (Some(existing), _) if existing.row_type_object_id != 0 => {
+            metadata.row_type_object_id = existing.row_type_object_id;
+            metadata.row_array_object_id = existing.row_array_object_id;
+        }
+        (_, Some((row_type, row_array))) => {
+            metadata.row_type_object_id = row_type;
+            metadata.row_array_object_id = row_array;
+        }
+        _ => {}
     }
 }

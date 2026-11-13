@@ -434,7 +434,7 @@ fn rename_constraint(updated: &mut DomainTypeMeta, from: &str, to: &str) -> Resu
     else {
         return Err(missing_constraint(&local, from));
     };
-    check.name = to.to_owned();
+    to.clone_into(&mut check.name);
     Ok(())
 }
 

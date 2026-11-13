@@ -56,7 +56,7 @@ fn should_replace_a_stale_embedded_descriptor_with_the_registered_type() {
 fn should_leave_matching_embedded_descriptors_unchanged() {
     // Arrange
     let (catalog, _) = catalog_with_stale_column();
-    catalog.reconcile_embedded_composites();
+    let _healed = catalog.reconcile_embedded_composites();
 
     // Act
     let changed = catalog.reconcile_embedded_composites();
@@ -99,7 +99,7 @@ fn should_replace_a_stale_embedded_table_row_type_with_the_derived_one() {
         .expect("row type");
 
     // Act
-    catalog.reconcile_embedded_composites();
+    let _healed = catalog.reconcile_embedded_composites();
 
     // Assert
     let schema = catalog.get_schema("cassie.public.u").expect("schema");

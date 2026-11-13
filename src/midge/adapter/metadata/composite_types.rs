@@ -133,7 +133,7 @@ impl Midge {
         tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
         for column in &group.columns {
             let table = self.canonical_collection_name(&column.table);
-            self.stage_column_type(&mut tx, &table, &column.column, column.data_type.clone())?;
+            Self::stage_column_type(&mut tx, &table, &column.column, column.data_type.clone())?;
         }
         for view in &group.views {
             crate::sql::definition_guard::view(view)?;

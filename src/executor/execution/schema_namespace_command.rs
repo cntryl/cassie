@@ -54,6 +54,18 @@ fn drop_schema_composite_types(cassie: &Cassie, schema: &str) -> Result<(), Quer
     Ok(())
 }
 
+/// Refuses `DROP SCHEMA ... CASCADE` while an object outside the schema uses one of its types.
+fn reject_outside_dependents(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
+    reject_outside_type_dependents(cassie, schema)?;
+    crate::executor::execution::domain_schema_scope::reject_outside_dependents(cassie, schema)
+}
+
+/// Drops the composite and domain types of `schema`.
+fn drop_schema_types(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
+    drop_schema_composite_types(cassie, schema)?;
+    crate::executor::execution::domain_schema_scope::drop_schema_domains(cassie, schema)
+}
+
 pub(crate) fn drop_schema(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -86,19 +98,11 @@ pub(crate) fn drop_schema(
     let namespace_database_family = namespace_database.physical_family;
     let transactional = session.is_some_and(CassieSession::is_transaction_active);
     if statement.cascade {
-        reject_outside_type_dependents(cassie, &statement.schema)?;
-        crate::executor::execution::domain_schema_scope::reject_outside_dependents(
-            cassie,
-            &statement.schema,
-        )?;
+        reject_outside_dependents(cassie, &statement.schema)?;
     }
     let output = empty_command("DROP SCHEMA", controls)?;
     if statement.cascade {
-        drop_schema_composite_types(cassie, &statement.schema)?;
-        crate::executor::execution::domain_schema_scope::drop_schema_domains(
-            cassie,
-            &statement.schema,
-        )?;
+        drop_schema_types(cassie, &statement.schema)?;
         let schema_views = cassie
             .catalog
             .list_views()

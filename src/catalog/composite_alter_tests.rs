@@ -168,5 +168,5 @@ fn should_report_no_stored_columns_for_an_unused_type() {
     let columns = catalog.composite_type_stored_in(address().type_oid());
 
     // Assert
-    assert!(columns.is_empty());
+    assert_eq!(columns.len(), 0);
 }

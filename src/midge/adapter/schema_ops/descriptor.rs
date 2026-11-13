@@ -60,7 +60,7 @@ impl Midge {
         let write_gate = self.collection_write_gate(&collection);
         let _write_guard = write_gate.lock();
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
-        self.stage_column_type(&mut tx, &collection, field, data_type)?;
+        Self::stage_column_type(&mut tx, &collection, field, data_type)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)
     }
@@ -69,7 +69,6 @@ impl Midge {
     /// column retype in `tx` without committing, so several can share one
     /// transaction. The caller holds the collection write gate.
     pub(crate) fn stage_column_type(
-        &self,
         tx: &mut super::super::AdapterTransaction,
         collection: &str,
         field: &str,

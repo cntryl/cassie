@@ -101,7 +101,7 @@ pub(super) fn publish_change(
         let carries_type = group.target.is_some();
         if let Err(error) = cassie.midge.publish_composite_group(&group) {
             if published_type || altered.is_none() {
-                cassie.catalog.reconcile_embedded_composites();
+                let _healed = cassie.catalog.reconcile_embedded_composites();
             }
             return Err(QueryError::from(error));
         }

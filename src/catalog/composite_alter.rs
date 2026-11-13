@@ -106,7 +106,7 @@ impl CompositeTypeMeta {
             self.reject_duplicate(to)?;
         }
         let mut next = self.clone();
-        next.fields[index].name = to.to_owned();
+        to.clone_into(&mut next.fields[index].name);
         next.revision += 1;
         Ok(next)
     }

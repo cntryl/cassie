@@ -78,7 +78,7 @@ impl ObjectScope<'_> {
         let routine = self.routine_by_oid(oid)?;
         let candidates = self.visible_routines(None, &routine.name);
         let unique = matches!(candidates.as_slice(), [only] if only.oid == oid);
-        Some(self.routine_display_name(&routine, unique))
+        Some(Self::routine_display_name(&routine, unique))
     }
 
     /// `regprocedure` output: the name with its argument type list.
@@ -91,7 +91,7 @@ impl ObjectScope<'_> {
             .is_some_and(|candidate| candidate.oid == oid);
         Some(format!(
             "{}({})",
-            self.routine_display_name(&routine, visible),
+            Self::routine_display_name(&routine, visible),
             self.argument_list(&routine)
         ))
     }
@@ -116,7 +116,7 @@ impl ObjectScope<'_> {
             .join(",")
     }
 
-    fn routine_display_name(&self, routine: &Routine, bare: bool) -> String {
+    fn routine_display_name(routine: &Routine, bare: bool) -> String {
         if bare {
             quote_identifier(&routine.name)
         } else {

@@ -127,6 +127,29 @@ fn initial_table_indexes(
     initial_indexes
 }
 
+/// Persists the indexes of a new table. A retry after a failed publication
+/// completes the journal the earlier attempt prepared rather than reusing its
+/// index name.
+fn persist_initial_indexes(
+    cassie: &Cassie,
+    indexes: &[catalog::IndexMeta],
+) -> Result<(), QueryError> {
+    for index in indexes {
+        let recovered = cassie
+            .midge
+            .recover_prepared_index_with_held_collection_gate(&index.collection, &index.name)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        if recovered {
+            continue;
+        }
+        cassie
+            .midge
+            .put_index_with_held_collection_gate(index)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+    }
+    Ok(())
+}
+
 fn create_table_gated(
     cassie: &Cassie,
     statement: &CreateTableStatement,
@@ -202,21 +225,7 @@ fn create_table_gated(
         collection_meta.row_array_object_id = stored.row_array_object_id;
     }
     if statement.like.is_none() {
-        for index in &initial_indexes {
-            // A retry after a failed publication completes the journal the
-            // earlier attempt prepared rather than reusing its index name.
-            let recovered = cassie
-                .midge
-                .recover_prepared_index_with_held_collection_gate(&index.collection, &index.name)
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            if recovered {
-                continue;
-            }
-            cassie
-                .midge
-                .put_index_with_held_collection_gate(index)
-                .map_err(|error| QueryError::General(error.to_string()))?;
-        }
+        persist_initial_indexes(cassie, &initial_indexes)?;
     }
     if statement.like.is_some() {
         super::sequence_command::register_created_sequences(cassie, table_sequences);

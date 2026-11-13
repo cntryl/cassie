@@ -109,14 +109,13 @@ fn parse_populate(
     if definitions.is_some_and(|list| split_csv(list).into_iter().any(is_typed_entry)) {
         return Err(SqlError::syntax(REDUNDANT.into()));
     }
-    let declared = table_sources::record_declared_columns(&function, None)
-        .map(|columns| {
+    let declared =
+        table_sources::record_declared_columns(&function, None).map_or_else(Vec::new, |columns| {
             columns
                 .into_iter()
                 .map(|(name, _)| name)
                 .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+        });
     let source = QuerySource::TableFunction {
         name: function.name.clone(),
         function,

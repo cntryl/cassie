@@ -489,10 +489,12 @@ fn execute_alter_table_operation(
             cassie,
             session,
             &statement.table,
-            field,
-            data_type,
-            constraints,
-            *if_not_exists,
+            &NewColumn {
+                field,
+                data_type,
+                constraints,
+                if_not_exists: *if_not_exists,
+            },
             is_column_store,
         ),
         AlterTableOperation::AddConstraint { constraints } => {
@@ -598,16 +600,27 @@ fn staged_add_column_default(
         .map(|default_value| (field.clone(), default_value))
 }
 
+/// The column of an `ALTER TABLE ... ADD COLUMN`.
+struct NewColumn<'a> {
+    field: &'a str,
+    data_type: &'a DataType,
+    constraints: &'a [crate::catalog::FieldConstraint],
+    if_not_exists: bool,
+}
+
 fn alter_table_add_column(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     table: &str,
-    field: &str,
-    data_type: &DataType,
-    constraints: &[crate::catalog::FieldConstraint],
-    if_not_exists: bool,
+    column: &NewColumn<'_>,
     is_column_store: bool,
 ) -> Result<(), QueryError> {
+    let NewColumn {
+        field,
+        data_type,
+        constraints,
+        if_not_exists,
+    } = *column;
     if if_not_exists
         && cassie.catalog.get_schema(table).is_some_and(|schema| {
             schema.fields.iter().any(|existing| {

@@ -30,9 +30,7 @@ pub(super) type PathFailure = (&'static str, String);
 pub(super) fn eval_state(error: &sql_json_path::EvalError) -> &'static str {
     use sql_json_path::EvalError as E;
     match error {
-        E::NoKey(_) => "2203A",
-        E::ArrayAccess | E::WildcardArrayAccess => "22039",
-        E::MemberAccess => "2203A",
+        E::NoKey(_) | E::MemberAccess => "2203A",
         E::WildcardMemberAccess => "2203C",
         E::ArrayIndexOutOfBounds | E::ArrayIndexOutOfRange | E::ArrayIndexNotNumeric => "22033",
         E::NoVariable(_) => "42704",
@@ -42,6 +40,7 @@ pub(super) fn eval_state(error: &sql_json_path::EvalError) -> &'static str {
             "22038"
         }
         E::MethodNotNumeric(_) => "22036",
+        // ArrayAccess, WildcardArrayAccess and any later variant.
         _ => "22039",
     }
 }
@@ -118,9 +117,9 @@ impl<'a, 'e> Evaluator<'a, 'e> {
             Err((state, message)) => return Ok(Step::Soft(diagnostic(state, message))),
         };
         if table_sources::is_query_column(column) {
-            query_step(column, items)
+            Ok(query_step(column, items))
         } else {
-            value_step(column, items)
+            Ok(value_step(column, items))
         }
     }
 
@@ -194,34 +193,34 @@ impl<'a, 'e> Evaluator<'a, 'e> {
 }
 
 /// `JSON_VALUE`: exactly one scalar item.
-fn value_step(column: &JsonTableValueColumn, mut items: Vec<Json>) -> Result<Step, QueryError> {
+fn value_step(column: &JsonTableValueColumn, mut items: Vec<Json>) -> Step {
     if items.is_empty() {
-        return Ok(Step::Empty);
+        return Step::Empty;
     }
     let single = items.len() == 1 && !matches!(items[0], Json::Array(_) | Json::Object(_));
     if !single {
-        return Ok(Step::Soft(diagnostic(
+        return Step::Soft(diagnostic(
             "22034",
             format!(
                 "JSON path expression for column \"{}\" must return single scalar item",
                 column.name
             ),
-        )));
+        ));
     }
     let item = items.remove(0);
     if item.is_null() {
-        return Ok(Step::Value(Value::Null));
+        return Step::Value(Value::Null);
     }
-    Ok(match convert_item(column, item, JsonQuotes::Omit) {
+    match convert_item(column, item, JsonQuotes::Omit) {
         Ok(value) => Step::Value(value),
         Err(error) => Step::Soft(error),
-    })
+    }
 }
 
 /// `JSON_QUERY`: wrapper handling, then conversion with the quotes behavior.
-fn query_step(column: &JsonTableValueColumn, mut items: Vec<Json>) -> Result<Step, QueryError> {
+fn query_step(column: &JsonTableValueColumn, mut items: Vec<Json>) -> Step {
     if items.is_empty() {
-        return Ok(Step::Empty);
+        return Step::Empty;
     }
     let wrap = match column.wrapper {
         JsonWrapper::Unconditional => true,
@@ -233,24 +232,24 @@ fn query_step(column: &JsonTableValueColumn, mut items: Vec<Json>) -> Result<Ste
     } else if items.len() == 1 {
         items.remove(0)
     } else {
-        return Ok(Step::Soft(diagnostic(
+        return Step::Soft(diagnostic(
             "22034",
             format!(
                 "JSON path expression for column \"{}\" must return single item when no \
                  wrapper is requested",
                 column.name
             ),
-        )));
+        ));
     };
     let quotes = if column.quotes == JsonQuotes::Omit {
         JsonQuotes::Omit
     } else {
         JsonQuotes::Keep
     };
-    Ok(match convert_item(column, item, quotes) {
+    match convert_item(column, item, quotes) {
         Ok(value) => Step::Value(value),
         Err(error) => Step::Soft(error),
-    })
+    }
 }
 
 /// Converts one selected item into the column type.

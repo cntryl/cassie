@@ -81,7 +81,10 @@ pub(super) fn alias_with_declared_columns(
     };
     let default_alias = match &source {
         QuerySource::TableFunction { function, .. } => table_sources::record_source(&function.name)
-            .map_or_else(|| function.name.clone(), |record| record.function_name()),
+            .map_or_else(
+                || function.name.clone(),
+                crate::sql::table_sources::RecordSource::function_name,
+            ),
         _ => String::new(),
     };
     let ordinality = matches!(
@@ -153,7 +156,7 @@ fn parse_row_pattern(rest: &str) -> Result<(String, Option<String>, Passing), Sq
         Some(normalize_column_identifier(&remainder[end..])?)
     };
     let mut passing = Vec::new();
-    for item in passing_text.map(split_csv).unwrap_or_default() {
+    for item in passing_text.map_or_default(split_csv) {
         let (start, end) = last_as(item)
             .ok_or_else(|| SqlError::syntax("JSON_TABLE PASSING requires AS name".into()))?;
         passing.push((

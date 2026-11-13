@@ -148,7 +148,7 @@ fn create(
     Ok(output)
 }
 
-/// A composite type owns a pg_class row, so it shares the relation namespace
+/// A composite type owns a `pg_class` row, so it shares the relation namespace
 /// with tables, views, sequences and indexes.
 pub(super) fn relation_name_occupied(
     cassie: &Cassie,

@@ -119,7 +119,6 @@ fn collect_qualifiers(sources: &[&QuerySource], out: &mut Vec<String>) {
             QuerySource::Aliased { alias, .. } | QuerySource::Subquery { alias, .. } => {
                 out.push(alias.clone());
             }
-            QuerySource::Cte(name) => out.push(name.clone()),
             QuerySource::Collection(path) => {
                 let full = path.to_string();
                 if let Some((_, last)) = full.rsplit_once('.') {
@@ -129,7 +128,9 @@ fn collect_qualifiers(sources: &[&QuerySource], out: &mut Vec<String>) {
             }
             QuerySource::TableSample { source, .. } => collect_qualifiers(&[&**source], out),
             QuerySource::Join { left, right, .. } => collect_qualifiers(&[&**left, &**right], out),
-            QuerySource::TableFunction { name, .. } => out.push(name.clone()),
+            QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+                out.push(name.clone());
+            }
             QuerySource::Values { .. } | QuerySource::SingleRow => {}
         }
     }

@@ -253,10 +253,13 @@ fn should_reject_stored_records_that_do_not_match_the_descriptor() {
     assert!(wrong_count.is_err());
 }
 
-fn convert_text(value: &serde_json::Value, _: &DataType) -> Result<Value, StoredRecordError> {
-    Ok(Value::String(
-        value.as_str().unwrap_or_default().to_string(),
-    ))
+fn text_converter() -> impl FnMut(&serde_json::Value, &DataType) -> Result<Value, StoredRecordError>
+{
+    |value, _| {
+        Ok(Value::String(
+            value.as_str().unwrap_or_default().to_string(),
+        ))
+    }
 }
 
 fn layout(fields: &[&str], dropped: Vec<usize>) -> CompositeRef {
@@ -281,7 +284,8 @@ fn should_read_added_attributes_as_null_for_values_written_under_an_older_revisi
     let json = stored(300_001, &[serde_json::json!("x"), serde_json::json!("y")]);
 
     // Act
-    let restored = record_from_storage_json(&json, &current, &mut convert_text).expect("restore");
+    let restored =
+        record_from_storage_json(&json, &current, &mut text_converter()).expect("restore");
 
     // Assert
     assert_eq!(restored.fields(), &[text("x"), text("y"), Value::Null]);
@@ -301,7 +305,8 @@ fn should_hide_dropped_attribute_slots_when_reading_stored_values() {
     );
 
     // Act
-    let restored = record_from_storage_json(&json, &current, &mut convert_text).expect("restore");
+    let restored =
+        record_from_storage_json(&json, &current, &mut text_converter()).expect("restore");
 
     // Assert
     assert_eq!(restored.fields(), &[text("x"), text("z")]);
@@ -338,7 +343,7 @@ fn should_reject_stored_values_with_more_slots_than_the_descriptor() {
     let json = stored(300_001, &[serde_json::json!("x"), serde_json::json!("y")]);
 
     // Act
-    let restored = record_from_storage_json(&json, &current, &mut convert_text);
+    let restored = record_from_storage_json(&json, &current, &mut text_converter());
 
     // Assert
     assert!(restored.is_err());

@@ -681,6 +681,10 @@ fn copy_value_to_json(
         DataType::Boolean => parse_copy_bool(&value)
             .map(serde_json::Value::Bool)
             .ok_or_else(|| crate::types::BooleanInputError.into()),
+        DataType::Enum(_) => Err(enum_copy_unsupported(&field.name)),
+        DataType::Array(element_type) if matches!(**element_type, DataType::Enum(_)) => {
+            Err(enum_copy_unsupported(&field.name))
+        }
         DataType::Array(element_type) => {
             crate::types::array::parse_text_array(&value, element_type).map_err(|error| {
                 let message = format!("field '{}' expects array: {error}", field.name);
@@ -744,6 +748,15 @@ fn copy_integer_value(value: &str, data_type: &DataType) -> Result<serde_json::V
 
 fn parse_copy_bool(raw: &str) -> Option<bool> {
     crate::types::boolean::parse_text(raw)
+}
+
+/// Enum values are not part of the v0.4.0 COPY contract (#827).
+fn enum_copy_unsupported(field: &str) -> CassieError {
+    super::DiagnosticError::new(
+        "0A000",
+        format!("COPY into enum field '{field}' is not supported"),
+    )
+    .into()
 }
 
 #[cfg(test)]

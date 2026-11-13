@@ -313,7 +313,13 @@ impl SqlArray {
         let elements = self
             .elements
             .iter()
-            .map(serde_json::to_value)
+            .map(|element| match element {
+                // An enum element is stored as its member id, never with its descriptor.
+                Value::Typed(crate::types::typed::TypedValue::Enum(value)) => {
+                    serde_json::to_value(Value::Json(value.to_storage_json()))
+                }
+                other => serde_json::to_value(other),
+            })
             .collect::<Result<Vec<_>, _>>()
             .expect("SQL array values are serializable");
         let mut envelope = serde_json::Map::new();
@@ -457,6 +463,9 @@ pub(crate) fn format_text_in(
                             }
                         }
                         Value::Typed(value) => value.text_in(session),
+                        Value::Json(value) if matches!(element_type, DataType::Enum(_)) => {
+                            enum_label(element_type, value)?
+                        }
                         Value::Json(value) if *element_type == DataType::Jsonb => {
                             crate::types::jsonb::format(value).ok()?
                         }
@@ -515,6 +524,17 @@ pub(crate) fn format_text_in(
         })
         .collect::<Option<String>>()?;
     Some(format!("{bounds}={body}"))
+}
+
+/// The label of a stored enum element document.
+fn enum_label(element_type: &DataType, document: &JsonValue) -> Option<String> {
+    let DataType::Enum(descriptor) = element_type else {
+        return None;
+    };
+    let member_id = crate::types::EnumValue::storage_member_id(document)?;
+    descriptor
+        .member(member_id)
+        .map(|member| member.label.clone())
 }
 
 fn quote_array_element(value: &str) -> String {
@@ -640,6 +660,13 @@ fn scalar_from_json(value: &JsonValue, data_type: &DataType) -> Result<Value, St
         | Type::Char { .. }
         | Type::Varchar { .. }
         | Type::JsonPath => value.as_str().map(|text| Value::String(text.to_owned())),
+        Type::Enum(descriptor) => {
+            let document = super::array::elements::enum_element(descriptor, value)?;
+            return crate::types::EnumValue::storage_member_id(&document)
+                .and_then(|member_id| crate::types::EnumValue::new(descriptor.clone(), member_id))
+                .map(|enum_value| Value::Typed(crate::types::typed::TypedValue::Enum(enum_value)))
+                .ok_or_else(|| "invalid enum array element".to_string());
+        }
         Type::Array(_) | Type::Composite(_) | Type::Domain(_) | Type::Null => None,
     }
     .ok_or_else(|| {

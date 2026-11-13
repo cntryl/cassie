@@ -237,7 +237,8 @@ fn fixed_typed(value: &crate::types::typed::TypedValue) -> bool {
         TypedValue::Numeric(_)
         | TypedValue::Bit(_)
         | TypedValue::VarBit(_)
-        | TypedValue::Record(_) => false,
+        | TypedValue::Record(_)
+        | TypedValue::Enum(_) => false,
     }
 }
 

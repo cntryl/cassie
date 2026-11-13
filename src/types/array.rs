@@ -2,7 +2,7 @@ use serde_json::Value as JsonValue;
 
 use crate::types::DataType;
 
-mod elements;
+pub(crate) mod elements;
 
 pub(crate) fn parse_json_document(input: &str) -> Result<JsonValue, String> {
     elements::parse_json_document(input)
@@ -320,6 +320,11 @@ fn format_element(value: &JsonValue, element_type: &DataType) -> Option<String> 
         (JsonValue::String(value), DataType::Extended(kind)) => kind
             .parse_text(value)
             .map_or_else(|_| value.clone(), |typed| typed.text()),
+        (JsonValue::Object(_), DataType::Enum(descriptor)) => {
+            crate::types::EnumValue::storage_member_id(value)
+                .and_then(|member_id| descriptor.member(member_id))
+                .map(|member| member.label.clone())?
+        }
         (JsonValue::String(value), _) => value.clone(),
         (JsonValue::Number(value), DataType::Float) => {
             crate::types::float_text::format(value.as_f64()?)
@@ -634,6 +639,7 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
             .map_err(|error| format!("invalid JSON array element: {error}")),
         DataType::Array(_) => Err("array-of-array types are not supported".to_string()),
         DataType::JsonPath => Err("JSONPATH arrays are not supported".to_string()),
+        DataType::Enum(_) => Ok(JsonValue::String(value)),
         DataType::Composite(_) => Err("arrays of composite types are not supported".to_string()),
         DataType::Domain(_) => Err("arrays of domain types are not supported".to_string()),
         DataType::Null
@@ -650,6 +656,8 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
     elements::normalize_element(parsed, data_type)
 }
 
+#[cfg(test)]
+mod enum_element_tests;
 #[cfg(test)]
 mod input_contract_tests;
 

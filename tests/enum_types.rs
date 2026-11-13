@@ -30,3 +30,15 @@ mod wire;
 
 #[path = "enum_types/indexes.rs"]
 mod indexes;
+
+#[path = "enum_types/runtime/comparison.rs"]
+mod runtime_comparison;
+
+#[path = "enum_types/runtime/casts.rs"]
+mod runtime_casts;
+
+#[path = "enum_types/runtime/functions.rs"]
+mod runtime_functions;
+
+#[path = "enum_types/runtime/arrays.rs"]
+mod runtime_arrays;

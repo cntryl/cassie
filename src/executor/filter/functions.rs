@@ -33,6 +33,8 @@ mod encoding;
 pub(super) mod math;
 #[path = "math_functions.rs"]
 mod math_functions;
+#[path = "enum_functions.rs"]
+mod enum_functions;
 #[path = "math_random.rs"]
 mod math_random;
 #[path = "privilege_functions.rs"]

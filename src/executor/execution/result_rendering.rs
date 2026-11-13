@@ -56,6 +56,8 @@ pub(crate) fn bound(value: &TypedValue, session: &TemporalSession) -> Result<usi
         TypedValue::TimestampTz(_) => add(session.zone.name().len(), 256),
         // Each field renders at most a few times its retained bytes, plus quoting.
         TypedValue::Record(record) => add(mul(record.heap_bytes().max(128), 8)?, 256),
+        // A label is at most 63 bytes; leave room for escaping.
+        TypedValue::Enum(_) => Ok(512),
         TypedValue::Real(_)
         | TypedValue::Numeric(_)
         | TypedValue::Inet(_)

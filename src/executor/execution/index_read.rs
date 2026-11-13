@@ -393,7 +393,7 @@ fn scalar_index_requires_json_scan(
                 collection,
                 &crate::sql::ColumnIdentifierPath::stored_field_key(field),
             ),
-            Some(DataType::Json | DataType::Jsonb | DataType::Array(_))
+            Some(DataType::Json | DataType::Jsonb | DataType::Array(_) | DataType::Enum(_))
         )
     };
     let uses_json_range_key = shape

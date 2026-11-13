@@ -188,6 +188,7 @@ fn validate(
                     | DataType::Array(_)
                     | DataType::Composite(_)
                     | DataType::Domain(_)
+                    | DataType::Enum(_)
                     | DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
             ) && !crate::types::extended::operations::handles(data_type) =>
         {

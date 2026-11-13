@@ -51,6 +51,7 @@ pub(crate) fn is_array_result(id: FunctionId) -> bool {
             | FunctionId::ArrayShuffle
             | FunctionId::ArraySample
             | FunctionId::TrimArray
+            | FunctionId::EnumRange
     )
 }
 
@@ -71,7 +72,7 @@ pub(crate) fn result_type(id: FunctionId, arguments: &[DataType]) -> Option<Data
         FunctionId::ArrayPrepend => {
             super::inference::common_case_type(first.clone(), array(arguments.get(1)?)?)?
         }
-        FunctionId::ArrayFill => first.clone(),
+        FunctionId::ArrayFill | FunctionId::EnumRange => first.clone(),
         FunctionId::ArrayReverse
         | FunctionId::ArraySort
         | FunctionId::ArrayShuffle

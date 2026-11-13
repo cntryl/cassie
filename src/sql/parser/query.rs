@@ -781,7 +781,9 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
             let function = parse_function(&raw[..=close])?
                 .ok_or_else(|| SqlError::new("invalid catalog table-function call".into()))?;
             let name = function.name.to_ascii_lowercase();
-            let lateral = lateral || crate::sql::functions::is_options_table(&name);
+            let lateral = lateral
+                || crate::sql::functions::is_options_table(&name)
+                || crate::sql::functions::is_identify_object(&name);
             return relation_alias::parse(
                 QuerySource::TableFunction {
                     name,

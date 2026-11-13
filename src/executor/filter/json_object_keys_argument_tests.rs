@@ -95,6 +95,7 @@ fn should_preserve_local_argument_precedence_missing_null_with_builtin_dispatch(
             return_type: crate::types::DataType::Text,
             volatility: crate::catalog::Volatility::Immutable,
             body: "'override'".into(),
+            object_id: 0,
         },
     )]);
     let params = [];

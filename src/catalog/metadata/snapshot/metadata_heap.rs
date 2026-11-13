@@ -175,6 +175,7 @@ metadata_heap!(crate::catalog::programs::FunctionMeta {
     return_type,
     volatility,
     body,
+    object_id,
 });
 
 metadata_heap!(crate::catalog::programs::ExtensionMeta {
@@ -334,7 +335,12 @@ unit_enum_heap!(crate::catalog::operational::OperationalAssignmentState {
     Failed
 });
 
-metadata_heap!(crate::catalog::programs::ProcedureMeta { name, args, body });
+metadata_heap!(crate::catalog::programs::ProcedureMeta {
+    name,
+    args,
+    body,
+    object_id,
+});
 
 metadata_heap!(
     crate::catalog::collections::ProjectionComparisonReportMeta {

@@ -61,6 +61,15 @@ pub(super) fn execute(
         // Native plugin loading is absent from the current Cassie profile.
         return finalize_source_batches(env, Vec::new(), Vec::new(), qualify, name);
     }
+    if crate::sql::functions::is_identify_object(&function.name) {
+        return super::source_identify_object::execute(
+            env,
+            name,
+            function,
+            if lateral { outer_row } else { None },
+            qualify,
+        );
+    }
     if crate::sql::functions::is_pg_input_error_info(&function.name) {
         return execute_pg_input_error_info(
             env,

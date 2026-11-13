@@ -30,6 +30,7 @@ fn should_retain_owned_object_keys_through_projection_expansion_with_last_row() 
             return_type: crate::types::DataType::Text,
             volatility: crate::catalog::Volatility::Immutable,
             body: "'not the builtin'".into(),
+            object_id: 0,
         },
     );
     // Act

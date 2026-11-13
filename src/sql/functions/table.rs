@@ -5,7 +5,10 @@ pub(crate) fn is_options_table(name: &str) -> bool {
         || name.eq_ignore_ascii_case("pg_catalog.pg_options_to_table")
 }
 pub(crate) fn is_catalog_table(name: &str) -> bool {
-    super::is_loaded_modules(name) || is_options_table(name) || is_pg_input_error_info(name)
+    super::is_loaded_modules(name)
+        || is_options_table(name)
+        || is_pg_input_error_info(name)
+        || super::object_identity::is_identify_object(name)
 }
 
 pub(crate) fn is_pg_input_error_info(name: &str) -> bool {
@@ -15,6 +18,9 @@ pub(crate) fn is_pg_input_error_info(name: &str) -> bool {
 pub(crate) fn catalog_table_columns(name: &str) -> Option<Vec<(String, DataType)>> {
     if super::is_loaded_modules(name) {
         return Some(super::loaded_modules_columns());
+    }
+    if super::object_identity::is_identify_object(name) {
+        return Some(super::object_identity::identify_object_columns());
     }
     if is_pg_input_error_info(name) {
         return Some(

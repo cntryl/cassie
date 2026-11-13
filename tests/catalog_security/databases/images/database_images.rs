@@ -166,6 +166,7 @@ fn should_round_trip_program_catalog_metadata() {
             return_type: DataType::Int,
             volatility: Volatility::Immutable,
             body: "x * 2".to_string(),
+            object_id: 0,
         })
         .expect("store source function");
     cassie
@@ -174,6 +175,7 @@ fn should_round_trip_program_catalog_metadata() {
             name: canonical_relation_name("analytics", "public", "marker_procedure"),
             args: vec![],
             body: "SELECT 1".to_string(),
+            object_id: 0,
         })
         .expect("store source procedure");
 
@@ -215,6 +217,7 @@ fn should_round_trip_program_catalog_metadata() {
             return_type: DataType::Int,
             volatility: Volatility::Immutable,
             body: "x * 2".to_string(),
+            object_id: 0,
         })
     );
     assert_eq!(
@@ -223,6 +226,7 @@ fn should_round_trip_program_catalog_metadata() {
             name: canonical_relation_name("restored", "public", "marker_procedure"),
             args: vec![],
             body: "SELECT 1".to_string(),
+            object_id: 0,
         })
     );
 }

@@ -30,6 +30,7 @@ pub fn column(name: &str, boolean: bool) -> ColumnMeta {
         nullable: true,
         is_record: false,
         record_type: None,
+        enum_column: None,
     }
 }
 

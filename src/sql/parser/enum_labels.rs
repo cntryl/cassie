@@ -98,6 +98,7 @@ fn strip_word<'a>(text: &'a str, word: &str) -> Option<&'a str> {
 }
 
 /// The parsed tail of `ADD VALUE`.
+#[derive(Debug)]
 pub(super) struct AddValue {
     pub label: String,
     pub if_not_exists: bool,

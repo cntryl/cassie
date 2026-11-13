@@ -359,10 +359,11 @@ nullable values, big-endian; tag 0x10 carries domains, see the domain status bel
 durable. The code and its regressions are authored; they have not been
 compiled or executed (assembler-owned gate). Pending or excluded:
 
-- enums keep deterministic `0A000` or `42704` outcomes (`ALTER TYPE`, relation row
-  types, `(expr).*` and domains are described under increment 2 below; the JSON
+- named enums are no longer excluded: they follow the v0.4.0 contract below (#827,
+  authored, pending the assembler gate). `ALTER TYPE`, relation row types,
+  `(expr).*` and domains are described under increment 2 below; the JSON
   recordset functions and `JSON_TABLE` are implemented and described in
-  `docs/feature-support.md`);
+  `docs/feature-support.md`;
 - arrays of composite types (`name[]` columns and casts) are rejected with
   `0A000` although the `_name` array type row and OID exist;
 - composite columns cannot carry `DEFAULT`, `PRIMARY KEY`, `UNIQUE` or an

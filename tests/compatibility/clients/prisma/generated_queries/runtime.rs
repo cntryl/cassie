@@ -162,6 +162,10 @@ async fn prepare_prisma_fixtures(
 async fn run_generated_queries(toolchain: PathBuf, node: PathBuf, project: PrismaProject) {
     let server = CompatibilityServer::start("prisma7_generated_query").await;
     let (server, enum_fixture_error) = prepare_prisma_fixtures(server).await;
+    if let Some(error) = enum_fixture_error.as_deref() {
+        server.shutdown_without_client().await;
+        panic!("Cassie rejected the named enum fixture DDL (#827); the Prisma enum fixture is required: {error}");
+    }
     let enum_fixture_enabled = enum_fixture_error.is_none();
     let connection = format!(
         "postgresql://root:postgres@127.0.0.1:{}/postgres",

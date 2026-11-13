@@ -85,8 +85,11 @@ the linked entries.
   extensions and roles (`0A000`).
 - No routine overloads within a schema; user-defined operators are not
   resolvable ([type contract](type-contract.md)).
-- Enum rows (#827), custom array identities beyond the registered arrays, and
-  the 26 absent object registries, which are shape-only empty relations.
+- Custom array identities beyond the registered arrays (enum and composite array
+  rows are registered with their type) and the absent object registries, which are
+  shape-only empty relations. `pg_enum` is no longer one of them: named enums
+  (#827) populate it under the [v0.4.0 named enum contract](type-contract.md#selected-v040-named-enum-contract-2026-11-13);
+  that implementation is authored and pending the assembler gate.
 
 In the current source, [`virtual_views_pg.rs`](../src/catalog/virtual_views_pg.rs)
 declares and builds the selected base `pg_namespace`, `pg_class`, `pg_type`,
@@ -144,9 +147,12 @@ view. This field inventory does not remove or redefine the existing #954
 dependency; ownership and scope need a separate disposition before that
 cancellation fixture can rely on the view.
 
-Do not add broad `pg_proc`, dependency, sequence, partition, or enum catalog
-behavior through this field inventory. Named enum rows remain deferred with
-[#827](https://github.com/cntryl/cassie/issues/827) to v0.4.0. The exact
+Do not add broad `pg_proc`, dependency, sequence, or partition catalog
+behavior through this field inventory. Named enum rows (`pg_type` with
+`typtype = 'e'`, `pg_enum`) belong to
+[#827](https://github.com/cntryl/cassie/issues/827) and are specified by the
+[v0.4.0 named enum contract](type-contract.md#selected-v040-named-enum-contract-2026-11-13); they are
+implemented-pending-gate, not executed evidence. The exact
 extension field shapes and the pinned PostgreSQL 18.6 observations are also
 recorded in the [extension compatibility contract](extension-compatibility-contract-2026-11-09.md).
 
@@ -224,7 +230,8 @@ OID compatibility, or hosted PostgreSQL behavior.
 The b0d2b65e existing catalog/codec foundation supplies the prerequisite for a
 read-model-only #817 batch. PostgreSQL 18.6 column-name shapes are available for absent
 foreign/replication/security-label/transform, membership/default-ACL, large-object,
-enum/partition/trigger/policy/event-trigger and parameter-ACL registries. Empty
+partition/trigger/policy/event-trigger and parameter-ACL registries (the enum
+registry, `pg_enum`, moved to real rows under #827). Empty
 rows describe the absence of these objects in Cassie's current catalog; they do
 not implement their DDL or advertise the corresponding capability. Keep native
 catalog/domain result OIDs and opaque type codecs outside this selected #817
@@ -397,7 +404,10 @@ composite type use physical attribute numbers, so a dropped attribute leaves a g
 Domain types add a `pg_type` row (`typtype = 'd'`,
 `typbasetype`, `typtypmod`, `typnotnull`) and a `_name` array row with allocator-backed
 OIDs; `pg_attribute.atttypid` of a domain column is the domain OID while `atttypmod` is
-`-1`. Enum rows remain deferred to #827; broad routines,
+`-1`. Enum types add a `pg_type` row (`typtype = 'e'`, `typcategory = 'E'`,
+`typlen = 4`) and a `_name` array row, and `pg_enum` lists `oid` (the immutable member
+ID), `enumtypid`, `enumsortorder` and `enumlabel` per the [v0.4.0 named enum contract](type-contract.md#selected-v040-named-enum-contract-2026-11-13)
+(authored under #827, pending the assembler gate); broad routines,
 dependency families, sequences, and partitions remain unselected except for
 separately documented finite workflows.
 

@@ -198,7 +198,7 @@ fn should_report_enum_columns_as_user_defined_in_information_schema() {
 }
 
 #[test]
-fn should_link_pg_attribute_to_the_enum_and_array_types() {
+fn should_link_pg_attribute_to_the_enum_family_types() {
     // Arrange
     let fixture = fixture("enum_catalog_pg_attribute");
 
@@ -219,7 +219,7 @@ fn should_link_pg_attribute_to_the_enum_and_array_types() {
 }
 
 #[test]
-fn should_resolve_enum_names_through_regtype_and_pg_typeof() {
+fn should_resolve_enum_names_through_type_introspection() {
     // Arrange
     let fixture = fixture("enum_catalog_regtype");
 
@@ -246,7 +246,7 @@ fn should_resolve_enum_names_through_regtype_and_pg_typeof() {
 }
 
 #[test]
-fn should_reflect_a_renamed_value_and_type_in_the_catalogs() {
+fn should_reflect_renames_in_the_catalogs() {
     // Arrange
     let fixture = fixture("enum_catalog_after_rename");
 

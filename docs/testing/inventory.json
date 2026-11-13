@@ -48664,8 +48664,8 @@
       }
     },
     {
-      "id": "tests/enum_types/alter.rs::should_keep_existing_rows_and_their_order_when_a_value_is_added_before",
-      "name": "should_keep_existing_rows_and_their_order_when_a_value_is_added_before",
+      "id": "tests/enum_types/alter.rs::should_keep_existing_row_order_when_a_value_is_added_before",
+      "name": "should_keep_existing_row_order_when_a_value_is_added_before",
       "current_file": "tests/enum_types/alter.rs",
       "line": 129,
       "end_line": 147,
@@ -48676,7 +48676,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "alter::should_keep_existing_rows_and_their_order_when_a_value_is_added_before"
+          "name": "alter::should_keep_existing_row_order_when_a_value_is_added_before"
         }
       ],
       "attributes": [
@@ -48912,8 +48912,8 @@
       }
     },
     {
-      "id": "tests/enum_types/alter.rs::should_keep_member_identity_and_order_across_rename_value",
-      "name": "should_keep_member_identity_and_order_across_rename_value",
+      "id": "tests/enum_types/alter.rs::should_keep_member_identity_across_rename_value",
+      "name": "should_keep_member_identity_across_rename_value",
       "current_file": "tests/enum_types/alter.rs",
       "line": 306,
       "end_line": 327,
@@ -48924,7 +48924,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "alter::should_keep_member_identity_and_order_across_rename_value"
+          "name": "alter::should_keep_member_identity_across_rename_value"
         }
       ],
       "attributes": [
@@ -49470,8 +49470,8 @@
       }
     },
     {
-      "id": "tests/enum_types/catalogs.rs::should_link_pg_attribute_to_the_enum_and_array_types",
-      "name": "should_link_pg_attribute_to_the_enum_and_array_types",
+      "id": "tests/enum_types/catalogs.rs::should_link_pg_attribute_to_the_enum_family_types",
+      "name": "should_link_pg_attribute_to_the_enum_family_types",
       "current_file": "tests/enum_types/catalogs.rs",
       "line": 201,
       "end_line": 219,
@@ -49482,7 +49482,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "catalogs::should_link_pg_attribute_to_the_enum_and_array_types"
+          "name": "catalogs::should_link_pg_attribute_to_the_enum_family_types"
         }
       ],
       "attributes": [
@@ -49501,8 +49501,8 @@
       }
     },
     {
-      "id": "tests/enum_types/catalogs.rs::should_resolve_enum_names_through_regtype_and_pg_typeof",
-      "name": "should_resolve_enum_names_through_regtype_and_pg_typeof",
+      "id": "tests/enum_types/catalogs.rs::should_resolve_enum_names_through_type_introspection",
+      "name": "should_resolve_enum_names_through_type_introspection",
       "current_file": "tests/enum_types/catalogs.rs",
       "line": 222,
       "end_line": 246,
@@ -49513,7 +49513,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "catalogs::should_resolve_enum_names_through_regtype_and_pg_typeof"
+          "name": "catalogs::should_resolve_enum_names_through_type_introspection"
         }
       ],
       "attributes": [
@@ -49532,8 +49532,8 @@
       }
     },
     {
-      "id": "tests/enum_types/catalogs.rs::should_reflect_a_renamed_value_and_type_in_the_catalogs",
-      "name": "should_reflect_a_renamed_value_and_type_in_the_catalogs",
+      "id": "tests/enum_types/catalogs.rs::should_reflect_renames_in_the_catalogs",
+      "name": "should_reflect_renames_in_the_catalogs",
       "current_file": "tests/enum_types/catalogs.rs",
       "line": 249,
       "end_line": 274,
@@ -49544,7 +49544,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "catalogs::should_reflect_a_renamed_value_and_type_in_the_catalogs"
+          "name": "catalogs::should_reflect_renames_in_the_catalogs"
         }
       ],
       "attributes": [
@@ -50245,8 +50245,8 @@
       }
     },
     {
-      "id": "tests/enum_types/ddl.rs::should_accept_not_null_and_default_on_an_enum_column",
-      "name": "should_accept_not_null_and_default_on_an_enum_column",
+      "id": "tests/enum_types/ddl.rs::should_accept_column_constraints_on_an_enum_column",
+      "name": "should_accept_column_constraints_on_an_enum_column",
       "current_file": "tests/enum_types/ddl.rs",
       "line": 364,
       "end_line": 379,
@@ -50257,7 +50257,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "ddl::should_accept_not_null_and_default_on_an_enum_column"
+          "name": "ddl::should_accept_column_constraints_on_an_enum_column"
         }
       ],
       "attributes": [
@@ -50431,8 +50431,8 @@
       }
     },
     {
-      "id": "tests/enum_types/indexes.rs::should_probe_in_and_any_lists_through_the_index",
-      "name": "should_probe_in_and_any_lists_through_the_index",
+      "id": "tests/enum_types/indexes.rs::should_probe_label_lists_through_the_index",
+      "name": "should_probe_label_lists_through_the_index",
       "current_file": "tests/enum_types/indexes.rs",
       "line": 72,
       "end_line": 85,
@@ -50443,7 +50443,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "indexes::should_probe_in_and_any_lists_through_the_index"
+          "name": "indexes::should_probe_label_lists_through_the_index"
         }
       ],
       "attributes": [
@@ -50648,8 +50648,8 @@
       }
     },
     {
-      "id": "tests/enum_types/indexes.rs::should_count_rows_per_member_after_rename_value_and_add_value",
-      "name": "should_count_rows_per_member_after_rename_value_and_add_value",
+      "id": "tests/enum_types/indexes.rs::should_count_rows_per_member_after_value_alterations",
+      "name": "should_count_rows_per_member_after_value_alterations",
       "current_file": "tests/enum_types/indexes.rs",
       "line": 224,
       "end_line": 255,
@@ -50660,7 +50660,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "indexes::should_count_rows_per_member_after_rename_value_and_add_value"
+          "name": "indexes::should_count_rows_per_member_after_value_alterations"
         }
       ],
       "attributes": [
@@ -50679,8 +50679,8 @@
       }
     },
     {
-      "id": "tests/enum_types/persistence.rs::should_keep_enum_rows_and_labels_across_restart",
-      "name": "should_keep_enum_rows_and_labels_across_restart",
+      "id": "tests/enum_types/persistence.rs::should_keep_enum_rows_across_restart",
+      "name": "should_keep_enum_rows_across_restart",
       "current_file": "tests/enum_types/persistence.rs",
       "line": 74,
       "end_line": 93,
@@ -50691,7 +50691,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "persistence::should_keep_enum_rows_and_labels_across_restart"
+          "name": "persistence::should_keep_enum_rows_across_restart"
         }
       ],
       "attributes": [
@@ -50710,8 +50710,8 @@
       }
     },
     {
-      "id": "tests/enum_types/persistence.rs::should_keep_the_type_array_oids_and_member_ids_across_restart",
-      "name": "should_keep_the_type_array_oids_and_member_ids_across_restart",
+      "id": "tests/enum_types/persistence.rs::should_keep_enum_identities_across_restart",
+      "name": "should_keep_enum_identities_across_restart",
       "current_file": "tests/enum_types/persistence.rs",
       "line": 96,
       "end_line": 126,
@@ -50722,7 +50722,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "persistence::should_keep_the_type_array_oids_and_member_ids_across_restart"
+          "name": "persistence::should_keep_enum_identities_across_restart"
         }
       ],
       "attributes": [
@@ -50772,8 +50772,8 @@
       }
     },
     {
-      "id": "tests/enum_types/persistence.rs::should_keep_member_identity_stable_across_rename_value_and_restart",
-      "name": "should_keep_member_identity_stable_across_rename_value_and_restart",
+      "id": "tests/enum_types/persistence.rs::should_keep_member_identity_through_rename_value_across_restart",
+      "name": "should_keep_member_identity_through_rename_value_across_restart",
       "current_file": "tests/enum_types/persistence.rs",
       "line": 173,
       "end_line": 201,
@@ -50784,7 +50784,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "persistence::should_keep_member_identity_stable_across_rename_value_and_restart"
+          "name": "persistence::should_keep_member_identity_through_rename_value_across_restart"
         }
       ],
       "attributes": [
@@ -50803,8 +50803,8 @@
       }
     },
     {
-      "id": "tests/enum_types/persistence.rs::should_keep_type_and_array_oids_across_rename_to_and_restart",
-      "name": "should_keep_type_and_array_oids_across_rename_to_and_restart",
+      "id": "tests/enum_types/persistence.rs::should_keep_type_oids_through_rename_to_across_restart",
+      "name": "should_keep_type_oids_through_rename_to_across_restart",
       "current_file": "tests/enum_types/persistence.rs",
       "line": 204,
       "end_line": 227,
@@ -50815,7 +50815,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "persistence::should_keep_type_and_array_oids_across_rename_to_and_restart"
+          "name": "persistence::should_keep_type_oids_through_rename_to_across_restart"
         }
       ],
       "attributes": [
@@ -50865,8 +50865,8 @@
       }
     },
     {
-      "id": "tests/enum_types/persistence.rs::should_keep_a_scalar_index_probe_correct_across_restart_and_rename",
-      "name": "should_keep_a_scalar_index_probe_correct_across_restart_and_rename",
+      "id": "tests/enum_types/persistence.rs::should_keep_a_scalar_index_probe_correct_through_rename_across_restart",
+      "name": "should_keep_a_scalar_index_probe_correct_through_rename_across_restart",
       "current_file": "tests/enum_types/persistence.rs",
       "line": 254,
       "end_line": 278,
@@ -50877,7 +50877,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "persistence::should_keep_a_scalar_index_probe_correct_across_restart_and_rename"
+          "name": "persistence::should_keep_a_scalar_index_probe_correct_through_rename_across_restart"
         }
       ],
       "attributes": [
@@ -50927,8 +50927,8 @@
       }
     },
     {
-      "id": "tests/enum_types/persistence.rs::should_not_reuse_member_ids_after_a_rolled_back_add_value_and_restart",
-      "name": "should_not_reuse_member_ids_after_a_rolled_back_add_value_and_restart",
+      "id": "tests/enum_types/persistence.rs::should_not_reuse_member_ids_of_a_rolled_back_add_value_after_restart",
+      "name": "should_not_reuse_member_ids_of_a_rolled_back_add_value_after_restart",
       "current_file": "tests/enum_types/persistence.rs",
       "line": 310,
       "end_line": 344,
@@ -50939,7 +50939,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "persistence::should_not_reuse_member_ids_after_a_rolled_back_add_value_and_restart"
+          "name": "persistence::should_not_reuse_member_ids_of_a_rolled_back_add_value_after_restart"
         }
       ],
       "attributes": [
@@ -50958,8 +50958,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/arrays.rs::should_store_and_read_back_an_enum_array_column_as_labels",
-      "name": "should_store_and_read_back_an_enum_array_column_as_labels",
+      "id": "tests/enum_types/runtime/arrays.rs::should_read_back_an_enum_array_column_as_labels",
+      "name": "should_read_back_an_enum_array_column_as_labels",
       "current_file": "tests/enum_types/runtime/arrays.rs",
       "line": 18,
       "end_line": 34,
@@ -50970,7 +50970,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_arrays::should_store_and_read_back_an_enum_array_column_as_labels"
+          "name": "runtime_arrays::should_read_back_an_enum_array_column_as_labels"
         }
       ],
       "attributes": [
@@ -51051,8 +51051,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/casts.rs::should_cast_text_to_an_enum_and_back_to_its_label",
-      "name": "should_cast_text_to_an_enum_and_back_to_its_label",
+      "id": "tests/enum_types/runtime/casts.rs::should_round_trip_a_label_through_text_casts",
+      "name": "should_round_trip_a_label_through_text_casts",
       "current_file": "tests/enum_types/runtime/casts.rs",
       "line": 18,
       "end_line": 33,
@@ -51063,7 +51063,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_casts::should_cast_text_to_an_enum_and_back_to_its_label"
+          "name": "runtime_casts::should_round_trip_a_label_through_text_casts"
         }
       ],
       "attributes": [
@@ -51113,8 +51113,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/casts.rs::should_reject_integer_and_cross_enum_casts_with_42846",
-      "name": "should_reject_integer_and_cross_enum_casts_with_42846",
+      "id": "tests/enum_types/runtime/casts.rs::should_reject_non_text_casts_with_42846",
+      "name": "should_reject_non_text_casts_with_42846",
       "current_file": "tests/enum_types/runtime/casts.rs",
       "line": 48,
       "end_line": 61,
@@ -51125,7 +51125,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_casts::should_reject_integer_and_cross_enum_casts_with_42846"
+          "name": "runtime_casts::should_reject_non_text_casts_with_42846"
         }
       ],
       "attributes": [
@@ -51144,8 +51144,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/casts.rs::should_assign_labels_on_insert_and_update",
-      "name": "should_assign_labels_on_insert_and_update",
+      "id": "tests/enum_types/runtime/casts.rs::should_assign_labels_on_writes",
+      "name": "should_assign_labels_on_writes",
       "current_file": "tests/enum_types/runtime/casts.rs",
       "line": 64,
       "end_line": 81,
@@ -51156,7 +51156,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_casts::should_assign_labels_on_insert_and_update"
+          "name": "runtime_casts::should_assign_labels_on_writes"
         }
       ],
       "attributes": [
@@ -51237,8 +51237,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/comparison.rs::should_pick_min_and_max_by_sort_order",
-      "name": "should_pick_min_and_max_by_sort_order",
+      "id": "tests/enum_types/runtime/comparison.rs::should_pick_extremes_by_sort_order",
+      "name": "should_pick_extremes_by_sort_order",
       "current_file": "tests/enum_types/runtime/comparison.rs",
       "line": 53,
       "end_line": 68,
@@ -51249,7 +51249,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_comparison::should_pick_min_and_max_by_sort_order"
+          "name": "runtime_comparison::should_pick_extremes_by_sort_order"
         }
       ],
       "attributes": [
@@ -51268,8 +51268,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/comparison.rs::should_group_and_deduplicate_equal_members",
-      "name": "should_group_and_deduplicate_equal_members",
+      "id": "tests/enum_types/runtime/comparison.rs::should_collapse_equal_members_when_grouping",
+      "name": "should_collapse_equal_members_when_grouping",
       "current_file": "tests/enum_types/runtime/comparison.rs",
       "line": 71,
       "end_line": 82,
@@ -51280,7 +51280,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_comparison::should_group_and_deduplicate_equal_members"
+          "name": "runtime_comparison::should_collapse_equal_members_when_grouping"
         }
       ],
       "attributes": [
@@ -51290,17 +51290,17 @@
       "execution_status": "not_assessed",
       "placement": {
         "suite": "enum_types",
-        "category": "predicates",
-        "directory": "tests/enum_types/predicates",
-        "file": "tests/enum_types/predicates/comparison.rs",
+        "category": "aggregates/grouping",
+        "directory": "tests/enum_types/aggregates/grouping",
+        "file": "tests/enum_types/aggregates/grouping/comparison.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
-      "id": "tests/enum_types/runtime/comparison.rs::should_match_in_and_any_lists_of_labels",
-      "name": "should_match_in_and_any_lists_of_labels",
+      "id": "tests/enum_types/runtime/comparison.rs::should_match_lists_of_labels",
+      "name": "should_match_lists_of_labels",
       "current_file": "tests/enum_types/runtime/comparison.rs",
       "line": 85,
       "end_line": 96,
@@ -51311,7 +51311,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_comparison::should_match_in_and_any_lists_of_labels"
+          "name": "runtime_comparison::should_match_lists_of_labels"
         }
       ],
       "attributes": [
@@ -51330,8 +51330,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/comparison.rs::should_reject_a_text_operand_and_another_enum_type_with_42883",
-      "name": "should_reject_a_text_operand_and_another_enum_type_with_42883",
+      "id": "tests/enum_types/runtime/comparison.rs::should_reject_foreign_operand_types_with_42883",
+      "name": "should_reject_foreign_operand_types_with_42883",
       "current_file": "tests/enum_types/runtime/comparison.rs",
       "line": 99,
       "end_line": 110,
@@ -51342,7 +51342,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_comparison::should_reject_a_text_operand_and_another_enum_type_with_42883"
+          "name": "runtime_comparison::should_reject_foreign_operand_types_with_42883"
         }
       ],
       "attributes": [
@@ -51392,8 +51392,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/functions.rs::should_return_the_first_and_last_labels_of_the_type",
-      "name": "should_return_the_first_and_last_labels_of_the_type",
+      "id": "tests/enum_types/runtime/functions.rs::should_return_the_boundary_labels_of_the_type",
+      "name": "should_return_the_boundary_labels_of_the_type",
       "current_file": "tests/enum_types/runtime/functions.rs",
       "line": 24,
       "end_line": 35,
@@ -51404,7 +51404,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_functions::should_return_the_first_and_last_labels_of_the_type"
+          "name": "runtime_functions::should_return_the_boundary_labels_of_the_type"
         }
       ],
       "attributes": [
@@ -51454,8 +51454,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/functions.rs::should_treat_a_null_bound_as_open_ended_and_empty_when_reversed",
-      "name": "should_treat_a_null_bound_as_open_ended_and_empty_when_reversed",
+      "id": "tests/enum_types/runtime/functions.rs::should_treat_a_null_bound_as_open_ended",
+      "name": "should_treat_a_null_bound_as_open_ended",
       "current_file": "tests/enum_types/runtime/functions.rs",
       "line": 50,
       "end_line": 66,
@@ -51466,7 +51466,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_functions::should_treat_a_null_bound_as_open_ended_and_empty_when_reversed"
+          "name": "runtime_functions::should_treat_a_null_bound_as_open_ended"
         }
       ],
       "attributes": [
@@ -51485,8 +51485,8 @@
       }
     },
     {
-      "id": "tests/enum_types/runtime/functions.rs::should_reject_first_and_last_of_an_empty_enum_with_55000",
-      "name": "should_reject_first_and_last_of_an_empty_enum_with_55000",
+      "id": "tests/enum_types/runtime/functions.rs::should_reject_boundaries_of_an_empty_enum_with_55000",
+      "name": "should_reject_boundaries_of_an_empty_enum_with_55000",
       "current_file": "tests/enum_types/runtime/functions.rs",
       "line": 69,
       "end_line": 80,
@@ -51497,7 +51497,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "runtime_functions::should_reject_first_and_last_of_an_empty_enum_with_55000"
+          "name": "runtime_functions::should_reject_boundaries_of_an_empty_enum_with_55000"
         }
       ],
       "attributes": [
@@ -51981,8 +51981,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_accept_typed_literals_casts_and_unknown_literals_on_insert_and_update",
-      "name": "should_accept_typed_literals_casts_and_unknown_literals_on_insert_and_update",
+      "id": "tests/enum_types/values.rs::should_accept_every_literal_form_on_writes",
+      "name": "should_accept_every_literal_form_on_writes",
       "current_file": "tests/enum_types/values.rs",
       "line": 21,
       "end_line": 42,
@@ -51993,7 +51993,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_accept_typed_literals_casts_and_unknown_literals_on_insert_and_update"
+          "name": "values::should_accept_every_literal_form_on_writes"
         }
       ],
       "attributes": [
@@ -52012,8 +52012,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_coerce_unknown_literals_in_comparisons_in_and_any",
-      "name": "should_coerce_unknown_literals_in_comparisons_in_and_any",
+      "id": "tests/enum_types/values.rs::should_coerce_unknown_literals_in_comparisons",
+      "name": "should_coerce_unknown_literals_in_comparisons",
       "current_file": "tests/enum_types/values.rs",
       "line": 45,
       "end_line": 72,
@@ -52024,7 +52024,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_coerce_unknown_literals_in_comparisons_in_and_any"
+          "name": "values::should_coerce_unknown_literals_in_comparisons"
         }
       ],
       "attributes": [
@@ -52260,8 +52260,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_aggregate_min_and_max_by_declared_order",
-      "name": "should_aggregate_min_and_max_by_declared_order",
+      "id": "tests/enum_types/values.rs::should_aggregate_extremes_by_declared_order",
+      "name": "should_aggregate_extremes_by_declared_order",
       "current_file": "tests/enum_types/values.rs",
       "line": 207,
       "end_line": 225,
@@ -52272,7 +52272,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_aggregate_min_and_max_by_declared_order"
+          "name": "values::should_aggregate_extremes_by_declared_order"
         }
       ],
       "attributes": [
@@ -52415,8 +52415,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_reject_casts_between_an_enum_and_integers_with_sqlstate_42846",
-      "name": "should_reject_casts_between_an_enum_and_integers_with_sqlstate_42846",
+      "id": "tests/enum_types/values.rs::should_reject_integer_casts_with_sqlstate_42846",
+      "name": "should_reject_integer_casts_with_sqlstate_42846",
       "current_file": "tests/enum_types/values.rs",
       "line": 318,
       "end_line": 331,
@@ -52427,7 +52427,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_reject_casts_between_an_enum_and_integers_with_sqlstate_42846"
+          "name": "values::should_reject_integer_casts_with_sqlstate_42846"
         }
       ],
       "attributes": [
@@ -52477,8 +52477,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_cast_between_an_enum_and_text_in_both_directions",
-      "name": "should_cast_between_an_enum_and_text_in_both_directions",
+      "id": "tests/enum_types/values.rs::should_cast_an_enum_through_text_in_either_direction",
+      "name": "should_cast_an_enum_through_text_in_either_direction",
       "current_file": "tests/enum_types/values.rs",
       "line": 349,
       "end_line": 364,
@@ -52489,7 +52489,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_cast_between_an_enum_and_text_in_both_directions"
+          "name": "values::should_cast_an_enum_through_text_in_either_direction"
         }
       ],
       "attributes": [
@@ -52539,8 +52539,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_return_enum_first_last_and_range_in_declared_order",
-      "name": "should_return_enum_first_last_and_range_in_declared_order",
+      "id": "tests/enum_types/values.rs::should_return_enum_support_functions_in_declared_order",
+      "name": "should_return_enum_support_functions_in_declared_order",
       "current_file": "tests/enum_types/values.rs",
       "line": 384,
       "end_line": 414,
@@ -52551,7 +52551,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_return_enum_first_last_and_range_in_declared_order"
+          "name": "values::should_return_enum_support_functions_in_declared_order"
         }
       ],
       "attributes": [
@@ -52570,8 +52570,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_reject_enum_first_and_last_on_an_empty_enum_with_sqlstate_55000",
-      "name": "should_reject_enum_first_and_last_on_an_empty_enum_with_sqlstate_55000",
+      "id": "tests/enum_types/values.rs::should_reject_enum_boundaries_on_an_empty_enum_with_sqlstate_55000",
+      "name": "should_reject_enum_boundaries_on_an_empty_enum_with_sqlstate_55000",
       "current_file": "tests/enum_types/values.rs",
       "line": 417,
       "end_line": 435,
@@ -52582,7 +52582,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_reject_enum_first_and_last_on_an_empty_enum_with_sqlstate_55000"
+          "name": "values::should_reject_enum_boundaries_on_an_empty_enum_with_sqlstate_55000"
         }
       ],
       "attributes": [
@@ -52632,8 +52632,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_store_and_read_enum_array_columns",
-      "name": "should_store_and_read_enum_array_columns",
+      "id": "tests/enum_types/values.rs::should_round_trip_enum_array_columns",
+      "name": "should_round_trip_enum_array_columns",
       "current_file": "tests/enum_types/values.rs",
       "line": 458,
       "end_line": 488,
@@ -52644,7 +52644,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_store_and_read_enum_array_columns"
+          "name": "values::should_round_trip_enum_array_columns"
         }
       ],
       "attributes": [
@@ -52663,8 +52663,8 @@
       }
     },
     {
-      "id": "tests/enum_types/values.rs::should_unnest_and_order_an_enum_array_by_declared_order",
-      "name": "should_unnest_and_order_an_enum_array_by_declared_order",
+      "id": "tests/enum_types/values.rs::should_order_an_unnested_enum_array_by_declared_order",
+      "name": "should_order_an_unnested_enum_array_by_declared_order",
       "current_file": "tests/enum_types/values.rs",
       "line": 491,
       "end_line": 512,
@@ -52675,7 +52675,7 @@
       "instances": [
         {
           "suite": "enum_types",
-          "name": "values::should_unnest_and_order_an_enum_array_by_declared_order"
+          "name": "values::should_order_an_unnested_enum_array_by_declared_order"
         }
       ],
       "attributes": [
@@ -307383,7 +307383,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 473,
-      "sha256": "11fc4bde699284786e2e0173a1aa11349c9ba3784284bde4475dbde7d401a1a4",
+      "sha256": "eb45aee7e97519a148e665a54d2589e4453cfc9f4cf1984cf52e0bee821419a1",
       "test_declarations": 24,
       "registered_suites": [
         "enum_types"
@@ -307398,7 +307398,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 274,
-      "sha256": "9c952234884d2d4ff9541518f079078f7012e30634966632ec5b49dbc7fd3052",
+      "sha256": "f0e8470deada6830fa94e174efa646079d2651e204b171796f31a396c8e947ee",
       "test_declarations": 11,
       "registered_suites": [
         "enum_types"
@@ -307413,7 +307413,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 445,
-      "sha256": "4984da3cf231429aab29846e5d27868b6def47418fff808f58e785bac9e303b2",
+      "sha256": "3dafa779d89bcfa83100d1ed882f4a7666e19b3b0c968c5c952d9d3366ca8f91",
       "test_declarations": 26,
       "registered_suites": [
         "enum_types"
@@ -307428,7 +307428,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 255,
-      "sha256": "1739f3cd465c23596a9a2e456fb3fd597dcf79714f55f28ce7a860b5ff8abdcd",
+      "sha256": "a47cf168746e9d278cc7efd4692d2ede1cdde3cc884d2dd4b0fd7f98b7651563",
       "test_declarations": 10,
       "registered_suites": [
         "enum_types"
@@ -307443,7 +307443,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 344,
-      "sha256": "53f10b38c283dbdcc083a16dbb1663ab812b7fe79d2abf3945c821f47316a9c9",
+      "sha256": "8bd53321703e15ce1a2bc188aa9e5ca157b5a19c2a01a60116abb73caccc9b7f",
       "test_declarations": 9,
       "registered_suites": [
         "enum_types"
@@ -307458,7 +307458,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 58,
-      "sha256": "8ae28219b7a22739f6953ced274247048b003b76c9e173b35169692d9b929a5a",
+      "sha256": "4609b16a89d741a9aaf07f0eeada499e86a5217d18a9efde0284e4b672257346",
       "test_declarations": 3,
       "registered_suites": [
         "enum_types"
@@ -307473,7 +307473,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 81,
-      "sha256": "621b152e985fa39dc1b6f000dafa986409f42fd8bf9be573d850358dff1af386",
+      "sha256": "dfe65804a48409c66db76ec31ab2394449d9e80766643bdd299fac0748834985",
       "test_declarations": 4,
       "registered_suites": [
         "enum_types"
@@ -307486,14 +307486,15 @@
     {
       "current_file": "tests/enum_types/runtime/comparison.rs",
       "role": "test_module",
-      "action": "move_with_module_alias",
+      "action": "split_by_contract",
       "lines": 122,
-      "sha256": "f13d94edba9ff66a7252d657e00c806b524ec8b5404622fcdd07a1cccc266437",
+      "sha256": "88778f2af00eb181ba242f8e51fb5cf31123f13570f4390f4026f42e41680d66",
       "test_declarations": 7,
       "registered_suites": [
         "enum_types"
       ],
       "destinations": [
+        "tests/enum_types/aggregates/grouping/comparison.rs",
         "tests/enum_types/predicates/comparison.rs"
       ],
       "line_limit": 1000
@@ -307503,7 +307504,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 80,
-      "sha256": "1dd7ac6a4177d4ae2c201df60f82f834939abf7c85f04672a46bf4b90ebee035",
+      "sha256": "6adda7e36d84bdf0c626d6b6270c2f6ef5ff901b941584ec8f19141924f86902",
       "test_declarations": 4,
       "registered_suites": [
         "enum_types"
@@ -307533,7 +307534,7 @@
       "role": "test_module",
       "action": "split_by_contract",
       "lines": 512,
-      "sha256": "71d0abc80125cd1eda905dcc76c12efa0a5098a9e84adb1145d5510a233ea637",
+      "sha256": "08035d8463b9cd378e50f6184f32f1aa1b20064f5ff424ba0a28d4b363feaae5",
       "test_declarations": 23,
       "registered_suites": [
         "enum_types"

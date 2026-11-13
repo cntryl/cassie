@@ -69,7 +69,7 @@ fn should_maintain_an_index_created_before_the_rows() {
 }
 
 #[test]
-fn should_probe_in_and_any_lists_through_the_index() {
+fn should_probe_label_lists_through_the_index() {
     // Arrange
     let fixture = indexed("enum_index_in_any");
 
@@ -221,7 +221,7 @@ fn should_reject_a_duplicate_key_in_a_unique_index_with_sqlstate_23505() {
 }
 
 #[test]
-fn should_count_rows_per_member_after_rename_value_and_add_value() {
+fn should_count_rows_per_member_after_value_alterations() {
     // Arrange
     let fixture = indexed("enum_index_counts");
     fixture

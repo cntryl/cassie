@@ -40,7 +40,7 @@ fn label_of(value: &Value) -> Option<String> {
 }
 
 #[test]
-fn should_resolve_enum_and_enum_array_parameter_oids_in_their_database() {
+fn should_resolve_enum_family_parameter_oids_in_their_database() {
     // Arrange
     let catalog = Catalog::new();
     let (oid, array) = register(&catalog, false);
@@ -90,7 +90,7 @@ fn should_reject_an_unknown_label_parameter_with_22p02() {
 }
 
 #[test]
-fn should_reject_an_uncommitted_label_parameter_with_55p04_and_a_hint() {
+fn should_reject_an_uncommitted_label_parameter_with_a_hinted_55p04() {
     // Arrange
     let catalog = Catalog::new();
     let (oid, _) = register(&catalog, true);
@@ -105,7 +105,7 @@ fn should_reject_an_uncommitted_label_parameter_with_55p04_and_a_hint() {
 }
 
 #[test]
-fn should_parse_array_text_and_binary_labels_into_a_typed_enum_array() {
+fn should_parse_array_labels_in_either_format_into_a_typed_enum_array() {
     // Arrange
     let catalog = Catalog::new();
     let (_, array) = register(&catalog, false);

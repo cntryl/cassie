@@ -51,7 +51,7 @@ fn should_reject_an_unknown_label_in_an_enum_array_literal() {
 }
 
 #[test]
-fn should_build_a_sql_array_of_enum_values_from_labels_and_documents() {
+fn should_build_a_sql_array_of_enum_values_from_mixed_elements() {
     // Arrange
     let descriptor = mood();
     let element_type = DataType::Enum(descriptor.clone());

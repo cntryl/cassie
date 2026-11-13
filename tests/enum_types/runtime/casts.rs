@@ -15,7 +15,7 @@ fn fixture(label: &str) -> SqlFixture {
 }
 
 #[test]
-fn should_cast_text_to_an_enum_and_back_to_its_label() {
+fn should_round_trip_a_label_through_text_casts() {
     // Arrange
     let fixture = fixture("enum_cast_round_trip");
 
@@ -45,7 +45,7 @@ fn should_reject_an_unknown_label_cast_with_22p02() {
 }
 
 #[test]
-fn should_reject_integer_and_cross_enum_casts_with_42846() {
+fn should_reject_non_text_casts_with_42846() {
     // Arrange
     let fixture = fixture("enum_cast_families");
 
@@ -61,7 +61,7 @@ fn should_reject_integer_and_cross_enum_casts_with_42846() {
 }
 
 #[test]
-fn should_assign_labels_on_insert_and_update() {
+fn should_assign_labels_on_writes() {
     // Arrange
     let fixture = fixture("enum_assign");
     fixture

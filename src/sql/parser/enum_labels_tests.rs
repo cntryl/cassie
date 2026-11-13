@@ -30,7 +30,7 @@ fn should_reject_an_unterminated_label() {
 }
 
 #[test]
-fn should_parse_labels_containing_commas_and_parentheses() {
+fn should_parse_labels_containing_list_punctuation() {
     // Arrange
     let inner = "'a,b', ')' , ''";
 
@@ -88,7 +88,7 @@ fn should_match_the_enum_keyword_only_as_a_whole_word() {
 }
 
 #[test]
-fn should_parse_add_value_with_if_not_exists_and_after() {
+fn should_parse_add_value_if_not_exists_after_a_neighbour() {
     // Arrange
     let text = "IF NOT EXISTS 'new' AFTER 'old'";
 

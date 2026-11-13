@@ -32,7 +32,7 @@ fn context(search_path: &[&str]) -> BindingContext {
 }
 
 #[test]
-fn should_resolve_enum_and_array_regtype_text_to_their_oids() {
+fn should_resolve_enum_family_regtype_text_to_its_oids() {
     // Arrange
     let catalog = Catalog::new();
     register(&catalog, "public", "state_code", 70_000);

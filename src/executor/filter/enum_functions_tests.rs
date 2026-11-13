@@ -41,7 +41,7 @@ fn member(descriptor: &EnumRef, label: &str) -> EnumValue {
 }
 
 #[test]
-fn should_return_the_first_and_last_members_in_sort_order() {
+fn should_return_boundary_members_in_sort_order() {
     // Arrange
     let descriptor = mood(&["sad", "ok", "happy"]);
 
@@ -55,7 +55,7 @@ fn should_return_the_first_and_last_members_in_sort_order() {
 }
 
 #[test]
-fn should_reject_first_and_last_of_an_empty_enum_with_55000() {
+fn should_reject_boundaries_of_an_empty_enum_with_55000() {
     // Arrange
     let descriptor = mood(&[]);
 

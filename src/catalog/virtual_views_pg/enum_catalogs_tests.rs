@@ -30,7 +30,7 @@ fn value<'a>(row: &'a [(String, Value)], column: &str) -> &'a Value {
 }
 
 #[test]
-fn should_publish_enum_and_array_type_rows_with_enum_typtype() {
+fn should_publish_enum_family_type_rows_with_enum_typtype() {
     // Arrange
     let catalog = Catalog::new();
     register(&catalog, "cassie", "state_code", 80_000);
@@ -82,7 +82,7 @@ fn should_publish_pg_enum_rows_for_the_current_database_only() {
 }
 
 #[test]
-fn should_report_enum_and_enum_array_columns_as_user_defined_udt_names() {
+fn should_report_enum_family_columns_as_user_defined_udt_names() {
     // Arrange
     let catalog = Catalog::new();
     register(&catalog, "cassie", "state_code", 80_000);

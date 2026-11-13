@@ -45,7 +45,7 @@ fn catalog_with_stale_columns() -> (Catalog, EnumTypeMeta) {
 }
 
 #[test]
-fn should_propagate_a_changed_descriptor_to_scalar_and_array_columns() {
+fn should_propagate_a_changed_descriptor_to_every_embedding_column() {
     // Arrange
     let (catalog, current) = catalog_with_stale_columns();
 

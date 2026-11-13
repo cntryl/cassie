@@ -126,7 +126,7 @@ fn should_add_the_first_value_of_an_empty_enum_with_sort_order_one() {
 }
 
 #[test]
-fn should_keep_existing_rows_and_their_order_when_a_value_is_added_before() {
+fn should_keep_existing_row_order_when_a_value_is_added_before() {
     // Arrange
     let fixture = fixture("enum_alter_add_keeps_rows");
 
@@ -303,7 +303,7 @@ fn should_reject_the_old_label_as_input_after_rename_value() {
 }
 
 #[test]
-fn should_keep_member_identity_and_order_across_rename_value() {
+fn should_keep_member_identity_across_rename_value() {
     // Arrange
     let fixture = fixture("enum_alter_rename_identity");
     let before = scalar(

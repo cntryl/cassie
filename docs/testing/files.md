@@ -372,7 +372,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/enum_types/persistence.rs` | test_module | 344 | 9 | enum_types | move_with_module_alias | `tests/enum_types/semantics/persistence.rs` |
 | `tests/enum_types/runtime/arrays.rs` | test_module | 58 | 3 | enum_types | move_with_module_alias | `tests/enum_types/types/arrays/arrays.rs` |
 | `tests/enum_types/runtime/casts.rs` | test_module | 81 | 4 | enum_types | move_with_module_alias | `tests/enum_types/grammar/casts.rs` |
-| `tests/enum_types/runtime/comparison.rs` | test_module | 122 | 7 | enum_types | move_with_module_alias | `tests/enum_types/predicates/comparison.rs` |
+| `tests/enum_types/runtime/comparison.rs` | test_module | 122 | 7 | enum_types | split_by_contract | `tests/enum_types/aggregates/grouping/comparison.rs`; `tests/enum_types/predicates/comparison.rs` |
 | `tests/enum_types/runtime/functions.rs` | test_module | 80 | 4 | enum_types | move_with_module_alias | `tests/enum_types/routines/functions.rs` |
 | `tests/enum_types/transactions.rs` | test_module | 340 | 15 | enum_types | move_with_module_alias | `tests/enum_types/transactions/transactions.rs` |
 | `tests/enum_types/values.rs` | test_module | 512 | 23 | enum_types | split_by_contract | `tests/enum_types/aggregates/core/values.rs`; `tests/enum_types/relations/values.rs` |

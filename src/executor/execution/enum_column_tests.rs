@@ -61,10 +61,14 @@ fn should_describe_an_enum_array_column_with_the_array_type_oid() {
 
 #[test]
 fn should_not_flag_a_text_column_as_an_enum() {
-    // Arrange / Act
+    // Arrange
     let column = ColumnMeta::text("t");
 
+    // Act
+    let enum_column = column.enum_column();
+    let user_codec = column.user_codec();
+
     // Assert
-    assert_eq!(column.enum_column(), None);
-    assert!(!column.user_codec());
+    assert_eq!(enum_column, None);
+    assert!(!user_codec);
 }

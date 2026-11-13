@@ -67,7 +67,7 @@ fn should_reject_an_unknown_label_with_22p02() {
 }
 
 #[test]
-fn should_reject_an_uncommitted_label_with_55p04_and_a_hint() {
+fn should_reject_an_uncommitted_label_with_a_hinted_55p04() {
     // Arrange
     let descriptor = mood_with(&[("sad", false), ("new", true)], 300_011);
 
@@ -79,7 +79,7 @@ fn should_reject_an_uncommitted_label_with_55p04_and_a_hint() {
 }
 
 #[test]
-fn should_cast_an_enum_to_text_varchar_and_name_as_its_label() {
+fn should_cast_an_enum_to_character_types_as_its_label() {
     // Arrange
     let descriptor = mood();
     let value = cast_text_to_enum(&descriptor, "happy").expect("label");
@@ -115,7 +115,7 @@ fn should_keep_the_value_when_casting_an_enum_to_its_own_type() {
 }
 
 #[test]
-fn should_reject_enum_integer_and_cross_enum_casts_with_42846() {
+fn should_reject_non_text_casts_of_an_enum_with_42846() {
     // Arrange
     let descriptor = mood();
     let other = mood_with(&[("sad", false)], 300_021);

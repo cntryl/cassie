@@ -111,7 +111,7 @@ fn should_reject_every_truncation_of_an_enum_payload() {
 }
 
 #[test]
-fn should_reject_an_unknown_payload_version_and_trailing_bytes() {
+fn should_reject_a_malformed_payload() {
     // Arrange
     let descriptor = mood_type();
     let (_, payload) = encode_enum(&descriptor, &stored(7_000)).expect("encode enum");
@@ -173,7 +173,7 @@ fn should_write_the_golden_layout_for_an_enum_array_with_a_null_element() {
 }
 
 #[test]
-fn should_round_trip_an_enum_array_and_detect_an_unknown_element() {
+fn should_round_trip_an_enum_array_while_detecting_unknown_elements() {
     // Arrange
     let descriptor = EnumRef::new(mood_type());
     let data_type = DataType::Array(Box::new(DataType::Enum(descriptor)));

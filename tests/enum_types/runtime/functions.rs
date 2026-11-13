@@ -21,7 +21,7 @@ fn single_text(fixture: &SqlFixture, sql: &str) -> String {
 }
 
 #[test]
-fn should_return_the_first_and_last_labels_of_the_type() {
+fn should_return_the_boundary_labels_of_the_type() {
     // Arrange
     let fixture = fixture("enum_first_last");
 
@@ -47,7 +47,7 @@ fn should_return_the_whole_range_in_sort_order() {
 }
 
 #[test]
-fn should_treat_a_null_bound_as_open_ended_and_empty_when_reversed() {
+fn should_treat_a_null_bound_as_open_ended() {
     // Arrange
     let fixture = fixture("enum_range_bounds");
 
@@ -66,7 +66,7 @@ fn should_treat_a_null_bound_as_open_ended_and_empty_when_reversed() {
 }
 
 #[test]
-fn should_reject_first_and_last_of_an_empty_enum_with_55000() {
+fn should_reject_boundaries_of_an_empty_enum_with_55000() {
     // Arrange
     let fixture = fixture("enum_first_empty");
 

@@ -21,7 +21,7 @@ fn descriptor(labels: &[&str]) -> EnumType {
 }
 
 #[test]
-fn should_assign_postgresql_sort_orders_for_trailing_and_middle_labels() {
+fn should_assign_postgresql_sort_orders_for_added_labels() {
     // Arrange
     let descriptor = descriptor(&["open", "closed"]);
 
@@ -74,7 +74,7 @@ fn should_request_renumbering_when_no_midpoint_is_representable() {
 }
 
 #[test]
-fn should_keep_value_identity_and_order_through_label_rename() {
+fn should_keep_value_identity_through_label_rename() {
     // Arrange
     let original = EnumRef::new(descriptor(&["open", "closed"]));
     let closed = EnumValue::from_label(&original, "closed").expect("closed label");
@@ -125,7 +125,7 @@ fn should_reject_member_ids_outside_the_descriptor() {
 }
 
 #[test]
-fn should_reject_unknown_and_uncommitted_labels_on_sql_input() {
+fn should_reject_unusable_labels_on_sql_input() {
     // Arrange
     let mut pending = descriptor(&["a", "b"]);
     pending.members[1].uncommitted = true;

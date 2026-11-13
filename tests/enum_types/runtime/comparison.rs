@@ -50,7 +50,7 @@ fn should_compare_with_an_unknown_literal_by_sort_order() {
 }
 
 #[test]
-fn should_pick_min_and_max_by_sort_order() {
+fn should_pick_extremes_by_sort_order() {
     // Arrange
     let fixture = fixture("enum_min_max");
 
@@ -68,7 +68,7 @@ fn should_pick_min_and_max_by_sort_order() {
 }
 
 #[test]
-fn should_group_and_deduplicate_equal_members() {
+fn should_collapse_equal_members_when_grouping() {
     // Arrange
     let fixture = fixture("enum_group_distinct");
 
@@ -82,7 +82,7 @@ fn should_group_and_deduplicate_equal_members() {
 }
 
 #[test]
-fn should_match_in_and_any_lists_of_labels() {
+fn should_match_lists_of_labels() {
     // Arrange
     let fixture = fixture("enum_in_any");
 
@@ -96,7 +96,7 @@ fn should_match_in_and_any_lists_of_labels() {
 }
 
 #[test]
-fn should_reject_a_text_operand_and_another_enum_type_with_42883() {
+fn should_reject_foreign_operand_types_with_42883() {
     // Arrange
     let fixture = fixture("enum_operator_errors");
 

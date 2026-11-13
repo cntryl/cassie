@@ -361,7 +361,7 @@ fn should_reject_altering_a_column_to_an_enum_type_with_sqlstate_0a000() {
 }
 
 #[test]
-fn should_accept_not_null_and_default_on_an_enum_column() {
+fn should_accept_column_constraints_on_an_enum_column() {
     // Arrange
     let fixture = fixture_with_state("enum_not_null_default");
     fixture

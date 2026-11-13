@@ -38,7 +38,7 @@ fn should_resolve_an_enum_name_inside_the_scope() {
 }
 
 #[test]
-fn should_resolve_bracket_and_array_keyword_spellings_to_enum_arrays() {
+fn should_resolve_every_array_spelling_to_enum_arrays() {
     // Arrange
     let scope = resolver();
 

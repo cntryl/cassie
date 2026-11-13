@@ -27,7 +27,7 @@ fn labels(values: &[&str]) -> Value {
 }
 
 #[test]
-fn should_send_an_enum_label_as_utf8_in_text_and_binary_formats() {
+fn should_send_an_enum_label_as_utf8_in_every_format() {
     // Arrange
     let value = Value::String("CA".to_string());
 
@@ -68,7 +68,7 @@ fn should_render_an_enum_array_in_array_out_text_with_quoting() {
 }
 
 #[test]
-fn should_send_an_enum_array_with_the_enum_element_oid_and_label_bytes() {
+fn should_send_an_enum_array_as_labels_under_the_enum_element_oid() {
     // Arrange
     let value = labels(&["CA", "WA"]);
     let mut expected = Vec::new();

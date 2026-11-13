@@ -64,7 +64,7 @@ fn should_reject_an_unknown_format_version() {
 }
 
 #[test]
-fn should_reject_duplicate_type_and_array_identities() {
+fn should_reject_duplicate_type_identities() {
     // Arrange
     let mut metadata = valid();
     metadata.array_object_id = metadata.object_id;
@@ -77,7 +77,7 @@ fn should_reject_duplicate_type_and_array_identities() {
 }
 
 #[test]
-fn should_reject_duplicate_member_identities_and_labels() {
+fn should_reject_duplicate_member_identities() {
     // Arrange
     let mut same_id = valid();
     same_id.members[1].member_id = 7;

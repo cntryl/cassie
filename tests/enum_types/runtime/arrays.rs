@@ -15,7 +15,7 @@ fn fixture(label: &str) -> SqlFixture {
 }
 
 #[test]
-fn should_store_and_read_back_an_enum_array_column_as_labels() {
+fn should_read_back_an_enum_array_column_as_labels() {
     // Arrange
     let fixture = fixture("enum_array_column");
 

@@ -141,7 +141,7 @@ fn should_reject_a_missing_neighbour_label() {
 }
 
 #[test]
-fn should_rename_a_value_keeping_identity_and_position() {
+fn should_rename_a_value_in_place() {
     // Arrange
     let current = mood();
 

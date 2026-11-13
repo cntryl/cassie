@@ -34,7 +34,7 @@ fn labels(cassie: &Cassie, name: &str) -> Vec<String> {
 }
 
 #[test]
-fn should_create_an_enum_with_ordered_labels_and_distinct_member_ids() {
+fn should_create_an_enum_with_ordered_distinct_members() {
     // Arrange
     let (cassie, session) = fixture();
 
@@ -133,7 +133,7 @@ fn should_reject_a_type_name_that_is_already_taken_with_42710() {
 }
 
 #[test]
-fn should_reject_creation_in_a_system_schema_and_in_an_unknown_schema() {
+fn should_reject_creation_outside_a_writable_existing_schema() {
     // Arrange
     let (cassie, session) = fixture();
 
@@ -147,7 +147,7 @@ fn should_reject_creation_in_a_system_schema_and_in_an_unknown_schema() {
 }
 
 #[test]
-fn should_add_values_at_the_end_before_and_after_with_midpoint_sort_orders() {
+fn should_add_values_at_every_placement_with_midpoint_sort_orders() {
     // Arrange
     let (cassie, session) = fixture();
     run(&cassie, &session, "CREATE TYPE t AS ENUM ('a', 'b', 'c')").expect("create");
@@ -170,7 +170,7 @@ fn should_add_values_at_the_end_before_and_after_with_midpoint_sort_orders() {
 }
 
 #[test]
-fn should_keep_member_ids_when_adding_and_renaming_values() {
+fn should_keep_member_ids_across_value_alterations() {
     // Arrange
     let (cassie, session) = fixture();
     run(&cassie, &session, "CREATE TYPE t AS ENUM ('a', 'b')").expect("create");
@@ -237,7 +237,7 @@ fn should_report_rename_value_errors_with_postgresql_sqlstates() {
 }
 
 #[test]
-fn should_rename_and_move_an_enum_and_resolve_it_under_its_new_name() {
+fn should_resolve_a_renamed_moved_enum_under_its_new_name() {
     // Arrange
     let (cassie, session) = fixture();
     run(&cassie, &session, "CREATE TYPE t AS ENUM ('a')").expect("create");
@@ -305,7 +305,7 @@ fn should_refresh_the_descriptor_embedded_in_columns_after_each_alteration() {
 }
 
 #[test]
-fn should_reject_drop_with_dependent_columns_and_allow_drop_without() {
+fn should_allow_drop_only_without_dependent_columns() {
     // Arrange
     let (cassie, session) = fixture();
     run(&cassie, &session, "CREATE TYPE used AS ENUM ('a')").expect("create");
@@ -333,7 +333,7 @@ fn should_reject_drop_with_dependent_columns_and_allow_drop_without() {
 }
 
 #[test]
-fn should_reject_enums_as_composite_attributes_and_domain_bases() {
+fn should_reject_enums_nested_in_other_user_types() {
     // Arrange
     let (cassie, session) = fixture();
     run(&cassie, &session, "CREATE TYPE mood AS ENUM ('a')").expect("create");

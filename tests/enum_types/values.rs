@@ -18,7 +18,7 @@ fn fixture(label: &str) -> SqlFixture {
 }
 
 #[test]
-fn should_accept_typed_literals_casts_and_unknown_literals_on_insert_and_update() {
+fn should_accept_every_literal_form_on_writes() {
     // Arrange
     let fixture = fixture("enum_values_write_coercion");
 
@@ -42,7 +42,7 @@ fn should_accept_typed_literals_casts_and_unknown_literals_on_insert_and_update(
 }
 
 #[test]
-fn should_coerce_unknown_literals_in_comparisons_in_and_any() {
+fn should_coerce_unknown_literals_in_comparisons() {
     // Arrange
     let fixture = fixture("enum_values_read_coercion");
 
@@ -204,7 +204,7 @@ fn should_return_distinct_enum_values() {
 }
 
 #[test]
-fn should_aggregate_min_and_max_by_declared_order() {
+fn should_aggregate_extremes_by_declared_order() {
     // Arrange
     let fixture = fixture("enum_values_min_max");
 
@@ -315,7 +315,7 @@ fn should_reject_comparing_two_enum_types_with_sqlstate_42883() {
 }
 
 #[test]
-fn should_reject_casts_between_an_enum_and_integers_with_sqlstate_42846() {
+fn should_reject_integer_casts_with_sqlstate_42846() {
     // Arrange
     let fixture = fixture("enum_values_int_cast");
 
@@ -346,7 +346,7 @@ fn should_reject_casting_one_enum_to_another_with_sqlstate_42846() {
 }
 
 #[test]
-fn should_cast_between_an_enum_and_text_in_both_directions() {
+fn should_cast_an_enum_through_text_in_either_direction() {
     // Arrange
     let fixture = fixture("enum_values_text_cast");
 
@@ -381,7 +381,7 @@ fn should_report_enum_expression_types_through_pg_typeof() {
 }
 
 #[test]
-fn should_return_enum_first_last_and_range_in_declared_order() {
+fn should_return_enum_support_functions_in_declared_order() {
     // Arrange
     let fixture = fixture("enum_values_helpers");
 
@@ -414,7 +414,7 @@ fn should_return_enum_first_last_and_range_in_declared_order() {
 }
 
 #[test]
-fn should_reject_enum_first_and_last_on_an_empty_enum_with_sqlstate_55000() {
+fn should_reject_enum_boundaries_on_an_empty_enum_with_sqlstate_55000() {
     // Arrange
     let fixture = fixture("enum_values_empty_helpers");
     fixture.execute("CREATE TYPE nothing AS ENUM ()").unwrap();
@@ -455,7 +455,7 @@ fn should_follow_added_values_in_enum_range_by_sort_order() {
 }
 
 #[test]
-fn should_store_and_read_enum_array_columns() {
+fn should_round_trip_enum_array_columns() {
     // Arrange
     let fixture = fixture("enum_values_array_column");
     fixture
@@ -488,7 +488,7 @@ fn should_store_and_read_enum_array_columns() {
 }
 
 #[test]
-fn should_unnest_and_order_an_enum_array_by_declared_order() {
+fn should_order_an_unnested_enum_array_by_declared_order() {
     // Arrange
     let fixture = fixture("enum_values_array_unnest");
 

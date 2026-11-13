@@ -71,7 +71,7 @@ fn alter(store: &LocalStore) {
 }
 
 #[test]
-fn should_keep_enum_rows_and_labels_across_restart() {
+fn should_keep_enum_rows_across_restart() {
     // Arrange
     let store = LocalStore::new("enum_restart_rows");
     seed(&store);
@@ -93,7 +93,7 @@ fn should_keep_enum_rows_and_labels_across_restart() {
 }
 
 #[test]
-fn should_keep_the_type_array_oids_and_member_ids_across_restart() {
+fn should_keep_enum_identities_across_restart() {
     // Arrange
     let store = LocalStore::new("enum_restart_oids");
     seed(&store);
@@ -170,7 +170,7 @@ fn should_keep_alterations_across_restart() {
 }
 
 #[test]
-fn should_keep_member_identity_stable_across_rename_value_and_restart() {
+fn should_keep_member_identity_through_rename_value_across_restart() {
     // Arrange
     let store = LocalStore::new("enum_restart_member_identity");
     seed(&store);
@@ -201,7 +201,7 @@ fn should_keep_member_identity_stable_across_rename_value_and_restart() {
 }
 
 #[test]
-fn should_keep_type_and_array_oids_across_rename_to_and_restart() {
+fn should_keep_type_oids_through_rename_to_across_restart() {
     // Arrange
     let store = LocalStore::new("enum_restart_rename_to_oid");
     seed(&store);
@@ -251,7 +251,7 @@ fn should_accept_inserts_with_every_label_after_restart() {
 }
 
 #[test]
-fn should_keep_a_scalar_index_probe_correct_across_restart_and_rename() {
+fn should_keep_a_scalar_index_probe_correct_through_rename_across_restart() {
     // Arrange
     let store = LocalStore::new("enum_restart_index");
     seed(&store);
@@ -307,7 +307,7 @@ fn should_not_restore_a_dropped_enum_after_restart() {
 }
 
 #[test]
-fn should_not_reuse_member_ids_after_a_rolled_back_add_value_and_restart() {
+fn should_not_reuse_member_ids_of_a_rolled_back_add_value_after_restart() {
     // Arrange
     let store = LocalStore::new("enum_restart_burned_ids");
     {

@@ -19,7 +19,7 @@ fn mood() -> EnumRef {
 }
 
 #[test]
-fn should_report_postgresql_operator_and_type_names_for_a_text_operand() {
+fn should_report_postgresql_names_for_a_text_operand() {
     // Arrange
     let error = undefined(
         &BinaryOp::Lt,

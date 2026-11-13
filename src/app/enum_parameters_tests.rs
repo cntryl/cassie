@@ -100,7 +100,7 @@ fn should_reject_an_uncommitted_label_parameter_with_a_hinted_55p04() {
     let outcome = coerce_declared(&catalog, DATABASE, &[oid], &mut params);
 
     // Assert
-    let error = outcome.err().expect("55P04");
+    let error = outcome.expect_err("55P04");
     assert_eq!(error.sql_state(), "55P04");
 }
 

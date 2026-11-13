@@ -53,7 +53,7 @@ fn should_parse_an_empty_label_list() {
     let labels = parse_label_list(inner).expect("labels");
 
     // Assert
-    assert!(labels.is_empty());
+    assert_eq!(labels, Vec::<String>::new());
 }
 
 #[test]

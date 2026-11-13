@@ -197,7 +197,7 @@ fn should_keep_member_identity_through_rename_value_across_restart() {
     // Assert
     assert!(done_id.is_some());
     assert_eq!(done_id, renamed_id, "RENAME VALUE keeps the member ID");
-    assert!(old_label_rows.is_empty());
+    assert_eq!(old_label_rows, Vec::<Option<String>>::new());
 }
 
 #[test]
@@ -301,8 +301,8 @@ fn should_not_restore_a_dropped_enum_after_restart() {
     );
 
     // Assert
-    assert!(types.is_empty());
-    assert!(members.is_empty());
+    assert_eq!(types, Vec::<Option<String>>::new());
+    assert_eq!(members, Vec::<Option<String>>::new());
     assert!(recreated.is_ok(), "the name is free after a durable drop");
 }
 

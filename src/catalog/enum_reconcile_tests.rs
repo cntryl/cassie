@@ -117,6 +117,6 @@ fn should_not_touch_columns_of_other_enum_types() {
     let propagation = catalog.propagate_enum_change(&target.descriptor());
 
     // Assert
-    assert!(propagation.columns.is_empty());
+    assert_eq!(propagation.columns, Vec::new());
     assert!(propagation.views.is_empty());
 }

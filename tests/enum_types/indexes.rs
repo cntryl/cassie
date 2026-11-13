@@ -39,7 +39,7 @@ fn should_probe_equality_through_an_index_built_over_existing_rows() {
     // Assert
     assert_eq!(high, vec!["2", "5"]);
     assert_eq!(low, vec!["4", "6"]);
-    assert!(absent.is_empty());
+    assert_eq!(absent, Vec::<String>::new());
 }
 
 #[test]

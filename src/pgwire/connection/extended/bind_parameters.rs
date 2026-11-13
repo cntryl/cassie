@@ -36,13 +36,19 @@ pub(super) fn enum_columns(
         .collect()
 }
 
+/// The `(values, formats, declared OIDs)` triple of a `Bind` message.
+pub(super) type WireParameters<'a> = (&'a [Option<Vec<u8>>], &'a [i16], &'a [i32]);
+
+/// The session's vector OID and the enum description of each parameter slot.
+pub(super) type SpecialParameterTypes<'a> = (Option<i32>, &'a [Option<EnumColumn>]);
+
 /// Decodes every bound parameter. `wire` is the `(values, formats, declared
 /// OIDs)` triple of the `Bind` message; `special` is the session's vector OID
 /// and the enum description of each slot.
 pub(super) fn decode(
-    wire: (&[Option<Vec<u8>>], &[i16], &[i32]),
+    wire: WireParameters<'_>,
     controls: &QueryExecutionControls,
-    special: (Option<i32>, &[Option<EnumColumn>]),
+    special: SpecialParameterTypes<'_>,
 ) -> Result<(Vec<Value>, Vec<QueryMemoryReservation>), ExtendedQueryError> {
     let (parameters, parameter_formats, parameter_types) = wire;
     let (vector_oid, enum_columns) = special;

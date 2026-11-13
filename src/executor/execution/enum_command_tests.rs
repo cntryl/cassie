@@ -76,7 +76,7 @@ fn should_create_an_enum_without_labels() {
 
     // Assert
     assert!(result.is_ok());
-    assert!(labels(&cassie, "nothing").is_empty());
+    assert_eq!(labels(&cassie, "nothing"), Vec::<String>::new());
 }
 
 #[test]

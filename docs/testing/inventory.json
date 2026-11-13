@@ -307428,7 +307428,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 255,
-      "sha256": "a47cf168746e9d278cc7efd4692d2ede1cdde3cc884d2dd4b0fd7f98b7651563",
+      "sha256": "51a2a5e783d42f99e51bdf918d3a5da45359a47750c15f757ffa115ad1066688",
       "test_declarations": 10,
       "registered_suites": [
         "enum_types"
@@ -307443,7 +307443,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 344,
-      "sha256": "8bd53321703e15ce1a2bc188aa9e5ca157b5a19c2a01a60116abb73caccc9b7f",
+      "sha256": "d2d23dc6c0d6488463829d8a38465838a3b9d9349281353a12f7ef39c63b617f",
       "test_declarations": 9,
       "registered_suites": [
         "enum_types"

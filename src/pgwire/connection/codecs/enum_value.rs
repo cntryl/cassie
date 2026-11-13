@@ -17,8 +17,7 @@ fn label_of(value: &Value) -> io::Result<&str> {
             .as_enum()
             .map(crate::types::EnumValue::label)
             .ok_or_else(|| invalid_data("enum")),
-        Value::String(label) => Ok(label),
-        Value::Json(serde_json::Value::String(label)) => Ok(label),
+        Value::String(label) | Value::Json(serde_json::Value::String(label)) => Ok(label),
         _ => Err(invalid_data("enum")),
     }
 }
@@ -35,7 +34,7 @@ pub(in crate::pgwire::connection) fn encode(
     format: i16,
 ) -> io::Result<Vec<u8>> {
     match (format, column.is_array) {
-        (0, false) | (1, false) => label_of(value).map(|label| label.as_bytes().to_vec()),
+        (0 | 1, false) => label_of(value).map(|label| label.as_bytes().to_vec()),
         (0, true) => text_array(value).map(String::into_bytes),
         (1, true) => binary_array(value, column.element_oid),
         _ => Err(io::Error::new(

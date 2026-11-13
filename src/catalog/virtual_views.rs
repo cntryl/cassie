@@ -668,9 +668,9 @@ fn information_schema_column_row(
         ),
         string(
             "udt_schema",
-            match data_type {
-                _ if enum_udt.is_some() => enum_udt.map(|(schema, _)| schema).unwrap_or_default(),
-                DataType::Composite(descriptor) if !descriptor.is_anonymous() => {
+            match (data_type, enum_udt) {
+                (_, Some((schema, _))) => schema,
+                (DataType::Composite(descriptor), None) if !descriptor.is_anonymous() => {
                     relation_schema_name(&descriptor.qualified_name)
                 }
                 _ => crate::catalog::PG_CATALOG_SCHEMA.to_string(),

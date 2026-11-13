@@ -23,9 +23,15 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
         return None;
     }
     match (left, right) {
-        (ScalarValue::Typed(left), ScalarValue::Typed(right)) => {
-            enum_order(left, right).unwrap_or_else(|| operations::compare(left, right))
+        (
+            ScalarValue::Typed(TypedValue::Enum(left)),
+            ScalarValue::Typed(TypedValue::Enum(right)),
+        ) => {
+            // Two different enum types have no ordering.
+            (left.descriptor().oid == right.descriptor().oid)
+                .then(|| left.order_key().cmp(&right.order_key()))
         }
+        (ScalarValue::Typed(left), ScalarValue::Typed(right)) => operations::compare(left, right),
         (ScalarValue::Typed(TypedValue::Enum(value)), ScalarValue::Str(text)) => {
             // An untyped label meets the enum's input function.
             EnumValue::parse_label(value.descriptor(), text)
@@ -41,18 +47,6 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
         }
         _ => None,
     }
-}
-
-/// Orders two enum values of the same type by sort order. `None` when either
-/// side is not an enum; `Some(None)` for two different enum types.
-fn enum_order(left: &TypedValue, right: &TypedValue) -> Option<Option<std::cmp::Ordering>> {
-    let (TypedValue::Enum(left), TypedValue::Enum(right)) = (left, right) else {
-        return None;
-    };
-    Some(
-        (left.descriptor().oid == right.descriptor().oid)
-            .then(|| left.order_key().cmp(&right.order_key())),
-    )
 }
 
 /// Evaluates `left op right` when either operand belongs to an owned family;
@@ -152,10 +146,10 @@ fn comparison(
 /// An enum compared with an untyped label: the label must be valid input for
 /// the enum (`22P02`/`55P04`), as PostgreSQL resolves it with `enum_in`.
 fn enum_label_input(left: &ScalarValue, right: &ScalarValue) -> Option<Result<(), QueryError>> {
-    let (value, label) = match (left, right) {
-        (ScalarValue::Typed(TypedValue::Enum(value)), ScalarValue::Str(label))
-        | (ScalarValue::Str(label), ScalarValue::Typed(TypedValue::Enum(value))) => (value, label),
-        _ => return None,
+    let ((ScalarValue::Typed(TypedValue::Enum(value)), ScalarValue::Str(label))
+    | (ScalarValue::Str(label), ScalarValue::Typed(TypedValue::Enum(value)))) = (left, right)
+    else {
+        return None;
     };
     Some(
         EnumValue::parse_label(value.descriptor(), label)

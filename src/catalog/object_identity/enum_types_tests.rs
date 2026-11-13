@@ -41,7 +41,7 @@ fn should_resolve_enum_family_regtype_text_to_its_oids() {
     let meta = catalog
         .list_enum_types()
         .first()
-        .map_or(0, |meta| meta.type_oid());
+        .map_or(0, crate::catalog::enum_types::EnumTypeMeta::type_oid);
 
     // Act
     let scalar = scope.resolve(ObjectIdKind::RegType, "state_code");
@@ -60,11 +60,11 @@ fn should_qualify_enum_regtype_label_only_outside_the_search_path() {
     let oid = catalog
         .list_enum_types()
         .first()
-        .map_or(0, |meta| meta.type_oid());
+        .map_or(0, crate::catalog::enum_types::EnumTypeMeta::type_oid);
     let array_oid = catalog
         .list_enum_types()
         .first()
-        .map_or(0, |meta| meta.array_oid());
+        .map_or(0, crate::catalog::enum_types::EnumTypeMeta::array_oid);
     let qualified = context(&["public"]);
     let visible = context(&["s", "public"]);
 

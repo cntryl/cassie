@@ -36,9 +36,10 @@ Every SQL table has exactly one authoritative storage mode:
 - `pg_class.relam` is 2 for row tables and 9301 for column tables.
 - `pg_table_storage.storage_mode` reports `row-store`, `column-indexed` or
   `column-store`.
-- Text `EXPLAIN` reports `storage_mode=column_store` and the structured form
-  reports `"Storage": "columnar"` for scans of column tables. A derived
-  accelerator is reported separately from authority.
+- Text `EXPLAIN` reports `storage_mode=column-store`, the same spelling as
+  `pg_table_storage`. The structured form reports `"Storage": "columnar"` or
+  `"row"` for the authority and a separate `"Storage accelerator"` attribute for
+  a derived column-batch index.
 
 ## One logical database, mixed modes
 
@@ -158,8 +159,8 @@ conditions.
   database-family Midge transaction. Readers see the old or the new authority,
   never a mix. The table keeps its OID, row ids, schema, constraints, grants
   and comments.
-- Derived indexes are rebuilt from the new authoritative values in the same
-  transaction. A `USING column` index blocks conversion to `columnar` with
+- Derived indexes stay valid without a rebuild: they are keyed by field
+  values and row ids, which conversion preserves. A `USING column` index blocks conversion to `columnar` with
   `0A000` until it is dropped.
 - Same-mode conversion is a no-op.
 - Converting is transactional DDL: it is allowed inside an explicit

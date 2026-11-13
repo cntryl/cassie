@@ -399,41 +399,163 @@ fn should_reject_a_whole_row_reference_in_a_set_operation_with_sqlstate_0a000() 
     assert_eq!(error.sql_state(), "0A000");
 }
 
-#[test]
-fn should_decode_stored_rows_after_adding_then_renaming_a_column() {
-    // Arrange
-    let fixture = fixture("row_type_add_then_rename");
-    let revision = |fixture: &SqlFixture| {
-        text(
-            fixture,
-            "SELECT (SELECT count(*) FROM pg_attribute a \
-             JOIN pg_class c ON c.oid = a.attrelid WHERE c.relname = 't')::text",
-        )
-    };
+fn revision_of(fixture: &SqlFixture, table: &str) -> u64 {
+    let suffix = format!(".{table}");
+    let name = fixture
+        .cassie
+        .catalog
+        .list_collections_canonical()
+        .into_iter()
+        .map(|collection| collection.name)
+        .find(|name| name.ends_with(&suffix))
+        .expect("table is registered");
     fixture
-        .execute("ALTER TABLE t ADD COLUMN extra int")
-        .unwrap();
-    fixture.execute("CREATE TABLE u (x t)").unwrap();
-    fixture
-        .execute("INSERT INTO u VALUES (ROW(2, 'y', 5))")
-        .unwrap();
-
-    // Act
-    fixture
-        .execute("ALTER TABLE t RENAME COLUMN extra TO more")
-        .unwrap();
-    let rendered = text(&fixture, "SELECT x::text FROM u");
-
-    // Assert
-    assert!(revision(&fixture).is_some());
-    assert_eq!(rendered.as_deref(), Some("(2,y,5)"));
+        .cassie
+        .catalog
+        .relation_row_type(&name)
+        .expect("table has a row type")
+        .revision
 }
 
 #[test]
-fn should_roll_back_a_row_type_change_with_its_transaction() {
+fn should_advance_the_row_type_revision_when_adding_a_column() {
+    // Arrange
+    let fixture = fixture("row_type_revision_add");
+    let before = revision_of(&fixture, "t");
+
+    // Act
+    fixture
+        .execute("ALTER TABLE t ADD COLUMN extra int")
+        .unwrap();
+
+    // Assert
+    assert!(revision_of(&fixture, "t") > before);
+}
+
+#[test]
+fn should_advance_the_row_type_revision_when_dropping_a_column() {
+    // Arrange
+    let fixture = fixture("row_type_revision_drop");
+    let before = revision_of(&fixture, "t");
+
+    // Act
+    fixture.execute("ALTER TABLE t DROP COLUMN name").unwrap();
+
+    // Assert
+    assert!(revision_of(&fixture, "t") > before);
+}
+
+#[test]
+fn should_advance_the_row_type_revision_when_renaming_a_column() {
+    // Arrange
+    let fixture = fixture("row_type_revision_rename");
+    let before = revision_of(&fixture, "t");
+
+    // Act
+    fixture
+        .execute("ALTER TABLE t RENAME COLUMN name TO label")
+        .unwrap();
+
+    // Assert
+    assert!(revision_of(&fixture, "t") > before);
+}
+
+#[test]
+fn should_advance_the_row_type_revision_after_add_then_drop() {
+    // Arrange
+    let fixture = fixture("row_type_revision_add_drop");
+    fixture
+        .execute("ALTER TABLE t ADD COLUMN extra int")
+        .unwrap();
+    let after_add = revision_of(&fixture, "t");
+
+    // Act
+    fixture.execute("ALTER TABLE t DROP COLUMN extra").unwrap();
+
+    // Assert
+    assert!(revision_of(&fixture, "t") > after_add);
+}
+
+#[test]
+fn should_refuse_changing_a_column_type_whose_row_type_is_nested_in_a_stored_type() {
+    // Arrange
+    let fixture = fixture("row_type_alter_column_type_nested");
+    fixture
+        .execute("CREATE TYPE wrap AS (inner_row t)")
+        .unwrap();
+    fixture.execute("CREATE TABLE u (y wrap)").unwrap();
+
+    // Act
+    let error = fixture.error("ALTER TABLE t ALTER COLUMN id TYPE bigint");
+
+    // Assert
+    assert_eq!(error.sql_state(), "0A000");
+}
+
+fn join_fixture(label: &str) -> SqlFixture {
+    let fixture = fixture(label);
+    fixture.execute("CREATE TABLE u (k int, t int)").unwrap();
+    fixture.execute("INSERT INTO u VALUES (1, 9)").unwrap();
+    fixture
+}
+
+#[test]
+fn should_read_a_column_named_like_a_joined_table_instead_of_its_row() {
+    // Arrange
+    let fixture = join_fixture("row_type_join_column_wins");
+
+    // Act
+    let value = text(&fixture, "SELECT t FROM t JOIN u ON u.k = t.id");
+
+    // Assert
+    assert_eq!(value.as_deref(), Some("9"));
+}
+
+#[test]
+fn should_group_by_a_column_named_like_a_joined_table() {
+    // Arrange
+    let fixture = join_fixture("row_type_join_group_by_column");
+
+    // Act
+    let value = text(&fixture, "SELECT t FROM t JOIN u ON u.k = t.id GROUP BY t");
+
+    // Assert
+    assert_eq!(value.as_deref(), Some("9"));
+}
+
+#[test]
+fn should_read_a_real_column_in_a_union_branch_named_like_the_first_table() {
+    // Arrange
+    let fixture = join_fixture("row_type_union_branch_column");
+
+    // Act
+    let rows = fixture.rows("SELECT id FROM t UNION SELECT t FROM u");
+
+    // Assert
+    assert_eq!(rows.len(), 2);
+}
+
+#[test]
+fn should_reject_a_union_branch_whole_row_of_another_table_with_sqlstate_0a000() {
+    // Arrange
+    let fixture = join_fixture("row_type_union_branch_whole_row");
+
+    // Act
+    let error = fixture.error("SELECT id FROM t UNION SELECT u FROM u");
+
+    // Assert
+    assert_eq!(error.sql_state(), "0A000");
+}
+
+#[test]
+fn should_keep_the_row_type_revision_when_a_change_is_rolled_back() {
     // Arrange
     let fixture = fixture("row_type_add_column_rollback");
     fixture.execute("CREATE TABLE u (x t)").unwrap();
+    fixture
+        .execute("INSERT INTO u VALUES (ROW(2, 'y'))")
+        .unwrap();
+    let before = revision_of(&fixture, "t");
     fixture.execute("BEGIN").unwrap();
     fixture
         .execute("ALTER TABLE t ADD COLUMN extra int")
@@ -441,8 +563,48 @@ fn should_roll_back_a_row_type_change_with_its_transaction() {
 
     // Act
     fixture.execute("ROLLBACK").unwrap();
-    let rendered = text(&fixture, "SELECT t::text FROM t");
 
     // Assert
-    assert_eq!(rendered.as_deref(), Some("(1,x)"));
+    assert_eq!(revision_of(&fixture, "t"), before);
+}
+
+#[test]
+fn should_keep_the_embedded_row_type_after_a_rolled_back_add_column() {
+    // Arrange
+    let fixture = fixture("row_type_rollback_embedded");
+    fixture.execute("CREATE TABLE u (x t)").unwrap();
+    fixture.execute("BEGIN").unwrap();
+    fixture
+        .execute("ALTER TABLE t ADD COLUMN extra int")
+        .unwrap();
+    fixture.execute("ROLLBACK").unwrap();
+
+    // Act
+    let inserted = fixture.execute("INSERT INTO u VALUES (ROW(2, 'y'))");
+    let rendered = text(&fixture, "SELECT x::text FROM u");
+
+    // Assert
+    assert!(inserted.is_ok());
+    assert_eq!(rendered.as_deref(), Some("(2,y)"));
+}
+
+#[test]
+fn should_keep_the_table_attribute_count_after_a_rolled_back_add_column() {
+    // Arrange
+    let fixture = fixture("row_type_rollback_attributes");
+    fixture.execute("BEGIN").unwrap();
+    fixture
+        .execute("ALTER TABLE t ADD COLUMN extra int")
+        .unwrap();
+    fixture.execute("ROLLBACK").unwrap();
+
+    // Act
+    let count = text(
+        &fixture,
+        "SELECT count(*)::text FROM pg_attribute a \
+         JOIN pg_class c ON c.oid = a.attrelid WHERE c.relname = 't' AND a.attnum > 0",
+    );
+
+    // Assert
+    assert_eq!(count.as_deref(), Some("2"));
 }

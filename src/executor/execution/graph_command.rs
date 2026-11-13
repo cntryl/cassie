@@ -29,6 +29,14 @@ pub(super) fn create_graph_collection(
         .midge
         .create_collection_with_meta(&storage_collection, &schema, &metadata)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    if let Some(stored) = cassie
+        .midge
+        .collection_metadata(&storage_collection)
+        .map_err(|error| QueryError::General(error.to_string()))?
+    {
+        metadata.row_type_object_id = stored.row_type_object_id;
+        metadata.row_array_object_id = stored.row_array_object_id;
+    }
     let constraints = user_fields
         .iter()
         .flat_map(|field| field.constraints.iter().cloned())

@@ -169,3 +169,52 @@ fn should_keep_a_renamed_type_across_restart() {
     // Assert
     assert_eq!(cast, Some("(z,9)".to_owned()));
 }
+
+#[test]
+fn should_keep_the_table_row_type_revision_across_restart() {
+    // Arrange
+    let store = LocalStore::new("composite_restart_row_revision");
+    let revision = |cassie: &Cassie| {
+        let name = cassie
+            .catalog
+            .list_collections_canonical()
+            .into_iter()
+            .map(|collection| collection.name)
+            .find(|name| name.ends_with(".homes"))
+            .expect("homes is registered");
+        cassie
+            .catalog
+            .relation_row_type(&name)
+            .expect("row type")
+            .revision
+    };
+    seed(&store);
+    let before = {
+        let cassie = store.open();
+        run(&cassie, "ALTER TABLE homes ADD COLUMN note text");
+        run(&cassie, "ALTER TABLE homes RENAME COLUMN note TO memo");
+        revision(&cassie)
+    };
+
+    // Act
+    let after = revision(&store.open());
+
+    // Assert
+    assert_eq!(before, after);
+}
+
+#[test]
+fn should_keep_the_table_row_type_oid_across_restart() {
+    // Arrange
+    let store = LocalStore::new("composite_restart_row_oid");
+    seed(&store);
+    let oid_sql = "SELECT reltype::text FROM pg_class WHERE relname = 'homes'";
+    let before = only_text(&run(&store.open(), oid_sql));
+
+    // Act
+    let after = only_text(&run(&store.open(), oid_sql));
+
+    // Assert
+    assert!(before.is_some());
+    assert_eq!(before, after);
+}

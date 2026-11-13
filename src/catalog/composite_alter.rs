@@ -186,6 +186,20 @@ pub struct DescriptorPropagation {
     pub views: Vec<crate::catalog::ViewMeta>,
 }
 
+/// Everything one `ALTER TYPE` (or row-type refresh) writes into one database
+/// family, published as a single Midge transaction.
+#[derive(Debug, Clone, Default)]
+pub struct CompositeGroup {
+    pub database: String,
+    /// The altered type itself; present only in the target's database.
+    pub target: Option<CompositeTypeMeta>,
+    /// Old name of a renamed target, deleted in the same transaction.
+    pub deleted_type: Option<String>,
+    pub types: Vec<CompositeTypeMeta>,
+    pub columns: Vec<ColumnRetype>,
+    pub views: Vec<crate::catalog::ViewMeta>,
+}
+
 impl Catalog {
     /// Table columns, as `table.column`, that store `oid` directly or inside
     /// another composite type. PostgreSQL refuses a retype while any exists.

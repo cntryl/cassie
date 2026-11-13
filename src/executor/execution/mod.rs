@@ -164,6 +164,7 @@ mod sequence_command;
 mod session_command;
 mod type_alter;
 mod type_command;
+mod type_publish;
 pub(crate) use session_command::show_result_columns;
 mod vector_index_command;
 

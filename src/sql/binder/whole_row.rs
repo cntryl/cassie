@@ -276,23 +276,31 @@ fn table_bindings(
     }
 }
 
-fn mentions_whole_row(expr: &Expr, bindings: &[(String, Vec<String>)]) -> bool {
-    expr.any_descendant_or_self(&mut |node| {
-        matches!(node, Expr::Column(name) if bindings.iter().any(|(binding, columns)| {
-            name.eq_ignore_ascii_case(binding)
-                && !columns.iter().any(|column| column.eq_ignore_ascii_case(name))
-        }))
-    })
+type Bindings = Vec<(String, Vec<String>)>;
+
+/// A bare name is a whole-row reference when it names a table of this FROM
+/// clause and no table of that clause has a column of the same name (a column
+/// wins, as in PostgreSQL).
+fn is_whole_row(bindings: &Bindings, name: &str) -> bool {
+    bindings
+        .iter()
+        .any(|(binding, _)| name.eq_ignore_ascii_case(binding))
+        && !bindings.iter().any(|(_, columns)| {
+            columns
+                .iter()
+                .any(|column| column.eq_ignore_ascii_case(name))
+        })
 }
 
-fn item_mentions_whole_row(item: &SelectItem, bindings: &[(String, Vec<String>)]) -> bool {
+fn mentions_whole_row(expr: &Expr, bindings: &Bindings) -> bool {
+    expr.any_descendant_or_self(
+        &mut |node| matches!(node, Expr::Column(name) if is_whole_row(bindings, name)),
+    )
+}
+
+fn item_mentions_whole_row(item: &SelectItem, bindings: &Bindings) -> bool {
     match item {
-        SelectItem::Column { name, .. } => bindings.iter().any(|(binding, columns)| {
-            name.eq_ignore_ascii_case(binding)
-                && !columns
-                    .iter()
-                    .any(|column| column.eq_ignore_ascii_case(name))
-        }),
+        SelectItem::Column { name, .. } => is_whole_row(bindings, name),
         SelectItem::Function { function, .. } => {
             mentions_whole_row(&Expr::Function(Box::new(function.clone())), bindings)
         }
@@ -301,7 +309,7 @@ fn item_mentions_whole_row(item: &SelectItem, bindings: &[(String, Vec<String>)]
     }
 }
 
-fn mentions_in_clauses(select: &SelectStatement, bindings: &[(String, Vec<String>)]) -> bool {
+fn mentions_in_clauses(select: &SelectStatement, bindings: &Bindings) -> bool {
     select
         .projection
         .iter()
@@ -328,16 +336,67 @@ fn unsupported_whole_row() -> CassieError {
     .into()
 }
 
-fn mentions_in_unsupported_clauses(
-    select: &SelectStatement,
-    bindings: &[(String, Vec<String>)],
-) -> bool {
+fn mentions_in_unsupported_clauses(select: &SelectStatement, bindings: &Bindings) -> bool {
     select
         .group_by
         .iter()
         .chain(select.having.iter())
         .chain(&select.distinct_on)
         .any(|expr| mentions_whole_row(expr, bindings))
+}
+
+/// The tables `select` reads, without those shadowed by a CTE of `ctes`.
+fn select_bindings(
+    select: &SelectStatement,
+    ctes: &[String],
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Bindings {
+    let mut bindings = Vec::new();
+    table_bindings(&select.source, catalog, context, &mut bindings);
+    bindings.retain(|(binding, _)| {
+        !ctes.iter().any(|cte| cte.eq_ignore_ascii_case(binding))
+            && !select
+                .ctes
+                .iter()
+                .any(|cte| cte.name.eq_ignore_ascii_case(binding))
+    });
+    bindings
+}
+
+fn is_single_table(select: &SelectStatement, bindings: &Bindings) -> bool {
+    bindings.len() == 1
+        && matches!(
+            &select.source,
+            QuerySource::Collection(_) | QuerySource::Aliased { .. }
+        )
+}
+
+/// Whether `select` or one of its set-operation branches uses a whole-row
+/// reference in a position the rewrite cannot cover. Each select is judged
+/// against its own FROM clause.
+fn has_unsupported_whole_row(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> bool {
+    let ctes: Vec<String> = select.ctes.iter().map(|cte| cte.name.clone()).collect();
+    let mut current = select;
+    loop {
+        let bindings = select_bindings(current, &ctes, catalog, context);
+        let unsupported = if is_single_table(current, &bindings) && std::ptr::eq(current, select) {
+            mentions_in_unsupported_clauses(current, &bindings)
+        } else {
+            mentions_in_clauses(current, &bindings)
+        };
+        if unsupported {
+            return true;
+        }
+        match &current.set {
+            Some(set) => current = &set.right,
+            None => return false,
+        }
+    }
 }
 
 /// Rewrites whole-row forms of a top-level single-table `SELECT`, and rejects
@@ -358,43 +417,12 @@ pub(super) fn rewrite(
     let QueryStatement::Select(select) = &mut statement.statement else {
         return Ok(());
     };
-    let mut bindings = Vec::new();
-    table_bindings(&select.source, catalog, context, &mut bindings);
-    bindings.retain(|(binding, _)| {
-        !select
-            .ctes
-            .iter()
-            .any(|cte| cte.name.eq_ignore_ascii_case(binding))
-    });
-    if bindings.is_empty() {
-        return Ok(());
-    }
-    let single = bindings.len() == 1
-        && matches!(
-            &select.source,
-            QuerySource::Collection(_) | QuerySource::Aliased { .. }
-        );
-    let mut branches = Vec::new();
-    let mut next = select.set.as_ref();
-    while let Some(set) = next {
-        branches.push(&set.right);
-        next = set.right.set.as_ref();
-    }
-    let unsupported = if single {
-        mentions_in_unsupported_clauses(select, &bindings)
-            || branches
-                .iter()
-                .any(|branch| mentions_in_clauses(branch, &bindings))
-    } else {
-        mentions_in_clauses(select, &bindings)
-            || branches
-                .iter()
-                .any(|branch| mentions_in_clauses(branch, &bindings))
-    };
-    if unsupported {
+    if has_unsupported_whole_row(select, catalog, context) {
         return Err(unsupported_whole_row());
     }
-    if !single {
+    let ctes: Vec<String> = select.ctes.iter().map(|cte| cte.name.clone()).collect();
+    let bindings = select_bindings(select, &ctes, catalog, context);
+    if !is_single_table(select, &bindings) {
         return Ok(());
     }
     let Some(scope) = scope_for(select, catalog, context) else {

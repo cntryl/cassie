@@ -358,21 +358,62 @@ fn should_update_view_columns_when_a_type_gains_an_attribute() {
     assert_eq!(city.as_deref(), Some("Oslo"));
 }
 
-#[test]
-fn should_roll_back_add_attribute_with_its_transaction() {
-    // Arrange
-    let fixture = fixture("alter_type_add_rollback");
+fn rolled_back_add_attribute(label: &str) -> SqlFixture {
+    let fixture = fixture(label);
     fixture.execute("BEGIN").unwrap();
     fixture
         .execute("ALTER TYPE address ADD ATTRIBUTE city text")
         .unwrap();
+    fixture.execute("ROLLBACK").unwrap();
+    fixture
+}
+
+#[test]
+fn should_keep_the_attribute_count_after_a_rolled_back_add_attribute() {
+    // Arrange
+    let fixture = rolled_back_add_attribute("alter_type_add_rollback_attributes");
 
     // Act
-    fixture.execute("ROLLBACK").unwrap();
-    let rendered = text(&fixture, "SELECT a::text FROM homes WHERE id = 1");
+    let count = text(
+        &fixture,
+        "SELECT count(*)::text FROM pg_attribute a \
+         JOIN pg_class c ON c.oid = a.attrelid WHERE c.relname = 'address' AND a.attnum > 0",
+    );
 
     // Assert
-    assert_eq!(rendered.as_deref(), Some("(\"1 Main\",11)"));
+    assert_eq!(count.as_deref(), Some("2"));
+}
+
+#[test]
+fn should_keep_the_embedded_descriptor_after_a_rolled_back_add_attribute() {
+    // Arrange
+    let fixture = rolled_back_add_attribute("alter_type_add_rollback_embedded");
+
+    // Act
+    let inserted = fixture.execute("INSERT INTO homes VALUES (3, ROW('2 Main', 22))");
+    let rendered = text(&fixture, "SELECT a::text FROM homes WHERE id = 3");
+
+    // Assert
+    assert!(inserted.is_ok());
+    assert_eq!(rendered.as_deref(), Some("(\"2 Main\",22)"));
+}
+
+#[test]
+fn should_keep_the_type_revision_after_a_rolled_back_add_attribute() {
+    // Arrange
+    let fixture = rolled_back_add_attribute("alter_type_add_rollback_revision");
+
+    // Act
+    let revision = fixture
+        .cassie
+        .catalog
+        .list_composite_types()
+        .into_iter()
+        .find(|meta| meta.local_name() == "address")
+        .map(|meta| meta.revision);
+
+    // Assert
+    assert_eq!(revision, Some(1));
 }
 
 #[test]

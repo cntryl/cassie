@@ -433,21 +433,19 @@ The code and its regressions are authored; they have not been compiled or execut
   type directly or through another composite type, as in PostgreSQL. It runs, with no
   data conversion, on an unused type.
 - Every change re-embeds the new descriptor in other composite types, table columns
-  (through `alter_collection_column_type`, which bumps the table's schema version) and
-  view column types. The steps are individually atomic, not one transaction: a crash
-  part way can leave embedded copies on the previous revision, which still decode stored
-  rows because layouts are prefixes. Hydration reconciles such leftovers: any table or
-  view column whose embedded descriptor differs from the registered type with the same OID
-  is replaced in memory by the persisted type (`Catalog::reconcile_embedded_composites`),
-  so an interrupted ALTER either completes or reverts to the persisted type. The published
-  Midge adapter commits one transaction per database collection, so a single
-  cross-object transaction is not available; this reconcile is the documented contract
-  exception. Materialized-view
-  and projection storage schemas are collection schemas like tables, so a composite
-  column in one is covered by the same stored-use guard and re-embedding; this is not yet
-  separately exercised, and routine signatures are not re-embedded.
-  `ALTER ATTRIBUTE ... TYPE` reports a missing attribute (`42703`) before the stored-use
-  `0A000`.
+  (schema, row schema and projection `schema_version`) and view column types. A Midge
+  transaction spans one column family and each Cassie database is one family, so the type
+  and every dependent in the type's own database commit in ONE transaction
+  (`Midge::publish_composite_group`); the in-memory catalog changes only after commit.
+  Residual exception: a dependent in a different database is a second transaction,
+  published after the type. The type is always persisted first, so an interruption can
+  only leave a dependent on an older revision (never newer than the type), and the
+  failure path and hydration (`Catalog::reconcile_embedded_composites`) roll such copies
+  forward to the persisted type. Materialized-view and projection storage schemas are
+  collection schemas like tables, so a composite column in one is covered by the same
+  stored-use guard and re-embedding; this is not yet separately exercised. Routine
+  signatures are not re-embedded. `ALTER ATTRIBUTE ... TYPE` reports a missing attribute
+  (`42703`) before the stored-use `0A000`.
 - Relation row types: every table owns a composite type named like the table. Its
   descriptor is derived from the table's current columns. Its `pg_type.oid` and array OID
   are allocated from the same Midge object-id allocator as every other catalog object when

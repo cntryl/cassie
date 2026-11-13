@@ -8,8 +8,9 @@
 
 use super::command_output::empty as empty_command;
 use super::type_command::{diagnostic, reject_composite_array, relation_name_occupied, ROOT_OID};
+use super::type_publish::{publish_change, Altered};
 use super::{Cassie, QueryError, QueryResult};
-use crate::catalog::composite_alter::{DescriptorPropagation, TypeAlterError};
+use crate::catalog::composite_alter::TypeAlterError;
 use crate::catalog::{
     canonical_relation_name, canonical_schema_name, is_system_schema, CompositeTypeMeta,
     DEFAULT_SCHEMA,
@@ -190,65 +191,25 @@ fn owner_to(cassie: &Cassie, current: &CompositeTypeMeta, owner: &str) -> Result
 }
 
 /// Persists `next`, re-embeds it everywhere it is carried and swaps the catalog.
-///
-/// Dependents are published before the type itself, so a failure part way
-/// leaves the old type readable through objects that still carry its
-/// descriptor. The steps are individually atomic, not one transaction.
+/// The type and every same-database dependent commit in one Midge
+/// transaction (see `type_publish`).
 fn publish(
     cassie: &Cassie,
     current: &CompositeTypeMeta,
     next: &CompositeTypeMeta,
 ) -> Result<(), QueryError> {
-    apply_propagation(
+    let renamed = !current.name.eq_ignore_ascii_case(&next.name);
+    let altered = Altered {
+        next,
+        previous_name: renamed.then_some(current.name.as_str()),
+    };
+    publish_change(
         cassie,
+        Some(&altered),
         cassie
             .catalog
             .propagate_composite_change(&next.descriptor()),
-    )?;
-    cassie
-        .midge
-        .put_composite_type(next)
-        .map_err(QueryError::from)?;
-    if !current.name.eq_ignore_ascii_case(&next.name) {
-        cassie
-            .midge
-            .delete_composite_type(&current.database, &current.name)
-            .map_err(QueryError::from)?;
-        cassie.catalog.unregister_composite_type(&current.name);
-    }
-    cassie.catalog.register_composite_type(next.clone());
-    Ok(())
-}
-
-/// Publishes every embedded copy of a changed descriptor: table columns,
-/// view columns and the fields of other composite types.
-pub(super) fn apply_propagation(
-    cassie: &Cassie,
-    propagation: DescriptorPropagation,
-) -> Result<(), QueryError> {
-    for column in &propagation.columns {
-        cassie
-            .midge
-            .alter_collection_column_type(&column.table, &column.column, column.data_type.clone())
-            .map_err(QueryError::from)?;
-        cassie.catalog.set_collection_field_type(
-            &column.table,
-            &column.column,
-            column.data_type.clone(),
-        );
-    }
-    for view in propagation.views {
-        cassie.midge.put_view(&view).map_err(QueryError::from)?;
-        cassie.catalog.register_view(view);
-    }
-    for dependent in propagation.types {
-        cassie
-            .midge
-            .put_composite_type(&dependent)
-            .map_err(QueryError::from)?;
-        cassie.catalog.register_composite_type(dependent);
-    }
-    Ok(())
+    )
 }
 
 /// `DROP TABLE` is refused while another column or composite type holds the
@@ -368,5 +329,9 @@ pub(super) fn refresh_relation_row_type(
     let Some(row_type) = cassie.catalog.relation_row_type(&collection.name) else {
         return Ok(());
     };
-    apply_propagation(cassie, cassie.catalog.propagate_composite_change(&row_type))
+    publish_change(
+        cassie,
+        None,
+        cassie.catalog.propagate_composite_change(&row_type),
+    )
 }

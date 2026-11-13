@@ -60,6 +60,22 @@ impl Midge {
         let write_gate = self.collection_write_gate(&collection);
         let _write_guard = write_gate.lock();
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
+        self.stage_column_type(&mut tx, &collection, field, data_type)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
+    /// Stages the schema, row-schema and projection-version writes of a
+    /// column retype in `tx` without committing, so several can share one
+    /// transaction. The caller holds the collection write gate.
+    pub(crate) fn stage_column_type(
+        &self,
+        tx: &mut super::super::AdapterTransaction,
+        collection: &str,
+        field: &str,
+        data_type: crate::types::DataType,
+    ) -> Result<(), CassieError> {
+        let collection = collection.to_owned();
         let schema_key = Self::collection_schema_key(&collection);
         let raw = tx
             .get(&schema_key)
@@ -77,7 +93,7 @@ impl Midge {
         };
         schema_field.data_type.clone_from(&data_type);
 
-        let mut row_schema = Self::load_row_schema_from_tx(&tx, &collection)?
+        let mut row_schema = Self::load_row_schema_from_tx(tx, &collection)?
             .unwrap_or_else(|| RowSchema::from_schema(&schema));
         let Some(row_field) = row_schema.fields.iter_mut().find(|entry| {
             !entry.retired
@@ -89,19 +105,13 @@ impl Midge {
         };
         row_field.data_type = data_type;
         row_schema.schema_version = row_schema.schema_version.saturating_add(1);
-        Self::save_row_schema_to_tx(&mut tx, &collection, &row_schema)?;
-        Self::update_projection_schema_version_to_tx(
-            &mut tx,
-            &collection,
-            row_schema.schema_version,
-        )?;
+        Self::save_row_schema_to_tx(tx, &collection, &row_schema)?;
+        Self::update_projection_schema_version_to_tx(tx, &collection, row_schema.schema_version)?;
         tx.put(
             schema_key,
             serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?,
             None,
         )
-        .map_err(CassieError::from)?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+        .map_err(CassieError::from)
     }
 }

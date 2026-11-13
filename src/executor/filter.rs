@@ -387,7 +387,6 @@ pub(crate) use composite_cast::record_from_text;
 mod domain_check;
 #[path = "filter/enum_cast.rs"]
 pub(crate) mod enum_cast;
-pub(crate) use enum_cast::cast_text_to_enum;
 pub(crate) use domain_check::{evaluate_check, first_violation};
 #[path = "filter/constants.rs"]
 mod constants;

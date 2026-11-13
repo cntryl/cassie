@@ -700,6 +700,7 @@ pub(super) fn data_type_family(data_type: &DataType) -> OperandFamily {
         | DataType::Uuid
         | DataType::Bytea
         | DataType::Array(_)
+        | DataType::Enum(_)
         | DataType::Null => OperandFamily::Other,
         DataType::Composite(_) => OperandFamily::Record,
         DataType::Domain(descriptor) => data_type_family(&descriptor.base),

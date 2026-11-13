@@ -205,8 +205,16 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
 fn coerce_enum_default(descriptor: &crate::types::EnumRef, value: Value) -> Result<Value, String> {
     match value {
         Value::String(text) => {
-            crate::executor::filter::enum_cast::cast_text_to_enum(descriptor, &text)
-                .map_err(|error| error.to_string())
+            match crate::executor::filter::enum_cast::cast_text_to_enum(descriptor, &text) {
+                Ok(crate::types::Value::Typed(crate::types::typed::TypedValue::Enum(member))) => {
+                    Ok(member.to_storage_json())
+                }
+                Ok(_) => Err(format!(
+                    "invalid input value for enum {}: \"{text}\"",
+                    descriptor.name
+                )),
+                Err(error) => Err(error.to_string()),
+            }
         }
         other => {
             let known = crate::types::EnumValue::storage_member_id(&other)

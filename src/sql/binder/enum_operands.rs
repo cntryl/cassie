@@ -4,7 +4,7 @@
 //! enum's input (`status = 'open'`), so it is cast to the enum and a bad label
 //! is `22P02`. A `text`-typed operand or a different enum type has no
 //! operator (`42883`).
-use super::coalesce_results::ResultTypes;
+use super::super::coalesce_results::ResultTypes;
 use crate::app::{CassieError, DiagnosticError};
 use crate::sql::ast::{BinaryOp, CastIdentity, Expr};
 use crate::types::{DataType, EnumRef};

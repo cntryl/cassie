@@ -730,6 +730,7 @@ fn udt_name(data_type: &DataType) -> String {
             other => format!("_{}", udt_name(other)),
         },
         TypeMetadata::Composite(descriptor) => descriptor.name.clone(),
+        TypeMetadata::Enum(descriptor) => descriptor.name.clone(),
     }
 }
 

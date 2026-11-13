@@ -2,7 +2,7 @@ use super::{decode_labels, encode};
 use crate::executor::EnumColumn;
 use crate::types::{SqlArray, Value};
 
-const ELEMENT_OID: i64 = 20_001;
+const ELEMENT_OID: u32 = 20_001;
 
 fn scalar() -> EnumColumn {
     EnumColumn {

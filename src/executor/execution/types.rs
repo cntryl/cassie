@@ -18,18 +18,20 @@ pub struct ColumnMeta {
     /// send the rendered record text in binary `record_send` layout.
     #[serde(skip)]
     pub record_type: Option<crate::types::CompositeRef>,
-    /// Set for a named enum column (`t`) or an enum array column (`t[]`):
-    /// user-range type OIDs have no builtin codec, so pgwire sends the label
-    /// (`enum_send`) and `array_send` over labels from this description.
+    /// The enum type's OID for a named enum column (`t`) or an enum array
+    /// column (`t[]`; then `type_oid` is the array OID). User-range type OIDs
+    /// have no builtin codec, so pgwire sends the label (`enum_send`) and
+    /// `array_send` over labels; see [`Self::enum_column`]. A bare OID keeps
+    /// the field inside the struct's existing padding.
     #[serde(skip)]
-    pub enum_column: Option<EnumColumn>,
+    pub enum_element_oid: Option<std::num::NonZeroU32>,
 }
 
 /// The wire identity of an enum or enum-array result column (#827).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnumColumn {
     /// `pg_type.oid` of the enum type itself (the array element type).
-    pub element_oid: i64,
+    pub element_oid: u32,
     pub is_array: bool,
 }
 
@@ -39,12 +41,12 @@ impl EnumColumn {
     pub fn of(data_type: &DataType) -> Option<Self> {
         match data_type {
             DataType::Enum(descriptor) => Some(Self {
-                element_oid: i64::from(descriptor.oid),
+                element_oid: descriptor.oid,
                 is_array: false,
             }),
             DataType::Array(inner) => match inner.as_ref() {
                 DataType::Enum(descriptor) => Some(Self {
-                    element_oid: i64::from(descriptor.oid),
+                    element_oid: descriptor.oid,
                     is_array: true,
                 }),
                 _ => None,
@@ -75,6 +77,8 @@ impl ColumnMeta {
     pub fn from_data_type(name: impl Into<String>, data_type: &DataType) -> Self {
         let data_type_name = data_type.type_name();
         let enum_column = EnumColumn::of(data_type);
+        let enum_element_oid =
+            enum_column.and_then(|column| std::num::NonZeroU32::new(column.element_oid));
         Self {
             name: name.into(),
             data_type: data_type_name,
@@ -94,15 +98,26 @@ impl ColumnMeta {
                 DataType::Composite(descriptor) => Some(descriptor.clone()),
                 _ => None,
             },
-            enum_column,
+            enum_element_oid,
         }
+    }
+
+    /// The enum wire description of this column, if it is an enum or enum
+    /// array column: an array column reports the array OID, not the enum's.
+    #[must_use]
+    pub fn enum_column(&self) -> Option<EnumColumn> {
+        let element_oid = self.enum_element_oid?.get();
+        Some(EnumColumn {
+            element_oid,
+            is_array: self.type_oid != i64::from(element_oid),
+        })
     }
 
     /// Whether the column's user-range type OID has a pgwire codec of its own
     /// (a record, enum or enum array) rather than a builtin one.
     #[must_use]
     pub fn user_codec(&self) -> bool {
-        self.is_record || self.enum_column.is_some()
+        self.is_record || self.enum_element_oid.is_some()
     }
 
     pub(crate) fn is_vector(&self) -> bool {

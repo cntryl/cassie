@@ -436,7 +436,7 @@ fn should_preserve_enum_dependency_on_type_drop() {
                 "SELECT to_regtype('compat_enum_drop_a.state_code') IS NOT NULL, \
                         to_regclass('compat_enum_drop_a.jobs') IS NOT NULL, \
                         (SELECT count(*) FROM pg_catalog.pg_attribute \
-                         WHERE attrelid = 'compat_enum_drop_a.jobs'::regclass \
+                         WHERE attrelid_oid = 'compat_enum_drop_a.jobs'::regclass::oid \
                            AND attnum > 0 AND NOT attisdropped), \
                         to_regtype('compat_enum_drop_b.state_code') IS NOT NULL",
                 &[],

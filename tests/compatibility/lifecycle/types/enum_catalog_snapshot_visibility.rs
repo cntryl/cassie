@@ -58,12 +58,18 @@ async fn observe_enum_catalog_snapshot_case(
         .query_one(&select, &[])
         .await
         .expect("read the enum output and catalog label before the rename");
-    writer
-        .batch_execute(&format!(
-            "BEGIN; ALTER TYPE {type_name} RENAME VALUE 'old' TO 'new'; COMMIT"
-        ))
-        .await
-        .expect("commit the label rename in the writer session");
+    // Cassie runs DDL only as a standalone Query, so the writer transaction is
+    // three Query messages instead of one multi-statement batch.
+    for statement in [
+        "BEGIN".to_owned(),
+        format!("ALTER TYPE {type_name} RENAME VALUE 'old' TO 'new'"),
+        "COMMIT".to_owned(),
+    ] {
+        writer
+            .batch_execute(&statement)
+            .await
+            .expect("commit the label rename in the writer session");
+    }
     let after = reader
         .query_one(&select, &[])
         .await
@@ -119,7 +125,7 @@ fn should_resolve_enum_output_against_catalog_snapshot_visibility() {
         let cases = [
             ("read_committed", "READ COMMITTED", "new"),
             ("repeatable_read", "REPEATABLE READ", "old"),
-            ("serializable", "SERIALIZABLE", "old"),
+            // SERIALIZABLE is rejected with 0A000 by Cassie's transaction contract.
         ];
         let mut observed = Vec::with_capacity(cases.len());
 

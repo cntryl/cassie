@@ -42,7 +42,7 @@ impl EnumParameter {
     #[must_use]
     pub(crate) fn column(&self) -> EnumColumn {
         EnumColumn {
-            element_oid: i64::from(self.descriptor.oid),
+            element_oid: self.descriptor.oid,
             is_array: self.is_array,
         }
     }

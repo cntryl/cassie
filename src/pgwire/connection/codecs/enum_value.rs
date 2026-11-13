@@ -56,7 +56,7 @@ fn text_array(value: &Value) -> io::Result<String> {
 }
 
 /// PostgreSQL `array_send` with the enum type as the element type.
-fn binary_array(value: &Value, element_oid: i64) -> io::Result<Vec<u8>> {
+fn binary_array(value: &Value, element_oid: u32) -> io::Result<Vec<u8>> {
     let element_oid = i32::try_from(element_oid).map_err(|_| invalid_data("enum array"))?;
     let (dimensions, elements): (Vec<(i32, i32)>, Vec<&Value>) = match value {
         Value::Array(array) => (
@@ -165,7 +165,7 @@ pub(in crate::pgwire::connection) fn decode_labels(
     let ndim = read_i32(parameter, &mut cursor, "enum array")?;
     let has_null = read_i32(parameter, &mut cursor, "enum array")?;
     let element_oid = i64::from(read_i32(parameter, &mut cursor, "enum array")?);
-    if !(0..=6).contains(&ndim) || !matches!(has_null, 0 | 1) || element_oid != column.element_oid
+    if !(0..=6).contains(&ndim) || !matches!(has_null, 0 | 1) || element_oid != i64::from(column.element_oid)
     {
         return Err(invalid_data("enum array"));
     }

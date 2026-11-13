@@ -30,7 +30,7 @@ fn should_describe_an_enum_column_with_the_enum_type_oid_not_text() {
     assert_eq!(column.type_oid, 20_001);
     assert_eq!(column.typlen, 4);
     assert_eq!(
-        column.enum_column,
+        column.enum_column(),
         Some(EnumColumn {
             element_oid: 20_001,
             is_array: false
@@ -51,7 +51,7 @@ fn should_describe_an_enum_array_column_with_the_array_type_oid() {
     assert_eq!(column.type_oid, 20_002);
     assert_eq!(column.typlen, -1);
     assert_eq!(
-        column.enum_column,
+        column.enum_column(),
         Some(EnumColumn {
             element_oid: 20_001,
             is_array: true
@@ -65,6 +65,6 @@ fn should_not_flag_a_text_column_as_an_enum() {
     let column = ColumnMeta::text("t");
 
     // Assert
-    assert_eq!(column.enum_column, None);
+    assert_eq!(column.enum_column(), None);
     assert!(!column.user_codec());
 }

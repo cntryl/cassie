@@ -295,9 +295,20 @@ fn validate_binary_oid(type_oid: i64, is_vector: bool) -> io::Result<()> {
         binary_codec_for_oid(type_oid - OID_ARRAY_BASE).map(|_| ())
     } else if let Some(element_oid) = builtin_array_element_oid(type_oid) {
         binary_codec_for_oid(element_oid).map(|_| ())
+    } else if is_record_oid(type_oid) {
+        // Record values use `record_send`; a non-record value under a user
+        // OID fails when the row is encoded.
+        Ok(())
     } else {
         binary_codec_for_oid(type_oid).map(|_| ())
     }
+}
+
+/// The anonymous RECORD OID or an allocated (user) type OID, which only
+/// composite types occupy on the result path.
+fn is_record_oid(type_oid: i64) -> bool {
+    type_oid == i64::from(crate::types::composite::RECORD_OID)
+        || type_oid >= i64::from(crate::types::object_id::FIRST_NORMAL_OBJECT_ID)
 }
 
 pub(super) fn validate_result_formats(

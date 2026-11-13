@@ -408,3 +408,35 @@ fn should_skip_create_table_if_not_exists_over_a_type_name() {
     assert_eq!(tables, vec![vec![cassie::types::Value::Int64(0)]]);
     assert_eq!(types, vec![vec![cassie::types::Value::Int64(1)]]);
 }
+
+#[test]
+fn should_skip_create_table_if_not_exists_over_a_type_created_in_the_transaction() {
+    // Arrange
+    let fixture = sql_fixture("composite_txn_table_skip", &[]);
+    fixture.execute("BEGIN").unwrap();
+    fixture.execute(ADDRESS).unwrap();
+
+    // Act
+    let created = fixture.execute("CREATE TABLE IF NOT EXISTS address (id int)");
+    fixture.execute("COMMIT").unwrap();
+    let tables =
+        fixture.rows("SELECT count(*) FROM pg_class WHERE relname = 'address' AND relkind = 'r'");
+
+    // Assert
+    assert!(created.is_ok());
+    assert_eq!(tables, vec![vec![cassie::types::Value::Int64(0)]]);
+}
+
+#[test]
+fn should_reject_a_duplicate_type_created_in_the_same_transaction() {
+    // Arrange
+    let fixture = sql_fixture("composite_txn_duplicate", &[]);
+    fixture.execute("BEGIN").unwrap();
+    fixture.execute(ADDRESS).unwrap();
+
+    // Act
+    let error = fixture.error(ADDRESS);
+
+    // Assert
+    assert_eq!(error.sql_state(), "42710");
+}

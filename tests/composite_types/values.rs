@@ -292,3 +292,85 @@ fn should_reject_unique_constraints_on_composite_columns() {
     // Assert
     assert_eq!(unique.sql_state(), "0A000");
 }
+
+const SEED_PEOPLE: &str = "INSERT INTO people VALUES (1, NULL, ROW('x y', 7)), (2, NULL, NULL)";
+
+#[test]
+fn should_select_a_field_through_a_derived_table() {
+    // Arrange
+    let fixture = fixture("composite_field_derived");
+
+    // Act
+    let street = text(
+        &fixture,
+        "SELECT (r).street FROM (SELECT ROW('a', 1)::address AS r) s",
+    );
+
+    // Assert
+    assert_eq!(street, Some("a".to_owned()));
+}
+
+#[test]
+fn should_select_a_field_through_a_cte() {
+    // Arrange
+    let fixture = fixture("composite_field_cte");
+    fixture.execute(SEED_PEOPLE).unwrap();
+
+    // Act
+    let streets = first_column_text(
+        &fixture.rows("WITH c AS (SELECT id, a FROM people) SELECT (a).street FROM c ORDER BY id"),
+    );
+
+    // Assert
+    assert_eq!(streets, vec![Some("x y".to_owned()), None]);
+}
+
+#[test]
+fn should_select_a_field_through_a_table_alias() {
+    // Arrange
+    let fixture = fixture("composite_field_alias");
+    fixture.execute(SEED_PEOPLE).unwrap();
+
+    // Act
+    let streets =
+        first_column_text(&fixture.rows("SELECT (p.a).street FROM people p ORDER BY p.id"));
+
+    // Assert
+    assert_eq!(streets, vec![Some("x y".to_owned()), None]);
+}
+
+#[test]
+fn should_select_qualified_fields_from_joined_sources_sharing_a_column_name() {
+    // Arrange
+    let fixture = fixture("composite_field_join");
+    fixture.execute(SEED_PEOPLE).unwrap();
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT (x.a).street, (y.a).zip FROM people x JOIN people y ON x.id = y.id \
+         WHERE x.id = 1",
+    );
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![Value::String("x y".into()), Value::Int64(7)]]
+    );
+}
+
+#[test]
+fn should_fail_closed_for_views_over_composite_columns() {
+    // Arrange
+    let fixture = fixture("composite_view_fail_closed");
+
+    // Act
+    let outcome = fixture
+        .execute("CREATE VIEW people_view AS SELECT a FROM people")
+        .and_then(|_| fixture.execute("SELECT (a).street FROM people_view"));
+
+    // Assert
+    assert!(
+        outcome.is_err(),
+        "views over composite types are documented as unsupported"
+    );
+}

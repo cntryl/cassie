@@ -115,6 +115,18 @@ pub(super) fn create_table(
     })
 }
 
+fn initial_table_indexes(
+    table: &str,
+    constraints: &[FieldConstraint],
+    additional_like_indexes: Vec<IndexMeta>,
+) -> Vec<IndexMeta> {
+    let mut initial_indexes = primary_key_indexes(table, constraints);
+    initial_indexes.extend(catalog::composite_primary_key_indexes(table, constraints));
+    initial_indexes.extend(catalog::unique_constraint_indexes(table, constraints));
+    initial_indexes.extend(additional_like_indexes);
+    initial_indexes
+}
+
 fn create_table_gated(
     cassie: &Cassie,
     statement: &CreateTableStatement,
@@ -144,16 +156,7 @@ fn create_table_gated(
     let mut collection_meta =
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences = prepare_table_sequences(cassie, statement, fields)?;
-    let mut initial_indexes = primary_key_indexes(table, constraints.as_slice());
-    initial_indexes.extend(catalog::composite_primary_key_indexes(
-        table,
-        constraints.as_slice(),
-    ));
-    initial_indexes.extend(catalog::unique_constraint_indexes(
-        table,
-        constraints.as_slice(),
-    ));
-    initial_indexes.extend(additional_like_indexes);
+    let initial_indexes = initial_table_indexes(table, &constraints, additional_like_indexes);
     let output = super::command_output::empty("CREATE TABLE", controls)?;
     if statement.like.is_some() {
         let Some(storage_id) = cassie

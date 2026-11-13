@@ -409,6 +409,9 @@ compiled or executed (assembler-owned gate). Pending or excluded:
 - polymorphic (`anyelement`) user-defined functions called with a record
   argument are rejected with `42883` in this increment, although PostgreSQL
   accepts them;
+- comparing a record column with a text column or untyped literal returns
+  `0A000` ("input of anonymous composite types is not implemented"), where
+  PostgreSQL returns `42883` for the column case;
 - a composite type shares the relation namespace with tables, views, sequences
   and indexes: `CREATE TYPE` over such a name is `42710`, and
   `CREATE TABLE/VIEW/SEQUENCE/INDEX` over a type name is `42P07` (`CREATE TABLE IF NOT EXISTS`

@@ -661,15 +661,18 @@ fn selects_typed_operator(
     )
 }
 
+/// Record input from text is decided at evaluation (`0A000`).
 fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
     left == right
         || matches!(
             (left, right),
-            (OperandFamily::Temporal, OperandFamily::Text)
-                | (OperandFamily::Text, OperandFamily::Temporal)
-                // Record input from text is decided at evaluation (`0A000`).
-                | (OperandFamily::Record, OperandFamily::Text)
-                | (OperandFamily::Text, OperandFamily::Record)
+            (
+                OperandFamily::Temporal | OperandFamily::Record,
+                OperandFamily::Text
+            ) | (
+                OperandFamily::Text,
+                OperandFamily::Temporal | OperandFamily::Record
+            )
         )
 }
 

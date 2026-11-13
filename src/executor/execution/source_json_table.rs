@@ -10,13 +10,14 @@ use serde_json::Value as Json;
 
 use super::source_json_fragment::{decode_document, evaluate_argument, reserve_decode};
 use super::source_json_table_columns::{diagnostic, Evaluator};
-use super::{BatchRow, CteContext, QueryError, SourceExecution, SourceExecutionEnv, Value};
+use super::{BatchRow, CteContext, Expr, QueryError, SourceExecution, SourceExecutionEnv, Value};
 use crate::app::CassieError;
 use crate::executor::retained_memory::value_clone_bytes;
 use crate::sql::ast::{
     FunctionCall, JsonTableColumn, JsonTableRootError, JsonTableSpec, TableFunctionForm,
 };
 use crate::sql::table_sources;
+use crate::types::typed::TypedValue;
 use crate::types::DataType;
 
 pub(super) fn execute(
@@ -40,15 +41,18 @@ pub(super) fn execute(
     let mut passing = serde_json::Map::new();
     for (name, expression) in spec.passing.iter().zip(&function.args[1..]) {
         let value = evaluate_argument(env, expression, outer, ctes)?;
-        passing.insert(name.clone(), passing_value(&value)?);
+        let json = passing_is_json(expression, outer);
+        passing.insert(name.clone(), passing_value(env, &value, json)?);
     }
+    let mut evaluator = Evaluator::new(env, ctes, Json::Object(passing));
+    // PostgreSQL coerces every DEFAULT when the plan is built, so a bad default fails even for
+    // a NULL context item that produces no rows.
+    validate_defaults(&evaluator, &spec.columns)?;
     let _decode = reserve_decode(env, &context)?;
     let Some(document) = decode_document(env, true, "json_table", context)? else {
         return Ok((Vec::new(), Vec::new()));
     };
     let document = document.into_tree()?;
-    let mut evaluator = Evaluator::new(env, ctes, Json::Object(passing));
-    validate_defaults(&evaluator, &spec.columns)?;
     let mut sink = Sink::new(env, spec, row_budget)?;
     // Selected items are copies of parts of the document: reserve their upper bound first.
     sink.reserve_tree(&document)?;
@@ -88,14 +92,63 @@ pub(super) fn execute(
     ))
 }
 
-fn passing_value(value: &Value) -> Result<Json, QueryError> {
+/// Whether a `PASSING` expression is JSON typed: a cast to `json`/`jsonb`, or a column of
+/// the lateral outer row declared with one of those types. Such a value is a JSON item, not a
+/// JSON string holding its text.
+fn passing_is_json(expression: &Expr, outer: Option<&BatchRow>) -> bool {
+    let json =
+        |data_type: &DataType| matches!(data_type.flattened(), DataType::Json | DataType::Jsonb);
+    match expression {
+        Expr::Cast { data_type, .. } => json(data_type),
+        Expr::Column(name) => outer.is_some_and(|row| {
+            row.entries()
+                .iter()
+                .position(|(key, _)| key == name)
+                .or_else(|| {
+                    row.aliases()
+                        .iter()
+                        .find(|(alias, _)| alias == name)
+                        .map(|(_, index)| *index)
+                })
+                .and_then(|index| row.data_types().get(index))
+                .is_some_and(json)
+        }),
+        _ => false,
+    }
+}
+
+fn passing_value(
+    env: &SourceExecutionEnv<'_>,
+    value: &Value,
+    json: bool,
+) -> Result<Json, QueryError> {
+    let not_finite = || diagnostic("22003", "JSON_TABLE PASSING value is not a finite number");
     match value {
         Value::Null => Ok(Json::Null),
         Value::Bool(flag) => Ok(Json::Bool(*flag)),
         Value::Int64(number) => Ok(Json::from(*number)),
         Value::Float64(number) => serde_json::Number::from_f64(*number)
             .map(Json::Number)
-            .ok_or_else(|| diagnostic("22003", "JSON_TABLE PASSING value is not a finite number")),
+            .ok_or_else(not_finite),
+        Value::Typed(TypedValue::Real(number)) => serde_json::Number::from_f64(f64::from(*number))
+            .map(Json::Number)
+            .ok_or_else(not_finite),
+        // The exact decimal spelling keeps the precision and scale of the numeric value.
+        Value::Typed(TypedValue::Numeric(number)) => {
+            serde_json::from_str::<serde_json::Number>(&number.to_string())
+                .map(Json::Number)
+                .map_err(|_| not_finite())
+        }
+        Value::String(text) if json => {
+            let _decode = env.controls.reserve_query_memory(
+                crate::runtime::accounted::json::serialized_decode_bytes(text.len())?,
+            )?;
+            crate::runtime::accounted::json_arena::parse_value_in_reserved_memory(
+                text.as_bytes(),
+                env.controls,
+            )
+            .map_err(|error| super::source_json_elements::parse_error(error, text))
+        }
         Value::String(text) => Ok(Json::String(text.clone())),
         Value::Json(document) => Ok(document.clone()),
         _ => Err(CassieError::Unsupported(

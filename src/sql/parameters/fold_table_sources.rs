@@ -128,13 +128,23 @@ impl Fold<'_, '_> {
             return Ok(Some(Summary::known(document)));
         }
         if table_sources::is_json_table(&function.name) {
-            // The context item is JSONB; PASSING values keep their own types.
+            // The context item is JSONB; typed PASSING values keep their own types.
             if let Some(summary) = self.summaries.values[frame.start..]
                 .iter_mut()
                 .next()
                 .filter(|summary| matches!(summary.oid, 0 | 705))
             {
                 self.occurrences.coerce(summary, 3802, false)?;
+            }
+            // PostgreSQL resolves an untyped PASSING value to text (OID 25).
+            for summary in self.summaries.values[frame.start..]
+                .iter_mut()
+                .take(function.args.len())
+                .skip(1)
+            {
+                if matches!(summary.oid, 0 | 705) {
+                    self.occurrences.coerce(summary, 25, false)?;
+                }
             }
             return Ok(Some(Summary::known(3802)));
         }

@@ -347,6 +347,7 @@ mod column_store;
 mod column_store_tests;
 mod database_catalog_rewrite;
 mod databases;
+mod storage_conversion;
 pub(crate) use column_store::ColumnStoreScanRequest;
 pub(crate) use database_catalog_rewrite::{
     is_database_catalog_entry, rewrite_database_data_entry, validate_database_catalog_entry,

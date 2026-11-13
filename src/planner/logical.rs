@@ -755,7 +755,7 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
             validate_alter_set_schema(schema)?;
         }
         AlterTableOperation::SetAccessMethod { access_method } => {
-            if access_method != "heap" {
+            if !matches!(access_method.as_str(), "heap" | "columnar") {
                 return Err(CassieError::Unsupported(format!(
                     "unsupported ALTER TABLE access method '{access_method}'"
                 )));

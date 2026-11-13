@@ -8,12 +8,15 @@ pub(super) const V020_LAYOUT_VERSION: &str = "cassie-midge-layout-v2-0.2.0";
 
 const V020_INDEX_GENERATION_LAYOUT_VERSION: &str = "cassie-midge-layout-v3-0.2.0-index-generation";
 
+const V050_COLUMNAR_LAYOUT_VERSION: &str = "cassie-midge-layout-v4-0.5.0-columnar";
+
 /// Ordered minimum-reader levels; a marker never moves to a lower level.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Compatibility {
     V1,
     V020,
     V020IndexGeneration,
+    V050Columnar,
 }
 
 impl Compatibility {
@@ -24,6 +27,7 @@ impl Compatibility {
             value if value == V020_INDEX_GENERATION_LAYOUT_VERSION.as_bytes() => {
                 Some(Self::V020IndexGeneration)
             }
+            value if value == V050_COLUMNAR_LAYOUT_VERSION.as_bytes() => Some(Self::V050Columnar),
             _ => None,
         }
     }
@@ -33,6 +37,7 @@ impl Compatibility {
             Self::V1 => key_encoding::LAYOUT_VERSION,
             Self::V020 => V020_LAYOUT_VERSION,
             Self::V020IndexGeneration => V020_INDEX_GENERATION_LAYOUT_VERSION,
+            Self::V050Columnar => V050_COLUMNAR_LAYOUT_VERSION,
         }
     }
 }
@@ -46,6 +51,23 @@ impl Midge {
             self.require_storage_layout_version(V020_LAYOUT_VERSION)?;
         }
         Ok(())
+    }
+
+    /// A column-authoritative table requires a reader that knows the `\x18` layout.
+    /// Row tables never raise the level. Call before the publishing transaction.
+    pub(crate) fn require_collection_storage_layout(
+        &self,
+        metadata: &crate::catalog::CollectionMeta,
+    ) -> Result<(), CassieError> {
+        if metadata.storage_mode.uses_column_store_storage() {
+            self.require_columnar_storage_layout()?;
+        }
+        Ok(())
+    }
+
+    /// Raises the minimum reader to the column-authoritative layout.
+    pub(crate) fn require_columnar_storage_layout(&self) -> Result<(), CassieError> {
+        self.require_storage_layout_version(V050_COLUMNAR_LAYOUT_VERSION)
     }
 
     pub(in crate::midge::adapter) fn require_constraint_definitions(

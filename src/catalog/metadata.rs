@@ -228,6 +228,24 @@ impl Catalog {
             .map(|metadata| metadata.storage_id)
     }
 
+    /// Records the authoritative storage mode after a committed conversion.
+    pub(crate) fn set_collection_storage_mode(&self, name: &str, mode: CollectionStorageMode) {
+        let mut collections = self.collections.write();
+        let key = if collections.contains_key(name) {
+            Some(name.to_string())
+        } else {
+            collections
+                .keys()
+                .find(|stored| name_matches(stored, name))
+                .cloned()
+        };
+        if let Some(metadata) = key.and_then(|key| collections.get_mut(&key)) {
+            metadata.storage_mode = mode;
+            drop(collections);
+            self.bump_version();
+        }
+    }
+
     #[must_use]
     pub fn collection_storage_mode(&self, name: &str) -> Option<CollectionStorageMode> {
         let base = self.get_collection(name)?.storage_mode;

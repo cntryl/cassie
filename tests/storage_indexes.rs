@@ -1,6 +1,8 @@
 // Consolidated integration suite: storage_indexes.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
+#[path = "storage_indexes/storage/columnar_lifecycle.rs"]
+mod columnar_lifecycle;
 #[path = "storage_indexes/storage/in_memory.rs"]
 mod in_memory;
 #[path = "support/data_dir.rs"]

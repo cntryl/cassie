@@ -54,7 +54,7 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
 }
 
 pub(super) fn access_method_schema() -> Vec<(String, DataType)> {
-    vec![oid("oid"), text("amname")]
+    vec![oid("oid"), text("amname"), text("amtype")]
 }
 
 pub(super) fn attribute_schema() -> Vec<(String, DataType)> {
@@ -565,7 +565,7 @@ fn class_row(
         string("relkind", kind),
         int_value(
             "relam",
-            relation_access_method_oid(catalog, current_database, kind, index),
+            relation_access_method_oid(catalog, current_database, (name, kind), index),
         ),
         string("relnamespace", &schema_name),
         int_value("relnamespace_oid", namespace_oid(catalog, &namespace)),
@@ -598,13 +598,22 @@ fn class_row(
     ]
 }
 
+/// `pg_am.oid` of the `columnar` table access method.
+pub(super) const COLUMNAR_ACCESS_METHOD_OID: i64 = 9301;
+
 fn relation_access_method_oid(
     catalog: &Catalog,
     current_database: Option<&str>,
-    kind: &str,
+    (name, kind): (&str, &str),
     index: Option<&IndexMeta>,
 ) -> i64 {
     match kind {
+        "r" if catalog.collection_storage_mode(name).is_some_and(
+            crate::catalog::collections::CollectionStorageMode::uses_column_store_storage,
+        ) =>
+        {
+            COLUMNAR_ACCESS_METHOD_OID
+        }
         "r" | "m" => 2,
         "i" => index.map_or(0, |index| match index.access_method() {
             "btree" => 403,
@@ -1088,7 +1097,7 @@ mod tests {
         // Act
         let access_method_oids = indexes
             .iter()
-            .map(|index| relation_access_method_oid(&catalog, None, "i", Some(index)))
+            .map(|index| relation_access_method_oid(&catalog, None, ("", "i"), Some(index)))
             .collect::<Vec<_>>();
 
         // Assert

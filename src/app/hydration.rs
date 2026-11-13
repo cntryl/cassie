@@ -86,6 +86,16 @@ impl Cassie {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("load collection metadata for '{name}': {error}"))
         })?;
+        if let Some(stored) = metadata.as_ref() {
+            if !stored.has_supported_storage_version() {
+                self.runtime.record_storage_access("schema", false, false);
+                return Err(CassieError::Storage(format!(
+                    "table '{name}' has unsupported storage version {}; this binary supports version {}",
+                    stored.storage_version,
+                    crate::catalog::collections::SUPPORTED_COLLECTION_STORAGE_VERSION
+                )));
+            }
+        }
         self.runtime.record_storage_access("schema", false, true);
         self.catalog.register_collection_meta_with_constraints(
             metadata.unwrap_or_else(|| crate::catalog::CollectionMeta::new(name, None)),

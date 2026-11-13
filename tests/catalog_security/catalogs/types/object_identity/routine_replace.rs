@@ -152,7 +152,7 @@ fn should_reject_or_replace_with_if_not_exists_for_a_procedure_with_sqlstate_426
 }
 
 #[test]
-fn should_replace_a_function_with_the_same_signature_and_keep_its_definition_callable() {
+fn should_replace_a_function_with_the_same_signature() {
     // Arrange
     let fixture = sql_fixture("replace_same_signature", SETUP);
 

@@ -7,12 +7,14 @@ use std::time::{Duration, Instant};
 
 use crate::support_sql_fixture::sql_fixture;
 
-fn wait_for_running_query(cassie: &cassie::app::Cassie) -> bool {
+/// Waits until a transaction is registered as blocked on a unique key, so the
+/// next conflicting insert closes the wait cycle deterministically.
+fn wait_for_unique_key_waiter(cassie: &cassie::app::Cassie) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
-        if cassie.metrics()["runtime"]["running_queries"]
+        if cassie.metrics()["transactions"]["unique_waiters"]
             .as_u64()
-            .is_some_and(|running| running > 0)
+            .is_some_and(|waiters| waiters > 0)
         {
             return true;
         }
@@ -60,7 +62,7 @@ fn should_report_deadlock_for_a_repeatable_read_unique_wait_cycle() {
         sender.send(result).expect("report the waiting insert");
     });
     started.wait();
-    let waiting = wait_for_running_query(&fixture.cassie);
+    let waiting = wait_for_unique_key_waiter(&fixture.cassie);
 
     // Act
     let cycle = fixture.cassie.execute_sql(

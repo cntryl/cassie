@@ -27,15 +27,27 @@ fn should_quote_record_fields_where_record_out_does() {
 }
 
 #[test]
-fn should_double_quotes_and_backslashes_when_rendering() {
+fn should_double_embedded_quotes_when_rendering() {
     // Arrange
-    let record = text_record(vec![text("say \"hi\"\\")]);
+    let record = text_record(vec![text("say \"hi\"")]);
 
     // Act
     let rendered = format_record(&record, default_session());
 
     // Assert
-    assert_eq!(rendered, "(\"say \"\"hi\"\"\\\\\")");
+    assert_eq!(rendered, "(\"say \"\"hi\"\"\")");
+}
+
+#[test]
+fn should_double_backslashes_when_rendering() {
+    // Arrange
+    let record = text_record(vec![text("a\\b")]);
+
+    // Act
+    let rendered = format_record(&record, default_session());
+
+    // Assert
+    assert_eq!(rendered, "(\"a\\\\b\")");
 }
 
 #[test]
@@ -59,11 +71,17 @@ fn should_render_a_nested_record_quoted() {
 
 #[test]
 fn should_split_record_text_into_optional_fields() {
-    // Arrange / Act
-    let plain = split_record_text("(x,1)", 2).expect("plain");
-    let nulls = split_record_text("(,)", 2).expect("nulls");
-    let quoted = split_record_text("(\"\",\"a \"\"q\"\" b\\\\c\")", 2).expect("quoted");
-    let spaced = split_record_text("  ( a , b ) ", 2).expect("spaced");
+    // Arrange
+    let inputs = [
+        "(x,1)",
+        "(,)",
+        "(\"\",\"a \"\"q\"\" b\\\\c\")",
+        "  ( a , b ) ",
+    ];
+
+    // Act
+    let [plain, nulls, quoted, spaced] =
+        inputs.map(|input| split_record_text(input, 2).expect("valid record text"));
 
     // Assert
     assert_eq!(plain, vec![Some("x".to_string()), Some("1".to_string())]);
@@ -100,46 +118,80 @@ fn should_reject_malformed_record_text_with_postgresql_details() {
 }
 
 #[test]
-fn should_order_a_null_field_after_every_value_and_equate_null_fields() {
+fn should_order_a_null_field_after_every_value() {
     // Arrange
-    let low = text_record(vec![text("a"), Value::Null]);
-    let high = text_record(vec![text("a"), text("z")]);
-    let same = text_record(vec![text("a"), Value::Null]);
+    let null_field = text_record(vec![text("a"), Value::Null]);
+    let value_field = text_record(vec![text("a"), text("z")]);
 
     // Act
-    let (low_key, high_key, same_key) = (record_key(&low), record_key(&high), record_key(&same));
+    let (null_key, value_key) = (record_key(&null_field), record_key(&value_field));
 
     // Assert
-    assert!(high_key < low_key);
-    assert_eq!(low_key, same_key);
+    assert!(value_key < null_key);
 }
 
 #[test]
-fn should_order_integers_and_floats_by_value() {
+fn should_equate_null_fields() {
     // Arrange
+    let first = text_record(vec![text("a"), Value::Null]);
+    let second = text_record(vec![text("a"), Value::Null]);
+
+    // Act
+    let (first_key, second_key) = (record_key(&first), record_key(&second));
+
+    // Assert
+    assert_eq!(first_key, second_key);
+}
+
+fn number_record(integer: i64, float: f64) -> RecordValue {
     let descriptor = CompositeRef::new(CompositeType::anonymous(vec![
         DataType::BigInt,
         DataType::Float,
     ]));
-    let record = |integer: i64, float: f64| {
-        RecordValue::new(
-            descriptor.clone(),
-            vec![Value::Int64(integer), Value::Float64(float)],
-        )
-        .expect("record")
-    };
+    RecordValue::new(
+        descriptor,
+        vec![Value::Int64(integer), Value::Float64(float)],
+    )
+    .expect("record")
+}
+
+#[test]
+fn should_order_integer_fields_by_value() {
+    // Arrange
+    let records = [
+        number_record(-5, 0.0),
+        number_record(0, 0.0),
+        number_record(3, 0.0),
+    ];
 
     // Act
-    let negative = record_key(&record(-5, 0.0));
-    let positive = record_key(&record(3, 0.0));
-    let zero = record_key(&record(0, 0.0));
-    let negative_zero = record_key(&record(0, -0.0));
-    let nan = record_key(&record(0, f64::NAN));
-    let big = record_key(&record(0, 1.0e300));
+    let [negative, zero, positive] = records.map(|record| record_key(&record));
 
     // Assert
     assert!(negative < zero && zero < positive);
+}
+
+#[test]
+fn should_equate_negative_zero_with_zero() {
+    // Arrange
+    let records = [number_record(0, 0.0), number_record(0, -0.0)];
+
+    // Act
+    let [zero, negative_zero] = records.map(|record| record_key(&record));
+
+    // Assert
     assert_eq!(zero, negative_zero);
+}
+
+#[test]
+fn should_order_nan_after_every_float() {
+    // Arrange
+    let records = [number_record(0, 1.0e300), number_record(0, f64::NAN)];
+
+    // Act
+    let [big, nan] = records.map(|record| record_key(&record));
+
+    // Assert
     assert!(big < nan);
 }
 

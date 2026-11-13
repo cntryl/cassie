@@ -99,7 +99,7 @@ fn should_keep_row_type_oids_out_of_the_hashed_relation_range() {
 }
 
 #[test]
-fn should_find_a_row_type_and_its_array_type_by_oid() {
+fn should_find_a_row_type_by_oid() {
     // Arrange
     let catalog = catalog_with_table(7);
     let descriptor = catalog
@@ -108,10 +108,23 @@ fn should_find_a_row_type_and_its_array_type_by_oid() {
 
     // Act
     let by_type = catalog.relation_row_type_by_oid(descriptor.oid);
-    let by_array = catalog.relation_row_type_by_oid(descriptor.array_oid);
 
     // Assert
     assert_eq!(by_type.map(|found| found.2), Some(false));
+}
+
+#[test]
+fn should_find_the_array_row_type_by_oid() {
+    // Arrange
+    let catalog = catalog_with_table(7);
+    let descriptor = catalog
+        .relation_row_type("cassie.public.items")
+        .expect("row type");
+
+    // Act
+    let by_array = catalog.relation_row_type_by_oid(descriptor.array_oid);
+
+    // Assert
     assert_eq!(by_array.map(|found| found.2), Some(true));
 }
 

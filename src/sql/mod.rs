@@ -109,10 +109,23 @@ pub(crate) fn field_type_for_column<'a>(
     column: &str,
 ) -> Option<&'a DataType> {
     let column = crate::sql::ColumnIdentifierPath::parse(column).ok()?;
-    field_types
+    let found = field_types
         .get(&column.namespace_key())
-        .or_else(|| field_types.get(&column.lookup_key()))
-        .or_else(|| field_types.get(&column.field_lookup_key()))
+        .or_else(|| field_types.get(&column.lookup_key()));
+    if found.is_some() {
+        return found;
+    }
+    // A row carrier that this source does not declare is an enclosing query's alias. Its
+    // bare field name may name a different column here (generated sources also call their
+    // output `column1`), so it must not resolve by name alone.
+    if column.is_qualified()
+        && column
+            .namespace_qualifier()
+            .is_some_and(|qualifier| qualifier.starts_with("__cassie_relation_alias_"))
+    {
+        return None;
+    }
+    field_types.get(&column.field_lookup_key())
 }
 
 #[cfg(test)]

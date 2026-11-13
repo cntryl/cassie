@@ -88,6 +88,7 @@ fn validate_graph_table_function(
         match function.name.to_ascii_lowercase().as_str() {
             "pg_input_error_info" | "pg_catalog.pg_input_error_info" => 2,
             "pg_show_all_settings" | "pg_catalog.pg_show_all_settings" => 0,
+            name if crate::sql::functions::is_identify_object(name) => 3,
             "graph_neighbors" => 6,
             "graph_expand" => 7,
             "graph_shortest_path" => 9,

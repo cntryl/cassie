@@ -156,11 +156,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1644,
-    "rust_files": 1607,
-    "rust_test_declarations": 9478,
+    "files": 1645,
+    "rust_files": 1608,
+    "rust_test_declarations": 9541,
     "python_test_declarations": 22,
-    "registered_rust_instances": 9479,
+    "registered_rust_instances": 9542,
     "unregistered_rust_tests": [
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_publish_pgcrypto_extension_transactionally",
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_restore_pgcrypto_namespace_after_savepoint_rollback",
@@ -3066,8 +3066,8 @@
       "id": "tests/analytics/projections/metadata.rs::should_report_declared_types_for_direct_materialized_projection_reads",
       "name": "should_report_declared_types_for_direct_materialized_projection_reads",
       "current_file": "tests/analytics/projections/metadata.rs",
-      "line": 31,
-      "end_line": 94,
+      "line": 33,
+      "end_line": 96,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -5454,7 +5454,7 @@
       "name": "should_decline_offset_projection_substitution_while_using_unrestricted_twin",
       "current_file": "tests/analytics/read_models/offset_substitution.rs",
       "line": 34,
-      "end_line": 120,
+      "end_line": 122,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -9773,7 +9773,7 @@
       "name": "should_expose_selected_relation_type_fields_with_non_domain_defaults",
       "current_file": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs",
       "line": 23,
-      "end_line": 128,
+      "end_line": 129,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -9803,8 +9803,8 @@
       "id": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs::should_preserve_relhasindex_after_dropping_last_index_through_restart",
       "name": "should_preserve_relhasindex_after_dropping_last_index_through_restart",
       "current_file": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs",
-      "line": 131,
-      "end_line": 188,
+      "line": 132,
+      "end_line": 189,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -9834,8 +9834,8 @@
       "id": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs::should_rollback_relhasindex_history_with_transactional_index_ddl",
       "name": "should_rollback_relhasindex_history_with_transactional_index_ddl",
       "current_file": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs",
-      "line": 191,
-      "end_line": 226,
+      "line": 192,
+      "end_line": 227,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -12129,7 +12129,7 @@
       "name": "should_return_search_path_from_show_statement",
       "current_file": "tests/catalog_security/catalogs/session_information.rs",
       "line": 121,
-      "end_line": 158,
+      "end_line": 159,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -12159,8 +12159,8 @@
       "id": "tests/catalog_security/catalogs/session_information.rs::should_return_sqlalchemy_dialect_show_metadata",
       "name": "should_return_sqlalchemy_dialect_show_metadata",
       "current_file": "tests/catalog_security/catalogs/session_information.rs",
-      "line": 161,
-      "end_line": 192,
+      "line": 162,
+      "end_line": 193,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -12190,8 +12190,8 @@
       "id": "tests/catalog_security/catalogs/session_information.rs::should_treat_supported_set_statement_as_noop",
       "name": "should_treat_supported_set_statement_as_noop",
       "current_file": "tests/catalog_security/catalogs/session_information.rs",
-      "line": 195,
-      "end_line": 221,
+      "line": 196,
+      "end_line": 222,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -12221,8 +12221,8 @@
       "id": "tests/catalog_security/catalogs/session_information.rs::should_reject_unsupported_show_variable",
       "name": "should_reject_unsupported_show_variable",
       "current_file": "tests/catalog_security/catalogs/session_information.rs",
-      "line": 224,
-      "end_line": 244,
+      "line": 225,
+      "end_line": 245,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -12252,8 +12252,8 @@
       "id": "tests/catalog_security/catalogs/session_information.rs::should_reject_unsupported_set_variable",
       "name": "should_reject_unsupported_set_variable",
       "current_file": "tests/catalog_security/catalogs/session_information.rs",
-      "line": 247,
-      "end_line": 267,
+      "line": 248,
+      "end_line": 268,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15291,7 +15291,7 @@
       "name": "should_identify_a_user_procedure_by_its_signature",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
       "line": 441,
-      "end_line": 461,
+      "end_line": 463,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15321,8 +15321,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_identify_a_builtin_function_with_qualified_argument_types",
       "name": "should_identify_a_builtin_function_with_qualified_argument_types",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 464,
-      "end_line": 484,
+      "line": 466,
+      "end_line": 486,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15352,8 +15352,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_return_only_the_class_description_for_a_missing_relation",
       "name": "should_return_only_the_class_description_for_a_missing_relation",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 487,
-      "end_line": 499,
+      "line": 489,
+      "end_line": 501,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15383,8 +15383,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_omit_the_column_suffix_for_a_missing_relation_with_a_sub_object",
       "name": "should_omit_the_column_suffix_for_a_missing_relation_with_a_sub_object",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 502,
-      "end_line": 514,
+      "line": 504,
+      "end_line": 516,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15414,8 +15414,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_return_only_the_class_description_for_a_missing_type",
       "name": "should_return_only_the_class_description_for_a_missing_type",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 517,
-      "end_line": 526,
+      "line": 519,
+      "end_line": 528,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15445,8 +15445,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_return_only_the_class_description_for_a_missing_routine",
       "name": "should_return_only_the_class_description_for_a_missing_routine",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 529,
-      "end_line": 541,
+      "line": 531,
+      "end_line": 543,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15476,8 +15476,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_return_only_the_class_description_for_a_missing_schema",
       "name": "should_return_only_the_class_description_for_a_missing_schema",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 544,
-      "end_line": 553,
+      "line": 546,
+      "end_line": 555,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15507,8 +15507,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_return_an_all_null_row_for_a_null_class",
       "name": "should_return_an_all_null_row_for_a_null_class",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 556,
-      "end_line": 565,
+      "line": 558,
+      "end_line": 567,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15538,8 +15538,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_reject_an_object_class_cassie_does_not_model",
       "name": "should_reject_an_object_class_cassie_does_not_model",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 568,
-      "end_line": 577,
+      "line": 570,
+      "end_line": 579,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15569,8 +15569,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs::should_identify_each_relation_through_a_lateral_catalog_join",
       "name": "should_identify_each_relation_through_a_lateral_catalog_join",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
-      "line": 580,
-      "end_line": 594,
+      "line": 582,
+      "end_line": 596,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15938,11 +15938,73 @@
       }
     },
     {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs::should_keep_the_oid_when_a_procedure_is_redefined",
+      "name": "should_keep_the_oid_when_a_procedure_is_redefined",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs",
+      "line": 105,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_identity_lifecycle::should_keep_the_oid_when_a_procedure_is_redefined"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs::should_reject_a_duplicate_function_without_or_replace",
+      "name": "should_reject_a_duplicate_function_without_or_replace",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs",
+      "line": 121,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_identity_lifecycle::should_reject_a_duplicate_function_without_or_replace"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs::should_round_trip_a_routine_oid_through_its_regprocedure_text",
       "name": "should_round_trip_a_routine_oid_through_its_regprocedure_text",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs",
-      "line": 105,
-      "end_line": 117,
+      "line": 133,
+      "end_line": 145,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15972,8 +16034,8 @@
       "id": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs::should_keep_a_function_oid_across_restart",
       "name": "should_keep_a_function_oid_across_restart",
       "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs",
-      "line": 120,
-      "end_line": 154,
+      "line": 148,
+      "end_line": 184,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -15994,6 +16056,378 @@
         "category": "catalogs/types/object_identity",
         "directory": "tests/catalog_security/catalogs/types/object_identity",
         "file": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_a_duplicate_function_with_sqlstate_42723",
+      "name": "should_reject_a_duplicate_function_with_sqlstate_42723",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 23,
+      "end_line": 32,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_a_duplicate_function_with_sqlstate_42723"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_a_duplicate_procedure_with_sqlstate_42723",
+      "name": "should_reject_a_duplicate_procedure_with_sqlstate_42723",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 35,
+      "end_line": 44,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_a_duplicate_procedure_with_sqlstate_42723"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_a_changed_return_type_with_sqlstate_42p13",
+      "name": "should_reject_a_changed_return_type_with_sqlstate_42p13",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 47,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_a_changed_return_type_with_sqlstate_42p13"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_a_changed_parameter_name_with_sqlstate_42p13",
+      "name": "should_reject_a_changed_parameter_name_with_sqlstate_42p13",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 59,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_a_changed_parameter_name_with_sqlstate_42p13"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_a_changed_procedure_parameter_name_with_sqlstate_42p13",
+      "name": "should_reject_a_changed_procedure_parameter_name_with_sqlstate_42p13",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 71,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_a_changed_procedure_parameter_name_with_sqlstate_42p13"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_an_overload_instead_of_replacing_the_function",
+      "name": "should_reject_an_overload_instead_of_replacing_the_function",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 83,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_an_overload_instead_of_replacing_the_function"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_an_overload_instead_of_replacing_the_procedure",
+      "name": "should_reject_an_overload_instead_of_replacing_the_procedure",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 95,
+      "end_line": 104,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_an_overload_instead_of_replacing_the_procedure"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_replacing_a_procedure_with_a_function_with_sqlstate_42809",
+      "name": "should_reject_replacing_a_procedure_with_a_function_with_sqlstate_42809",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 107,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_replacing_a_procedure_with_a_function_with_sqlstate_42809"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_replacing_a_function_with_a_procedure_with_sqlstate_42809",
+      "name": "should_reject_replacing_a_function_with_a_procedure_with_sqlstate_42809",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 119,
+      "end_line": 128,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_replacing_a_function_with_a_procedure_with_sqlstate_42809"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_or_replace_with_if_not_exists_for_a_function_with_sqlstate_42601",
+      "name": "should_reject_or_replace_with_if_not_exists_for_a_function_with_sqlstate_42601",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 131,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_or_replace_with_if_not_exists_for_a_function_with_sqlstate_42601"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_reject_or_replace_with_if_not_exists_for_a_procedure_with_sqlstate_42601",
+      "name": "should_reject_or_replace_with_if_not_exists_for_a_procedure_with_sqlstate_42601",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 143,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_reject_or_replace_with_if_not_exists_for_a_procedure_with_sqlstate_42601"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs::should_replace_a_function_with_the_same_signature",
+      "name": "should_replace_a_function_with_the_same_signature",
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "line": 155,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "type_catalog_discovery::oid_identity_wave::routine_replace::should_replace_a_function_with_the_same_signature"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/types/object_identity",
+        "directory": "tests/catalog_security/catalogs/types/object_identity",
+        "file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
         "basis": "canonical_domain_path",
         "review": "recommended",
         "migration": "keep"
@@ -16437,8 +16871,8 @@
       "id": "tests/catalog_security/catalogs/types/oid_identity/metadata.rs::should_report_postgresql_object_identifier_type_oids",
       "name": "should_report_postgresql_object_identifier_type_oids",
       "current_file": "tests/catalog_security/catalogs/types/oid_identity/metadata.rs",
-      "line": 16,
-      "end_line": 58,
+      "line": 18,
+      "end_line": 60,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -16468,8 +16902,8 @@
       "id": "tests/catalog_security/catalogs/types/oid_identity/metadata.rs::should_round_trip_the_unsigned_oid_boundary_across_integer_types",
       "name": "should_round_trip_the_unsigned_oid_boundary_across_integer_types",
       "current_file": "tests/catalog_security/catalogs/types/oid_identity/metadata.rs",
-      "line": 61,
-      "end_line": 92,
+      "line": 63,
+      "end_line": 94,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -39112,6 +39546,37 @@
       }
     },
     {
+      "id": "tests/composite_types/row_types.rs::should_create_a_view_over_a_row_type_cast",
+      "name": "should_create_a_view_over_a_row_type_cast",
+      "current_file": "tests/composite_types/row_types.rs",
+      "line": 627,
+      "end_line": 639,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "row_types::should_create_a_view_over_a_row_type_cast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "semantics",
+        "directory": "tests/composite_types/semantics",
+        "file": "tests/composite_types/semantics/row_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/composite_types/values.rs::should_round_trip_composite_columns_through_insert_select",
       "name": "should_round_trip_composite_columns_through_insert_select",
       "current_file": "tests/composite_types/values.rs",
@@ -44103,6 +44568,316 @@
       }
     },
     {
+      "id": "tests/domain_types/alter.rs::should_rename_a_domain_through_alter_type",
+      "name": "should_rename_a_domain_through_alter_type",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 425,
+      "end_line": 439,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_rename_a_domain_through_alter_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_move_a_domain_to_another_schema_through_alter_type",
+      "name": "should_move_a_domain_to_another_schema_through_alter_type",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 442,
+      "end_line": 455,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_move_a_domain_to_another_schema_through_alter_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_drop_a_domain_through_drop_type",
+      "name": "should_drop_a_domain_through_drop_type",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 458,
+      "end_line": 469,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_drop_a_domain_through_drop_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_drop_a_domain_with_a_composite_type_in_one_drop_type",
+      "name": "should_drop_a_domain_with_a_composite_type_in_one_drop_type",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 472,
+      "end_line": 482,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_drop_a_domain_with_a_composite_type_in_one_drop_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_reject_drop_type_of_a_domain_with_dependents_with_sqlstate_2bp01",
+      "name": "should_reject_drop_type_of_a_domain_with_dependents_with_sqlstate_2bp01",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 485,
+      "end_line": 495,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_reject_drop_type_of_a_domain_with_dependents_with_sqlstate_2bp01"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_reject_adding_an_attribute_to_a_domain_with_sqlstate_42p01",
+      "name": "should_reject_adding_an_attribute_to_a_domain_with_sqlstate_42p01",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 498,
+      "end_line": 507,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_reject_adding_an_attribute_to_a_domain_with_sqlstate_42p01"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_reject_renaming_a_composite_type_onto_a_domain_name_with_sqlstate_42710",
+      "name": "should_reject_renaming_a_composite_type_onto_a_domain_name_with_sqlstate_42710",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 510,
+      "end_line": 519,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_reject_renaming_a_composite_type_onto_a_domain_name_with_sqlstate_42710"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_reject_renaming_a_composite_type_onto_a_table_name_with_sqlstate_42p07",
+      "name": "should_reject_renaming_a_composite_type_onto_a_table_name_with_sqlstate_42p07",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 522,
+      "end_line": 531,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_reject_renaming_a_composite_type_onto_a_table_name_with_sqlstate_42p07"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_reject_moving_a_composite_type_onto_a_domain_name_with_sqlstate_42710",
+      "name": "should_reject_moving_a_composite_type_onto_a_domain_name_with_sqlstate_42710",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 534,
+      "end_line": 545,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_reject_moving_a_composite_type_onto_a_domain_name_with_sqlstate_42710"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/alter.rs::should_reject_moving_a_composite_type_onto_a_sequence_name_with_sqlstate_42p07",
+      "name": "should_reject_moving_a_composite_type_onto_a_sequence_name_with_sqlstate_42p07",
+      "current_file": "tests/domain_types/alter.rs",
+      "line": 548,
+      "end_line": 559,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "alter::should_reject_moving_a_composite_type_onto_a_sequence_name_with_sqlstate_42p07"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/domain_types/catalogs.rs::should_publish_a_typtype_d_row_for_the_domain",
       "name": "should_publish_a_typtype_d_row_for_the_domain",
       "current_file": "tests/domain_types/catalogs.rs",
@@ -44320,6 +45095,37 @@
       }
     },
     {
+      "id": "tests/domain_types/catalogs.rs::should_qualify_a_domain_label_when_an_earlier_schema_holds_a_table_row_type_of_that_name",
+      "name": "should_qualify_a_domain_label_when_an_earlier_schema_holds_a_table_row_type_of_that_name",
+      "current_file": "tests/domain_types/catalogs.rs",
+      "line": 138,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "catalogs::should_qualify_a_domain_label_when_an_earlier_schema_holds_a_table_row_type_of_that_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/catalogs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/domain_types/ddl.rs::should_make_a_created_domain_usable_in_casts",
       "name": "should_make_a_created_domain_usable_in_casts",
       "current_file": "tests/domain_types/ddl.rs",
@@ -44479,7 +45285,7 @@
       "name": "should_reject_drop_domain_with_a_dependent_column_with_sqlstate_2bp01",
       "current_file": "tests/domain_types/ddl.rs",
       "line": 76,
-      "end_line": 86,
+      "end_line": 88,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44509,8 +45315,8 @@
       "id": "tests/domain_types/ddl.rs::should_allow_drop_domain_once_no_column_depends_on_it",
       "name": "should_allow_drop_domain_once_no_column_depends_on_it",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 89,
-      "end_line": 100,
+      "line": 91,
+      "end_line": 104,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44540,8 +45346,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_drop_domain_on_a_composite_type_with_sqlstate_42809",
       "name": "should_reject_drop_domain_on_a_composite_type_with_sqlstate_42809",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 103,
-      "end_line": 115,
+      "line": 107,
+      "end_line": 119,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44571,8 +45377,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_a_domain_over_a_composite_type_with_sqlstate_0a000",
       "name": "should_reject_a_domain_over_a_composite_type_with_sqlstate_0a000",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 118,
-      "end_line": 130,
+      "line": 122,
+      "end_line": 134,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44602,8 +45408,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_a_domain_over_a_domain_with_sqlstate_0a000",
       "name": "should_reject_a_domain_over_a_domain_with_sqlstate_0a000",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 133,
-      "end_line": 142,
+      "line": 137,
+      "end_line": 146,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44633,8 +45439,8 @@
       "id": "tests/domain_types/ddl.rs::should_accept_a_domain_over_an_array_base_type",
       "name": "should_accept_a_domain_over_an_array_base_type",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 145,
-      "end_line": 156,
+      "line": 149,
+      "end_line": 160,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44664,8 +45470,8 @@
       "id": "tests/domain_types/ddl.rs::should_not_publish_a_rolled_back_create_domain",
       "name": "should_not_publish_a_rolled_back_create_domain",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 159,
-      "end_line": 171,
+      "line": 163,
+      "end_line": 175,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44695,8 +45501,8 @@
       "id": "tests/domain_types/ddl.rs::should_restore_a_domain_dropped_in_a_rolled_back_transaction",
       "name": "should_restore_a_domain_dropped_in_a_rolled_back_transaction",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 174,
-      "end_line": 186,
+      "line": 178,
+      "end_line": 190,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44726,8 +45532,8 @@
       "id": "tests/domain_types/ddl.rs::should_drop_a_domain_with_its_schema_when_nothing_outside_depends_on_it",
       "name": "should_drop_a_domain_with_its_schema_when_nothing_outside_depends_on_it",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 189,
-      "end_line": 206,
+      "line": 193,
+      "end_line": 210,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44757,8 +45563,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_drop_schema_when_a_table_outside_uses_its_domain",
       "name": "should_reject_drop_schema_when_a_table_outside_uses_its_domain",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 209,
-      "end_line": 225,
+      "line": 213,
+      "end_line": 229,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44788,8 +45594,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_create_type_over_an_existing_domain_name",
       "name": "should_reject_create_type_over_an_existing_domain_name",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 228,
-      "end_line": 237,
+      "line": 232,
+      "end_line": 241,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44819,8 +45625,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_create_table_over_an_existing_domain_name_with_sqlstate_42710",
       "name": "should_reject_create_table_over_an_existing_domain_name_with_sqlstate_42710",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 240,
-      "end_line": 249,
+      "line": 244,
+      "end_line": 253,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44850,8 +45656,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_create_table_if_not_exists_over_an_existing_domain_name",
       "name": "should_reject_create_table_if_not_exists_over_an_existing_domain_name",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 252,
-      "end_line": 261,
+      "line": 256,
+      "end_line": 265,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44881,8 +45687,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_create_sequence_over_an_existing_domain_name_with_sqlstate_42710",
       "name": "should_reject_create_sequence_over_an_existing_domain_name_with_sqlstate_42710",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 264,
-      "end_line": 273,
+      "line": 268,
+      "end_line": 277,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44912,8 +45718,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_create_view_over_an_existing_domain_name_with_sqlstate_42710",
       "name": "should_reject_create_view_over_an_existing_domain_name_with_sqlstate_42710",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 276,
-      "end_line": 285,
+      "line": 280,
+      "end_line": 289,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44943,8 +45749,8 @@
       "id": "tests/domain_types/ddl.rs::should_allow_a_domain_named_like_a_sequence",
       "name": "should_allow_a_domain_named_like_a_sequence",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 288,
-      "end_line": 300,
+      "line": 292,
+      "end_line": 304,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -44974,8 +45780,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_create_domain_over_an_existing_table_name",
       "name": "should_reject_create_domain_over_an_existing_table_name",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 303,
-      "end_line": 312,
+      "line": 307,
+      "end_line": 316,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45005,8 +45811,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_adding_a_not_null_domain_column_to_a_populated_table",
       "name": "should_reject_adding_a_not_null_domain_column_to_a_populated_table",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 315,
-      "end_line": 331,
+      "line": 319,
+      "end_line": 335,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45036,8 +45842,8 @@
       "id": "tests/domain_types/ddl.rs::should_allow_adding_a_not_null_domain_column_to_an_empty_table",
       "name": "should_allow_adding_a_not_null_domain_column_to_an_empty_table",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 334,
-      "end_line": 349,
+      "line": 338,
+      "end_line": 353,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45067,8 +45873,8 @@
       "id": "tests/domain_types/ddl.rs::should_backfill_the_domain_default_when_adding_a_column",
       "name": "should_backfill_the_domain_default_when_adding_a_column",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 352,
-      "end_line": 371,
+      "line": 356,
+      "end_line": 375,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45098,8 +45904,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_a_backfilled_default_that_violates_the_domain_check",
       "name": "should_reject_a_backfilled_default_that_violates_the_domain_check",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 374,
-      "end_line": 390,
+      "line": 378,
+      "end_line": 394,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45129,8 +45935,8 @@
       "id": "tests/domain_types/ddl.rs::should_round_trip_domains_over_numeric_jsonb_or_timestamp_bases",
       "name": "should_round_trip_domains_over_numeric_jsonb_or_timestamp_bases",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 393,
-      "end_line": 418,
+      "line": 397,
+      "end_line": 422,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45160,8 +45966,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_backfilling_a_per_row_volatile_domain_default_into_a_populated_table",
       "name": "should_reject_backfilling_a_per_row_volatile_domain_default_into_a_populated_table",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 421,
-      "end_line": 437,
+      "line": 425,
+      "end_line": 441,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45191,8 +45997,8 @@
       "id": "tests/domain_types/ddl.rs::should_backfill_a_stable_volatile_domain_default",
       "name": "should_backfill_a_stable_volatile_domain_default",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 440,
-      "end_line": 458,
+      "line": 444,
+      "end_line": 462,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45222,8 +46028,8 @@
       "id": "tests/domain_types/ddl.rs::should_see_staged_rows_when_adding_a_not_null_domain_column",
       "name": "should_see_staged_rows_when_adding_a_not_null_domain_column",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 461,
-      "end_line": 478,
+      "line": 465,
+      "end_line": 482,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45253,8 +46059,8 @@
       "id": "tests/domain_types/ddl.rs::should_reject_create_materialized_view_over_an_existing_domain_name",
       "name": "should_reject_create_materialized_view_over_an_existing_domain_name",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 481,
-      "end_line": 490,
+      "line": 485,
+      "end_line": 494,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45284,8 +46090,8 @@
       "id": "tests/domain_types/ddl.rs::should_forget_a_databases_domains_when_it_is_dropped_then_recreated",
       "name": "should_forget_a_databases_domains_when_it_is_dropped_then_recreated",
       "current_file": "tests/domain_types/ddl.rs",
-      "line": 493,
-      "end_line": 534,
+      "line": 497,
+      "end_line": 538,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -45294,6 +46100,378 @@
         {
           "suite": "domain_types",
           "name": "ddl::should_forget_a_databases_domains_when_it_is_dropped_then_recreated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_create_a_view_over_a_domain_cast",
+      "name": "should_create_a_view_over_a_domain_cast",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 543,
+      "end_line": 555,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_create_a_view_over_a_domain_cast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_create_a_materialized_view_over_a_domain_column",
+      "name": "should_create_a_materialized_view_over_a_domain_column",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 558,
+      "end_line": 577,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_create_a_materialized_view_over_a_domain_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_rename_a_materialized_view_while_a_stored_view_names_a_domain",
+      "name": "should_rename_a_materialized_view_while_a_stored_view_names_a_domain",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 580,
+      "end_line": 598,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_rename_a_materialized_view_while_a_stored_view_names_a_domain"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_reject_renaming_a_table_onto_a_domain_name_with_sqlstate_42710",
+      "name": "should_reject_renaming_a_table_onto_a_domain_name_with_sqlstate_42710",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 603,
+      "end_line": 613,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_reject_renaming_a_table_onto_a_domain_name_with_sqlstate_42710"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_reject_altering_a_view_with_sqlstate_0a000_until_alter_view_exists",
+      "name": "should_reject_altering_a_view_with_sqlstate_0a000_until_alter_view_exists",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 616,
+      "end_line": 627,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_reject_altering_a_view_with_sqlstate_0a000_until_alter_view_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_reject_renaming_a_materialized_view_onto_a_domain_name_with_sqlstate_42710",
+      "name": "should_reject_renaming_a_materialized_view_onto_a_domain_name_with_sqlstate_42710",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 630,
+      "end_line": 642,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_reject_renaming_a_materialized_view_onto_a_domain_name_with_sqlstate_42710"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_reject_moving_a_table_onto_a_domain_name_in_another_schema_with_sqlstate_42710",
+      "name": "should_reject_moving_a_table_onto_a_domain_name_in_another_schema_with_sqlstate_42710",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 645,
+      "end_line": 668,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_reject_moving_a_table_onto_a_domain_name_in_another_schema_with_sqlstate_42710"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_reject_renaming_a_table_onto_a_composite_type_name_with_sqlstate_42p07",
+      "name": "should_reject_renaming_a_table_onto_a_composite_type_name_with_sqlstate_42p07",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 671,
+      "end_line": 682,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_reject_renaming_a_table_onto_a_composite_type_name_with_sqlstate_42p07"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_reject_a_table_named_like_a_domain_in_the_same_non_default_schema",
+      "name": "should_reject_a_table_named_like_a_domain_in_the_same_non_default_schema",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 685,
+      "end_line": 697,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_reject_a_table_named_like_a_domain_in_the_same_non_default_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_accept_a_table_named_like_a_domain_of_another_schema",
+      "name": "should_accept_a_table_named_like_a_domain_of_another_schema",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 700,
+      "end_line": 712,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_accept_a_table_named_like_a_domain_of_another_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_reject_a_domain_named_like_a_table_in_the_same_non_default_schema",
+      "name": "should_reject_a_domain_named_like_a_table_in_the_same_non_default_schema",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 715,
+      "end_line": 727,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_reject_a_domain_named_like_a_table_in_the_same_non_default_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "ddl",
+        "directory": "tests/domain_types/ddl",
+        "file": "tests/domain_types/ddl/ddl.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/ddl.rs::should_accept_a_domain_named_like_a_table_of_another_schema",
+      "name": "should_accept_a_domain_named_like_a_table_of_another_schema",
+      "current_file": "tests/domain_types/ddl.rs",
+      "line": 730,
+      "end_line": 742,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "ddl::should_accept_a_domain_named_like_a_table_of_another_schema"
         }
       ],
       "attributes": [
@@ -45963,6 +47141,564 @@
       }
     },
     {
+      "id": "tests/domain_types/enforcement.rs::should_reject_a_text_literal_cast_to_a_row_type_violating_a_domain_check",
+      "name": "should_reject_a_text_literal_cast_to_a_row_type_violating_a_domain_check",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 371,
+      "end_line": 380,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_reject_a_text_literal_cast_to_a_row_type_violating_a_domain_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_reject_a_row_constructor_cast_to_a_row_type_violating_a_domain_check",
+      "name": "should_reject_a_row_constructor_cast_to_a_row_type_violating_a_domain_check",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 383,
+      "end_line": 392,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_reject_a_row_constructor_cast_to_a_row_type_violating_a_domain_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_reject_populate_record_into_a_row_type_violating_a_domain_check",
+      "name": "should_reject_populate_record_into_a_row_type_violating_a_domain_check",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 395,
+      "end_line": 404,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_reject_populate_record_into_a_row_type_violating_a_domain_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_accept_a_row_type_cast_satisfying_the_domain_check",
+      "name": "should_accept_a_row_type_cast_satisfying_the_domain_check",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 407,
+      "end_line": 416,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_accept_a_row_type_cast_satisfying_the_domain_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_reject_a_row_constructor_null_cast_to_a_row_type_with_a_not_null_domain",
+      "name": "should_reject_a_row_constructor_null_cast_to_a_row_type_with_a_not_null_domain",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 419,
+      "end_line": 428,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_reject_a_row_constructor_null_cast_to_a_row_type_with_a_not_null_domain"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_convert_a_domain_column_of_jsonb_to_record",
+      "name": "should_convert_a_domain_column_of_jsonb_to_record",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 431,
+      "end_line": 440,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_convert_a_domain_column_of_jsonb_to_record"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_reject_a_jsonb_to_record_value_violating_the_domain_check",
+      "name": "should_reject_a_jsonb_to_record_value_violating_the_domain_check",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 443,
+      "end_line": 452,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_reject_a_jsonb_to_record_value_violating_the_domain_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_reject_a_json_to_recordset_value_violating_the_domain_check",
+      "name": "should_reject_a_json_to_recordset_value_violating_the_domain_check",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 455,
+      "end_line": 464,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_reject_a_json_to_recordset_value_violating_the_domain_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_yield_null_for_a_json_table_domain_violation_under_the_default_on_error",
+      "name": "should_yield_null_for_a_json_table_domain_violation_under_the_default_on_error",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 467,
+      "end_line": 477,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_yield_null_for_a_json_table_domain_violation_under_the_default_on_error"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_reject_a_json_table_domain_violation_under_a_column_error_on_error",
+      "name": "should_reject_a_json_table_domain_violation_under_a_column_error_on_error",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 480,
+      "end_line": 491,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_reject_a_json_table_domain_violation_under_a_column_error_on_error"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_return_a_json_table_value_satisfying_the_domain_check",
+      "name": "should_return_a_json_table_value_satisfying_the_domain_check",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 494,
+      "end_line": 504,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_return_a_json_table_value_satisfying_the_domain_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_read_a_whole_row_that_violates_a_not_valid_domain_check",
+      "name": "should_read_a_whole_row_that_violates_a_not_valid_domain_check",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 509,
+      "end_line": 522,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_read_a_whole_row_that_violates_a_not_valid_domain_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_stop_enforcing_a_dropped_domain_check_on_row_type_casts",
+      "name": "should_stop_enforcing_a_dropped_domain_check_on_row_type_casts",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 525,
+      "end_line": 537,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_stop_enforcing_a_dropped_domain_check_on_row_type_casts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_enforce_an_added_domain_check_on_row_type_casts",
+      "name": "should_enforce_an_added_domain_check_on_row_type_casts",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 540,
+      "end_line": 552,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_enforce_an_added_domain_check_on_row_type_casts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_infer_the_base_type_for_arithmetic_on_a_row_type_domain_field",
+      "name": "should_infer_the_base_type_for_arithmetic_on_a_row_type_domain_field",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 555,
+      "end_line": 567,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_infer_the_base_type_for_arithmetic_on_a_row_type_domain_field"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_stop_enforcing_a_dropped_domain_check_on_a_row_type_column_insert",
+      "name": "should_stop_enforcing_a_dropped_domain_check_on_a_row_type_column_insert",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 578,
+      "end_line": 590,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_stop_enforcing_a_dropped_domain_check_on_a_row_type_column_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_enforce_an_added_domain_check_on_a_row_type_column_insert",
+      "name": "should_enforce_an_added_domain_check_on_a_row_type_column_insert",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 593,
+      "end_line": 605,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_enforce_an_added_domain_check_on_a_row_type_column_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/enforcement.rs::should_reject_field_assignment_on_a_row_type_column",
+      "name": "should_reject_field_assignment_on_a_row_type_column",
+      "current_file": "tests/domain_types/enforcement.rs",
+      "line": 610,
+      "end_line": 622,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "enforcement::should_reject_field_assignment_on_a_row_type_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/enforcement.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/domain_types/persistence.rs::should_keep_the_domain_oid_across_restart",
       "name": "should_keep_the_domain_oid_across_restart",
       "current_file": "tests/domain_types/persistence.rs",
@@ -46131,6 +47867,68 @@
         {
           "suite": "domain_types",
           "name": "persistence::should_not_persist_a_rolled_back_create_domain"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/persistence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/persistence.rs::should_stop_enforcing_a_dropped_check_on_a_row_type_column_after_restart",
+      "name": "should_stop_enforcing_a_dropped_check_on_a_row_type_column_after_restart",
+      "current_file": "tests/domain_types/persistence.rs",
+      "line": 144,
+      "end_line": 160,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "persistence::should_stop_enforcing_a_dropped_check_on_a_row_type_column_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "semantics",
+        "directory": "tests/domain_types/semantics",
+        "file": "tests/domain_types/semantics/persistence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/persistence.rs::should_reconcile_no_columns_when_hydration_runs_again",
+      "name": "should_reconcile_no_columns_when_hydration_runs_again",
+      "current_file": "tests/domain_types/persistence.rs",
+      "line": 163,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "persistence::should_reconcile_no_columns_when_hydration_runs_again"
         }
       ],
       "attributes": [
@@ -187021,8 +188819,8 @@
       "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_keep_outer_correlated_conjuncts_given_a_lateral_derived_table",
       "name": "should_keep_outer_correlated_conjuncts_given_a_lateral_derived_table",
       "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
-      "line": 41,
-      "end_line": 50,
+      "line": 40,
+      "end_line": 49,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187049,11 +188847,11 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_keep_outer_correlated_conjuncts_given_a_set_operation_branch",
-      "name": "should_keep_outer_correlated_conjuncts_given_a_set_operation_branch",
+      "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_resolve_outer_columns_given_a_set_operation_branch_in_a_lateral_derived_table",
+      "name": "should_resolve_outer_columns_given_a_set_operation_branch_in_a_lateral_derived_table",
       "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
-      "line": 53,
-      "end_line": 72,
+      "line": 52,
+      "end_line": 63,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187061,7 +188859,38 @@
       "instances": [
         {
           "suite": "pgwire_types",
-          "name": "pgwire_type_json_scalar_documents::json_table_lateral_filter::should_keep_outer_correlated_conjuncts_given_a_set_operation_branch"
+          "name": "pgwire_type_json_scalar_documents::json_table_lateral_filter::should_resolve_outer_columns_given_a_set_operation_branch_in_a_lateral_derived_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_resolve_outer_columns_given_both_set_operation_branches_in_a_lateral_derived_table",
+      "name": "should_resolve_outer_columns_given_both_set_operation_branches_in_a_lateral_derived_table",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+      "line": 66,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_table_lateral_filter::should_resolve_outer_columns_given_both_set_operation_branches_in_a_lateral_derived_table"
         }
       ],
       "attributes": [
@@ -187083,8 +188912,8 @@
       "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_keep_outer_correlated_conjuncts_given_a_correlated_scalar_subquery",
       "name": "should_keep_outer_correlated_conjuncts_given_a_correlated_scalar_subquery",
       "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
-      "line": 75,
-      "end_line": 84,
+      "line": 88,
+      "end_line": 97,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187093,6 +188922,130 @@
         {
           "suite": "pgwire_types",
           "name": "pgwire_type_json_scalar_documents::json_table_lateral_filter::should_keep_outer_correlated_conjuncts_given_a_correlated_scalar_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_skip_failing_rows_given_a_values_aliased_outer_input_and_a_cross_join_lateral",
+      "name": "should_skip_failing_rows_given_a_values_aliased_outer_input_and_a_cross_join_lateral",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+      "line": 100,
+      "end_line": 107,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_table_lateral_filter::should_skip_failing_rows_given_a_values_aliased_outer_input_and_a_cross_join_lateral"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_compare_the_outer_values_column_given_a_lateral_derived_table_over_values",
+      "name": "should_compare_the_outer_values_column_given_a_lateral_derived_table_over_values",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+      "line": 113,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_table_lateral_filter::should_compare_the_outer_values_column_given_a_lateral_derived_table_over_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_compare_the_outer_values_column_given_a_correlated_scalar_subquery_over_values",
+      "name": "should_compare_the_outer_values_column_given_a_correlated_scalar_subquery_over_values",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+      "line": 126,
+      "end_line": 135,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_table_lateral_filter::should_compare_the_outer_values_column_given_a_correlated_scalar_subquery_over_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/table_functions",
+        "directory": "tests/pgwire_extended/types/json/table_functions",
+        "file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs::should_pair_rows_by_the_outer_values_column_given_reordered_inner_values",
+      "name": "should_pair_rows_by_the_outer_values_column_given_reordered_inner_values",
+      "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
+      "line": 138,
+      "end_line": 148,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::json_table_lateral_filter::should_pair_rows_by_the_outer_values_column_given_reordered_inner_values"
         }
       ],
       "attributes": [
@@ -288893,8 +290846,8 @@
       "id": "tests/support/sql_fixture.rs::teardown_tests::should_drop_sql_fixture_owners_before_removing_directory",
       "name": "should_drop_sql_fixture_owners_before_removing_directory",
       "current_file": "tests/support/sql_fixture.rs",
-      "line": 190,
-      "end_line": 230,
+      "line": 191,
+      "end_line": 231,
       "inline_modules": [
         "teardown_tests"
       ],
@@ -288926,8 +290879,8 @@
       "id": "tests/support/sql_fixture.rs::teardown_tests::should_report_directory_cleanup_failure_on_normal_drop",
       "name": "should_report_directory_cleanup_failure_on_normal_drop",
       "current_file": "tests/support/sql_fixture.rs",
-      "line": 233,
-      "end_line": 250,
+      "line": 234,
+      "end_line": 251,
       "inline_modules": [
         "teardown_tests"
       ],
@@ -288959,8 +290912,8 @@
       "id": "tests/support/sql_fixture.rs::teardown_tests::should_report_cleanup_error_without_replacing_an_existing_panic",
       "name": "should_report_cleanup_error_without_replacing_an_existing_panic",
       "current_file": "tests/support/sql_fixture.rs",
-      "line": 253,
-      "end_line": 278,
+      "line": 254,
+      "end_line": 279,
       "inline_modules": [
         "teardown_tests"
       ],
@@ -288992,8 +290945,8 @@
       "id": "tests/support/sql_fixture.rs::teardown_tests::should_report_cleanup_error_during_unwind_without_a_subscriber",
       "name": "should_report_cleanup_error_during_unwind_without_a_subscriber",
       "current_file": "tests/support/sql_fixture.rs",
-      "line": 281,
-      "end_line": 321,
+      "line": 282,
+      "end_line": 322,
       "inline_modules": [
         "teardown_tests"
       ],
@@ -294947,8 +296900,8 @@
       "current_file": "tests/analytics/projections/metadata.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 94,
-      "sha256": "71fc4b0f39efb71b92a3026bcd7c3e33e27762a4123f30ec87078d409ba722e9",
+      "lines": 96,
+      "sha256": "fe993b5cdcdeb1282abac229d604908e3238d5b591e5dbfe7e2fb9f8a7e0d46c",
       "test_declarations": 1,
       "registered_suites": [
         "analytics"
@@ -295172,8 +297125,8 @@
       "current_file": "tests/analytics/read_models/offset_substitution.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 120,
-      "sha256": "f1c8735f5704e89d31f44e4e80201678e2f6c5a50ff0c53508d8d9f57d5db7da",
+      "lines": 122,
+      "sha256": "2f16cb14764a879fe18609e6d42b52e65fbc8856ac0407df5c418e8895d35690",
       "test_declarations": 1,
       "registered_suites": [
         "analytics"
@@ -295592,8 +297545,8 @@
       "current_file": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 226,
-      "sha256": "544c8ca6ddd13a0b69f4e2a1021eb32d1f7a253f6e6771115335080b07334851",
+      "lines": 227,
+      "sha256": "207e714f0a1cea96736ac496b3a6d88784b39c498bfd3bfd041eebbe525d1f42",
       "test_declarations": 3,
       "registered_suites": [
         "catalog_security"
@@ -296010,8 +297963,8 @@
       "current_file": "tests/catalog_security/catalogs/session_information.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 267,
-      "sha256": "989ff382175722d32964eefbd3db9adf933298b07332745cf90ae25850c6e272",
+      "lines": 268,
+      "sha256": "6321b667a56097079894af7c914b3991f4b71b43e2cb0515d6a532c8e9b96a3b",
       "test_declarations": 9,
       "registered_suites": [
         "catalog_security"
@@ -296263,8 +298216,8 @@
       "current_file": "tests/catalog_security/catalogs/types/object_identity/identify_object.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 594,
-      "sha256": "7da4da841ff7e4b1112d0795af4ee01a03ea0744a52c3cd0794b69f3b6b69994",
+      "lines": 596,
+      "sha256": "46ad64293ae8c2d81a58a79f25722313e861224f5d783d52e709a96cfbd4e38a",
       "test_declarations": 29,
       "registered_suites": [
         "catalog_security"
@@ -296293,14 +298246,29 @@
       "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 154,
-      "sha256": "483cf743a19e14f534b7498d7b42ab8f97cbba5245cc81869ffaaac6e38d6f19",
-      "test_declarations": 6,
+      "lines": 184,
+      "sha256": "37ef8b69917ad44c554af0ab8895dd0739b9d87521747bef9e34142f0426d7dd",
+      "test_declarations": 8,
       "registered_suites": [
         "catalog_security"
       ],
       "destinations": [
         "tests/catalog_security/catalogs/types/object_identity/routine_identity_lifecycle.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 167,
+      "sha256": "436efbedbb8d35926f211c58ad5657f293d49659f21f54e6bcb27ae90ac5e476",
+      "test_declarations": 12,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/types/object_identity/routine_replace.rs"
       ],
       "line_limit": 1000
     },
@@ -296323,8 +298291,8 @@
       "current_file": "tests/catalog_security/catalogs/types/oid_identity/metadata.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 92,
-      "sha256": "3a1ddb803605712de5fc9eef635830a1272f861e04480e736e59f16c724af82d",
+      "lines": 94,
+      "sha256": "5a2265e4779e8363da7bf55c5c9a6bfe5f05b9d5743d6b80e5744077ce5f2ea0",
       "test_declarations": 2,
       "registered_suites": [
         "catalog_security"
@@ -299126,7 +301094,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 429,
-      "sha256": "0d768ddaf5d18b26b8cd1ae54463b5fef6bb1e587227ec51e551a507a54253c4",
+      "sha256": "c3366d2d8bb4bd403497c387493ae4373c6c69a3f066716418b19c1fb14992b2",
       "test_declarations": 26,
       "registered_suites": [
         "composite_types"
@@ -299141,7 +301109,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 183,
-      "sha256": "e23cf18053fd3323652e9ee4695f800624914b45b69e8cda498872dcce2bec6e",
+      "sha256": "d5dc46359c4f28c4cf6a093f124e97dabfc0dfcfbb747a312dfd2b24788a6383",
       "test_declarations": 8,
       "registered_suites": [
         "composite_types"
@@ -299171,7 +301139,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 220,
-      "sha256": "dd6ae655e82088c1d8bb7d042fbf0ea5c8a35435a46abef5e56b4049e729e18b",
+      "sha256": "c8f7196014f4372edc3aa12021ca8674fb9a092fe6a406e9717cb7a3e47a0a93",
       "test_declarations": 9,
       "registered_suites": [
         "composite_types"
@@ -299200,9 +301168,9 @@
       "current_file": "tests/composite_types/row_types.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 622,
-      "sha256": "6ece7d8bb25896d7f45d9e284212419296557c1a98ba83d5044b6db586307624",
-      "test_declarations": 40,
+      "lines": 639,
+      "sha256": "4e5ac714110001bd926cd7ce524250584e1442b76b560fbbe8c2390b46e9e933",
+      "test_declarations": 41,
       "registered_suites": [
         "composite_types"
       ],
@@ -299231,7 +301199,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 158,
-      "sha256": "d6568d5f8aa5b09fff6baec2e3d642f18fb838e31246f40198c45cec6f05611b",
+      "sha256": "582b728a41d0cbbe43f280c9b4c73ca58d754bc2f54448b3c90a34b90d19d9fe",
       "test_declarations": 6,
       "registered_suites": [
         "composite_types"
@@ -299903,9 +301871,9 @@
       "current_file": "tests/domain_types/alter.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 408,
-      "sha256": "7629ffcc7b33a7bc9de2354cd6e67f89a629d41839e4b0d840670cd6e7aea2ba",
-      "test_declarations": 24,
+      "lines": 559,
+      "sha256": "135e117a1cc5075c5faa9693e41fa2df6915e0ae7de8c99d6f03153c06d44818",
+      "test_declarations": 34,
       "registered_suites": [
         "domain_types"
       ],
@@ -299918,9 +301886,9 @@
       "current_file": "tests/domain_types/catalogs.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 133,
-      "sha256": "b044557663a78d90e80590d59bc771be1421ab86dbf5a073621c9e54fb56b222",
-      "test_declarations": 7,
+      "lines": 167,
+      "sha256": "ec287979f666f2408bcc87d2cb12ea9917f5fbdab0bf256f29361f4cd416a900",
+      "test_declarations": 8,
       "registered_suites": [
         "domain_types"
       ],
@@ -299933,9 +301901,9 @@
       "current_file": "tests/domain_types/ddl.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 534,
-      "sha256": "83f69984d59ea68bd14a14514194346c0baadd3768bbfa67ff57bed6698bf842",
-      "test_declarations": 32,
+      "lines": 742,
+      "sha256": "e1ab3cf5bf89a7b40cdc3bfca3e5cf3eb5f67bb01ef046bd04aaa79bd365d205",
+      "test_declarations": 44,
       "registered_suites": [
         "domain_types"
       ],
@@ -299948,9 +301916,9 @@
       "current_file": "tests/domain_types/enforcement.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 353,
-      "sha256": "f452d8c8f89c6c2d4886005a740b1fb3860033d1c86d193db723f2a1893183e3",
-      "test_declarations": 21,
+      "lines": 622,
+      "sha256": "0fc8e7a64e74f68b5797a031f0d01f379fa113e49132f6599b59b3be74fd8283",
+      "test_declarations": 39,
       "registered_suites": [
         "domain_types"
       ],
@@ -299963,9 +301931,9 @@
       "current_file": "tests/domain_types/persistence.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 132,
-      "sha256": "c5edbe253a7cf87a14aeb0e08a0cb5acbcf9746957ad5022cf34024e1ed7133c",
-      "test_declarations": 6,
+      "lines": 177,
+      "sha256": "7e77f0410f73ccdb1a752ae1de706c2dc8e01d7d7e80e2dec1c058954cc9b7bb",
+      "test_declarations": 8,
       "registered_suites": [
         "domain_types"
       ],
@@ -299979,7 +301947,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 61,
-      "sha256": "4dbbe9b00bed3a8043035d1d393bc5ad4220f203d4a2299e32d3ef2b98dc6a23",
+      "sha256": "153f099bd4e69cab0e4bd99dcb93850bb43e36585ede3693e4ed252a4d48b6cc",
       "test_declarations": 2,
       "registered_suites": [
         "domain_types"
@@ -309865,8 +311833,8 @@
       "current_file": "tests/pgwire_extended/types/json/table_functions/json_records_support.rs",
       "role": "test_support",
       "action": "keep",
-      "lines": 37,
-      "sha256": "0430c5f6ef5aa717d7792520586be9886d4702d2d62790adfdc8ef324808647b",
+      "lines": 60,
+      "sha256": "afe8fdcbc933f810c17f28461101c57b420df730f363a0a2645989a2f25de0e2",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_types"
@@ -309908,9 +311876,9 @@
       "current_file": "tests/pgwire_extended/types/json/table_functions/json_table_lateral_filter.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 84,
-      "sha256": "31a2918853099a693066b0871caf7a58ab4cc360cac9b2690c11f78351a814b6",
-      "test_declarations": 6,
+      "lines": 148,
+      "sha256": "e076b756b2d363f3988f99db0685676e52e86a00f0953d8257fa66e7d5d21d83",
+      "test_declarations": 11,
       "registered_suites": [
         "pgwire_types"
       ],
@@ -317448,8 +319416,8 @@
       "current_file": "tests/support/composite_types.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 81,
-      "sha256": "2e1df69fe9375d1d9a004a1a4b955293bb9f70bcc21192a903e10484ed4be754",
+      "lines": 82,
+      "sha256": "d6501e0a78c7061e610237b0de2b5f8f01bf65dceeb4ffc3cbeab1439ffffa15",
       "test_declarations": 0,
       "registered_suites": [
         "cassie_test_support"
@@ -318112,8 +320080,8 @@
       "current_file": "tests/support/relational_qualification/returning_phases.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 80,
-      "sha256": "e7dcb292b6207a64ada86387722731a52767ff3889b5fe884860c2d590f6f32c",
+      "lines": 81,
+      "sha256": "15d68c674ce7ced7d9956cbd3b96f601f9fe0361a4ff526eb696e0b5e004f9b9",
       "test_declarations": 0,
       "registered_suites": [
         "relational_qualification"
@@ -318325,8 +320293,8 @@
       "current_file": "tests/support/sql_fixture.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 322,
-      "sha256": "f319ed0a01d51ab7d06f6c72c74a8997746959ad7b03721b7dc908b1815f2327",
+      "lines": 323,
+      "sha256": "f5359f6e85ddcdf80dee643757f43f3f2f70ff84c20987f03e416e8064abf1cc",
       "test_declarations": 4,
       "registered_suites": [
         "cassie_test_support"

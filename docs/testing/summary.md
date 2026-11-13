@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1644 |
-| Rust files | 1607 |
-| Rust test declarations | 9478 |
+| Files under `tests/` | 1645 |
+| Rust files | 1608 |
+| Rust test declarations | 9541 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 9479 |
+| Static Rust registration instances | 9542 |
 | Cargo test targets | 38 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 5 |
@@ -30,13 +30,13 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [analytics](inventory/analytics.md) | 185 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
-| [catalog_security](inventory/catalog_security.md) | 456 | 0 |
+| [catalog_security](inventory/catalog_security.md) | 470 | 0 |
 | [compatibility](inventory/compatibility.md) | 476 | 0 |
-| [composite_types](inventory/composite_types.md) | 148 | 0 |
+| [composite_types](inventory/composite_types.md) | 149 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 87 | 0 |
-| [domain_types](inventory/domain_types.md) | 92 | 0 |
+| [domain_types](inventory/domain_types.md) | 135 | 0 |
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
@@ -48,7 +48,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
 | [pgwire_extended](inventory/pgwire_extended.md) | 975 | 0 |
 | [pgwire_grammar](inventory/pgwire_grammar.md) | 1233 | 8 |
-| [pgwire_types](inventory/pgwire_types.md) | 1145 | 0 |
+| [pgwire_types](inventory/pgwire_types.md) | 1150 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 124 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 76 | 0 |

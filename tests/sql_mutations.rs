@@ -231,5 +231,8 @@ mod like_composite_primary_key;
 #[path = "sql_mutations/ddl/like_identity_sequence_restart.rs"]
 mod like_identity_sequence_restart;
 
+#[path = "sql_mutations/ddl/like_sequence_default_follow.rs"]
+mod like_sequence_default_follow;
+
 #[path = "sql_mutations/ddl/rebuild_swap_restart.rs"]
 mod rebuild_swap_restart;

@@ -355,6 +355,34 @@ fn copy_table_like_fields(
         .collect())
 }
 
+/// Copies `STORAGE` and `COMPRESSION` metadata, never an invalid combination
+/// for the column's type.
+fn copy_like_storage<'a>(
+    copied_constraint: &mut FieldConstraint,
+    field: &catalog::FieldMeta,
+    field_constraints: &(impl Iterator<Item = &'a FieldConstraint> + Clone),
+    options: TableLikeCopyOptions,
+) {
+    if options.storage.is_included() {
+        copied_constraint.storage = field_constraints.clone().find_map(|source| source.storage);
+    }
+    if options.compression.is_included() {
+        copied_constraint.compression = field_constraints
+            .clone()
+            .find_map(|source| source.compression);
+    }
+    if crate::catalog::column_storage::validate_column_storage(
+        &field.data_type,
+        copied_constraint.storage,
+        copied_constraint.compression,
+    )
+    .is_err()
+    {
+        copied_constraint.storage = None;
+        copied_constraint.compression = None;
+    }
+}
+
 fn copy_table_like_field(
     table: &str,
     field: catalog::FieldMeta,
@@ -402,14 +430,7 @@ fn copy_table_like_field(
             .default_sequence
             .clone_from(&source_default.default_sequence);
     }
-    if options.storage.is_included() {
-        copied_constraint.storage = field_constraints.clone().find_map(|source| source.storage);
-    }
-    if options.compression.is_included() {
-        copied_constraint.compression = field_constraints
-            .clone()
-            .find_map(|source| source.compression);
-    }
+    copy_like_storage(&mut copied_constraint, &field, &field_constraints, options);
     if options.identity.is_included() {
         if let Some(source_identity) = source_identity {
             copied_constraint.identity = source_identity.identity;

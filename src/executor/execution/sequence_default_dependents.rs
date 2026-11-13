@@ -38,15 +38,18 @@ fn owned_sequences(cassie: &Cassie, table: &str) -> Vec<String> {
     from_defaults.chain(from_ownership).collect()
 }
 
-/// Defaults of tables other than `except_table` that use any of `sequences`.
+/// Defaults of tables outside `except_tables` that use any of `sequences`.
 fn dependents(
     cassie: &Cassie,
     sequences: &[String],
-    except_table: Option<&str>,
+    except_tables: &[&str],
 ) -> Vec<DefaultDependent> {
     let mut found = Vec::new();
     for collection in cassie.catalog.list_collections_canonical() {
-        if except_table.is_some_and(|table| name_matches(&collection.name, table)) {
+        if except_tables
+            .iter()
+            .any(|table| name_matches(&collection.name, table))
+        {
             continue;
         }
         for constraint in cassie.catalog.get_constraints(&collection.name) {
@@ -94,7 +97,8 @@ pub(super) fn reject_for_sequence(cassie: &Cassie, sequence: &str) -> Result<(),
         .get_sequence(sequence)
         .and_then(|metadata| metadata.owned_by)
         .map(|owner| owner.table);
-    let found = dependents(cassie, &[sequence.to_owned()], owner.as_deref());
+    let excluded = owner.as_deref().into_iter().collect::<Vec<_>>();
+    let found = dependents(cassie, &[sequence.to_owned()], &excluded);
     if found.is_empty() {
         Ok(())
     } else {
@@ -103,13 +107,17 @@ pub(super) fn reject_for_sequence(cassie: &Cassie, sequence: &str) -> Result<(),
 }
 
 /// Handles other tables' defaults on the sequences a dropped `table` owns:
-/// refuses without `CASCADE`, and removes those defaults with it.
+/// refuses without `CASCADE`, and removes those defaults with it. Tables in
+/// `dropped_together` go away in the same statement and do not count.
 pub(super) fn resolve_for_table(
     cassie: &Cassie,
     table: &str,
     cascade: bool,
+    dropped_together: &[&str],
 ) -> Result<(), QueryError> {
-    let found = dependents(cassie, &owned_sequences(cassie, table), Some(table));
+    let mut excluded = vec![table];
+    excluded.extend_from_slice(dropped_together);
+    let found = dependents(cassie, &owned_sequences(cassie, table), &excluded);
     if found.is_empty() {
         return Ok(());
     }

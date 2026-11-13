@@ -227,13 +227,18 @@ pub(super) fn drop_table(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("DROP TABLE", controls)?;
-    for table in std::iter::once(&statement.table).chain(&statement.additional_tables) {
+    let targets = std::iter::once(&statement.table)
+        .chain(&statement.additional_tables)
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    for table in &targets {
         drop_table_target(
             cassie,
             session,
             table,
             statement.if_exists,
             statement.cascade,
+            &targets,
         )?;
     }
     Ok(output)
@@ -245,12 +250,18 @@ fn drop_table_target(
     table: &str,
     if_exists: bool,
     cascade: bool,
+    dropped_together: &[&str],
 ) -> Result<(), QueryError> {
     if if_exists && !cassie.catalog.exists(table) {
         return Ok(());
     }
     super::type_alter::reject_row_type_dependents(cassie, table, cascade)?;
-    super::sequence_default_dependents::resolve_for_table(cassie, table, cascade)?;
+    super::sequence_default_dependents::resolve_for_table(
+        cassie,
+        table,
+        cascade,
+        dropped_together,
+    )?;
     let dependent_views = views_depending_on(cassie, table, None);
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("table", table, &dependent_views));
@@ -814,6 +825,9 @@ fn alter_table_drop_column(
             .unregister_object_comment(&address);
     }
     cassie.catalog.remove_collection_field(table, field);
+    // A column added later under the same name starts without the dropped
+    // column's storage strategy and compression method.
+    super::column_storage_command::reset_column_storage(cassie, table, field)?;
     unregister_vector_indexes_on_column(cassie, table, field);
     schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;
     cassie

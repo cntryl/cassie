@@ -65,3 +65,27 @@ fn alter_column_storage(
         }
     })
 }
+
+/// Clears the explicit storage strategy and compression method of a column.
+pub(super) fn reset_column_storage(
+    cassie: &Cassie,
+    table: &str,
+    field: &str,
+) -> Result<(), QueryError> {
+    let field_key = crate::sql::ColumnIdentifierPath::stored_field_key(field);
+    let has_settings = cassie
+        .catalog
+        .get_constraints(table)
+        .iter()
+        .any(|constraint| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field) == field_key
+                && (constraint.storage.is_some() || constraint.compression.is_some())
+        });
+    if !has_settings {
+        return Ok(());
+    }
+    super::sequence_command::mutate_field_constraint(cassie, table, field, |constraint| {
+        constraint.storage = None;
+        constraint.compression = None;
+    })
+}

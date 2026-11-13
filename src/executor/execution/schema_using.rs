@@ -174,6 +174,9 @@ impl Context<'_> {
         self.cassie
             .catalog
             .set_collection_field_type(table, field, data_type.clone());
+        // PostgreSQL resets the strategy to the new type's default and clears
+        // the compression method whenever the column type is replaced.
+        super::super::column_storage_command::reset_column_storage(self.cassie, table, field)?;
         self.cassie.bump_schema_epoch_and_invalidate_query_cache()?;
         drop(write_memory);
         drop(prepared_memory);

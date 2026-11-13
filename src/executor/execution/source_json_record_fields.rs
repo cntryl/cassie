@@ -93,7 +93,7 @@ pub(super) fn convert(
 
 /// Input-function semantics of `varchar(n)` and `char(n)`: too long is an error, never a
 /// truncation (explicit casts truncate, assignments and input do not).
-pub(super) fn check_length(text: &str, target: &DataType) -> Result<(), QueryError> {
+pub(super) fn fit_length(text: String, target: &DataType) -> Result<String, QueryError> {
     let (limit, name) = match target {
         DataType::Varchar {
             length: Some(limit),
@@ -101,7 +101,7 @@ pub(super) fn check_length(text: &str, target: &DataType) -> Result<(), QueryErr
         DataType::Char {
             length: Some(limit),
         } => (*limit, "character"),
-        _ => return Ok(()),
+        _ => return Ok(text),
     };
     let allowed = usize::try_from(limit).unwrap_or(usize::MAX);
     // Trailing blanks never count against the limit; the later cast removes them.
@@ -112,7 +112,11 @@ pub(super) fn check_length(text: &str, target: &DataType) -> Result<(), QueryErr
             format!("value too long for type {name}({limit})"),
         ));
     }
-    Ok(())
+    // Only blanks exceed the limit: keep the first `allowed` characters.
+    Ok(match text.char_indices().nth(allowed) {
+        Some((boundary, _)) => text[..boundary].to_owned(),
+        None => text,
+    })
 }
 
 fn scalar(fragment: &Fragment, target: &DataType) -> Result<Value, QueryError> {
@@ -123,7 +127,7 @@ fn scalar(fragment: &Fragment, target: &DataType) -> Result<Value, QueryError> {
     if matches!(target, DataType::Text) {
         return Ok(Value::String(text));
     }
-    check_length(&text, target)?;
+    let text = fit_length(text, target)?;
     super::filter::cast_value(&Value::String(text), target)
 }
 

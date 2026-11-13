@@ -117,6 +117,8 @@ fn collect_qualifiers(sources: &[&QuerySource], out: &mut Vec<String>) {
         match source {
             // An alias hides the names inside the aliased source.
             QuerySource::Aliased { alias, .. } | QuerySource::Subquery { alias, .. } => {
+                // Bound columns carry the runtime row qualifier derived from the alias.
+                out.push(crate::sql::binder::alias_row_qualifier(alias));
                 out.push(alias.clone());
             }
             QuerySource::Collection(path) => {

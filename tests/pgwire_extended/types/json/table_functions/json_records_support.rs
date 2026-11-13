@@ -35,3 +35,26 @@ pub(super) fn assert_failure(sql: &str, state: &str, fragment: &str) {
     let message = message.unwrap_or_default();
     assert!(message.contains(fragment), "{sql}: {message}");
 }
+
+/// Data rows over tables `lf_outer(id)` and `lf_inner(id, d)` for correlated lateral cases.
+pub(super) fn rows_over_lateral_tables(sql: &str) -> Rows {
+    let setup = vec![
+        ("CREATE TABLE lf_outer (id INT)", Vec::new()),
+        ("INSERT INTO lf_outer VALUES (1), (2)", Vec::new()),
+        ("CREATE TABLE lf_inner (id INT, d JSONB)", Vec::new()),
+        (
+            "INSERT INTO lf_inner VALUES (1, '[10]'), (2, '[20]')",
+            Vec::new(),
+        ),
+    ];
+    wire::data_rows(&query("json-lateral-tables", &setup, sql, false))
+}
+
+/// Asserts the rows of `sql` over the lateral fixture tables.
+pub(super) fn assert_lateral_rows(sql: &str, expected: &[&[Option<&str>]]) {
+    let expected = expected
+        .iter()
+        .map(|cells| super::json_elements_support::row(cells))
+        .collect::<Rows>();
+    assert_eq!(rows_over_lateral_tables(sql), expected, "{sql}");
+}

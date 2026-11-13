@@ -268,13 +268,11 @@ fn should_validate_added_constraints_by_scanning_column_values() {
     let unique_ok = pair.run("ALTER TABLE t ADD CONSTRAINT uq UNIQUE (name)");
     let unique_violation = pair.run("INSERT INTO t VALUES (8, 'one', 10)");
     pair.run("INSERT INTO t (id, name, qty) VALUES (10, 'dup', 20), (11, 'dup2', 20)");
-    let fk_fails = pair.run(
-        "ALTER TABLE t ADD CONSTRAINT fk_bad FOREIGN KEY (qty) REFERENCES parent (id)",
-    );
+    let fk_fails =
+        pair.run("ALTER TABLE t ADD CONSTRAINT fk_bad FOREIGN KEY (qty) REFERENCES parent (id)");
     pair.run("UPDATE t SET qty = 10 WHERE id = 3");
-    let fk_ok = pair.run(
-        "ALTER TABLE t ADD CONSTRAINT fk_ok FOREIGN KEY (qty) REFERENCES parent (id)",
-    );
+    let fk_ok =
+        pair.run("ALTER TABLE t ADD CONSTRAINT fk_ok FOREIGN KEY (qty) REFERENCES parent (id)");
     let fk_violation = pair.run("INSERT INTO t VALUES (9, 'y', 99)");
     let dropped = pair.run("ALTER TABLE t DROP CONSTRAINT pos");
 
@@ -376,7 +374,9 @@ fn should_keep_altered_column_tables_across_restart() {
     let local = Local::new();
     let expected = {
         let env = local.open();
-        env.run("CREATE TABLE t (id INT PRIMARY KEY, name TEXT, qty INT) WITH (storage = column_store)");
+        env.run(
+            "CREATE TABLE t (id INT PRIMARY KEY, name TEXT, qty INT) WITH (storage = column_store)",
+        );
         env.run("INSERT INTO t VALUES (1, 'one', 10), (2, 'two', 20), (3, NULL, 30)");
         env.run("ALTER TABLE t ADD COLUMN extra INT DEFAULT 4");
         env.run("ALTER TABLE t ALTER COLUMN qty TYPE TEXT USING qty::TEXT");

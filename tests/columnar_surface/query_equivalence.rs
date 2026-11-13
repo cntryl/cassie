@@ -272,7 +272,9 @@ fn should_match_row_tables_after_update_delete_and_truncate() {
     with_pair(|pair| {
         seed(pair);
         for mode in ["row", "col"] {
-            pair.run(&format!("UPDATE emp_{mode} SET v = v + 1, s = 'u' WHERE g = 'b'"));
+            pair.run(&format!(
+                "UPDATE emp_{mode} SET v = v + 1, s = 'u' WHERE g = 'b'"
+            ));
             pair.run(&format!("DELETE FROM emp_{mode} WHERE id = 1"));
             pair.run(&format!("INSERT INTO emp_{mode} VALUES (7,'d',NULL,NULL)"));
         }
@@ -288,6 +290,10 @@ fn should_match_row_tables_after_update_delete_and_truncate() {
         for mode in ["row", "col"] {
             pair.run(&format!("TRUNCATE emp_{mode}"));
         }
-        assert_all(pair, &["emp"], &["SELECT count(*) FROM {emp}", "SELECT * FROM {emp}"]);
+        assert_all(
+            pair,
+            &["emp"],
+            &["SELECT count(*) FROM {emp}", "SELECT * FROM {emp}"],
+        );
     });
 }

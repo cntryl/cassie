@@ -684,6 +684,10 @@ impl Midge {
         key_encoding::column_store_deleted_key(relation_id, id)
     }
 
+    pub(super) fn column_store_deleted_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::column_store_deleted_prefix(relation_id)
+    }
+
     pub(super) fn column_store_field_prefix(relation_id: u64, field_id: u32) -> Vec<u8> {
         key_encoding::column_store_field_prefix(relation_id, field_id)
     }

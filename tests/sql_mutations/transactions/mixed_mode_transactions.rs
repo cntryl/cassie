@@ -298,6 +298,43 @@ fn should_reject_a_repeatable_read_update_after_another_session_deleted_and_rein
 }
 
 #[test]
+fn should_reject_a_repeatable_read_update_after_another_session_updated_a_column_row_across_a_heap_round_trip(
+) {
+    // Arrange
+    let fixture = fixture("mixed-repeatable-read-round-trip");
+    fixture
+        .execute("BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE")
+        .expect("begin");
+    let _ = fixture.rows("SELECT v FROM mixed_col WHERE id = 1");
+    let writer = fixture.cassie.create_session("tester", None);
+    for sql in [
+        "ALTER TABLE mixed_col SET ACCESS METHOD heap",
+        "UPDATE mixed_col SET v = 'concurrent' WHERE id = 1",
+        "ALTER TABLE mixed_col SET ACCESS METHOD columnar",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&writer, sql, vec![])
+            .expect("competing commit");
+    }
+
+    // Act
+    let outcome = fixture
+        .execute("UPDATE mixed_col SET v = 'mine' WHERE id = 1")
+        .and_then(|_| fixture.execute("COMMIT"));
+    let _ = fixture.execute("ROLLBACK");
+
+    // Assert
+    assert!(matches!(
+        outcome,
+        Err(CassieError::Transaction {
+            kind: TransactionErrorKind::SerializationFailure,
+            ..
+        })
+    ));
+}
+
+#[test]
 fn should_show_both_modes_after_restart_when_one_transaction_committed_them() {
     // Arrange
     crate::support_sql::use_local_storage();

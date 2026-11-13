@@ -131,7 +131,9 @@ impl Midge {
                 .map_err(CassieError::from)?
                 .map_or(0, |marker| decode_deleted_marker(&marker))
         };
-        Ok(previous.saturating_add(1))
+        Ok(previous
+            .max(row_schema.column_revision_floor)
+            .saturating_add(1))
     }
 
     pub(crate) fn scan_column_store_rows_batched(

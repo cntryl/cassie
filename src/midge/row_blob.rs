@@ -90,6 +90,12 @@ pub(crate) struct RowSchema {
     pub schema_version: u32,
     pub next_field_id: u32,
     pub fields: Vec<RowFieldMeta>,
+    /// Highest column-layout write revision this relation has ever used.
+    /// Converting a column table to row authority raises it, so the next
+    /// column write after converting back never repeats a marker value an
+    /// earlier REPEATABLE READ snapshot may have fenced.
+    #[serde(default)]
+    pub column_revision_floor: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -137,6 +143,7 @@ impl RowSchema {
             schema_version: 1,
             next_field_id: next_field_id_for_len(fields.len()),
             fields,
+            column_revision_floor: 0,
         }
     }
 

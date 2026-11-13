@@ -4,6 +4,7 @@
 //! layout, removes the source layout and updates `CollectionMeta`. Inside an
 //! explicit SQL transaction the adapter transaction stages into the session's
 //! storage overlay, so the rewrite commits or rolls back with that transaction.
+use super::column_store::validation::{decode_deleted_marker, decode_marker_parts};
 use super::{
     collect_scan, decode_row, encode_row, key_encoding, CassieError, CollectionStorageMode, Midge,
     Query, RowSchema,
@@ -60,13 +61,15 @@ impl Midge {
             tx.rollback().map_err(CassieError::from)?;
             return Ok(None);
         }
-        let row_schema = Self::load_row_schema_from_tx(&tx, &name)?
+        let mut row_schema = Self::load_row_schema_from_tx(&tx, &name)?
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
 
         let rows = if target.uses_column_store_storage() {
             Self::rewrite_rows_to_columns(&mut tx, &name, &row_schema, charge)?
         } else {
-            Self::rewrite_columns_to_rows(&mut tx, &name, &row_schema, charge)?
+            let rows = Self::rewrite_columns_to_rows(&mut tx, &name, &mut row_schema, charge)?;
+            Self::save_row_schema_to_tx(&mut tx, &name, &row_schema)?;
+            rows
         };
 
         metadata.storage_mode = target;
@@ -140,9 +143,10 @@ impl Midge {
     fn rewrite_columns_to_rows(
         tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
-        row_schema: &RowSchema,
+        row_schema: &mut RowSchema,
         charge: RewriteCharge<'_>,
     ) -> Result<usize, CassieError> {
+        let mut highest_revision = row_schema.column_revision_floor;
         let live_prefix = Self::column_store_row_prefix(row_schema.relation_id);
         let live = collect_scan(
             tx.scan(&Query::new().prefix(live_prefix.clone().into()))
@@ -154,6 +158,7 @@ impl Midge {
                 continue;
             };
             charge(retained_bytes(&key, &raw, &id))?;
+            highest_revision = highest_revision.max(decode_marker_parts(collection, &id, &raw)?.1);
             let payload =
                 Self::load_column_store_document_from_tx(tx, collection, &id, row_schema)?
                     .ok_or_else(|| {
@@ -173,9 +178,14 @@ impl Midge {
             tx.scan(&Query::new().prefix(family_prefix.into()))
                 .map_err(CassieError::from)?,
         )?;
-        for (key, _) in residue {
+        let deleted_prefix = Self::column_store_deleted_prefix(row_schema.relation_id);
+        for (key, raw) in residue {
+            if key.starts_with(&deleted_prefix) {
+                highest_revision = highest_revision.max(decode_deleted_marker(&raw));
+            }
             tx.delete(key).map_err(CassieError::from)?;
         }
+        row_schema.column_revision_floor = highest_revision;
         Ok(converted)
     }
 }

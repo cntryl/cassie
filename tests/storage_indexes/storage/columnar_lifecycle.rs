@@ -459,10 +459,8 @@ fn should_preserve_a_committed_conversion_across_a_local_restart() {
 #[test]
 fn should_fail_a_conversion_over_the_memory_budget_without_changing_the_table() {
     // Arrange
-    let config = CassieRuntimeConfig {
-        query_memory_budget_bytes: 256 * 1024,
-        ..CassieRuntimeConfig::default()
-    };
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.query_memory_budget_bytes = 256 * 1024;
     let fixture = Memory::with_config(config, &["CREATE TABLE conv_large (id INT, body TEXT)"]);
     let padding = "x".repeat(200);
     for batch in 0..8 {

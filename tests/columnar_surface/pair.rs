@@ -126,12 +126,7 @@ impl Pair {
         }
     }
 
-    fn normalized(
-        &self,
-        template: &str,
-        modes: &[(&str, &str)],
-        ordered: bool,
-    ) -> Vec<Vec<Value>> {
+    fn normalized(&self, template: &str, modes: &[(&str, &str)], ordered: bool) -> Vec<Vec<Value>> {
         let mut rows = self.run(&resolve(template, modes));
         if !ordered {
             rows.sort_by_key(|row| format!("{row:?}"));

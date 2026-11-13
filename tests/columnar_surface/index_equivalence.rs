@@ -7,12 +7,7 @@ use cassie::types::Value;
 
 /// `ix_*` tables carry the indexes; `ixs_*` tables are the unindexed
 /// authoritative-scan oracle holding identical data.
-const TABLES: [(&str, &str); 4] = [
-    ("ix", ROW),
-    ("ix", COL),
-    ("ixs", ROW),
-    ("ixs", COL),
-];
+const TABLES: [(&str, &str); 4] = [("ix", ROW), ("ix", COL), ("ixs", ROW), ("ixs", COL)];
 
 struct Case<'a> {
     columns: &'a str,
@@ -45,7 +40,11 @@ fn assert_all_tables_agree(pair: &Pair, queries: &[&str], stage: &str) {
     for query in queries {
         let ordered = query.to_ascii_uppercase().contains("ORDER BY");
         let mut results = TABLES.iter().map(|(name, mode)| {
-            normalized(pair, &query.replace("{t}", &format!("{name}_{mode}")), ordered)
+            normalized(
+                pair,
+                &query.replace("{t}", &format!("{name}_{mode}")),
+                ordered,
+            )
         });
         let oracle = results.next().expect("oracle");
         for (index, result) in results.enumerate() {
@@ -55,7 +54,11 @@ fn assert_all_tables_agree(pair: &Pair, queries: &[&str], stage: &str) {
 }
 
 fn plan_text(pair: &Pair, sql: &str) -> String {
-    match pair.run(&format!("EXPLAIN {sql}")).first().and_then(|row| row.first()) {
+    match pair
+        .run(&format!("EXPLAIN {sql}"))
+        .first()
+        .and_then(|row| row.first())
+    {
         Some(Value::String(plan)) => plan.clone(),
         _ => panic!("expected a textual plan for {sql}"),
     }
@@ -147,7 +150,9 @@ fn should_enforce_and_maintain_unique_indexes_on_column_tables() {
     with_pair(|pair| {
         pair.create("ux", "id INT, email TEXT", "(1,'a'),(2,'b'),(3,NULL)");
         for mode in [ROW, COL] {
-            pair.run(&format!("CREATE UNIQUE INDEX ux_{mode}_e ON ux_{mode} (email)"));
+            pair.run(&format!(
+                "CREATE UNIQUE INDEX ux_{mode}_e ON ux_{mode} (email)"
+            ));
         }
         // Act
         let mut states = Vec::new();
@@ -164,7 +169,10 @@ fn should_enforce_and_maintain_unique_indexes_on_column_tables() {
         // Assert
         assert_eq!(states[0], "23505");
         assert_eq!(states[..2], states[2..]);
-        assert_eq!(pair.sorted("SELECT * FROM ux_col"), pair.sorted("SELECT * FROM ux_row"));
+        assert_eq!(
+            pair.sorted("SELECT * FROM ux_col"),
+            pair.sorted("SELECT * FROM ux_row")
+        );
     });
 }
 
@@ -241,7 +249,9 @@ fn should_maintain_ivfflat_indexes_on_column_tables() {
     let case = Case {
         columns: VECTOR_COLUMNS,
         seed: VECTOR_SEED,
-        index_ddl: &["CREATE INDEX {t}_v ON {t} USING ivfflat (emb vector_l2_ops) WITH (lists = 1)"],
+        index_ddl: &[
+            "CREATE INDEX {t}_v ON {t} USING ivfflat (emb vector_l2_ops) WITH (lists = 1)",
+        ],
         queries: VECTOR_QUERIES,
         mutations: VECTOR_MUTATIONS,
         rolled_back: VECTOR_ROLLED_BACK,
@@ -351,7 +361,9 @@ fn should_maintain_graph_indexes_on_column_backing_tables() {
         for graph in ["gr", "gc"] {
             pair.run(&edge(graph, "e4", "C", "A"));
             pair.run(&format!("DELETE FROM {graph}_edges WHERE edge_id = 'e2'"));
-            pair.run(&format!("UPDATE {graph}_edges SET target_id = 'A' WHERE edge_id = 'e3'"));
+            pair.run(&format!(
+                "UPDATE {graph}_edges SET target_id = 'A' WHERE edge_id = 'e3'"
+            ));
         }
         check("mutation");
         for graph in ["gr", "gc"] {
@@ -371,7 +383,8 @@ fn should_reject_column_indexes_on_column_tables_with_feature_not_supported() {
     with_pair(|pair| {
         pair.create("cx", "id INT, label TEXT", "(1,'a'),(2,'b')");
         // Act
-        let on_column_table = pair.sqlstate("CREATE INDEX cx_col_idx ON cx_col USING column (label)");
+        let on_column_table =
+            pair.sqlstate("CREATE INDEX cx_col_idx ON cx_col USING column (label)");
         let if_not_exists =
             pair.sqlstate("CREATE INDEX IF NOT EXISTS cx_col_idx ON cx_col USING column (label)");
         // Assert: row tables keep their derived column accelerator.
@@ -380,6 +393,9 @@ fn should_reject_column_indexes_on_column_tables_with_feature_not_supported() {
         assert_eq!(if_not_exists, "0A000");
         // Nothing was published: the name is free and the data is intact.
         pair.run("CREATE INDEX cx_col_idx ON cx_col (label)");
-        assert_eq!(pair.sorted("SELECT * FROM cx_col"), pair.sorted("SELECT * FROM cx_row"));
+        assert_eq!(
+            pair.sorted("SELECT * FROM cx_col"),
+            pair.sorted("SELECT * FROM cx_row")
+        );
     });
 }

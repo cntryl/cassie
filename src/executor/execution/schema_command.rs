@@ -632,7 +632,16 @@ fn alter_table_add_column(
             crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
                 == crate::sql::ColumnIdentifierPath::stored_field_key(field)
         })
-        .and_then(|constraint| constraint.default_value.clone());
+        .and_then(|constraint| {
+            // A volatile default such as `now()` is evaluated once and
+            // backfilled into existing rows, as PostgreSQL does.
+            constraint.default_value.clone().or_else(|| {
+                constraint
+                    .default_expression
+                    .as_deref()
+                    .and_then(crate::catalog::evaluate_volatile_default)
+            })
+        });
     let mut gated_collections = vec![table.to_string()];
     gated_collections.extend(
         constraints
@@ -642,7 +651,15 @@ fn alter_table_add_column(
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
-            cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
+            // Existing rows receive the default, so NOT NULL only rejects the
+            // new column when it has no default to backfill.
+            let mut validated = constraints.to_vec();
+            if default_value.as_ref().is_some_and(|value| !value.is_null()) {
+                for constraint in &mut validated {
+                    constraint.not_null = false;
+                }
+            }
+            cassie.validate_existing_check_and_not_null_rows(table, &validated)?;
             cassie.validate_existing_foreign_key_rows(table, constraints)?;
             let default_value = cassie.domain_add_column_default(
                 session,

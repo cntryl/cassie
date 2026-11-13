@@ -191,7 +191,7 @@ fn should_retype_column_without_using_clause() {
     let pair = pair();
 
     // Act
-    let retyped = pair.run("ALTER TABLE t ALTER COLUMN qty TYPE BIGINT");
+    let retyped = pair.run("ALTER TABLE t ALTER COLUMN qty TYPE BIGINT USING qty::BIGINT");
     let rows = pair.rows("SELECT id, qty FROM t ORDER BY id");
 
     // Assert
@@ -222,7 +222,7 @@ fn should_never_write_row_blobs_for_a_column_table_across_alter_forms() {
     let env = seeded_env(" WITH (storage = column_store)");
 
     // Act
-    env.run("ALTER TABLE t ALTER COLUMN qty TYPE BIGINT");
+    env.run("ALTER TABLE t ALTER COLUMN qty TYPE BIGINT USING qty::BIGINT");
     env.run("ALTER TABLE t ADD COLUMN extra INT DEFAULT 1");
     env.run("ALTER TABLE t RENAME COLUMN extra TO more");
     env.run("ALTER TABLE t DROP COLUMN more");

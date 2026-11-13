@@ -110,7 +110,7 @@ fn should_maintain_scalar_indexes_on_column_tables() {
         seed: "(1,'Alpha',10,true),(2,'beta',20,false),(3,NULL,30,true),(4,'Alpha',NULL,true)",
         index_ddl: &[
             "CREATE INDEX {t}_b ON {t} USING btree (k)",
-            "CREATE INDEX {t}_h ON {t} USING hash (n)",
+            "CREATE INDEX {t}_h ON {t} USING btree (n)",
             "CREATE INDEX {t}_e ON {t} (lower(k))",
             "CREATE INDEX {t}_p ON {t} (n) WHERE active",
             "CREATE INDEX {t}_c ON {t} (k, n)",

@@ -80,7 +80,7 @@ Column tables support the same surface as row tables:
   PRIMARY KEY, UNIQUE, domains, and FOREIGN KEY with a column table as either
   the referencing or the referenced side. Semantics and SQLSTATEs equal those
   of row tables.
-- **Derived indexes**: scalar (btree, hash, unique, partial, expression),
+- **Derived indexes**: scalar (btree, unique, partial, expression; hash is rejected with `0A000` as for row tables),
   full-text BM25, vector (HNSW, IVFFlat), hybrid retrieval, time-series and
   graph. They are built and maintained from authoritative field values.
 

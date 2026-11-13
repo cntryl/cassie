@@ -9,6 +9,8 @@ mod identify_object;
 mod relation_access_methods;
 #[path = "../object_identity/routine_identity_lifecycle.rs"]
 mod routine_identity_lifecycle;
+#[path = "../object_identity/routine_replace.rs"]
+mod routine_replace;
 #[path = "../object_identity/user_routines.rs"]
 mod user_routines;
 

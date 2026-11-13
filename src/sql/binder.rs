@@ -131,6 +131,7 @@ mod nested_qualifiers;
 mod projections;
 #[path = "binder/recursive.rs"]
 mod recursive;
+mod routine_replace;
 #[path = "binder/routines.rs"]
 mod routines;
 #[path = "binder/schema.rs"]

@@ -33,10 +33,13 @@ pub(super) fn bind_create_function(
         )));
     }
 
+    super::routine_replace::check_clauses(
+        "FUNCTION",
+        statement.or_replace,
+        statement.if_not_exists,
+    )?;
     if !statement.if_not_exists && !statement.or_replace && catalog.get_function(&name).is_some() {
-        return Err(CassieError::Planner(format!(
-            "function '{name}' already exists"
-        )));
+        return Err(super::routine_replace::duplicate("function", &name));
     }
 
     let mut seen = HashSet::new();
@@ -54,6 +57,14 @@ pub(super) fn bind_create_function(
             )));
         }
         arg.name = arg_name;
+    }
+    if statement.or_replace {
+        super::routine_replace::check_function_replace(
+            catalog,
+            &name,
+            &statement.args,
+            &statement.return_type,
+        )?;
     }
 
     let body = statement.body.trim().to_string();
@@ -111,10 +122,13 @@ pub(super) fn bind_create_procedure(
         ));
     }
 
+    super::routine_replace::check_clauses(
+        "PROCEDURE",
+        statement.or_replace,
+        statement.if_not_exists,
+    )?;
     if !statement.if_not_exists && !statement.or_replace && catalog.get_procedure(&name).is_some() {
-        return Err(CassieError::Planner(format!(
-            "procedure '{name}' already exists"
-        )));
+        return Err(super::routine_replace::duplicate("procedure", &name));
     }
 
     let mut seen = HashSet::new();
@@ -132,6 +146,9 @@ pub(super) fn bind_create_procedure(
             )));
         }
         arg.name = arg_name;
+    }
+    if statement.or_replace {
+        super::routine_replace::check_procedure_replace(catalog, &name, &statement.args)?;
     }
 
     let body = statement.body.trim().to_string();

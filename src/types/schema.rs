@@ -43,6 +43,8 @@ pub enum DataType {
     Composite(super::CompositeRef),
     /// A named domain (#828); SQL resolution flattens it to its base type.
     Domain(super::DomainRef),
+    /// A named enum type (#827); values are stored by immutable member id.
+    Enum(super::EnumRef),
     ObjectId(super::ObjectIdKind),
     Extended(super::extended::ExtendedType),
 }
@@ -91,6 +93,7 @@ impl DataType {
             Self::Array(inner) => format!("{}[]", inner.type_name()),
             Self::Composite(descriptor) => descriptor.name.clone(),
             Self::Domain(descriptor) => descriptor.name.clone(),
+            Self::Enum(descriptor) => descriptor.name.clone(),
             Self::ObjectId(kind) => kind.name().to_string(),
             Self::Extended(kind) => kind.type_name(),
         }

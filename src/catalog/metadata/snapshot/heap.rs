@@ -160,6 +160,7 @@ impl HeapBytes for DataType {
             // retains no copy.
             Self::Composite(_)
             | Self::Domain(_)
+            | Self::Enum(_)
             | Self::Null
             | Self::SmallInt
             | Self::Int

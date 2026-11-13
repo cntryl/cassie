@@ -33,6 +33,8 @@ pub enum TypedValue {
     Interval(Interval),
     /// A named composite or anonymous `ROW(...)` value (#828).
     Record(super::composite::RecordValue),
+    /// A named enum value (#827).
+    Enum(super::enum_type::EnumValue),
 }
 
 /// A totally ordered, hashable key with PostgreSQL ordering semantics.
@@ -58,6 +60,8 @@ pub enum TypedKey {
     Interval(i128),
     /// A record's field-wise btree key (`record_cmp` order).
     Record(Vec<u8>),
+    /// An enum's sort-order key, then its member id (`enum_cmp` order).
+    Enum(u32, u64),
 }
 
 impl TypedValue {
@@ -82,7 +86,16 @@ impl TypedValue {
             Self::Timestamp(_) => Some(ExtendedType::Timestamp { precision: None }),
             Self::TimestampTz(_) => Some(ExtendedType::TimestampTz { precision: None }),
             Self::Interval(_) => Some(ExtendedType::Interval { typmod: -1 }),
-            Self::Record(_) => None,
+            Self::Record(_) | Self::Enum(_) => None,
+        }
+    }
+
+    /// The enum value this carries, if any.
+    #[must_use]
+    pub const fn as_enum(&self) -> Option<&super::enum_type::EnumValue> {
+        match self {
+            Self::Enum(value) => Some(value),
+            _ => None,
         }
     }
 
@@ -107,6 +120,7 @@ impl TypedValue {
     pub fn data_type(&self) -> super::DataType {
         match self {
             Self::Record(record) => super::DataType::Composite(record.descriptor().clone()),
+            Self::Enum(value) => super::DataType::Enum(value.descriptor().clone()),
             Self::Date(_) => super::DataType::Date,
             Self::Time(_) => super::DataType::Time,
             Self::Timestamp(_) => super::DataType::Timestamp,
@@ -122,6 +136,7 @@ impl TypedValue {
     pub fn extended_data_type(&self) -> super::DataType {
         match self {
             Self::Record(record) => super::DataType::Composite(record.descriptor().clone()),
+            Self::Enum(value) => super::DataType::Enum(value.descriptor().clone()),
             other => other
                 .kind()
                 .map_or(super::DataType::Text, super::DataType::Extended),
@@ -133,6 +148,7 @@ impl TypedValue {
     pub fn wire_type_oid(&self) -> i64 {
         match self {
             Self::Record(record) => i64::from(record.descriptor().oid),
+            Self::Enum(value) => i64::from(value.descriptor().oid),
             other => other.kind().map_or(0, |kind| i64::from(kind.type_oid())),
         }
     }
@@ -158,6 +174,7 @@ impl TypedValue {
             Self::PgLsn(value) => pg_lsn::format_text(*value),
             Self::Bit(value) | Self::VarBit(value) => bit_string::format_text(value),
             Self::Record(value) => super::composite::format_record(value, session),
+            Self::Enum(value) => value.label().to_string(),
         }
     }
 
@@ -166,6 +183,9 @@ impl TypedValue {
     pub fn to_json(&self) -> serde_json::Value {
         if let Self::Record(record) = self {
             return super::composite::record_to_storage_json(record);
+        }
+        if let Self::Enum(value) = self {
+            return value.to_storage_json();
         }
         serde_json::Value::String(self.text())
     }
@@ -193,6 +213,10 @@ impl TypedValue {
             Self::TimestampTz(value) => TypedKey::TimestampTz(*value),
             Self::Interval(value) => TypedKey::Interval(value.order_key()),
             Self::Record(value) => TypedKey::Record(super::composite::record_key(value)),
+            Self::Enum(value) => {
+                let (sort, member_id) = value.order_key();
+                TypedKey::Enum(sort, member_id)
+            }
         }
     }
 
@@ -202,6 +226,7 @@ impl TypedValue {
         match self {
             Self::Bit(value) | Self::VarBit(value) => value.heap_bytes(),
             Self::Record(value) => value.heap_bytes(),
+            Self::Enum(value) => value.heap_bytes(),
             Self::Numeric(numeric::Numeric::Finite { mantissa, .. }) => {
                 usize::try_from(mantissa.bits().div_ceil(8)).unwrap_or(usize::MAX)
             }
@@ -245,6 +270,7 @@ impl TypedValue {
                 })
                 .unwrap_or_default()
             }
+            Self::Enum(value) => value.label().as_bytes().to_vec(),
         }
     }
 
@@ -267,7 +293,8 @@ impl TypedValue {
             | Self::Timestamp(_)
             | Self::TimestampTz(_)
             | Self::Interval(_)
-            | Self::Record(_) => None,
+            | Self::Record(_)
+            | Self::Enum(_) => None,
         }
     }
 }

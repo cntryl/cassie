@@ -477,8 +477,7 @@ fn should_fail_a_conversion_over_the_memory_budget_without_changing_the_table() 
     // Assert
     assert_eq!(error.sql_state(), "54000");
     assert_eq!(fixture.mode_of("conv_large"), mode("row-store"));
-    assert_eq!(
-        fixture.rows("SELECT count(*)::TEXT FROM conv_large"),
-        vec![vec!["800".to_owned()]]
-    );
+    // The table is larger than the query budget, so verify through the storage
+    // layer instead of a budgeted SQL scan.
+    assert_eq!(fixture.row_ids("conv_large").len(), 800);
 }

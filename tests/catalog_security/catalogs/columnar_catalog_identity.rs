@@ -33,6 +33,20 @@ fn text_rows(fixture: &SqlFixture, sql: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
+/// A fixture whose names are database-qualified, as under a started server:
+/// schema reporting and `SET SCHEMA` need that identity.
+fn started_fixture(label: &str, setup: &[&str]) -> SqlFixture {
+    let mut fixture = sql_fixture(label, &[]);
+    fixture.cassie.startup().expect("start Cassie");
+    fixture.session = fixture.cassie.create_session("tester", None);
+    for sql in setup {
+        fixture
+            .execute(sql)
+            .unwrap_or_else(|error| panic!("setup failed: {sql}: {error}"));
+    }
+    fixture
+}
+
 fn pair(left: &str, right: &str) -> Vec<String> {
     vec![left.to_owned(), right.to_owned()]
 }
@@ -93,7 +107,7 @@ fn should_report_the_access_method_of_every_table_mode_in_pg_class() {
 #[test]
 fn should_report_each_table_mode_in_pg_table_storage_within_one_database() {
     // Arrange
-    let fixture = sql_fixture("columnar-pg-table-storage", MIXED);
+    let fixture = started_fixture("columnar-pg-table-storage", MIXED);
 
     // Act
     let rows = text_rows(
@@ -165,7 +179,7 @@ fn should_report_column_storage_in_text_explain_for_a_column_table_only() {
 #[test]
 fn should_preserve_the_column_mode_across_rename_then_schema_move() {
     // Arrange
-    let fixture = sql_fixture(
+    let fixture = started_fixture(
         "columnar-rename-move",
         &[
             "CREATE SCHEMA elsewhere",

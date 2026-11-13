@@ -20,11 +20,12 @@ fn assert_all(pair: &Pair, tables: &[&str], queries: &[&str]) {
 }
 
 #[test]
-fn should_match_row_tables_for_filters_and_projections() {
+fn should_match_row_tables_for_filters_projections() {
     // Arrange
     with_pair(|pair| {
         seed(pair);
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["emp"],
@@ -51,7 +52,8 @@ fn should_match_row_tables_for_aggregates() {
     // Arrange
     with_pair(|pair| {
         seed(pair);
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["emp"],
@@ -71,11 +73,12 @@ fn should_match_row_tables_for_aggregates() {
 }
 
 #[test]
-fn should_match_row_tables_for_ordering_and_pagination() {
+fn should_match_row_tables_for_ordering_pagination() {
     // Arrange
     with_pair(|pair| {
         seed(pair);
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["emp"],
@@ -99,7 +102,8 @@ fn should_match_row_tables_for_window_functions() {
     // Arrange
     with_pair(|pair| {
         seed(pair);
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["emp"],
@@ -116,11 +120,12 @@ fn should_match_row_tables_for_window_functions() {
 }
 
 #[test]
-fn should_match_row_tables_for_ctes_and_subqueries() {
+fn should_match_row_tables_for_ctes_subqueries() {
     // Arrange
     with_pair(|pair| {
         seed(pair);
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["emp", "dim"],
@@ -148,7 +153,8 @@ fn should_match_row_tables_for_set_operations() {
     // Arrange
     with_pair(|pair| {
         seed(pair);
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["emp", "dim"],
@@ -169,7 +175,8 @@ fn should_match_row_tables_for_lateral_sources() {
     // Arrange
     with_pair(|pair| {
         seed(pair);
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["emp", "dim"],
@@ -217,14 +224,15 @@ fn should_match_row_tables_for_joins_mixing_storage_modes() {
 }
 
 #[test]
-fn should_match_row_tables_for_typed_batch_joins_and_parallel_scans() {
+fn should_match_row_tables_for_typed_batch_joins_parallel_scans() {
     // Arrange
     with_pair_config(
         |config| {
             config.limits.vectorized_joins_enabled = true;
             config.limits.parallel_scan_workers = 2;
         },
-        // Act / Assert
+        // Act
+        // Assert
         assert_join_surface,
     );
 }
@@ -250,7 +258,8 @@ fn should_match_row_tables_for_typed_scan_pipelines_with_many_rows() {
                 values.join(",")
             ));
         }
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["bulk"],
@@ -267,7 +276,7 @@ fn should_match_row_tables_for_typed_scan_pipelines_with_many_rows() {
 }
 
 #[test]
-fn should_match_row_tables_after_update_delete_and_truncate() {
+fn should_match_row_tables_after_update_delete_truncate() {
     // Arrange
     with_pair(|pair| {
         seed(pair);
@@ -278,7 +287,8 @@ fn should_match_row_tables_after_update_delete_and_truncate() {
             pair.run(&format!("DELETE FROM emp_{mode} WHERE id = 1"));
             pair.run(&format!("INSERT INTO emp_{mode} VALUES (7,'d',NULL,NULL)"));
         }
-        // Act / Assert
+        // Act
+        // Assert
         assert_all(
             pair,
             &["emp"],

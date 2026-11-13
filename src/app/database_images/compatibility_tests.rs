@@ -501,7 +501,7 @@ fn should_export_the_columnar_layout_requirement_for_a_database_with_a_column_ta
 }
 
 #[test]
-fn should_restore_a_mixed_mode_database_image_with_modes_values_and_nulls() {
+fn should_restore_mixed_mode_database_image_contents() {
     // Arrange
     let source = mixed_mode_source();
     let image = collect(source.begin_database_backup("postgres").expect("backup"));

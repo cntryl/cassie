@@ -57,7 +57,7 @@ fn key(relation: u64, tail: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn should_pin_the_exact_key_and_value_bytes_of_a_column_row() {
+fn should_pin_column_row_key_value_bytes() {
     // Arrange
     let (midge, relation) = golden_midge();
 
@@ -97,7 +97,7 @@ fn should_pin_the_exact_key_and_value_bytes_of_a_column_row() {
 }
 
 #[test]
-fn should_pin_the_deleted_marker_and_the_revision_that_survives_a_delete() {
+fn should_pin_deleted_marker_revision_after_delete() {
     // Arrange
     let (midge, relation) = golden_midge();
     midge

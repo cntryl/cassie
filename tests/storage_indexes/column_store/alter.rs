@@ -84,7 +84,7 @@ fn should_add_column_with_constant_default_on_both_table_kinds() {
 }
 
 #[test]
-fn should_add_column_without_default_and_accept_later_writes() {
+fn should_add_column_without_default_accepting_later_writes() {
     // Arrange
     let pair = pair();
 
@@ -133,7 +133,7 @@ fn should_match_row_tables_for_add_column_not_null() {
 }
 
 #[test]
-fn should_drop_column_and_reclaim_its_field_keys() {
+fn should_drop_column_reclaiming_field_keys() {
     // Arrange
     let pair = pair();
 
@@ -171,7 +171,7 @@ fn should_rename_column_without_rewriting_field_keys() {
 }
 
 #[test]
-fn should_retype_column_and_keep_column_authority() {
+fn should_retype_column_keeping_column_authority() {
     // Arrange
     let pair = pair();
 
@@ -228,12 +228,12 @@ fn should_never_write_row_blobs_for_a_column_table_across_alter_forms() {
     env.run("ALTER TABLE t DROP COLUMN more");
 
     // Assert
-    assert!(env.row_store_keys("t").is_empty());
+    assert_eq!(env.row_store_keys("t"), Vec::<Vec<u8>>::new());
     env.assert_column_authority("t", 3, FIELDS, "all alter forms");
 }
 
 #[test]
-fn should_match_row_tables_for_default_and_not_null_changes() {
+fn should_match_row_tables_for_default_or_not_null_changes() {
     // Arrange
     let pair = pair();
 

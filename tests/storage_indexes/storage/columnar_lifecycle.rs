@@ -161,7 +161,10 @@ fn should_not_publish_a_column_table_created_in_a_rolled_back_transaction() {
     fixture.run("ROLLBACK");
 
     // Assert
-    assert!(fixture.mode_of("rolled_back_columns").is_empty());
+    assert_eq!(
+        fixture.mode_of("rolled_back_columns"),
+        Vec::<Vec<String>>::new()
+    );
     assert!(fixture
         .cassie
         .execute_sql(
@@ -186,7 +189,10 @@ fn should_discard_a_column_table_created_after_a_rolled_back_savepoint() {
     fixture.run("COMMIT");
 
     // Assert
-    assert!(fixture.mode_of("savepoint_columns").is_empty());
+    assert_eq!(
+        fixture.mode_of("savepoint_columns"),
+        Vec::<Vec<String>>::new()
+    );
     assert_eq!(fixture.mode_of("savepoint_rows"), mode("row-store"));
 }
 

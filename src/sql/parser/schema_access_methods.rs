@@ -152,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn should_accept_equivalent_using_and_with_storage_selectors() {
+    fn should_accept_equivalent_using_with_storage_selectors() {
         // Arrange
         let columnar = "CREATE TABLE t (id INT) USING columnar WITH (storage = column_store)";
         let heap = "CREATE TABLE t (id INT) USING heap WITH (storage = row_store)";
@@ -170,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_conflicting_using_and_with_storage_selectors() {
+    fn should_reject_conflicting_using_with_storage_selectors() {
         // Arrange
         let statements = [
             "CREATE TABLE t (id INT) USING columnar WITH (storage = row_store)",

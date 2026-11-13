@@ -30,7 +30,7 @@ fn should_keep_column_authority_after_insert() {
 }
 
 #[test]
-fn should_keep_column_authority_after_update_and_delete() {
+fn should_keep_column_authority_after_update_or_delete() {
     // Arrange
     let env = seeded();
 
@@ -121,7 +121,7 @@ fn should_keep_column_authority_after_an_explicit_transaction() {
 }
 
 #[test]
-fn should_keep_column_authority_across_add_and_drop_column() {
+fn should_keep_column_authority_across_column_add_drop() {
     // Arrange
     let env = seeded();
     let midge = &env.cassie.midge;
@@ -154,7 +154,7 @@ fn should_keep_column_authority_across_add_and_drop_column() {
 
     // Assert
     assert!(old_rows_validate.is_empty(), "{old_rows_validate:?}");
-    assert!(env.row_store_keys(TABLE).is_empty());
+    assert_eq!(env.row_store_keys(TABLE), Vec::<Vec<u8>>::new());
     // 3 old rows x 3 fields + 1 marker each, plus the fresh row: 4 fields + 1 marker.
     assert_eq!(widened, 3 * (3 + 1) + (4 + 1));
     let dropped_field = b"f\0\0\0\0\x03\0";
@@ -162,10 +162,12 @@ fn should_keep_column_authority_across_add_and_drop_column() {
         !key.windows(dropped_field.len())
             .any(|window| window == dropped_field)
     }));
-    assert!(midge
-        .verify_column_store_for_diagnostics(TABLE)
-        .expect("verifier")
-        .is_empty());
+    assert_eq!(
+        midge
+            .verify_column_store_for_diagnostics(TABLE)
+            .expect("verifier"),
+        Vec::<String>::new()
+    );
 }
 
 #[test]

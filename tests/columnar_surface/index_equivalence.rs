@@ -140,12 +140,13 @@ fn should_maintain_scalar_indexes_on_column_tables() {
         index_marks: &["_e"],
         plan_names_index: true,
     };
-    // Act / Assert
+    // Act
+    // Assert
     run_case(&case);
 }
 
 #[test]
-fn should_enforce_and_maintain_unique_indexes_on_column_tables() {
+fn should_enforce_unique_indexes_on_column_tables() {
     // Arrange
     with_pair(|pair| {
         pair.create("ux", "id INT, email TEXT", "(1,'a'),(2,'b'),(3,NULL)");
@@ -204,7 +205,8 @@ fn should_maintain_fulltext_indexes_on_column_tables() {
         index_marks: &["_f"],
         plan_names_index: false,
     };
-    // Act / Assert
+    // Act
+    // Assert
     run_case(&case);
 }
 
@@ -239,7 +241,8 @@ fn should_maintain_hnsw_indexes_on_column_tables() {
         index_marks: &["_v", "_f"],
         plan_names_index: false,
     };
-    // Act / Assert
+    // Act
+    // Assert
     run_case(&case);
 }
 
@@ -259,7 +262,8 @@ fn should_maintain_ivfflat_indexes_on_column_tables() {
         index_marks: &["_v", "_f"],
         plan_names_index: false,
     };
-    // Act / Assert
+    // Act
+    // Assert
     run_case(&case);
 }
 
@@ -286,7 +290,8 @@ fn should_maintain_hybrid_retrieval_indexes_on_column_tables() {
         index_marks: &["_v", "_f"],
         plan_names_index: false,
     };
-    // Act / Assert
+    // Act
+    // Assert
     run_case(&case);
 }
 
@@ -315,7 +320,8 @@ fn should_maintain_time_series_indexes_on_column_tables() {
         index_marks: &["_ts"],
         plan_names_index: true,
     };
-    // Act / Assert
+    // Act
+    // Assert
     run_case(&case);
 }
 
@@ -351,7 +357,8 @@ fn should_maintain_graph_indexes_on_column_backing_tables() {
                 );
             }
         };
-        // Act / Assert
+        // Act
+        // Assert
         for graph in ["gr", "gc"] {
             for (id, from, to) in [("e1", "A", "B"), ("e2", "A", "C"), ("e3", "B", "C")] {
                 pair.run(&edge(graph, id, from, to));
@@ -373,7 +380,7 @@ fn should_maintain_graph_indexes_on_column_backing_tables() {
             pair.run("ROLLBACK");
         }
         check("rollback");
-        assert!(!neighbors("gc", "A", "out").is_empty());
+        assert_ne!(neighbors("gc", "A", "out"), Vec::<Vec<Value>>::new());
     });
 }
 

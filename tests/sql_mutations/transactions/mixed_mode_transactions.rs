@@ -51,7 +51,7 @@ fn stage_both(fixture: &SqlFixture) {
 }
 
 #[test]
-fn should_read_own_writes_in_both_modes_and_hide_them_from_other_sessions() {
+fn should_isolate_own_writes_in_both_modes_from_other_sessions() {
     // Arrange
     let fixture = fixture("mixed-read-own-writes");
     let other = fixture.cassie.create_session("tester", None);
@@ -262,8 +262,7 @@ fn should_reject_a_repeatable_read_update_of_a_column_row_changed_by_another_ses
 }
 
 #[test]
-fn should_reject_a_repeatable_read_update_after_another_session_deleted_and_reinserted_a_column_row(
-) {
+fn should_reject_repeatable_read_update_after_column_row_reinsert() {
     // Arrange
     let fixture = fixture("mixed-repeatable-read-reinsert");
     fixture

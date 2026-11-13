@@ -41,7 +41,8 @@ fn assert_rejected(
 fn should_reject_not_null_violations_like_row_tables() {
     // Arrange
     with_pair(|pair| {
-        // Act / Assert
+        // Act
+        // Assert
         assert_rejected(
             pair,
             "nn",
@@ -61,7 +62,8 @@ fn should_reject_not_null_violations_like_row_tables() {
 fn should_reject_check_violations_like_row_tables() {
     // Arrange
     with_pair(|pair| {
-        // Act / Assert
+        // Act
+        // Assert
         assert_rejected(
             pair,
             "ck",
@@ -83,10 +85,11 @@ fn should_reject_check_violations_like_row_tables() {
 }
 
 #[test]
-fn should_reject_key_and_unique_violations_like_row_tables() {
+fn should_reject_key_unique_violations_like_row_tables() {
     // Arrange
     with_pair(|pair| {
-        // Act / Assert
+        // Act
+        // Assert
         assert_rejected(
             pair,
             "uq",
@@ -152,7 +155,7 @@ fn should_apply_on_conflict_like_row_tables() {
 }
 
 #[test]
-fn should_fill_defaults_identity_and_generated_columns_like_row_tables() {
+fn should_fill_defaults_identity_generated_columns_like_row_tables() {
     // Arrange
     with_pair(|pair| {
         pair.create(
@@ -195,7 +198,8 @@ fn should_enforce_domains_on_column_tables_like_row_tables() {
     with_pair(|pair| {
         pair.run("CREATE DOMAIN posint AS int NOT NULL CHECK (VALUE > 0)");
         pair.run("CREATE DOMAIN shortcode AS text CHECK (length(VALUE) <= 3)");
-        // Act / Assert
+        // Act
+        // Assert
         assert_rejected(
             pair,
             "dm",
@@ -351,9 +355,9 @@ fn should_report_constraints_in_catalogs_like_row_tables() {
             ))
         };
         // Assert
-        assert!(!kinds(ROW).is_empty());
+        assert_ne!(kinds(ROW), Vec::<Vec<Value>>::new());
         assert_eq!(kinds(COL), kinds(ROW));
-        assert!(!pg_kinds(ROW).is_empty());
+        assert_ne!(pg_kinds(ROW), Vec::<Vec<Value>>::new());
         assert_eq!(pg_kinds(COL), pg_kinds(ROW));
         assert_eq!(columns(COL), columns(ROW));
     });

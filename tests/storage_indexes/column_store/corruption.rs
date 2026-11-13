@@ -64,11 +64,8 @@ fn should_fail_reads_when_a_live_marker_lacks_a_field_key() {
         .expect("verifier");
 
     // Assert
-    assert_corruption(&point.err().expect("point read fails"), "row-b");
-    assert_corruption(
-        &scan.err().expect("scan fails without partial rows"),
-        "row-b",
-    );
+    assert_corruption(&point.expect_err("point read fails"), "row-b");
+    assert_corruption(&scan.expect_err("scan fails without partial rows"), "row-b");
     assert_eq!(verifier.len(), 1, "{verifier:?}");
     assert!(verifier[0].contains("row-b"));
 }
@@ -93,7 +90,7 @@ fn should_fail_reads_when_a_field_key_has_no_live_marker() {
         .expect("verifier");
 
     // Assert
-    assert_corruption(&point.err().expect("orphan read fails"), "ghost");
+    assert_corruption(&point.expect_err("orphan read fails"), "ghost");
     assert_eq!(verifier.len(), 1, "{verifier:?}");
     assert!(verifier[0].contains("ghost"));
 }
@@ -111,8 +108,8 @@ fn should_fail_reads_when_a_value_does_not_decode() {
         .execute_sql(&env.session, "SELECT name FROM victims", vec![]);
 
     // Assert
-    assert_corruption(&point.err().expect("point read fails"), "row-c");
-    assert_corruption(&scan.err().expect("scan fails"), "row-c");
+    assert_corruption(&point.expect_err("point read fails"), "row-c");
+    assert_corruption(&scan.expect_err("scan fails"), "row-c");
 }
 
 #[test]
@@ -135,7 +132,7 @@ fn should_fail_reads_when_a_value_has_the_wrong_type() {
         .expect("verifier");
 
     // Assert
-    assert_corruption(&point.err().expect("type mismatch fails"), "row-a");
+    assert_corruption(&point.expect_err("type mismatch fails"), "row-a");
     assert_eq!(verifier.len(), 1, "{verifier:?}");
 }
 
@@ -152,8 +149,8 @@ fn should_fail_reads_when_a_live_marker_is_malformed() {
         .execute_sql(&env.session, "SELECT id FROM victims", vec![]);
 
     // Assert
-    assert_corruption(&point.err().expect("malformed marker fails"), "row-a");
-    assert_corruption(&scan.err().expect("scan fails"), "row-a");
+    assert_corruption(&point.expect_err("malformed marker fails"), "row-a");
+    assert_corruption(&scan.expect_err("scan fails"), "row-a");
 }
 
 #[test]

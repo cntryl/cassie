@@ -158,9 +158,9 @@
     ],
     "files": 1645,
     "rust_files": 1608,
-    "rust_test_declarations": 9541,
+    "rust_test_declarations": 9547,
     "python_test_declarations": 22,
-    "registered_rust_instances": 9542,
+    "registered_rust_instances": 9548,
     "unregistered_rust_tests": [
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_publish_pgcrypto_extension_transactionally",
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_restore_pgcrypto_namespace_after_savepoint_rollback",
@@ -19166,7 +19166,7 @@
       "name": "should_filter_unqualified_regclass_by_schema_usage_separately_from_table_select",
       "current_file": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs",
       "line": 6,
-      "end_line": 86,
+      "end_line": 99,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -19175,6 +19175,192 @@
         {
           "suite": "catalog_security",
           "name": "object_privilege_grants::identifier_visibility::should_filter_unqualified_regclass_by_schema_usage_separately_from_table_select"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/grammar",
+        "directory": "tests/catalog_security/catalogs/grammar",
+        "file": "tests/catalog_security/catalogs/grammar/identifier_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs::should_filter_unqualified_routine_lookups_by_schema_usage",
+      "name": "should_filter_unqualified_routine_lookups_by_schema_usage",
+      "current_file": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs",
+      "line": 102,
+      "end_line": 168,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "object_privilege_grants::identifier_visibility::should_filter_unqualified_routine_lookups_by_schema_usage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/grammar",
+        "directory": "tests/catalog_security/catalogs/grammar",
+        "file": "tests/catalog_security/catalogs/grammar/identifier_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs::should_require_schema_usage_for_qualified_regclass",
+      "name": "should_require_schema_usage_for_qualified_regclass",
+      "current_file": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs",
+      "line": 207,
+      "end_line": 225,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "object_privilege_grants::identifier_visibility::should_require_schema_usage_for_qualified_regclass"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/grammar",
+        "directory": "tests/catalog_security/catalogs/grammar",
+        "file": "tests/catalog_security/catalogs/grammar/identifier_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs::should_require_schema_usage_for_qualified_regtype",
+      "name": "should_require_schema_usage_for_qualified_regtype",
+      "current_file": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs",
+      "line": 228,
+      "end_line": 242,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "object_privilege_grants::identifier_visibility::should_require_schema_usage_for_qualified_regtype"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/grammar",
+        "directory": "tests/catalog_security/catalogs/grammar",
+        "file": "tests/catalog_security/catalogs/grammar/identifier_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs::should_require_schema_usage_for_qualified_regprocedure",
+      "name": "should_require_schema_usage_for_qualified_regprocedure",
+      "current_file": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs",
+      "line": 245,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "object_privilege_grants::identifier_visibility::should_require_schema_usage_for_qualified_regprocedure"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/grammar",
+        "directory": "tests/catalog_security/catalogs/grammar",
+        "file": "tests/catalog_security/catalogs/grammar/identifier_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs::should_not_require_schema_usage_for_regnamespace",
+      "name": "should_not_require_schema_usage_for_regnamespace",
+      "current_file": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs",
+      "line": 264,
+      "end_line": 281,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "object_privilege_grants::identifier_visibility::should_not_require_schema_usage_for_regnamespace"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/grammar",
+        "directory": "tests/catalog_security/catalogs/grammar",
+        "file": "tests/catalog_security/catalogs/grammar/identifier_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs::should_let_root_resolve_qualified_names_without_a_usage_grant",
+      "name": "should_let_root_resolve_qualified_names_without_a_usage_grant",
+      "current_file": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs",
+      "line": 284,
+      "end_line": 301,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "object_privilege_grants::identifier_visibility::should_let_root_resolve_qualified_names_without_a_usage_grant"
         }
       ],
       "attributes": [
@@ -298514,9 +298700,9 @@
       "current_file": "tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 86,
-      "sha256": "384ec1f7bb1bc8c2d410b84fc0709e1aa710deb2ee7b196c02217be6219003eb",
-      "test_declarations": 1,
+      "lines": 301,
+      "sha256": "3fb3e65989a13399bf50735a24e1d71c38a63cb02f6581fc003c7f117eef8e68",
+      "test_declarations": 7,
       "registered_suites": [
         "catalog_security"
       ],

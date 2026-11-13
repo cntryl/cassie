@@ -33,6 +33,9 @@ use names::{qualified_name, Identifier};
 pub struct ObjectScope<'a> {
     catalog: &'a Catalog,
     context: &'a BindingContext,
+    /// Lowercase names of schemas the role has no `USAGE` on; a qualified
+    /// `reg*` name in one of them is `42501`, as in PostgreSQL.
+    unusable_schemas: std::collections::HashSet<String>,
 }
 
 /// A relation's place in the catalog.
@@ -45,7 +48,66 @@ struct RelationIdentity {
 impl<'a> ObjectScope<'a> {
     #[must_use]
     pub fn new(catalog: &'a Catalog, context: &'a BindingContext) -> Self {
-        Self { catalog, context }
+        Self {
+            catalog,
+            context,
+            unusable_schemas: std::collections::HashSet::new(),
+        }
+    }
+
+    /// Makes qualified names in `schemas` fail with `42501`.
+    #[must_use]
+    pub fn with_unusable_schemas(mut self, schemas: std::collections::HashSet<String>) -> Self {
+        self.unusable_schemas = schemas;
+        self
+    }
+
+    /// `42501` when `text` qualifies a name with a schema the role cannot use.
+    fn check_schema_usage(
+        &self,
+        kind: ObjectIdKind,
+        text: &str,
+    ) -> Result<(), ObjectIdentifierError> {
+        if self.unusable_schemas.is_empty()
+            || !matches!(
+                kind,
+                ObjectIdKind::RegClass
+                    | ObjectIdKind::RegType
+                    | ObjectIdKind::RegProc
+                    | ObjectIdKind::RegProcedure
+            )
+        {
+            return Ok(());
+        }
+        let mut quoted = false;
+        let end = text
+            .char_indices()
+            .find(|&(_, character)| {
+                if character == '"' {
+                    quoted = !quoted;
+                }
+                !quoted && matches!(character, '(' | '[' | ' ')
+            })
+            .map_or(text.len(), |(index, _)| index);
+        let Ok(parts) = qualified_name(&text[..end]) else {
+            return Ok(());
+        };
+        let Some(schema) = parts
+            .len()
+            .checked_sub(2)
+            .and_then(|index| parts.get(index))
+        else {
+            return Ok(());
+        };
+        if self
+            .unusable_schemas
+            .contains(&schema.value.to_ascii_lowercase())
+        {
+            return Err(ObjectIdentifierError::PermissionDenied {
+                schema: quote_identifier(&schema.value),
+            });
+        }
+        Ok(())
     }
 
     /// Resolves `reg*` text input. `Ok(None)` means the object does not exist;
@@ -70,6 +132,7 @@ impl<'a> ObjectScope<'a> {
         {
             return parse_oid_text(trimmed).map(Some);
         }
+        self.check_schema_usage(kind, trimmed)?;
         match kind {
             ObjectIdKind::Oid => parse_oid_text(trimmed).map(Some),
             ObjectIdKind::RegClass => self.resolve_relation(trimmed),

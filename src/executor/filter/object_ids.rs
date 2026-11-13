@@ -42,7 +42,10 @@ pub(super) fn with_scope<T>(
         .ok_or_else(|| {
             QueryError::General("object identifier lookup requires a session catalog".to_string())
         })?;
-    lookup(&ObjectScope::new(&catalog, &context)).map_err(|error| QueryError::Cassie(error.into()))
+    let unusable = session.map(CassieSession::object_identifier_unusable_schemas);
+    let scope =
+        ObjectScope::new(&catalog, &context).with_unusable_schemas(unusable.unwrap_or_default());
+    lookup(&scope).map_err(|error| QueryError::Cassie(error.into()))
 }
 
 /// `to_regclass` and its siblings: nullable lookups for missing objects.
@@ -103,7 +106,12 @@ fn lookup(
     };
     let resolved = with_scope(session, |scope| match scope.resolve(kind, text) {
         Ok(oid) => Ok(oid),
-        Err(error) if kind == ObjectIdKind::RegType => Err(error),
+        Err(error)
+            if kind == ObjectIdKind::RegType
+                || matches!(error, ObjectIdentifierError::PermissionDenied { .. }) =>
+        {
+            Err(error)
+        }
         Err(_) => Ok(None),
     })?;
     Ok(resolved.map_or(Value::Null, |oid| Value::Int64(i64::from(oid))))

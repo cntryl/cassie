@@ -104,6 +104,50 @@ fn should_resolve_view_definition_through_the_session_search_path() {
 }
 
 #[test]
+fn should_render_a_view_definition_by_oid() {
+    // Arrange
+    let fixture = sql_fixture(
+        "view-definition-by-oid",
+        &["CREATE VIEW oid_definition_view AS SELECT 7 AS answer"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT pg_get_viewdef('oid_definition_view'::regclass), \
+         pg_get_viewdef(c.oid) FROM pg_class c WHERE c.relname = 'oid_definition_view'",
+    );
+
+    // Assert
+    let definition = Value::String(" SELECT 7 AS answer;".to_owned());
+    assert_eq!(rows, vec![vec![definition.clone(), definition]]);
+}
+
+#[test]
+fn should_accept_the_pretty_and_wrap_arguments_of_a_view_definition() {
+    // Arrange
+    let fixture = sql_fixture(
+        "view-definition-two-arguments",
+        &["CREATE VIEW pretty_definition_view AS SELECT 8 AS answer"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT pg_get_viewdef('pretty_definition_view', true), \
+         pg_get_viewdef('pretty_definition_view'::regclass, true), \
+         pg_get_viewdef('pretty_definition_view'::regclass, 80)",
+    );
+
+    // Assert
+    let definition = Value::String(" SELECT 8 AS answer;".to_owned());
+    assert_eq!(
+        rows,
+        vec![vec![definition.clone(), definition.clone(), definition]]
+    );
+}
+
+#[test]
 fn should_return_null_for_null_view_definition_input() {
     // Arrange
     let fixture = sql_fixture("issue-817-null-view-definition", &[]);

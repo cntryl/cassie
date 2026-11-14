@@ -479,3 +479,69 @@ fn should_reject_bytea_integer_casts_wider_than_the_target_type() {
     assert!(smallint.is_err(), "bytea longer than smallint must fail");
     assert!(integer.is_err(), "bytea longer than integer must fail");
 }
+
+#[test]
+fn should_measure_bytea_lengths_in_bytes() {
+    // Arrange
+    let fixture = sql_fixture("bytea-length-overloads", &[]);
+
+    // Act
+    let rows = fixture.rows(
+        r"SELECT octet_length('\x0102ff'::bytea), length('\x0102ff'::bytea), octet_length(''::bytea), length(NULL::bytea)",
+    );
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![
+            Value::Int64(3),
+            Value::Int64(3),
+            Value::Int64(0),
+            Value::Null
+        ]]
+    );
+}
+
+#[test]
+fn should_slice_bytea_by_byte_positions() {
+    // Arrange
+    let fixture = sql_fixture("bytea-substring-overloads", &[]);
+
+    // Act
+    // Assert
+    assert_true(
+        &fixture,
+        r"SELECT substring('\x0102ff'::bytea, 2, 1) = '\x02'::bytea, substring('\x0102ff'::bytea FROM 2) = '\x02ff'::bytea, substring('\x0102ff'::bytea FROM 0 FOR 2) = '\x01'::bytea, substr('\x0102ff'::bytea, 3) = '\xff'::bytea",
+    );
+}
+
+#[test]
+fn should_measure_and_slice_a_bytea_column() {
+    // Arrange
+    let fixture = sql_fixture(
+        "bytea-column-length-substring",
+        &[
+            "CREATE TABLE blobs (id int primary key, b bytea)",
+            r"INSERT INTO blobs VALUES (1, '\x0a0b0c')",
+        ],
+    );
+
+    // Act
+    // Assert
+    assert_true(
+        &fixture,
+        r"SELECT length(b) = 3, octet_length(b) = 3, substring(b FROM 2 FOR 5) = '\x0b0c'::bytea FROM blobs",
+    );
+}
+
+#[test]
+fn should_reject_a_negative_bytea_substring_length() {
+    // Arrange
+    let fixture = sql_fixture("bytea-substring-negative-length", &[]);
+
+    // Act
+    let error = fixture.error(r"SELECT substring('\x01'::bytea, 1, -1)");
+
+    // Assert
+    assert_eq!(error.sql_state(), "22011");
+}

@@ -184,15 +184,7 @@ fn create_table_gated(
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences = prepare_table_sequences(cassie, statement, fields)?;
     let initial_indexes = initial_table_indexes(table, &constraints, additional_like_indexes);
-    let copied_comments = statement
-        .like
-        .as_ref()
-        .filter(|like| table_like_copy_options(like).comments.is_included())
-        .map(|like| {
-            super::table_like_comments::prepare_column_comments(cassie, like.source.as_ref())
-        })
-        .transpose()?
-        .unwrap_or_default();
+    let copied_comments = prepare_like_column_comments(cassie, statement)?;
     let mut published_comments = Vec::new();
     let output = super::command_output::empty("CREATE TABLE", controls)?;
     if statement.like.is_some() {
@@ -268,6 +260,21 @@ fn create_table_gated(
         super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
     }
     Ok(CreationOutcome::created(output))
+}
+
+fn prepare_like_column_comments(
+    cassie: &Cassie,
+    statement: &CreateTableStatement,
+) -> Result<Vec<(String, String)>, QueryError> {
+    statement
+        .like
+        .as_ref()
+        .filter(|like| table_like_copy_options(like).comments.is_included())
+        .map(|like| {
+            super::table_like_comments::prepare_column_comments(cassie, like.source.as_ref())
+        })
+        .transpose()
+        .map(Option::unwrap_or_default)
 }
 
 fn prepare_table_definition(

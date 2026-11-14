@@ -46,6 +46,12 @@ pub(super) fn json_to_query_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
+fn record_projected_source_scan(cassie: &Cassie, spec: &ProjectedFilteredReadSpec, rows: usize) {
+    cassie
+        .runtime
+        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
+}
+
 pub(super) fn execute_projected_filtered_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -109,11 +115,7 @@ pub(super) fn execute_projected_filtered_read(
                 (&spec.collection, &spec.scan_fields),
                 rows.len(),
             );
-            cassie.runtime.record_read_path_collection_scan(
-                &spec.collection,
-                spec.scan_fields.len(),
-                rows.len(),
-            );
+            record_projected_source_scan(cassie, &spec, rows.len());
             let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
             return Ok(Some(finalize_projected_filtered_read(
                 ProjectedReadFinalization {
@@ -143,9 +145,7 @@ pub(super) fn execute_projected_filtered_read(
     let mut batches = scan::scan_projected_filtered(cassie, session, &request)?;
 
     let rows = batches.iter().map(Vec::len).sum::<usize>();
-    cassie
-        .runtime
-        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
+    record_projected_source_scan(cassie, &spec, rows);
 
     Ok(Some(finalize_projected_filtered_read(
         ProjectedReadFinalization {

@@ -33,6 +33,26 @@ impl RowTraversal {
     }
 }
 
+/// Row authority has no column validation state. Column traversal either
+/// requires complete ownership validation or intentionally visits rows only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CursorStorage {
+    Row,
+    ColumnCompletePending,
+    ColumnCompleteValidated,
+    ColumnVisited,
+}
+
+impl CursorStorage {
+    fn new(column_store: bool, traversal: RowTraversal) -> Self {
+        match (column_store, traversal) {
+            (false, _) => Self::Row,
+            (true, RowTraversal::CompleteSource) => Self::ColumnCompletePending,
+            (true, RowTraversal::VisitedRows) => Self::ColumnVisited,
+        }
+    }
+}
+
 pub(crate) struct MidgeRowCursor {
     tx: crate::midge::adapter::DataReadTransaction,
     prefix: Vec<u8>,
@@ -43,8 +63,7 @@ pub(crate) struct MidgeRowCursor {
     exhausted: bool,
     pending: Option<AccountedDocument>,
     last_key_memory: Option<QueryMemoryReservation>,
-    column_store: bool,
-    column_fields_validated: bool,
+    storage: CursorStorage,
     collection: String,
 }
 
@@ -55,6 +74,7 @@ impl std::fmt::Debug for MidgeRowCursor {
             .field("prefix", &self.prefix)
             .field("last_key", &self.last_key)
             .field("exhausted", &self.exhausted)
+            .field("storage", &self.storage)
             .field("has_pending", &self.pending.is_some())
             .finish_non_exhaustive()
     }
@@ -110,14 +130,14 @@ impl MidgeRowCursor {
             return Ok(Vec::new());
         }
 
-        if self.column_store && !self.column_fields_validated {
+        if self.storage == CursorStorage::ColumnCompletePending {
             midge.validate_column_store_field_markers(
                 &self.tx,
                 &self.collection,
                 &self.row_schema,
                 || check_controls(controls),
             )?;
-            self.column_fields_validated = true;
+            self.storage = CursorStorage::ColumnCompleteValidated;
         }
         let mut documents = Vec::new();
         if let Some(pending) = self.pending.take() {
@@ -177,7 +197,7 @@ impl MidgeRowCursor {
             self.last_key = Some(next_key);
             self.last_key_memory = Some(next_key_memory);
 
-            if self.column_store {
+            if self.storage != CursorStorage::Row {
                 if let Some(document) =
                     self.decode_column_store_document(&raw_key, &raw_value, controls)?
                 {
@@ -284,8 +304,7 @@ impl Midge {
             exhausted: false,
             pending: None,
             last_key_memory: None,
-            column_store,
-            column_fields_validated: traversal == RowTraversal::VisitedRows,
+            storage: CursorStorage::new(column_store, traversal),
             collection,
         }))
     }

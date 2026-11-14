@@ -98,9 +98,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
         schema: right_schema.as_ref(),
     };
     let mut joined = JoinRows::try_new(env.controls)?;
-    let mut probe_rows = 0usize;
-    let mut build_rows = 0usize;
-    let mut matched_rows = 0usize;
+    let mut counts = DenseJoinCounts::default();
     let mut right_scanned = 0usize;
 
     let left_scanned = env
@@ -119,7 +117,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                     JoinRetentionPhase::BoundedSource,
                     retention,
                 )?;
-                probe_rows += 1;
+                counts.probe_rows += 1;
                 let _left_key_memory =
                     reserve_probe_key(env, &left_row, &spec.keys.left, spec.keys.domain)?;
                 let Some(left_key) = row_join_key(&left_row, &spec.keys.left, spec.keys.domain)?
@@ -143,7 +141,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                                 JoinRetentionPhase::BoundedSource,
                                 retention,
                             )?;
-                            build_rows += 1;
+                            counts.build_rows += 1;
                             let _right_key_memory = reserve_probe_key(
                                 env,
                                 &right_row,
@@ -166,7 +164,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                                 &mut joined,
                                 retention,
                             )? {
-                                matched_rows += 1;
+                                counts.matched_rows += 1;
                             }
                             Ok(joined.len() < spec.output_budget)
                         },
@@ -183,16 +181,29 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
         right_scanned,
     );
     check_timeout(env.controls)?;
-    Ok(JoinResult::new(
-        joined,
-        PendingJoinDiagnostic::Vectorized {
-            probe_rows,
-            build_rows,
-            matched_rows,
-            batch_size,
-            batches: probe_rows,
-        },
-    ))
+    Ok(counts.finish(joined, batch_size))
+}
+
+#[derive(Default)]
+struct DenseJoinCounts {
+    probe_rows: usize,
+    build_rows: usize,
+    matched_rows: usize,
+}
+
+impl DenseJoinCounts {
+    fn finish(self, joined: JoinRows, batch_size: usize) -> JoinResult {
+        JoinResult::new(
+            joined,
+            PendingJoinDiagnostic::Vectorized {
+                probe_rows: self.probe_rows,
+                build_rows: self.build_rows,
+                matched_rows: self.matched_rows,
+                batch_size,
+                batches: self.probe_rows,
+            },
+        )
+    }
 }
 
 fn vectorized_batch_size(env: &SourceExecutionEnv<'_>) -> usize {

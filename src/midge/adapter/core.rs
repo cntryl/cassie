@@ -24,6 +24,7 @@ pub struct Midge {
     referential_write_gate: ReentrantMutex<()>,
     pub(super) publication: super::publication::PublicationCoordinator,
     query_scan_entries: AtomicU64,
+    column_validation_reads: AtomicU64,
     pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
 }
 
@@ -97,6 +98,7 @@ impl Midge {
             referential_write_gate: ReentrantMutex::new(()),
             publication: super::publication::PublicationCoordinator::default(),
             query_scan_entries: AtomicU64::new(0),
+            column_validation_reads: AtomicU64::new(0),
             column_batch_operational_metrics: Mutex::new(
                 super::ColumnBatchOperationalMetrics::default(),
             ),
@@ -163,6 +165,18 @@ impl Midge {
     #[must_use]
     pub fn query_scan_entries_for_diagnostics(&self) -> u64 {
         self.query_scan_entries.load(Ordering::Relaxed)
+    }
+
+    /// Field entries and owner-marker lookups performed by complete-source
+    /// column ownership validation, separate from visited row markers.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn column_validation_reads_for_diagnostics(&self) -> u64 {
+        self.column_validation_reads.load(Ordering::Relaxed)
+    }
+
+    pub(super) fn record_column_validation_read(&self) {
+        self.column_validation_reads.fetch_add(1, Ordering::Relaxed);
     }
 
     pub(super) fn record_query_scan_entry(&self) {

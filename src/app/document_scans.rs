@@ -16,7 +16,27 @@ impl Cassie {
         decode: RowDecode,
         controls: &QueryExecutionControls,
     ) -> Result<Option<SessionRowCursor>, CassieError> {
-        let Some(persisted) = self.midge.open_row_cursor(collection, decode.clone())? else {
+        self.open_session_row_cursor_with_traversal(
+            session,
+            collection,
+            decode,
+            crate::midge::adapter::RowTraversal::CompleteSource,
+            controls,
+        )
+    }
+
+    pub(crate) fn open_session_row_cursor_with_traversal(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        decode: RowDecode,
+        traversal: crate::midge::adapter::RowTraversal,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<SessionRowCursor>, CassieError> {
+        let Some(persisted) =
+            self.midge
+                .open_row_cursor_with_traversal(collection, decode.clone(), traversal)?
+        else {
             return Ok(None);
         };
         SessionRowCursor::new(session, collection, persisted, decode, controls).map(Some)

@@ -16,6 +16,23 @@ pub(crate) use accounted_page::{AccountedDocument, AccountedDocumentPage};
 
 const STORAGE_SCAN_PAGE_ENTRIES: usize = 256;
 
+/// Whether the caller consumes the complete source or may stop at visited rows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RowTraversal {
+    CompleteSource,
+    VisitedRows,
+}
+
+impl RowTraversal {
+    pub(crate) fn from_limit(limit: Option<usize>) -> Self {
+        if limit.is_some() {
+            Self::VisitedRows
+        } else {
+            Self::CompleteSource
+        }
+    }
+}
+
 pub(crate) struct MidgeRowCursor {
     tx: crate::midge::adapter::DataReadTransaction,
     prefix: Vec<u8>,
@@ -94,7 +111,7 @@ impl MidgeRowCursor {
         }
 
         if self.column_store && !self.column_fields_validated {
-            Midge::validate_column_store_field_markers(
+            midge.validate_column_store_field_markers(
                 &self.tx,
                 &self.collection,
                 &self.row_schema,
@@ -239,6 +256,15 @@ impl Midge {
         collection: &str,
         decode: RowDecode,
     ) -> Result<Option<MidgeRowCursor>, CassieError> {
+        self.open_row_cursor_with_traversal(collection, decode, RowTraversal::CompleteSource)
+    }
+
+    pub(crate) fn open_row_cursor_with_traversal(
+        &self,
+        collection: &str,
+        decode: RowDecode,
+        traversal: RowTraversal,
+    ) -> Result<Option<MidgeRowCursor>, CassieError> {
         let collection = self.canonical_collection_name(collection);
         let column_store = self.collection_uses_column_store(&collection)?;
         let row_schema = self.row_schema(&collection)?;
@@ -259,7 +285,7 @@ impl Midge {
             pending: None,
             last_key_memory: None,
             column_store,
-            column_fields_validated: false,
+            column_fields_validated: traversal == RowTraversal::VisitedRows,
             collection,
         }))
     }
@@ -268,6 +294,7 @@ impl Midge {
         &self,
         collection: &str,
         decode: RowDecode,
+        traversal: RowTraversal,
         controls: &QueryExecutionControls,
         mut visit: F,
     ) -> Result<usize, E>
@@ -282,7 +309,7 @@ impl Midge {
             .map_err(E::from)?
         {
             let mut cursor = self
-                .open_row_cursor(&collection, decode)
+                .open_row_cursor_with_traversal(&collection, decode, traversal)
                 .map_err(E::from)?
                 .ok_or_else(|| {
                     E::from(CassieError::Execution(

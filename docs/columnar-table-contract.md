@@ -150,8 +150,18 @@ Validation follows the accessed source: point and index reads validate their
 requested/candidate rows; projected reads decode their fetched fields. Full-table
 traversal and authority conversion validate field-to-marker ownership across the
 source table, including orphan fields that marker enumeration would otherwise
-miss. Controlled traversal checks cancellation during this streaming preflight
-and retains no full-table field payload collection. This scope was selected by
+miss. The caller declares complete-source versus visited-row traversal before opening
+its private cursor. An unrestricted SQL source and authority conversion validate
+complete field ownership before returning their first rows. A bounded source
+(such as LIMIT or EXISTS with an early stop) validates visited rows without a
+whole-table ownership preflight. Page size is not SQL source intent: paginating
+an unrestricted portal still validates the complete source before its first
+successful page. Ranking operators that consume all input retain complete-source
+validation even when their output is top-k. Callback scans that may stop early
+use visited-row intent unless their caller explicitly declares complete input.
+Controlled traversal checks cancellation during streaming preflight and retains
+no full-table field payload collection. Field-entry and marker-lookup validation
+reads are counted separately from the existing visited-row marker counter. This scope was selected by
 the delegated Jev review during the v0.5.0 closeout on 2026-11-14; its owning
 issue and review receipt record the decision.
 

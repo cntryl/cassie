@@ -717,7 +717,7 @@ impl Midge {
         let mut documents = BTreeMap::new();
         let uses_column_store = self.collection_uses_column_store(collection)?;
         if uses_column_store {
-            Self::validate_column_store_field_markers(tx, collection, row_schema, || Ok(()))?;
+            self.validate_column_store_field_markers(tx, collection, row_schema, || Ok(()))?;
             let prefix = Self::column_store_row_prefix(row_schema.relation_id);
             for (key, _) in collect_scan(
                 tx.scan(&Query::new().prefix(prefix.clone().into()))

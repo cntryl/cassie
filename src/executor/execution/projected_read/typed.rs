@@ -61,8 +61,18 @@ pub(super) fn try_execute(
     }
     let mut breakdown = ExecutionBreakdownDurations::default();
     let started = Instant::now();
-    let Some(mut stream) =
-        scan::TypedScanStream::open(cassie, session, collection, &fields, controls)?
+    let Some(mut stream) = scan::TypedScanStream::open_with_traversal(
+        cassie,
+        session,
+        collection,
+        &fields,
+        if plan.limit_value().is_some() {
+            crate::midge::adapter::RowTraversal::VisitedRows
+        } else {
+            crate::midge::adapter::RowTraversal::CompleteSource
+        },
+        controls,
+    )?
     else {
         return Ok(None);
     };

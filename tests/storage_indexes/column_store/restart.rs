@@ -293,12 +293,19 @@ fn should_rebuild_a_recovered_column_table_index_from_authoritative_values() {
 fn assert_retrieval_recovery(
     label: &str,
     setup: &[&str],
+    requires_vector: bool,
     indexes: &[(&str, &str)],
     queries: &[&str],
 ) {
     let store = Store::new(label);
     let expected = {
         let env = store.open();
+        if requires_vector {
+            let root = env.cassie.create_session("root", None);
+            env.cassie
+                .execute_sql(&root, "CREATE EXTENSION vector", vec![])
+                .expect("root installs vector for fixture");
+        }
         for statement in setup {
             env.run(statement);
         }
@@ -346,6 +353,7 @@ fn should_preserve_fulltext_results_across_restart_and_index_rebuild() {
     assert_retrieval_recovery(
         "columnar-fulltext-recovery",
         &setup,
+        false,
         &[(
             "recovered_text",
             "CREATE INDEX recovered_text ON retrieval_columns USING fulltext (body)",
@@ -357,7 +365,6 @@ fn should_preserve_fulltext_results_across_restart_and_index_rebuild() {
 fn assert_vector_recovery(method: &str, options: &str) {
     let ddl = format!("CREATE INDEX recovered_vector ON retrieval_columns USING {method} (emb vector_l2_ops) WITH ({options})");
     let setup = [
-        "CREATE EXTENSION vector",
         "CREATE TABLE retrieval_columns (id INT, emb VECTOR(3)) USING columnar",
         "INSERT INTO retrieval_columns VALUES (1,'[1,0,0]'::vector),(2,'[0,1,0]'::vector),(3,'[-1,0,0]'::vector)",
         &ddl,
@@ -371,6 +378,7 @@ fn assert_vector_recovery(method: &str, options: &str) {
     assert_retrieval_recovery(
         &format!("columnar-{method}-recovery"),
         &setup,
+        true,
         &[("recovered_vector", &ddl)],
         &["SELECT id FROM retrieval_columns ORDER BY emb <-> '[1,0,0]'::vector, id LIMIT 2"],
     );
@@ -402,7 +410,6 @@ fn should_preserve_hybrid_results_across_restart_and_index_rebuild() {
     let fulltext = "CREATE INDEX recovered_text ON retrieval_columns USING fulltext (body)";
     let vector = "CREATE INDEX recovered_vector ON retrieval_columns USING hnsw (emb vector_l2_ops) WITH (m = 4, ef_construction = 16)";
     let setup = [
-        "CREATE EXTENSION vector",
         "CREATE TABLE retrieval_columns (id INT, body TEXT, emb VECTOR(3)) USING columnar",
         "INSERT INTO retrieval_columns VALUES (1,'alpha beta','[1,0,0]'::vector),(2,'alpha','[0,1,0]'::vector),(3,'delta','[-1,0,0]'::vector)",
         fulltext,
@@ -420,6 +427,7 @@ fn should_preserve_hybrid_results_across_restart_and_index_rebuild() {
     assert_retrieval_recovery(
         "columnar-hybrid-recovery",
         &setup,
+        true,
         &[("recovered_text", fulltext), ("recovered_vector", vector)],
         &["SELECT id, hybrid_score(search_score(body,'alpha'), vector_score(emb,'[1,0,0]')) AS score FROM retrieval_columns ORDER BY score DESC, id LIMIT 3"],
     );
@@ -446,6 +454,7 @@ fn should_preserve_time_series_results_across_restart_and_index_rebuild() {
     assert_retrieval_recovery(
         "columnar-time-series-recovery",
         &setup,
+        false,
         &[("recovered_time", ddl)],
         &["SELECT tenant, amount FROM retrieval_columns WHERE tenant = 'a' AND event_at >= '2026-01-01T12:00:00Z' AND event_at < '2026-01-01T14:00:00Z' ORDER BY amount"],
     );

@@ -136,10 +136,11 @@ pub(crate) fn projected_scan_stream<'a>(
         return Ok(None);
     }
     let Some(cursor) = cassie
-        .open_session_row_cursor(
+        .open_session_row_cursor_with_traversal(
             session,
             collection,
             RowDecode::ProjectedHistorical(fields.to_vec()),
+            crate::midge::adapter::RowTraversal::from_limit(limit),
             controls,
         )
         .map_err(|error| controlled_storage_error(cassie, error))?
@@ -200,7 +201,13 @@ pub(crate) fn scan_limit_retained(
     controls: &QueryExecutionControls,
 ) -> Result<(Vec<Batch>, QueryMemoryReservation), crate::executor::QueryError> {
     if let Some(cursor) = cassie
-        .open_session_row_cursor(session, collection, RowDecode::Full, controls)
+        .open_session_row_cursor_with_traversal(
+            session,
+            collection,
+            RowDecode::Full,
+            crate::midge::adapter::RowTraversal::from_limit(limit),
+            controls,
+        )
         .map_err(|error| controlled_storage_error(cassie, error))?
     {
         let schema = cassie.catalog.get_schema(collection);
@@ -478,10 +485,11 @@ fn controlled_projected_row_fallback(
     request: &ProjectedFilteredScanRequest<'_>,
 ) -> Result<Option<controlled_source::ControlledInputs>, crate::executor::QueryError> {
     let Some(cursor) = cassie
-        .open_session_row_cursor(
+        .open_session_row_cursor_with_traversal(
             session,
             request.collection,
             RowDecode::ProjectedHistorical(request.fields.to_vec()),
+            crate::midge::adapter::RowTraversal::from_limit(request.limit),
             request.controls,
         )
         .map_err(|error| controlled_storage_error(cassie, error))?

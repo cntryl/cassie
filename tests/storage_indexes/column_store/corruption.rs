@@ -289,3 +289,55 @@ fn should_preserve_orphan_fields_when_rejecting_conversion_to_heap() {
     assert_eq!(env.column_entries(TABLE), entries);
     assert!(env.row_store_keys(TABLE).is_empty());
 }
+
+#[test]
+fn should_not_validate_unvisited_orphans_for_a_limit_one_query() {
+    // Arrange
+    let env = seeded();
+    raw_put(
+        &env,
+        &env.field_key(TABLE, NAME_FIELD, "unvisited"),
+        &cassie_encoded_text("orphan"),
+    );
+    let before = env.cassie.midge.column_validation_reads_for_diagnostics();
+
+    // Act
+    let rows = env.rows("SELECT id, name FROM victims LIMIT 1");
+
+    // Assert
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        env.cassie.midge.column_validation_reads_for_diagnostics(),
+        before
+    );
+    let full = env
+        .cassie
+        .execute_sql(&env.session, "SELECT id, name FROM victims", vec![]);
+    assert_corruption(
+        &full.expect_err("an unrestricted query still checks the full source"),
+        "unvisited",
+    );
+    assert!(env.cassie.midge.column_validation_reads_for_diagnostics() > before);
+}
+
+#[test]
+fn should_not_validate_unvisited_orphans_for_an_exists_probe() {
+    // Arrange
+    let env = seeded();
+    raw_put(
+        &env,
+        &env.field_key(TABLE, NAME_FIELD, "unvisited"),
+        &cassie_encoded_text("orphan"),
+    );
+    let before = env.cassie.midge.column_validation_reads_for_diagnostics();
+
+    // Act
+    let rows = env.rows("SELECT EXISTS (SELECT id FROM victims WHERE id = 1)");
+
+    // Assert
+    assert_eq!(rows, vec![vec![cassie::types::Value::Bool(true)]]);
+    assert_eq!(
+        env.cassie.midge.column_validation_reads_for_diagnostics(),
+        before
+    );
+}

@@ -67,7 +67,7 @@ impl Midge {
         let rows = if target.uses_column_store_storage() {
             Self::rewrite_rows_to_columns(&mut tx, &name, &row_schema, charge)?
         } else {
-            let rows = Self::rewrite_columns_to_rows(&mut tx, &name, &mut row_schema, charge)?;
+            let rows = self.rewrite_columns_to_rows(&mut tx, &name, &mut row_schema, charge)?;
             Self::save_row_schema_to_tx(&mut tx, &name, &row_schema)?;
             rows
         };
@@ -145,12 +145,13 @@ impl Midge {
     }
 
     fn rewrite_columns_to_rows(
+        &self,
         tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &mut RowSchema,
         charge: RewriteCharge<'_>,
     ) -> Result<usize, CassieError> {
-        Self::validate_column_store_field_markers(tx, collection, row_schema, || charge(0))?;
+        self.validate_column_store_field_markers(tx, collection, row_schema, || charge(0))?;
         let mut highest_revision = row_schema.column_revision_floor;
         let live_prefix = Self::column_store_row_prefix(row_schema.relation_id);
         let live = collect_scan(

@@ -22,6 +22,7 @@ struct InitialCollectionContents<'a> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ColumnStoreScanRequest<'a> {
+    pub traversal: super::RowTraversal,
     pub collection: &'a str,
     pub row_schema: &'a RowSchema,
     pub batch_size: usize,

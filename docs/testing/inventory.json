@@ -166,9 +166,9 @@
     ],
     "files": 1711,
     "rust_files": 1674,
-    "rust_test_declarations": 10153,
+    "rust_test_declarations": 10159,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10154,
+    "registered_rust_instances": 10160,
     "unregistered_rust_tests": [
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_publish_pgcrypto_extension_transactionally",
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_restore_pgcrypto_namespace_after_savepoint_rollback",
@@ -302284,8 +302284,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_reads_when_a_live_marker_lacks_a_field_key",
       "name": "should_fail_reads_when_a_live_marker_lacks_a_field_key",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 50,
-      "end_line": 71,
+      "line": 53,
+      "end_line": 74,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302315,8 +302315,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_reads_when_a_field_key_has_no_live_marker",
       "name": "should_fail_reads_when_a_field_key_has_no_live_marker",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 74,
-      "end_line": 96,
+      "line": 77,
+      "end_line": 99,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302346,8 +302346,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_reads_when_a_value_does_not_decode",
       "name": "should_fail_reads_when_a_value_does_not_decode",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 99,
-      "end_line": 113,
+      "line": 102,
+      "end_line": 116,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302377,8 +302377,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_reads_when_a_value_has_the_wrong_type",
       "name": "should_fail_reads_when_a_value_has_the_wrong_type",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 116,
-      "end_line": 137,
+      "line": 119,
+      "end_line": 140,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302408,8 +302408,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_reads_when_a_live_marker_is_malformed",
       "name": "should_fail_reads_when_a_live_marker_is_malformed",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 140,
-      "end_line": 154,
+      "line": 143,
+      "end_line": 157,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302439,8 +302439,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_resolve_a_field_added_after_the_row_was_written",
       "name": "should_resolve_a_field_added_after_the_row_was_written",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 157,
-      "end_line": 183,
+      "line": 160,
+      "end_line": 186,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302470,8 +302470,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_report_row_blob_keys_owned_by_a_column_table",
       "name": "should_report_row_blob_keys_owned_by_a_column_table",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 186,
-      "end_line": 209,
+      "line": 189,
+      "end_line": 212,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302501,8 +302501,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_a_full_scan_when_a_field_has_no_live_marker",
       "name": "should_fail_a_full_scan_when_a_field_has_no_live_marker",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 219,
-      "end_line": 238,
+      "line": 222,
+      "end_line": 241,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302532,8 +302532,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_a_batched_scan_when_a_field_has_no_live_marker",
       "name": "should_fail_a_batched_scan_when_a_field_has_no_live_marker",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 241,
-      "end_line": 258,
+      "line": 244,
+      "end_line": 261,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302563,8 +302563,8 @@
       "id": "tests/storage_indexes/column_store/corruption.rs::should_preserve_orphan_fields_when_rejecting_conversion_to_heap",
       "name": "should_preserve_orphan_fields_when_rejecting_conversion_to_heap",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
-      "line": 261,
-      "end_line": 291,
+      "line": 264,
+      "end_line": 294,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -302573,6 +302573,192 @@
         {
           "suite": "storage_indexes",
           "name": "column_store_authority::corruption::should_preserve_orphan_fields_when_rejecting_conversion_to_heap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_not_validate_unvisited_orphans_for_a_limit_one_query",
+      "name": "should_not_validate_unvisited_orphans_for_a_limit_one_query",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 297,
+      "end_line": 324,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_not_validate_unvisited_orphans_for_a_limit_one_query"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_not_validate_unvisited_orphans_for_an_exists_probe",
+      "name": "should_not_validate_unvisited_orphans_for_an_exists_probe",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 327,
+      "end_line": 346,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_not_validate_unvisited_orphans_for_an_exists_probe"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_validate_an_unrestricted_scalar_fallback_despite_its_result_cap",
+      "name": "should_validate_an_unrestricted_scalar_fallback_despite_its_result_cap",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 349,
+      "end_line": 375,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_validate_an_unrestricted_scalar_fallback_despite_its_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_keep_a_limited_lateral_collection_source_on_visited_rows",
+      "name": "should_keep_a_limited_lateral_collection_source_on_visited_rows",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 378,
+      "end_line": 398,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_keep_a_limited_lateral_collection_source_on_visited_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_validate_complete_sources_before_blocking_operators_limit_their_output",
+      "name": "should_validate_complete_sources_before_blocking_operators_limit_their_output",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 401,
+      "end_line": 425,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_validate_complete_sources_before_blocking_operators_limit_their_output"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_validate_an_unrestricted_join_source_despite_its_output_admission_cap",
+      "name": "should_validate_an_unrestricted_join_source_despite_its_output_admission_cap",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 428,
+      "end_line": 451,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_validate_an_unrestricted_join_source_despite_its_output_admission_cap"
         }
       ],
       "attributes": [
@@ -303090,8 +303276,8 @@
       "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_fulltext_results_across_restart_and_index_rebuild",
       "name": "should_preserve_fulltext_results_across_restart_and_index_rebuild",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
-      "line": 330,
-      "end_line": 355,
+      "line": 337,
+      "end_line": 363,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -303121,8 +303307,8 @@
       "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_hnsw_results_across_restart_and_index_rebuild",
       "name": "should_preserve_hnsw_results_across_restart_and_index_rebuild",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
-      "line": 380,
-      "end_line": 387,
+      "line": 388,
+      "end_line": 395,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -303152,8 +303338,8 @@
       "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_ivfflat_results_across_restart_and_index_rebuild",
       "name": "should_preserve_ivfflat_results_across_restart_and_index_rebuild",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
-      "line": 390,
-      "end_line": 397,
+      "line": 398,
+      "end_line": 405,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -303183,8 +303369,8 @@
       "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_hybrid_results_across_restart_and_index_rebuild",
       "name": "should_preserve_hybrid_results_across_restart_and_index_rebuild",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
-      "line": 400,
-      "end_line": 426,
+      "line": 408,
+      "end_line": 434,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -303214,8 +303400,8 @@
       "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_time_series_results_across_restart_and_index_rebuild",
       "name": "should_preserve_time_series_results_across_restart_and_index_rebuild",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
-      "line": 429,
-      "end_line": 452,
+      "line": 437,
+      "end_line": 461,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -303245,8 +303431,8 @@
       "id": "tests/storage_indexes/column_store/restart.rs::should_restore_mixed_authority_from_an_independent_physical_snapshot",
       "name": "should_restore_mixed_authority_from_an_independent_physical_snapshot",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
-      "line": 455,
-      "end_line": 536,
+      "line": 464,
+      "end_line": 545,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -338497,9 +338683,9 @@
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 291,
-      "sha256": "d0ae7328d767b711c848bd899bb79d614ffa4788ec7ba874ab75ee20921e8ff4",
-      "test_declarations": 10,
+      "lines": 451,
+      "sha256": "b7d15e6ad04993f107c074758f47e97b12f06487b7da0190ddf6bef5978cc415",
+      "test_declarations": 16,
       "registered_suites": [
         "storage_indexes"
       ],
@@ -338557,8 +338743,8 @@
       "current_file": "tests/storage_indexes/column_store/restart.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 536,
-      "sha256": "5faf065d671337592d0ee4a8941b2c055af9a5b7254b9e2a58c5745c3c866e99",
+      "lines": 545,
+      "sha256": "fcd9fea8e8b7a50d1c80b39b11f8e9efa97ad69657e1198459d801907e262ee8",
       "test_declarations": 10,
       "registered_suites": [
         "storage_indexes"

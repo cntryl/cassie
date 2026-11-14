@@ -117,7 +117,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                     JoinRetentionPhase::BoundedSource,
                     retention,
                 )?;
-                counts.probe_rows += 1;
+                counts.probe += 1;
                 let _left_key_memory =
                     reserve_probe_key(env, &left_row, &spec.keys.left, spec.keys.domain)?;
                 let Some(left_key) = row_join_key(&left_row, &spec.keys.left, spec.keys.domain)?
@@ -141,7 +141,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                                 JoinRetentionPhase::BoundedSource,
                                 retention,
                             )?;
-                            counts.build_rows += 1;
+                            counts.build += 1;
                             let _right_key_memory = reserve_probe_key(
                                 env,
                                 &right_row,
@@ -164,7 +164,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                                 &mut joined,
                                 retention,
                             )? {
-                                counts.matched_rows += 1;
+                                counts.matched += 1;
                             }
                             Ok(joined.len() < spec.output_budget)
                         },
@@ -186,9 +186,9 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
 
 #[derive(Default)]
 struct DenseJoinCounts {
-    probe_rows: usize,
-    build_rows: usize,
-    matched_rows: usize,
+    probe: usize,
+    build: usize,
+    matched: usize,
 }
 
 impl DenseJoinCounts {
@@ -196,11 +196,11 @@ impl DenseJoinCounts {
         JoinResult::new(
             joined,
             PendingJoinDiagnostic::Vectorized {
-                probe_rows: self.probe_rows,
-                build_rows: self.build_rows,
-                matched_rows: self.matched_rows,
+                probe_rows: self.probe,
+                build_rows: self.build,
+                matched_rows: self.matched,
                 batch_size,
-                batches: self.probe_rows,
+                batches: self.probe,
             },
         )
     }

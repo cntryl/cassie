@@ -82,6 +82,56 @@ fn deltas(before: &Value, after: &Value) -> Value {
     }
     Value::Object(values)
 }
+fn classification(
+    query_success: bool,
+    typed_completions: usize,
+    batches: usize,
+    accelerated: u64,
+) -> Value {
+    let observed = if typed_completions > 0 {
+        "typed_aggregate_operator_completion_observed"
+    } else if accelerated > 0 {
+        "aggregate_acceleration_observed"
+    } else if batches > 0 {
+        "typed_transport_batches_without_operator_completion"
+    } else {
+        "no_typed_operator_completion_observed"
+    };
+    json!({
+        "query_outcome": if query_success { "sql_success" } else { "sql_error" },
+        "observed_operator_path":observed,
+        "scope":"attempt_or_operator; not whole-query success",
+        "transport_evidence":if batches>0 { "completed attempt-scoped batches observed" } else { "none observed; no zero-conversion inference" },
+    })
+}
+
+/// Tiny preflight invariant probe; synthetic failures are not SQL execution evidence.
+pub fn validate_failure_classification() {
+    // Arrange
+    let cases = [
+        (0, 0, 0, "no_typed_operator_completion_observed"),
+        (
+            0,
+            1,
+            0,
+            "typed_transport_batches_without_operator_completion",
+        ),
+        (1, 1, 0, "typed_aggregate_operator_completion_observed"),
+        (0, 0, 1, "aggregate_acceleration_observed"),
+    ];
+    for (operators, batches, accelerated, expected) in cases {
+        // Act
+        let observed = classification(false, operators, batches, accelerated);
+        // Assert
+        assert_eq!(observed["query_outcome"], "sql_error");
+        assert_eq!(observed["observed_operator_path"], expected);
+        assert_eq!(
+            observed["scope"],
+            "attempt_or_operator; not whole-query success"
+        );
+    }
+}
+
 pub fn preflight(db: &Db, case: Case) -> (String, String, String) {
     let result = db.query(&format!("EXPLAIN {}", case.sql()));
     let Some(cassie::types::Value::String(text)) =
@@ -183,23 +233,20 @@ pub fn observe(db: &Db, case: Case, explain: &str) -> Value {
         .iter()
         .filter(|event| event["event"] == "typed_transport_batch")
         .count();
-    let path = if typed_completions > 0 && batches > 0 {
-        "typed_aggregate_with_observed_transport"
-    } else if delta["/metrics/aggregate_acceleration/scans"]
-        .as_u64()
-        .expect("counter")
-        > 0
-    {
-        "accelerated_aggregate_without_typed_completion"
-    } else {
-        "completed_path_without_private_typed_transport_proof"
-    };
+    let path = classification(
+        query_success,
+        typed_completions,
+        batches,
+        delta["/metrics/aggregate_acceleration/scans"]
+            .as_u64()
+            .expect("counter"),
+    );
     json!({
         "workload":case.name,"sql":case.sql(),"explain":explain,
         "authority":case.authority,"derived_index":case.derived_index,"source_metadata":source_metadata,
         "query_success":query_success,"exact_independent_result":exact_result,"exact_descriptors":exact_descriptors,"actual_rows":actual_rows,"error":error,
         "expected_rows":format!("{:?}",case.expected()),"descriptors":descriptors,
-        "path_classification":path,"typed_operator_completions":typed_completions,"completed_transport_batches":batches,
+        "path_observation":path,"typed_operator_completions":typed_completions,"completed_transport_batches":batches,
         "events":events,"event_scope":"completed_batches_are_attempt_scoped_until_whole_sql_success; aggregate event is operator completion",
         "conversion_bytes_unit":"inline Value carrier slots only; not allocator traffic or RSS",
         "admission_scope":"private peak at typed operator completion; public query peak is cumulative runtime high water",

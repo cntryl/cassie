@@ -214,7 +214,15 @@ impl<'a> TypedScanStream<'a> {
         )?;
         let mut memory = self.controls.reserve_query_memory(bytes)?;
         let mut columns = Vec::with_capacity(self.schema.len());
+        let mut lanes = ProfileLanes::default();
         for (name, data_type) in &self.schema {
+            // Classify the same branch as the per-lane conversion below, once per column.
+            if is_row_identity_column(name) {
+                lanes.identity = lanes.identity.saturating_add(documents.len());
+            } else {
+                lanes.documents = lanes.documents.saturating_add(documents.len());
+            }
+            lanes.values = lanes.values.saturating_add(documents.len());
             let mut values = Vec::with_capacity(documents.len());
             for source in &documents {
                 conversion::check_controls(self.controls)?;
@@ -252,15 +260,7 @@ impl<'a> TypedScanStream<'a> {
         self.cassie
             .runtime
             .record_storage_access("data", false, true);
-        profile_batch(
-            "documents",
-            &batch,
-            ProfileLanes {
-                documents: self.schema.len().saturating_mul(documents.len()),
-                values: self.schema.len().saturating_mul(documents.len()),
-                ..ProfileLanes::default()
-            },
-        );
+        profile_batch("documents", &batch, lanes);
         Ok(Some(batch))
     }
 }
@@ -268,6 +268,7 @@ impl<'a> TypedScanStream<'a> {
 #[derive(Clone, Copy, Default)]
 struct ProfileLanes {
     documents: usize,
+    identity: usize,
     values: usize,
     numeric: usize,
     json: usize,
@@ -277,7 +278,8 @@ fn profile_batch(source: &'static str, batch: &TypedBatch, lanes: ProfileLanes) 
     // Completed-batch observations, not allocation counts or whole-query success.
     tracing::trace!(target: "cassie::typed_profile",
         event = "typed_transport_batch", source, rows = batch.len(), fields = batch.schema().len(),
-        document_field_lanes = lanes.documents, value_carrier_slots = lanes.values,
+        document_field_lanes = lanes.documents, document_identity_lanes = lanes.identity,
+        value_carrier_slots = lanes.values,
         value_carrier_bytes = lanes.values.saturating_mul(size_of::<Value>()),
         encoded_numeric_lanes = lanes.numeric, encoded_json_lanes = lanes.json,
     );

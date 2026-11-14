@@ -319,3 +319,42 @@ fn should_keep_completed_batch_events_attempt_scoped_when_result_admission_fails
         0
     );
 }
+
+#[test]
+fn should_separate_identity_clones_from_payload_field_visits() {
+    // Arrange
+    let (cassie, session) = fixture(false);
+    let controls = QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let capture = Capture::default();
+
+    // Act
+    capture.run(|| {
+        let mut stream = TypedScanStream::open(
+            &cassie,
+            Some(&session),
+            "profile_lanes",
+            &["_id".into(), "n".into()],
+            &controls,
+        )
+        .expect("open identity source")
+        .expect("typed");
+        let batch = stream.next_batch().expect("batch").expect("rows");
+        assert_eq!(batch.len(), 4);
+    });
+    let records = capture.records();
+
+    // Assert
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["source"], "documents");
+    assert_eq!(number(&records[0], "document_identity_lanes"), 4);
+    assert_eq!(number(&records[0], "document_field_lanes"), 4);
+    assert_eq!(number(&records[0], "value_carrier_slots"), 8);
+    assert_eq!(
+        number(&records[0], "value_carrier_bytes"),
+        8 * size_of::<Value>()
+    );
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

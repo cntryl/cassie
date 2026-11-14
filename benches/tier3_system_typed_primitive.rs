@@ -135,6 +135,7 @@ fn cpu_profile() {
     evidence::write("cpu-profile", &[diagnostic, ready, complete]);
 }
 fn main() {
+    evidence::validate_failure_classification();
     match std::env::var("BENCH_TYPED_PRIMITIVE_MODE")
         .unwrap_or_else(|_| "benchmark".into())
         .as_str()

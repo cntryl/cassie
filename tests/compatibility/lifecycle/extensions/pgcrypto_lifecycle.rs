@@ -8,7 +8,11 @@ fn should_publish_pgcrypto_extension_transactionally() {
         let server = CompatibilityServer::start("pgcrypto_transactional_install").await;
         let (client, connection) = server.connect().await;
         let (reader, reader_connection) = server.connect().await;
-        client.batch_execute("CREATE SCHEMA ext_target; BEGIN; CREATE EXTENSION pgcrypto SCHEMA ext_target").await.expect("stage extension");
+        execute_statements(&client, &[
+            "CREATE SCHEMA ext_target",
+            "BEGIN",
+            "CREATE EXTENSION pgcrypto SCHEMA ext_target",
+        ]).await.expect("stage extension");
 
         // Act
         let own = client.query("SELECT extname, extversion, extrelocatable FROM pg_catalog.pg_extension WHERE extname = 'pgcrypto'", &[]).await.expect("own extension");
@@ -90,7 +94,10 @@ fn should_track_extension_identity_through_relocation_lifecycle() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let server = CompatibilityServer::start("extension_identity_dependency").await;
+        let server = CompatibilityServer::start_with_query_budget(
+            "extension_identity_dependency",
+            128 * 1024 * 1024,
+        ).await;
         let (client, connection) = server.connect().await;
         execute_statements(&client, &["CREATE SCHEMA ext_a", "CREATE SCHEMA ext_b", "CREATE EXTENSION pgcrypto SCHEMA ext_a"]).await.expect("install");
         let before = client.query_one("SELECT oid FROM pg_catalog.pg_extension WHERE extname = 'pgcrypto'", &[]).await.expect("extension OID").get::<_, u32>(0);

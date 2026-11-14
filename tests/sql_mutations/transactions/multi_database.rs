@@ -76,7 +76,7 @@ fn should_create_tables_in_both_databases_inside_transactions_after_create_datab
 }
 
 #[test]
-fn should_alter_and_index_a_table_inside_a_transaction_after_create_database() {
+fn should_change_a_table_definition_inside_a_transaction_after_create_database() {
     // Arrange
     let cassie = super::super::support_sql::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("startup");

@@ -59,7 +59,7 @@ fn should_resolve_a_coalesce_label_literal_to_the_enum() {
 }
 
 #[test]
-fn should_order_greatest_and_least_label_literals_by_sort_order() {
+fn should_order_extreme_label_literals_by_sort_order() {
     // Arrange
     let fixture = fixture("enum_greatest_least_labels");
 

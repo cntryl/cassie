@@ -516,7 +516,7 @@ fn should_slice_bytea_by_byte_positions() {
 }
 
 #[test]
-fn should_measure_and_slice_a_bytea_column() {
+fn should_apply_byte_functions_to_a_bytea_column() {
     // Arrange
     let fixture = sql_fixture(
         "bytea-column-length-substring",

@@ -124,7 +124,7 @@ fn should_render_a_view_definition_by_oid() {
 }
 
 #[test]
-fn should_accept_the_pretty_and_wrap_arguments_of_a_view_definition() {
+fn should_accept_a_formatting_argument_to_a_view_definition() {
     // Arrange
     let fixture = sql_fixture(
         "view-definition-two-arguments",

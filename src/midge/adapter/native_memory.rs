@@ -42,6 +42,10 @@ pub struct NativeMemoryRuntime {
     pub write_stalled: bool,
     pub active_snapshots: usize,
     pub current_sequence: u64,
+    pub effective_memtable_limit: usize,
+    pub effective_flush_threshold: usize,
+    pub oldest_snapshot_age_seconds: u64,
+    pub health: cntryl_midge::EngineHealth,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -92,6 +96,10 @@ impl Midge {
                 write_stalled: runtime.write_stalled,
                 active_snapshots: runtime.active_snapshots,
                 current_sequence: runtime.current_sequence,
+                effective_memtable_limit: runtime.memtable_size_limit,
+                effective_flush_threshold: runtime.memtable_flush_threshold,
+                oldest_snapshot_age_seconds: runtime.oldest_snapshot_age_seconds,
+                health: runtime.health,
             },
         })
     }

@@ -63,11 +63,33 @@ fn open_config_from(
     data_dir: &Path,
     read_env: &impl Fn(&str) -> Option<String>,
 ) -> Result<StorageConfig, CassieError> {
+    open_config_from_with_memory_limits(data_dir, read_env, None, None)
+}
+
+pub(super) fn open_config_with_memory_limits(
+    data_dir: &Path,
+    budget: Option<usize>,
+    memtable: Option<usize>,
+) -> Result<StorageConfig, CassieError> {
+    open_config_from_with_memory_limits(data_dir, &|key| env::var(key).ok(), budget, memtable)
+}
+
+fn open_config_from_with_memory_limits(
+    data_dir: &Path,
+    read_env: &impl Fn(&str) -> Option<String>,
+    budget: Option<usize>,
+    memtable: Option<usize>,
+) -> Result<StorageConfig, CassieError> {
     let mode = env_non_empty(read_env, "CASSIE_STORAGE_MODE")
         .unwrap_or_else(|| "local".to_string())
         .to_ascii_lowercase();
     let (builder, write_policy) = match mode.as_str() {
-        "memory" => (OpenOptions::in_memory(), WritePolicy::Local),
+        "memory" => {
+            return Ok(StorageConfig {
+                open_options: super::native_memory::in_memory_options(budget, memtable)?,
+                write_policy: WritePolicy::Local,
+            });
+        }
         "local" => (OpenOptions::local(data_dir), WritePolicy::Local),
         "cloud" => {
             let provider_name = required_env(read_env, "CASSIE_STORAGE_PROVIDER")?;
@@ -384,6 +406,72 @@ mod tests {
 
     fn reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).map(ToString::to_string)
+    }
+
+    #[test]
+    fn should_apply_supplied_limits_to_environment_selected_memory() {
+        // Arrange
+        let read = reader(HashMap::from([
+            ("CASSIE_STORAGE_MODE", "memory"),
+            ("CASSIE_STORAGE_MEMORY_BUDGET_BYTES", "1"),
+        ]));
+
+        // Act
+        let config = super::open_config_from_with_memory_limits(
+            Path::new("./unused"),
+            &read,
+            Some(64 * 1024 * 1024),
+            Some(16 * 1024 * 1024),
+        )
+        .expect("supplied runtime settings override ambient native settings");
+
+        // Assert
+        assert!(matches!(config.open_options.storage(), Storage::InMemory));
+        assert_eq!(config.open_options.memory_budget_bytes(), 64 * 1024 * 1024);
+        assert_eq!(config.open_options.memtable_size_limit(), 16 * 1024 * 1024);
+    }
+
+    #[test]
+    fn should_preserve_nonmemory_options_despite_incompatible_memory_limits() {
+        // Arrange
+        let modes = [
+            HashMap::from([("CASSIE_STORAGE_MODE", "local")]),
+            HashMap::from([
+                ("CASSIE_STORAGE_MODE", "cloud"),
+                ("CASSIE_STORAGE_PROVIDER", "aws-s3"),
+                ("CASSIE_STORAGE_BUCKET", "bucket"),
+                ("CASSIE_STORAGE_REGION", "us-east-1"),
+            ]),
+        ];
+
+        // Act
+        let pairs = modes
+            .into_iter()
+            .map(|values| {
+                let read = reader(values);
+                let original = open_config_from(Path::new("./unused"), &read).expect("original");
+                let supplied = super::open_config_from_with_memory_limits(
+                    Path::new("./unused"),
+                    &read,
+                    Some(1024 * 1024 * 1024),
+                    Some(512 * 1024 * 1024),
+                )
+                .expect("memory-only settings ignored");
+                (original.open_options, supplied.open_options)
+            })
+            .collect::<Vec<_>>();
+
+        // Assert
+        for (original, supplied) in pairs {
+            assert_eq!(
+                original.memory_budget_bytes(),
+                supplied.memory_budget_bytes()
+            );
+            assert_eq!(
+                original.memtable_size_limit(),
+                supplied.memtable_size_limit()
+            );
+        }
     }
 
     #[test]

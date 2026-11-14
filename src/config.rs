@@ -78,9 +78,9 @@ pub struct CassieRuntimeConfig {
     pub auth_ip_attempts_per_minute: usize,
     pub auth_rate_limit_max_entries: usize,
     pub embeddings_max_response_bytes: usize,
-    /// Optional native budget for explicit in-memory construction only.
+    /// Optional native budget for memory-mode construction only.
     pub storage_memory_budget_bytes: Option<usize>,
-    /// Optional native memtable limit for explicit in-memory construction only.
+    /// Optional native memtable limit for memory-mode construction only.
     pub storage_memtable_size_bytes: Option<usize>,
     pub limits: CassieRuntimeLimits,
     pub embeddings: EmbeddingsRuntimeConfig,

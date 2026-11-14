@@ -55,6 +55,24 @@ pub(super) fn native_state(db: &Db) -> Value {
     }
 }
 
+fn cassie_state(db: &Db, table: &str) -> Value {
+    let metrics = db.cassie.metrics();
+    let epoch = match db.cassie.midge.data_epoch() {
+        Ok(value) => json!(value),
+        Err(error) => json!({"error": error.to_string()}),
+    };
+    json!({
+        "health": db.cassie.health(),
+        "native_data_epoch": epoch,
+        "runtime_data_epoch": metrics["data_epoch"],
+        "plan_cache": metrics["plan_cache"],
+        "query_cache": metrics["query_cache"],
+        "execution_result_cache": metrics["execution_result_cache"],
+        "cardinality_metrics": metrics["cardinality"],
+        "catalog_cardinality": db.cassie.catalog.get_cardinality_stats(table),
+    })
+}
+
 impl Db {
     fn copy_fixture_batch(
         &self,
@@ -63,7 +81,7 @@ impl Db {
     ) -> Result<usize, CassieError> {
         println!(
             "storage_fixture={}",
-            json!({"phase": "before_copy", "table": batch.table, "kind": format!("{:?}", batch.kind), "start": batch.start, "end": batch.end, "acknowledged_before": batch.acknowledged, "native": native_state(self)})
+            json!({"phase": "before_copy", "table": batch.table, "kind": format!("{:?}", batch.kind), "start": batch.start, "end": batch.end, "acknowledged_before": batch.acknowledged, "native": native_state(self), "cassie": cassie_state(self, batch.table)})
         );
         let statement = CopyStatement {
             table: batch.table.to_owned(),
@@ -79,7 +97,7 @@ impl Db {
             Ok(actual) => {
                 println!(
                     "storage_fixture={}",
-                    json!({"phase": "after_copy", "table": batch.table, "start": batch.start, "end": batch.end, "acknowledged_before": batch.acknowledged, "returned_rows": actual, "native": native})
+                    json!({"phase": "after_copy", "table": batch.table, "start": batch.start, "end": batch.end, "acknowledged_before": batch.acknowledged, "returned_rows": actual, "native": native, "cassie": cassie_state(self, batch.table)})
                 );
                 assert_eq!(actual, batch.end - batch.start, "fixture COPY row count");
                 Ok(actual)
@@ -97,7 +115,7 @@ impl Db {
                 };
                 println!(
                     "storage_fixture={}",
-                    json!({"phase": "copy_error", "table": batch.table, "start": batch.start, "end": batch.end, "acknowledged_before": batch.acknowledged, "error": error.to_string(), "sql_state": error.sql_state(), "error_debug": format!("{error:?}"), "native": native, "authoritative_readback": readback, "native_after_readback": native_state(self), "automatic_retry": false})
+                    json!({"phase": "copy_error", "table": batch.table, "start": batch.start, "end": batch.end, "acknowledged_before": batch.acknowledged, "error": error.to_string(), "sql_state": error.sql_state(), "error_debug": format!("{error:?}"), "native": native, "cassie": cassie_state(self, batch.table), "authoritative_readback": readback, "native_after_readback": native_state(self), "automatic_retry": false})
                 );
                 Err(error)
             }

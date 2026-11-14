@@ -10,7 +10,7 @@ impl Cassie {
     ///
     /// Storage environment variables do not override this explicit mode. Use a
     /// data-directory constructor when persistence or restart is required.
-    /// Optional native-memory settings apply here; absent settings retain Midge defaults.
+    /// Optional native-memory settings apply to memory construction; absent settings retain Midge defaults.
     ///
     /// # Errors
     ///
@@ -67,9 +67,11 @@ impl Cassie {
         data_dir: impl AsRef<Path>,
         runtime_config: CassieRuntimeConfig,
     ) -> Result<Self, CassieError> {
-        let midge = Arc::new(Midge::new_with_data_dir_and_default_database(
+        let midge = Arc::new(Midge::new_with_data_dir_database_and_memory_limits(
             data_dir.as_ref(),
             &runtime_config.database,
+            runtime_config.storage_memory_budget_bytes,
+            runtime_config.storage_memtable_size_bytes,
         )?);
         Self::new_with_midge_and_config(midge, runtime_config)
     }

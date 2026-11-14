@@ -72,6 +72,17 @@ impl Midge {
         Self::open_with_write_policy(config.open_options, default_database, config.write_policy)
     }
 
+    pub(crate) fn new_with_data_dir_database_and_memory_limits(
+        data_dir: &Path,
+        database: &str,
+        budget: Option<usize>,
+        memtable: Option<usize>,
+    ) -> Result<Self, CassieError> {
+        let config =
+            super::storage_config::open_config_with_memory_limits(data_dir, budget, memtable)?;
+        Self::open_with_write_policy(config.open_options, database, config.write_policy)
+    }
+
     pub(crate) fn new_in_memory(default_database: impl Into<String>) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::in_memory()
             .build()

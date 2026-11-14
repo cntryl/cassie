@@ -554,6 +554,15 @@ nullable/duplicate identifiers, concurrent writes, cancellation, interruption
 and restart, plus oracle comparisons of successful legacy and mapped queries.
 Graph writes remain ordinary SQL table writes.
 
+Untouched default legacy `CREATE GRAPH` tables have nullable, non-unique
+built-in fields and a FLOAT weight; they do not meet the selected target key and
+weight contracts merely by being mapped. A successful conversion therefore
+requires operator-authorized schema or projection remediation, or an actually
+implemented compatibility capability whose equivalence is separately proved.
+Do not promise conversion without one of those prerequisites. Demonstrate at
+least one successful preflight and conversion with query-equivalence fixtures,
+as well as safe refusal when the prerequisite is absent.
+
 Implement in dependency order: contract and roadmap; completeness proof and
 format, including an explicit blocker if the API cannot supply the required
 proof; mapping and transaction visibility; native path/type building blocks;

@@ -103,8 +103,10 @@ row- or column-authoritative tables in the same database; views and
 cross-database references are unsupported in v0.6.
 
 Create rejects an existing graph (`42710`), missing schema (`3F000`), source
-table (`42P01`) or column (`42703`), duplicate mapping alias, label or exposed
-property name (`42710`), and incompatible endpoint types (`42804`). Reject a
+table (`42P01`) or column (`42703`), duplicate mapping alias within its element
+kind, duplicate label within one mapping, or duplicate exposed property name
+within one label definition (`42710`), and incompatible endpoint types
+(`42804`). The same label may occur in distinct mappings. Reject a
 missing globally enforced unique key, nullable key or wrong endpoint key tuple
 with `42830`; unsupported key type, collation, source kind or syntax feature
 returns `0A000`. Malformed syntax returns `42601`. Drop or rename of a missing
@@ -351,7 +353,14 @@ ordered typed key parts and direction; encode integer values as decimal strings
 so JSON consumers cannot round BIGINT values. JSON is an export, not the native
 identity or equality mechanism.
 
-The system owns the reserved schema and its types. User DDL must not alter,
+The system owns the reserved schema and its types. Bootstrap must inspect the
+existing catalog first: if `cassie_graph` already exists without the recognized
+system ownership marker, fail with `42710` and an actionable diagnostic,
+preserving all existing objects, ownership and permissions. Never take over or
+overwrite user objects. Operators resolve the name conflict through their
+supported schema migration workflow before enabling the feature. Qualification
+must exercise an existing user-owned schema, failed bootstrap, restart and a
+successful retry after resolution. User DDL must not alter,
 rename, replace or drop them, including by cascade. Bootstrap the schema,
 composite descriptors, type and array OIDs and backing composite relation OIDs
 atomically before publishing the graph feature; failed bootstrap leaves none
@@ -374,6 +383,50 @@ validate shape, kind and reference freshness regardless of construction path.
 Malformed or stale values reject deterministically, including values produced
 by SQL `ROW` casts or subsequent array/field mutation. Tests cover those
 construction paths as well as direct parameters.
+
+The selected SQL APIs are schema-qualified and return the named types above:
+
+```text
+cassie_graph.key_part(value smallint|integer|bigint|text|uuid)
+    -> cassie_graph.graph_key_part
+cassie_graph.vertex_ref(graph text, mapping text, key_parts cassie_graph.graph_key_part[])
+    -> cassie_graph.graph_element_ref
+cassie_graph.edge_ref(graph text, mapping text, key_parts cassie_graph.graph_key_part[])
+    -> cassie_graph.graph_element_ref
+cassie_graph.key_parts(ref cassie_graph.graph_element_ref)
+    -> TABLE (ordinal bigint, type_tag smallint, integer_value bigint,
+              text_value text, uuid_value uuid)
+cassie_graph.path_steps(path cassie_graph.graph_path)
+    -> TABLE (position bigint, direction smallint,
+              vertex cassie_graph.graph_element_ref, edge cassie_graph.graph_element_ref)
+cassie_graph.weighted_path_steps(path cassie_graph.graph_path, edge_costs numeric[])
+    -> TABLE (position bigint, direction smallint,
+              vertex cassie_graph.graph_element_ref, edge cassie_graph.graph_element_ref,
+              cumulative_cost numeric)
+cassie_graph.path_to_jsonb(path cassie_graph.graph_path) -> jsonb
+```
+
+`key_part` is overloaded on the five listed exact input types and rejects NULL;
+no implicit conversion changes the type tag. `graph` is an optionally
+schema-qualified graph name resolved in the current database; `mapping` is its
+mapping alias in the requested element kind. Constructors resolve the typed
+tuple in that mapping's current transaction view, check key arity and exact
+SQL types and require the element to exist and be readable. NULL required
+arguments return `22004`; wrong type or arity returns `42804`; unknown graph,
+mapping or element returns a documented deterministic missing-object error.
+`key_parts` ordinal starts at one; `path_steps` position starts at zero. A
+weighted step result is computed from its supplied path and costs, checks
+length, finite non-negative values and NUMERIC overflow before emitting rows,
+and never consults later source data. For a vertex mapping keyed by
+`(tenant_id bigint, member_id uuid)`, a caller may use:
+
+```sql
+SELECT cassie_graph.vertex_ref(
+  'public.social', 'person',
+  ARRAY[cassie_graph.key_part(7::bigint),
+        cassie_graph.key_part('00000000-0000-0000-0000-000000000001'::uuid)]
+);
+```
 
 This is a **required building block**, not current functionality. `SqlArray`
 can hold `Value` elements and record framing exists, but

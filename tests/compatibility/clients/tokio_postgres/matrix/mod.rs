@@ -27,7 +27,17 @@ pub(super) struct CompatibilityServer {
 
 impl CompatibilityServer {
     pub(super) async fn start(_label: &str) -> Self {
+        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        Self::start_with_config(config).await
+    }
+
+    pub(super) async fn start_with_query_budget(_label: &str, budget: usize) -> Self {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.query_memory_budget_bytes = budget;
+        Self::start_with_config(config).await
+    }
+
+    async fn start_with_config(mut config: CassieRuntimeConfig) -> Self {
         crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();

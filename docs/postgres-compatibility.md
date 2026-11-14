@@ -317,6 +317,7 @@ with the archived dispatch interface in the [Compatibility Probes workflow at th
 - No trigger or stored-procedure business-logic platform.
 - No cross-database queries.
 - Cassie-specific search, vector, graph, time-series, projection, and administrative features may use PostgreSQL-compatible syntax without promising PostgreSQL semantics beyond their documented behavior.
+- The planned [v0.6 graph surface](graph-v060-contract.md) is not current functionality or a claim of SQL/PGQ or PostgreSQL graph compatibility.
 
 ## Finite Query Engine Target
 

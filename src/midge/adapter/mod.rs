@@ -347,6 +347,8 @@ mod column_store;
 mod column_store_tests;
 mod database_catalog_rewrite;
 mod databases;
+mod native_memory;
+pub use native_memory::{NativeMemoryConfiguration, NativeMemoryDiagnostics, NativeMemoryRuntime};
 mod storage_conversion;
 pub(crate) use column_store::ColumnStoreScanRequest;
 pub(crate) use database_catalog_rewrite::{

@@ -39,26 +39,30 @@ pub fn rows(workload: &str, scale: usize) -> Vec<Vec<Value>> {
             if workload.contains("narrow") {
                 return vec![Value::Int64(group), Value::Int64(qty)];
             }
-            vec![
-                Value::Int64(i64::try_from(id).expect("id")),
-                Value::Int64(group),
-                Value::String(format!("cat{}", id % 8)),
-                if id.is_multiple_of(7) {
-                    Value::Null
-                } else {
-                    Value::Float64(f64::from(u32::try_from(id % 1000).expect("amount")) / 4.0)
-                },
-                Value::Int64(qty),
-                Value::Bool(id.is_multiple_of(3)),
-                if id.is_multiple_of(5) {
-                    Value::Null
-                } else {
-                    Value::String(format!("note-{id}"))
-                },
-                Value::Int64(i64::try_from(id % 1000).expect("dimension id")),
-            ]
+            fact_row(id)
         })
         .collect()
+}
+
+pub fn fact_row(id: usize) -> Vec<Value> {
+    vec![
+        Value::Int64(i64::try_from(id).expect("id")),
+        Value::Int64(i64::try_from(id % 100).expect("group")),
+        Value::String(format!("cat{}", id % 8)),
+        if id.is_multiple_of(7) {
+            Value::Null
+        } else {
+            Value::Float64(f64::from(u32::try_from(id % 1000).expect("amount")) / 4.0)
+        },
+        Value::Int64(i64::try_from((id * 7) % 1000).expect("qty")),
+        Value::Bool(id.is_multiple_of(3)),
+        if id.is_multiple_of(5) {
+            Value::Null
+        } else {
+            Value::String(format!("note-{id}"))
+        },
+        Value::Int64(i64::try_from(id % 1000).expect("dimension id")),
+    ]
 }
 
 fn aggregate(scale: usize) -> Vec<Vec<Value>> {

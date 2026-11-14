@@ -5,6 +5,8 @@ use crate::embeddings::openai::OpenAiConfig;
 #[path = "config/limits.rs"]
 mod limits;
 use limits::limits_from_env;
+#[path = "config/native_memory.rs"]
+mod native_memory;
 #[path = "config/password.rs"]
 mod password;
 pub(crate) use password::validate_listener_password;
@@ -19,6 +21,9 @@ pub use switches::{ExecutionResultCacheEnabled, OperatorSwitchingEnabled};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieRuntimeConfigError {
+    #[error("{key} must be a positive integer byte count")]
+    InvalidNativeMemoryBytes { key: &'static str },
+
     #[error("{key} must be set before starting Cassie servers")]
     PasswordEnvironmentMissing { key: &'static str },
 
@@ -73,6 +78,10 @@ pub struct CassieRuntimeConfig {
     pub auth_ip_attempts_per_minute: usize,
     pub auth_rate_limit_max_entries: usize,
     pub embeddings_max_response_bytes: usize,
+    /// Optional native budget for explicit in-memory construction only.
+    pub storage_memory_budget_bytes: Option<usize>,
+    /// Optional native memtable limit for explicit in-memory construction only.
+    pub storage_memtable_size_bytes: Option<usize>,
     pub limits: CassieRuntimeLimits,
     pub embeddings: EmbeddingsRuntimeConfig,
 }
@@ -202,6 +211,8 @@ impl Default for CassieRuntimeConfig {
             auth_ip_attempts_per_minute: 60,
             auth_rate_limit_max_entries: 4_096,
             embeddings_max_response_bytes: 8 * 1024 * 1024,
+            storage_memory_budget_bytes: None,
+            storage_memtable_size_bytes: None,
             limits: CassieRuntimeLimits::default(),
             embeddings: EmbeddingsRuntimeConfig::Disabled,
         }
@@ -362,6 +373,14 @@ impl CassieRuntimeConfig {
             }
         };
         config.limits = limits_from_env(&env_reader, &config.limits);
+        config.storage_memory_budget_bytes = native_memory::optional_positive_bytes(
+            &env_reader,
+            "CASSIE_STORAGE_MEMORY_BUDGET_BYTES",
+        )?;
+        config.storage_memtable_size_bytes = native_memory::optional_positive_bytes(
+            &env_reader,
+            "CASSIE_STORAGE_MEMTABLE_SIZE_BYTES",
+        )?;
 
         validate_transport_tls_policy(&config)?;
 

@@ -1,3 +1,4 @@
+use super::native_memory::NativeMemoryConfiguration;
 use super::{
     env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, PublicationControlScope,
     Query, StorageFamily, StorageLayout, TransactionMode, WriteOptions,
@@ -15,6 +16,7 @@ mod storage_compatibility;
 pub struct Midge {
     pub(super) engine: Engine,
     write_policy: super::storage_config::WritePolicy,
+    pub(super) native_memory_configuration: NativeMemoryConfiguration,
     compatibility_gate: Mutex<()>,
     bootstrap_gate: Mutex<()>,
     pub(super) storage_layout: OnceLock<StorageLayout>,
@@ -81,13 +83,31 @@ impl Midge {
         )
     }
 
+    pub(crate) fn new_in_memory_with_limits(
+        default_database: impl Into<String>,
+        budget: Option<usize>,
+        memtable: Option<usize>,
+    ) -> Result<Self, CassieError> {
+        if budget.is_none() && memtable.is_none() {
+            return Self::new_in_memory(default_database);
+        }
+        let options = super::native_memory::in_memory_options(budget, memtable)?;
+        Self::open_with_write_policy(
+            options,
+            default_database,
+            super::storage_config::WritePolicy::Local,
+        )
+    }
+
     fn open_with_write_policy(
         options: cntryl_midge::OpenOptions,
         default_database: impl Into<String>,
         write_policy: super::storage_config::WritePolicy,
     ) -> Result<Self, CassieError> {
+        let native_memory_configuration = NativeMemoryConfiguration::from_options(&options);
         Ok(Self {
             engine: Engine::open(options).map_err(CassieError::from)?,
+            native_memory_configuration,
             write_policy,
             compatibility_gate: Mutex::new(()),
             bootstrap_gate: Mutex::new(()),

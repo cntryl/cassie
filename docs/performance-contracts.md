@@ -312,7 +312,7 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 
 Tier 2 projection-replay samples use one shared Cassie runtime but consume separate, prebuilt empty projection lanes. Each timed batch therefore exercises the same 2,048-event production replay path from an equivalent source position without including fixture setup or accumulating prior samples' event history. Runtime evidence remains scoped to the shared runtime, and the gate continues to report one logical event per applied event.
 
-The selected [CBC1 Plain Boolean handoff](boolean-handoff-qualification.md)
+The qualified [CBC1 Plain Boolean handoff](boolean-handoff-qualification.md)
 removes the Boolean JSON/Value transport boundary only for the existing Plain
 codec, retaining validated non-Plain fallback and the conservative admission
 envelope. It uses the same six primitive workloads and profiles for actual

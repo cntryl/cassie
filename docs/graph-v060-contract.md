@@ -159,9 +159,9 @@ graph_table = GRAPH_TABLE ( graph_name MATCH [path_variable =] path
                            COLUMNS (projection {, projection}) ) [AS alias]
 path        = vertex {edge [quantifier] vertex}
 vertex      = ( [variable] [IS label {| label}] [WHERE sql_predicate] )
-edge        = - [ [variable] [IS label {| label}] [WHERE sql_predicate] ] ->
-            | <- [ [variable] [IS label {| label}] [WHERE sql_predicate] ] -
-            | - [ [variable] [IS label {| label}] [WHERE sql_predicate] ] -
+edge        = - '[' [variable] [IS label {| label}] [WHERE sql_predicate] ']' ->
+            | <- '[' [variable] [IS label {| label}] [WHERE sql_predicate] ']' -
+            | - '[' [variable] [IS label {| label}] [WHERE sql_predicate] ']' -
 quantifier  = '{' n '}' | '{' m ',' n '}' | '*' | '+'
 selector    = ALL [mode] PATHS | ANY SHORTEST [mode] PATH
             | SHORTEST k [mode] PATHS
@@ -190,7 +190,21 @@ One path pattern may be a vertex alone or a chain of fixed and quantified edges,
 including different labels and directions. A repeated singleton variable means
 the same graph element at each occurrence; its labels and inline predicates all
 apply. A variable cannot name both a vertex and an edge. A path variable is
-distinct from element variables. Labels select mappings; properties exposed by
+distinct from element variables and binds a `cassie_graph.graph_path` value;
+projecting it reports that named type in PostgreSQL Describe and result metadata.
+For example:
+
+```sql
+SELECT g.path
+FROM GRAPH_TABLE (
+  social MATCH p = (a IS person WHERE a.id = $1) -[e IS knows]->{0,2} (b IS person)
+  COLUMNS (p AS path)
+) AS g;
+```
+
+The projected zero-hop value contains its one vertex and empty edge and
+direction arrays. Qualify nonempty and zero-hop paths through prepared
+statements, Describe, and real driver text and binary results. Labels select mappings; properties exposed by
 the selected mappings must bind to one compatible SQL type or binding fails.
 Bound values are parameters, not SQL text interpolation. One matching path
 yields one row; parallel edges and distinct matching paths retain multiplicity.
@@ -380,9 +394,12 @@ must work without it. PostgreSQL composite types cannot themselves enforce the
 tagged-part invariant: constructors and text/binary input paths must validate
 it, and every graph-consuming API, equality operation, and step expansion must
 validate shape, kind and reference freshness regardless of construction path.
-Malformed or stale values reject deterministically, including values produced
-by SQL `ROW` casts or subsequent array/field mutation. Tests cover those
-construction paths as well as direct parameters.
+Malformed text or binary input returns `22P02` or `22P03`, respectively;
+well-formed composites with invalid tags, slots, array shapes or inconsistent
+path lengths return `22023`. A stale or cross-database reference returns
+`42704`, and insufficient authority returns `42501`. These checks apply to
+values produced by SQL `ROW` casts or subsequent array/field mutation as well
+as direct parameters. Tests cover all construction paths and errors.
 
 The selected SQL APIs are schema-qualified and return the named types above:
 
@@ -478,7 +495,7 @@ Before returning any result, validate all graph-visible edges
 in the selected edge mappings in the query snapshot for NULL, negative,
 non-numeric and non-finite weights, unless an independently proven,
 transactionally maintained invariant provides equivalent assurance. Invalid
-weights fail deterministically; traversal order, predicate pushdown, `LIMIT`,
+weights fail with `22023`; traversal order, predicate pushdown, `LIMIT`,
 and cost bounds must not conceal them. A full controlled scan is the correct
 fallback and its cost must be measured; O(degree) is not claimed for that path.
 For example, `A -> T = 5`, `A -> B = 10`, `B -> T = -100` must error,
@@ -518,8 +535,18 @@ own transactions. Missing proof leaves the existing exact verifier in place.
 
 Resource accounting covers frontier, visited and retained path state, edge
 decoding and output. Exhausting the query budget fails with `54000`; cancellation
-and deadline handling must stop work and release reservations. A failed query
-does not return a successful partial graph result. Read-count tests vary total
+and deadline handling must stop work and release reservations. To guarantee no
+successful partial graph result across suspended pgwire portals, finish and
+materialize the complete graph-bearing statement result and its controlled
+output encoding before emitting the first successful page; an evaluation or
+encoding error emits no page, and retention is accounted against the query
+budget. Later Execute calls page the already completed result, respecting
+cumulative portal limits. Cancellation or transport failure during later
+delivery can leave previously delivered pages visible; Cassie cannot retract
+bytes already sent, and the failed Execute emits no successful page. Prove
+that this is feasible with existing portal lifecycle, cancellation and memory
+controls; until then this is a prerequisite, not a claim of current behavior.
+Read-count tests vary total
 graph size independently of selected degree, and characterize high fan-out and
 multi-hop work. The fast-path guarantee is conditional on an actually verified
 complete sidecar, not a claim that damaged-state fallback is also O(degree).

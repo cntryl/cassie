@@ -271,13 +271,17 @@ The selected semantics are:
   them. `ORDER BY` is still needed to order result rows.
 * Ties must use a documented total order on stable typed vertex and edge
   identities, not storage iteration order. Compare paths lexicographically by
-  their ordered sequences of vertices and edges: element references order by
+  the interleaved sequence `V0, E0, direction0, V1, E1, direction1, V2, ...`:
+  element references order by
   durable database ID, graph ID, kind, mapping ID and key tuple; key components
   order first by declared type (smallint, integer, bigint, text, uuid), then by
   that type's value (C byte order for text and unsigned 16-byte order for UUID).
   Compare direction after each edge identity, forward before reverse, and the
   shorter sequence first when one is a prefix. These identity IDs and ordering
-  must survive restart. Do not prune solely by visited node
+  must survive restart. For equal-cost A→B→D with edges z1,z2 and A→C→D
+  with edges a1,a2, if a1 precedes z1 the path through C sorts first even if B
+  precedes C; an empty zero-hop path sorts before its closing-cycle extension.
+  Do not prune solely by visited node
   when path mode, a hop bound, filters or requested multiplicity requires
   retaining alternative histories. Compare results with independent exhaustive
   small-graph oracles.
@@ -373,11 +377,30 @@ vertex. Account for the
 sequence before retaining it and release the reservation with the result. Provide typed
 key-part expansion with ordinal, type discriminator and typed value columns so
 ordinary PostgreSQL drivers can join projected key values without registering a
-custom decoder. Also provide a versioned, lossless JSONB export for clients that
-want an interchange representation: include graph/mapping identity, kind,
-ordered typed key parts and direction; encode integer values as decimal strings
-so JSON consumers cannot round BIGINT values. JSON is an export, not the native
-identity or equality mechanism.
+custom decoder. `path_to_jsonb` returns version 1 as a JSONB object with exactly
+`version` (JSON integer 1), `vertices`, `edges`, and `directions` fields. Vertex
+and edge arrays preserve path order; directions contains the numeric values 1 or
+2. Every element object has `database_id`, `graph_id`, `mapping_id` (lowercase
+canonical UUID strings), `kind` (`vertex` or `edge`), and `key_parts`. Each
+ordered key part has exactly `type` (`smallint`, `integer`, `bigint`, `text`,
+or `uuid`) and `value` (a JSON string). Integer strings use canonical base-10
+without leading zeros except `0`; UUID strings are lowercase canonical form;
+text is the exact SQL text value represented as a JSON string. JSON escaping
+and JSONB object field order are not identity. No numeric key is a JSON number,
+so consumers cannot round BIGINT values. No field is omitted or JSON null.
+For example, a zero-hop path may export:
+
+```json
+{"version":1,"vertices":[{"database_id":"00000000-0000-0000-0000-000000000001","graph_id":"00000000-0000-0000-0000-000000000002","mapping_id":"00000000-0000-0000-0000-000000000003","kind":"vertex","key_parts":[{"type":"bigint","value":"9007199254740993"}]}],"edges":[],"directions":[]}
+```
+
+A one-edge heterogeneous path can export:
+
+```json
+{"version":1,"vertices":[{"database_id":"00000000-0000-0000-0000-000000000001","graph_id":"00000000-0000-0000-0000-000000000002","mapping_id":"00000000-0000-0000-0000-000000000003","kind":"vertex","key_parts":[{"type":"bigint","value":"7"}]},{"database_id":"00000000-0000-0000-0000-000000000001","graph_id":"00000000-0000-0000-0000-000000000002","mapping_id":"00000000-0000-0000-0000-000000000004","kind":"vertex","key_parts":[{"type":"uuid","value":"00000000-0000-0000-0000-000000000005"}]}],"edges":[{"database_id":"00000000-0000-0000-0000-000000000001","graph_id":"00000000-0000-0000-0000-000000000002","mapping_id":"00000000-0000-0000-0000-000000000006","kind":"edge","key_parts":[{"type":"text","value":"a\"b"}]}],"directions":[1]}
+```
+
+JSON is an export, not the native identity or equality mechanism.
 
 The system owns the reserved schema and its types. Bootstrap must inspect the
 existing catalog first: if `cassie_graph` already exists without the recognized
@@ -495,7 +518,9 @@ graph_weighted_paths(
 `graph` resolves a schema-qualified graph name. References must be vertices in
 that graph; #1268 supplies a typed constructor and path projections. `max_hops`
 is required and non-negative; `k` is positive; direction is `out`, `in`, or
-`both`. NULL labels mean all edge labels and an empty array selects none.
+`both`. NULL labels mean all edge labels and an empty array selects none;
+NULL elements inside a non-NULL labels array return `22004`. Explicit NULL
+`direction` or `k` returns `22004`; omitting them uses their defaults.
 NULL `max_cost` means no limit; otherwise it is finite, non-negative and
 inclusive. Required NULL arguments return `22004`; invalid bounds or direction
 return `22023`. Unknown properties return `42703` and incompatible declared
@@ -662,9 +687,11 @@ strings for integer values. Requests and responses are
 retained under ignored `target/graph-v060-review/`. These judgments are leads,
 not evidence of correctness or standard conformance.
 
-Before dependent implementation, finish the normative grammar comparison,
-validate the selected total order, freeze path type OIDs and wire encoding,
-complete weighted-function diagnostic details, and establish the storage integrity proof. The proof
+Before dependent implementation, validate the selected total order, freeze path
+type OIDs and wire encoding, complete weighted-function diagnostic details, and
+establish the storage integrity proof. Compare the normative grammar before any
+future standard-conformance claim, not as a prerequisite to implementing the
+selected Cassie dialect. The proof
 must explicitly address correlated sidecar/certificate damage: if the published
 Midge API cannot establish the existing correctness contract and the desired
 read bound together, record the API blocker and retain exact verification;

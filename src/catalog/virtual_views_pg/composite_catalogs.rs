@@ -3,7 +3,8 @@ use crate::catalog::{canonical_schema_name, Catalog, CompositeTypeMeta};
 use crate::types::DataType;
 
 use super::{
-    attribute_row, class_row, int_value, string, type_row_with_oid, AttributeSpec, VirtualRow,
+    attributes::{attribute_row, AttributeSpec},
+    class_row, int_value, string, type_row_with_oid, VirtualRow,
 };
 
 fn visible(catalog: &Catalog, current_database: Option<&str>) -> Vec<CompositeTypeMeta> {

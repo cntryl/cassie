@@ -18,11 +18,11 @@ pub(super) fn parse_create_materialized_view_statement(
 
     let as_position = find_top_level_keyword(rest, 0, "as")
         .ok_or_else(|| SqlError::syntax("CREATE MATERIALIZED VIEW requires AS".into()))?;
-    let relation_definition = rest[..as_position].trim();
-    if find_top_level_keyword(relation_definition, 0, "using").is_some() {
-        return Err(SqlError::unsupported(
-            "CREATE MATERIALIZED VIEW access methods are not supported".into(),
-        ));
+    let mut relation_definition = rest[..as_position].trim();
+    if let Some(using) = find_top_level_keyword(relation_definition, 0, "using") {
+        let method = relation_definition[using + "using".len()..].trim();
+        require_heap_access_method(method, "CREATE MATERIALIZED VIEW")?;
+        relation_definition = relation_definition[..using].trim();
     }
     let (name, columns) = parse_materialized_view_name(relation_definition)?;
     let (query, with_data) = parse_population_suffix(rest[as_position + 2..].trim());
@@ -173,6 +173,19 @@ pub(super) fn parse_rename_materialized_view_statement(
     let prefix_end = super::lexical::pattern_end(trimmed, 0, "alter materialized view")
         .ok_or_else(|| SqlError::syntax("expected ALTER MATERIALIZED VIEW".into()))?;
     let rest = trimmed[prefix_end..].trim();
+    if let Some((position, end)) = super::lexical::find_top_level_span(rest, 0, "set access method")
+    {
+        require_heap_access_method(rest[end..].trim(), "ALTER MATERIALIZED VIEW")?;
+        return Ok(ParsedStatement {
+            raw_sql: trimmed.to_string(),
+            statement: QueryStatement::RenameMaterializedView(
+                crate::sql::ast::RenameMaterializedViewStatement {
+                    name: parse_relation_identifier(rest[..position].trim())?.into_string(),
+                    new_name: None,
+                },
+            ),
+        });
+    }
     let (rename, rename_end) = super::lexical::find_top_level_span(rest, 0, "rename to")
         .ok_or_else(|| {
             SqlError::unsupported("unsupported ALTER MATERIALIZED VIEW operation".into())
@@ -192,10 +205,27 @@ pub(super) fn parse_rename_materialized_view_statement(
         statement: QueryStatement::RenameMaterializedView(
             crate::sql::ast::RenameMaterializedViewStatement {
                 name: name.into_string(),
-                new_name: new_name.into_string(),
+                new_name: Some(new_name.into_string()),
             },
         ),
     })
+}
+
+/// Materialized views are heap-only: `heap` is accepted as a no-op and every
+/// other access method (including `columnar`) is rejected with `0A000`.
+fn require_heap_access_method(method: &str, command: &str) -> Result<(), SqlError> {
+    let method = method.trim().trim_matches('"').to_ascii_lowercase();
+    if method.is_empty() || method.contains(char::is_whitespace) {
+        return Err(SqlError::syntax(format!(
+            "{command} requires one access method name"
+        )));
+    }
+    if method == "heap" {
+        return Ok(());
+    }
+    Err(SqlError::unsupported(format!(
+        "{command} access method '{method}' is not supported: materialized views are heap-only"
+    )))
 }
 
 pub(super) fn parse_relation_identifier(
@@ -359,7 +389,7 @@ mod tests {
         // Assert
         assert!(
             matches!(parsed.statement, QueryStatement::RenameMaterializedView(statement)
-            if statement.name == "public.\"Before Name\"" && statement.new_name == "\"After Name\"")
+            if statement.name == "public.\"Before Name\"" && statement.new_name.as_deref() == Some("\"After Name\""))
         );
     }
 
@@ -385,7 +415,7 @@ mod tests {
         let parsed = parse_statement(sql).unwrap();
         // Assert
         assert!(
-            matches!(parsed.statement, QueryStatement::RenameMaterializedView(statement) if statement.new_name == "target")
+            matches!(parsed.statement, QueryStatement::RenameMaterializedView(statement) if statement.new_name.as_deref() == Some("target"))
         );
     }
 
@@ -400,5 +430,35 @@ mod tests {
         let parsed = parse_statement(&sql);
         // Assert
         assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn should_accept_heap_materialized_view_access_methods_only() {
+        // Arrange
+        let heap = "CREATE MATERIALIZED VIEW mv USING heap AS SELECT 1";
+        let columnar = "CREATE MATERIALIZED VIEW mv USING columnar AS SELECT 1";
+        let alter_heap = "ALTER MATERIALIZED VIEW mv SET ACCESS METHOD heap";
+        let alter_columnar = "ALTER MATERIALIZED VIEW mv SET ACCESS METHOD columnar";
+
+        // Act
+        let created = parse_statement(heap).expect("USING heap is accepted");
+        let rejected_create = parse_statement(columnar).expect_err("columnar is rejected");
+        let altered = parse_statement(alter_heap).expect("SET ACCESS METHOD heap is accepted");
+        let rejected_alter = parse_statement(alter_columnar).expect_err("columnar is rejected");
+
+        // Assert
+        assert!(matches!(
+            created.statement,
+            QueryStatement::CreateMaterializedView(statement) if statement.name == "mv"
+        ));
+        assert!(matches!(
+            altered.statement,
+            QueryStatement::RenameMaterializedView(statement)
+                if statement.name == "mv" && statement.new_name.is_none()
+        ));
+        for error in [rejected_create, rejected_alter] {
+            assert_eq!(error.kind(), crate::sql::parser::SqlErrorKind::Unsupported);
+            assert!(error.message().contains("heap-only"));
+        }
     }
 }

@@ -158,6 +158,7 @@ pub(super) fn drop_owned_table_sequences(cassie: &Cassie, table: &str) -> Result
 pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Result<(), QueryError> {
     let mut constraints = cassie.catalog.get_constraints(table);
     let mut renames = Vec::new();
+    let mut sequence_renames = RelationRenames::new();
     let sequences = cassie.catalog.list_sequences();
     for (index, constraint) in constraints.iter().enumerate() {
         let Some(current_name) = constraint
@@ -196,6 +197,13 @@ pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Resu
         cassie.midge.delete_sequence(&stored_name)?;
         cassie.catalog.unregister_sequence(&stored_name);
         cassie.catalog.register_sequence(sequence);
+        sequence_renames.insert(
+            cassie
+                .midge
+                .canonical_collection_name(&stored_name)
+                .to_ascii_lowercase(),
+            next_name.clone(),
+        );
         constraints[index].default_sequence = Some(next_name.clone());
         constraints[index].default_expression =
             Some(crate::catalog::canonical_nextval_expression(&next_name));
@@ -214,7 +222,9 @@ pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Resu
         cassie.midge.save_constraints(table, &constraints)?;
         cassie.catalog.register_constraints(table, constraints);
     }
-    Ok(())
+    // Defaults copied into other tables (LIKE ... INCLUDING DEFAULTS) follow
+    // the renamed sequence, as PostgreSQL defaults reference it by OID.
+    rewrite_constraint_references(cassie, &sequence_renames, &RelationRenames::new())
 }
 
 /// Validates and prepares column-owned sequences for a table schema move.
@@ -344,7 +354,7 @@ fn rewrite_constraint_references(
         let mut constraints = cassie.midge.load_constraints(&stored_name)?;
         let mut changed = false;
         for constraint in &mut constraints {
-            changed |= rewrite_default_sequence(constraint, sequence_renames);
+            changed |= rewrite_default_sequence(cassie, constraint, sequence_renames);
             if let Some(next) = constraint
                 .references_table
                 .as_ref()
@@ -365,10 +375,23 @@ fn rewrite_constraint_references(
 }
 
 fn rewrite_default_sequence(
+    cassie: &Cassie,
     constraint: &mut crate::catalog::FieldConstraint,
     sequence_renames: &RelationRenames,
 ) -> bool {
-    let renamed = |name: &str| sequence_renames.get(&name.to_ascii_lowercase()).cloned();
+    let renamed = |name: &str| {
+        sequence_renames
+            .get(&name.to_ascii_lowercase())
+            .or_else(|| {
+                sequence_renames.get(
+                    &cassie
+                        .midge
+                        .canonical_collection_name(name)
+                        .to_ascii_lowercase(),
+                )
+            })
+            .cloned()
+    };
     let mut changed = false;
     if let Some(next) = constraint.default_sequence.as_deref().and_then(renamed) {
         constraint.default_sequence = Some(next);

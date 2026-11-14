@@ -66,11 +66,44 @@ pub(super) fn parse_alter_column_operation(raw: &str) -> Result<AlterTableOperat
     if lower == "set not null" {
         return Ok(AlterTableOperation::AlterColumnSetNotNull { field });
     }
+    if let Some(setting) = parse_column_storage_setting(&lower, action)? {
+        return Ok(AlterTableOperation::AlterColumnStorage { field, setting });
+    }
     if lower == "drop not null" {
         return Ok(AlterTableOperation::AlterColumnDropNotNull { field });
     }
 
     Err(SqlError::new("unsupported ALTER COLUMN operation".into()))
+}
+
+fn parse_column_storage_setting(
+    lower: &str,
+    action: &str,
+) -> Result<Option<crate::catalog::ColumnStorageSetting>, SqlError> {
+    use crate::catalog::{ColumnCompression, ColumnStorage, ColumnStorageSetting};
+
+    let (is_storage, offset) = if lower.starts_with("set storage ") {
+        (true, "set storage ".len())
+    } else if lower.starts_with("set compression ") {
+        (false, "set compression ".len())
+    } else {
+        return Ok(None);
+    };
+    let value = parse_identifier(action[offset..].trim())?;
+    if value.is_empty() || value.contains(char::is_whitespace) {
+        return Err(SqlError::syntax(
+            "SET STORAGE/COMPRESSION requires one value".into(),
+        ));
+    }
+    Ok(Some(if is_storage {
+        ColumnStorageSetting::Storage(
+            ColumnStorage::parse(&value).map_err(SqlError::invalid_parameter_value)?,
+        )
+    } else {
+        ColumnStorageSetting::Compression(
+            ColumnCompression::parse(&value).map_err(SqlError::invalid_parameter_value)?,
+        )
+    }))
 }
 
 pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

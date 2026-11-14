@@ -164,11 +164,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1707,
-    "rust_files": 1670,
-    "rust_test_declarations": 10108,
+    "files": 1709,
+    "rust_files": 1672,
+    "rust_test_declarations": 10129,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10109,
+    "registered_rust_instances": 10130,
     "unregistered_rust_tests": [
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_publish_pgcrypto_extension_transactionally",
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_restore_pgcrypto_namespace_after_savepoint_rollback",
@@ -197,7 +197,7 @@
       },
       {
         "file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-        "test_body_lines": 832,
+        "test_body_lines": 818,
         "test_declarations": 16
       },
       {
@@ -36327,11 +36327,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_reject_like_defaults_that_reference_source_owned_sequences",
-      "name": "should_reject_like_defaults_that_reference_source_owned_sequences",
+      "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_keep_source_owned_sequence_dependency_when_like_copies_serial_defaults",
+      "name": "should_keep_source_owned_sequence_dependency_when_like_copies_serial_defaults",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
       "line": 164,
-      "end_line": 210,
+      "end_line": 220,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36339,7 +36339,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::table_forms::postgresql18_explicit_table_clone_contracts::should_reject_like_defaults_that_reference_source_owned_sequences"
+          "name": "compatibility::lifecycle::ddl_extensions::table_forms::postgresql18_explicit_table_clone_contracts::should_keep_source_owned_sequence_dependency_when_like_copies_serial_defaults"
         }
       ],
       "attributes": [
@@ -36361,8 +36361,8 @@
       "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_not_copy_identity_when_like_includes_only_defaults",
       "name": "should_not_copy_identity_when_like_includes_only_defaults",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
-      "line": 213,
-      "end_line": 248,
+      "line": 223,
+      "end_line": 258,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36392,8 +36392,8 @@
       "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_create_table_like_with_including_constraints",
       "name": "should_create_table_like_with_including_constraints",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
-      "line": 290,
-      "end_line": 366,
+      "line": 300,
+      "end_line": 376,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36423,8 +36423,8 @@
       "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_reject_multiple_named_checks_on_the_same_field_until_supported",
       "name": "should_reject_multiple_named_checks_on_the_same_field_until_supported",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
-      "line": 369,
-      "end_line": 404,
+      "line": 379,
+      "end_line": 414,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36454,8 +36454,8 @@
       "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_reject_multiple_inline_checks_on_the_same_field_until_supported",
       "name": "should_reject_multiple_inline_checks_on_the_same_field_until_supported",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
-      "line": 407,
-      "end_line": 441,
+      "line": 417,
+      "end_line": 451,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36485,8 +36485,8 @@
       "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_not_publish_like_target_when_included_check_conflicts_with_declared_check",
       "name": "should_not_publish_like_target_when_included_check_conflicts_with_declared_check",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
-      "line": 444,
-      "end_line": 497,
+      "line": 454,
+      "end_line": 507,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36516,8 +36516,8 @@
       "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_exclude_checks_when_a_later_like_action_excludes_constraints",
       "name": "should_exclude_checks_when_a_later_like_action_excludes_constraints",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
-      "line": 500,
-      "end_line": 536,
+      "line": 510,
+      "end_line": 546,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36547,8 +36547,8 @@
       "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_copy_checks_when_a_later_like_action_reincludes_constraints",
       "name": "should_copy_checks_when_a_later_like_action_reincludes_constraints",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
-      "line": 539,
-      "end_line": 586,
+      "line": 549,
+      "end_line": 596,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -36578,8 +36578,8 @@
       "id": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs::should_reject_column_check_when_expression_references_another_field",
       "name": "should_reject_column_check_when_expression_references_another_field",
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
-      "line": 589,
-      "end_line": 623,
+      "line": 599,
+      "end_line": 633,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37164,11 +37164,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_reject_table_like_before_creating_the_target",
-      "name": "should_reject_table_like_before_creating_the_target",
+      "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_reject_table_like_from_a_missing_source_before_creating_the_target",
+      "name": "should_reject_table_like_from_a_missing_source_before_creating_the_target",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
       "line": 2,
-      "end_line": 44,
+      "end_line": 39,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37176,7 +37176,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::table_forms::should_reject_table_like_before_creating_the_target"
+          "name": "compatibility::lifecycle::ddl_extensions::table_forms::should_reject_table_like_from_a_missing_source_before_creating_the_target"
         }
       ],
       "attributes": [
@@ -37195,11 +37195,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_reject_table_like_before_if_not_exists_short_circuit",
-      "name": "should_reject_table_like_before_if_not_exists_short_circuit",
+      "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_keep_an_existing_target_when_table_like_uses_if_not_exists",
+      "name": "should_keep_an_existing_target_when_table_like_uses_if_not_exists",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 47,
-      "end_line": 93,
+      "line": 42,
+      "end_line": 80,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37207,7 +37207,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::table_forms::should_reject_table_like_before_if_not_exists_short_circuit"
+          "name": "compatibility::lifecycle::ddl_extensions::table_forms::should_keep_an_existing_target_when_table_like_uses_if_not_exists"
         }
       ],
       "attributes": [
@@ -37226,11 +37226,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_reject_unselected_generated_forms_before_publication",
-      "name": "should_reject_unselected_generated_forms_before_publication",
+      "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_reject_generated_columns_but_accept_like_generated_as_a_noop",
+      "name": "should_reject_generated_columns_but_accept_like_generated_as_a_noop",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 96,
-      "end_line": 149,
+      "line": 83,
+      "end_line": 135,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37238,7 +37238,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::table_forms::should_reject_unselected_generated_forms_before_publication"
+          "name": "compatibility::lifecycle::ddl_extensions::table_forms::should_reject_generated_columns_but_accept_like_generated_as_a_noop"
         }
       ],
       "attributes": [
@@ -37260,8 +37260,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_preserve_ctas_type_modifiers_without_materializing_rows",
       "name": "should_preserve_ctas_type_modifiers_without_materializing_rows",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 152,
-      "end_line": 225,
+      "line": 138,
+      "end_line": 211,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37291,8 +37291,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_track_materialized_view_population_through_refresh_no_data",
       "name": "should_track_materialized_view_population_through_refresh_no_data",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 227,
-      "end_line": 319,
+      "line": 213,
+      "end_line": 305,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37322,8 +37322,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_preserve_existing_materialized_view_when_created_if_not_exists",
       "name": "should_preserve_existing_materialized_view_when_created_if_not_exists",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 321,
-      "end_line": 369,
+      "line": 307,
+      "end_line": 355,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37353,8 +37353,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_preserve_materialized_view_names_when_rename_target_exists",
       "name": "should_preserve_materialized_view_names_when_rename_target_exists",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 371,
-      "end_line": 406,
+      "line": 357,
+      "end_line": 392,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37384,8 +37384,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_remove_dropped_materialized_view_from_pg_matviews",
       "name": "should_remove_dropped_materialized_view_from_pg_matviews",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 408,
-      "end_line": 440,
+      "line": 394,
+      "end_line": 426,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37415,8 +37415,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_require_a_unique_index_for_concurrent_materialized_view_refresh",
       "name": "should_require_a_unique_index_for_concurrent_materialized_view_refresh",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 442,
-      "end_line": 525,
+      "line": 428,
+      "end_line": 511,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37446,8 +37446,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_reject_unqualified_index_shapes_for_concurrent_materialized_view_refresh",
       "name": "should_reject_unqualified_index_shapes_for_concurrent_materialized_view_refresh",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 528,
-      "end_line": 573,
+      "line": 514,
+      "end_line": 559,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37477,8 +37477,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_preserve_indexes_after_ordinary_materialized_view_refresh",
       "name": "should_preserve_indexes_after_ordinary_materialized_view_refresh",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 576,
-      "end_line": 624,
+      "line": 562,
+      "end_line": 610,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37508,8 +37508,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_preserve_active_materialized_view_when_concurrent_refresh_cannot_rebuild_unique_index",
       "name": "should_preserve_active_materialized_view_when_concurrent_refresh_cannot_rebuild_unique_index",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 627,
-      "end_line": 687,
+      "line": 613,
+      "end_line": 673,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37539,8 +37539,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_reject_concurrent_refresh_of_unpopulated_materialized_view",
       "name": "should_reject_concurrent_refresh_of_unpopulated_materialized_view",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 690,
-      "end_line": 725,
+      "line": 676,
+      "end_line": 711,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37570,8 +37570,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_reject_concurrent_refresh_with_no_data",
       "name": "should_reject_concurrent_refresh_with_no_data",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 728,
-      "end_line": 764,
+      "line": 714,
+      "end_line": 750,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37601,8 +37601,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_skip_existing_relation_for_create_table_as_if_not_exists",
       "name": "should_skip_existing_relation_for_create_table_as_if_not_exists",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 767,
-      "end_line": 817,
+      "line": 753,
+      "end_line": 803,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37632,8 +37632,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs::should_track_materialized_view_rename_in_pg_matviews",
       "name": "should_track_materialized_view_rename_in_pg_matviews",
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
-      "line": 820,
-      "end_line": 858,
+      "line": 806,
+      "end_line": 844,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37725,8 +37725,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_preserve_column_storage_compression_metadata",
       "name": "should_preserve_column_storage_compression_metadata",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 5,
-      "end_line": 103,
+      "line": 4,
+      "end_line": 106,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37735,38 +37735,6 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_preserve_column_storage_compression_metadata"
-        }
-      ],
-      "attributes": [
-        "#[test]",
-        "#[ignore = \"Pending #826 column storage and compression metadata contract\"]"
-      ],
-      "ignored": true,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "compatibility",
-        "category": "lifecycle/tables",
-        "directory": "tests/compatibility/lifecycle/tables",
-        "file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_column_storage_options_without_publishing_the_table",
-      "name": "should_reject_column_storage_options_without_publishing_the_table",
-      "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 106,
-      "end_line": 129,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_reject_column_storage_options_without_publishing_the_table"
         }
       ],
       "attributes": [
@@ -37785,11 +37753,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_column_compression_options_without_publishing_the_table",
-      "name": "should_reject_column_compression_options_without_publishing_the_table",
+      "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_non_plain_storage_on_fixed_width_columns_without_publishing_the_table",
+      "name": "should_reject_non_plain_storage_on_fixed_width_columns_without_publishing_the_table",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 132,
-      "end_line": 155,
+      "line": 109,
+      "end_line": 132,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37797,7 +37765,38 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_reject_column_compression_options_without_publishing_the_table"
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_reject_non_plain_storage_on_fixed_width_columns_without_publishing_the_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/tables",
+        "directory": "tests/compatibility/lifecycle/tables",
+        "file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_unknown_column_compression_methods_without_publishing_the_table",
+      "name": "should_reject_unknown_column_compression_methods_without_publishing_the_table",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
+      "line": 135,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_reject_unknown_column_compression_methods_without_publishing_the_table"
         }
       ],
       "attributes": [
@@ -37819,8 +37818,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_create_table_with_an_explicit_access_method",
       "name": "should_create_table_with_an_explicit_access_method",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 181,
-      "end_line": 225,
+      "line": 184,
+      "end_line": 228,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37850,8 +37849,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_unsupported_table_access_methods_without_publishing_the_table",
       "name": "should_reject_unsupported_table_access_methods_without_publishing_the_table",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 228,
-      "end_line": 257,
+      "line": 231,
+      "end_line": 260,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37881,8 +37880,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_change_table_access_method_without_changing_rows",
       "name": "should_change_table_access_method_without_changing_rows",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 260,
-      "end_line": 332,
+      "line": 263,
+      "end_line": 335,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37912,8 +37911,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_create_ctas_with_an_explicit_access_method",
       "name": "should_create_ctas_with_an_explicit_access_method",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 335,
-      "end_line": 390,
+      "line": 338,
+      "end_line": 393,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37940,11 +37939,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_materialized_view_access_method_until_storage_support_is_implemented",
-      "name": "should_reject_materialized_view_access_method_until_storage_support_is_implemented",
+      "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_columnar_materialized_view_access_method_without_publishing_the_view",
+      "name": "should_reject_columnar_materialized_view_access_method_without_publishing_the_view",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 393,
-      "end_line": 423,
+      "line": 396,
+      "end_line": 426,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37952,7 +37951,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_reject_materialized_view_access_method_until_storage_support_is_implemented"
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_reject_columnar_materialized_view_access_method_without_publishing_the_view"
         }
       ],
       "attributes": [
@@ -37971,11 +37970,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_materialized_view_access_method_changes_without_changing_rows",
-      "name": "should_reject_materialized_view_access_method_changes_without_changing_rows",
+      "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_reject_columnar_materialized_view_access_method_changes_without_changing_rows",
+      "name": "should_reject_columnar_materialized_view_access_method_changes_without_changing_rows",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 425,
-      "end_line": 477,
+      "line": 428,
+      "end_line": 480,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -37983,7 +37982,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_reject_materialized_view_access_method_changes_without_changing_rows"
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_access::should_reject_columnar_materialized_view_access_method_changes_without_changing_rows"
         }
       ],
       "attributes": [
@@ -38005,8 +38004,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_create_materialized_view_with_an_explicit_access_method",
       "name": "should_create_materialized_view_with_an_explicit_access_method",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 481,
-      "end_line": 537,
+      "line": 483,
+      "end_line": 539,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -38018,10 +38017,9 @@
         }
       ],
       "attributes": [
-        "#[test]",
-        "#[ignore = \"Pending #826 materialized-view storage contract\"]"
+        "#[test]"
       ],
-      "ignored": true,
+      "ignored": false,
       "execution_status": "not_assessed",
       "placement": {
         "suite": "compatibility",
@@ -38037,8 +38035,8 @@
       "id": "tests/compatibility/lifecycle/tables/table_storage_access.rs::should_set_materialized_view_access_method_without_changing_rows",
       "name": "should_set_materialized_view_access_method_without_changing_rows",
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
-      "line": 541,
-      "end_line": 623,
+      "line": 542,
+      "end_line": 624,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -38050,10 +38048,9 @@
         }
       ],
       "attributes": [
-        "#[test]",
-        "#[ignore = \"Pending #826 materialized-view storage contract\"]"
+        "#[test]"
       ],
-      "ignored": true,
+      "ignored": false,
       "execution_status": "not_assessed",
       "placement": {
         "suite": "compatibility",
@@ -38063,6 +38060,378 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_report_postgres_default_storage_for_each_column_type",
+      "name": "should_report_postgres_default_storage_for_each_column_type",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 26,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_report_postgres_default_storage_for_each_column_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_alter_column_storage_metadata",
+      "name": "should_alter_column_storage_metadata",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 63,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_alter_column_storage_metadata"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_roll_back_column_storage_changes_with_the_transaction",
+      "name": "should_roll_back_column_storage_changes_with_the_transaction",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 119,
+      "end_line": 168,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_roll_back_column_storage_changes_with_the_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_copy_column_storage_metadata_only_when_like_includes_it",
+      "name": "should_copy_column_storage_metadata_only_when_like_includes_it",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 171,
+      "end_line": 216,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_copy_column_storage_metadata_only_when_like_includes_it"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_copy_column_comments_only_when_like_includes_them",
+      "name": "should_copy_column_comments_only_when_like_includes_them",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 219,
+      "end_line": 271,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_copy_column_comments_only_when_like_includes_them"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_accept_like_generated_options_as_noops_without_extra_state",
+      "name": "should_accept_like_generated_options_as_noops_without_extra_state",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 274,
+      "end_line": 314,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_accept_like_generated_options_as_noops_without_extra_state"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_share_the_source_sequence_when_like_includes_sequence_defaults",
+      "name": "should_share_the_source_sequence_when_like_includes_sequence_defaults",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 317,
+      "end_line": 380,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_share_the_source_sequence_when_like_includes_sequence_defaults"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_copy_full_text_indexes_with_target_owned_names_when_like_includes_indexes",
+      "name": "should_copy_full_text_indexes_with_target_owned_names_when_like_includes_indexes",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 383,
+      "end_line": 430,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_copy_full_text_indexes_with_target_owned_names_when_like_includes_indexes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_reject_vector_index_clones_before_publishing_the_like_target",
+      "name": "should_reject_vector_index_clones_before_publishing_the_like_target",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 433,
+      "end_line": 475,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_reject_vector_index_clones_before_publishing_the_like_target"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_join_materialized_views_to_the_heap_access_method",
+      "name": "should_join_materialized_views_to_the_heap_access_method",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 478,
+      "end_line": 515,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_join_materialized_views_to_the_heap_access_method"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_reject_other_materialized_view_access_methods_with_0a000",
+      "name": "should_reject_other_materialized_view_access_methods_with_0a000",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 518,
+      "end_line": 553,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_reject_other_materialized_view_access_methods_with_0a000"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/tables/table_storage_like.rs::should_discard_copied_column_comments_when_the_like_transaction_rolls_back",
+      "name": "should_discard_copied_column_comments_when_the_like_transaction_rolls_back",
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "line": 556,
+      "end_line": 616,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::table_storage_like::should_discard_copied_column_comments_when_the_like_transaction_rolls_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/table_storage_like.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -230643,6 +231012,254 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/like_sequence_default_follow.rs::should_keep_copied_default_working_after_source_table_rename",
+      "name": "should_keep_copied_default_working_after_source_table_rename",
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "line": 72,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "like_sequence_default_follow::should_keep_copied_default_working_after_source_table_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "patterns",
+        "directory": "tests/sql_mutations/patterns",
+        "file": "tests/sql_mutations/patterns/like_sequence_default_follow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/like_sequence_default_follow.rs::should_keep_copied_default_working_after_source_table_schema_move",
+      "name": "should_keep_copied_default_working_after_source_table_schema_move",
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "line": 95,
+      "end_line": 120,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "like_sequence_default_follow::should_keep_copied_default_working_after_source_table_schema_move"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "patterns",
+        "directory": "tests/sql_mutations/patterns",
+        "file": "tests/sql_mutations/patterns/like_sequence_default_follow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/like_sequence_default_follow.rs::should_restore_copied_default_when_rename_transaction_rolls_back",
+      "name": "should_restore_copied_default_when_rename_transaction_rolls_back",
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "line": 123,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "like_sequence_default_follow::should_restore_copied_default_when_rename_transaction_rolls_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "patterns",
+        "directory": "tests/sql_mutations/patterns",
+        "file": "tests/sql_mutations/patterns/like_sequence_default_follow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/like_sequence_default_follow.rs::should_refuse_dropping_sequence_used_by_explicit_nextval_default",
+      "name": "should_refuse_dropping_sequence_used_by_explicit_nextval_default",
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "line": 148,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "like_sequence_default_follow::should_refuse_dropping_sequence_used_by_explicit_nextval_default"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "patterns",
+        "directory": "tests/sql_mutations/patterns",
+        "file": "tests/sql_mutations/patterns/like_sequence_default_follow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/like_sequence_default_follow.rs::should_drop_source_with_dependent_tables_in_one_statement",
+      "name": "should_drop_source_with_dependent_tables_in_one_statement",
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "line": 180,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "like_sequence_default_follow::should_drop_source_with_dependent_tables_in_one_statement"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "patterns",
+        "directory": "tests/sql_mutations/patterns",
+        "file": "tests/sql_mutations/patterns/like_sequence_default_follow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/like_sequence_default_follow.rs::should_reset_column_storage_when_column_type_changes",
+      "name": "should_reset_column_storage_when_column_type_changes",
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "line": 194,
+      "end_line": 239,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "like_sequence_default_follow::should_reset_column_storage_when_column_type_changes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "patterns",
+        "directory": "tests/sql_mutations/patterns",
+        "file": "tests/sql_mutations/patterns/like_sequence_default_follow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/like_sequence_default_follow.rs::should_not_inherit_storage_when_dropped_column_name_is_added_again",
+      "name": "should_not_inherit_storage_when_dropped_column_name_is_added_again",
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "line": 242,
+      "end_line": 272,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "like_sequence_default_follow::should_not_inherit_storage_when_dropped_column_name_is_added_again"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "patterns",
+        "directory": "tests/sql_mutations/patterns",
+        "file": "tests/sql_mutations/patterns/like_sequence_default_follow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/like_sequence_default_follow.rs::should_keep_copied_default_working_after_rename_with_local_restart",
+      "name": "should_keep_copied_default_working_after_rename_with_local_restart",
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "line": 275,
+      "end_line": 311,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "like_sequence_default_follow::should_keep_copied_default_working_after_rename_with_local_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "patterns",
+        "directory": "tests/sql_mutations/patterns",
+        "file": "tests/sql_mutations/patterns/like_sequence_default_follow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/ddl/materialized_view_rename.rs::should_preserve_materialized_identity_when_renamed_view_is_refreshed",
       "name": "should_preserve_materialized_identity_when_renamed_view_is_refreshed",
       "current_file": "tests/sql_mutations/ddl/materialized_view_rename.rs",
@@ -236422,6 +237039,37 @@
         {
           "suite": "sql_mutations",
           "name": "postgresql18_transactional_ddl::restart_publication::should_recover_ctas_publication_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/restart_publication.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/restart_publication.rs::should_recover_column_storage_metadata_after_restart",
+      "name": "should_recover_column_storage_metadata_after_restart",
+      "current_file": "tests/sql_mutations/transactions/restart_publication.rs",
+      "line": 416,
+      "end_line": 455,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::restart_publication::should_recover_column_storage_metadata_after_restart"
         }
       ],
       "attributes": [
@@ -317313,8 +317961,8 @@
       "current_file": "tests/compatibility/lifecycle/ddl/ddl_extensions.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 43,
-      "sha256": "1328d82502776eae101f74a1da7a3590f1d156a2946c0bb1212685d342ba8647",
+      "lines": 45,
+      "sha256": "00075e8f34f4b524e318c12442cc3c9436405f19ebe98c9a77832dc75b6bccb2",
       "test_declarations": 0,
       "registered_suites": [
         "compatibility"
@@ -318357,8 +319005,8 @@
       "current_file": "tests/compatibility/lifecycle/tables/explicit_table_clone.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 623,
-      "sha256": "29e1cc45786022f98ec957210675f455c4a954e48bfda74f4a6a50e20efc1d66",
+      "lines": 633,
+      "sha256": "e712ec6a017e978bfc1ebb87169c69497a3c2b782a137cf2238db63f693278a0",
       "test_declarations": 12,
       "registered_suites": [
         "compatibility"
@@ -318522,8 +319170,8 @@
       "current_file": "tests/compatibility/lifecycle/tables/table_forms/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 858,
-      "sha256": "879457d886b9fac620c5be2681e59231b92d580f7bf96bc6f3977c25acb1cafc",
+      "lines": 844,
+      "sha256": "d47882dcbf9c157da23fa868a679b25dec208ab222338036880058c54fff43d8",
       "test_declarations": 16,
       "registered_suites": [
         "compatibility"
@@ -318567,14 +319215,29 @@
       "current_file": "tests/compatibility/lifecycle/tables/table_storage_access.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 623,
-      "sha256": "927f052bc0de44c511ca714c8190473080cdd2b51058a9ce0d4b18f620063f12",
+      "lines": 624,
+      "sha256": "53c77307715838089b732c4dbfb3b91e1d641b38c267e26fe8492ce9b14e0424",
       "test_declarations": 11,
       "registered_suites": [
         "compatibility"
       ],
       "destinations": [
         "tests/compatibility/lifecycle/tables/table_storage_access.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/compatibility/lifecycle/tables/table_storage_like.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 616,
+      "sha256": "b881c4681a57d4206a121c4843b2197d1b228566c6ebb5df5b98a3795db8af38",
+      "test_declarations": 12,
+      "registered_suites": [
+        "compatibility"
+      ],
+      "destinations": [
+        "tests/compatibility/clients/table_storage_like.rs"
       ],
       "line_limit": 1000
     },
@@ -332977,6 +333640,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/ddl/like_sequence_default_follow.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 311,
+      "sha256": "c60186a70bf35e1b4dbe1396f730620d8fc5bafe1d8f67f5fa1c1c50f1bdae95",
+      "test_declarations": 8,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/patterns/like_sequence_default_follow.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/ddl/materialized_view_rename.rs",
       "role": "test_module",
       "action": "keep",
@@ -333520,9 +334198,9 @@
       "current_file": "tests/sql_mutations/transactions/restart_publication.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 385,
-      "sha256": "7bfa42bccc5be99285005b00be6ea1fddf609bf96895ff558284e9dae2b342ec",
-      "test_declarations": 3,
+      "lines": 455,
+      "sha256": "1e1cb1d8e167755c49a41d2821f754b3f6a22bbf29ef4c3a40278b082d5f3d45",
+      "test_declarations": 4,
       "registered_suites": [
         "sql_mutations"
       ],
@@ -333863,8 +334541,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 238,
-      "sha256": "1622954b0a728ecba5bfbf6a734641bec8efc0ae1c8f993486389fdf85310ea6",
+      "lines": 241,
+      "sha256": "509fdb5e48e83fae25f3eb710d5e3123f9953991630a23e480af0420587e74c9",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

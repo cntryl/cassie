@@ -27,6 +27,8 @@ mod pgcrypto_extension;
 mod table_forms;
 #[path = "../tables/table_storage_access.rs"]
 mod table_storage_access;
+#[path = "../tables/table_storage_like.rs"]
+mod table_storage_like;
 #[path = "conversion.rs"]
 mod type_conversion;
 #[path = "../extensions/vector_extension.rs"]

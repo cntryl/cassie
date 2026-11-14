@@ -39,6 +39,8 @@ pub enum SqlErrorKind {
     UndefinedObject,
     /// A type modifier outside its documented range (SQLSTATE 22023).
     InvalidParameterValue,
+    /// An option that the column's data type cannot take (SQLSTATE 42804).
+    DatatypeMismatch,
 }
 
 #[derive(Debug, Clone)]
@@ -90,6 +92,14 @@ impl SqlError {
     pub fn invalid_parameter_value(message: String) -> Self {
         Self {
             kind: SqlErrorKind::InvalidParameterValue,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub fn datatype_mismatch(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::DatatypeMismatch,
             message,
         }
     }

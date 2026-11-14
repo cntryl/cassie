@@ -149,6 +149,8 @@ metadata_heap!(crate::catalog::constraints::FieldConstraint {
     references_field,
     identity,
     identity_options,
+    storage,
+    compression,
 });
 
 metadata_heap!(crate::catalog::cardinality::FieldHeavyHitter { value, count });
@@ -730,3 +732,12 @@ metadata_heap!(crate::catalog::enum_types::EnumTypeMeta {
     revision,
     members,
 });
+
+unit_enum_heap!(crate::catalog::column_storage::ColumnStorage {
+    Plain,
+    External,
+    Extended,
+    Main,
+});
+
+unit_enum_heap!(crate::catalog::column_storage::ColumnCompression { Pglz, Lz4 });

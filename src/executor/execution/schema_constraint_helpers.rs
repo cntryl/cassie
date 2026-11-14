@@ -315,6 +315,8 @@ pub(super) fn constraint_is_populated(constraint: &FieldConstraint) -> bool {
         || constraint.default_sequence.is_some()
         || constraint.check.is_some()
         || constraint.references_table.is_some()
+        || constraint.storage.is_some()
+        || constraint.compression.is_some()
 }
 
 pub(super) fn unique_fields_without_constraints(

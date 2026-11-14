@@ -308,11 +308,12 @@ impl Midge {
                     name: index.name,
                 });
             }
-            if index.kind != IndexKind::Scalar
-                || !index.access_method().eq_ignore_ascii_case("btree")
-            {
+            if !matches!(
+                index.kind,
+                IndexKind::Scalar | IndexKind::FullText | IndexKind::TimeSeries
+            ) {
                 return Err(CassieError::Unsupported(
-                    "initial table clone publication supports scalar btree indexes only"
+                    "initial table clone publication supports scalar, full-text and time-series indexes only"
                         .to_string(),
                 ));
             }

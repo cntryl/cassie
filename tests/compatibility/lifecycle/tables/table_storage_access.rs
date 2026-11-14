@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "Pending #826 column storage and compression metadata contract"]
 fn should_preserve_column_storage_compression_metadata() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -46,7 +45,11 @@ fn should_preserve_column_storage_compression_metadata() {
             let rows = if inserted.is_ok() {
                 Some(
                     client
-                        .query("SELECT * FROM compat_column_storage_options", &[])
+                        .query(
+                            "SELECT plain_text, external_pglz, extended_lz4, default_compression \
+                             FROM compat_column_storage_options",
+                            &[],
+                        )
                         .await,
                 )
             } else {
@@ -103,7 +106,7 @@ fn should_preserve_column_storage_compression_metadata() {
 }
 
 #[test]
-fn should_reject_column_storage_options_without_publishing_the_table() {
+fn should_reject_non_plain_storage_on_fixed_width_columns_without_publishing_the_table() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -114,13 +117,13 @@ fn should_reject_column_storage_options_without_publishing_the_table() {
         let (sqlstate, message, relation_count) = rejected_column_option(
             &client,
             "compat_column_storage_rejected",
-            "value TEXT STORAGE PLAIN",
+            "value INT STORAGE EXTERNAL",
         )
         .await;
 
         // Assert
-        assert_eq!(sqlstate, "0A000");
-        assert!(message.contains("column STORAGE options are not supported"));
+        assert_eq!(sqlstate, "42804");
+        assert!(message.contains("can only have storage PLAIN"));
         assert_eq!(relation_count, 0);
 
         drop(client);
@@ -129,7 +132,7 @@ fn should_reject_column_storage_options_without_publishing_the_table() {
 }
 
 #[test]
-fn should_reject_column_compression_options_without_publishing_the_table() {
+fn should_reject_unknown_column_compression_methods_without_publishing_the_table() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -140,13 +143,13 @@ fn should_reject_column_compression_options_without_publishing_the_table() {
         let (sqlstate, message, relation_count) = rejected_column_option(
             &client,
             "compat_column_compression_rejected",
-            "value TEXT COMPRESSION pglz",
+            "value TEXT COMPRESSION bogus",
         )
         .await;
 
         // Assert
-        assert_eq!(sqlstate, "0A000");
-        assert!(message.contains("column COMPRESSION options are not supported"));
+        assert_eq!(sqlstate, "22023");
+        assert!(message.contains("invalid compression method"));
         assert_eq!(relation_count, 0);
 
         drop(client);
@@ -390,7 +393,7 @@ fn should_create_ctas_with_an_explicit_access_method() {
 }
 
 #[test]
-fn should_reject_materialized_view_access_method_until_storage_support_is_implemented() {
+fn should_reject_columnar_materialized_view_access_method_without_publishing_the_view() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -400,10 +403,10 @@ fn should_reject_materialized_view_access_method_until_storage_support_is_implem
         // Act
         let result = client
             .batch_execute(
-                "CREATE MATERIALIZED VIEW compat_access_method_mv USING heap AS SELECT 17 AS value",
+                "CREATE MATERIALIZED VIEW compat_access_method_mv USING columnar AS SELECT 17 AS value",
             )
             .await;
-        let error = result.expect_err("materialized-view access methods remain pending under #826");
+        let error = result.expect_err("materialized views are heap-only");
         let view_count: i64 = client
             .query_one(
                 "SELECT count(*) FROM pg_matviews WHERE matviewname = 'compat_access_method_mv'",
@@ -422,7 +425,7 @@ fn should_reject_materialized_view_access_method_until_storage_support_is_implem
     });
 }
 #[test]
-fn should_reject_materialized_view_access_method_changes_without_changing_rows() {
+fn should_reject_columnar_materialized_view_access_method_changes_without_changing_rows() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -450,10 +453,10 @@ fn should_reject_materialized_view_access_method_changes_without_changing_rows()
         // Act
         let result = client
             .batch_execute(
-                "ALTER MATERIALIZED VIEW compat_alter_access_method_view SET ACCESS METHOD heap",
+                "ALTER MATERIALIZED VIEW compat_alter_access_method_view SET ACCESS METHOD columnar",
             )
             .await;
-        let error = result.expect_err("materialized-view access-method changes remain pending");
+        let error = result.expect_err("materialized views cannot become columnar");
         let rows_after = client
             .query(
                 "SELECT id, label FROM compat_alter_access_method_view ORDER BY id",
@@ -477,7 +480,6 @@ fn should_reject_materialized_view_access_method_changes_without_changing_rows()
 }
 
 #[test]
-#[ignore = "Pending #826 materialized-view storage contract"]
 fn should_create_materialized_view_with_an_explicit_access_method() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -537,7 +539,6 @@ fn should_create_materialized_view_with_an_explicit_access_method() {
 }
 
 #[test]
-#[ignore = "Pending #826 materialized-view storage contract"]
 fn should_set_materialized_view_access_method_without_changing_rows() {
     // Arrange
     let runtime = current_thread_runtime();

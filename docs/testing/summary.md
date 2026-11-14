@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1707 |
-| Rust files | 1670 |
-| Rust test declarations | 10108 |
+| Files under `tests/` | 1709 |
+| Rust files | 1672 |
+| Rust test declarations | 10129 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10109 |
+| Static Rust registration instances | 10130 |
 | Cargo test targets | 40 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 5 |
@@ -32,7 +32,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 540 | 0 |
 | [columnar_surface](inventory/columnar_surface.md) | 31 | 0 |
-| [compatibility](inventory/compatibility.md) | 487 | 0 |
+| [compatibility](inventory/compatibility.md) | 499 | 0 |
 | [composite_types](inventory/composite_types.md) | 205 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
@@ -59,7 +59,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 7 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 486 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 495 | 0 |
 | [sql_queries](inventory/sql_queries.md) | 1961 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
@@ -131,7 +131,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | --- | ---: | ---: |
 | `tests/catalog_security/catalogs/types/catalog_discovery/semantics.rs` | 824 | 28 |
 | `tests/compatibility/lifecycle/indexes/pgvector_profile.rs` | 825 | 10 |
-| `tests/compatibility/lifecycle/tables/table_forms/semantics.rs` | 832 | 16 |
+| `tests/compatibility/lifecycle/tables/table_forms/semantics.rs` | 818 | 16 |
 | `tests/parser_types/grammar/expressions/semantics.rs` | 816 | 37 |
 | `tests/parser_types/grammar/indexes/semantics.rs` | 964 | 34 |
 | `tests/pgwire_extended/functions/math/math.rs` | 908 | 16 |

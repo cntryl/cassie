@@ -166,6 +166,12 @@ pub struct FieldConstraint {
     /// Sequence options from the identity clause, applied when it is created.
     #[serde(default)]
     pub identity_options: Option<crate::catalog::SequenceOptions>,
+    /// Explicit `STORAGE` strategy; metadata only (#826).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage: Option<crate::catalog::ColumnStorage>,
+    /// Explicit `COMPRESSION` method; metadata only (#826).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compression: Option<crate::catalog::ColumnCompression>,
 }
 
 /// How an identity column treats explicit values.
@@ -218,6 +224,8 @@ impl FieldConstraint {
             references_field: None,
             identity: None,
             identity_options: None,
+            storage: None,
+            compression: None,
         }
     }
 
@@ -313,6 +321,8 @@ fn is_constraint_populated(constraint: &FieldConstraint) -> bool {
         || constraint.default_sequence.is_some()
         || constraint.check.is_some()
         || constraint.references_table.is_some()
+        || constraint.storage.is_some()
+        || constraint.compression.is_some()
 }
 
 fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
@@ -379,6 +389,12 @@ fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
     }
     if next.foreign_key_on_update.is_some() {
         existing.foreign_key_on_update = next.foreign_key_on_update;
+    }
+    if next.storage.is_some() {
+        existing.storage = next.storage;
+    }
+    if next.compression.is_some() {
+        existing.compression = next.compression;
     }
 }
 

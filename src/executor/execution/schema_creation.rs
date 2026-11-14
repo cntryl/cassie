@@ -13,6 +13,9 @@ struct TableLikeCopyOptions {
     constraints: TableLikeCopyState,
     identity: TableLikeCopyState,
     indexes: TableLikeCopyState,
+    comments: TableLikeCopyState,
+    storage: TableLikeCopyState,
+    compression: TableLikeCopyState,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -37,11 +40,7 @@ impl TableLikeCopyState {
 }
 
 impl TableLikeCopyOptions {
-    fn set(
-        &mut self,
-        feature: crate::sql::ast::CreateTableLikeFeature,
-        enabled: bool,
-    ) -> Result<(), QueryError> {
+    fn set(&mut self, feature: crate::sql::ast::CreateTableLikeFeature, enabled: bool) {
         use crate::sql::ast::CreateTableLikeFeature;
 
         match feature {
@@ -51,6 +50,9 @@ impl TableLikeCopyOptions {
                 self.constraints = state;
                 self.identity = state;
                 self.indexes = state;
+                self.comments = state;
+                self.storage = state;
+                self.compression = state;
             }
             CreateTableLikeFeature::Defaults => {
                 self.defaults = TableLikeCopyState::from_enabled(enabled);
@@ -64,18 +66,20 @@ impl TableLikeCopyOptions {
             CreateTableLikeFeature::Indexes => {
                 self.indexes = TableLikeCopyState::from_enabled(enabled);
             }
-            CreateTableLikeFeature::Comments
-            | CreateTableLikeFeature::Compression
-            | CreateTableLikeFeature::Generated
-            | CreateTableLikeFeature::Statistics
-            | CreateTableLikeFeature::Storage => {
-                return Err(CassieError::Unsupported(format!(
-                    "CREATE TABLE LIKE option {feature:?} is not supported yet"
-                ))
-                .into());
+            CreateTableLikeFeature::Comments => {
+                self.comments = TableLikeCopyState::from_enabled(enabled);
             }
+            CreateTableLikeFeature::Storage => {
+                self.storage = TableLikeCopyState::from_enabled(enabled);
+            }
+            CreateTableLikeFeature::Compression => {
+                self.compression = TableLikeCopyState::from_enabled(enabled);
+            }
+            // Cassie has no generated expression columns or extended
+            // statistics, so a source never has either to copy and the
+            // options are accepted as the no-ops PostgreSQL would also apply.
+            CreateTableLikeFeature::Generated | CreateTableLikeFeature::Statistics => {}
         }
-        Ok(())
     }
 }
 
@@ -244,6 +248,11 @@ fn create_table_gated(
     for index in initial_indexes {
         cassie.catalog.register_index(index);
     }
+    if let Some(like) = statement.like.as_ref() {
+        if table_like_copy_options(like).comments.is_included() {
+            super::table_like_comments::copy_column_comments(cassie, like.source.as_ref(), table)?;
+        }
+    }
     if statement.like.is_none() {
         super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
     }
@@ -319,13 +328,7 @@ fn copy_table_like_fields(
                 name: source.clone(),
             })?;
     let source_constraints = cassie.catalog.get_constraints(&source);
-    let options = table_like_copy_options(like)?;
-
-    validate_table_like_default_copy(
-        &source_schema.fields,
-        &source_constraints,
-        options.defaults.is_included(),
-    )?;
+    let options = table_like_copy_options(like);
 
     let primary_key_name = if options.indexes.is_included()
         && source_constraints
@@ -350,6 +353,34 @@ fn copy_table_like_fields(
             )
         })
         .collect())
+}
+
+/// Copies `STORAGE` and `COMPRESSION` metadata, never an invalid combination
+/// for the column's type.
+fn copy_like_storage<'a>(
+    copied_constraint: &mut FieldConstraint,
+    field: &catalog::FieldMeta,
+    field_constraints: &(impl Iterator<Item = &'a FieldConstraint> + Clone),
+    options: TableLikeCopyOptions,
+) {
+    if options.storage.is_included() {
+        copied_constraint.storage = field_constraints.clone().find_map(|source| source.storage);
+    }
+    if options.compression.is_included() {
+        copied_constraint.compression = field_constraints
+            .clone()
+            .find_map(|source| source.compression);
+    }
+    if crate::catalog::column_storage::validate_column_storage(
+        &field.data_type,
+        copied_constraint.storage,
+        copied_constraint.compression,
+    )
+    .is_err()
+    {
+        copied_constraint.storage = None;
+        copied_constraint.compression = None;
+    }
 }
 
 fn copy_table_like_field(
@@ -393,7 +424,13 @@ fn copy_table_like_field(
         copied_constraint
             .default_expression
             .clone_from(&source_default.default_expression);
+        // A sequence-backed default keeps referencing the source's sequence,
+        // which the copy shares rather than owns, as in PostgreSQL.
+        copied_constraint
+            .default_sequence
+            .clone_from(&source_default.default_sequence);
     }
+    copy_like_storage(&mut copied_constraint, &field, &field_constraints, options);
     if options.identity.is_included() {
         if let Some(source_identity) = source_identity {
             copied_constraint.identity = source_identity.identity;
@@ -414,6 +451,8 @@ fn copy_table_like_field(
         || copied_constraint.default_value.is_some()
         || copied_constraint.default_expression.is_some()
         || copied_constraint.default_sequence.is_some()
+        || copied_constraint.storage.is_some()
+        || copied_constraint.compression.is_some()
     {
         vec![copied_constraint]
     } else {
@@ -448,21 +487,19 @@ fn copy_table_like_field(
     }
 }
 
-fn table_like_copy_options(
-    like: &crate::sql::ast::CreateTableLikeClause,
-) -> Result<TableLikeCopyOptions, QueryError> {
+fn table_like_copy_options(like: &crate::sql::ast::CreateTableLikeClause) -> TableLikeCopyOptions {
     let mut options = TableLikeCopyOptions::default();
     for option in &like.options {
         match option {
             crate::sql::ast::CreateTableLikeOption::Including(feature) => {
-                options.set(*feature, true)?;
+                options.set(*feature, true);
             }
             crate::sql::ast::CreateTableLikeOption::Excluding(feature) => {
-                options.set(*feature, false)?;
+                options.set(*feature, false);
             }
         }
     }
-    Ok(options)
+    options
 }
 
 fn table_like_primary_key_name(cassie: &Cassie, target: &str) -> String {
@@ -565,7 +602,7 @@ fn copy_table_like_indexes(
     like: &crate::sql::ast::CreateTableLikeClause,
     target_constraints: &[FieldConstraint],
 ) -> Result<Vec<IndexMeta>, QueryError> {
-    if !table_like_copy_options(like)?.indexes.is_included() {
+    if !table_like_copy_options(like).indexes.is_included() {
         return Ok(Vec::new());
     }
 
@@ -612,9 +649,10 @@ fn copy_table_like_indexes(
     let mut copies = Vec::new();
     for index in cassie.catalog.list_indexes(&source) {
         if !constraint_index_names.remove(&index.name.to_ascii_lowercase()) {
-            if index.kind != IndexKind::Scalar
-                || !index.access_method().eq_ignore_ascii_case("btree")
-            {
+            if !matches!(
+                index.kind,
+                IndexKind::Scalar | IndexKind::FullText | IndexKind::TimeSeries
+            ) {
                 return Err(CassieError::Unsupported(format!(
                     "CREATE TABLE LIKE INCLUDING INDEXES cannot copy index '{}' with access method '{}'",
                     index.name,
@@ -663,42 +701,6 @@ fn table_like_index_name(
         }
         collision = collision.saturating_add(1);
     }
-}
-
-fn validate_table_like_default_copy(
-    fields: &[crate::catalog::FieldMeta],
-    constraints: &[FieldConstraint],
-    include_defaults: bool,
-) -> Result<(), QueryError> {
-    if !include_defaults {
-        return Ok(());
-    }
-
-    for field in fields {
-        let field_key = crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
-        let matches_field = |constraint: &&FieldConstraint| {
-            crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field) == field_key
-        };
-        let identity = constraints
-            .iter()
-            .filter(matches_field)
-            .any(|constraint| constraint.identity.is_some());
-        let sequence_default = constraints.iter().filter(matches_field).any(|constraint| {
-            constraint.default_sequence.is_some()
-                || constraint
-                    .default_expression
-                    .as_deref()
-                    .and_then(crate::catalog::parse_nextval_default_expression)
-                    .is_some()
-        });
-        if !identity && sequence_default {
-            return Err(CassieError::Unsupported(
-                "CREATE TABLE LIKE INCLUDING DEFAULTS cannot copy sequence-backed defaults until their source dependency lifecycle is supported".to_string(),
-            )
-            .into());
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn create_index(

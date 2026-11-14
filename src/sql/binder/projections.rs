@@ -339,14 +339,20 @@ pub(super) fn bind_rename_materialized_view_statement(
         .get_materialized_projection(&statement.name)
         .ok_or_else(|| CassieError::CollectionNotFound(statement.name.clone()))?
         .collection;
+    let Some(requested_name) = statement.new_name.clone() else {
+        return Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::RenameMaterializedView(statement),
+        ));
+    };
     let crate::catalog::ParsedName::Unqualified(name) =
-        crate::catalog::parse_name(&statement.new_name).map_err(CassieError::Planner)?
+        crate::catalog::parse_name(&requested_name).map_err(CassieError::Planner)?
     else {
         return Err(CassieError::Planner(
             "RENAME TO requires an unqualified name".into(),
         ));
     };
-    statement.new_name = match crate::catalog::parse_name(&statement.name)
+    let new_name = match crate::catalog::parse_name(&statement.name)
         .map_err(CassieError::Planner)?
     {
         crate::catalog::ParsedName::DatabaseQualified {
@@ -358,20 +364,17 @@ pub(super) fn bind_rename_materialized_view_statement(
             catalog,
         )?,
         crate::catalog::ParsedName::Unqualified(_) => {
-            normalize_new_relation_name(&statement.new_name, context, catalog)?
+            normalize_new_relation_name(&requested_name, context, catalog)?
         }
     };
-    if catalog.relation_exists(&statement.new_name)
-        || catalog
-            .get_projection_metadata(&statement.new_name)
-            .is_some()
-    {
+    if catalog.relation_exists(&new_name) || catalog.get_projection_metadata(&new_name).is_some() {
         return Err(crate::app::DiagnosticError::new(
             "42P07",
-            format!("relation '{}' already exists", statement.new_name),
+            format!("relation '{new_name}' already exists"),
         )
         .into());
     }
+    statement.new_name = Some(new_name);
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::RenameMaterializedView(statement),

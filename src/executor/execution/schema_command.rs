@@ -8,6 +8,11 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 
+#[path = "comment_cleanup.rs"]
+mod comment_cleanup;
+pub(in crate::executor::execution) use comment_cleanup::{
+    cleanup_relation_comments, cleanup_schema_comment,
+};
 #[path = "access_method_conversion.rs"]
 mod access_method_conversion;
 #[path = "schema_using.rs"]
@@ -222,13 +227,18 @@ pub(super) fn drop_table(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("DROP TABLE", controls)?;
-    for table in std::iter::once(&statement.table).chain(&statement.additional_tables) {
+    let targets = std::iter::once(&statement.table)
+        .chain(&statement.additional_tables)
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    for table in &targets {
         drop_table_target(
             cassie,
             session,
             table,
             statement.if_exists,
             statement.cascade,
+            &targets,
         )?;
     }
     Ok(output)
@@ -240,11 +250,18 @@ fn drop_table_target(
     table: &str,
     if_exists: bool,
     cascade: bool,
+    dropped_together: &[&str],
 ) -> Result<(), QueryError> {
     if if_exists && !cassie.catalog.exists(table) {
         return Ok(());
     }
     super::type_alter::reject_row_type_dependents(cassie, table, cascade)?;
+    super::sequence_default_dependents::resolve_for_table(
+        cassie,
+        table,
+        cascade,
+        dropped_together,
+    )?;
     let dependent_views = views_depending_on(cassie, table, None);
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("table", table, &dependent_views));
@@ -281,55 +298,6 @@ fn drop_table_target(
         .unregister_collection(table)
         .map_err(|error| QueryError::General(error.to_string()))?;
 
-    Ok(())
-}
-
-pub(super) fn cleanup_relation_comments(
-    cassie: &Cassie,
-    relation: &str,
-    relation_id: u64,
-) -> Result<(), QueryError> {
-    let database = crate::catalog::relation_database_name(relation)
-        .unwrap_or_else(|| cassie.default_database.clone());
-    let object_oid = crate::catalog::object_identity::normal_oid(relation_id).ok_or_else(|| {
-        QueryError::Cassie(crate::app::CassieError::Unsupported(
-            "comment cleanup requires a stable table catalog identity".to_owned(),
-        ))
-    })?;
-    cassie
-        .midge
-        .delete_object_comments_for_object(&database, 1259, object_oid)
-        .map_err(QueryError::Cassie)?;
-    cassie
-        .metadata_write_catalog
-        .unregister_relation_comments(&database, object_oid);
-    Ok(())
-}
-
-pub(super) fn cleanup_schema_comment(
-    cassie: &Cassie,
-    database: &str,
-    schema: &str,
-) -> Result<(), QueryError> {
-    let object_oid = crate::catalog::object_identity::stored_namespace_oid(&cassie.catalog, schema)
-        .ok_or_else(|| {
-            QueryError::Cassie(crate::app::CassieError::Unsupported(
-                "comment cleanup requires a stable schema catalog identity".to_owned(),
-            ))
-        })?;
-    let address = crate::catalog::ObjectCommentAddress {
-        database: database.to_ascii_lowercase(),
-        class_oid: 2615,
-        object_oid,
-        object_sub_id: 0,
-    };
-    cassie
-        .midge
-        .delete_object_comment(&address)
-        .map_err(QueryError::Cassie)?;
-    cassie
-        .metadata_write_catalog
-        .unregister_object_comment(&address);
     Ok(())
 }
 
@@ -533,14 +501,11 @@ fn execute_alter_table_operation(
             default_expression.clone(),
             default_sequence.clone(),
         ),
-        AlterTableOperation::AlterColumnDropDefault { field } => {
-            super::sequence_command::alter_column_drop_default(cassie, &statement.table, field)
-        }
-        AlterTableOperation::AlterColumnSetNotNull { field } => {
-            super::sequence_command::alter_column_set_not_null(cassie, &statement.table, field)
-        }
-        AlterTableOperation::AlterColumnDropNotNull { field } => {
-            super::sequence_command::alter_column_drop_not_null(cassie, &statement.table, field)
+        operation @ (AlterTableOperation::AlterColumnDropDefault { .. }
+        | AlterTableOperation::AlterColumnSetNotNull { .. }
+        | AlterTableOperation::AlterColumnStorage { .. }
+        | AlterTableOperation::AlterColumnDropNotNull { .. }) => {
+            super::column_storage_command::alter_column_flag(cassie, &statement.table, operation)
         }
         AlterTableOperation::AlterColumnIdentity { field, action } => {
             super::identity_alter::alter_column_identity(cassie, &statement.table, field, action)
@@ -860,6 +825,9 @@ fn alter_table_drop_column(
             .unregister_object_comment(&address);
     }
     cassie.catalog.remove_collection_field(table, field);
+    // A column added later under the same name starts without the dropped
+    // column's storage strategy and compression method.
+    super::column_storage_command::reset_column_storage(cassie, table, field)?;
     unregister_vector_indexes_on_column(cassie, table, field);
     schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;
     cassie

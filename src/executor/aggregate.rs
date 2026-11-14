@@ -266,7 +266,7 @@ pub(crate) fn apply_pg_attribute_identity_oid(
     }
     if matches!(projection, [SelectItem::Wildcard]) {
         for column in columns {
-            if column.name.eq_ignore_ascii_case("attidentity") {
+            if is_internal_char_attribute(&column.name) {
                 apply_internal_char_identity(column);
             }
         }
@@ -275,12 +275,19 @@ pub(crate) fn apply_pg_attribute_identity_oid(
         .any(|item| matches!(item, SelectItem::Wildcard))
     {
         for (item, column) in projection.iter().zip(columns) {
-            if matches!(item, SelectItem::Column { name, .. } if crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|name| name.implicit_output_label().eq_ignore_ascii_case("attidentity")))
+            if matches!(item, SelectItem::Column { name, .. } if crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|name| is_internal_char_attribute(&name.implicit_output_label())))
             {
                 apply_internal_char_identity(column);
             }
         }
     }
+}
+
+/// `pg_attribute` columns PostgreSQL types as the internal `"char"`.
+fn is_internal_char_attribute(name: &str) -> bool {
+    ["attidentity", "attstorage", "attcompression"]
+        .iter()
+        .any(|candidate| name.eq_ignore_ascii_case(candidate))
 }
 
 fn query_source_contains_pg_type(source: &crate::sql::ast::QuerySource) -> bool {

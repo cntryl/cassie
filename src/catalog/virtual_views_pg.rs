@@ -6,9 +6,12 @@ use crate::midge::adapter::Midge;
 use crate::types::{DataType, ObjectIdKind, Value};
 
 use super::VirtualRow;
+use attributes::{attribute_row, AttributeSpec};
 
 #[path = "virtual_views_pg/acl.rs"]
 mod acl;
+#[path = "virtual_views_pg/attributes.rs"]
+mod attributes;
 #[path = "virtual_views_pg/collation.rs"]
 pub(super) mod collation;
 #[path = "virtual_views_pg/composite_catalogs.rs"]
@@ -74,6 +77,8 @@ pub(super) fn attribute_schema() -> Vec<(String, DataType)> {
         bool("attisdropped"),
         text("attidentity"),
         text("attgenerated"),
+        text("attstorage"),
+        text("attcompression"),
         int("attcollation"),
     ]
 }
@@ -451,78 +456,6 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
     rows
 }
 
-/// One `pg_attribute` column described independently of its owning relation.
-struct AttributeSpec<'a> {
-    field_name: &'a str,
-    data_type: &'a DataType,
-    attnum: i64,
-    constraint: Option<&'a FieldConstraint>,
-    is_dropped: bool,
-}
-
-fn attribute_row(
-    catalog: &Catalog,
-    relation: &str,
-    attribute: &AttributeSpec<'_>,
-    current_database: Option<&str>,
-) -> VirtualRow {
-    let &AttributeSpec {
-        field_name,
-        data_type,
-        attnum,
-        constraint,
-        is_dropped,
-    } = attribute;
-    let identity = if is_dropped {
-        None
-    } else {
-        constraint.and_then(|item| item.identity)
-    };
-    vec![
-        string("attrelid", local_name(relation)),
-        int_value("attrelid_oid", relation_oid(catalog, relation)),
-        string("attname", field_name),
-        int_value("attnum", attnum),
-        int_value(
-            "atttypid",
-            if is_dropped {
-                0
-            } else {
-                current_database
-                    .and_then(|database| {
-                        crate::catalog::object_identity::type_oid_for_database(
-                            catalog, database, data_type,
-                        )
-                    })
-                    .unwrap_or_else(|| {
-                        if matches!(data_type, DataType::Vector(_)) {
-                            0
-                        } else {
-                            data_type.type_oid()
-                        }
-                    })
-            },
-        ),
-        bool_value("attnotnull", !is_dropped && is_not_null(constraint)),
-        int_value("atttypmod", i64::from(data_type.atttypmod())),
-        bool_value(
-            "atthasdef",
-            !is_dropped && constraint_has_default(constraint),
-        ),
-        bool_value("attisdropped", is_dropped),
-        string(
-            "attidentity",
-            match identity {
-                Some(crate::catalog::IdentityGeneration::Always) => "a",
-                Some(crate::catalog::IdentityGeneration::ByDefault) => "d",
-                None => "",
-            },
-        ),
-        string("attgenerated", ""),
-        int_value("attcollation", collation::type_oid(data_type)),
-    ]
-}
-
 fn dropped_attribute_name(field_id: u32) -> String {
     format!("........pg.dropped.{field_id}........")
 }
@@ -803,11 +736,11 @@ fn constraint_for_field<'a>(
     })
 }
 
-fn is_not_null(constraint: Option<&FieldConstraint>) -> bool {
+pub(super) fn is_not_null(constraint: Option<&FieldConstraint>) -> bool {
     constraint.is_some_and(|constraint| constraint.not_null || constraint.primary_key)
 }
 
-fn constraint_has_default(constraint: Option<&FieldConstraint>) -> bool {
+pub(super) fn constraint_has_default(constraint: Option<&FieldConstraint>) -> bool {
     constraint.is_some_and(|constraint| {
         constraint.default_expression.is_some() || constraint.default_value.is_some()
     })
@@ -913,11 +846,11 @@ fn bool(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::Boolean)
 }
 
-fn string(name: &str, value: impl Into<String>) -> (String, Value) {
+pub(super) fn string(name: &str, value: impl Into<String>) -> (String, Value) {
     (name.to_string(), Value::String(value.into()))
 }
 
-fn int_value<T>(name: &str, value: T) -> (String, Value)
+pub(super) fn int_value<T>(name: &str, value: T) -> (String, Value)
 where
     T: TryInto<i64>,
 {
@@ -927,7 +860,7 @@ where
     )
 }
 
-fn bool_value(name: &str, value: bool) -> (String, Value) {
+pub(super) fn bool_value(name: &str, value: bool) -> (String, Value) {
     (name.to_string(), Value::Bool(value))
 }
 

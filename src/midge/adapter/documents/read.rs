@@ -21,11 +21,6 @@ struct RowBlobScanRequest<'a> {
 }
 
 impl Midge {
-    pub(crate) fn flush_data_family(&self) -> Result<(), CassieError> {
-        let family = self.database_family(&self.default_database)?;
-        self.engine.flush_cf(&family).map_err(CassieError::from)
-    }
-
     /// Returns the durable data epoch, or zero before the first changed write.
     ///
     /// # Errors

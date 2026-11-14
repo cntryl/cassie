@@ -79,7 +79,7 @@ fn should_publish_acknowledged_copy_epoch_before_unavailable_finishing() {
 
     // Act
     cassie
-        .finish_acknowledged_copy_report(table.clone(), report, Some(&controls))
+        .finish_acknowledged_copy_report(&table, report, Some(&controls))
         .expect("mandatory memory barrier succeeds despite canceled maintenance");
 
     // Assert
@@ -156,5 +156,113 @@ fn should_acknowledge_copy_through_guarded_finishing() {
     assert_eq!(
         count(&cassie, &session, "SELECT COUNT(*) FROM copy_finish"),
         vec![vec![Value::Int64(2)]]
+    );
+}
+
+fn owner_snapshot(cassie: &Cassie, table: &str) -> serde_json::Value {
+    serde_json::json!({
+        "hint": cassie.catalog.get_cardinality_stats(table),
+        "catalog_version": cassie.catalog.version(),
+        "projection": cassie.midge.projection_metadata(table).expect("projection"),
+        "hashes": cassie.midge.projection_hash_summary(table).expect("hashes"),
+        "debt": cassie.midge.list_maintenance_debt().expect("debt"),
+    })
+}
+
+#[test]
+fn should_preserve_replacement_owner_metadata_when_finishing_a_retired_copy() {
+    // Arrange
+    let (cassie, session, table) = fixture();
+    let mut options = cassie.buffered_document_write_options(&table);
+    options.refresh_after_commit = false;
+    let report = cassie
+        .midge
+        .apply_document_write_batch_with_options(
+            &table,
+            vec![DocumentWriteOp::Put {
+                id: "retired-row".into(),
+                payload: serde_json::json!({"id":2,"k":1}),
+            }],
+            &options,
+        )
+        .expect("old acknowledged source commit");
+    let old_identity = report.relation_id;
+    for sql in [
+        "BEGIN",
+        "DROP TABLE copy_finish",
+        "CREATE TABLE copy_finish (id BIGINT PRIMARY KEY, k BIGINT)",
+        "INSERT INTO copy_finish VALUES (9,1)",
+        "COMMIT",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("replacement");
+    }
+    cassie
+        .refresh_cardinality_stats(&table)
+        .expect("replacement hint");
+    let new_identity = cassie
+        .midge
+        .row_schema(&table)
+        .expect("replacement descriptor")
+        .relation_id;
+    let before = owner_snapshot(&cassie, &table);
+
+    // Act
+    cassie
+        .finish_acknowledged_copy_report(&table, report, None)
+        .expect("retired finishing");
+
+    // Assert
+    assert_ne!(old_identity, new_identity);
+    assert_eq!(owner_snapshot(&cassie, &table), before);
+    assert_eq!(
+        count(&cassie, &session, "SELECT id,k FROM copy_finish"),
+        vec![vec![Value::Int64(9), Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_flush_the_copy_target_database_family() {
+    // Arrange
+    let (cassie, admin, _) = fixture();
+    cassie
+        .execute_sql(&admin, "CREATE DATABASE copy_tenant", vec![])
+        .expect("tenant database");
+    let tenant = cassie.create_session("tester", Some("copy_tenant".into()));
+    cassie
+        .execute_sql(&tenant, "CREATE TABLE tenant_copy (id BIGINT)", vec![])
+        .expect("tenant table");
+    let statement = CopyStatement {
+        table: "tenant_copy".into(),
+        columns: vec![],
+        format: CopyFormat::Csv,
+        header: false,
+    };
+    let expected = cassie
+        .midge
+        .database_family("copy_tenant")
+        .expect("tenant family")
+        .id();
+    let default = cassie
+        .midge
+        .database_family(&cassie.default_database)
+        .expect("default family")
+        .id();
+    let _ = crate::midge::adapter::Midge::take_collection_flush_family_for_test();
+
+    // Act
+    let affected = cassie
+        .copy_from_csv_stdin(&tenant, &statement, b"7\n")
+        .expect("tenant COPY");
+    let actual = crate::midge::adapter::Midge::take_collection_flush_family_for_test();
+
+    // Assert
+    assert_eq!(affected, 1);
+    assert_ne!(expected, default);
+    assert_eq!(actual, Some(expected));
+    assert_eq!(
+        count(&cassie, &tenant, "SELECT id FROM tenant_copy"),
+        vec![vec![Value::Int64(7)]]
     );
 }

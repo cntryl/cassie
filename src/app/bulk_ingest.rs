@@ -263,7 +263,7 @@ impl Cassie {
                 skipped,
             });
         };
-        self.finish_acknowledged_copy_report(statement.table.clone(), report, Some(&controls))?;
+        self.finish_acknowledged_copy_report(&statement.table, report, Some(&controls))?;
         Ok(CopyIngestResult {
             count: affected,
             skipped,

@@ -161,19 +161,16 @@ impl Cassie {
 
     pub(super) fn finish_acknowledged_copy_report(
         &self,
-        collection: String,
+        collection: &str,
         report: DocumentWriteBatchReport,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<(), CassieError> {
-        let mut committed =
-            self.account_acknowledged_write_reports(BTreeMap::from([(collection, report)]));
-        // Invalidating hints cannot wait behind cancellable maintenance gates.
-        for changed in &committed.changed_collections {
-            self.catalog.clear_cardinality_stats(&changed.collection);
-        }
+        let mut committed = self
+            .account_acknowledged_write_reports(BTreeMap::from([(collection.to_owned(), report)]));
+        self.invalidate_acknowledged_copy_hints(&committed);
         // COPY uses a buffered source write. Preserve its mandatory durability
         // barrier independently of cancellable, rebuildable metadata finishing.
-        self.midge.flush_data_family()?;
+        self.midge.flush_data_family_for_collection(collection)?;
         committed.copy_finish = true;
         self.finish_staged_write_batches(committed, controls);
         Ok(())

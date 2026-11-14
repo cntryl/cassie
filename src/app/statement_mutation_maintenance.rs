@@ -2,9 +2,33 @@
 
 use std::time::Duration;
 
-use super::{Cassie, CassieError, CommittedCollection, QueryExecutionControls};
+use super::{
+    Cassie, CassieError, CommittedCollection, CommittedWriteBatch, QueryExecutionControls,
+};
 
 impl Cassie {
+    pub(super) fn invalidate_acknowledged_copy_hints(&self, committed: &CommittedWriteBatch) {
+        // A known source commit has already published its epoch. This small
+        // ownership check cannot be skipped by canceled ancillary controls.
+        let _catalog = self.catalog_publication.read();
+        let names = committed
+            .changed_collections
+            .iter()
+            .map(|change| change.collection.clone())
+            .collect::<Vec<_>>();
+        self.midge.with_collection_write_gates(&names, || {
+            for changed in &committed.changed_collections {
+                match self.midge.current_row_schema_identity(&changed.collection) {
+                    Ok(Some(identity)) if identity == changed.relation_id => {
+                        self.catalog.clear_cardinality_stats(&changed.collection);
+                    }
+                    Ok(_) => {}
+                    Err(_) => self.runtime.record_cardinality_unavailable(),
+                }
+            }
+        });
+    }
+
     pub(super) fn finish_committed_collection(
         &self,
         committed: &CommittedCollection,

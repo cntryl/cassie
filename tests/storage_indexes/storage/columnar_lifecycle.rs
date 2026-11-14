@@ -576,7 +576,10 @@ fn should_keep_row_authority_after_a_conversion_rejected_before_commit() {
     assert!(error.to_string().contains("injected test"), "{error}");
     assert_eq!(fixture.mode_of("conv_rows"), mode("row-store"));
     assert_eq!(fixture.row_entries("conv_rows"), rows_before);
-    assert!(fixture.column_entries("conv_rows").is_empty());
+    assert_eq!(
+        fixture.column_entries("conv_rows"),
+        Vec::<(Vec<u8>, Vec<u8>)>::new()
+    );
     assert_eq!(fixture.rows(READ_ALL), converted_rows());
 }
 
@@ -596,7 +599,10 @@ fn should_keep_column_authority_after_a_conversion_rejected_before_commit() {
     assert!(error.to_string().contains("injected test"), "{error}");
     assert_eq!(fixture.mode_of("conv_rows"), mode("column-store"));
     assert_eq!(fixture.column_entries("conv_rows"), columns_before);
-    assert!(fixture.row_entries("conv_rows").is_empty());
+    assert_eq!(
+        fixture.row_entries("conv_rows"),
+        Vec::<(Vec<u8>, Vec<u8>)>::new()
+    );
     assert_eq!(fixture.rows(READ_ALL), converted_rows());
 }
 
@@ -613,7 +619,10 @@ fn should_complete_a_conversion_retried_after_an_injected_precommit_failure() {
 
     // Assert
     assert_eq!(fixture.mode_of("conv_rows"), mode("column-store"));
-    assert!(fixture.row_entries("conv_rows").is_empty());
+    assert_eq!(
+        fixture.row_entries("conv_rows"),
+        Vec::<(Vec<u8>, Vec<u8>)>::new()
+    );
     assert_eq!(fixture.rows(READ_ALL), converted_rows());
 }
 
@@ -665,7 +674,7 @@ fn should_not_publish_a_like_clone_when_a_copied_comment_is_invalid() {
     );
 }
 
-fn rejected_decode_conversion(data_type: &str, payload: serde_json::Value) {
+fn rejected_decode_conversion(data_type: &str, payload: &serde_json::Value) {
     let mut config = CassieRuntimeConfig::default();
     config.limits.query_memory_budget_bytes = 256 * 1024;
     let fixture = Memory::with_config(
@@ -697,7 +706,10 @@ fn rejected_decode_conversion(data_type: &str, payload: serde_json::Value) {
     );
     assert_eq!(fixture.mode_of("decoded_columns"), mode("column-store"));
     assert_eq!(fixture.column_entries("decoded_columns"), before);
-    assert!(fixture.row_entries("decoded_columns").is_empty());
+    assert_eq!(
+        fixture.row_entries("decoded_columns"),
+        Vec::<(Vec<u8>, Vec<u8>)>::new()
+    );
 }
 
 #[test]
@@ -707,7 +719,7 @@ fn should_reserve_json_decode_space_before_conversion_to_heap() {
 
     // Act
     // Assert
-    rejected_decode_conversion("JSONB", payload);
+    rejected_decode_conversion("JSONB", &payload);
 }
 
 #[test]
@@ -717,5 +729,5 @@ fn should_reserve_array_decode_space_before_conversion_to_heap() {
 
     // Act
     // Assert
-    rejected_decode_conversion("BIGINT[]", payload);
+    rejected_decode_conversion("BIGINT[]", &payload);
 }

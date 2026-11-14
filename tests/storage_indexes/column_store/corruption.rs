@@ -290,7 +290,7 @@ fn should_preserve_orphan_fields_when_rejecting_conversion_to_heap() {
         )]]
     );
     assert_eq!(env.column_entries(TABLE), entries);
-    assert!(env.row_store_keys(TABLE).is_empty());
+    assert_eq!(env.row_store_keys(TABLE), Vec::<Vec<u8>>::new());
 }
 
 #[test]

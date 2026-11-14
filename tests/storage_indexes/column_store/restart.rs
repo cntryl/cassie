@@ -136,8 +136,11 @@ fn should_recover_a_mixed_database_after_restart() {
     assert_eq!(text_rows(&env, &read_sql("heap_t")), without_fifth);
     env.assert_column_authority("col_t", 4, 3, "col_t after restart");
     env.assert_column_authority("conv_t", 4, 3, "conv_t after restart");
-    assert!(env.column_entries("back_t").is_empty());
-    assert!(env.row_store_keys("col_t").is_empty());
+    assert_eq!(
+        env.column_entries("back_t"),
+        Vec::<(Vec<u8>, Vec<u8>)>::new()
+    );
+    assert_eq!(env.row_store_keys("col_t"), Vec::<Vec<u8>>::new());
     for report in &reports {
         assert!(report.checked_components.iter().any(|c| c == "column_rows"));
         assert_eq!(report.mismatch_count, 0, "{:?}", report.last_error);
@@ -275,7 +278,7 @@ fn should_rebuild_a_recovered_column_table_index_from_authoritative_values() {
     // Assert
     assert_eq!(before, vec![vec!["1".to_owned()]]);
     assert_eq!(after, before);
-    assert!(removed.is_empty());
+    assert_eq!(removed, Vec::<Vec<String>>::new());
     assert_eq!(
         all,
         vec![
@@ -330,7 +333,10 @@ fn assert_retrieval_recovery(
     for (query, expected) in queries.iter().zip(&expected) {
         assert_eq!(env.rows(query), *expected, "rebuilt generation: {query}");
     }
-    assert!(env.row_store_keys("retrieval_columns").is_empty());
+    assert_eq!(
+        env.row_store_keys("retrieval_columns"),
+        Vec::<Vec<u8>>::new()
+    );
 }
 
 #[test]

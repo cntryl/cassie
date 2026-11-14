@@ -26,6 +26,7 @@ pub(crate) struct MidgeRowCursor {
     pending: Option<AccountedDocument>,
     last_key_memory: Option<QueryMemoryReservation>,
     column_store: bool,
+    column_fields_validated: bool,
     collection: String,
 }
 
@@ -91,6 +92,15 @@ impl MidgeRowCursor {
             return Ok(Vec::new());
         }
 
+        if self.column_store && !self.column_fields_validated {
+            Midge::validate_column_store_field_markers(
+                &self.tx,
+                &self.collection,
+                &self.row_schema,
+                || check_controls(controls),
+            )?;
+            self.column_fields_validated = true;
+        }
         let mut documents = Vec::new();
         if let Some(pending) = self.pending.take() {
             push_accounted_document(&mut documents, pending)?;
@@ -248,6 +258,7 @@ impl Midge {
             pending: None,
             last_key_memory: None,
             column_store,
+            column_fields_validated: false,
             collection,
         }))
     }

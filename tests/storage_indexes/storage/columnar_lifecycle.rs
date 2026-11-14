@@ -3,6 +3,9 @@
 
 use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::config::CassieRuntimeConfig;
+use cassie::midge::adapter::{
+    set_document_write_storage_failures, DocumentWriteStorageFailure, StorageFamily,
+};
 use cassie::types::Value;
 use std::path::PathBuf;
 
@@ -54,6 +57,35 @@ impl Memory {
         self.rows(&format!(
             "SELECT storage_mode FROM pg_catalog.pg_table_storage WHERE tablename = '{table}'"
         ))
+    }
+
+    /// Every raw `\x18` entry of a column table.
+    fn column_entries(&self, table: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
+        let prefix = self
+            .cassie
+            .midge
+            .column_store_prefix_for_diagnostics(table)
+            .expect("column-store prefix");
+        self.cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &prefix)
+            .expect("raw column-store scan")
+    }
+
+    /// Every raw row-blob and legacy document entry of a table.
+    fn row_entries(&self, table: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.cassie
+            .midge
+            .row_store_prefixes_for_diagnostics(table)
+            .expect("row-store prefixes")
+            .into_iter()
+            .flat_map(|prefix| {
+                self.cassie
+                    .midge
+                    .raw_scan_prefix(StorageFamily::Data, &prefix)
+                    .expect("raw row-store scan")
+            })
+            .collect()
     }
 
     fn row_ids(&self, table: &str) -> Vec<String> {
@@ -486,4 +518,149 @@ fn should_fail_a_conversion_over_the_memory_budget_without_changing_the_table() 
     // The table is larger than the query budget, so verify through the storage
     // layer instead of a budgeted SQL scan.
     assert_eq!(fixture.row_ids("conv_large").len(), 800);
+}
+
+#[test]
+fn should_charge_column_field_payloads_before_converting_to_heap() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.query_memory_budget_bytes = 256 * 1024;
+    let fixture = Memory::with_config(
+        config,
+        &["CREATE TABLE wide_column (id INT, body TEXT) USING columnar"],
+    );
+    let payload = "x".repeat(128 * 1024);
+    fixture
+        .cassie
+        .midge
+        .put_document(
+            "wide_column",
+            Some("one".to_owned()),
+            serde_json::json!({"id": 1, "body": payload}),
+        )
+        .expect("seed without a SQL result reservation");
+    let before = fixture
+        .cassie
+        .midge
+        .scan_documents("wide_column")
+        .expect("before");
+
+    // Act
+    let error = fixture.fail("ALTER TABLE wide_column SET ACCESS METHOD heap");
+
+    // Assert
+    assert_eq!(error.sql_state(), "54000");
+    assert_eq!(fixture.mode_of("wide_column"), mode("column-store"));
+    let after = fixture
+        .cassie
+        .midge
+        .scan_documents("wide_column")
+        .expect("after");
+    assert_eq!(after.len(), before.len());
+    assert_eq!(after[0].id, before[0].id);
+    assert_eq!(after[0].payload, before[0].payload);
+}
+
+#[test]
+fn should_keep_row_authority_after_a_conversion_rejected_before_commit() {
+    // Arrange
+    let fixture = Memory::new(SEEDED_ROWS);
+    let rows_before = fixture.row_entries("conv_rows");
+    set_document_write_storage_failures(DocumentWriteStorageFailure::WriteStall, 1);
+
+    // Act
+    let error = fixture.fail("ALTER TABLE conv_rows SET ACCESS METHOD columnar");
+    set_document_write_storage_failures(DocumentWriteStorageFailure::WriteStall, 0);
+
+    // Assert
+    assert!(error.to_string().contains("injected test"), "{error}");
+    assert_eq!(fixture.mode_of("conv_rows"), mode("row-store"));
+    assert_eq!(fixture.row_entries("conv_rows"), rows_before);
+    assert!(fixture.column_entries("conv_rows").is_empty());
+    assert_eq!(fixture.rows(READ_ALL), converted_rows());
+}
+
+#[test]
+fn should_keep_column_authority_after_a_conversion_rejected_before_commit() {
+    // Arrange
+    let fixture = Memory::new(SEEDED_ROWS);
+    fixture.run("ALTER TABLE conv_rows SET ACCESS METHOD columnar");
+    let columns_before = fixture.column_entries("conv_rows");
+    set_document_write_storage_failures(DocumentWriteStorageFailure::Fenced, 1);
+
+    // Act
+    let error = fixture.fail("ALTER TABLE conv_rows SET ACCESS METHOD heap");
+    set_document_write_storage_failures(DocumentWriteStorageFailure::Fenced, 0);
+
+    // Assert
+    assert!(error.to_string().contains("injected test"), "{error}");
+    assert_eq!(fixture.mode_of("conv_rows"), mode("column-store"));
+    assert_eq!(fixture.column_entries("conv_rows"), columns_before);
+    assert!(fixture.row_entries("conv_rows").is_empty());
+    assert_eq!(fixture.rows(READ_ALL), converted_rows());
+}
+
+#[test]
+fn should_complete_a_conversion_retried_after_an_injected_precommit_failure() {
+    // Arrange
+    let fixture = Memory::new(SEEDED_ROWS);
+    set_document_write_storage_failures(DocumentWriteStorageFailure::WriteStall, 1);
+    let _ = fixture.fail("ALTER TABLE conv_rows SET ACCESS METHOD columnar");
+    set_document_write_storage_failures(DocumentWriteStorageFailure::WriteStall, 0);
+
+    // Act
+    fixture.run("ALTER TABLE conv_rows SET ACCESS METHOD columnar");
+
+    // Assert
+    assert_eq!(fixture.mode_of("conv_rows"), mode("column-store"));
+    assert!(fixture.row_entries("conv_rows").is_empty());
+    assert_eq!(fixture.rows(READ_ALL), converted_rows());
+}
+
+#[test]
+fn should_not_publish_a_like_clone_when_a_copied_comment_is_invalid() {
+    // Arrange
+    let fixture = Memory::new(&["CREATE TABLE comment_source (id INT, label TEXT)"]);
+    let source = cassie::catalog::canonical_relation_name("postgres", "public", "comment_source");
+    let oid =
+        cassie::catalog::object_identity::stored_relation_oid(&fixture.cassie.catalog, &source)
+            .expect("source oid");
+    fixture
+        .cassie
+        .catalog
+        .register_object_comment(cassie::catalog::ObjectCommentMeta {
+            format_version: cassie::catalog::ObjectCommentMeta::FORMAT_VERSION,
+            address: cassie::catalog::ObjectCommentAddress {
+                database: "postgres".to_owned(),
+                class_oid: 1259,
+                object_oid: oid,
+                object_sub_id: 2,
+            },
+            description: String::new(),
+        });
+
+    // Act
+    let result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "CREATE TABLE comment_target (LIKE comment_source INCLUDING COMMENTS) USING columnar",
+        vec![],
+    );
+
+    // Assert
+    assert!(
+        result.is_err(),
+        "invalid comments must reject the whole statement"
+    );
+    assert_eq!(fixture.mode_of("comment_target"), Vec::<Vec<String>>::new());
+    assert!(fixture
+        .cassie
+        .midge
+        .collection_metadata("comment_target")
+        .expect("storage metadata")
+        .is_none());
+    assert_eq!(
+        fixture.cassie.catalog.object_comments().len(),
+        1,
+        "only the source canary remains"
+    );
 }

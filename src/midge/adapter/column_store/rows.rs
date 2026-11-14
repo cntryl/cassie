@@ -153,6 +153,12 @@ impl Midge {
             ));
         }
 
+        Self::validate_column_store_field_markers(
+            tx,
+            request.collection,
+            request.row_schema,
+            || Ok(()),
+        )?;
         let batch_size = request.batch_size.max(1);
         let mut current = Vec::with_capacity(batch_size);
         let mut emitted = 0usize;

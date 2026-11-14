@@ -76,7 +76,7 @@ Column tables support the same surface as row tables:
 - **DDL**: the supported ALTER TABLE forms, rename, schema move, DROP, and
   `CREATE TABLE ... LIKE`. `LIKE` copies columns and selected options only;
   the new table's mode comes from its own selector.
-- **Constraints**: NOT NULL, CHECK, DEFAULT, identity and generated columns,
+- **Constraints**: NOT NULL, CHECK, DEFAULT, `GENERATED ... AS IDENTITY`,
   PRIMARY KEY, UNIQUE, domains, and FOREIGN KEY with a column table as either
   the referencing or the referenced side. Semantics and SQLSTATEs equal those
   of row tables.
@@ -84,6 +84,10 @@ Column tables support the same surface as row tables:
   rejected with `0A000` as for row tables), full-text BM25, vector (HNSW,
   IVFFlat), hybrid retrieval and time-series. They are built and maintained
   from authoritative field values.
+
+Generated expression columns remain unsupported, as for row tables.
+`LIKE ... INCLUDING GENERATED` is an accepted no-op when there is no generated
+expression to copy.
 
 Not supported, rejected with `0A000` before any change:
 
@@ -141,6 +145,15 @@ relation and row id, when:
   marker's schema version has no field key;
 - a field key exists for a row with no live marker;
 - a value fails to decode or does not match the field's declared type.
+
+Validation follows the accessed source: point and index reads validate their
+requested/candidate rows; projected reads decode their fetched fields. Full-table
+traversal and authority conversion validate field-to-marker ownership across the
+source table, including orphan fields that marker enumeration would otherwise
+miss. Controlled traversal checks cancellation during this streaming preflight
+and retains no full-table field payload collection. This scope was selected by
+the delegated Jev review during the v0.5.0 closeout on 2026-11-14; its owning
+issue and review receipt record the decision.
 
 The read returns no partial result and never falls back to a row blob or a
 derived index. `cassie verify` and the storage verifier report the same

@@ -214,3 +214,78 @@ fn cassie_encoded_text(text: &str) -> Vec<u8> {
     bytes.extend_from_slice(text.as_bytes());
     bytes
 }
+
+#[test]
+fn should_fail_a_full_scan_when_a_field_has_no_live_marker() {
+    // Arrange
+    let env = seeded();
+    raw_put(
+        &env,
+        &env.field_key(TABLE, NAME_FIELD, "ghost"),
+        &cassie_encoded_text("orphan"),
+    );
+
+    // Act
+    let result = env
+        .cassie
+        .execute_sql(&env.session, "SELECT id, name FROM victims", vec![]);
+
+    // Assert
+    assert_corruption(
+        &result.expect_err("orphan fields must fail the scan"),
+        "ghost",
+    );
+}
+
+#[test]
+fn should_fail_a_batched_scan_when_a_field_has_no_live_marker() {
+    // Arrange
+    let env = seeded();
+    raw_put(
+        &env,
+        &env.field_key(TABLE, NAME_FIELD, "ghost"),
+        &cassie_encoded_text("orphan"),
+    );
+
+    // Act
+    let result = env.cassie.midge.scan_documents_batched(TABLE, 2);
+
+    // Assert
+    assert_corruption(
+        &result.expect_err("orphan fields must fail the scan"),
+        "ghost",
+    );
+}
+
+#[test]
+fn should_preserve_orphan_fields_when_rejecting_conversion_to_heap() {
+    // Arrange
+    let env = seeded();
+    let orphan_key = env.field_key(TABLE, NAME_FIELD, "ghost");
+    let orphan_value = cassie_encoded_text("orphan");
+    raw_put(&env, &orphan_key, &orphan_value);
+    let entries = env.column_entries(TABLE);
+
+    // Act
+    let result = env.cassie.execute_sql(
+        &env.session,
+        "ALTER TABLE victims SET ACCESS METHOD heap",
+        vec![],
+    );
+    let mode = env
+        .rows("SELECT storage_mode FROM pg_catalog.pg_table_storage WHERE tablename = 'victims'");
+
+    // Assert
+    assert_corruption(
+        &result.expect_err("conversion must reject orphan fields"),
+        "ghost",
+    );
+    assert_eq!(
+        mode,
+        vec![vec![cassie::types::Value::String(
+            "column-store".to_owned()
+        )]]
+    );
+    assert_eq!(env.column_entries(TABLE), entries);
+    assert!(env.row_store_keys(TABLE).is_empty());
+}

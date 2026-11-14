@@ -124,6 +124,45 @@ pub(crate) fn decode_field(
 }
 
 impl Midge {
+    /// Rejects orphan field keys before a table scan or authority rewrite.
+    /// Reads from the caller's transaction so markers and fields share a snapshot.
+    pub(crate) fn validate_column_store_field_markers(
+        tx: &crate::midge::adapter::AdapterTransaction,
+        relation: &str,
+        row_schema: &RowSchema,
+        mut check: impl FnMut() -> Result<(), CassieError>,
+    ) -> Result<(), CassieError> {
+        for field in row_schema.fields.iter().filter(|field| !field.retired) {
+            check()?;
+            let prefix = Self::column_store_field_prefix(row_schema.relation_id, field.field_id);
+            let scan = tx
+                .scan(&Query::new().prefix(prefix.clone().into()))
+                .map_err(CassieError::from)?;
+            for entry in scan {
+                check()?;
+                let (key, _) = entry.map_err(CassieError::from)?;
+                let Some(id) = key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
+                    continue;
+                };
+                if tx
+                    .get(&Self::column_store_row_key(row_schema.relation_id, &id))
+                    .map_err(CassieError::from)?
+                    .is_none()
+                {
+                    return Err(corrupt_row(
+                        relation,
+                        &id,
+                        &format!(
+                            "field '{}' has a value but the row has no live marker",
+                            field.name
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Reads one field of a column row and validates it against the marker.
     ///
     /// Returns `None` when the value is SQL NULL for a JSON column, or when

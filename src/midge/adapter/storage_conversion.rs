@@ -74,6 +74,10 @@ impl Midge {
 
         metadata.storage_mode = target;
         Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
+        if let Err(error) = super::check_document_write_storage_failure_injection() {
+            tx.rollback().map_err(CassieError::from)?;
+            return Err(error);
+        }
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(Some(ConversionReport { rows }))
@@ -146,6 +150,7 @@ impl Midge {
         row_schema: &mut RowSchema,
         charge: RewriteCharge<'_>,
     ) -> Result<usize, CassieError> {
+        Self::validate_column_store_field_markers(tx, collection, row_schema, || charge(0))?;
         let mut highest_revision = row_schema.column_revision_floor;
         let live_prefix = Self::column_store_row_prefix(row_schema.relation_id);
         let live = collect_scan(
@@ -159,6 +164,15 @@ impl Midge {
             };
             charge(retained_bytes(&key, &raw, &id))?;
             highest_revision = highest_revision.max(decode_marker_parts(collection, &id, &raw)?.1);
+            // The marker contains no payload. Reserve the compact fields before
+            // decoding them into retained JSON and the target row blob.
+            for field in row_schema.fields.iter().filter(|field| !field.retired) {
+                let field_key =
+                    Self::column_store_field_key(row_schema.relation_id, field.field_id, &id);
+                if let Some(value) = tx.get(&field_key).map_err(CassieError::from)? {
+                    charge(retained_bytes(&field_key, &value, &id))?;
+                }
+            }
             let payload =
                 Self::load_column_store_document_from_tx(tx, collection, &id, row_schema)?
                     .ok_or_else(|| {

@@ -34,6 +34,59 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
+    /// Persists LIKE column comments inside the target collection's initial transaction.
+    pub(super) fn save_initial_column_comments_to_tx(
+        tx: &mut AdapterTransaction,
+        target: &str,
+        schema: &crate::midge::row_blob::RowSchema,
+        comments: &[(String, String)],
+    ) -> Result<Vec<ObjectCommentMeta>, CassieError> {
+        if comments.is_empty() {
+            return Ok(Vec::new());
+        }
+        let database = crate::catalog::relation_database_name(target)
+            .ok_or_else(|| CassieError::Execution("LIKE target has no database".to_owned()))?;
+        let oid =
+            crate::catalog::object_identity::normal_oid(schema.relation_id).ok_or_else(|| {
+                CassieError::Execution("LIKE target has no normal object identity".to_owned())
+            })?;
+        let mut copied = Vec::new();
+        for (name, description) in comments {
+            let Some(field) = schema
+                .fields
+                .iter()
+                .find(|field| !field.retired && field.name == *name)
+            else {
+                continue;
+            };
+            let sub_id = i32::try_from(field.field_id).map_err(|_| {
+                CassieError::ResourceLimit(
+                    "LIKE column comment field identity exceeds i32".to_owned(),
+                )
+            })?;
+            let metadata = ObjectCommentMeta {
+                format_version: ObjectCommentMeta::FORMAT_VERSION,
+                address: ObjectCommentAddress {
+                    database: database.clone(),
+                    class_oid: 1259,
+                    object_oid: oid,
+                    object_sub_id: sub_id,
+                },
+                description: description.clone(),
+            };
+            metadata
+                .validate(&database)
+                .map_err(CassieError::Unsupported)?;
+            let key = key_encoding::object_comment_key(1259, oid, sub_id);
+            let value = serde_json::to_vec(&metadata).map_err(|error| {
+                CassieError::Parse(format!("serialize LIKE column comment: {error}"))
+            })?;
+            tx.put(key, value, None).map_err(CassieError::from)?;
+            copied.push(metadata);
+        }
+        Ok(copied)
+    }
+
     /// Remove the addressed comment from its owning database family.
     ///
     /// # Errors

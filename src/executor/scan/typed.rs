@@ -280,7 +280,7 @@ fn profile_batch(source: &'static str, batch: &TypedBatch, lanes: ProfileLanes) 
         event = "typed_transport_batch", source, rows = batch.len(), fields = batch.schema().len(),
         document_field_lanes = lanes.documents, document_identity_lanes = lanes.identity,
         value_carrier_slots = lanes.values,
-        value_carrier_bytes = lanes.values.saturating_mul(size_of::<Value>()),
+        value_carrier_bytes = lanes.values.saturating_mul(size_of::<crate::types::Value>()),
         encoded_numeric_lanes = lanes.numeric, encoded_json_lanes = lanes.json,
     );
 }

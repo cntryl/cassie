@@ -8,7 +8,9 @@ use cassie::midge::adapter::StorageFamily;
 
 mod alter;
 mod corruption;
+mod images;
 mod no_row_blob;
+mod restart;
 
 pub struct Env {
     pub cassie: Cassie,

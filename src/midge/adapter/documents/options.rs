@@ -8,6 +8,7 @@ pub(crate) struct DocumentWriteBatchOptions {
     pub(crate) normalized_vector_collection: Option<String>,
     pub(crate) record_rollup_maintenance_debt: bool,
     pub(crate) record_materialized_projection_maintenance_debt: bool,
+    pub(super) replay: Option<super::super::projections::ReplayBatchCommit>,
 }
 
 impl DocumentWriteBatchOptions {
@@ -19,6 +20,7 @@ impl DocumentWriteBatchOptions {
             normalized_vector_collection: None,
             record_rollup_maintenance_debt: false,
             record_materialized_projection_maintenance_debt: false,
+            replay: None,
         }
     }
 
@@ -30,6 +32,7 @@ impl DocumentWriteBatchOptions {
             normalized_vector_collection: None,
             record_rollup_maintenance_debt: false,
             record_materialized_projection_maintenance_debt: false,
+            replay: None,
         }
     }
 }

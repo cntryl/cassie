@@ -18,6 +18,7 @@ mod read;
 mod report;
 #[path = "documents/unique_reservations.rs"]
 mod unique_reservations;
+pub(crate) use super::projections::ReplayBatchCommit;
 pub(super) use commit::document_write_retry_delay;
 pub(crate) use options::DocumentWriteBatchOptions;
 pub(crate) use ordered_scan::OrderedRowScanRequest;
@@ -236,7 +237,7 @@ impl Midge {
         operations: Vec<DocumentWriteOp>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<DocumentWriteBatchReport, CassieError> {
-        if operations.is_empty() {
+        if operations.is_empty() && options.replay.is_none() {
             return Ok(DocumentWriteBatchReport::default());
         }
         let collection = self.canonical_collection_name(collection);
@@ -244,6 +245,17 @@ impl Midge {
         writes.insert(collection.clone(), operations);
         let mut reports = self.apply_document_write_batches_with_options(&writes, options)?;
         Ok(reports.remove(&collection).unwrap_or_default())
+    }
+
+    pub(crate) fn apply_projection_replay_batch(
+        &self,
+        collection: &str,
+        operations: Vec<DocumentWriteOp>,
+        replay: ReplayBatchCommit,
+    ) -> Result<DocumentWriteBatchReport, CassieError> {
+        let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
+        options.replay = Some(replay);
+        self.apply_document_write_batch_with_options(collection, operations, &options)
     }
 
     pub(crate) fn apply_document_write_batches_with_options(
@@ -291,7 +303,7 @@ impl Midge {
             let mut prepared_writes = Vec::new();
             let mut collections = canonical_writes
                 .iter()
-                .filter(|(_, operations)| !operations.is_empty())
+                .filter(|(_, operations)| !operations.is_empty() || options.replay.is_some())
                 .map(|(collection, operations)| (collection.clone(), operations.clone()))
                 .collect::<Vec<_>>();
             collections.sort_by(|(left, _), (right, _)| {
@@ -345,7 +357,11 @@ impl Midge {
                 fulltext_indexes_by_collection,
             } = self.apply_prepared_document_write_batches(&mut tx, prepared_writes, options)?;
 
-            if changed_collections.is_empty() {
+            if let Some(replay) = &options.replay {
+                self.stage_projection_replay_in_tx(&mut tx, replay)?;
+            }
+
+            if changed_collections.is_empty() && options.replay.is_none() {
                 tx.rollback().map_err(CassieError::from)?;
                 if let Some(overlay) = overlay {
                     self.commit_storage_overlay(&database, overlay)?;
@@ -362,6 +378,7 @@ impl Midge {
                 &fulltext_indexes_by_collection,
             ) {
                 Ok(reports) => return Ok(reports),
+                Err(error) if options.replay.is_some() => return Err(error),
                 Err(error) => match commit::document_write_retry_delay(&error, attempts) {
                     Some(delay) => {
                         // Releases only this attempt's own guards. The gates are

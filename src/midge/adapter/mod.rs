@@ -357,6 +357,10 @@ pub(crate) use database_catalog_rewrite::{
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
+#[cfg(test)]
+pub(crate) use transactions::{
+    inject_native_commit_unknown_after_success, inject_native_commit_unknown_before_commit,
+};
 mod failure_points;
 pub(crate) use failure_points::{
     check_document_write_failure_point, check_document_write_storage_failure_injection,

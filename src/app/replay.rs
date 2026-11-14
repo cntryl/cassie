@@ -2,9 +2,19 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::midge::adapter::DocumentWriteOp;
+use crate::midge::adapter::{documents::ReplayBatchCommit, DocumentWriteOp};
 
 use super::{Cassie, CassieError};
+
+#[cfg(test)]
+thread_local! {
+    static POSTCOMMIT_READ_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(super) fn inject_replay_postcommit_metadata_read_failure() {
+    POSTCOMMIT_READ_FAILURE.with(|flag| flag.set(true));
+}
 
 type ReplayPrepareBarriers = (
     String,
@@ -94,6 +104,7 @@ struct PreparedReplay {
     duplicate_checks: u64,
     write_ops: Vec<DocumentWriteOp>,
     replay_event_ids: Vec<String>,
+    observed_events: Vec<(String, bool)>,
     source_checkpoint: Option<String>,
     source_position: Option<u64>,
     last_applied_event_id: Option<String>,
@@ -119,13 +130,17 @@ impl Cassie {
         &self,
         batch: ProjectionReplayBatch,
     ) -> Result<ProjectionReplayReport, CassieError> {
-        let metadata = self
-            .load_projection_replay_metadata(&batch)
-            .and_then(|metadata| self.ensure_replay_source_identity(metadata, &batch))?;
-        let mut prepared = self.prepare_projection_replay(&metadata, &batch)?;
+        let stored_metadata = self.midge.projection_metadata(&batch.projection)?;
+        let metadata = stored_metadata
+            .clone()
+            .or_else(|| self.catalog.get_projection_metadata(&batch.projection))
+            .ok_or_else(|| CassieError::CollectionNotFound(batch.projection.clone()))?;
+        let metadata =
+            self.ensure_replay_source_identity(metadata, stored_metadata.as_ref(), &batch)?;
+        let prepared =
+            self.prepare_projection_replay(&metadata, stored_metadata.as_ref(), &batch)?;
         pause_projection_replay_after_prepare(&batch.batch_id);
-        self.apply_projection_replay_writes(&metadata, &batch, &mut prepared)?;
-        self.finalize_projection_replay(metadata, batch, prepared)
+        self.finalize_projection_replay(metadata, batch, prepared, stored_metadata)
     }
 
     fn validate_replay_batch(batch: &ProjectionReplayBatch) -> Result<(), CassieError> {
@@ -142,25 +157,17 @@ impl Cassie {
         Ok(())
     }
 
-    fn load_projection_replay_metadata(
-        &self,
-        batch: &ProjectionReplayBatch,
-    ) -> Result<crate::catalog::ProjectionMeta, CassieError> {
-        self.midge
-            .projection_metadata(&batch.projection)?
-            .or_else(|| self.catalog.get_projection_metadata(&batch.projection))
-            .ok_or_else(|| CassieError::CollectionNotFound(batch.projection.clone()))
-    }
-
     fn ensure_replay_source_identity(
         &self,
         metadata: crate::catalog::ProjectionMeta,
+        expected: Option<&crate::catalog::ProjectionMeta>,
         batch: &ProjectionReplayBatch,
     ) -> Result<crate::catalog::ProjectionMeta, CassieError> {
         if let Some(existing) = metadata.source_identity.clone() {
             if existing != batch.source_identity {
                 return self.fail_replay_metadata(
                     metadata,
+                    expected,
                     batch,
                     format!(
                         "projection '{}' is bound to source '{existing}', not '{}'",
@@ -175,6 +182,7 @@ impl Cassie {
     fn prepare_projection_replay(
         &self,
         metadata: &crate::catalog::ProjectionMeta,
+        expected: Option<&crate::catalog::ProjectionMeta>,
         batch: &ProjectionReplayBatch,
     ) -> Result<PreparedReplay, CassieError> {
         let mut applied = 0u64;
@@ -193,6 +201,7 @@ impl Cassie {
             if event.event_id.trim().is_empty() {
                 return self.fail_replay_metadata(
                     metadata.clone(),
+                    expected,
                     batch,
                     "projection replay event id cannot be empty".to_string(),
                 );
@@ -209,6 +218,12 @@ impl Cassie {
             &batch.source_identity,
             &event_ids,
         )?;
+        let observed_events = batch
+            .events
+            .iter()
+            .zip(&event_seen)
+            .map(|(event, seen)| (event.event_id.clone(), *seen))
+            .collect();
 
         for (event, already_seen) in batch.events.iter().zip(event_seen) {
             duplicate_checks = duplicate_checks.saturating_add(1);
@@ -219,6 +234,7 @@ impl Cassie {
             if !batch_event_ids.insert(event.event_id.clone()) {
                 return self.fail_replay_metadata(
                     metadata.clone(),
+                    expected,
                     batch,
                     format!(
                         "duplicate projection replay event '{}' in batch '{}'",
@@ -230,6 +246,7 @@ impl Cassie {
                 if next <= previous {
                     return self.fail_replay_metadata(
                         metadata.clone(),
+                        expected,
                         batch,
                         format!(
                             "out-of-order projection replay event '{}' at position {next} after {previous}",
@@ -264,64 +281,24 @@ impl Cassie {
             duplicate_checks,
             write_ops,
             replay_event_ids,
+            observed_events,
             source_checkpoint,
             source_position,
             last_applied_event_id,
         })
     }
 
-    fn apply_projection_replay_writes(
-        &self,
-        metadata: &crate::catalog::ProjectionMeta,
-        batch: &ProjectionReplayBatch,
-        prepared: &mut PreparedReplay,
-    ) -> Result<(), CassieError> {
-        let write_ops = std::mem::take(&mut prepared.write_ops);
-        if write_ops.is_empty() {
-            let write_stats = crate::runtime::ProjectionWriteStats {
-                duplicate_checks: prepared.duplicate_checks,
-                ..Default::default()
-            };
-            if prepared.duplicate_checks > 0 {
-                self.runtime
-                    .record_projection_write_batch(batch.projection.clone(), &write_stats);
-            }
-            return Ok(());
-        }
-
-        let write_report = self
-            .midge
-            .apply_document_write_batch(&batch.projection, write_ops)
-            .map_err(|error| {
-                CassieError::Execution(format!("projection replay failed to apply events: {error}"))
-            });
-        let write_report = match write_report {
-            Ok(report) => report,
-            Err(CassieError::Execution(message)) => {
-                return self.fail_replay_metadata(metadata.clone(), batch, message);
-            }
-            Err(error) => return Err(error),
-        };
-        if let Some(epoch) = write_report.data_epoch {
-            self.runtime.set_data_epoch(epoch);
-        }
-        let mut write_stats = write_report.stats;
-        write_stats.duplicate_checks = prepared.duplicate_checks;
-        self.runtime
-            .record_projection_write_batch(batch.projection.clone(), &write_stats);
-        Ok(())
-    }
-
     fn finalize_projection_replay(
         &self,
         mut metadata: crate::catalog::ProjectionMeta,
         batch: ProjectionReplayBatch,
-        prepared: PreparedReplay,
+        mut prepared: PreparedReplay,
+        stored_metadata: Option<crate::catalog::ProjectionMeta>,
     ) -> Result<ProjectionReplayReport, CassieError> {
-        if let Some(latest) = self.midge.projection_metadata(&metadata.collection)? {
-            metadata = latest;
+        let previous_metadata = metadata.clone();
+        if metadata.source_identity.is_none() {
+            metadata.source_identity = Some(batch.source_identity.clone());
         }
-        metadata.source_identity = Some(batch.source_identity.clone());
         metadata.replay_batch_id = Some(batch.batch_id.clone());
         metadata.source_checkpoint = prepared.source_checkpoint;
         metadata.source_position = prepared.source_position;
@@ -339,20 +316,71 @@ impl Cassie {
             crate::catalog::ProjectionFreshness::Stale
         };
         metadata.last_error = None;
-        let replay_event_refs = prepared
-            .replay_event_ids
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-        self.midge.record_projection_events_and_metadata_batch(
-            &metadata,
-            &batch.source_identity,
-            &replay_event_refs,
-            &batch.batch_id,
-        )?;
+        let failure_expected = stored_metadata.clone();
+        let replay = ReplayBatchCommit {
+            expected_metadata: stored_metadata,
+            metadata: metadata.clone(),
+            source_identity: batch.source_identity.clone(),
+            batch_id: batch.batch_id.clone(),
+            observed_events: prepared.observed_events,
+            new_event_ids: prepared.replay_event_ids,
+        };
+        let result = self.midge.apply_projection_replay_batch(
+            &batch.projection,
+            std::mem::take(&mut prepared.write_ops),
+            replay,
+        );
+        let write_report = match result {
+            Ok(report) => report,
+            Err(CassieError::StorageRetryable(error))
+                if error.kind() == super::StorageRetryKind::WriteStall =>
+            {
+                let message = format!("projection replay failed to apply events: {error}");
+                let _ = self.fail_replay_metadata::<()>(
+                    previous_metadata,
+                    failure_expected.as_ref(),
+                    &batch,
+                    message,
+                );
+                return Err(CassieError::StorageRetryable(error));
+            }
+            Err(
+                error @ (CassieError::Storage(_)
+                | CassieError::StorageBootstrap(_)
+                | CassieError::StorageMissingFamily(_)
+                | CassieError::StorageRetryable(_)),
+            ) => return Err(error),
+            Err(error) => {
+                return self.fail_replay_metadata(
+                    previous_metadata,
+                    failure_expected.as_ref(),
+                    &batch,
+                    format!("projection replay failed to apply events: {error}"),
+                );
+            }
+        };
+        if let Some(epoch) = write_report.data_epoch {
+            self.runtime.set_data_epoch(epoch);
+        }
+        let mut stats = write_report.stats;
+        stats.duplicate_checks = prepared.duplicate_checks;
+        if stats.duplicate_checks > 0 || prepared.applied > 0 {
+            self.runtime
+                .record_projection_write_batch(batch.projection.clone(), &stats);
+        }
+        #[cfg(test)]
+        if POSTCOMMIT_READ_FAILURE.with(|flag| flag.replace(false)) {
+            return Err(CassieError::Storage(
+                "injected replay metadata read failure after commit".to_owned(),
+            ));
+        }
+        if let Some(latest) = self.midge.projection_metadata(&metadata.collection)? {
+            metadata = latest;
+        }
         self.catalog.register_projection_metadata(metadata.clone());
         self.runtime
             .record_projection_replay(batch.projection, prepared.applied, prepared.skipped);
+        crate::midge::adapter::check_projection_replay_post_commit_failure_point()?;
 
         Ok(ProjectionReplayReport {
             applied_event_count: prepared.applied,
@@ -366,25 +394,21 @@ impl Cassie {
     fn fail_replay_metadata<T>(
         &self,
         mut metadata: crate::catalog::ProjectionMeta,
+        expected: Option<&crate::catalog::ProjectionMeta>,
         batch: &ProjectionReplayBatch,
         message: String,
     ) -> Result<T, CassieError> {
-        metadata.source_identity = Some(batch.source_identity.clone());
+        if metadata.source_identity.is_none() {
+            metadata.source_identity = Some(batch.source_identity.clone());
+        }
         metadata.replay_batch_id = Some(batch.batch_id.clone());
         metadata.freshness = crate::catalog::ProjectionFreshness::Failed;
         metadata.last_error = Some(message.clone());
-        self.persist_replay_metadata(metadata)?;
+        self.midge
+            .put_replay_failure_if_unchanged(expected, &metadata)?;
+        self.catalog.register_projection_metadata(metadata);
         self.runtime
             .record_projection_replay_error(batch.projection.clone(), message.clone());
         Err(CassieError::Execution(message))
-    }
-
-    fn persist_replay_metadata(
-        &self,
-        metadata: crate::catalog::ProjectionMeta,
-    ) -> Result<(), CassieError> {
-        self.midge.put_projection_metadata(&metadata)?;
-        self.catalog.register_projection_metadata(metadata);
-        Ok(())
     }
 }

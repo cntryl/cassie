@@ -5,6 +5,8 @@ use crate::types::Value;
 use std::cell::RefCell;
 use std::sync::Arc;
 
+mod replay_native_unknown;
+
 thread_local! {
     static AFTER_CAPTURE: RefCell<Option<Box<dyn FnOnce()>>> = RefCell::new(None);
     static BEFORE_CAPTURE: RefCell<Option<Box<dyn FnOnce()>>> = RefCell::new(None);

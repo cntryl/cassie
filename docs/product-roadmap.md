@@ -39,12 +39,13 @@ library loading or a PostgreSQL extension ABI promise.
 Every issue and test must serve one of these five product areas:
 
 1. **Projection writes**: idempotent `INSERT ... ON CONFLICT`, `UPDATE` and
-   `DELETE`; each replay event batch writes rows in one transaction in the
-   owning database family, then commits its duplicate ledger and checkpoint
-   together in a second transaction in that same family. Rows may become
-   visible before that checkpoint transaction; retrying the same deterministic
-   batch must safely reconcile the gap. Current replay does not combine the
-   writes into one transaction. Cassie does not use cross-database transactions. `COPY` and
+   `DELETE`; the selected replay contract commits each event batch's row and
+   derived-index mutations, duplicate ledger and checkpoint in one transaction
+   in the owning database family. Retry the same deterministic batch after an
+   uncertain outcome. The atomic replay change requires the qualification tracked
+   by [#1270](https://github.com/cntryl/cassie/issues/1270); the public checkpoint
+   view's same-snapshot behavior is separate work under [#1272](https://github.com/cntryl/cassie/issues/1272).
+   Cassie does not use cross-database transactions. `COPY` and
    `TRUNCATE` support rebuilds. There is no separate checkpoint or rebuild API.
 2. **Read-model lifecycle**: create, alter and drop schemas, tables, scalar
    indexes, views and materialized views; selected database-scoped DDL publishes
@@ -95,13 +96,12 @@ explicitly when a gate slips.
 
 | Target date | Gate | Exit condition | Status |
 | --- | --- | --- | --- |
-| 2026-10-23 | Replay contract | Prove that the owning database-family row batch can commit before the replay-state transaction, that ledger and checkpoint commit together, and that same-batch retry handles both an aborted replay-state commit and an error response after a successful replay-state commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
+| 2026-10-23 | Historical replay contract | Prove recovery for the earlier two-transaction replay design. | Historical local evidence from 2026-10-20 is superseded by the atomic contract; see [#1270](https://github.com/cntryl/cassie/issues/1270) for current qualification. |
 | 2026-10-30 | Initial MVP scope freeze (pre-release planning label) | Map every issue assigned to the projection-store milestone to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Complete; the selected client and wire scopes (#777/#780), COPY ingress (#846), catalog/TypeInfo work (#817), table/rebuild lifecycle (#826), and scalar-index lifecycle (#842) are recorded against their merged evidence. The selected MVP is the v0.1.0 starting point; broader query/client behavior is assigned to v0.2.0 where it supports a named read-model workflow. The exact release commit still needs its own gate. Actions permission reports enabled, but the no-dispatch instruction remains active; no backend workflow result is claimed. |
 
-The replay recovery proof is complete locally; this does not establish a hosted
-pass. If later changes invalidate the proof, keep the v0.1.0 target visibly at
-risk and reforecast at the next Friday review; do not silently weaken the
-contract. v0.1.0 is the MVP feature release, not approval to replace a
+The historical replay recovery proof does not qualify the selected atomic
+contract; #1270 tracks its recovery and executable evidence. v0.1.0 is the MVP
+feature release, not approval to replace a
 production hosted PostgreSQL service. Production replacement requires the
 separate production-readiness gate and workload-specific migration evidence.
 
@@ -120,12 +120,14 @@ GitHub milestones were closed with no open issues; that is backlog state, not
 proof of release publication or exact-head qualification. v0.6.0 is the open
 [graph milestone](https://github.com/cntryl/cassie/milestone/13); its contract
 and building blocks are specified in [Graph v0.6.0 contract](graph-v060-contract.md).
+The separate [replay durability and throughput milestone](https://github.com/cntryl/cassie/milestone/14)
+tracks atomic replay, public checkpoint-view snapshot correctness, and workload evidence.
 
 ## Feature releases
 
 | Milestone | Target date | Ships |
 | --- | --- | --- |
-| [v0.1.0 Projection Store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. Projection rows, duplicate ledger, and checkpoint use the owning database family; today the row batch and replay-state metadata still commit in separate transactions, and replay retries reconcile a committed row batch when the replay-state commit did not complete. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-database transactions and full PostgreSQL parity. |
+| [v0.1.0 Projection Store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. The current replay contract selects one owning-family transaction for projection rows, transactional derived maintenance, duplicate ledger and checkpoint; #1270 tracks its qualification. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-database transactions and full PostgreSQL parity. |
 | [v0.2.0 Query and Retrieval](https://github.com/cntryl/cassie/milestone/8) | 2027-04-09 | The finite read-side contract for read-model workloads: selected relational SQL, transaction/query semantics, types and functions, catalog/client support, role-based projector and reader access, and full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; this is not PostgreSQL-wide syntax or semantics. |
 | [v0.3.0 Composite Types and JSON Recordsets](https://github.com/cntryl/cassie/milestone/12) | TBD | Composite and domain type behavior, object-identifier conversions, catalog introspection and JSON recordsets. Its issue milestone is closed; composite arrays for graph paths remain a separate v0.6 prerequisite. |
 | [v0.4.0 Named Enum Types](https://github.com/cntryl/cassie/milestone/11) | TBD | The finite named ENUM scope in #827. Its issue milestone is closed; this does not add general PostgreSQL type or catalog parity. |

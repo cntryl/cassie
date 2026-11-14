@@ -306,3 +306,150 @@ fn should_preserve_descriptor_authority_when_command_owners_share_a_core() {
         );
     }
 }
+
+#[test]
+fn should_keep_replayed_row_and_checkpoint_together_in_pinned_data_snapshot() {
+    // Arrange
+    use crate::app::{ProjectionReplayBatch, ProjectionReplayEvent};
+
+    let cassie =
+        Arc::new(Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap());
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE replay_storage_snapshot (value INT)",
+            vec![],
+        )
+        .unwrap();
+    let projection = cassie
+        .midge
+        .canonical_collection_name("replay_storage_snapshot");
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX replay_storage_value_idx ON replay_storage_snapshot USING btree (value)",
+            vec![],
+        )
+        .unwrap();
+    let index = cassie
+        .midge
+        .get_index(&projection, "replay_storage_value_idx")
+        .unwrap()
+        .unwrap();
+    let make_batch = |position: u64, value: i64| ProjectionReplayBatch {
+        projection: projection.clone(),
+        source_identity: "stream".to_owned(),
+        batch_id: format!("batch-{position}"),
+        lag: 0,
+        events: vec![ProjectionReplayEvent {
+            event_id: format!("event-{position}"),
+            checkpoint: format!("checkpoint-{position}"),
+            position: Some(position),
+            document_id: "doc".to_owned(),
+            payload: Some(serde_json::json!({"value": value})),
+        }],
+    };
+    cassie.replay_projection_batch(make_batch(1, 1)).unwrap();
+    let next = make_batch(2, 2);
+    let query_controls = controls(16 * 1024 * 1024);
+    let retained = StatementDataRead::capture(&cassie.midge, "postgres", &query_controls).unwrap();
+    let writer = Arc::clone(&cassie);
+
+    // Act
+    std::thread::spawn(move || writer.replay_projection_batch(next))
+        .join()
+        .unwrap()
+        .unwrap();
+    let old_checkpoint =
+        Midge::load_projection_metadata_from_tx(&retained.snapshot.tx, &projection)
+            .unwrap()
+            .unwrap()
+            .source_checkpoint;
+    let old_row = {
+        let _scope = StatementReadScope::enter(Some(&retained));
+        cassie
+            .midge
+            .get_document(&projection, "doc")
+            .unwrap()
+            .unwrap()
+            .payload
+    };
+    let fresh = StatementDataRead::capture(&cassie.midge, "postgres", &query_controls).unwrap();
+    let old_event_1 = retained
+        .snapshot
+        .tx
+        .get(&Midge::projection_event_key(
+            &projection,
+            "stream",
+            "event-1",
+        ))
+        .unwrap()
+        .is_some();
+    let old_event_2 = retained
+        .snapshot
+        .tx
+        .get(&Midge::projection_event_key(
+            &projection,
+            "stream",
+            "event-2",
+        ))
+        .unwrap()
+        .is_some();
+    let new_event_2 = fresh
+        .snapshot
+        .tx
+        .get(&Midge::projection_event_key(
+            &projection,
+            "stream",
+            "event-2",
+        ))
+        .unwrap()
+        .is_some();
+    let scan_ids = |owner: &Arc<StatementDataRead>, value: i64| {
+        let _scope = StatementReadScope::enter(Some(owner));
+        let request = crate::midge::adapter::ScalarIndexScanRequest {
+            equality_prefix: vec![serde_json::json!(value)],
+            ..Default::default()
+        };
+        cassie
+            .midge
+            .scan_scalar_index_controlled(&index, &request, &query_controls)
+            .unwrap()
+            .as_slice()
+            .iter()
+            .map(|hit| hit.id.clone())
+            .collect::<Vec<_>>()
+    };
+    let old_index_1 = scan_ids(&retained, 1);
+    let old_index_2 = scan_ids(&retained, 2);
+    let new_index_1 = scan_ids(&fresh, 1);
+    let new_index_2 = scan_ids(&fresh, 2);
+    let new_checkpoint = Midge::load_projection_metadata_from_tx(&fresh.snapshot.tx, &projection)
+        .unwrap()
+        .unwrap()
+        .source_checkpoint;
+    let new_row = {
+        let _scope = StatementReadScope::enter(Some(&fresh));
+        cassie
+            .midge
+            .get_document(&projection, "doc")
+            .unwrap()
+            .unwrap()
+            .payload
+    };
+
+    // Assert
+    assert_eq!(old_checkpoint.as_deref(), Some("checkpoint-1"));
+    assert_eq!(old_row, serde_json::json!({"value": 1}));
+    assert!(old_event_1);
+    assert!(!old_event_2);
+    assert!(new_event_2);
+    assert_eq!(old_index_1, vec!["doc".to_owned()]);
+    assert!(old_index_2.is_empty());
+    assert!(new_index_1.is_empty());
+    assert_eq!(new_index_2, vec!["doc".to_owned()]);
+    assert_eq!(new_checkpoint.as_deref(), Some("checkpoint-2"));
+    assert_eq!(new_row, serde_json::json!({"value": 2}));
+}

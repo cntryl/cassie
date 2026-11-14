@@ -6,7 +6,7 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{mpsc, Arc, Barrier};
 use std::time::{Duration, Instant};
 
-use crate::app::{Cassie, ProjectionReplayBatch, ProjectionReplayEvent};
+use crate::app::{Cassie, CassieError, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
 use crate::midge::adapter::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
@@ -18,6 +18,10 @@ const CHILD_PATH: &str = "CASSIE_TEST_REPLAY_PROCESS_DEATH_PATH";
 const CHILD_TOKEN: &str = "CASSIE_TEST_REPLAY_PROCESS_DEATH_TOKEN";
 const OUTPUT_LIMIT: u64 = 256 * 1024;
 const CHILD_DEADLINE: Duration = Duration::from_secs(30);
+// Midge 0.5.2 uses a 30-second local lease and a default half-TTL skew allowance.
+// This larger deadline is a hang guard, not a promised takeover duration.
+const RECOVERY_DEADLINE: Duration = Duration::from_secs(90);
+const LEASE_RECHECK_INTERVAL: Duration = Duration::from_millis(250);
 const BEFORE_TEST: &str = "midge::adapter::statement_read::tests::replay_process_crash::should_recover_previous_replay_after_process_death_before_commit";
 const AFTER_TEST: &str = "midge::adapter::statement_read::tests::replay_process_crash::should_recover_acknowledged_replay_after_process_death";
 
@@ -91,6 +95,30 @@ fn local_cassie(path: &Path) -> Cassie {
         .expect("open explicit local Midge storage");
     cassie.startup().expect("start local Cassie");
     cassie
+}
+
+fn is_writer_lease_held(error: &CassieError) -> bool {
+    matches!(error, CassieError::Storage(message) if message.starts_with("Writer lease held: "))
+}
+
+fn recover_after_writer_lease(path: &Path) -> Cassie {
+    let deadline = Instant::now() + RECOVERY_DEADLINE;
+    loop {
+        match Cassie::new_local_with_data_dir_and_config(path, CassieRuntimeConfig::default()) {
+            Ok(cassie) => {
+                cassie.startup().expect("start recovered local Cassie");
+                return cassie;
+            }
+            Err(error) if is_writer_lease_held(&error) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                assert!(!remaining.is_zero(), "writer lease did not expire: {error}");
+                // Wait only while the actual lease is held; an early unpark
+                // simply rechecks it. No lease record is changed by this test.
+                std::thread::park_timeout(LEASE_RECHECK_INTERVAL.min(remaining));
+            }
+            Err(error) => panic!("unexpected local recovery error: {error}"),
+        }
+    }
 }
 
 fn replay_batch(projection: &str, position: u64, title: &str) -> ProjectionReplayBatch {
@@ -354,7 +382,7 @@ fn should_recover_previous_replay_after_process_death_before_commit() {
 
     // Act
     kill_at_boundary(&directory.0, Boundary::BeforeCommit);
-    let recovered = local_cassie(&directory.0);
+    let recovered = recover_after_writer_lease(&directory.0);
 
     // Assert
     assert_retry_reconciles(recovered, &projection, 1);
@@ -367,8 +395,27 @@ fn should_recover_acknowledged_replay_after_process_death() {
 
     // Act
     kill_at_boundary(&directory.0, Boundary::AfterAcknowledgment);
-    let recovered = local_cassie(&directory.0);
+    let recovered = recover_after_writer_lease(&directory.0);
 
     // Assert
     assert_retry_reconciles(recovered, &projection, 2);
+}
+
+#[test]
+fn should_retry_only_the_writer_lease_held_error_during_recovery() {
+    // Arrange
+    let errors = [
+        crate::app::CassieError::from(cntryl_midge::MidgeError::LeaseHeld(
+            "other writer".to_owned(),
+        )),
+        crate::app::CassieError::Storage("another storage failure".to_owned()),
+        crate::app::CassieError::Storage("Writer lease heldish: wrong prefix".to_owned()),
+        crate::app::CassieError::StorageBootstrap("Writer lease held: wrong variant".to_owned()),
+    ];
+
+    // Act
+    let retry = errors.each_ref().map(is_writer_lease_held);
+
+    // Assert
+    assert_eq!(retry, [true, false, false, false]);
 }

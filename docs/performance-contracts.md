@@ -312,6 +312,16 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 
 Tier 2 projection-replay samples use one shared Cassie runtime but consume separate, prebuilt empty projection lanes. Each timed batch therefore exercises the same 2,048-event production replay path from an equivalent source position without including fixture setup or accumulating prior samples' event history. Runtime evidence remains scoped to the shared runtime, and the gate continues to report one logical event per applied event.
 
+The [`tier3_system_typed_primitive` measurement owner](typed-primitive-profile.md)
+compares the same nullable BIGINT/BOOLEAN relation across heap, authoritative
+columnar and covering derived-column sources. Its six source/predicate cases
+use an independent exact numeric/NULL oracle, cache off, one worker, query
+2 GiB and native total 2 GiB/memtable 512 MiB. Private bounded trace collection
+runs only in an untimed diagnostic pass; separate CPU samples are not canonical
+benchmark timings. Carrier/admission counts are not actual allocation counts
+or RSS, and absent typed events do not establish a typed success. No direct
+reader rewrite or performance superiority is implied by this owner.
+
 The `tier3_system_storage_modes` qualification owner uses a paired memory-mode
 fixture: two 100k fact copies and two 1k dimension copies. Row-only, column-only
 and mixed labels describe the query inputs, not isolated whole-database memory

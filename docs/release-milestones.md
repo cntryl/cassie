@@ -2,7 +2,7 @@
 
 This page maps the live open issue backlog to the v0.1.0 and v0.2.0 releases and
 the later v0.3.0 (composite types and JSON recordsets), v0.4.0 (named enums) and
-v0.5.0 (authoritative columnar tables) milestones. The [Product Roadmap](product-roadmap.md)
+v0.5.0 (authoritative columnar tables) and v0.6.0 (graph queries) milestones. The [Product Roadmap](product-roadmap.md)
 owns release purpose and scope. GitHub milestone membership and native issue
 dependencies are the live delivery record.
 
@@ -79,10 +79,19 @@ function-name surface are deferred and are not v0.2.0 acceptance criteria.
 
 ## v0.3.0 Composite Types and JSON Recordsets
 
-Milestone 12 holds #817 (broad catalog introspection), #818 (`regclass`/`regtype`
-and related identifier conversions), #828 (composite and domain types) and #829
-(JSON recordset functions). Each requires its Type Contract selection before
-implementation; none is part of v0.2.0.
+Milestone 12 held #817 (catalog introspection), #818 (object identifiers), #828
+(composite and domain types) and #829 (JSON recordsets). The GitHub milestone
+is closed with no open issues. This does not establish composite-array support
+for graph paths, release publication, or exact-head qualification.
+
+## v0.6.0 Fast, Idiomatic Graphs
+
+The [graph milestone](https://github.com/cntryl/cassie/milestone/13) targets
+property graph queries over projector-maintained tables through PostgreSQL
+clients. Its [contract](graph-v060-contract.md) owns the proposed semantics,
+building blocks, dependencies and qualification criteria. The existing
+experimental implementation is not evidence that those criteria are met.
+Earlier documented release dependencies remain in force.
 
 ## v0.5.0 Authoritative Columnar Tables
 
@@ -91,22 +100,20 @@ column-batch indexes. #1105 defines the contract; #1106 adds table-mode DDL and
 metadata; #1107 implements authoritative storage and recovery; #1108 adds
 atomic mixed-mode writes; #1109 covers mixed-mode queries; #1110 covers
 constraints; #1111 covers derived indexes; and #1112 covers conversion and
-database images. Midge remains the only storage layer. Implementation waits
-for the persistent format, transaction, SQL, and migration contract in #1105.
-Native blocker edges preserve the stated order: #1106 follows #1105; #1107
+database images. Midge remains the only storage layer. The GitHub milestone is
+closed with no open issues; see [qualification](v0.5-release-qualification.md)
+for evidence and remaining release gates. Its historical native blocker edges
+preserved the stated order: #1106 follows #1105; #1107
 follows #1105/#1106; #1108 follows #1105–#1107; #1109 follows #1105–#1108;
 #1110 follows #1105–#1107; #1111 follows #1105/#1107; and #1112 follows
 #1105–#1108. The row-authoritative DDL issue #826 also waits on #833; schema
 evolution #839 already waits on #833.
 
-## v0.4.0 Named Enum Types (deferred)
+## v0.4.0 Named Enum Types
 
-This milestone contains only #827 and remains outside the active delivery order
-until v0.1.0, v0.2.0, and v0.3.0 complete. Its acceptance scope is named ENUM
+This milestone contained #827 and is closed with no open issues. Its acceptance scope is named ENUM
 creation, lookup, alteration and drop, plus literal, parameter, cast,
-comparison, array and result identities. Before implementation, the Type
-Contract must define logical identity, SQL/wire behavior, label ordering,
-schema/dependency ownership, restart and durable representation. The milestone
+comparison, array and result identities. The milestone
 does not imply general PostgreSQL type or catalog parity; its target date is
 TBD.
 

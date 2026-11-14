@@ -19,7 +19,7 @@ maintaining read models. The earlier 0.2.0 package value and former v0.3
 Projection Store and v0.4 Query labels were unreleased development planning. The
 active feature releases are v0.1.0 Projection Store, v0.2.0 Query and
 Retrieval, v0.3.0 Composite Types and JSON Recordsets, v0.4.0 Named Enum Types,
-and v0.5.0 Authoritative Columnar Tables. On 2026-11-12 the v0.2.0 milestone
+v0.5.0 Authoritative Columnar Tables, and v0.6.0 Fast, Idiomatic Graphs. On 2026-11-12 the v0.2.0 milestone
 was narrowed to stabilizing and defect-proofing the delivered feature set;
 #817, #818, #828 and #829 moved to v0.3.0 and #826 moved to v0.5.0. Remaining
 v0.2.0-era scope that was not delivered (`row_to_json`/`array_to_json`,
@@ -54,7 +54,8 @@ Every issue and test must serve one of these five product areas:
    and operators needed by read-model workloads. PostgreSQL compatibility is
    selected per behavior and recorded in the feature-support and compatibility
    contracts; it does not imply support for every PostgreSQL type or function.
-4. **Retrieval**: full-text, pgvector-syntax vector and hybrid search.
+4. **Retrieval**: full-text, pgvector-syntax vector, hybrid search and graph
+   queries over projector-maintained read models.
 5. **Client surface**: pgwire, prepared statements, session settings, selected
    projector/reader access controls, and the catalog queries that drivers,
    ORMs, migration tools and admin clients issue.
@@ -114,8 +115,11 @@ The [v0.1.0 scope map](v0.1-scope-map.md) records the bounded MVP contract.
 The current open issue-to-release assignment is maintained in
 [Release Milestones](release-milestones.md); every open issue must either
 belong to an active feature release, a named deferred future milestone, or be
-reworked and closed with a recorded disposition. The only current deferred
-feature releases after v0.2.0 are v0.3.0 (#817, #818, #828, #829), v0.4.0 (#827) and v0.5.0 (#826, #1105–#1112).
+reworked and closed with a recorded disposition. On 2026-11-14, the v0.1–v0.5
+GitHub milestones were closed with no open issues; that is backlog state, not
+proof of release publication or exact-head qualification. v0.6.0 is the open
+[graph milestone](https://github.com/cntryl/cassie/milestone/13); its contract
+and building blocks are specified in [Graph v0.6.0 contract](graph-v060-contract.md).
 
 ## Feature releases
 
@@ -123,9 +127,10 @@ feature releases after v0.2.0 are v0.3.0 (#817, #818, #828, #829), v0.4.0 (#827)
 | --- | --- | --- |
 | [v0.1.0 Projection Store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. Projection rows, duplicate ledger, and checkpoint use the owning database family; today the row batch and replay-state metadata still commit in separate transactions, and replay retries reconcile a committed row batch when the replay-state commit did not complete. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-database transactions and full PostgreSQL parity. |
 | [v0.2.0 Query and Retrieval](https://github.com/cntryl/cassie/milestone/8) | 2027-04-09 | The finite read-side contract for read-model workloads: selected relational SQL, transaction/query semantics, types and functions, catalog/client support, role-based projector and reader access, and full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; this is not PostgreSQL-wide syntax or semantics. |
-| [v0.3.0 Composite Types and JSON Recordsets](https://github.com/cntryl/cassie/milestone/12) | TBD | Composite and domain type behavior, object-identifier conversions (`regclass`/`regtype`), broad catalog introspection and JSON recordset functions: #817, #818, #828 and #829. Each needs a Type Contract selection before implementation. |
-| [v0.4.0 Named Enum Types](https://github.com/cntryl/cassie/milestone/11) | TBD | After v0.1.0–v0.3.0 complete, implement only the named ENUM behavior in #827. First define logical identity, SQL/wire semantics, label ordering, schema/dependency lifecycle, restart, and durable representation in the Type Contract. This does not add general PostgreSQL type or catalog parity. |
+| [v0.3.0 Composite Types and JSON Recordsets](https://github.com/cntryl/cassie/milestone/12) | TBD | Composite and domain type behavior, object-identifier conversions, catalog introspection and JSON recordsets. Its issue milestone is closed; composite arrays for graph paths remain a separate v0.6 prerequisite. |
+| [v0.4.0 Named Enum Types](https://github.com/cntryl/cassie/milestone/11) | TBD | The finite named ENUM scope in #827. Its issue milestone is closed; this does not add general PostgreSQL type or catalog parity. |
 | [v0.5.0 Authoritative Columnar Tables](https://github.com/cntryl/cassie/milestone/10) | TBD | Add an opt-in per-table column-authoritative layout alongside row-authoritative tables, with a versioned contract, durable recovery, mixed-mode queries and writes, constraints, derived indexes, and explicit conversion/image behavior. Midge remains the only storage layer. |
+| [v0.6.0 Fast, Idiomatic Graphs](https://github.com/cntryl/cassie/milestone/13) | TBD | Graph queries and native paths over projector-maintained tables, with transaction, correctness, client and resource evidence defined by the graph contract. |
 
 The [v0.5.0 release qualification record](v0.5-release-qualification.md) maps every milestone issue to its finite acceptance evidence and actual validation status.
 

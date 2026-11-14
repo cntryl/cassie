@@ -136,14 +136,17 @@ impl Midge {
         for field in row_schema.fields.iter().filter(|field| !field.retired) {
             check()?;
             let prefix = Self::column_store_field_prefix(row_schema.relation_id, field.field_id);
-            let scan = tx
+            let mut scan = tx
                 .scan(&Query::new().prefix(prefix.clone().into()))
                 .map_err(CassieError::from)?;
-            for entry in scan {
+            loop {
                 check()?;
-                let (key, _) = entry.map_err(CassieError::from)?;
+                let Some(entry) = scan.next() else {
+                    break;
+                };
                 self.record_column_validation_read();
                 check()?;
+                let (key, _) = entry.map_err(CassieError::from)?;
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
                     continue;
                 };

@@ -885,3 +885,25 @@ fn should_resolve_a_literal_operand_of_a_containment_operator_to_the_column_type
     // Assert
     assert_eq!(rows, vec![vec![Value::Bool(true); 4]]);
 }
+
+#[test]
+fn should_resolve_a_literal_beside_inet_by_the_operator_it_meets() {
+    // Arrange
+    let fixture = sql_fixture(
+        "inet-literal-operator-resolution",
+        &[
+            "CREATE TABLE peers (id int primary key, ip inet)",
+            "INSERT INTO peers VALUES (1, '10.0.0.5')",
+        ],
+    );
+
+    // Act
+    let rows = query_rows(
+        &fixture,
+        "SELECT ip + '1' = '10.0.0.6'::inet, ip - '10.0.0.1' = 4, ip || 'x' = '10.0.0.5/32x', \
+         ip & '0.0.0.255' = '0.0.0.5'::inet FROM peers",
+    );
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true); 4]]);
+}

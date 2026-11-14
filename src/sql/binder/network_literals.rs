@@ -5,9 +5,9 @@
 //! casts the literal so the operator sees the family it was written for.
 
 use super::coalesce_results::ResultTypes;
-use super::{DataType, Expr};
+use super::{BinaryOp, DataType, Expr};
 use crate::sql::ast::CastIdentity;
-use crate::types::extended::ExtendedType;
+use crate::types::extended::{ExtendedType, TypedOperator};
 
 fn network_type(data_type: Option<DataType>) -> Option<DataType> {
     data_type.filter(|kind| {
@@ -36,11 +36,44 @@ fn cast_literal(literal: &mut Expr, target: DataType) {
     };
 }
 
-/// Casts a string literal operand to the network type of the other operand.
-pub(super) fn qualify(left: &mut Expr, right: &mut Expr, types: &ResultTypes) {
+/// The type an unknown literal takes beside `other` under `op`, following
+/// PostgreSQL's preference for an operator with both inputs of `other`'s type.
+fn literal_type(op: &BinaryOp, other: DataType) -> Option<DataType> {
+    match op.typed_operator() {
+        // No `inet + inet` exists, so `inet + '1'` reads the literal as `bigint`.
+        Some(TypedOperator::Add) => matches!(
+            other,
+            DataType::Extended(ExtendedType::Inet | ExtendedType::Cidr)
+        )
+        .then_some(DataType::Int64),
+        // `inet || 'x'` is text concatenation.
+        Some(TypedOperator::Concat) => None,
+        Some(_) => Some(other),
+        None => matches!(
+            op,
+            BinaryOp::Eq
+                | BinaryOp::NotEq
+                | BinaryOp::IsDistinctFrom
+                | BinaryOp::IsNotDistinctFrom
+                | BinaryOp::Lt
+                | BinaryOp::Lte
+                | BinaryOp::Gt
+                | BinaryOp::Gte
+        )
+        .then_some(other),
+    }
+}
+
+/// Casts a string literal operand to the type PostgreSQL resolves for it
+/// beside a network-typed operand.
+pub(super) fn qualify(op: &BinaryOp, left: &mut Expr, right: &mut Expr, types: &ResultTypes) {
     if let Some(target) = network_type(types.expression_type(left)) {
-        cast_literal(right, target);
+        if let Some(target) = literal_type(op, target) {
+            cast_literal(right, target);
+        }
     } else if let Some(target) = network_type(types.expression_type(right)) {
-        cast_literal(left, target);
+        if let Some(target) = literal_type(op, target) {
+            cast_literal(left, target);
+        }
     }
 }

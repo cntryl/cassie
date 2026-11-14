@@ -512,13 +512,7 @@ fn validate_binary(
     context: &BindingContext,
 ) -> Result<(), CassieError> {
     enum_operands::qualify_quantified(op, left, right, types)?;
-    if !matches!(
-        op,
-        // `inet + '1'` resolves the literal to `bigint`: no `inet + inet` exists.
-        BinaryOp::And | BinaryOp::Or | BinaryOp::Quantified { .. } | BinaryOp::Add
-    ) {
-        super::network_literals::qualify(left, right, types);
-    }
+    super::network_literals::qualify(op, left, right, types);
     if matches!(
         op,
         BinaryOp::Eq

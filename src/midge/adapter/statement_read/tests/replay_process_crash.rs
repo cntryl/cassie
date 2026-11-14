@@ -233,7 +233,10 @@ fn assert_recovered_state(cassie: &Cassie, projection: &str, expected_position: 
         index_ids(cassie, projection, expected_title),
         vec!["doc-1".to_owned()]
     );
-    assert!(index_ids(cassie, projection, other_title).is_empty());
+    assert_eq!(
+        index_ids(cassie, projection, other_title),
+        Vec::<String>::new()
+    );
 }
 
 fn emit_marker_and_wait(boundary: Boundary) -> ! {
@@ -356,13 +359,10 @@ fn assert_retry_reconciles(recovered: Cassie, projection: &str, expected_positio
     let retry = recovered
         .replay_projection_batch(second.clone())
         .expect("reconcile recovered checkpoint");
-    assert_eq!(
-        retry.applied_event_count,
-        if expected_position == 1 { 1 } else { 0 }
-    );
+    assert_eq!(retry.applied_event_count, u64::from(expected_position == 1));
     assert_eq!(
         retry.skipped_duplicate_count,
-        if expected_position == 2 { 1 } else { 0 }
+        u64::from(expected_position == 2)
     );
     assert_recovered_state(&recovered, projection, 2);
     let duplicate = recovered

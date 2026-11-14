@@ -310,10 +310,60 @@ fn should_preserve_descriptor_authority_when_command_owners_share_a_core() {
     }
 }
 
+fn replay_snapshot_batch(
+    projection: &str,
+    position: u64,
+    value: i64,
+) -> crate::app::ProjectionReplayBatch {
+    crate::app::ProjectionReplayBatch {
+        projection: projection.to_owned(),
+        source_identity: "stream".to_owned(),
+        batch_id: format!("batch-{position}"),
+        lag: 0,
+        events: vec![crate::app::ProjectionReplayEvent {
+            event_id: format!("event-{position}"),
+            checkpoint: format!("checkpoint-{position}"),
+            position: Some(position),
+            document_id: "doc".to_owned(),
+            payload: Some(serde_json::json!({"value": value})),
+        }],
+    }
+}
+
+fn replay_snapshot_has_event(owner: &StatementDataRead, projection: &str, event: &str) -> bool {
+    owner
+        .snapshot
+        .tx
+        .get(&Midge::projection_event_key(projection, "stream", event))
+        .unwrap()
+        .is_some()
+}
+
+fn replay_snapshot_index_ids(
+    cassie: &Cassie,
+    index: &crate::catalog::IndexMeta,
+    controls: &QueryExecutionControls,
+    owner: &Arc<StatementDataRead>,
+    value: i64,
+) -> Vec<String> {
+    let _scope = StatementReadScope::enter(Some(owner));
+    let request = crate::midge::adapter::ScalarIndexScanRequest {
+        equality_prefix: vec![serde_json::json!(value)],
+        ..Default::default()
+    };
+    cassie
+        .midge
+        .scan_scalar_index_controlled(index, &request, controls)
+        .unwrap()
+        .as_slice()
+        .iter()
+        .map(|hit| hit.id.clone())
+        .collect()
+}
+
 #[test]
 fn should_keep_replayed_row_and_checkpoint_together_in_pinned_data_snapshot() {
     // Arrange
-    use crate::app::{ProjectionReplayBatch, ProjectionReplayEvent};
 
     let cassie =
         Arc::new(Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap());
@@ -341,21 +391,10 @@ fn should_keep_replayed_row_and_checkpoint_together_in_pinned_data_snapshot() {
         .get_index(&projection, "replay_storage_value_idx")
         .unwrap()
         .unwrap();
-    let make_batch = |position: u64, value: i64| ProjectionReplayBatch {
-        projection: projection.clone(),
-        source_identity: "stream".to_owned(),
-        batch_id: format!("batch-{position}"),
-        lag: 0,
-        events: vec![ProjectionReplayEvent {
-            event_id: format!("event-{position}"),
-            checkpoint: format!("checkpoint-{position}"),
-            position: Some(position),
-            document_id: "doc".to_owned(),
-            payload: Some(serde_json::json!({"value": value})),
-        }],
-    };
-    cassie.replay_projection_batch(make_batch(1, 1)).unwrap();
-    let next = make_batch(2, 2);
+    cassie
+        .replay_projection_batch(replay_snapshot_batch(&projection, 1, 1))
+        .unwrap();
+    let next = replay_snapshot_batch(&projection, 2, 2);
     let query_controls = controls(16 * 1024 * 1024);
     let retained = StatementDataRead::capture(&cassie.midge, "postgres", &query_controls).unwrap();
     let writer = Arc::clone(&cassie);
@@ -380,55 +419,13 @@ fn should_keep_replayed_row_and_checkpoint_together_in_pinned_data_snapshot() {
             .payload
     };
     let fresh = StatementDataRead::capture(&cassie.midge, "postgres", &query_controls).unwrap();
-    let old_event_1 = retained
-        .snapshot
-        .tx
-        .get(&Midge::projection_event_key(
-            &projection,
-            "stream",
-            "event-1",
-        ))
-        .unwrap()
-        .is_some();
-    let old_event_2 = retained
-        .snapshot
-        .tx
-        .get(&Midge::projection_event_key(
-            &projection,
-            "stream",
-            "event-2",
-        ))
-        .unwrap()
-        .is_some();
-    let new_event_2 = fresh
-        .snapshot
-        .tx
-        .get(&Midge::projection_event_key(
-            &projection,
-            "stream",
-            "event-2",
-        ))
-        .unwrap()
-        .is_some();
-    let scan_ids = |owner: &Arc<StatementDataRead>, value: i64| {
-        let _scope = StatementReadScope::enter(Some(owner));
-        let request = crate::midge::adapter::ScalarIndexScanRequest {
-            equality_prefix: vec![serde_json::json!(value)],
-            ..Default::default()
-        };
-        cassie
-            .midge
-            .scan_scalar_index_controlled(&index, &request, &query_controls)
-            .unwrap()
-            .as_slice()
-            .iter()
-            .map(|hit| hit.id.clone())
-            .collect::<Vec<_>>()
-    };
-    let old_index_1 = scan_ids(&retained, 1);
-    let old_index_2 = scan_ids(&retained, 2);
-    let new_index_1 = scan_ids(&fresh, 1);
-    let new_index_2 = scan_ids(&fresh, 2);
+    let old_event_1 = replay_snapshot_has_event(&retained, &projection, "event-1");
+    let old_event_2 = replay_snapshot_has_event(&retained, &projection, "event-2");
+    let new_event_2 = replay_snapshot_has_event(&fresh, &projection, "event-2");
+    let old_index_1 = replay_snapshot_index_ids(&cassie, &index, &query_controls, &retained, 1);
+    let old_index_2 = replay_snapshot_index_ids(&cassie, &index, &query_controls, &retained, 2);
+    let new_index_1 = replay_snapshot_index_ids(&cassie, &index, &query_controls, &fresh, 1);
+    let new_index_2 = replay_snapshot_index_ids(&cassie, &index, &query_controls, &fresh, 2);
     let new_checkpoint = Midge::load_projection_metadata_from_tx(&fresh.snapshot.tx, &projection)
         .unwrap()
         .unwrap()
@@ -450,8 +447,8 @@ fn should_keep_replayed_row_and_checkpoint_together_in_pinned_data_snapshot() {
     assert!(!old_event_2);
     assert!(new_event_2);
     assert_eq!(old_index_1, vec!["doc".to_owned()]);
-    assert!(old_index_2.is_empty());
-    assert!(new_index_1.is_empty());
+    assert_eq!(old_index_2, Vec::<String>::new());
+    assert_eq!(new_index_1, Vec::<String>::new());
     assert_eq!(new_index_2, vec!["doc".to_owned()]);
     assert_eq!(new_checkpoint.as_deref(), Some("checkpoint-2"));
     assert_eq!(new_row, serde_json::json!({"value": 2}));

@@ -63,7 +63,7 @@ impl Midge {
             .map_err(|error| CassieError::Parse(error.to_string()))?;
         let mut expected = expected.cloned();
         if let Some(metadata) = &mut expected {
-            metadata.collection = collection.to_owned();
+            collection.clone_into(&mut metadata.collection);
         }
         let actual_value = serde_json::to_value(&stored_metadata)
             .map_err(|error| CassieError::Parse(error.to_string()))?;

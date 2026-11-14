@@ -211,6 +211,9 @@ yields one row; parallel edges and distinct matching paths retain multiplicity.
 No result order is promised without `ORDER BY`, except the documented choice
 among tied paths when a selector explicitly limits the result.
 
+A label alternative selects mappings as a set: a mapping carrying both `A` and
+`B` contributes one candidate to `IS A|B`, not duplicate path matches.
+
 A quantified edge variable is a group of its ordered edge bindings, even for
 `{1,1}` or an empty match. Its inline `WHERE` is evaluated once for each edge
 before selecting paths. Outside that inline scope, direct scalar references such
@@ -228,7 +231,9 @@ declared vertex labels and predicates constrain their declared endpoints, not
 every implicit intermediate vertex. Each repeated edge still satisfies its own
 label and inline predicate. A nonmatching pattern yields no row. SQL NULL and
 three-valued predicate semantics apply. For an undirected traversal, a
-self-loop is one matching edge step, not two duplicate orientations. A
+self-loop is one matching edge step, not two duplicate orientations; its
+canonical stored direction is source-to-destination (value 1), including in
+path output and tie ordering. A
 graph-pattern `WHERE` applies to selected complete paths, after a `KEEP`
 selector. To constrain the search itself, place an edge predicate inline. An
 outer SQL `WHERE` is also applied to rows after `GRAPH_TABLE` produces them.
@@ -293,8 +298,12 @@ Required independent oracle cases include:
 * With `A -> B` and `A -> C -> B`, bounds `{2,3}` select the two-hop path;
   zero lower bound binds both endpoints to the same existing vertex.
 * In `A -> B -> A`, `SIMPLE` accepts the closing cycle and `ACYCLIC` rejects
-  it. An undirected self-loop produces one step, and parallel edges produce
+  it. An undirected self-loop produces one step with direction 1 on repeated
+  runs and restart, and parallel edges produce
   distinct matches. Quantified `{1,1}` still binds a group variable.
+* An undirected non-loop edge stored from A to B records direction 1 for A to B
+  and 2 for B to A. A mapping labeled both `A` and `B` is included once, not
+  twice, by a single `IS A|B` pattern.
 * Cyclic unbounded `WALK` with an unreachable destination fails validation,
   including with a shortest selector; it cannot run until a memory limit is hit.
 
@@ -343,7 +352,10 @@ Database, graph and mapping IDs are durable UUID logical identities, rather
 than SQL names or type OIDs: rename preserves them; a dropped and recreated object
 gets a new identity. An operation resolving a reference from a different
 database or a removed graph/mapping fails deterministically instead of
-retargeting it. Export, restore and cloning must document identity handling;
+retargeting it. Element identity is mapping plus typed key, with no row
+incarnation: after delete and reinsertion of the same key in the same mapping,
+the old reference resolves to the replacement row in a later snapshot. Export,
+restore and cloning must document identity handling;
 do not promise cross-database reference portability. A missing durable allocator
 for database, graph and mapping identities is an explicit #1268 prerequisite;
 these identities are a target contract, not a claim about today's catalog. Public labels and
@@ -392,12 +404,20 @@ result metadata must preserve the same types. Some drivers require explicit
 registration to decode named composite arrays; the scalar expansion interface
 must work without it. PostgreSQL composite types cannot themselves enforce the
 tagged-part invariant: constructors and text/binary input paths must validate
-it, and every graph-consuming API, equality operation, and step expansion must
-validate shape, kind and reference freshness regardless of construction path.
-Malformed text or binary input returns `22P02` or `22P03`, respectively;
+it, and every operation validates shape and kind regardless of construction
+path. A constructed path is a detached structural value and may represent
+historical data; its existence does not attest that its edges connect its
+vertices in the current graph snapshot. A query-produced path is connected in
+the snapshot in which it was produced. Structural equality and step expansion
+inspect the retained value without requiring current rows. Operations that use
+a path to access the graph must additionally resolve its references, check
+current-snapshot connectivity and direction and enforce authorization before
+use; malformed, disconnected or unauthorized input fails rather than silently
+reading a different path. Malformed text or binary input returns `22P02` or `22P03`, respectively;
 well-formed composites with invalid tags, slots, array shapes or inconsistent
-path lengths return `22023`. A stale or cross-database reference returns
-`42704`, and insufficient authority returns `42501`. These checks apply to
+path lengths or disconnected input returns `22023`. Graph resolution of a stale
+or cross-database reference returns `42704`, and insufficient authority returns
+`42501`. These checks apply to
 values produced by SQL `ROW` casts or subsequent array/field mutation as well
 as direct parameters. Tests cover all construction paths and errors.
 

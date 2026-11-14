@@ -34,6 +34,7 @@ enum Storage {
         _source: Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>,
     },
     EncodedNumeric(Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>),
+    EncodedBoolean(Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>),
     Constant(Value),
     Sequence {
         start: i64,
@@ -155,6 +156,10 @@ impl Column {
             }
             Storage::Scalar(values) => Cell::Scalar(&values[lane]),
             Storage::Encoded { parent, .. } => return parent.cell(lane),
+            Storage::EncodedBoolean(source) => {
+                source.get().boolean_values().expect("Boolean owner")[lane]
+                    .map_or(Cell::Null, Cell::Boolean)
+            }
             Storage::EncodedNumeric(source) => {
                 match source.get().numeric_values().expect("numeric owner") {
                     crate::midge::adapter::NumericValues::Integer(values) => {
@@ -550,6 +555,21 @@ impl Column {
                 },
             )?)));
         }
+        if let Some(values) = field.boolean_values() {
+            if data_type != &DataType::Boolean {
+                return Err(invalid("encoded Boolean does not match declared transport"));
+            }
+            return Ok(Self(Arc::new(Accounted::try_new(
+                controls,
+                owner_bytes::<ColumnData>(data_type_clone_bytes(data_type)?)?,
+                || ColumnData {
+                    data_type: data_type.clone(),
+                    domain: values.len(),
+                    storage: Storage::EncodedBoolean(Arc::clone(source)),
+                    validity: Validity::AllValid,
+                },
+            )?)));
+        }
         let mut memory =
             controls.reserve_query_memory(mul(field.values().len(), size_of::<Value>())?)?;
         let mut values = Vec::with_capacity(field.values().len());
@@ -576,3 +596,7 @@ impl Column {
         )
     }
 }
+
+#[cfg(test)]
+#[path = "column/boolean_tests.rs"]
+mod boolean_tests;

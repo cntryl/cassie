@@ -10,6 +10,7 @@ pub(super) struct Loaded {
     pub(super) raw: bytes::Bytes,
     pub(super) values: Vec<serde_json::Value>,
     pub(super) numeric: Option<NumericValues>,
+    pub(super) boolean: Option<Vec<Option<bool>>>,
 }
 pub(super) fn load(
     tx: &crate::midge::adapter::AdapterTransaction,
@@ -26,6 +27,7 @@ pub(super) fn load(
                     raw: loaded.raw,
                     values: loaded.values,
                     numeric: None,
+                    boolean: None,
                 },
             ),
         );
@@ -66,5 +68,6 @@ pub(super) fn load(
         raw,
         values: Vec::new(),
         numeric: Some(decoded.values),
+        boolean: None,
     }))
 }

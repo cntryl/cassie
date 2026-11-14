@@ -117,7 +117,7 @@ fn should_observe_document_carriers_at_the_completed_batch_boundary() {
 }
 
 #[test]
-fn should_distinguish_numeric_encoded_lanes_from_json_backed_boolean_lanes() {
+fn should_distinguish_numeric_encoded_lanes_from_native_boolean_lanes() {
     // Arrange
     let (cassie, session) = fixture(true);
     let controls = QueryExecutionControls::from_limits(
@@ -147,12 +147,10 @@ fn should_distinguish_numeric_encoded_lanes_from_json_backed_boolean_lanes() {
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["source"], "encoded");
     assert_eq!(number(&records[0], "encoded_numeric_lanes"), 4);
-    assert_eq!(number(&records[0], "encoded_json_lanes"), 4);
-    assert_eq!(number(&records[0], "value_carrier_slots"), 4);
-    assert_eq!(
-        number(&records[0], "value_carrier_bytes"),
-        4 * size_of::<Value>()
-    );
+    assert_eq!(number(&records[0], "encoded_json_lanes"), 0);
+    assert_eq!(number(&records[0], "encoded_boolean_lanes"), 4);
+    assert_eq!(number(&records[0], "value_carrier_slots"), 0);
+    assert_eq!(number(&records[0], "value_carrier_bytes"), 0);
     assert_eq!(number(&records[0], "document_field_lanes"), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -357,4 +355,160 @@ fn should_separate_identity_clones_from_payload_field_visits() {
         8 * size_of::<Value>()
     );
     assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_retain_native_boolean_backing_through_repeated_selected_aliases() {
+    // Arrange
+    let (cassie, session) = fixture(true);
+    let controls = QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let mut stream = TypedScanStream::open(
+        &cassie,
+        Some(&session),
+        "profile_lanes",
+        &["b".into()],
+        &controls,
+    )
+    .expect("open")
+    .expect("typed");
+    let owner = Arc::downgrade(&stream.encoded.as_ref().expect("encoded").segments[0].fields[0]);
+    // Act
+    let batch = stream.next_batch().expect("batch").expect("rows");
+    let expected = batch.value(0, 0).expect("first logical value");
+    let first = batch.slice(&controls, 0, 1).expect("slice");
+    let alias = first.clone();
+    drop(first);
+    drop(batch);
+    while stream.next_batch().expect("advance").is_some() {}
+    drop(stream);
+    // Assert
+    assert!(owner.upgrade().is_some());
+    assert!(controls.current_query_memory_bytes() > 0);
+    assert_eq!(alias.value(0, 0).expect("retained value"), expected);
+    drop(alias);
+    assert!(owner.upgrade().is_none());
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_complete_plain_boolean_sql_without_json_value_transport() {
+    // Arrange
+    let (cassie, session) = fixture(true);
+    let capture = Capture::default();
+    // Act
+    let result = capture.run(|| {
+        cassie
+            .execute_sql(
+                &session,
+                "SELECT SUM(n),COUNT(n),COUNT(*) FROM profile_lanes WHERE b IS NOT FALSE AND n>=0",
+                vec![],
+            )
+            .expect("SQL")
+    });
+    let records = capture.records();
+    // Assert
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::Int64(9_007_199_254_741_000),
+            Value::Int64(2),
+            Value::Int64(2)
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1700, 20, 20]
+    );
+    let batches = records
+        .iter()
+        .filter(|record| {
+            record
+                .get("event")
+                .is_some_and(|value| value == "typed_transport_batch")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(number(batches[0], "encoded_boolean_lanes"), 4);
+    assert_eq!(number(batches[0], "encoded_json_lanes"), 0);
+    assert_eq!(number(batches[0], "value_carrier_slots"), 0);
+    assert_eq!(
+        records
+            .iter()
+            .filter(|record| record
+                .get("event")
+                .is_some_and(|value| value == "typed_aggregate_complete"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn should_preserve_staged_visibility_outside_native_boolean_acceleration() {
+    // Arrange
+    let (cassie, session) = fixture(true);
+    for sql in [
+        "BEGIN",
+        "UPDATE profile_lanes SET b=TRUE WHERE n=7",
+        "INSERT INTO profile_lanes VALUES (5,TRUE)",
+        "DELETE FROM profile_lanes WHERE n=9007199254740993",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("staged changes");
+    }
+    let capture = Capture::default();
+    let sql = "SELECT SUM(n),COUNT(n),COUNT(*) FROM profile_lanes WHERE b IS TRUE AND n>=0";
+    // Act
+    let staged = capture.run(|| {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("staged aggregate")
+    });
+    let records = capture.records();
+    cassie
+        .execute_sql(&session, "ROLLBACK", vec![])
+        .expect("rollback");
+    let restored = cassie
+        .execute_sql(&session, sql, vec![])
+        .expect("committed source");
+    // Assert
+    assert_eq!(
+        staged.rows(),
+        &[vec![Value::Int64(12), Value::Int64(2), Value::Int64(2)]]
+    );
+    assert_eq!(
+        restored.rows(),
+        &[vec![
+            Value::Int64(9_007_199_254_740_993),
+            Value::Int64(1),
+            Value::Int64(1)
+        ]]
+    );
+    let batches = records
+        .iter()
+        .filter(|record| {
+            record
+                .get("event")
+                .is_some_and(|value| value == "typed_transport_batch")
+        })
+        .collect::<Vec<_>>();
+    assert!(batches.iter().any(|record| record
+        .get("source")
+        .is_some_and(|value| value == "documents")));
+    assert!(batches
+        .iter()
+        .all(|record| number(record, "encoded_boolean_lanes") == 0));
+    drop(staged);
+    drop(restored);
+    assert_eq!(
+        cassie.metrics()["query"]["current_accounted_memory_bytes"],
+        0
+    );
 }

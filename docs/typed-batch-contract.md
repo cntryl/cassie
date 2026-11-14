@@ -261,3 +261,17 @@ admitted logical selection; other filtered or bounded reads keep existing encode
 pruning and selected-field decoding. Staged changes use the controlled session
 source instead of trusting a persisted index. Kernel eligibility and diagnostics
 remain specific to the selected operation and representation.
+
+
+## Plain Boolean encoded ownership (#1265)
+
+The [selected finite handoff](boolean-handoff-qualification.md) extends existing
+primitive encoded ownership to CBC1 Plain Boolean values. It retains compact
+non-NULL bit mapping and logical validity, existing frame/checksum/manifest
+validation and predecode admission, raw/metadata/native-owner leases through
+all derived selections and aliases, and final release. Expected row domain is
+checked before native allocation. Existing validity padding is rejected and
+unused payload high bits remain accepted; no persistent format is tightened.
+Constant/RLE/Dictionary Boolean and other unsupported cases retain validated
+JSON/Value fallback. This selection reuses existing Boolean cells and 3VL;
+actual qualification is recorded separately, not inferred from an index hit.

@@ -48,7 +48,10 @@ Dictionary, integer FOR and floating ALP into admitted primitive nullable owners
 It reuses the existing frame/validity/bitpacking/scaling rules and compares the
 expected segment domain before allocating decoded lanes. Numeric aggregate cells
 borrow those owners directly; JSON/value carriers remain only at the existing
-nonnumeric or scalar fallback boundary. Numeric native handoff metrics must record
+nonnumeric or scalar fallback boundary, except for the separately selected
+[CBC1 Plain Boolean owner](boolean-handoff-qualification.md). That finite path
+reuses Boolean cells, NULL/three-valued selection and existing aggregate kernels;
+other Boolean codecs retain the validated fallback. Numeric native handoff metrics must record
 zero prematurely materialized lane objects, while retaining raw framing and owner
 leases for the complete typed batch lifetime.
 

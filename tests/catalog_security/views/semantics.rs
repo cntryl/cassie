@@ -105,7 +105,7 @@ fn should_create_select_drop_user_defined_view() {
 }
 
 #[test]
-fn should_drop_quoted_mixed_case_view_when_referenced_unquoted() {
+fn should_drop_a_quoted_mixed_case_view_only_by_its_quoted_name() {
     // Arrange
     let path = data_dir("mixed_case_drop");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -127,7 +127,8 @@ fn should_drop_quoted_mixed_case_view_when_referenced_unquoted() {
             .unwrap();
 
         // Act
-        let dropped = cassie.execute_sql(&session, "DROP VIEW mixedcaseview", vec![]);
+        let unquoted = cassie.execute_sql(&session, "DROP VIEW mixedcaseview", vec![]);
+        let dropped = cassie.execute_sql(&session, "DROP VIEW \"MixedCaseView\"", vec![]);
         let remaining = cassie
             .catalog
             .list_views()
@@ -136,7 +137,11 @@ fn should_drop_quoted_mixed_case_view_when_referenced_unquoted() {
             .collect::<Vec<_>>();
 
         // Assert
-        assert!(dropped.is_ok(), "DROP VIEW failed: {dropped:?}");
+        assert!(
+            unquoted.is_err(),
+            "an unquoted name folds to lower case and must not drop the quoted view"
+        );
+        assert!(dropped.is_ok(), "DROP VIEW of the quoted name failed");
         assert!(
             remaining.is_empty(),
             "view metadata remained after DROP VIEW: {remaining:?}"

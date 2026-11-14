@@ -56,7 +56,7 @@ fn should_distinguish_scoped_keys_given_database_schema_and_collection_names_con
 fn should_preserve_key_scope_given_unicode_and_case_variants() {
     // Arrange
     let lowercase = collection_schema_key("tenant.public.cafe");
-    let uppercase = collection_schema_key("tenant.public.CAFE");
+    let uppercase = collection_schema_key("tenant.public.\"CAFE\"");
     let unicode = collection_schema_key("tenant.public.café");
 
     // Act

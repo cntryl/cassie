@@ -154,7 +154,7 @@ pub(super) fn parse_parts(
                 if part.is_empty() {
                     return Ok(None);
                 }
-                push_part(&mut parts, part, controls)?;
+                push_folded_part(&mut parts, part, quoted, controls)?;
                 current.text.clear();
                 quoted = false;
                 closed_quote = false;
@@ -175,11 +175,24 @@ pub(super) fn parse_parts(
     if part.is_empty() {
         return Ok(None);
     }
-    push_part(&mut parts, part, controls)?;
+    push_folded_part(&mut parts, part, quoted, controls)?;
     Ok(Some(parts))
 }
 
-fn ascii_equal(
+/// An unquoted identifier folds to lower case; a quoted one keeps its case.
+fn push_folded_part(
+    parts: &mut Parts,
+    part: &str,
+    quoted: bool,
+    controls: &QueryExecutionControls,
+) -> Result<(), CassieError> {
+    if quoted || !part.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        return push_part(parts, part, controls);
+    }
+    push_part(parts, &part.to_ascii_lowercase(), controls)
+}
+
+fn exactly_equal(
     left: &str,
     right: &str,
     controls: &QueryExecutionControls,
@@ -193,7 +206,7 @@ fn ascii_equal(
         .zip(right.as_bytes().chunks(4096))
     {
         controls.check_interruption()?;
-        if !left.eq_ignore_ascii_case(right) {
+        if left != right {
             return Ok(false);
         }
     }
@@ -206,7 +219,7 @@ pub(crate) fn name_matches_controlled(
     controls: &QueryExecutionControls,
 ) -> Result<bool, CassieError> {
     controls.check_interruption()?;
-    if ascii_equal(stored, requested, controls)? {
+    if exactly_equal(stored, requested, controls)? {
         return Ok(true);
     }
     let Some(stored) = parse_parts(stored, controls)? else {
@@ -225,7 +238,7 @@ pub(crate) fn name_matches_controlled(
         .zip(requested.values.iter().rev())
     {
         controls.check_interruption()?;
-        if !ascii_equal(left, right, controls)? {
+        if !exactly_equal(left, right, controls)? {
             return Ok(false);
         }
     }

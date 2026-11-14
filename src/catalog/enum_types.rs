@@ -149,13 +149,13 @@ impl Catalog {
     pub fn register_enum_type(&self, metadata: EnumTypeMeta) {
         self.enum_types
             .write()
-            .insert(metadata.name.to_ascii_lowercase(), metadata);
+            .insert(metadata.name.clone(), metadata);
         self.bump_version();
     }
 
     pub fn unregister_enum_type(&self, name: &str) {
         let mut types = self.enum_types.write();
-        let key = name.to_ascii_lowercase();
+        let key = name.to_owned();
         if types.remove(&key).is_none() {
             let matching = types
                 .iter()
@@ -172,7 +172,7 @@ impl Catalog {
     #[must_use]
     pub fn get_enum_type(&self, name: &str) -> Option<EnumTypeMeta> {
         let types = self.enum_types.read();
-        types.get(&name.to_ascii_lowercase()).cloned().or_else(|| {
+        types.get(name).cloned().or_else(|| {
             types
                 .values()
                 .find(|metadata| name_matches(&metadata.name, name))

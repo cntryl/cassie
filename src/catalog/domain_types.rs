@@ -88,10 +88,10 @@ fn stored_schema(name: &str) -> String {
 /// names are canonical. Handles bare, `schema.name` and canonical spellings.
 #[must_use]
 pub fn same_stored_relation(left: &str, right: &str) -> bool {
-    local_name(left).eq_ignore_ascii_case(&local_name(right))
-        && stored_schema(left).eq_ignore_ascii_case(&stored_schema(right))
+    local_name(left) == local_name(right)
+        && stored_schema(left) == stored_schema(right)
         && match (relation_database_name(left), relation_database_name(right)) {
-            (Some(left), Some(right)) => left.eq_ignore_ascii_case(&right),
+            (Some(left), Some(right)) => left == right,
             _ => true,
         }
 }
@@ -100,13 +100,13 @@ impl Catalog {
     pub fn register_domain_type(&self, metadata: DomainTypeMeta) {
         self.domain_types
             .write()
-            .insert(metadata.name.to_ascii_lowercase(), metadata);
+            .insert(metadata.name.clone(), metadata);
         self.bump_version();
     }
 
     pub fn unregister_domain_type(&self, name: &str) {
         let mut types = self.domain_types.write();
-        let key = name.to_ascii_lowercase();
+        let key = name.to_owned();
         if types.remove(&key).is_none() {
             let matching = types
                 .iter()
@@ -123,7 +123,7 @@ impl Catalog {
     #[must_use]
     pub fn get_domain_type(&self, name: &str) -> Option<DomainTypeMeta> {
         let types = self.domain_types.read();
-        types.get(&name.to_ascii_lowercase()).cloned().or_else(|| {
+        types.get(name).cloned().or_else(|| {
             types
                 .values()
                 .find(|metadata| name_matches(&metadata.name, name))

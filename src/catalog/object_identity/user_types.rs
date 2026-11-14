@@ -76,16 +76,11 @@ impl ObjectScope<'_> {
             .filter(|found| Self::spelled_as(found, name))
     }
 
-    /// Whether `found` is stored under the spelling `name` asks for. Type DDL
-    /// folds an unquoted name to lower case, so a type name is exact. A table
-    /// keeps the case it was written in, so only a quoted name is exact for a
-    /// table row type.
+    /// Whether `found` is stored under the spelling `name` asks for. DDL folds
+    /// an unquoted name to lower case and keeps a quoted one, so the stored
+    /// name of a type or table row type matches exactly.
     fn spelled_as(found: &UserType, name: &Identifier) -> bool {
-        let stored = found.local_name();
-        match found {
-            UserType::RowType(_) if !name.quoted => stored.eq_ignore_ascii_case(&name.value),
-            _ => stored == name.value,
-        }
+        found.local_name() == name.value
     }
 
     /// `regtype` output (`format_type`) for a user type or its array type:

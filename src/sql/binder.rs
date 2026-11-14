@@ -93,7 +93,11 @@ use scope::CteScope;
 mod case_unify;
 mod enum_literals;
 mod network_literals;
+mod rollup_statements;
 pub(crate) use case_unify::coerce_parameterized_boolean_case_results;
+use rollup_statements::{
+    bind_drop_retention_policy_statement, bind_drop_rollup_statement, bind_refresh_rollup_statement,
+};
 #[path = "binder/commands.rs"]
 mod commands;
 #[path = "binder/conditional_bindings.rs"]
@@ -894,88 +898,6 @@ fn bind_set_statement(statement: crate::sql::ast::SetStatement, raw_sql: &str) -
     statement.variable = statement.variable.trim().to_string();
     statement.value = statement.value.map(|value| value.trim().to_string());
     parsed_statement(raw_sql, QueryStatement::Set(statement))
-}
-
-fn bind_refresh_rollup_statement(
-    statement: crate::sql::ast::RefreshRollupStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    let crate::sql::ast::RefreshRollupStatement { name } = statement;
-    let name = resolve_existing_name(name.trim(), context, |name| {
-        catalog.get_rollup(name).is_some()
-    })?;
-    if name.is_empty() {
-        return Err(CassieError::Planner(
-            "REFRESH ROLLUP requires a name".into(),
-        ));
-    }
-    if catalog.get_rollup(&name).is_none() {
-        return Err(CassieError::CatalogObjectNotFound {
-            kind: CatalogObjectKind::Rollup,
-            name,
-        });
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::RefreshRollup(crate::sql::ast::RefreshRollupStatement { name }),
-    ))
-}
-
-fn bind_drop_rollup_statement(
-    statement: crate::sql::ast::DropRollupStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    let crate::sql::ast::DropRollupStatement { name, if_exists } = statement;
-    let name = resolve_existing_name(name.trim(), context, |name| {
-        catalog.get_rollup(name).is_some()
-    })?;
-    if name.is_empty() {
-        return Err(CassieError::Planner("DROP ROLLUP requires a name".into()));
-    }
-    if !if_exists && catalog.get_rollup(&name).is_none() {
-        return Err(CassieError::CatalogObjectNotFound {
-            kind: CatalogObjectKind::Rollup,
-            name,
-        });
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::DropRollup(crate::sql::ast::DropRollupStatement { name, if_exists }),
-    ))
-}
-
-fn bind_drop_retention_policy_statement(
-    statement: crate::sql::ast::DropRetentionPolicyStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    let crate::sql::ast::DropRetentionPolicyStatement { name, if_exists } = statement;
-    let name = resolve_existing_name(name.trim(), context, |name| {
-        catalog.get_retention_policy(name).is_some()
-    })?;
-    if name.is_empty() {
-        return Err(CassieError::Planner(
-            "DROP RETENTION POLICY requires a name".into(),
-        ));
-    }
-    if !if_exists && catalog.get_retention_policy(&name).is_none() {
-        return Err(CassieError::CatalogObjectNotFound {
-            kind: CatalogObjectKind::RetentionPolicy,
-            name,
-        });
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::DropRetentionPolicy(crate::sql::ast::DropRetentionPolicyStatement {
-            name,
-            if_exists,
-        }),
-    ))
 }
 
 fn bind_create_schema_statement(

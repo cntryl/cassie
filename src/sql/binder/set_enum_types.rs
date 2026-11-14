@@ -10,7 +10,7 @@ use crate::types::{DataType, EnumRef};
 
 use super::super::{BindingContext, Catalog};
 
-const fn operator_name(operator: &SetOperator) -> &'static str {
+const fn operator_name(operator: SetOperator) -> &'static str {
     match operator {
         SetOperator::Union | SetOperator::UnionAll => "UNION",
         SetOperator::Intersect | SetOperator::IntersectAll => "INTERSECT",
@@ -62,7 +62,7 @@ pub(in crate::sql::binder) fn validate(
                 "42846",
                 format!(
                     "{} could not convert type {} to {}",
-                    operator_name(&set.operator),
+                    operator_name(set.operator),
                     right.name,
                     left.name
                 ),

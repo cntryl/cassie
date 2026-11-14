@@ -20,25 +20,28 @@ use width_bucket::{
     all_unknown_bucket_parameters, mixed_bucket_targets, unknown_bucket_literal_operands,
 };
 
+/// The result type of a call whose type does not depend on its arguments:
+/// `ROW(...)` is an anonymous `record`, and the hashing builtins are fixed.
+fn fixed_result_oid(name: &str) -> Option<i32> {
+    if name == ast::ROW_CONSTRUCTOR_FUNCTION {
+        return Some(2249);
+    }
+    functions::hashing::return_type(name).and_then(|kind| i32::try_from(kind.type_oid()).ok())
+}
+
 impl Fold<'_, '_> {
     pub(super) fn function(
         &mut self,
         function: &ast::FunctionCall,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
-        if function.name == ast::ROW_CONSTRUCTOR_FUNCTION {
-            // `ROW(...)` is an anonymous `record`.
-            return Ok(Summary::known(2249));
-        }
         if let Some(summary) = self.generated_function(function, frame)? {
             return Ok(summary);
         }
         if let Some(summary) = self.array_function_output(function, frame)? {
             return Ok(summary);
         }
-        if let Some(oid) = functions::hashing::return_type(&function.name)
-            .and_then(|kind| i32::try_from(kind.type_oid()).ok())
-        {
+        if let Some(oid) = fixed_result_oid(&function.name) {
             return Ok(Summary::known(oid));
         }
         if functions::function(&function.name).is_some_and(|metadata| {

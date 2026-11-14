@@ -47,7 +47,7 @@ fn single_value(label: &str, sql: &str) -> Option<String> {
 #[test]
 fn should_return_a_domain_cast_over_the_simple_protocol() {
     // Arrange
-    let sql = r#"SELECT 5::posint"#;
+    let sql = "SELECT 5::posint";
 
     // Act
     let value = single_value("domain-cast-simple", sql);
@@ -59,7 +59,7 @@ fn should_return_a_domain_cast_over_the_simple_protocol() {
 #[test]
 fn should_return_a_cast_function_to_a_domain() {
     // Arrange
-    let sql = r#"SELECT CAST(5 AS posint)"#;
+    let sql = "SELECT CAST(5 AS posint)";
 
     // Act
     let value = single_value("domain-cast-function", sql);
@@ -71,7 +71,7 @@ fn should_return_a_cast_function_to_a_domain() {
 #[test]
 fn should_return_null_for_a_null_cast_to_a_nullable_domain() {
     // Arrange
-    let sql = r#"SELECT NULL::posint"#;
+    let sql = "SELECT NULL::posint";
 
     // Act
     let value = single_value("domain-cast-null", sql);
@@ -83,7 +83,7 @@ fn should_return_null_for_a_null_cast_to_a_nullable_domain() {
 #[test]
 fn should_return_a_column_cast_to_a_domain() {
     // Arrange
-    let sql = r#"SELECT qty::posint FROM items"#;
+    let sql = "SELECT qty::posint FROM items";
 
     // Act
     let value = single_value("domain-cast-column", sql);
@@ -95,7 +95,7 @@ fn should_return_a_column_cast_to_a_domain() {
 #[test]
 fn should_return_a_domain_cast_from_returning() {
     // Arrange
-    let sql = r#"INSERT INTO items VALUES (2, 9) RETURNING qty::posint"#;
+    let sql = "INSERT INTO items VALUES (2, 9) RETURNING qty::posint";
 
     // Act
     let value = single_value("domain-cast-returning", sql);
@@ -107,7 +107,7 @@ fn should_return_a_domain_cast_from_returning() {
 #[test]
 fn should_return_a_view_column_defined_by_a_domain_cast() {
     // Arrange
-    let sql = r#"SELECT x FROM fixed"#;
+    let sql = "SELECT x FROM fixed";
 
     // Act
     let value = single_value("domain-cast-view", sql);
@@ -119,7 +119,7 @@ fn should_return_a_view_column_defined_by_a_domain_cast() {
 #[test]
 fn should_subscript_a_cast_to_an_array_domain() {
     // Arrange
-    let sql = r#"SELECT (ARRAY[1,2]::intlist)[1]"#;
+    let sql = "SELECT (ARRAY[1,2]::intlist)[1]";
 
     // Act
     let value = single_value("domain-cast-array-element", sql);
@@ -131,7 +131,7 @@ fn should_subscript_a_cast_to_an_array_domain() {
 #[test]
 fn should_resolve_max_over_a_domain_cast() {
     // Arrange
-    let sql = r#"SELECT max(qty::posint) FROM items"#;
+    let sql = "SELECT max(qty::posint) FROM items";
 
     // Act
     let value = single_value("domain-cast-max", sql);
@@ -143,7 +143,7 @@ fn should_resolve_max_over_a_domain_cast() {
 #[test]
 fn should_resolve_sum_over_a_domain_cast() {
     // Arrange
-    let sql = r#"SELECT sum(qty::posint) FROM items"#;
+    let sql = "SELECT sum(qty::posint) FROM items";
 
     // Act
     let value = single_value("domain-cast-sum", sql);
@@ -155,7 +155,7 @@ fn should_resolve_sum_over_a_domain_cast() {
 #[test]
 fn should_resolve_string_agg_over_a_domain_cast() {
     // Arrange
-    let sql = r#"SELECT string_agg('a'::label, ',') FROM items"#;
+    let sql = "SELECT string_agg('a'::label, ',') FROM items";
 
     // Act
     let value = single_value("domain-cast-string-agg", sql);
@@ -167,7 +167,7 @@ fn should_resolve_string_agg_over_a_domain_cast() {
 #[test]
 fn should_resolve_coalesce_over_a_domain_cast() {
     // Arrange
-    let sql = r#"SELECT coalesce(5::posint, 1)"#;
+    let sql = "SELECT coalesce(5::posint, 1)";
 
     // Act
     let value = single_value("domain-cast-coalesce", sql);
@@ -179,7 +179,7 @@ fn should_resolve_coalesce_over_a_domain_cast() {
 #[test]
 fn should_resolve_greatest_over_a_domain_cast() {
     // Arrange
-    let sql = r#"SELECT greatest(5::posint, 7)"#;
+    let sql = "SELECT greatest(5::posint, 7)";
 
     // Act
     let value = single_value("domain-cast-greatest", sql);
@@ -191,7 +191,7 @@ fn should_resolve_greatest_over_a_domain_cast() {
 #[test]
 fn should_concatenate_a_text_domain_cast() {
     // Arrange
-    let sql = r#"SELECT 'a'::label || 'b'"#;
+    let sql = "SELECT 'a'::label || 'b'";
 
     // Act
     let value = single_value("domain-cast-concat", sql);
@@ -203,7 +203,7 @@ fn should_concatenate_a_text_domain_cast() {
 #[test]
 fn should_combine_a_boolean_domain_cast_with_and() {
     // Arrange
-    let sql = r#"SELECT true::flag AND true"#;
+    let sql = "SELECT true::flag AND true";
 
     // Act
     let value = single_value("domain-cast-and", sql);
@@ -227,7 +227,7 @@ fn should_extract_a_key_from_a_jsonb_domain_cast() {
 #[test]
 fn should_add_to_a_decimal_literal_cast_to_a_float_domain() {
     // Arrange
-    let sql = r#"SELECT 1.5::ratio + 0"#;
+    let sql = "SELECT 1.5::ratio + 0";
 
     // Act
     let value = single_value("domain-cast-decimal", sql);
@@ -239,7 +239,7 @@ fn should_add_to_a_decimal_literal_cast_to_a_float_domain() {
 #[test]
 fn should_unify_a_domain_cast_in_case_branches() {
     // Arrange
-    let sql = r#"SELECT CASE WHEN true THEN 5::posint ELSE 2 END"#;
+    let sql = "SELECT CASE WHEN true THEN 5::posint ELSE 2 END";
 
     // Act
     let value = single_value("domain-cast-case", sql);

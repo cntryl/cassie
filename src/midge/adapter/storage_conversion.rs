@@ -67,13 +67,17 @@ impl Midge {
         let rows = if target.uses_column_store_storage() {
             Self::rewrite_rows_to_columns(&mut tx, &name, &row_schema, charge)?
         } else {
-            let rows = Self::rewrite_columns_to_rows(&mut tx, &name, &mut row_schema, charge)?;
+            let rows = self.rewrite_columns_to_rows(&mut tx, &name, &mut row_schema, charge)?;
             Self::save_row_schema_to_tx(&mut tx, &name, &row_schema)?;
             rows
         };
 
         metadata.storage_mode = target;
         Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
+        if let Err(error) = super::check_document_write_storage_failure_injection() {
+            tx.rollback().map_err(CassieError::from)?;
+            return Err(error);
+        }
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(Some(ConversionReport { rows }))
@@ -141,11 +145,13 @@ impl Midge {
     }
 
     fn rewrite_columns_to_rows(
+        &self,
         tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &mut RowSchema,
         charge: RewriteCharge<'_>,
     ) -> Result<usize, CassieError> {
+        self.validate_column_store_field_markers(tx, collection, row_schema, || charge(0))?;
         let mut highest_revision = row_schema.column_revision_floor;
         let live_prefix = Self::column_store_row_prefix(row_schema.relation_id);
         let live = collect_scan(
@@ -159,6 +165,29 @@ impl Midge {
             };
             charge(retained_bytes(&key, &raw, &id))?;
             highest_revision = highest_revision.max(decode_marker_parts(collection, &id, &raw)?.1);
+            // The marker contains no payload. Reserve the compact fields before
+            // decoding them into retained JSON and the target row blob.
+            for field in row_schema.fields.iter().filter(|field| !field.retired) {
+                let field_key =
+                    Self::column_store_field_key(row_schema.relation_id, field.field_id, &id);
+                if let Some(value) = tx.get(&field_key).map_err(CassieError::from)? {
+                    let decode_factor =
+                        super::streaming_scans::decode_expansion_factor(&field.data_type);
+                    // Keep the controlled-reader decode envelope and also retain
+                    // compact input plus the target row encoding until commit.
+                    let field_bytes = value
+                        .len()
+                        .checked_mul(decode_factor.saturating_add(2))
+                        .and_then(|bytes| bytes.checked_add(field_key.len()))
+                        .and_then(|bytes| bytes.checked_add(id.len()))
+                        .ok_or_else(|| {
+                            CassieError::ResourceLimit(
+                                "column conversion field accounting overflow".to_owned(),
+                            )
+                        })?;
+                    charge(field_bytes)?;
+                }
+            }
             let payload =
                 Self::load_column_store_document_from_tx(tx, collection, &id, row_schema)?
                     .ok_or_else(|| {

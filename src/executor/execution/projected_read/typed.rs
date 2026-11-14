@@ -61,8 +61,18 @@ pub(super) fn try_execute(
     }
     let mut breakdown = ExecutionBreakdownDurations::default();
     let started = Instant::now();
-    let Some(mut stream) =
-        scan::TypedScanStream::open(cassie, session, collection, &fields, controls)?
+    let Some(mut stream) = scan::TypedScanStream::open_with_traversal(
+        cassie,
+        session,
+        collection,
+        &fields,
+        if plan.limit_value().is_some() {
+            crate::midge::adapter::RowTraversal::VisitedRows
+        } else {
+            crate::midge::adapter::RowTraversal::CompleteSource
+        },
+        controls,
+    )?
     else {
         return Ok(None);
     };
@@ -76,17 +86,7 @@ pub(super) fn try_execute(
     let mut output_memory = controls.reserve_query_memory(0)?;
     while remaining > 0 {
         let started = Instant::now();
-        let source_bound = if plan.filter.is_some() && plan.limit_value().is_some() {
-            1
-        } else {
-            remaining.saturating_add(offset)
-        };
-        let source_bound = source_bound.min(
-            controls
-                .max_result_rows
-                .saturating_sub(output.len())
-                .saturating_add(1),
-        );
+        let source_bound = source_batch_bound(plan, controls, remaining, offset, output.len());
         let Some(mut batch) = stream.next_batch_bounded(source_bound)? else {
             break;
         };
@@ -124,6 +124,26 @@ pub(super) fn try_execute(
         .runtime
         .record_read_path_collection_scan(collection, fields.len(), scanned_rows);
     Ok(Some((output, breakdown)))
+}
+
+fn source_batch_bound(
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+    remaining: usize,
+    offset: usize,
+    returned: usize,
+) -> usize {
+    let requested = if plan.filter.is_some() && plan.limit_value().is_some() {
+        1
+    } else {
+        remaining.saturating_add(offset)
+    };
+    requested.min(
+        controls
+            .max_result_rows
+            .saturating_sub(returned)
+            .saturating_add(1),
+    )
 }
 
 fn supports_plan(plan: &LogicalPlan) -> bool {

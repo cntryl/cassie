@@ -53,9 +53,12 @@ impl Context<'_> {
         let schema = schema.ok_or_else(|| CassieError::CollectionNotFound(table.to_owned()))?;
         let functions = std::collections::HashMap::new();
         let mut prepared = AccountedVec::try_new(self.controls)?;
-        self.cassie
-            .midge
-            .scan_rows_until(table, RowDecode::Full, self.controls, |document| {
+        self.cassie.midge.scan_rows_until_with_traversal(
+            table,
+            RowDecode::Full,
+            crate::midge::adapter::RowTraversal::CompleteSource,
+            self.controls,
+            |document| {
                 let _row_memory = self
                     .controls
                     .reserve_query_memory(row_bytes(&document, &schema)?)?;
@@ -124,7 +127,8 @@ impl Context<'_> {
                     }
                 });
                 Ok::<_, QueryError>(true)
-            })?;
+            },
+        )?;
         self.controls.check_interruption()?;
         Ok(prepared)
     }

@@ -184,9 +184,11 @@ fn create_table_gated(
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences = prepare_table_sequences(cassie, statement, fields)?;
     let initial_indexes = initial_table_indexes(table, &constraints, additional_like_indexes);
+    let copied_comments = prepare_like_column_comments(cassie, statement)?;
+    let mut published_comments = Vec::new();
     let output = super::command_output::empty("CREATE TABLE", controls)?;
     if statement.like.is_some() {
-        let Some(storage_id) = cassie
+        let Some((storage_id, comments)) = cassie
             .midge
             .create_collection_with_meta_constraints_sequences_and_indexes_if_absent(
                 table,
@@ -194,7 +196,7 @@ fn create_table_gated(
                 &collection_meta,
                 &constraints,
                 &table_sequences,
-                &initial_indexes,
+                (&initial_indexes, &copied_comments),
             )
             .map_err(QueryError::from)?
         else {
@@ -208,6 +210,7 @@ fn create_table_gated(
             .into());
         };
         collection_meta.storage_id = storage_id;
+        published_comments = comments;
     } else {
         collection_meta.storage_id = cassie
             .midge
@@ -248,15 +251,30 @@ fn create_table_gated(
     for index in initial_indexes {
         cassie.catalog.register_index(index);
     }
-    if let Some(like) = statement.like.as_ref() {
-        if table_like_copy_options(like).comments.is_included() {
-            super::table_like_comments::copy_column_comments(cassie, like.source.as_ref(), table)?;
-        }
+    for comment in published_comments {
+        cassie
+            .metadata_write_catalog
+            .register_object_comment(comment);
     }
     if statement.like.is_none() {
         super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
     }
     Ok(CreationOutcome::created(output))
+}
+
+fn prepare_like_column_comments(
+    cassie: &Cassie,
+    statement: &CreateTableStatement,
+) -> Result<Vec<(String, String)>, QueryError> {
+    statement
+        .like
+        .as_ref()
+        .filter(|like| table_like_copy_options(like).comments.is_included())
+        .map(|like| {
+            super::table_like_comments::prepare_column_comments(cassie, like.source.as_ref())
+        })
+        .transpose()
+        .map(Option::unwrap_or_default)
 }
 
 fn prepare_table_definition(

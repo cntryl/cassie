@@ -164,9 +164,10 @@ pub(super) async fn execute_streaming_portal_page(
             let _read_scope = crate::midge::adapter::StatementReadScope::enter(owner.as_ref());
             suspended_cursor.map_or_else(
                 || {
-                    cassie.midge.open_row_cursor(
+                    cassie.midge.open_row_cursor_with_traversal(
                         &spec.collection,
                         RowDecode::ProjectedHistorical(spec.source_fields.clone()),
+                        spec.traversal,
                     )
                 },
                 |cursor| Ok(Some(cursor)),

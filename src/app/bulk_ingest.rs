@@ -240,7 +240,7 @@ impl Cassie {
         let columns = copy_columns(&statement, schema.fields.as_slice())?;
 
         let collections = self.referential_write_collections(&statement.table);
-        let (affected, stats, skipped) =
+        let (affected, report, skipped) =
             self.midge
                 .with_transaction_write_gates(&collections, true, &controls, || {
                     self.stage_and_apply_copy_rows(
@@ -257,14 +257,13 @@ impl Cassie {
                         },
                     )
                 })?;
-        let Some(stats) = stats else {
+        let Some(report) = report else {
             return Ok(CopyIngestResult {
                 count: affected,
                 skipped,
             });
         };
-        finish_copy_batch(self, &statement, &stats)?;
-        self.runtime.set_data_epoch(self.midge.data_epoch()?);
+        self.finish_acknowledged_copy_report(&statement.table, report, Some(&controls))?;
         Ok(CopyIngestResult {
             count: affected,
             skipped,
@@ -280,7 +279,7 @@ impl Cassie {
     ) -> Result<
         (
             usize,
-            Option<crate::runtime::ProjectionWriteStats>,
+            Option<crate::midge::adapter::DocumentWriteBatchReport>,
             Vec<CopySkippedRow>,
         ),
         CassieError,
@@ -400,7 +399,7 @@ fn apply_autocommit_copy_rows(
 ) -> Result<
     (
         usize,
-        Option<crate::runtime::ProjectionWriteStats>,
+        Option<crate::midge::adapter::DocumentWriteBatchReport>,
         Vec<CopySkippedRow>,
     ),
     CassieError,
@@ -418,11 +417,12 @@ fn apply_autocommit_copy_rows(
 
     let operations = copy_write_operations(writes)?;
     check_copy_cancellation(cancellation)?;
-    let options = cassie.buffered_document_write_options(table);
+    let mut options = cassie.buffered_document_write_options(table);
+    options.refresh_after_commit = false;
     let report = cassie
         .midge
         .apply_document_write_batch_with_options(table, operations, &options)?;
-    Ok((affected, Some(report.stats), skipped))
+    Ok((affected, Some(report), skipped))
 }
 
 struct CopyInputRow<'a> {
@@ -548,27 +548,6 @@ fn validate_copy_request(
             statement.table
         )));
     }
-    Ok(())
-}
-
-fn finish_copy_batch(
-    cassie: &Cassie,
-    statement: &CopyStatement,
-    stats: &crate::runtime::ProjectionWriteStats,
-) -> Result<(), CassieError> {
-    cassie
-        .runtime
-        .record_projection_write_batch(statement.table.clone(), stats);
-    cassie.refresh_cardinality_stats(&statement.table)?;
-    cassie.refresh_projection_metadata(&statement.table)?;
-
-    let controls = cassie.runtime.query_controls(Instant::now());
-    crate::executor::refresh_rollups_for_source_external(cassie, &statement.table, &controls)
-        .map_err(|error| CassieError::Execution(error.to_string()))?;
-    crate::executor::mark_source_projections_stale_external(cassie, &statement.table)
-        .map_err(|error| CassieError::Execution(error.to_string()))?;
-
-    cassie.midge.flush_data_family()?;
     Ok(())
 }
 

@@ -41,25 +41,29 @@ pub(super) fn execute_indexed_bounded_inner_join(
         matched_rows: 0,
         index_scans: 0,
     };
-    let streamed_rows = env.cassie.midge.scan_rows_until::<QueryError, _>(
-        stream_collection,
-        crate::midge::adapter::RowDecode::Full,
-        env.controls,
-        |document| {
-            let stream_row = project_source_row(
-                env,
-                &document,
-                SourceRowShape {
-                    collection: stream_collection,
-                    fields: &spec.plan.stream_scan_fields,
-                    schema: stream_schema.as_ref(),
-                },
-                JoinRetentionPhase::BoundedSource,
-                retention,
-            )?;
-            progress.probe_stream_row(env, spec, &stream_row, retention)
-        },
-    )?;
+    let streamed_rows = env
+        .cassie
+        .midge
+        .scan_rows_until_with_traversal::<QueryError, _>(
+            stream_collection,
+            crate::midge::adapter::RowDecode::Full,
+            spec.traversal,
+            env.controls,
+            |document| {
+                let stream_row = project_source_row(
+                    env,
+                    &document,
+                    SourceRowShape {
+                        collection: stream_collection,
+                        fields: &spec.plan.stream_scan_fields,
+                        schema: stream_schema.as_ref(),
+                    },
+                    JoinRetentionPhase::BoundedSource,
+                    retention,
+                )?;
+                progress.probe_stream_row(env, spec, &stream_row, retention)
+            },
+        )?;
     env.cassie.runtime.record_read_path_collection_scan(
         stream_collection,
         spec.plan.stream_scan_fields.len(),

@@ -28,6 +28,8 @@ owned by the [release checklist](release-checklist.md) and the production
 evidence below; GitHub feature milestones remain limited to the three releases
 in the roadmap.
 
+The [v0.5.0 release qualification record](v0.5-release-qualification.md) tracks the authoritative-columnar feature gate separately from this production-readiness classification. Its pending checks are not production evidence.
+
 ## Prior Local Check Snapshot — 2026-10-29
 
 This candidate-tree result predates the 2026-10-30 0.1.0 format reset. It does

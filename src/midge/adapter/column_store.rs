@@ -8,15 +8,21 @@ mod golden_tests;
 mod rows;
 pub(super) mod validation;
 
+type InitialCollectionPublication = (bool, u64, Vec<crate::catalog::ObjectCommentMeta>);
+type ClonePublication = (u64, Vec<crate::catalog::ObjectCommentMeta>);
+type IndexesAndComments<'a> = (&'a [IndexMeta], &'a [(String, String)]);
+
 #[derive(Clone, Copy, Default)]
 struct InitialCollectionContents<'a> {
     constraints: Option<&'a [FieldConstraint]>,
     sequences: Option<&'a [crate::catalog::SequenceMeta]>,
     indexes: Option<&'a [IndexMeta]>,
+    comments: Option<&'a [(String, String)]>,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct ColumnStoreScanRequest<'a> {
+    pub traversal: super::RowTraversal,
     pub collection: &'a str,
     pub row_schema: &'a RowSchema,
     pub batch_size: usize,
@@ -56,7 +62,7 @@ impl Midge {
             false,
             InitialCollectionContents::default(),
         )
-        .map(|(_, storage_id)| storage_id)
+        .map(|(_, storage_id, _)| storage_id)
     }
 
     /// Creates a collection only when no case-insensitive storage relation with
@@ -81,7 +87,7 @@ impl Midge {
             true,
             InitialCollectionContents::default(),
         )
-        .map(|(created, storage_id)| created.then_some(storage_id))
+        .map(|(created, storage_id, _)| created.then_some(storage_id))
     }
 
     /// Creates a collection, initial constraints, and owned identity sequences in one database-family transaction.
@@ -107,7 +113,7 @@ impl Midge {
             sequences: Some(sequences),
             ..InitialCollectionContents::default()
         };
-        let (created, storage_id) =
+        let (created, storage_id, _) =
             self.create_collection_with_meta_inner(name, schema, metadata, true, initial)?;
         Ok(created.then_some(storage_id))
     }
@@ -128,30 +134,35 @@ impl Midge {
         metadata: &CollectionMeta,
         constraints: &[FieldConstraint],
         sequences: &[crate::catalog::SequenceMeta],
-        indexes: &[IndexMeta],
-    ) -> Result<Option<u64>, CassieError> {
-        if indexes.is_empty()
+        indexes_and_comments: IndexesAndComments<'_>,
+    ) -> Result<Option<ClonePublication>, CassieError> {
+        let (indexes, comments) = indexes_and_comments;
+        if comments.is_empty()
+            && indexes.is_empty()
             && !constraints
                 .iter()
                 .any(|constraint| constraint.primary_key || constraint.unique)
         {
-            return self.create_collection_with_meta_and_constraints_and_sequences_if_absent(
-                name,
-                schema,
-                metadata,
-                constraints,
-                sequences,
-            );
+            return self
+                .create_collection_with_meta_and_constraints_and_sequences_if_absent(
+                    name,
+                    schema,
+                    metadata,
+                    constraints,
+                    sequences,
+                )
+                .map(|created| created.map(|id| (id, Vec::new())));
         }
         self.validate_initial_clone_constraints(name, constraints, sequences, indexes)?;
         let initial = InitialCollectionContents {
             constraints: Some(constraints),
             sequences: Some(sequences),
             indexes: Some(indexes),
+            comments: Some(comments),
         };
-        let (created, storage_id) =
+        let (created, storage_id, copied_comments) =
             self.create_collection_with_meta_inner(name, schema, metadata, true, initial)?;
-        Ok(created.then_some(storage_id))
+        Ok(created.then_some((storage_id, copied_comments)))
     }
 
     /// Writes the row schema, projection and cardinality records that are not stored yet.
@@ -194,7 +205,7 @@ impl Midge {
         metadata: &CollectionMeta,
         require_absent: bool,
         initial: InitialCollectionContents<'_>,
-    ) -> Result<(bool, u64), CassieError> {
+    ) -> Result<InitialCollectionPublication, CassieError> {
         self.admit_initial_definitions(initial)?;
         self.require_collection_storage_layout(metadata)?;
         let name = self.canonical_collection_name(name);
@@ -207,7 +218,7 @@ impl Midge {
         }
         let Some(needs_storage_id) = self.collection_storage_id_needed(&name, require_absent)?
         else {
-            return Ok((false, 0));
+            return Ok((false, 0, Vec::new()));
         };
         let storage_id = needs_storage_id
             .then(|| self.allocate_object_id())
@@ -222,7 +233,7 @@ impl Midge {
         let existing_metadata = Self::load_collection_metadata_from_tx(&tx, &name)?;
         let storage_name_exists = Self::storage_relation_exists_case_insensitively(&tx, &name)?;
         if require_absent && (schema_exists || existing_metadata.is_some() || storage_name_exists) {
-            return Ok((false, 0));
+            return Ok((false, 0, Vec::new()));
         }
 
         self.validate_initial_sequences_absent(&mut tx, initial.sequences.unwrap_or(&[]))?;
@@ -264,6 +275,13 @@ impl Midge {
             Self::save_initial_indexes_to_tx(&mut tx, &name, storage_id, indexes)?;
         }
 
+        let copied_comments = Self::save_initial_column_comments_to_tx(
+            &mut tx,
+            &name,
+            &row_schema,
+            initial.comments.unwrap_or(&[]),
+        )?;
+
         let mut collections = Self::load_collections(&tx)?;
         if !collections.iter().any(|entry| entry == &name) {
             collections.push(name.clone());
@@ -276,7 +294,11 @@ impl Midge {
         );
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
-        Ok((!schema_exists && existing_metadata.is_none(), storage_id))
+        Ok((
+            !schema_exists && existing_metadata.is_none(),
+            storage_id,
+            copied_comments,
+        ))
     }
 
     fn admit_initial_definitions(

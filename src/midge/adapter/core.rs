@@ -1,3 +1,4 @@
+use super::native_memory::NativeMemoryConfiguration;
 use super::{
     env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, PublicationControlScope,
     Query, StorageFamily, StorageLayout, TransactionMode, WriteOptions,
@@ -15,6 +16,7 @@ mod storage_compatibility;
 pub struct Midge {
     pub(super) engine: Engine,
     write_policy: super::storage_config::WritePolicy,
+    pub(super) native_memory_configuration: NativeMemoryConfiguration,
     compatibility_gate: Mutex<()>,
     bootstrap_gate: Mutex<()>,
     pub(super) storage_layout: OnceLock<StorageLayout>,
@@ -24,6 +26,7 @@ pub struct Midge {
     referential_write_gate: ReentrantMutex<()>,
     pub(super) publication: super::publication::PublicationCoordinator,
     query_scan_entries: AtomicU64,
+    column_validation_reads: AtomicU64,
     pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
 }
 
@@ -69,10 +72,37 @@ impl Midge {
         Self::open_with_write_policy(config.open_options, default_database, config.write_policy)
     }
 
+    pub(crate) fn new_with_data_dir_database_and_memory_limits(
+        data_dir: &Path,
+        database: &str,
+        budget: Option<usize>,
+        memtable: Option<usize>,
+    ) -> Result<Self, CassieError> {
+        let config =
+            super::storage_config::open_config_with_memory_limits(data_dir, budget, memtable)?;
+        Self::open_with_write_policy(config.open_options, database, config.write_policy)
+    }
+
     pub(crate) fn new_in_memory(default_database: impl Into<String>) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::in_memory()
             .build()
             .map_err(CassieError::from)?;
+        Self::open_with_write_policy(
+            options,
+            default_database,
+            super::storage_config::WritePolicy::Local,
+        )
+    }
+
+    pub(crate) fn new_in_memory_with_limits(
+        default_database: impl Into<String>,
+        budget: Option<usize>,
+        memtable: Option<usize>,
+    ) -> Result<Self, CassieError> {
+        if budget.is_none() && memtable.is_none() {
+            return Self::new_in_memory(default_database);
+        }
+        let options = super::native_memory::in_memory_options(budget, memtable)?;
         Self::open_with_write_policy(
             options,
             default_database,
@@ -85,8 +115,10 @@ impl Midge {
         default_database: impl Into<String>,
         write_policy: super::storage_config::WritePolicy,
     ) -> Result<Self, CassieError> {
+        let native_memory_configuration = NativeMemoryConfiguration::from_options(&options);
         Ok(Self {
             engine: Engine::open(options).map_err(CassieError::from)?,
+            native_memory_configuration,
             write_policy,
             compatibility_gate: Mutex::new(()),
             bootstrap_gate: Mutex::new(()),
@@ -97,6 +129,7 @@ impl Midge {
             referential_write_gate: ReentrantMutex::new(()),
             publication: super::publication::PublicationCoordinator::default(),
             query_scan_entries: AtomicU64::new(0),
+            column_validation_reads: AtomicU64::new(0),
             column_batch_operational_metrics: Mutex::new(
                 super::ColumnBatchOperationalMetrics::default(),
             ),
@@ -163,6 +196,18 @@ impl Midge {
     #[must_use]
     pub fn query_scan_entries_for_diagnostics(&self) -> u64 {
         self.query_scan_entries.load(Ordering::Relaxed)
+    }
+
+    /// Field entries and owner-marker lookups performed by complete-source
+    /// column ownership validation, separate from visited row markers.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn column_validation_reads_for_diagnostics(&self) -> u64 {
+        self.column_validation_reads.load(Ordering::Relaxed)
+    }
+
+    pub(super) fn record_column_validation_read(&self) {
+        self.column_validation_reads.fetch_add(1, Ordering::Relaxed);
     }
 
     pub(super) fn record_query_scan_entry(&self) {

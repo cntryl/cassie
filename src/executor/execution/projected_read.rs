@@ -46,6 +46,12 @@ pub(super) fn json_to_query_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
+fn record_projected_source_scan(cassie: &Cassie, spec: &ProjectedFilteredReadSpec, rows: usize) {
+    cassie
+        .runtime
+        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
+}
+
 pub(super) fn execute_projected_filtered_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -93,12 +99,13 @@ pub(super) fn execute_projected_filtered_read(
     let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
     let scan_limit = projected_result_scan_limit(plan, controls, spec.scan_limit);
     if pushdown_filter.is_none() && column_filter.is_none() {
-        if let Some(mut stream) = scan::projected_scan_stream(
+        if let Some(mut stream) = scan::projected_scan_stream_with_traversal(
             cassie,
             session,
             &spec.collection,
             &spec.scan_fields,
             scan_limit,
+            super::source::source_traversal(plan),
             controls,
         )? {
             let rows = scan::collect_projected_stream_rows(&mut stream, controls)?;
@@ -108,11 +115,7 @@ pub(super) fn execute_projected_filtered_read(
                 (&spec.collection, &spec.scan_fields),
                 rows.len(),
             );
-            cassie.runtime.record_read_path_collection_scan(
-                &spec.collection,
-                spec.scan_fields.len(),
-                rows.len(),
-            );
+            record_projected_source_scan(cassie, &spec, rows.len());
             let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
             return Ok(Some(finalize_projected_filtered_read(
                 ProjectedReadFinalization {
@@ -134,6 +137,7 @@ pub(super) fn execute_projected_filtered_read(
         collection: &spec.collection,
         fields: &spec.scan_fields,
         limit: scan_limit,
+        traversal: super::source::source_traversal(plan),
         document_filter: pushdown_filter.as_ref(),
         column_filter: column_filter.as_ref(),
         controls,
@@ -141,9 +145,7 @@ pub(super) fn execute_projected_filtered_read(
     let mut batches = scan::scan_projected_filtered(cassie, session, &request)?;
 
     let rows = batches.iter().map(Vec::len).sum::<usize>();
-    cassie
-        .runtime
-        .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
+    record_projected_source_scan(cassie, &spec, rows);
 
     Ok(Some(finalize_projected_filtered_read(
         ProjectedReadFinalization {
@@ -915,6 +917,7 @@ fn scan_projected_read_batches(
         collection: &spec.collection,
         fields: &spec.scan_fields,
         limit: scan_limit,
+        traversal: super::source::source_traversal(plan),
         document_filter: pushdown_filter.as_ref(),
         column_filter: column_filter.as_ref(),
         controls,

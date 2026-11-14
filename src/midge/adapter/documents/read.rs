@@ -21,11 +21,6 @@ struct RowBlobScanRequest<'a> {
 }
 
 impl Midge {
-    pub(crate) fn flush_data_family(&self) -> Result<(), CassieError> {
-        let family = self.database_family(&self.default_database)?;
-        self.engine.flush_cf(&family).map_err(CassieError::from)
-    }
-
     /// Returns the durable data epoch, or zero before the first changed write.
     ///
     /// # Errors
@@ -202,11 +197,13 @@ impl Midge {
 
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let batch_size = batch_size.max(1);
+        let traversal = super::super::RowTraversal::from_limit(limit);
         let limit = limit.unwrap_or(usize::MAX);
         if self.collection_uses_column_store(&collection)? {
-            return Self::scan_column_store_rows_batched(
+            return self.scan_column_store_rows_batched(
                 &tx,
                 ColumnStoreScanRequest {
+                    traversal,
                     collection: &collection,
                     row_schema: &row_schema,
                     batch_size,

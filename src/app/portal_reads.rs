@@ -6,6 +6,7 @@ pub(crate) struct PortalReadSpec {
     pub(crate) collection: String,
     pub(crate) source_fields: Vec<String>,
     pub(crate) includes_wildcard: bool,
+    pub(crate) traversal: crate::midge::adapter::RowTraversal,
 }
 
 impl Cassie {
@@ -36,6 +37,18 @@ impl Cassie {
             collection: collection.to_string(),
             source_fields,
             includes_wildcard,
+            traversal: if physical.logical.limit_value().is_some()
+                && physical.logical.order.is_empty()
+                && physical.logical.group_by.is_empty()
+                && physical.logical.having.is_none()
+                && !physical.logical.distinct
+                && physical.logical.distinct_on.is_empty()
+                && physical.logical.set.is_none()
+            {
+                crate::midge::adapter::RowTraversal::VisitedRows
+            } else {
+                crate::midge::adapter::RowTraversal::CompleteSource
+            },
         }))
     }
 }
@@ -79,5 +92,64 @@ mod tests {
         assert_eq!(spec.source_fields, ["payload"]);
 
         let _ = std::fs::remove_dir_all(path);
+    }
+    #[test]
+    fn should_choose_portal_validation_scope_from_the_sql_source_limit() {
+        // Arrange
+        let cassie =
+            Cassie::new_in_memory_with_config(crate::config::CassieRuntimeConfig::default())
+                .expect("memory Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE portal_columns (label TEXT) USING columnar",
+                vec![],
+            )
+            .expect("column table");
+
+        // Act
+        let full = cassie
+            .resolve_portal_read_spec(
+                &session,
+                crate::sql::parse_statement("SELECT label FROM portal_columns")
+                    .expect("full query"),
+            )
+            .expect("full spec")
+            .expect("cursor");
+        let bounded = cassie
+            .resolve_portal_read_spec(
+                &session,
+                crate::sql::parse_statement("SELECT label FROM portal_columns LIMIT 1")
+                    .expect("bounded query"),
+            )
+            .expect("bounded spec")
+            .expect("cursor");
+
+        let ordered = cassie
+            .resolve_portal_read_spec(
+                &session,
+                crate::sql::parse_statement(
+                    "SELECT label FROM portal_columns ORDER BY label LIMIT 1",
+                )
+                .expect("ordered query"),
+            )
+            .expect("ordered spec")
+            .expect("cursor");
+
+        // Assert
+        assert_eq!(
+            ordered.traversal,
+            crate::midge::adapter::RowTraversal::CompleteSource
+        );
+        assert_eq!(
+            full.traversal,
+            crate::midge::adapter::RowTraversal::CompleteSource
+        );
+        assert_eq!(
+            bounded.traversal,
+            crate::midge::adapter::RowTraversal::VisitedRows
+        );
     }
 }

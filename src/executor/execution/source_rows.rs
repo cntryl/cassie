@@ -92,6 +92,29 @@ pub(super) fn attach_outer_scope(
         .collect())
 }
 
+/// Logical source intent is independent of result-admission and page caps.
+pub(in crate::executor::execution) fn source_traversal(
+    plan: &LogicalPlan,
+) -> crate::midge::adapter::RowTraversal {
+    if plan.limit_value().is_some()
+        && plan.order.is_empty()
+        && plan.group_by.is_empty()
+        && plan.having.is_none()
+        && !plan.distinct
+        && plan.distinct_on.is_empty()
+        && plan.set.is_none()
+        && !plan_uses_aggregate(plan)
+        && !plan
+            .projection
+            .iter()
+            .any(|item| matches!(item, SelectItem::WindowFunction { .. }))
+    {
+        crate::midge::adapter::RowTraversal::VisitedRows
+    } else {
+        crate::midge::adapter::RowTraversal::CompleteSource
+    }
+}
+
 pub(super) fn source_row_budget(plan: &LogicalPlan, max_result_rows: usize) -> Option<usize> {
     if plan.filter.is_some()
         || plan.having.is_some()

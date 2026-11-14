@@ -127,6 +127,8 @@ feature releases after v0.2.0 are v0.3.0 (#817, #818, #828, #829), v0.4.0 (#827)
 | [v0.4.0 Named Enum Types](https://github.com/cntryl/cassie/milestone/11) | TBD | After v0.1.0–v0.3.0 complete, implement only the named ENUM behavior in #827. First define logical identity, SQL/wire semantics, label ordering, schema/dependency lifecycle, restart, and durable representation in the Type Contract. This does not add general PostgreSQL type or catalog parity. |
 | [v0.5.0 Authoritative Columnar Tables](https://github.com/cntryl/cassie/milestone/10) | TBD | Add an opt-in per-table column-authoritative layout alongside row-authoritative tables, with a versioned contract, durable recovery, mixed-mode queries and writes, constraints, derived indexes, and explicit conversion/image behavior. Midge remains the only storage layer. |
 
+The [v0.5.0 release qualification record](v0.5-release-qualification.md) maps every milestone issue to its finite acceptance evidence and actual validation status.
+
 Production readiness is tracked separately in [Production Readiness](production-readiness.md) and the release checklist. It covers representative-scale resources, concurrency, recovery, operations, and release evidence; it does not create another feature milestone.
 
 Requests for additional type families enter a release milestone only after the

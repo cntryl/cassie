@@ -31,6 +31,24 @@ impl<'a> TypedScanStream<'a> {
         fields: &[String],
         controls: &'a QueryExecutionControls,
     ) -> Result<Option<Self>, QueryError> {
+        Self::open_with_traversal(
+            cassie,
+            session,
+            collection,
+            fields,
+            crate::midge::adapter::RowTraversal::CompleteSource,
+            controls,
+        )
+    }
+
+    pub(crate) fn open_with_traversal(
+        cassie: &'a Cassie,
+        session: Option<&CassieSession>,
+        collection: &str,
+        fields: &[String],
+        traversal: crate::midge::adapter::RowTraversal,
+        controls: &'a QueryExecutionControls,
+    ) -> Result<Option<Self>, QueryError> {
         conversion::check_controls(controls)?;
         let (catalog_schema, _catalog_memory) = cassie
             .catalog
@@ -91,10 +109,11 @@ impl<'a> TypedScanStream<'a> {
             }
         }
         let Some(cursor) = cassie
-            .open_session_row_cursor(
+            .open_session_row_cursor_with_traversal(
                 session,
                 collection,
                 RowDecode::ProjectedHistorical(fields.to_vec()),
+                traversal,
                 controls,
             )
             .map_err(|error| controlled_storage_error(cassie, error))?

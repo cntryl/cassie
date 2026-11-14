@@ -37,6 +37,7 @@ impl Cassie {
             "ready": self.is_started(),
             "auth_user": &self.auth_user,
             "runtime": snapshot.runtime,
+            "data_epoch": self.runtime.data_epoch(),
             "query": snapshot.query,
             "transactions": { "unique_waiters": self.transaction_unique_waits.waiting_count() },
             "rest": snapshot.rest,

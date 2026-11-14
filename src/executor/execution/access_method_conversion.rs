@@ -46,6 +46,9 @@ pub(super) fn set_access_method(
         .with_collection_gates(&[table.to_owned()], || {
             let mut charge = |bytes: usize| -> Result<(), CassieError> {
                 controls.check_interruption()?;
+                if bytes == 0 {
+                    return Ok(());
+                }
                 reservations
                     .borrow_mut()
                     .push(controls.reserve_query_memory(bytes)?);

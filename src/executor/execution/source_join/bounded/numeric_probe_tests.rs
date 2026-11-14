@@ -119,6 +119,7 @@ fn observe(fixture: &Fixture, dense: bool, reverse: bool) -> Observation {
         left_scan_fields: vec!["k".into()],
         right_scan_fields: vec!["k".into()],
         output_budget: 64,
+        traversal: crate::midge::adapter::RowTraversal::VisitedRows,
     };
     let source_calls = Cell::new(0);
     let build_calls = Cell::new(0);

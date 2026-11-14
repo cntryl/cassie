@@ -9,11 +9,49 @@ mod column_store;
 #[cfg(test)]
 mod tests;
 
+pub(super) use accounted_page::decode_expansion_factor;
 use accounted_page::provisional_document_bytes;
 pub(crate) use accounted_page::provisional_document_bytes as provisional_controlled_document_bytes;
 pub(crate) use accounted_page::{AccountedDocument, AccountedDocumentPage};
 
 const STORAGE_SCAN_PAGE_ENTRIES: usize = 256;
+
+/// Whether the caller consumes the complete source or may stop at visited rows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RowTraversal {
+    CompleteSource,
+    VisitedRows,
+}
+
+impl RowTraversal {
+    pub(crate) fn from_limit(limit: Option<usize>) -> Self {
+        if limit.is_some() {
+            Self::VisitedRows
+        } else {
+            Self::CompleteSource
+        }
+    }
+}
+
+/// Row authority has no column validation state. Column traversal either
+/// requires complete ownership validation or intentionally visits rows only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CursorStorage {
+    Row,
+    ColumnCompletePending,
+    ColumnCompleteValidated,
+    ColumnVisited,
+}
+
+impl CursorStorage {
+    fn new(column_store: bool, traversal: RowTraversal) -> Self {
+        match (column_store, traversal) {
+            (false, _) => Self::Row,
+            (true, RowTraversal::CompleteSource) => Self::ColumnCompletePending,
+            (true, RowTraversal::VisitedRows) => Self::ColumnVisited,
+        }
+    }
+}
 
 pub(crate) struct MidgeRowCursor {
     tx: crate::midge::adapter::DataReadTransaction,
@@ -25,7 +63,7 @@ pub(crate) struct MidgeRowCursor {
     exhausted: bool,
     pending: Option<AccountedDocument>,
     last_key_memory: Option<QueryMemoryReservation>,
-    column_store: bool,
+    storage: CursorStorage,
     collection: String,
 }
 
@@ -36,6 +74,7 @@ impl std::fmt::Debug for MidgeRowCursor {
             .field("prefix", &self.prefix)
             .field("last_key", &self.last_key)
             .field("exhausted", &self.exhausted)
+            .field("storage", &self.storage)
             .field("has_pending", &self.pending.is_some())
             .finish_non_exhaustive()
     }
@@ -91,6 +130,15 @@ impl MidgeRowCursor {
             return Ok(Vec::new());
         }
 
+        if self.storage == CursorStorage::ColumnCompletePending {
+            midge.validate_column_store_field_markers(
+                &self.tx,
+                &self.collection,
+                &self.row_schema,
+                || check_controls(controls),
+            )?;
+            self.storage = CursorStorage::ColumnCompleteValidated;
+        }
         let mut documents = Vec::new();
         if let Some(pending) = self.pending.take() {
             push_accounted_document(&mut documents, pending)?;
@@ -149,7 +197,7 @@ impl MidgeRowCursor {
             self.last_key = Some(next_key);
             self.last_key_memory = Some(next_key_memory);
 
-            if self.column_store {
+            if self.storage != CursorStorage::Row {
                 if let Some(document) =
                     self.decode_column_store_document(&raw_key, &raw_value, controls)?
                 {
@@ -228,6 +276,15 @@ impl Midge {
         collection: &str,
         decode: RowDecode,
     ) -> Result<Option<MidgeRowCursor>, CassieError> {
+        self.open_row_cursor_with_traversal(collection, decode, RowTraversal::CompleteSource)
+    }
+
+    pub(crate) fn open_row_cursor_with_traversal(
+        &self,
+        collection: &str,
+        decode: RowDecode,
+        traversal: RowTraversal,
+    ) -> Result<Option<MidgeRowCursor>, CassieError> {
         let collection = self.canonical_collection_name(collection);
         let column_store = self.collection_uses_column_store(&collection)?;
         let row_schema = self.row_schema(&collection)?;
@@ -247,15 +304,38 @@ impl Midge {
             exhausted: false,
             pending: None,
             last_key_memory: None,
-            column_store,
+            storage: CursorStorage::new(column_store, traversal),
             collection,
         }))
     }
 
+    /// Callback scans may stop after any visited row. Full-input callers must
+    /// opt into complete-source validation before their first callback.
     pub(crate) fn scan_rows_until<E, F>(
         &self,
         collection: &str,
         decode: RowDecode,
+        controls: &QueryExecutionControls,
+        visit: F,
+    ) -> Result<usize, E>
+    where
+        E: From<CassieError>,
+        F: FnMut(DocumentRef) -> Result<bool, E>,
+    {
+        self.scan_rows_until_with_traversal(
+            collection,
+            decode,
+            RowTraversal::VisitedRows,
+            controls,
+            visit,
+        )
+    }
+
+    pub(crate) fn scan_rows_until_with_traversal<E, F>(
+        &self,
+        collection: &str,
+        decode: RowDecode,
+        traversal: RowTraversal,
         controls: &QueryExecutionControls,
         mut visit: F,
     ) -> Result<usize, E>
@@ -270,7 +350,7 @@ impl Midge {
             .map_err(E::from)?
         {
             let mut cursor = self
-                .open_row_cursor(&collection, decode)
+                .open_row_cursor_with_traversal(&collection, decode, traversal)
                 .map_err(E::from)?
                 .ok_or_else(|| {
                     E::from(CassieError::Execution(

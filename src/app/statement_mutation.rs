@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use crate::midge::adapter::DocumentWriteOp;
+use crate::midge::adapter::{DocumentWriteBatchReport, DocumentWriteOp};
 use crate::runtime::QueryExecutionControls;
 
 use super::{Cassie, CassieError, CassieSession, StatementMutationBatch, TransactionRowChange};
@@ -9,6 +9,10 @@ use super::{Cassie, CassieError, CassieSession, StatementMutationBatch, Transact
 #[cfg(test)]
 #[path = "statement_mutation_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "statement_mutation_copy_tests.rs"]
+mod copy_tests;
 
 #[path = "statement_mutation_maintenance.rs"]
 mod maintenance;
@@ -22,6 +26,7 @@ struct CommittedCollection {
 
 pub(super) struct CommittedWriteBatch {
     changed_collections: Vec<CommittedCollection>,
+    copy_finish: bool,
 }
 
 impl Cassie {
@@ -99,6 +104,7 @@ impl Cassie {
             }
             return Ok(CommittedWriteBatch {
                 changed_collections: Vec::new(),
+                copy_finish: false,
             });
         }
 
@@ -150,6 +156,30 @@ impl Cassie {
             Err(error) => return Err(error),
         };
 
+        Ok(self.account_acknowledged_write_reports(reports))
+    }
+
+    pub(super) fn finish_acknowledged_copy_report(
+        &self,
+        collection: &str,
+        report: DocumentWriteBatchReport,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<(), CassieError> {
+        let mut committed = self
+            .account_acknowledged_write_reports(BTreeMap::from([(collection.to_owned(), report)]));
+        self.invalidate_acknowledged_copy_hints(&committed);
+        // COPY uses a buffered source write. Preserve its mandatory durability
+        // barrier independently of cancellable, rebuildable metadata finishing.
+        self.midge.flush_data_family_for_collection(collection)?;
+        committed.copy_finish = true;
+        self.finish_staged_write_batches(committed, controls);
+        Ok(())
+    }
+
+    fn account_acknowledged_write_reports(
+        &self,
+        reports: BTreeMap<String, DocumentWriteBatchReport>,
+    ) -> CommittedWriteBatch {
         let mut changed_collections = Vec::new();
         let mut latest_epoch = None;
         for (collection, report) in reports {
@@ -169,9 +199,10 @@ impl Cassie {
             self.runtime.set_data_epoch(epoch);
         }
 
-        Ok(CommittedWriteBatch {
+        CommittedWriteBatch {
             changed_collections,
-        })
+            copy_finish: false,
+        }
     }
 
     pub(super) fn finish_staged_write_batches(
@@ -192,7 +223,11 @@ impl Cassie {
             .or(fallback_controls.as_ref())
             .expect("provided or fallback query controls");
         for collection in committed.changed_collections {
-            let _ = self.finish_committed_collection(&collection, controls);
+            let result =
+                self.finish_committed_collection(&collection, controls, committed.copy_finish);
+            if committed.copy_finish && result.is_err() {
+                self.runtime.record_cardinality_unavailable();
+            }
         }
     }
 }

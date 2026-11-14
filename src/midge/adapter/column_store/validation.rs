@@ -124,6 +124,52 @@ pub(crate) fn decode_field(
 }
 
 impl Midge {
+    /// Rejects orphan field keys before a table scan or authority rewrite.
+    /// Reads from the caller's transaction so markers and fields share a snapshot.
+    pub(crate) fn validate_column_store_field_markers(
+        &self,
+        tx: &crate::midge::adapter::AdapterTransaction,
+        relation: &str,
+        row_schema: &RowSchema,
+        mut check: impl FnMut() -> Result<(), CassieError>,
+    ) -> Result<(), CassieError> {
+        for field in row_schema.fields.iter().filter(|field| !field.retired) {
+            check()?;
+            let prefix = Self::column_store_field_prefix(row_schema.relation_id, field.field_id);
+            let mut scan = tx
+                .scan(&Query::new().prefix(prefix.clone().into()))
+                .map_err(CassieError::from)?;
+            loop {
+                check()?;
+                let Some(entry) = scan.next() else {
+                    break;
+                };
+                self.record_column_validation_read();
+                check()?;
+                let (key, _) = entry.map_err(CassieError::from)?;
+                let Some(id) = key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
+                    continue;
+                };
+                self.record_column_validation_read();
+                let marker = tx
+                    .get(&Self::column_store_row_key(row_schema.relation_id, &id))
+                    .map_err(CassieError::from)?;
+                check()?;
+                if marker.is_none() {
+                    return Err(corrupt_row(
+                        relation,
+                        &id,
+                        &format!(
+                            "field '{}' has a value but the row has no live marker",
+                            field.name
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Reads one field of a column row and validates it against the marker.
     ///
     /// Returns `None` when the value is SQL NULL for a JSON column, or when
@@ -358,5 +404,193 @@ impl Midge {
         collection: &str,
     ) -> Result<Vec<String>, CassieError> {
         self.verify_column_store_rows(collection)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CassieError, Midge};
+    use std::cell::Cell;
+
+    #[test]
+    fn should_check_interruption_between_column_field_validation_entries() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("memory Midge");
+        midge.ensure_families_ready().expect("families");
+        let schema = crate::types::Schema {
+            fields: vec![crate::types::FieldSchema {
+                name: "label".to_owned(),
+                data_type: crate::types::DataType::Text,
+                nullable: true,
+            }],
+        };
+        let metadata = crate::catalog::CollectionMeta::new_with_storage_mode(
+            "checked_fields",
+            None,
+            crate::catalog::CollectionStorageMode::ColumnStore,
+        );
+        midge
+            .create_collection_with_meta("checked_fields", &schema, &metadata)
+            .expect("column table");
+        for id in ["a", "b"] {
+            midge
+                .put_document(
+                    "checked_fields",
+                    Some(id.to_owned()),
+                    serde_json::json!({"label": id}),
+                )
+                .expect("seed");
+        }
+        let row_schema = midge.row_schema("checked_fields").expect("row schema");
+        let tx = midge
+            .begin_data_readonly_tx_for("checked_fields")
+            .expect("snapshot");
+        let checks = Cell::new(0);
+
+        // Act
+        let result =
+            midge.validate_column_store_field_markers(&tx, "checked_fields", &row_schema, || {
+                checks.set(checks.get() + 1);
+                if checks.get() == 3 {
+                    Err(CassieError::QueryCanceled)
+                } else {
+                    Ok(())
+                }
+            });
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
+        assert_eq!(checks.get(), 3);
+    }
+    #[test]
+    fn should_stop_a_callback_scan_without_preflighting_unvisited_fields() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("memory Midge");
+        midge.ensure_families_ready().expect("families");
+        let schema = crate::types::Schema {
+            fields: vec![crate::types::FieldSchema {
+                name: "label".to_owned(),
+                data_type: crate::types::DataType::Text,
+                nullable: true,
+            }],
+        };
+        let metadata = crate::catalog::CollectionMeta::new_with_storage_mode(
+            "bounded_callback",
+            None,
+            crate::catalog::CollectionStorageMode::ColumnStore,
+        );
+        midge
+            .create_collection_with_meta("bounded_callback", &schema, &metadata)
+            .expect("column table");
+        for id in ["a", "b", "c"] {
+            midge
+                .put_document(
+                    "bounded_callback",
+                    Some(id.to_owned()),
+                    serde_json::json!({"label": id}),
+                )
+                .expect("seed");
+        }
+        let schema = midge.row_schema("bounded_callback").expect("row schema");
+        midge
+            .raw_put(
+                crate::midge::adapter::StorageFamily::Data,
+                &Midge::column_store_field_key(
+                    schema.relation_id,
+                    schema.fields[0].field_id,
+                    "orphan",
+                ),
+                b"\x05orphan",
+            )
+            .expect("unvisited orphan");
+        let controls = crate::runtime::QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits::default(),
+            std::time::Instant::now(),
+        );
+        let marker_reads = midge.query_scan_entries_for_diagnostics();
+        let validation_reads = midge.column_validation_reads_for_diagnostics();
+
+        // Act
+        let emitted = midge.scan_rows_until_with_traversal::<CassieError, _>(
+            "bounded_callback",
+            crate::midge::adapter::RowDecode::Full,
+            crate::midge::adapter::RowTraversal::VisitedRows,
+            &controls,
+            |_| Ok(false),
+        );
+
+        // Assert
+        assert_eq!(emitted.expect("first row before orphan"), 1);
+        assert_eq!(midge.query_scan_entries_for_diagnostics() - marker_reads, 1);
+        assert_eq!(
+            midge.column_validation_reads_for_diagnostics(),
+            validation_reads
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_reject_unvisited_orphans_before_a_complete_cursor_returns_rows() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("memory Midge");
+        midge.ensure_families_ready().expect("families");
+        let schema = crate::types::Schema {
+            fields: vec![crate::types::FieldSchema {
+                name: "label".to_owned(),
+                data_type: crate::types::DataType::Text,
+                nullable: true,
+            }],
+        };
+        let metadata = crate::catalog::CollectionMeta::new_with_storage_mode(
+            "complete_cursor",
+            None,
+            crate::catalog::CollectionStorageMode::ColumnStore,
+        );
+        midge
+            .create_collection_with_meta("complete_cursor", &schema, &metadata)
+            .expect("column table");
+        midge
+            .put_document(
+                "complete_cursor",
+                Some("a".to_owned()),
+                serde_json::json!({"label": "a"}),
+            )
+            .expect("live row");
+        let schema = midge.row_schema("complete_cursor").expect("row schema");
+        midge
+            .raw_put(
+                crate::midge::adapter::StorageFamily::Data,
+                &Midge::column_store_field_key(schema.relation_id, schema.fields[0].field_id, "z"),
+                b"\x05orphan",
+            )
+            .expect("unvisited orphan");
+        let controls = crate::runtime::QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits::default(),
+            std::time::Instant::now(),
+        );
+        let before = midge.column_validation_reads_for_diagnostics();
+        let mut cursor = midge
+            .open_row_cursor("complete_cursor", crate::midge::adapter::RowDecode::Full)
+            .expect("open")
+            .expect("cursor");
+
+        // Act
+        let result = cursor.next_accounted_document(&midge, &controls);
+
+        // Assert
+        assert_eq!(
+            result
+                .expect_err("no first row may escape complete validation")
+                .sql_state(),
+            "XX001"
+        );
+        assert_eq!(
+            midge.column_validation_reads_for_diagnostics() - before,
+            4,
+            "two field entries and two owner-marker lookups"
+        );
+        assert_eq!(midge.query_scan_entries_for_diagnostics(), 0);
+        drop(cursor);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }

@@ -76,7 +76,7 @@ Column tables support the same surface as row tables:
 - **DDL**: the supported ALTER TABLE forms, rename, schema move, DROP, and
   `CREATE TABLE ... LIKE`. `LIKE` copies columns and selected options only;
   the new table's mode comes from its own selector.
-- **Constraints**: NOT NULL, CHECK, DEFAULT, identity and generated columns,
+- **Constraints**: NOT NULL, CHECK, DEFAULT, `GENERATED ... AS IDENTITY`,
   PRIMARY KEY, UNIQUE, domains, and FOREIGN KEY with a column table as either
   the referencing or the referenced side. Semantics and SQLSTATEs equal those
   of row tables.
@@ -84,6 +84,10 @@ Column tables support the same surface as row tables:
   rejected with `0A000` as for row tables), full-text BM25, vector (HNSW,
   IVFFlat), hybrid retrieval and time-series. They are built and maintained
   from authoritative field values.
+
+Generated expression columns remain unsupported, as for row tables.
+`LIKE ... INCLUDING GENERATED` is an accepted no-op when there is no generated
+expression to copy.
 
 Not supported, rejected with `0A000` before any change:
 
@@ -142,6 +146,29 @@ relation and row id, when:
 - a field key exists for a row with no live marker;
 - a value fails to decode or does not match the field's declared type.
 
+Validation follows the accessed source: point and index reads validate their
+requested/candidate rows; projected reads decode their fetched fields. Full-table
+traversal and authority conversion validate field-to-marker ownership across the
+source table, including orphan fields that marker enumeration would otherwise
+miss. The caller declares complete-source versus visited-row traversal before opening
+its private cursor. An unrestricted SQL source and authority conversion validate
+complete field ownership before returning their first rows. A bounded source
+(such as LIMIT or EXISTS with an early stop) validates visited rows without a
+whole-table ownership preflight. Result-admission caps and scan-buffer bounds do not select source intent; an
+unrestricted logical source stays complete even when its physical result
+transport is capped. Streaming LATERAL/derived sources inherit an outer early
+stop, while blocking aggregate/order/distinct inputs still require complete
+validation. Page size is not SQL source intent: paginating
+an unrestricted portal still validates the complete source before its first
+successful page. Ranking operators that consume all input retain complete-source
+validation even when their output is top-k. Callback scans that may stop early
+use visited-row intent unless their caller explicitly declares complete input.
+Controlled traversal checks cancellation during streaming preflight and retains
+no full-table field payload collection. Field-entry and marker-lookup validation
+reads are counted separately from the existing visited-row marker counter. This scope was selected by
+the delegated Jev review during the v0.5.0 closeout on 2026-11-14; its owning
+issue and review receipt record the decision.
+
 The read returns no partial result and never falls back to a row blob or a
 derived index. `cassie verify` and the storage verifier report the same
 conditions.
@@ -149,9 +176,16 @@ conditions.
 ### Versioning
 
 - Layout level `cassie-midge-layout-v4-0.5.0-columnar` follows
-  `v3-0.2.0-index-generation`. `require_storage_layout_version` raises it in
-  the transaction that publishes the first column table. A binary that does
-  not know the level refuses to start without changing data.
+  `v3-0.2.0-index-generation`. `require_storage_layout_version` durably raises
+  the minimum-reader fence in the schema family as a prerequisite to the
+  database-family transaction that publishes column data and catalog metadata.
+  The fence is monotonic: it can remain at v4 after a failed, rejected or rolled
+  back first CREATE/conversion, with no automatic downgrade. SQL rows and catalog
+  metadata still publish atomically within their database family. A binary that
+  does not know the raised level refuses startup without changing data. The
+  [selected clarification](https://github.com/cntryl/cassie/issues/1105#issuecomment-6878076513)
+  follows the existing generic monotonic/durable-fence and v4 ordering witnesses;
+  it does not claim a separately executed v4 failed-SQL-rollback test.
 - `CollectionMeta.storage_version` is `1` for this format. Hydration rejects an
   unknown version with a startup error naming the table.
 - Cassie is pre-release: no migration of earlier development stores is provided.

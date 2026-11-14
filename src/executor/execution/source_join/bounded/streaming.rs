@@ -98,70 +98,81 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
         schema: right_schema.as_ref(),
     };
     let mut joined = JoinRows::try_new(env.controls)?;
-    let mut probe_rows = 0usize;
-    let mut build_rows = 0usize;
-    let mut matched_rows = 0usize;
+    let mut counts = DenseJoinCounts::default();
     let mut right_scanned = 0usize;
 
-    let left_scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
-        spec.left_collection,
-        crate::midge::adapter::RowDecode::Full,
-        env.controls,
-        |left_document| {
-            let left_row = project_source_row(
-                env,
-                &left_document,
-                left_shape,
-                JoinRetentionPhase::BoundedSource,
-                retention,
-            )?;
-            probe_rows += 1;
-            let _left_key_memory =
-                reserve_probe_key(env, &left_row, &spec.keys.left, spec.keys.domain)?;
-            let Some(left_key) = row_join_key(&left_row, &spec.keys.left, spec.keys.domain)? else {
-                return Ok(true);
-            };
+    let left_scanned = env
+        .cassie
+        .midge
+        .scan_rows_until_with_traversal::<QueryError, _>(
+            spec.left_collection,
+            crate::midge::adapter::RowDecode::Full,
+            spec.traversal,
+            env.controls,
+            |left_document| {
+                let left_row = project_source_row(
+                    env,
+                    &left_document,
+                    left_shape,
+                    JoinRetentionPhase::BoundedSource,
+                    retention,
+                )?;
+                counts.probe += 1;
+                let _left_key_memory =
+                    reserve_probe_key(env, &left_row, &spec.keys.left, spec.keys.domain)?;
+                let Some(left_key) = row_join_key(&left_row, &spec.keys.left, spec.keys.domain)?
+                else {
+                    return Ok(true);
+                };
 
-            let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
-                spec.right_collection,
-                crate::midge::adapter::RowDecode::Full,
-                env.controls,
-                |right_document| {
-                    let right_row = project_source_row(
-                        env,
-                        &right_document,
-                        right_shape,
-                        JoinRetentionPhase::BoundedSource,
-                        retention,
+                let scanned = env
+                    .cassie
+                    .midge
+                    .scan_rows_until_with_traversal::<QueryError, _>(
+                        spec.right_collection,
+                        crate::midge::adapter::RowDecode::Full,
+                        spec.traversal,
+                        env.controls,
+                        |right_document| {
+                            let right_row = project_source_row(
+                                env,
+                                &right_document,
+                                right_shape,
+                                JoinRetentionPhase::BoundedSource,
+                                retention,
+                            )?;
+                            counts.build += 1;
+                            let _right_key_memory = reserve_probe_key(
+                                env,
+                                &right_row,
+                                &spec.keys.right,
+                                spec.keys.domain,
+                            )?;
+                            let Some(right_key) =
+                                row_join_key(&right_row, &spec.keys.right, spec.keys.domain)?
+                            else {
+                                return Ok(true);
+                            };
+                            if left_key != right_key {
+                                return Ok(true);
+                            }
+                            if append_matching_row(
+                                env,
+                                spec,
+                                &left_row,
+                                &right_row,
+                                &mut joined,
+                                retention,
+                            )? {
+                                counts.matched += 1;
+                            }
+                            Ok(joined.len() < spec.output_budget)
+                        },
                     )?;
-                    build_rows += 1;
-                    let _right_key_memory =
-                        reserve_probe_key(env, &right_row, &spec.keys.right, spec.keys.domain)?;
-                    let Some(right_key) =
-                        row_join_key(&right_row, &spec.keys.right, spec.keys.domain)?
-                    else {
-                        return Ok(true);
-                    };
-                    if left_key != right_key {
-                        return Ok(true);
-                    }
-                    if append_matching_row(
-                        env,
-                        spec,
-                        &left_row,
-                        &right_row,
-                        &mut joined,
-                        retention,
-                    )? {
-                        matched_rows += 1;
-                    }
-                    Ok(joined.len() < spec.output_budget)
-                },
-            )?;
-            right_scanned += scanned;
-            Ok(joined.len() < spec.output_budget)
-        },
-    )?;
+                right_scanned += scanned;
+                Ok(joined.len() < spec.output_budget)
+            },
+        )?;
     record_dense_source_reads(
         env,
         spec,
@@ -170,16 +181,29 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
         right_scanned,
     );
     check_timeout(env.controls)?;
-    Ok(JoinResult::new(
-        joined,
-        PendingJoinDiagnostic::Vectorized {
-            probe_rows,
-            build_rows,
-            matched_rows,
-            batch_size,
-            batches: probe_rows,
-        },
-    ))
+    Ok(counts.finish(joined, batch_size))
+}
+
+#[derive(Default)]
+struct DenseJoinCounts {
+    probe: usize,
+    build: usize,
+    matched: usize,
+}
+
+impl DenseJoinCounts {
+    fn finish(self, joined: JoinRows, batch_size: usize) -> JoinResult {
+        JoinResult::new(
+            joined,
+            PendingJoinDiagnostic::Vectorized {
+                probe_rows: self.probe,
+                build_rows: self.build,
+                matched_rows: self.matched,
+                batch_size,
+                batches: self.probe,
+            },
+        )
+    }
 }
 
 fn vectorized_batch_size(env: &SourceExecutionEnv<'_>) -> usize {
@@ -308,43 +332,47 @@ fn stream_rows(
     let mut joined = JoinRows::try_new(env.controls)?;
     let mut probe_rows = 0usize;
     let mut matched_rows = 0usize;
-    let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
-        collection,
-        crate::midge::adapter::RowDecode::Full,
-        env.controls,
-        |document| {
-            let row = project_source_row(
-                env,
-                &document,
-                shape,
-                JoinRetentionPhase::BoundedSource,
-                retention,
-            )?;
-            probe_rows += 1;
-            let _key_memory = reserve_probe_key(env, &row, column, spec.keys.domain)?;
-            let Some(key) = row_join_key(&row, column, spec.keys.domain)? else {
-                return Ok(true);
-            };
-            if let Some(indexes) = build.index.get(&key) {
-                for index in indexes {
-                    check_timeout(env.controls)?;
-                    let build_row = &build.rows[*index];
-                    let (left, right) = if build.left {
-                        (build_row, &row)
-                    } else {
-                        (&row, build_row)
-                    };
-                    if append_matching_row(env, spec, left, right, &mut joined, retention)? {
-                        matched_rows += 1;
-                    }
-                    if joined.len() >= spec.output_budget {
-                        return Ok(false);
+    let scanned = env
+        .cassie
+        .midge
+        .scan_rows_until_with_traversal::<QueryError, _>(
+            collection,
+            crate::midge::adapter::RowDecode::Full,
+            spec.traversal,
+            env.controls,
+            |document| {
+                let row = project_source_row(
+                    env,
+                    &document,
+                    shape,
+                    JoinRetentionPhase::BoundedSource,
+                    retention,
+                )?;
+                probe_rows += 1;
+                let _key_memory = reserve_probe_key(env, &row, column, spec.keys.domain)?;
+                let Some(key) = row_join_key(&row, column, spec.keys.domain)? else {
+                    return Ok(true);
+                };
+                if let Some(indexes) = build.index.get(&key) {
+                    for index in indexes {
+                        check_timeout(env.controls)?;
+                        let build_row = &build.rows[*index];
+                        let (left, right) = if build.left {
+                            (build_row, &row)
+                        } else {
+                            (&row, build_row)
+                        };
+                        if append_matching_row(env, spec, left, right, &mut joined, retention)? {
+                            matched_rows += 1;
+                        }
+                        if joined.len() >= spec.output_budget {
+                            return Ok(false);
+                        }
                     }
                 }
-            }
-            Ok(true)
-        },
-    )?;
+                Ok(true)
+            },
+        )?;
     Ok(StreamingJoinProgress {
         joined,
         probe_rows,

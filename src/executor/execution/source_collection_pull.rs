@@ -15,6 +15,7 @@ impl<'a> Cursor<'a> {
         env: &SourceExecutionEnv<'a>,
         name: &str,
         qualify: bool,
+        traversal: crate::midge::adapter::RowTraversal,
     ) -> Result<Option<Self>, QueryError> {
         env.controls.check_interruption()?;
         if super::virtual_views::schema(name).is_some()
@@ -55,12 +56,13 @@ impl<'a> Cursor<'a> {
                 &field.name,
             ));
         }
-        let Some(stream) = crate::executor::scan::projected_scan_stream(
+        let Some(stream) = crate::executor::scan::projected_scan_stream_with_traversal(
             env.cassie,
             env.session,
             name,
             &fields,
             None,
+            traversal,
             env.controls,
         )?
         else {

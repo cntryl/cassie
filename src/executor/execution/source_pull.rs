@@ -51,6 +51,7 @@ struct JoinCursor<'a> {
     kind: JoinKind,
     source: QuerySource,
     matched: bool,
+    traversal: crate::midge::adapter::RowTraversal,
     _memory: QueryMemoryReservation,
 }
 
@@ -61,19 +62,21 @@ impl<'a> Cursor<'a> {
         ctes: &mut CteContext,
         outer: Option<&BatchRow>,
         qualify: bool,
+        traversal: crate::midge::adapter::RowTraversal,
     ) -> Result<Self, QueryError> {
         env.controls.check_interruption()?;
         match source {
             QuerySource::Collection(name) => {
                 if let Some(cursor) =
-                    super::source_collection_pull::Cursor::open(env, name, qualify)?
+                    super::source_collection_pull::Cursor::open(env, name, qualify, traversal)?
                 {
                     // Cursor::open already retains size_of::<Self>() in its own lease,
                     // which covers this moved heap allocation for the cursor lifetime.
                     return Ok(Self::Collection(Box::new(cursor)));
                 }
-                let (batches, _) =
-                    super::execute_query_source(env, source, ctes, qualify, outer, None)?;
+                let (batches, _) = super::execute_query_source_with_traversal(
+                    env, source, ctes, qualify, outer, None, traversal,
+                )?;
                 Ok(Self::Rows(
                     super::batch::flatten_batches(batches).into_iter(),
                 ))
@@ -106,7 +109,7 @@ impl<'a> Cursor<'a> {
             }
             QuerySource::Aliased { source, alias, .. } => {
                 let memory = env.controls.reserve_query_memory(size_of::<Self>())?;
-                let inner = Self::open(env, source, ctes, outer, false)?;
+                let inner = Self::open(env, source, ctes, outer, false, traversal)?;
                 let (qualifier, scratch) =
                     super::source_qualification::alias_qualifier(env, alias)?;
                 let mut memory = memory;
@@ -127,7 +130,7 @@ impl<'a> Cursor<'a> {
                             size_of::<JoinCursor<'_>>(),
                             crate::sql::parse_analysis::source_clone_bytes(source, env.controls)?,
                         )?)?;
-                let left = Self::open(env, left, ctes, outer, true)?;
+                let left = Self::open(env, left, ctes, outer, true, traversal)?;
                 let template = super::source_shape::null_row(env, right, ctes)?;
                 Ok(Self::Join(Box::new(JoinCursor {
                     left,
@@ -137,15 +140,17 @@ impl<'a> Cursor<'a> {
                     kind: *kind,
                     source: source.clone(),
                     matched: false,
+                    traversal,
                     _memory: memory,
                 })))
             }
             QuerySource::Subquery { select, .. } if select.ctes.is_empty() => {
-                Self::open_derived(env, source, ctes, outer, qualify)
+                Self::open_derived(env, source, ctes, outer, qualify, traversal)
             }
             _ => {
-                let (batches, _) =
-                    super::execute_query_source(env, source, ctes, qualify, outer, None)?;
+                let (batches, _) = super::execute_query_source_with_traversal(
+                    env, source, ctes, qualify, outer, None, traversal,
+                )?;
                 Ok(Self::Rows(
                     super::batch::flatten_batches(batches).into_iter(),
                 ))
@@ -159,6 +164,7 @@ impl<'a> Cursor<'a> {
         ctes: &mut CteContext,
         outer: Option<&BatchRow>,
         qualify: bool,
+        traversal: crate::midge::adapter::RowTraversal,
     ) -> Result<Self, QueryError> {
         let QuerySource::Subquery {
             alias,
@@ -214,7 +220,18 @@ impl<'a> Cursor<'a> {
             let input = if plan.limit_value() == Some(0) {
                 Self::Empty
             } else {
-                Self::open(env, &plan.source, ctes, outer, outer.is_some())?
+                Self::open(
+                    env,
+                    &plan.source,
+                    ctes,
+                    outer,
+                    outer.is_some(),
+                    if traversal == crate::midge::adapter::RowTraversal::VisitedRows {
+                        traversal
+                    } else {
+                        super::source_traversal(&plan)
+                    },
+                )?
             };
             return Ok(Self::Query(Box::new(QueryCursor {
                 input,
@@ -228,7 +245,9 @@ impl<'a> Cursor<'a> {
                 _memory: memory,
             })));
         }
-        let (batches, _) = super::execute_query_source(env, source, ctes, qualify, outer, None)?;
+        let (batches, _) = super::execute_query_source_with_traversal(
+            env, source, ctes, qualify, outer, None, traversal,
+        )?;
         Ok(Self::Rows(
             super::batch::flatten_batches(batches).into_iter(),
         ))
@@ -421,7 +440,14 @@ impl<'a> JoinCursor<'a> {
                     }
                     continue;
                 }
-                self.right = Some(Cursor::open(env, right_source, ctes, Some(&left), true)?);
+                self.right = Some(Cursor::open(
+                    env,
+                    right_source,
+                    ctes,
+                    Some(&left),
+                    true,
+                    self.traversal,
+                )?);
                 self.current = Some(left);
                 self.matched = false;
             }
@@ -515,7 +541,14 @@ pub(super) fn try_execute(
     if plan.limit_value() == Some(0) {
         return Ok(Some(Vec::new()));
     }
-    let mut cursor = Cursor::open(env, &plan.source, ctes, outer, outer.is_some())?;
+    let mut cursor = Cursor::open(
+        env,
+        &plan.source,
+        ctes,
+        outer,
+        outer.is_some(),
+        super::source_traversal(plan),
+    )?;
     let offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).unwrap_or(usize::MAX);
     let limit =
         usize::try_from(plan.limit_value().unwrap_or(i64::MAX).max(0)).unwrap_or(usize::MAX);

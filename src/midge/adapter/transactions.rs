@@ -15,6 +15,11 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
+#[cfg(test)]
+thread_local! {
+    static COLLECTION_FLUSH_FAMILY: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
+}
+
 #[path = "transactions/copy_snapshot.rs"]
 mod copy_snapshot;
 pub(crate) use copy_snapshot::CopyStorageSnapshot;
@@ -765,7 +770,12 @@ impl Midge {
         Ok(tx)
     }
 
-    pub(super) fn flush_data_family_for_collection(
+    #[cfg(test)]
+    pub(crate) fn take_collection_flush_family_for_test() -> Option<u32> {
+        COLLECTION_FLUSH_FAMILY.take()
+    }
+
+    pub(crate) fn flush_data_family_for_collection(
         &self,
         collection: &str,
     ) -> Result<(), CassieError> {
@@ -773,6 +783,8 @@ impl Midge {
         let database =
             relation_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());
         let family = self.database_family(&database)?;
+        #[cfg(test)]
+        COLLECTION_FLUSH_FAMILY.set(Some(family.id()));
         self.engine.flush_cf(&family).map_err(CassieError::from)
     }
 

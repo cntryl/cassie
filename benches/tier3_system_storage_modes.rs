@@ -23,7 +23,7 @@ pub mod stress;
 
 const BENCHMARK: &str = "tier3_system_storage_modes";
 const FACT_ROWS: usize = 100_000;
-const QUERY_BUDGET: usize = 64 * 1024 * 1024;
+const QUERY_BUDGET: usize = 256 * 1024 * 1024;
 
 struct Db {
     cassie: Arc<Cassie>,
@@ -129,6 +129,7 @@ fn selected_case(runner: &stress::CassieStressRunner, name: &str) -> Option<stre
             stress::OperationUnit::Query,
         )
         .metadata("query_memory_budget_bytes", QUERY_BUDGET.to_string())
+        .metadata("benchmark_resource_profile", "storage_modes_100k_256m")
         .metadata("storage_mode", "memory")
         .metadata(
             "native_memory_budget_bytes",

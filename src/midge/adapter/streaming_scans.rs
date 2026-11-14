@@ -290,7 +290,29 @@ impl Midge {
         }))
     }
 
+    /// Callback scans may stop after any visited row. Full-input callers must
+    /// opt into complete-source validation before their first callback.
     pub(crate) fn scan_rows_until<E, F>(
+        &self,
+        collection: &str,
+        decode: RowDecode,
+        controls: &QueryExecutionControls,
+        visit: F,
+    ) -> Result<usize, E>
+    where
+        E: From<CassieError>,
+        F: FnMut(DocumentRef) -> Result<bool, E>,
+    {
+        self.scan_rows_until_with_traversal(
+            collection,
+            decode,
+            RowTraversal::VisitedRows,
+            controls,
+            visit,
+        )
+    }
+
+    pub(crate) fn scan_rows_until_with_traversal<E, F>(
         &self,
         collection: &str,
         decode: RowDecode,

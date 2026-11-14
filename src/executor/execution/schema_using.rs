@@ -53,7 +53,7 @@ impl Context<'_> {
         let schema = schema.ok_or_else(|| CassieError::CollectionNotFound(table.to_owned()))?;
         let functions = std::collections::HashMap::new();
         let mut prepared = AccountedVec::try_new(self.controls)?;
-        self.cassie.midge.scan_rows_until(
+        self.cassie.midge.scan_rows_until_with_traversal(
             table,
             RowDecode::Full,
             crate::midge::adapter::RowTraversal::CompleteSource,

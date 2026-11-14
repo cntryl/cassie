@@ -508,7 +508,7 @@ mod tests {
         let validation_reads = midge.column_validation_reads_for_diagnostics();
 
         // Act
-        let emitted = midge.scan_rows_until::<CassieError, _>(
+        let emitted = midge.scan_rows_until_with_traversal::<CassieError, _>(
             "bounded_callback",
             crate::midge::adapter::RowDecode::Full,
             crate::midge::adapter::RowTraversal::VisitedRows,

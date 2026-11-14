@@ -405,7 +405,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "query",
         Disabled,
         None,
-        None
+        Some(1)
     ),
     scenario!(
         "perf.typed_primitive.column_true.100k",
@@ -421,7 +421,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "query",
         Disabled,
         None,
-        None
+        Some(1)
     ),
     scenario!(
         "perf.typed_primitive.indexed_true.100k",
@@ -437,7 +437,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "query",
         Disabled,
         None,
-        None
+        Some(1)
     ),
     scenario!(
         "perf.typed_primitive.row_not_false.100k",
@@ -453,7 +453,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "query",
         Disabled,
         None,
-        None
+        Some(1)
     ),
     scenario!(
         "perf.typed_primitive.column_not_false.100k",
@@ -469,7 +469,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "query",
         Disabled,
         None,
-        None
+        Some(1)
     ),
     scenario!(
         "perf.typed_primitive.indexed_not_false.100k",
@@ -485,6 +485,6 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "query",
         Disabled,
         None,
-        None
+        Some(1)
     ),
 ];

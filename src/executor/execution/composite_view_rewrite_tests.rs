@@ -1,7 +1,7 @@
 use super::{rename_field_selections, FieldRename};
 
 #[test]
-fn should_rename_a_field_selection_and_keep_the_output_column_name() {
+fn should_keep_the_output_column_name_when_renaming_a_field_selection() {
     // Arrange
     let sql = "SELECT (v).b FROM t";
 
@@ -49,7 +49,7 @@ fn should_keep_an_explicit_alias_of_a_renamed_field_selection() {
 }
 
 #[test]
-fn should_leave_string_literals_and_other_fields_untouched() {
+fn should_leave_a_string_literal_naming_the_field_untouched() {
     // Arrange
     let sql = "SELECT '(v).b' AS s, (v).a FROM t";
 

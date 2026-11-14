@@ -412,8 +412,9 @@ schema-qualified graph name resolved in the current database; `mapping` is its
 mapping alias in the requested element kind. Constructors resolve the typed
 tuple in that mapping's current transaction view, check key arity and exact
 SQL types and require the element to exist and be readable. NULL required
-arguments return `22004`; wrong type or arity returns `42804`; unknown graph,
-mapping or element returns a documented deterministic missing-object error.
+arguments return `22004`; wrong type or arity returns `42804`; an unknown graph,
+mapping or element returns `42704`; insufficient read authority returns `42501`.
+Authorization must not disclose protected element properties.
 `key_parts` ordinal starts at one; `path_steps` position starts at zero. A
 weighted step result is computed from its supplied path and costs, checks
 length, finite non-negative values and NUMERIC overflow before emitting rows,

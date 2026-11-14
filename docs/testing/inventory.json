@@ -164,27 +164,24 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1711,
-    "rust_files": 1674,
-    "rust_test_declarations": 10159,
+    "files": 1712,
+    "rust_files": 1675,
+    "rust_test_declarations": 10164,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10160,
-    "unregistered_rust_tests": [
-      "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_publish_pgcrypto_extension_transactionally",
-      "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_restore_pgcrypto_namespace_after_savepoint_rollback",
-      "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_expose_only_selected_extension_versions",
-      "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_track_extension_identity_through_relocation_lifecycle",
-      "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_resolve_digest_bytea_overload_for_selected_algorithms"
-    ],
+    "registered_rust_instances": 10170,
+    "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
     "duplicate_registered_identities": [],
     "planned_tests": 117,
-    "oversized_files": [
-      "tests/parser_types/grammar/indexes/semantics.rs"
-    ],
+    "oversized_files": [],
     "destination_name_conflicts": [],
     "large_projected_destinations": [
+      {
+        "file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+        "test_body_lines": 829,
+        "test_declarations": 11
+      },
       {
         "file": "tests/catalog_security/catalogs/types/catalog_discovery/semantics.rs",
         "test_body_lines": 824,
@@ -207,8 +204,8 @@
       },
       {
         "file": "tests/parser_types/grammar/indexes/semantics.rs",
-        "test_body_lines": 964,
-        "test_declarations": 34
+        "test_body_lines": 905,
+        "test_declarations": 30
       },
       {
         "file": "tests/pgwire_extended/functions/math/math.rs",
@@ -3970,11 +3967,11 @@
       }
     },
     {
-      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_retry_projection_replay_when_metadata_commit_fails_after_row_commit",
-      "name": "should_retry_projection_replay_when_metadata_commit_fails_after_row_commit",
+      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_commit_checkpoint_for_new_event_deleting_missing_row",
+      "name": "should_commit_checkpoint_for_new_event_deleting_missing_row",
       "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
-      "line": 143,
-      "end_line": 237,
+      "line": 145,
+      "end_line": 176,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -3982,7 +3979,162 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "projection_lifecycle::should_retry_projection_replay_when_metadata_commit_fails_after_row_commit"
+          "name": "projection_lifecycle::should_commit_checkpoint_for_new_event_deleting_missing_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "analytics",
+        "category": "projections/projection_lifecycle",
+        "directory": "tests/analytics/projections/projection_lifecycle",
+        "file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_record_failed_freshness_when_precommit_replay_write_stalls",
+      "name": "should_record_failed_freshness_when_precommit_replay_write_stalls",
+      "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+      "line": 179,
+      "end_line": 217,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "analytics",
+          "name": "projection_lifecycle::should_record_failed_freshness_when_precommit_replay_write_stalls"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "analytics",
+        "category": "projections/projection_lifecycle",
+        "directory": "tests/analytics/projections/projection_lifecycle",
+        "file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_preserve_bound_source_identity_when_other_source_replay_fails",
+      "name": "should_preserve_bound_source_identity_when_other_source_replay_fails",
+      "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+      "line": 220,
+      "end_line": 255,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "analytics",
+          "name": "projection_lifecycle::should_preserve_bound_source_identity_when_other_source_replay_fails"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "analytics",
+        "category": "projections/projection_lifecycle",
+        "directory": "tests/analytics/projections/projection_lifecycle",
+        "file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_record_failed_freshness_without_advancing_checkpoint_for_invalid_vector",
+      "name": "should_record_failed_freshness_without_advancing_checkpoint_for_invalid_vector",
+      "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+      "line": 258,
+      "end_line": 311,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "analytics",
+          "name": "projection_lifecycle::should_record_failed_freshness_without_advancing_checkpoint_for_invalid_vector"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "analytics",
+        "category": "projections/projection_lifecycle",
+        "directory": "tests/analytics/projections/projection_lifecycle",
+        "file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_reject_replay_prepared_before_checkpoint_changed",
+      "name": "should_reject_replay_prepared_before_checkpoint_changed",
+      "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+      "line": 314,
+      "end_line": 365,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "analytics",
+          "name": "projection_lifecycle::should_reject_replay_prepared_before_checkpoint_changed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "analytics",
+        "category": "projections/projection_lifecycle",
+        "directory": "tests/analytics/projections/projection_lifecycle",
+        "file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_roll_back_rows_and_checkpoint_when_replay_commit_fails",
+      "name": "should_roll_back_rows_and_checkpoint_when_replay_commit_fails",
+      "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
+      "line": 368,
+      "end_line": 515,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "analytics",
+          "name": "projection_lifecycle::should_roll_back_rows_and_checkpoint_when_replay_commit_fails"
         }
       ],
       "attributes": [
@@ -4004,8 +4156,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_retry_projection_replay_after_metadata_commit_conflict",
       "name": "should_retry_projection_replay_after_metadata_commit_conflict",
       "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
-      "line": 240,
-      "end_line": 338,
+      "line": 518,
+      "end_line": 631,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -4035,8 +4187,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_keep_projection_replay_checkpoint_after_uncertain_metadata_commit",
       "name": "should_keep_projection_replay_checkpoint_after_uncertain_metadata_commit",
       "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
-      "line": 341,
-      "end_line": 453,
+      "line": 634,
+      "end_line": 769,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -4066,8 +4218,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_keep_hashed_projection_version_inactive_when_build_stops_before_metadata_publish",
       "name": "should_keep_hashed_projection_version_inactive_when_build_stops_before_metadata_publish",
       "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
-      "line": 456,
-      "end_line": 532,
+      "line": 772,
+      "end_line": 848,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -4097,8 +4249,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_publish_projection_metadata_atomically_when_activation_commit_fails",
       "name": "should_publish_projection_metadata_atomically_when_activation_commit_fails",
       "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
-      "line": 535,
-      "end_line": 599,
+      "line": 851,
+      "end_line": 915,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -30749,8 +30901,13 @@
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
-      "registration": "unregistered",
-      "instances": [],
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::pgcrypto_lifecycle::should_publish_pgcrypto_extension_transactionally"
+        }
+      ],
       "attributes": [
         "#[test]"
       ],
@@ -30775,8 +30932,13 @@
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
-      "registration": "unregistered",
-      "instances": [],
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::pgcrypto_lifecycle::should_restore_pgcrypto_namespace_after_savepoint_rollback"
+        }
+      ],
       "attributes": [
         "#[test]"
       ],
@@ -30801,8 +30963,13 @@
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
-      "registration": "unregistered",
-      "instances": [],
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::pgcrypto_lifecycle::should_expose_only_selected_extension_versions"
+        }
+      ],
       "attributes": [
         "#[test]"
       ],
@@ -30827,8 +30994,13 @@
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
-      "registration": "unregistered",
-      "instances": [],
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::pgcrypto_lifecycle::should_track_extension_identity_through_relocation_lifecycle"
+        }
+      ],
       "attributes": [
         "#[test]"
       ],
@@ -30853,8 +31025,13 @@
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
-      "registration": "unregistered",
-      "instances": [],
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::pgcrypto_lifecycle::should_resolve_digest_bytea_overload_for_selected_algorithms"
+        }
+      ],
       "attributes": [
         "#[test]"
       ],
@@ -74922,6 +75099,130 @@
       }
     },
     {
+      "id": "tests/parser_types/grammar/indexes/drop_index.rs::should_parse_drop_index_statement",
+      "name": "should_parse_drop_index_statement",
+      "current_file": "tests/parser_types/grammar/indexes/drop_index.rs",
+      "line": 2,
+      "end_line": 17,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_indexes::should_parse_drop_index_statement"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/indexes",
+        "directory": "tests/parser_types/grammar/indexes",
+        "file": "tests/parser_types/grammar/indexes/drop_index.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/indexes/drop_index.rs::should_parse_drop_index_without_an_on_clause",
+      "name": "should_parse_drop_index_without_an_on_clause",
+      "current_file": "tests/parser_types/grammar/indexes/drop_index.rs",
+      "line": 20,
+      "end_line": 35,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_indexes::should_parse_drop_index_without_an_on_clause"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/indexes",
+        "directory": "tests/parser_types/grammar/indexes",
+        "file": "tests/parser_types/grammar/indexes/drop_index.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/indexes/drop_index.rs::should_parse_quoted_drop_index_name_without_an_on_clause",
+      "name": "should_parse_quoted_drop_index_name_without_an_on_clause",
+      "current_file": "tests/parser_types/grammar/indexes/drop_index.rs",
+      "line": 38,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_indexes::should_parse_quoted_drop_index_name_without_an_on_clause"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/indexes",
+        "directory": "tests/parser_types/grammar/indexes",
+        "file": "tests/parser_types/grammar/indexes/drop_index.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/parser_types/grammar/indexes/drop_index.rs::should_reject_drop_index_concurrently_as_unsupported_syntax",
+      "name": "should_reject_drop_index_concurrently_as_unsupported_syntax",
+      "current_file": "tests/parser_types/grammar/indexes/drop_index.rs",
+      "line": 55,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "parser_types",
+          "name": "parser_indexes::should_reject_drop_index_concurrently_as_unsupported_syntax"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "parser_types",
+        "category": "grammar/indexes",
+        "directory": "tests/parser_types/grammar/indexes",
+        "file": "tests/parser_types/grammar/indexes/drop_index.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/parser_types/grammar/indexes/semantics.rs::should_parse_create_index_statement",
       "name": "should_parse_create_index_statement",
       "current_file": "tests/parser_types/grammar/indexes/semantics.rs",
@@ -75834,130 +76135,6 @@
         {
           "suite": "parser_types",
           "name": "parser_indexes::should_default_vector_metric_to_cosine"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "parser_types",
-        "category": "grammar/indexes",
-        "directory": "tests/parser_types/grammar/indexes",
-        "file": "tests/parser_types/grammar/indexes/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/parser_types/grammar/indexes/semantics.rs::should_parse_drop_index_statement",
-      "name": "should_parse_drop_index_statement",
-      "current_file": "tests/parser_types/grammar/indexes/semantics.rs",
-      "line": 980,
-      "end_line": 995,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "parser_types",
-          "name": "parser_indexes::should_parse_drop_index_statement"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "parser_types",
-        "category": "grammar/indexes",
-        "directory": "tests/parser_types/grammar/indexes",
-        "file": "tests/parser_types/grammar/indexes/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/parser_types/grammar/indexes/semantics.rs::should_parse_drop_index_without_an_on_clause",
-      "name": "should_parse_drop_index_without_an_on_clause",
-      "current_file": "tests/parser_types/grammar/indexes/semantics.rs",
-      "line": 998,
-      "end_line": 1013,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "parser_types",
-          "name": "parser_indexes::should_parse_drop_index_without_an_on_clause"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "parser_types",
-        "category": "grammar/indexes",
-        "directory": "tests/parser_types/grammar/indexes",
-        "file": "tests/parser_types/grammar/indexes/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/parser_types/grammar/indexes/semantics.rs::should_parse_quoted_drop_index_name_without_an_on_clause",
-      "name": "should_parse_quoted_drop_index_name_without_an_on_clause",
-      "current_file": "tests/parser_types/grammar/indexes/semantics.rs",
-      "line": 1016,
-      "end_line": 1030,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "parser_types",
-          "name": "parser_indexes::should_parse_quoted_drop_index_name_without_an_on_clause"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "parser_types",
-        "category": "grammar/indexes",
-        "directory": "tests/parser_types/grammar/indexes",
-        "file": "tests/parser_types/grammar/indexes/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/parser_types/grammar/indexes/semantics.rs::should_reject_drop_index_concurrently_as_unsupported_syntax",
-      "name": "should_reject_drop_index_concurrently_as_unsupported_syntax",
-      "current_file": "tests/parser_types/grammar/indexes/semantics.rs",
-      "line": 1033,
-      "end_line": 1044,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "parser_types",
-          "name": "parser_indexes::should_reject_drop_index_concurrently_as_unsupported_syntax"
         }
       ],
       "attributes": [
@@ -316168,9 +316345,9 @@
       "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 599,
-      "sha256": "20ab2a1020520a84122814b3b8c3279b2df55ecae99aee6260d69b1a7c500ce7",
-      "test_declarations": 6,
+      "lines": 915,
+      "sha256": "491967e38d2231d338eb22261cae392e876b293b50c6bfce9934f18000929f92",
+      "test_declarations": 11,
       "registered_suites": [
         "analytics"
       ],
@@ -318891,8 +319068,8 @@
       "current_file": "tests/compatibility/lifecycle/ddl/ddl_extensions.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 45,
-      "sha256": "00075e8f34f4b524e318c12442cc3c9436405f19ebe98c9a77832dc75b6bccb2",
+      "lines": 47,
+      "sha256": "1db219f6e72e184ae8516102993d6e4251aad3d25b973d99a4833b77f29cb9ae",
       "test_declarations": 0,
       "registered_suites": [
         "compatibility"
@@ -319074,7 +319251,9 @@
       "lines": 155,
       "sha256": "6fca791a2f010c9d6e258aa85ad52894f779e29958ddeaa296303e939075f045",
       "test_declarations": 5,
-      "registered_suites": [],
+      "registered_suites": [
+        "compatibility"
+      ],
       "destinations": [
         "tests/compatibility/clients/pgcrypto_lifecycle.rs"
       ],
@@ -323347,12 +323526,27 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/parser_types/grammar/indexes/drop_index.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 66,
+      "sha256": "bf020b82d733b3ca6d59c433c38111b883dd735a029d27025b5ab8cd3071fec4",
+      "test_declarations": 4,
+      "registered_suites": [
+        "parser_types"
+      ],
+      "destinations": [
+        "tests/parser_types/grammar/indexes/drop_index.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/parser_types/grammar/indexes/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 1044,
-      "sha256": "e4194d83e0d512cea74f1aaf584f47a41d4711f048176bb53612e6ed0f99b857",
-      "test_declarations": 34,
+      "lines": 979,
+      "sha256": "a23b95173f46ad02520154c052426025769c58dc1c55be8bfde7a496e7fa398e",
+      "test_declarations": 30,
       "registered_suites": [
         "parser_types"
       ],

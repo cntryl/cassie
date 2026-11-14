@@ -23,6 +23,8 @@ mod extension_profile_rejections;
 mod index_contracts;
 #[path = "../extensions/pgcrypto_extension.rs"]
 mod pgcrypto_extension;
+#[path = "../extensions/pgcrypto_lifecycle.rs"]
+mod pgcrypto_lifecycle;
 #[path = "../tables/table_forms.rs"]
 mod table_forms;
 #[path = "../tables/table_storage_access.rs"]

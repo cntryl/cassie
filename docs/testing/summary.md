@@ -4,19 +4,19 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1711 |
-| Rust files | 1674 |
-| Rust test declarations | 10159 |
+| Files under `tests/` | 1712 |
+| Rust files | 1675 |
+| Rust test declarations | 10164 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10160 |
+| Static Rust registration instances | 10170 |
 | Cargo test targets | 40 |
 | Reconciled backfill names | 117 |
-| Unregistered Rust declarations | 5 |
+| Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
 | Duplicate registered test identities | 0 |
 | Repeated module registrations | 0 |
 | Files with a reviewed physical placement | 1264 |
-| Existing files over their line limit | 1 |
+| Existing files over their line limit | 0 |
 | Destination name conflicts | 0 |
 
 Registration instances count each executable owner of a source declaration. Shared fixture self-tests have one library owner; `cfg` expressions are not evaluated.
@@ -27,7 +27,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 
 | Owner | Source declarations | Review required |
 | --- | ---: | ---: |
-| [analytics](inventory/analytics.md) | 185 | 0 |
+| [analytics](inventory/analytics.md) | 190 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 540 | 0 |
@@ -121,7 +121,7 @@ Each suite's Cargo target and source root are recorded here.
 
 Root Cargo suites have a 12,000 line limit. Other Rust files have a 1,000 line limit.
 
-- `tests/parser_types/grammar/indexes/semantics.rs`
+None.
 
 ## Proposed groups requiring size review
 
@@ -129,11 +129,12 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 
 | Proposed file | Test body lines | Tests |
 | --- | ---: | ---: |
+| `tests/analytics/projections/projection_lifecycle/metadata.rs` | 829 | 11 |
 | `tests/catalog_security/catalogs/types/catalog_discovery/semantics.rs` | 824 | 28 |
 | `tests/compatibility/lifecycle/indexes/pgvector_profile.rs` | 825 | 10 |
 | `tests/compatibility/lifecycle/tables/table_forms/semantics.rs` | 818 | 16 |
 | `tests/parser_types/grammar/expressions/semantics.rs` | 816 | 37 |
-| `tests/parser_types/grammar/indexes/semantics.rs` | 964 | 34 |
+| `tests/parser_types/grammar/indexes/semantics.rs` | 905 | 30 |
 | `tests/pgwire_extended/functions/math/math.rs` | 908 | 16 |
 | `tests/pgwire_extended/functions/math/overload_errors.rs` | 857 | 17 |
 | `tests/pgwire_extended/grammar/bytea_functions_parameters.rs` | 895 | 11 |

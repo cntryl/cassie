@@ -99,6 +99,26 @@ pub(super) fn execute_query_source(
     outer_row: Option<&BatchRow>,
     row_budget: Option<usize>,
 ) -> SourceExecution {
+    execute_query_source_with_traversal(
+        env,
+        source,
+        cte_context,
+        qualify,
+        outer_row,
+        row_budget,
+        crate::midge::adapter::RowTraversal::from_limit(row_budget),
+    )
+}
+
+pub(super) fn execute_query_source_with_traversal(
+    env: &SourceExecutionEnv<'_>,
+    source: &QuerySource,
+    cte_context: &mut CteContext,
+    qualify: bool,
+    outer_row: Option<&BatchRow>,
+    row_budget: Option<usize>,
+    traversal: crate::midge::adapter::RowTraversal,
+) -> SourceExecution {
     let (mut batches, text_fields) = match source {
         QuerySource::Values { rows } if rows.iter().flatten().any(Expr::contains_subquery) => {
             let rows = super::subquery_values::resolve(env, cte_context, rows, outer_row)?;
@@ -106,8 +126,15 @@ pub(super) fn execute_query_source(
         }
         QuerySource::Values { rows } => source_values::execute(env, rows, row_budget),
         QuerySource::Aliased { source, alias, .. } => {
-            let (batches, text_fields) =
-                execute_query_source(env, source, cte_context, false, outer_row, row_budget)?;
+            let (batches, text_fields) = execute_query_source_with_traversal(
+                env,
+                source,
+                cte_context,
+                false,
+                outer_row,
+                row_budget,
+                traversal,
+            )?;
             let owned = batches
                 .iter()
                 .flatten()
@@ -123,7 +150,9 @@ pub(super) fn execute_query_source(
             };
             Ok((batches, text_fields))
         }
-        QuerySource::Collection(name) => execute_collection_source(env, name, qualify, row_budget),
+        QuerySource::Collection(name) => {
+            execute_collection_source(env, name, qualify, row_budget, traversal)
+        }
         QuerySource::TableSample {
             source,
             method,
@@ -163,6 +192,7 @@ pub(super) fn execute_query_source(
                 on,
                 outer_row,
                 row_budget,
+                traversal,
             },
             cte_context,
         ),
@@ -178,6 +208,7 @@ fn execute_collection_source(
     name: &str,
     qualify: bool,
     row_budget: Option<usize>,
+    traversal: crate::midge::adapter::RowTraversal,
 ) -> SourceExecution {
     if let Some(rows) = virtual_views::rows_with_default_database(
         &env.cassie.catalog,
@@ -203,7 +234,8 @@ fn execute_collection_source(
         return execute_materialized_projection_source(env, name, &projection, qualify, row_budget);
     }
 
-    let batches = source_collection::scan_collection(env, name, row_budget, qualify, name)?;
+    let batches =
+        source_collection::scan_collection(env, name, row_budget, qualify, name, traversal)?;
     Ok((batches, env.cassie.catalog.text_fields(name)))
 }
 
@@ -261,8 +293,14 @@ fn execute_materialized_projection_source(
         )));
     };
     let output_collection = output_collection.to_string();
-    let batches =
-        source_collection::scan_collection(env, &output_collection, row_budget, qualify, name)?;
+    let batches = source_collection::scan_collection(
+        env,
+        &output_collection,
+        row_budget,
+        qualify,
+        name,
+        crate::midge::adapter::RowTraversal::CompleteSource,
+    )?;
     let text_fields = projection
         .materialized
         .as_ref()
@@ -378,6 +416,7 @@ use source_rows::{
 };
 pub(super) use source_rows::{
     combine_rows, qualify_row, row_lookup_columns, slice_rows, source_contains_lateral,
+    source_traversal,
 };
 
 pub(super) fn execute_source_query_with_outer_row(
@@ -527,13 +566,14 @@ fn load_source_batches(
     let pushed = crate::planner::lateral_filter::pushed_source(plan, &|name| {
         outer_row.is_some_and(|row| row.get(name).is_some())
     });
-    let (mut batches, text_fields) = execute_query_source(
+    let (mut batches, text_fields) = execute_query_source_with_traversal(
         env,
         pushed.as_ref().unwrap_or(&plan.source),
         cte_context,
         outer_row.is_some(),
         outer_row,
         source_row_budget(plan, env.controls.max_result_rows),
+        source_traversal(plan),
     )?;
     if let Some(outer_row) = outer_row {
         batches = attach_outer_scope(batches, outer_row, env.controls)?;

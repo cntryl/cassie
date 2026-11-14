@@ -44,6 +44,7 @@ struct StreamingJoinSpec<'a> {
     left_scan_fields: Vec<String>,
     right_scan_fields: Vec<String>,
     output_budget: usize,
+    traversal: crate::midge::adapter::RowTraversal,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -68,6 +69,7 @@ struct IndexedJoinSpec<'a> {
     keys: &'a EquiJoinKeys,
     plan: &'a IndexedJoinPlan,
     output_budget: usize,
+    traversal: crate::midge::adapter::RowTraversal,
 }
 
 pub(super) fn try_execute_indexed_bounded_inner_join(
@@ -142,6 +144,7 @@ fn try_execute_indexed_bounded_inner_join_with_context(
             keys: &keys,
             plan: &plan,
             output_budget,
+            traversal: spec.traversal,
         },
         retention,
     )
@@ -296,6 +299,7 @@ fn try_execute_streaming_bounded_inner_join_with_context(
         join.kind,
         join.on,
         join.row_budget,
+        join.traversal,
     ) else {
         return Ok(None);
     };
@@ -396,6 +400,7 @@ fn streaming_join_spec<'a>(
     kind: JoinKind,
     on: &'a Expr,
     row_budget: Option<usize>,
+    traversal: crate::midge::adapter::RowTraversal,
 ) -> Option<StreamingJoinSpec<'a>> {
     let output_budget = row_budget?;
 
@@ -435,6 +440,7 @@ fn streaming_join_spec<'a>(
         left_scan_fields,
         right_scan_fields,
         output_budget,
+        traversal,
     })
 }
 

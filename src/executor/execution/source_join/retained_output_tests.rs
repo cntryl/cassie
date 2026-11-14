@@ -312,6 +312,7 @@ fn should_keep_lateral_output_charged_after_its_right_source_drops() {
                 on: &on,
                 outer_row: None,
                 row_budget: None,
+                traversal: crate::midge::adapter::RowTraversal::CompleteSource,
             },
             &mut context,
             left_batches,

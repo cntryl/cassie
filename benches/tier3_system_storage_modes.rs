@@ -195,6 +195,7 @@ fn main() {
     let db = Db::new();
     db.seed();
     let setup_time = setup_started.elapsed().as_nanos().to_string();
+    let mut validation_receipts = Vec::new();
     for (name, case, sql, baseline) in selected {
         let independent = expected::rows(name, FACT_ROWS);
         let expected_fingerprint = expected::fingerprint(&independent);
@@ -208,7 +209,12 @@ fn main() {
         assert!(!expected.is_empty(), "baseline must have rows");
         assert_eq!(rendered(&db.exec(&sql)), expected, "storage-mode equality");
         let (access, fallback) = preflight(&db, &sql);
+        let validation_before = db.cassie.midge.column_validation_reads_for_diagnostics();
         let case = case
+            .metadata(
+                "column_validation_reads_before_measure_batch",
+                validation_before.to_string(),
+            )
             .metadata("setup_time_ns", setup_time.clone())
             .metadata("result_cardinality", expected.len().to_string())
             .preflight_evidence(access, fallback)
@@ -223,6 +229,17 @@ fn main() {
             );
             std::hint::black_box(rows.len())
         });
+        let validation_after = db.cassie.midge.column_validation_reads_for_diagnostics();
+        let receipt = serde_json::json!({"workload": name, "validation_reads_before": validation_before, "validation_reads_after": validation_after, "validation_reads_delta": validation_after.saturating_sub(validation_before), "interval": "measure_batch_including_harness_warmup"});
+        println!("column_validation_reads={receipt}");
+        validation_receipts.push(receipt);
+    }
+    if let Ok(path) = std::env::var("BENCH_TIER3_STORAGE_MODES_VALIDATION_READS_OUT") {
+        std::fs::write(
+            path,
+            serde_json::to_vec_pretty(&validation_receipts).expect("validation receipts"),
+        )
+        .expect("write validation read receipts");
     }
     runner.finish();
 }

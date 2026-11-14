@@ -13,12 +13,14 @@ pub(super) fn scan_collection(
     row_budget: Option<usize>,
     qualify: bool,
     qualifier: &str,
+    traversal: crate::midge::adapter::RowTraversal,
 ) -> Result<Vec<Batch>, QueryError> {
-    let (mut batches, mut memory) = scan::scan_limit_retained(
+    let (mut batches, mut memory) = scan::scan_limit_retained_with_traversal(
         env.cassie,
         env.session,
         collection,
         row_budget,
+        traversal,
         env.controls,
     )?;
     check_timeout(env.controls)?;

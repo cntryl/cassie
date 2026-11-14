@@ -154,7 +154,11 @@ miss. The caller declares complete-source versus visited-row traversal before op
 its private cursor. An unrestricted SQL source and authority conversion validate
 complete field ownership before returning their first rows. A bounded source
 (such as LIMIT or EXISTS with an early stop) validates visited rows without a
-whole-table ownership preflight. Page size is not SQL source intent: paginating
+whole-table ownership preflight. Result-admission caps and scan-buffer bounds do not select source intent; an
+unrestricted logical source stays complete even when its physical result
+transport is capped. Streaming LATERAL/derived sources inherit an outer early
+stop, while blocking aggregate/order/distinct inputs still require complete
+validation. Page size is not SQL source intent: paginating
 an unrestricted portal still validates the complete source before its first
 successful page. Ranking operators that consume all input retain complete-source
 validation even when their output is top-k. Callback scans that may stop early

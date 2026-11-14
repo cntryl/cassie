@@ -93,12 +93,13 @@ pub(super) fn execute_projected_filtered_read(
     let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
     let scan_limit = projected_result_scan_limit(plan, controls, spec.scan_limit);
     if pushdown_filter.is_none() && column_filter.is_none() {
-        if let Some(mut stream) = scan::projected_scan_stream(
+        if let Some(mut stream) = scan::projected_scan_stream_with_traversal(
             cassie,
             session,
             &spec.collection,
             &spec.scan_fields,
             scan_limit,
+            super::source::source_traversal(plan),
             controls,
         )? {
             let rows = scan::collect_projected_stream_rows(&mut stream, controls)?;
@@ -134,6 +135,7 @@ pub(super) fn execute_projected_filtered_read(
         collection: &spec.collection,
         fields: &spec.scan_fields,
         limit: scan_limit,
+        traversal: super::source::source_traversal(plan),
         document_filter: pushdown_filter.as_ref(),
         column_filter: column_filter.as_ref(),
         controls,
@@ -915,6 +917,7 @@ fn scan_projected_read_batches(
         collection: &spec.collection,
         fields: &spec.scan_fields,
         limit: scan_limit,
+        traversal: super::source::source_traversal(plan),
         document_filter: pushdown_filter.as_ref(),
         column_filter: column_filter.as_ref(),
         controls,

@@ -10,7 +10,10 @@ const ID_FIELD: u32 = 1;
 const NAME_FIELD: u32 = 2;
 
 fn seeded() -> Env {
-    let env = env();
+    seed(env())
+}
+
+fn seed(env: Env) -> Env {
     env.run("CREATE TABLE victims (id INT, name TEXT) WITH (storage = column_store)");
     for (row, id, name) in [("row-a", 1, "a"), ("row-b", 2, "b"), ("row-c", 3, "c")] {
         env.cassie
@@ -339,5 +342,110 @@ fn should_not_validate_unvisited_orphans_for_an_exists_probe() {
     assert_eq!(
         env.cassie.midge.column_validation_reads_for_diagnostics(),
         before
+    );
+}
+
+#[test]
+fn should_validate_an_unrestricted_scalar_fallback_despite_its_result_cap() {
+    // Arrange
+    let mut config = cassie::config::CassieRuntimeConfig::default();
+    config.limits.query_memory_budget_bytes = 16 * 1024;
+    let cassie = cassie::app::Cassie::new_in_memory_with_config(config).expect("memory Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    let env = seed(Env { cassie, session });
+    raw_put(
+        &env,
+        &env.field_key(TABLE, NAME_FIELD, "unvisited"),
+        &cassie_encoded_text("orphan"),
+    );
+    let before = env.cassie.midge.column_validation_reads_for_diagnostics();
+
+    // Act
+    let result = env
+        .cassie
+        .execute_sql(&env.session, "SELECT id, name FROM victims", vec![]);
+
+    // Assert
+    assert_corruption(
+        &result.expect_err("resource result caps do not bound SQL source intent"),
+        "unvisited",
+    );
+    assert!(env.cassie.midge.column_validation_reads_for_diagnostics() > before);
+}
+
+#[test]
+fn should_keep_a_limited_lateral_collection_source_on_visited_rows() {
+    // Arrange
+    let env = seeded();
+    raw_put(
+        &env,
+        &env.field_key(TABLE, NAME_FIELD, "unvisited"),
+        &cassie_encoded_text("orphan"),
+    );
+    let before = env.cassie.midge.column_validation_reads_for_diagnostics();
+
+    // Act
+    let rows =
+        env.rows("SELECT v.id FROM victims v CROSS JOIN LATERAL generate_series(1,1) AS g LIMIT 1");
+
+    // Assert
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        env.cassie.midge.column_validation_reads_for_diagnostics(),
+        before
+    );
+}
+
+#[test]
+fn should_validate_complete_sources_before_blocking_operators_limit_their_output() {
+    // Arrange
+    let env = seeded();
+    raw_put(
+        &env,
+        &env.field_key(TABLE, NAME_FIELD, "unvisited"),
+        &cassie_encoded_text("orphan"),
+    );
+
+    // Act
+    let outcomes = [
+        "SELECT id FROM victims ORDER BY id LIMIT 1",
+        "SELECT id, COUNT(*) FROM victims GROUP BY id LIMIT 1",
+        "SELECT DISTINCT id FROM victims LIMIT 1",
+    ]
+    .map(|sql| env.cassie.execute_sql(&env.session, sql, vec![]));
+
+    // Assert
+    for outcome in outcomes {
+        assert_corruption(
+            &outcome.expect_err("blocking operators consume complete input"),
+            "unvisited",
+        );
+    }
+}
+
+#[test]
+fn should_validate_an_unrestricted_join_source_despite_its_output_admission_cap() {
+    // Arrange
+    let env = seeded();
+    env.run("CREATE TABLE anchors (id INT)");
+    env.run("INSERT INTO anchors VALUES (1)");
+    raw_put(
+        &env,
+        &env.field_key(TABLE, NAME_FIELD, "unvisited"),
+        &cassie_encoded_text("orphan"),
+    );
+
+    // Act
+    let result = env.cassie.execute_sql(
+        &env.session,
+        "SELECT v.id FROM victims v JOIN anchors a ON v.id = a.id",
+        vec![],
+    );
+
+    // Assert
+    assert_corruption(
+        &result.expect_err("unrestricted join source must validate ownership"),
+        "unvisited",
     );
 }

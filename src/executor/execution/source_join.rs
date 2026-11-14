@@ -1,13 +1,16 @@
 use super::{
-    batch, catalog, check_timeout, combine_rows, execute_query_source, filter, qualify_row,
-    row_lookup_columns, scan, source_contains_lateral, Batch, BatchRow, CteContext, Expr, JoinKind,
-    QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
+    batch, catalog, check_timeout, combine_rows, execute_query_source_with_traversal, filter,
+    qualify_row, row_lookup_columns, scan, source_contains_lateral, Batch, BatchRow, CteContext,
+    Expr, JoinKind, QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
 };
 use crate::executor::semantic::SemanticKey;
 #[cfg(test)]
 use crate::sql::ast::BinaryOp;
 use crate::sql::numeric_comparison::{join_equality_columns, NumericComparisonDomain};
 use std::sync::Arc;
+
+#[cfg(test)]
+use super::execute_query_source;
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
 
@@ -76,6 +79,7 @@ pub(super) struct JoinExecutionSpec<'a> {
     pub(super) on: &'a Expr,
     pub(super) outer_row: Option<&'a BatchRow>,
     pub(super) row_budget: Option<usize>,
+    pub(super) traversal: crate::midge::adapter::RowTraversal,
 }
 
 pub(super) fn execute_join_source<'a>(
@@ -108,13 +112,14 @@ pub(super) fn execute_join_source<'a>(
     } else {
         None
     };
-    let (left_batches, _left_text) = execute_query_source(
+    let (left_batches, _left_text) = execute_query_source_with_traversal(
         env,
         spec.left,
         cte_context,
         true,
         spec.outer_row,
         left_row_budget,
+        spec.traversal,
     )?;
     if lateral {
         return execute_lateral_join(env, &spec, cte_context, left_batches);
@@ -126,13 +131,14 @@ pub(super) fn execute_join_source<'a>(
     let right_row_budget = matches!(spec.kind, JoinKind::Cross)
         .then_some(spec.row_budget)
         .flatten();
-    let (right_batches, _right_text) = execute_query_source(
+    let (right_batches, _right_text) = execute_query_source_with_traversal(
         env,
         spec.right,
         cte_context,
         true,
         spec.outer_row,
         right_row_budget,
+        spec.traversal,
     )?;
     let (right_rows, _right_memory) = prepare_join_rows(env, right_batches)?;
     let left_template = super::source_shape::null_row(env, spec.left, cte_context)?;
@@ -296,13 +302,14 @@ fn execute_lateral_join<'a>(
         }
         let right_budget = matches!(spec.kind, JoinKind::Cross)
             .then_some(output_budget.saturating_sub(joined.len()));
-        let (right_batches, _right_text) = execute_query_source(
+        let (right_batches, _right_text) = execute_query_source_with_traversal(
             env,
             spec.right,
             cte_context,
             true,
             Some(left_row),
             right_budget,
+            spec.traversal,
         )?;
         let (right_rows, _right_memory) = prepare_join_rows(env, right_batches)?;
         let mut matched = false;

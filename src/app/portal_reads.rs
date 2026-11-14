@@ -37,7 +37,14 @@ impl Cassie {
             collection: collection.to_string(),
             source_fields,
             includes_wildcard,
-            traversal: if physical.logical.limit_value().is_some() {
+            traversal: if physical.logical.limit_value().is_some()
+                && physical.logical.order.is_empty()
+                && physical.logical.group_by.is_empty()
+                && physical.logical.having.is_none()
+                && !physical.logical.distinct
+                && physical.logical.distinct_on.is_empty()
+                && physical.logical.set.is_none()
+            {
                 crate::midge::adapter::RowTraversal::VisitedRows
             } else {
                 crate::midge::adapter::RowTraversal::CompleteSource
@@ -120,7 +127,22 @@ mod tests {
             .expect("bounded spec")
             .expect("cursor");
 
+        let ordered = cassie
+            .resolve_portal_read_spec(
+                &session,
+                crate::sql::parse_statement(
+                    "SELECT label FROM portal_columns ORDER BY label LIMIT 1",
+                )
+                .expect("ordered query"),
+            )
+            .expect("ordered spec")
+            .expect("cursor");
+
         // Assert
+        assert_eq!(
+            ordered.traversal,
+            crate::midge::adapter::RowTraversal::CompleteSource
+        );
         assert_eq!(
             full.traversal,
             crate::midge::adapter::RowTraversal::CompleteSource

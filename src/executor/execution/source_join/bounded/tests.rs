@@ -284,6 +284,7 @@ fn execute_selected(
         on: &on,
         outer_row: None,
         row_budget: Some(1),
+        traversal: crate::midge::adapter::RowTraversal::VisitedRows,
     };
     assert!(env.cassie.runtime.limits().vectorized_joins_enabled);
     assert!(!env
@@ -302,9 +303,16 @@ fn execute_selected(
     if matches!(selected, Path::IndexedLeft | Path::IndexedRight) {
         assert!(super::indexed_join_plan(env, &fixture.left, &fixture.right, &keys).is_some());
     } else {
-        assert!(
-            super::streaming_join_spec(env, &left, &right, JoinKind::Inner, &on, Some(1)).is_some()
-        );
+        assert!(super::streaming_join_spec(
+            env,
+            &left,
+            &right,
+            JoinKind::Inner,
+            &on,
+            Some(1),
+            crate::midge::adapter::RowTraversal::VisitedRows
+        )
+        .is_some());
     }
     let rows = if matches!(selected, Path::IndexedLeft | Path::IndexedRight) {
         try_execute_indexed_bounded_inner_join_with_context(env, &spec, retention)?

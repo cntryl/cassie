@@ -67,6 +67,7 @@ fn should_skip_retired_batch_maintenance_after_a_same_generation_replacement() {
         .collection_generation(&target)
         .expect("old generation");
     let delayed = CommittedWriteBatch {
+        copy_finish: false,
         changed_collections: vec![CommittedCollection {
             collection: target.clone(),
             relation_id: old_id,

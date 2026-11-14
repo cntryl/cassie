@@ -442,7 +442,9 @@ pub(crate) use column_batches::{
     ControlledColumnBatchScanRequest, ControlledColumnBatchSummaryDecision, EncodedSource,
     EncodedSourceDecision, ValidatedEncodedField,
 };
-pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp, OrderedRowScanRequest};
+pub(crate) use documents::{
+    DocumentWriteBatchOptions, DocumentWriteBatchReport, DocumentWriteOp, OrderedRowScanRequest,
+};
 pub(crate) use graphs::{GraphEdgeRecord, GraphEdgeScanOutcome, GraphEdgeScanRequest};
 pub(crate) use scan_types::OrderedRowBound;
 pub use scan_types::{

@@ -322,7 +322,11 @@ per transaction and result caching is disabled. The optional controls apply to e
 construction. Unset controls preserve native defaults and local/cloud opening
 remains unchanged. These capacities remain a proposed qualification envelope
 until actual setup and all selected workloads pass; they are not inferred from
-host RAM or a model judgment. Record the built native options, observed runtime
+host RAM or a model judgment. The diagnostic default-native run observed a
+12 GiB total budget with a 64 MiB memtable/flush threshold, then a COPY statistics
+write-stall after 85,000 source rows had committed. Its aggregate memtable bytes
+are not a per-column-family measurement. The explicit 2 GiB/512 MiB profile
+bounds the paired working dataset; it does not raise a global default. Record the built native options, observed runtime
 memtable bytes/stalls/snapshots, and batch progress alongside the workload
 results. A native fixture-capacity failure is distinct from SQL query-memory
 admission and must not be hidden by switching an ephemeral fixture to local

@@ -649,8 +649,7 @@ Rejected with `0A000` (documented limitations, not regressions):
   and `JSON_TABLE` columns, so function signatures, sequences and `CREATE TYPE`
   attributes report the type as missing (`42704`);
 - `DEFAULT <expr>::domain` literal folding resolves no catalog names;
-- `COLLATE` on a domain, `ALTER DOMAIN OWNER TO` and `ALTER DOMAIN ... SET SCHEMA` (use
-  `ALTER TYPE <domain> SET SCHEMA`);
+- `COLLATE` on a domain and `ALTER DOMAIN OWNER TO`;
 - `DROP DOMAIN ... CASCADE` when dependents exist (use `RESTRICT` semantics);
 - restoring a database image that contains domain types fails closed;
 - prepared statements keep the descriptor seen at Parse time.

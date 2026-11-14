@@ -7,6 +7,7 @@
 //! values rewritten is rejected before any mutation.
 
 use super::command_output::empty as empty_command;
+use super::composite_view_rewrite::{rename_field_selections, renamed_type_views};
 use super::type_command::{
     diagnostic, reject_composite_array, relation_name_occupied, rename_collision,
     set_schema_collision, ROOT_OID,
@@ -15,8 +16,8 @@ use super::type_publish::{publish_change, Altered};
 use super::{Cassie, CassieSession, QueryError, QueryResult};
 use crate::catalog::composite_alter::TypeAlterError;
 use crate::catalog::{
-    canonical_relation_name, canonical_schema_name, is_system_schema, CompositeTypeMeta,
-    DEFAULT_SCHEMA,
+    canonical_relation_name, canonical_schema_name, is_system_schema, local_name,
+    CompositeTypeMeta, ViewMeta, DEFAULT_SCHEMA,
 };
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{DomainAlteration, TypeAlteration};
@@ -133,7 +134,6 @@ pub(super) fn alter(
             if relation_name_occupied(cassie, scope.database, &canonical, controls)? {
                 return Err(rename_collision(cassie, &canonical, new_name));
             }
-            reject_rename_under_views(cassie, &current, None)?;
             publish(cassie, &current, &current.with_name(canonical))?;
         }
         TypeAlteration::SetSchema { schema } => {
@@ -150,8 +150,8 @@ pub(super) fn alter(
             let next = current
                 .with_renamed_attribute(from, to)
                 .map_err(alter_error)?;
-            reject_rename_under_views(cassie, &current, Some(from.as_str()))?;
-            publish(cassie, &current, &next)?;
+            let views = renamed_attribute_views(cassie, &current, from, to)?;
+            publish_with_views(cassie, &current, &next, views)?;
         }
         TypeAlteration::AddAttribute { attribute } => {
             reject_composite_array(&attribute.data_type)?;
@@ -182,32 +182,37 @@ pub(super) fn alter(
     Ok(output)
 }
 
-/// A view keeps its definition as SQL text, so it binds a composite type and
-/// its attributes by name. PostgreSQL binds them by identity and keeps such a
-/// view working across a rename; Cassie cannot rewrite the definition, so the
-/// rename is refused (`0A000`) instead of leaving a view that no longer runs.
-fn reject_rename_under_views(
+/// The views that select `from` from a value of the type, with each
+/// `(expr).from` renamed to `to`. A view whose definition still reaches the
+/// attribute some other way cannot be proven to keep working, so the rename is
+/// refused (`0A000`) instead of leaving a view that no longer runs.
+fn renamed_attribute_views(
     cassie: &Cassie,
     current: &CompositeTypeMeta,
-    attribute: Option<&str>,
-) -> Result<(), QueryError> {
-    let views = cassie.catalog.views_naming_composite(current, attribute);
-    let Some(view) = views.first() else {
-        return Ok(());
-    };
-    let subject = attribute.map_or_else(
-        || format!("type \"{}\"", current.local_name()),
-        |attribute| {
-            format!(
-                "attribute \"{attribute}\" of type \"{}\"",
-                current.local_name()
-            )
-        },
-    );
-    Err(diagnostic(
-        "0A000",
-        format!("cannot rename {subject} because view \"{view}\" refers to it by name"),
-    ))
+    from: &str,
+    to: &str,
+) -> Result<Vec<ViewMeta>, QueryError> {
+    let dependents = cassie.catalog.views_naming_composite(current, Some(from));
+    let mut views = Vec::with_capacity(dependents.len());
+    for mut view in cassie.catalog.list_views() {
+        let view_name = local_name(&view.name);
+        if !dependents.contains(&view_name) {
+            continue;
+        }
+        let renamed = rename_field_selections(&view.query, from, to);
+        let Some(query) = renamed.query.filter(|_| !renamed.ambiguous) else {
+            return Err(diagnostic(
+                "0A000",
+                format!(
+                    "cannot rename attribute \"{from}\" of type \"{}\" because view \"{view_name}\" refers to it by name",
+                    current.local_name()
+                ),
+            ));
+        };
+        view.query = query;
+        views.push(view);
+    }
+    Ok(views)
 }
 
 /// Dropping an attribute a view selects is `2BP01`, as in PostgreSQL.
@@ -332,18 +337,44 @@ fn publish(
     current: &CompositeTypeMeta,
     next: &CompositeTypeMeta,
 ) -> Result<(), QueryError> {
-    let renamed = !current.name.eq_ignore_ascii_case(&next.name);
+    publish_with_views(cassie, current, next, Vec::new())
+}
+
+/// Publishes `next` with its propagated descriptors and `views`, rewritten
+/// view definitions that are written in the same transaction. A new name also
+/// renames every cast to the type in the views of its database.
+fn publish_with_views(
+    cassie: &Cassie,
+    current: &CompositeTypeMeta,
+    next: &CompositeTypeMeta,
+    mut views: Vec<ViewMeta>,
+) -> Result<(), QueryError> {
+    let renamed = current.name != next.name;
+    if renamed {
+        views.extend(renamed_type_views(
+            cassie.catalog.list_views(),
+            current,
+            next,
+        ));
+    }
     let altered = Altered {
         next,
         previous_name: renamed.then_some(current.name.as_str()),
     };
-    publish_change(
-        cassie,
-        Some(&altered),
-        cassie
-            .catalog
-            .propagate_composite_change(&next.descriptor()),
-    )
+    let mut propagation = cassie
+        .catalog
+        .propagate_composite_change(&next.descriptor());
+    for view in views {
+        match propagation
+            .views
+            .iter_mut()
+            .find(|existing| existing.name == view.name)
+        {
+            Some(existing) => existing.query = view.query,
+            None => propagation.views.push(view),
+        }
+    }
+    publish_change(cassie, Some(&altered), propagation)
 }
 
 /// `DROP TABLE` is refused while another column or composite type holds the

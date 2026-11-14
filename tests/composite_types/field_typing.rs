@@ -86,3 +86,30 @@ fn should_render_a_record_text_cast_in_the_session_time_zone() {
     // Assert
     assert_eq!(rendered.as_deref(), Some("(\"2026-07-01 08:00:00-04\")"));
 }
+
+#[test]
+fn should_name_an_unaliased_field_selection_after_its_field() {
+    // Arrange
+    let fixture = sql_fixture(
+        "composite_field_selection_output_name",
+        &[
+            "CREATE TYPE named AS (a int, b text)",
+            "CREATE TABLE holders (id int primary key, v named)",
+        ],
+    );
+
+    // Act
+    let result = fixture
+        .execute("SELECT (v).b, (v).a::bigint, (v).a AS kept FROM holders")
+        .unwrap();
+
+    // Assert
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["b", "a", "kept"]
+    );
+}

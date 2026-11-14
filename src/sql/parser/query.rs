@@ -244,15 +244,21 @@ fn split_bare_alias(raw: &str) -> Option<(&str, String)> {
 
 /// PostgreSQL names an unaliased cast of a column after that column, so
 /// `SELECT e::text` returns a column `e` and `ORDER BY e` sorts the output.
+/// A field selection `(v).b`, cast or not, is named after its field.
 fn cast_output_name(expr: &Expr) -> Option<String> {
-    let Expr::Cast { expr: operand, .. } = expr else {
-        return None;
-    };
-    match operand.as_ref() {
-        Expr::Column(name) => crate::sql::ColumnIdentifierPath::parse(name)
-            .ok()
-            .map(|path| path.declared_name()),
-        nested @ Expr::Cast { .. } => cast_output_name(nested),
+    match expr {
+        Expr::Cast { expr: operand, .. } => match operand.as_ref() {
+            Expr::Column(name) => crate::sql::ColumnIdentifierPath::parse(name)
+                .ok()
+                .map(|path| path.declared_name()),
+            nested => cast_output_name(nested),
+        },
+        Expr::Function(function) if function.name == crate::sql::ast::FIELD_ACCESS_FUNCTION => {
+            match function.args.as_slice() {
+                [_, Expr::StringLiteral(field)] => Some(field.clone()),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }

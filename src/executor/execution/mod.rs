@@ -155,8 +155,9 @@ pub(crate) use projection_diff::{
 };
 mod projection_repair;
 pub(crate) use projection_repair::repair_projection_column_definitions;
-mod domain_command;
+mod composite_view_rewrite;
 mod domain_check_definition;
+mod domain_command;
 mod domain_schema_scope;
 mod domain_view_dependents;
 mod domain_view_text;

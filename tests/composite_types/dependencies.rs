@@ -2,6 +2,7 @@
 //! a type by name, and the table that owns a row type.
 
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use cassie::types::Value;
 
 fn cycles(label: &str) -> SqlFixture {
     sql_fixture(label, &["CREATE TABLE cyc_a (id int primary key, x int)"])
@@ -73,40 +74,69 @@ fn should_keep_a_table_droppable_after_a_rejected_self_member() {
 }
 
 #[test]
-fn should_refuse_to_rename_a_type_a_view_names_with_sqlstate_0a000() {
+fn should_keep_a_casting_view_working_after_the_type_is_renamed() {
     // Arrange
     let fixture = viewed("alter_type_rename_under_view");
-
-    // Act
-    let error = fixture.error("ALTER TYPE vt RENAME TO vt2");
-
-    // Assert
-    assert_eq!(error.sql_state(), "0A000");
-}
-
-#[test]
-fn should_keep_a_view_working_after_a_refused_type_rename() {
-    // Arrange
-    let fixture = viewed("alter_type_rename_view_survives");
-    let _refused = fixture.error("ALTER TYPE vt RENAME TO vt2");
+    fixture.execute("ALTER TYPE vt RENAME TO vt2").unwrap();
 
     // Act
     let rows = fixture.rows("SELECT r::text FROM vt_cast");
 
     // Assert
-    assert_eq!(rows.len(), 1);
+    assert_eq!(rows, vec![vec![Value::String("(1,x)".into())]]);
 }
 
 #[test]
-fn should_refuse_to_rename_an_attribute_a_view_selects_with_sqlstate_0a000() {
+fn should_keep_a_casting_view_working_after_the_type_moves_schema() {
     // Arrange
-    let fixture = viewed("alter_type_rename_attribute_under_view");
+    let fixture = viewed("alter_type_set_schema_under_view");
+    fixture.execute("CREATE SCHEMA moved").unwrap();
+    fixture.execute("ALTER TYPE vt SET SCHEMA moved").unwrap();
 
     // Act
-    let error = fixture.error("ALTER TYPE vt RENAME ATTRIBUTE b TO bb");
+    let rows = fixture.rows("SELECT r::text FROM vt_cast");
 
     // Assert
-    assert_eq!(error.sql_state(), "0A000");
+    assert_eq!(rows, vec![vec![Value::String("(1,x)".into())]]);
+}
+
+#[test]
+fn should_keep_a_selecting_view_working_after_its_attribute_is_renamed() {
+    // Arrange
+    let fixture = viewed("alter_type_rename_attribute_under_view");
+    fixture
+        .execute("INSERT INTO vtt VALUES (1, ROW(1, 'x'))")
+        .unwrap();
+    fixture
+        .execute("ALTER TYPE vt RENAME ATTRIBUTE b TO bb")
+        .unwrap();
+
+    // Act
+    let rows = fixture.rows("SELECT id, b FROM vt_field");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(1), Value::String("x".into())]]);
+}
+
+#[test]
+fn should_keep_the_column_name_of_an_unaliased_renamed_attribute_in_a_view() {
+    // Arrange
+    let fixture = viewed("alter_type_rename_attribute_bare_view");
+    fixture
+        .execute("INSERT INTO vtt VALUES (1, ROW(1, 'x'))")
+        .unwrap();
+    fixture
+        .execute("CREATE VIEW vt_bare AS SELECT id, (v).b FROM vtt")
+        .unwrap();
+    fixture
+        .execute("ALTER TYPE vt RENAME ATTRIBUTE b TO bb")
+        .unwrap();
+
+    // Act
+    let rows = fixture.rows("SELECT b FROM vt_bare");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::String("x".into())]]);
 }
 
 #[test]

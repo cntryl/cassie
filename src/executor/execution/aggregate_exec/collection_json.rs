@@ -386,6 +386,20 @@ pub(super) fn finish_unscoped(
 struct EncodedEntry {
     key: Option<String>,
     value: Option<String>,
+    /// A non-null array or record element: plain `json_agg` puts it on its
+    /// own line after the first element, as PostgreSQL does.
+    structured: bool,
+}
+
+fn structured_element(value: &Value, value_type: Option<&DataType>) -> bool {
+    matches!(
+        value,
+        Value::Array(_) | Value::Typed(crate::types::typed::TypedValue::Record(_))
+    ) || (!matches!(value, Value::Null)
+        && matches!(
+            value_type.map(DataType::flattened),
+            Some(DataType::Array(_) | DataType::Composite(_))
+        ))
 }
 
 pub(super) fn finish_with_observer(
@@ -450,7 +464,12 @@ pub(super) fn finish_with_observer(
         if binary && object && strict && value.as_deref() == Some("null") {
             value = None;
         }
-        entries.push(EncodedEntry { key, value });
+        let structured = !object && !binary && structured_element(&first, context.value_type);
+        entries.push(EncodedEntry {
+            key,
+            value,
+            structured,
+        });
     }
     let document = render(&entries, object, binary, bound, context.controls)?;
     let entry_bytes = entries.iter().try_fold(
@@ -952,6 +971,9 @@ fn render(
         let Some(value) = &entry.value else { continue };
         if !first {
             document.push_str(", ");
+            if entry.structured {
+                document.push_str("\n ");
+            }
         }
         first = false;
         if let Some(key) = &entry.key {

@@ -173,7 +173,12 @@ fn bind_default(
     match &definition.value {
         None | Some(serde_json::Value::Null) => Ok(None),
         Some(value) => {
-            let coerced = crate::catalog::coerce_default_literal(base, value.clone())
+            // A numeric literal keeps its written scale (`1.50`), which the
+            // parsed JSON number has already lost.
+            let literal =
+                super::domain_check_definition::exact_numeric_default(base, &definition.sql)
+                    .map_or_else(|| value.clone(), serde_json::Value::String);
+            let coerced = crate::catalog::coerce_default_literal(base, literal)
                 .map_err(|message| diagnostic("42804", message))?;
             Ok(Some(DomainDefault {
                 sql: definition.sql.clone(),
@@ -186,7 +191,7 @@ fn bind_default(
 
 /// Rejects what PostgreSQL rejects in a domain CHECK: column references,
 /// subqueries and parameters.
-fn validate_check_expression(sql: &str) -> Result<(), QueryError> {
+fn validate_check_expression(sql: &str, base: &DataType) -> Result<(), QueryError> {
     use crate::sql::ast::Expr;
 
     let expression = crate::sql::parser::parse_expression(sql)
@@ -205,6 +210,14 @@ fn validate_check_expression(sql: &str) -> Result<(), QueryError> {
                 "42P02",
                 "there is no parameter in a domain CHECK constraint",
             )),
+            Expr::Function(function)
+                if crate::sql::functions::is_aggregate_function(&function.name) =>
+            {
+                Some((
+                    "42803",
+                    "aggregate functions are not allowed in check constraints",
+                ))
+            }
             _ => None,
         };
         if found.is_some() {
@@ -214,7 +227,7 @@ fn validate_check_expression(sql: &str) -> Result<(), QueryError> {
     });
     match problem {
         Some((state, message)) if flagged => Err(diagnostic(state, message.to_owned())),
-        _ => Ok(()),
+        _ => super::domain_check_definition::validate(&expression, sql, base),
     }
 }
 
@@ -222,6 +235,7 @@ fn validate_check_expression(sql: &str) -> Result<(), QueryError> {
 /// PostgreSQL does (`domain_check`, `domain_check1`, ...).
 fn add_checks(
     domain: &str,
+    base: &DataType,
     checks: &mut Vec<DomainCheck>,
     definitions: &[DomainCheckDefinition],
     validated: bool,
@@ -233,12 +247,8 @@ fn add_checks(
                 format!("a domain cannot have more than {MAX_DOMAIN_CHECKS} CHECK constraints"),
             ));
         }
-        validate_check_expression(&definition.sql)?;
-        let taken = |candidate: &str| {
-            checks
-                .iter()
-                .any(|check| check.name.eq_ignore_ascii_case(candidate))
-        };
+        validate_check_expression(&definition.sql, base)?;
+        let taken = |candidate: &str| checks.iter().any(|check| check.name == candidate);
         let name = if let Some(name) = &definition.name {
             if taken(name) {
                 return Err(diagnostic(
@@ -308,7 +318,7 @@ fn create(
     validate_base(base)?;
     let default = bind_default(base, default.as_ref())?;
     let mut checks = Vec::with_capacity(definitions.len());
-    add_checks(&name, &mut checks, definitions, true)?;
+    add_checks(&name, base, &mut checks, definitions, true)?;
     let output = empty_command("CREATE DOMAIN", controls)?;
     let allocate = || cassie.midge.allocate_object_id().map_err(QueryError::from);
     let metadata = DomainTypeMeta {
@@ -362,11 +372,19 @@ fn publish(
     mut updated: DomainTypeMeta,
 ) -> Result<(), QueryError> {
     updated.revision = previous.revision.saturating_add(1);
+    let renamed = !updated.name.eq_ignore_ascii_case(&previous.name);
+    // A view stores its definition as text, so casts that name the domain
+    // follow a rename or a move to another schema.
+    let views = if renamed {
+        super::domain_view_dependents::renamed_views(cassie, previous, &updated)
+    } else {
+        Vec::new()
+    };
     cassie
         .midge
         .put_domain_type(&updated)
         .map_err(QueryError::from)?;
-    if !updated.name.eq_ignore_ascii_case(&previous.name) {
+    if renamed {
         cassie
             .midge
             .delete_domain_type(&previous.database, &previous.name)
@@ -374,7 +392,28 @@ fn publish(
         cassie.catalog.unregister_domain_type(&previous.name);
     }
     cassie.catalog.register_domain_type(updated);
-    Ok(())
+    super::domain_view_dependents::publish_views(cassie, views)
+}
+
+/// PostgreSQL cannot validate a constraint against values stored inside a
+/// column of a row type that contains the domain, and refuses the change
+/// (`0A000`) rather than publish a constraint those values may violate.
+fn reject_row_type_containers(cassie: &Cassie, meta: &DomainTypeMeta) -> Result<(), QueryError> {
+    match cassie
+        .catalog
+        .domain_container_columns(meta.type_oid())
+        .first()
+    {
+        Some((collection, column)) => Err(diagnostic(
+            "0A000",
+            format!(
+                "cannot alter type \"{}\" because column \"{}.{column}\" uses it",
+                meta.local_name(),
+                crate::catalog::local_name(collection)
+            ),
+        )),
+        None => Ok(()),
+    }
 }
 
 fn missing_constraint(domain: &str, name: &str) -> QueryError {
@@ -397,8 +436,10 @@ fn add_check(
     check: &DomainCheckDefinition,
     not_valid: bool,
 ) -> Result<(), QueryError> {
+    let base = updated.base.clone();
     add_checks(
         &updated.local_name(),
+        &base,
         &mut updated.checks,
         std::slice::from_ref(check),
         !not_valid,
@@ -406,6 +447,7 @@ fn add_check(
     if not_valid {
         return Ok(());
     }
+    reject_row_type_containers(cassie, updated)?;
     let added = updated
         .checks
         .last()
@@ -424,11 +466,7 @@ fn validate_constraint(
 ) -> Result<(), QueryError> {
     let local = updated.local_name();
     let oid = updated.type_oid();
-    let Some(check) = updated
-        .checks
-        .iter_mut()
-        .find(|check| check.name.eq_ignore_ascii_case(name))
-    else {
+    let Some(check) = updated.checks.iter_mut().find(|check| check.name == name) else {
         return Err(missing_constraint(&local, name));
     };
     if check.validated {
@@ -436,6 +474,7 @@ fn validate_constraint(
     }
     check.validated = true;
     let validated = check.clone();
+    reject_row_type_containers(cassie, updated)?;
     cassie
         .validate_domain_rows(session, oid, &DomainRowRule::Check(&validated))
         .map_err(QueryError::from)
@@ -443,21 +482,13 @@ fn validate_constraint(
 
 fn rename_constraint(updated: &mut DomainTypeMeta, from: &str, to: &str) -> Result<(), QueryError> {
     let local = updated.local_name();
-    if updated
-        .checks
-        .iter()
-        .any(|check| check.name.eq_ignore_ascii_case(to))
-    {
+    if updated.checks.iter().any(|check| check.name == to) {
         return Err(diagnostic(
             "42710",
             format!("constraint \"{to}\" for domain \"{local}\" already exists"),
         ));
     }
-    let Some(check) = updated
-        .checks
-        .iter_mut()
-        .find(|check| check.name.eq_ignore_ascii_case(from))
-    else {
+    let Some(check) = updated.checks.iter_mut().find(|check| check.name == from) else {
         return Err(missing_constraint(&local, from));
     };
     to.clone_into(&mut check.name);
@@ -540,6 +571,7 @@ fn apply_alteration(
         DomainAlteration::DropDefault => updated.default = None,
         DomainAlteration::SetNotNull => {
             if !meta.not_null {
+                reject_row_type_containers(cassie, meta)?;
                 cassie
                     .validate_domain_rows(session, meta.type_oid(), &DomainRowRule::NotNull)
                     .map_err(QueryError::from)?;
@@ -551,10 +583,7 @@ fn apply_alteration(
             add_check(cassie, session, &mut updated, check, *not_valid)?;
         }
         DomainAlteration::DropConstraint { name, if_exists } => {
-            let position = updated
-                .checks
-                .iter()
-                .position(|check| check.name.eq_ignore_ascii_case(name));
+            let position = updated.checks.iter().position(|check| check.name == *name);
             match position {
                 Some(position) => {
                     updated.checks.remove(position);
@@ -628,7 +657,18 @@ pub(super) fn ensure_droppable(
     metadata: &DomainTypeMeta,
     cascade: bool,
 ) -> Result<(), QueryError> {
-    let dependents = cassie.catalog.domain_type_dependents(metadata.type_oid());
+    let mut dependents = cassie.catalog.domain_type_dependents(metadata.type_oid());
+    if cascade && dependents.is_empty() {
+        // Dependent views are removed with the domain by `remove_domain`.
+        return Ok(());
+    }
+    if !cascade {
+        dependents.extend(
+            super::domain_view_dependents::direct_dependents(cassie, metadata)
+                .iter()
+                .map(|view| format!("view {}", crate::catalog::local_name(&view.name))),
+        );
+    }
     if dependents.is_empty() {
         return Ok(());
     }
@@ -661,12 +701,15 @@ pub(super) fn ensure_droppable(
     .into())
 }
 
-/// Removes a validated domain from storage and the catalog.
+/// Removes a validated domain from storage and the catalog, with the views
+/// that cast to it. `ensure_droppable` has already refused a drop without
+/// `CASCADE` while such a view exists, so views are only removed by a cascade.
 pub(super) fn remove_domain(
     cassie: &Cassie,
     database: &str,
     metadata: &DomainTypeMeta,
 ) -> Result<(), QueryError> {
+    super::domain_view_dependents::drop_dependent_views(cassie, metadata)?;
     cassie
         .midge
         .delete_domain_type(database, &metadata.name)

@@ -485,14 +485,9 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
         let data_type = super::lexical::trim_separators(&raw[position + 2..type_end]);
         let target = super::domain_scope::parse_declared_data_type(data_type)?;
         if index == 0 {
-            expr = exact_numeric_operand(expr, operand_sql, &target);
+            expr = exact_numeric_operand(expr, operand_sql, target.flattened());
         }
-        expr = Expr::Cast {
-            expr: Box::new(expr),
-            data_type: target,
-            source_type: None,
-            identity: cast_identity(data_type),
-        };
+        expr = super::domains::cast_expression(expr, target, cast_identity(data_type));
     }
     Ok(expr)
 }
@@ -910,16 +905,16 @@ pub(super) fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError>
         super::domain_scope::parse_declared_data_type(super::lexical::trim_separators(type_raw))?;
     let operand = parse_expression(expr_raw)?;
 
-    Ok(Some(Expr::Cast {
-        expr: Box::new(exact_numeric_operand(
-            operand,
-            super::lexical::trim_separators(expr_raw),
-            &data_type,
-        )),
+    let operand = exact_numeric_operand(
+        operand,
+        super::lexical::trim_separators(expr_raw),
+        data_type.flattened(),
+    );
+    Ok(Some(super::domains::cast_expression(
+        operand,
         data_type,
-        source_type: None,
-        identity: cast_identity(type_raw),
-    }))
+        cast_identity(type_raw),
+    )))
 }
 
 pub(super) fn parse_alias(raw: &str) -> (&str, Option<String>) {

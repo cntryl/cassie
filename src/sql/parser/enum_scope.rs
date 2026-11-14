@@ -42,7 +42,12 @@ fn resolve_named_enum(raw: &str) -> Option<EnumRef> {
 /// The element type text of an array spelling (`name[]` or `name ARRAY`).
 fn array_element(trimmed: &str) -> Option<&str> {
     if let Some(element) = trimmed.strip_suffix("[]") {
-        return Some(element.trim_end());
+        // PostgreSQL does not enforce declared dimensions: `t[][]` is `t[]`.
+        let mut element = element.trim_end();
+        while let Some(inner) = element.strip_suffix("[]") {
+            element = inner.trim_end();
+        }
+        return Some(element);
     }
     let split = trimmed.len().checked_sub(" array".len())?;
     let (element, suffix) = trimmed.split_at_checked(split)?;

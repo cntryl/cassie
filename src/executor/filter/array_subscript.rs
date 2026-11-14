@@ -16,10 +16,16 @@ pub(super) fn evaluate<R: RowAccess + ?Sized>(
         return Ok(ScalarValue::Null);
     }
     if subscripts.len() > array.dimensions().len() {
-        return Err(crate::app::CassieError::ArrayInput(
-            "number of array dimensions exceeds the number of subscripts".to_string(),
-        )
-        .into());
+        // PostgreSQL yields NULL for more index subscripts than dimensions and
+        // an empty array when any of the subscripts is a slice.
+        let sliced = subscripts
+            .iter()
+            .any(|subscript| matches!(subscript, ArraySubscript::Slice { .. }));
+        return Ok(if sliced {
+            ScalarValue::Array(SqlArray::empty())
+        } else {
+            ScalarValue::Null
+        });
     }
 
     let mut fixed = Vec::with_capacity(subscripts.len());

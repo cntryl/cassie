@@ -1,6 +1,6 @@
 use std::fmt::Write as _;
 
-use crate::catalog::{local_name, relation_schema_name, IndexMeta};
+use crate::catalog::{local_name, relation_schema_name, Catalog, IndexMeta};
 
 pub(super) fn index_definition(index: &IndexMeta) -> String {
     let include = if index.include_fields.is_empty() {
@@ -453,4 +453,22 @@ fn index_binary_operator(operator: &crate::sql::ast::BinaryOp) -> Option<String>
         }
         .to_string(),
     )
+}
+
+pub(crate) fn index_definition_by_oid(catalog: &Catalog, oid: i64) -> Option<String> {
+    super::sorted_indexes(catalog)
+        .into_iter()
+        .find(|index| super::index_oid(index) == oid)
+        .map(|index| index_definition(&index))
+}
+
+pub(crate) fn index_definition_by_name(catalog: &Catalog, name: &str) -> Option<String> {
+    let matches = super::sorted_indexes(catalog)
+        .into_iter()
+        .filter(|index| crate::catalog::name_matches(&index.name, name))
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [index] => Some(index_definition(index)),
+        _ => None,
+    }
 }

@@ -98,13 +98,13 @@ impl Catalog {
     pub fn register_composite_type(&self, metadata: CompositeTypeMeta) {
         self.composite_types
             .write()
-            .insert(metadata.name.to_ascii_lowercase(), metadata);
+            .insert(metadata.name.clone(), metadata);
         self.bump_version();
     }
 
     pub fn unregister_composite_type(&self, name: &str) {
         let mut types = self.composite_types.write();
-        let key = name.to_ascii_lowercase();
+        let key = name.to_owned();
         if types.remove(&key).is_none() {
             let matching = types
                 .iter()
@@ -121,7 +121,7 @@ impl Catalog {
     #[must_use]
     pub fn get_composite_type(&self, name: &str) -> Option<CompositeTypeMeta> {
         let types = self.composite_types.read();
-        types.get(&name.to_ascii_lowercase()).cloned().or_else(|| {
+        types.get(name).cloned().or_else(|| {
             types
                 .values()
                 .find(|metadata| name_matches(&metadata.name, name))
@@ -268,6 +268,8 @@ impl Catalog {
                 }
             }
         }
+        // A routine taking or returning the type keeps it alive as well.
+        dependents.extend(self.routine_dependents_on_type(oid));
         dependents.sort();
         dependents
     }

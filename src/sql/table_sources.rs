@@ -241,6 +241,16 @@ pub(crate) fn json_element_columns(
     columns
 }
 
+/// The JSON object key a declared column reads. A declared name is a column lookup key, which
+/// keeps the delimiters of an identifier that needed quoting (`"userId"`, `"a b"`); the key is
+/// the identifier itself.
+pub(crate) fn json_member_name(declared: &str) -> String {
+    declared
+        .strip_prefix('"')
+        .and_then(|rest| rest.strip_suffix('"'))
+        .map_or_else(|| declared.to_owned(), |inner| inner.replace("\"\"", "\""))
+}
+
 pub(crate) fn physical_name(index: usize) -> String {
     format!("column{}", index + 1)
 }
@@ -280,4 +290,33 @@ fn scalar_element(mut kind: DataType) -> DataType {
         .ok()
         .and_then(super::binder::parameter_data_type_for_oid)
         .unwrap_or(kind)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::json_member_name;
+
+    #[test]
+    fn should_unquote_a_delimited_lookup_key_given_a_declared_column() {
+        // Arrange
+        let declared = "\"user\"\"Id\"";
+
+        // Act
+        let key = json_member_name(declared);
+
+        // Assert
+        assert_eq!(key, "user\"Id");
+    }
+
+    #[test]
+    fn should_keep_a_plain_lookup_key_given_a_declared_column() {
+        // Arrange
+        let declared = "userid";
+
+        // Act
+        let key = json_member_name(declared);
+
+        // Assert
+        assert_eq!(key, "userid");
+    }
 }

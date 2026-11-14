@@ -21,8 +21,12 @@ mod domain_catalogs;
 pub(super) mod enum_catalogs;
 #[path = "virtual_views_pg/index_definitions.rs"]
 mod index_definitions;
+pub(super) use index_definitions::{index_definition_by_name, index_definition_by_oid};
 #[path = "virtual_views_pg/type_identity.rs"]
 mod type_identity;
+#[path = "virtual_views_pg/type_rows.rs"]
+mod type_rows;
+use type_rows::{builtin_type_rows, type_row_with_oid};
 #[path = "virtual_views_pg/vector_catalogs.rs"]
 pub(super) mod vector_catalogs;
 
@@ -668,24 +672,6 @@ fn sorted_indexes(catalog: &Catalog) -> Vec<IndexMeta> {
     indexes
 }
 
-pub(super) fn index_definition_by_oid(catalog: &Catalog, oid: i64) -> Option<String> {
-    sorted_indexes(catalog)
-        .into_iter()
-        .find(|index| index_oid(index) == oid)
-        .map(|index| index_definition(&index))
-}
-
-pub(super) fn index_definition_by_name(catalog: &Catalog, name: &str) -> Option<String> {
-    let matches = sorted_indexes(catalog)
-        .into_iter()
-        .filter(|index| crate::catalog::name_matches(&index.name, name))
-        .collect::<Vec<_>>();
-    match matches.as_slice() {
-        [index] => Some(index_definition(index)),
-        _ => None,
-    }
-}
-
 pub(super) fn index_definition(index: &IndexMeta) -> String {
     index_definitions::index_definition(index)
 }
@@ -844,6 +830,9 @@ fn default_expression(value: &serde_json::Value, data_type: &crate::types::DataT
     if value.is_null() {
         return "NULL".to_string();
     }
+    if let Some(rendered) = crate::catalog::enum_types::default_expression(value, data_type) {
+        return rendered;
+    }
     if let Some(value) = value.as_str() {
         if matches!(
             data_type,
@@ -854,117 +843,6 @@ fn default_expression(value: &serde_json::Value, data_type: &crate::types::DataT
         return format!("'{}'", value.replace('\'', "''"));
     }
     value.to_string()
-}
-
-fn builtin_type_rows(catalog: &Catalog) -> Vec<VirtualRow> {
-    let namespace = "pg_catalog";
-    let types = crate::types::builtin::BUILTIN_TYPES;
-    let mut rows: Vec<_> = types
-        .iter()
-        .map(|metadata| type_row(catalog, &metadata.kind.data_type(), namespace))
-        .collect();
-    rows.extend(
-        types
-            .iter()
-            .filter(|metadata| metadata.kind != crate::types::builtin::BuiltinKind::Unknown)
-            .map(|metadata| {
-                type_row(
-                    catalog,
-                    &DataType::Array(Box::new(metadata.kind.data_type())),
-                    namespace,
-                )
-            }),
-    );
-
-    rows
-}
-
-fn type_row(catalog: &Catalog, data_type: &DataType, namespace: &str) -> VirtualRow {
-    type_row_with_oid(catalog, data_type, namespace, data_type.type_oid())
-}
-
-fn type_row_with_oid(
-    catalog: &Catalog,
-    data_type: &DataType,
-    namespace: &str,
-    type_oid: i64,
-) -> VirtualRow {
-    let builtin_type = u32::try_from(type_oid)
-        .ok()
-        .and_then(|oid| crate::catalog::builtin_identity::builtin_identities().type_by_oid(oid));
-    let typname =
-        builtin_type.map_or_else(|| data_type.type_name(), |metadata| metadata.name.clone());
-    vec![
-        int_value("oid", type_oid),
-        string("typname", typname),
-        int_value("typnamespace", namespace_oid(catalog, namespace)),
-        int_value("typlen", i64::from(data_type.typlen())),
-        bool_value("typbyval", is_type_passed_by_value(data_type)),
-        string("typtype", type_identity::kind(data_type, builtin_type)),
-        string(
-            "typcategory",
-            type_identity::category(data_type, builtin_type),
-        ),
-        int_value(
-            "typelem",
-            builtin_type.map_or_else(
-                || element_type_oid(data_type),
-                |metadata| i64::from(metadata.element),
-            ),
-        ),
-        int_value(
-            "typarray",
-            builtin_type.map_or_else(
-                || array_type_oid(data_type),
-                |metadata| i64::from(metadata.array),
-            ),
-        ),
-        int_value("typbasetype", 0),
-        bool_value("typnotnull", false),
-        int_value("typtypmod", -1),
-        int_value("typrelid", 0),
-    ]
-}
-
-fn is_type_passed_by_value(data_type: &DataType) -> bool {
-    matches!(
-        data_type,
-        DataType::Boolean
-            | DataType::SmallInt
-            | DataType::Int
-            | DataType::BigInt
-            | DataType::Float
-            | DataType::Date
-            | DataType::Time
-            | DataType::Timestamp
-            | DataType::ObjectId(_)
-            | DataType::Extended(
-                crate::types::extended::ExtendedType::Real
-                    | crate::types::extended::ExtendedType::PgLsn
-                    | crate::types::extended::ExtendedType::Date
-                    | crate::types::extended::ExtendedType::Time { .. }
-                    | crate::types::extended::ExtendedType::Timestamp { .. }
-                    | crate::types::extended::ExtendedType::TimestampTz { .. }
-            )
-    )
-}
-
-fn element_type_oid(data_type: &DataType) -> i64 {
-    match data_type {
-        DataType::Array(inner) => inner.type_oid(),
-        _ => 0,
-    }
-}
-
-fn array_type_oid(data_type: &DataType) -> i64 {
-    if matches!(data_type, DataType::Array(_)) {
-        return 0;
-    }
-
-    u32::try_from(data_type.type_oid())
-        .ok()
-        .and_then(crate::catalog::builtin_identity::builtin_array_oid)
-        .map_or(0, i64::from)
 }
 
 pub(super) fn postgres_role_oid() -> i64 {

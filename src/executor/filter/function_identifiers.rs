@@ -102,6 +102,24 @@ fn is_reserved_identifier(value: &str) -> bool {
     POSTGRES_RESERVED_IDENTIFIERS.binary_search(&value).is_ok()
 }
 
+/// `format_type` for a user-defined type: a domain, an enum, a composite type
+/// or a table's row type (and their array types) prints its name,
+/// schema-qualified when the search path does not reach it, as `regtype`
+/// output does. `None` for an OID that names no user type.
+pub(super) fn format_user_type_oid(
+    oid: i64,
+    session: Option<&crate::app::CassieSession>,
+) -> Option<String> {
+    use crate::catalog::object_identity::ObjectScope;
+    use crate::types::ObjectIdKind;
+
+    let oid = u32::try_from(oid).ok().filter(|oid| *oid >= 16_384)?;
+    let (catalog, context) = session.and_then(crate::app::CassieSession::object_lookup_context)?;
+    let label = ObjectScope::new(&catalog, &context).label(ObjectIdKind::RegType, oid);
+    // An unknown OID renders as its number.
+    (label != oid.to_string()).then_some(label)
+}
+
 pub(super) fn format_type_oid(oid: i64, typmod: i64) -> String {
     match oid {
         16 => "boolean".to_string(),

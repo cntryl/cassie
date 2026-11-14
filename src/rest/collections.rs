@@ -179,7 +179,8 @@ fn normalize_collection_name(raw: &str) -> Result<String, CassieError> {
             "collection names must be unqualified SQL identifiers".to_string(),
         ));
     }
-    Ok(name.to_string())
+    // An unquoted SQL identifier folds to lower case.
+    Ok(name.to_ascii_lowercase())
 }
 
 fn collection_already_exists(name: &str) -> CassieError {

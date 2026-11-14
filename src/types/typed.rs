@@ -59,7 +59,7 @@ pub enum TypedKey {
     /// 30-day months and 24-hour days, as `interval_cmp` orders them.
     Interval(i128),
     /// A record's field-wise btree key (`record_cmp` order).
-    Record(Vec<u8>),
+    Record(super::composite::RecordKey),
     /// An enum's sort-order key, then its member id (`enum_cmp` order).
     Enum(u32, u64),
 }

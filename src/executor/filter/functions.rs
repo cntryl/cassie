@@ -21,6 +21,8 @@ use crate::executor::batch::RowAccess;
 mod array_functions;
 #[path = "bytea_functions.rs"]
 mod bytea_functions;
+#[path = "bytea_slices.rs"]
+mod bytea_slices;
 #[path = "catalog_introspection.rs"]
 mod catalog_introspection;
 #[path = "catalog_sizes.rs"]
@@ -33,6 +35,9 @@ mod encoding;
 mod enum_functions;
 #[path = "math.rs"]
 pub(super) mod math;
+#[path = "relation_definitions.rs"]
+mod relation_definitions;
+use relation_definitions::{evaluate_pg_get_indexdef, evaluate_pg_get_viewdef};
 #[path = "math_functions.rs"]
 mod math_functions;
 #[path = "math_random.rs"]
@@ -397,63 +402,6 @@ fn evaluate_pg_get_expr(name: &str, args: &[Value]) -> Result<Value, QueryError>
         )),
         None => Ok(Value::Null),
     }
-}
-
-fn evaluate_pg_get_indexdef(
-    name: &str,
-    args: &[Value],
-    session: Option<&CassieSession>,
-) -> Result<Value, QueryError> {
-    require_arg_count(name, args, 1)?;
-    let Some(argument) = args.first() else {
-        return Err(QueryError::General(format!("{name} requires 1 arg")));
-    };
-    if matches!(argument, Value::Null) {
-        return Ok(Value::Null);
-    }
-    let Some((catalog, _)) = session.and_then(CassieSession::object_lookup_context) else {
-        return Ok(Value::Null);
-    };
-    let definition = match argument {
-        Value::Int64(oid) => crate::catalog::virtual_views::index_definition_by_oid(&catalog, *oid),
-        Value::String(index_name) => {
-            crate::catalog::virtual_views::index_definition_by_name(&catalog, index_name)
-        }
-        _ => None,
-    };
-    Ok(definition.map_or(Value::Null, Value::String))
-}
-
-fn evaluate_pg_get_viewdef(
-    name: &str,
-    args: &[Value],
-    session: Option<&CassieSession>,
-) -> Result<Value, QueryError> {
-    require_arg_count(name, args, 1)?;
-    let Some(argument) = args.first() else {
-        return Err(QueryError::General(format!("{name} requires 1 arg")));
-    };
-    if matches!(argument, Value::Null) {
-        return Ok(Value::Null);
-    }
-    let Value::String(view_name) = argument else {
-        return Ok(Value::Null);
-    };
-    let Some((catalog, context)) = session.and_then(CassieSession::object_lookup_context) else {
-        return Ok(Value::Null);
-    };
-    let definition = context
-        .relation_search_order()
-        .into_iter()
-        .find_map(|schema| {
-            let mut scoped_context = context.clone();
-            scoped_context.search_path = vec![schema.to_owned()];
-            let canonical_name =
-                crate::sql::binder::normalize_relation_name(view_name, &scoped_context).ok()?;
-            catalog.get_view(&canonical_name)
-        })
-        .map(|view| format!(" {};", view.query.trim().trim_end_matches(';')));
-    Ok(definition.map_or(Value::Null, Value::String))
 }
 
 fn evaluate_current_setting(
@@ -846,7 +794,7 @@ fn format_type_oid_in_session(oid: i64, typmod: i64, session: Option<&CassieSess
                 );
         }
     }
-    format_type_oid(oid, typmod)
+    identifiers::format_user_type_oid(oid, session).unwrap_or_else(|| format_type_oid(oid, typmod))
 }
 
 fn evaluate_concat(name: &str, args: &[Value]) -> Result<Value, QueryError> {

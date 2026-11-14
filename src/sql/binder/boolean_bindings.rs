@@ -160,6 +160,7 @@ fn validate_items(
                     boolean_contexts::validate_value(argument, types, None, catalog, context)?;
                 }
                 super::coalesce_coercion::coerce_function(function, types);
+                boolean_contexts::type_support_arguments(function, types);
                 boolean_contexts::validate_boolean_aggregate(function, types)?;
             }
             SelectItem::WindowFunction { function, .. } => {

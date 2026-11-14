@@ -4,12 +4,12 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1660 |
-| Rust files | 1623 |
-| Rust test declarations | 9715 |
+| Files under `tests/` | 1707 |
+| Rust files | 1670 |
+| Rust test declarations | 10108 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 9716 |
-| Cargo test targets | 39 |
+| Static Rust registration instances | 10109 |
+| Cargo test targets | 40 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 5 |
 | Unresolved module paths | 0 |
@@ -30,14 +30,15 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [analytics](inventory/analytics.md) | 185 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
-| [catalog_security](inventory/catalog_security.md) | 474 | 0 |
+| [catalog_security](inventory/catalog_security.md) | 540 | 0 |
+| [columnar_surface](inventory/columnar_surface.md) | 31 | 0 |
 | [compatibility](inventory/compatibility.md) | 487 | 0 |
-| [composite_types](inventory/composite_types.md) | 149 | 0 |
+| [composite_types](inventory/composite_types.md) | 205 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 87 | 0 |
-| [domain_types](inventory/domain_types.md) | 135 | 0 |
-| [enum_types](inventory/enum_types.md) | 149 | 0 |
+| [domain_types](inventory/domain_types.md) | 191 | 0 |
+| [enum_types](inventory/enum_types.md) | 187 | 0 |
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
@@ -49,20 +50,20 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
 | [pgwire_extended](inventory/pgwire_extended.md) | 975 | 0 |
 | [pgwire_grammar](inventory/pgwire_grammar.md) | 1233 | 8 |
-| [pgwire_types](inventory/pgwire_types.md) | 1160 | 0 |
+| [pgwire_types](inventory/pgwire_types.md) | 1220 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 124 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 76 | 0 |
 | [rest](inventory/rest.md) | 100 | 0 |
 | [search](inventory/search.md) | 64 | 0 |
-| [sql_contextual_literals](inventory/sql_contextual_literals.md) | 4 | 0 |
+| [sql_contextual_literals](inventory/sql_contextual_literals.md) | 7 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 464 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 1947 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 486 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 1961 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
-| [storage_indexes](inventory/storage_indexes.md) | 187 | 0 |
+| [storage_indexes](inventory/storage_indexes.md) | 234 | 0 |
 | [support](inventory/support.md) | 9 | 0 |
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
 | [test_inventory](inventory/test_inventory.md) | 6 | 0 |
@@ -80,6 +81,7 @@ Each suite's Cargo target and source root are recorded here.
 | `bench_operations` | `tests/bench_operations.rs` |
 | `cassie_test_support` | `tests/support/pgwire_helpers/lib.rs` |
 | `catalog_security` | `tests/catalog_security.rs` |
+| `columnar_surface` | `tests/columnar_surface.rs` |
 | `compatibility` | `tests/compatibility.rs` |
 | `composite_types` | `tests/composite_types.rs` |
 | `configuration_isolated` | `tests/configuration_isolated.rs` |

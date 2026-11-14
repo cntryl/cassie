@@ -157,7 +157,12 @@ pub fn canonical_relation_name(database: &str, schema: &str, name: &str) -> Stri
 
 #[must_use]
 pub fn canonical_identifier_component(name: &str) -> String {
-    if name.contains(['.', '"']) || name.chars().any(char::is_whitespace) {
+    // Upper-case letters only survive in a quoted identifier, so the canonical
+    // spelling quotes them; re-parsing it must not fold them away.
+    if name.contains(['.', '"'])
+        || name.chars().any(char::is_whitespace)
+        || name.chars().any(|character| character.is_ascii_uppercase())
+    {
         format!("\"{}\"", name.replace('"', "\"\""))
     } else {
         name.to_string()
@@ -257,7 +262,7 @@ pub fn schema_belongs_to_database(raw: &str, database: &str) -> bool {
 
 #[must_use]
 pub fn name_matches(stored: &str, requested: &str) -> bool {
-    if stored.eq_ignore_ascii_case(requested) {
+    if stored == requested {
         return true;
     }
 
@@ -275,7 +280,7 @@ pub fn name_matches(stored: &str, requested: &str) -> bool {
         .iter()
         .rev()
         .zip(requested_parts.iter().rev())
-        .all(|(left, right)| left.eq_ignore_ascii_case(right))
+        .all(|(left, right)| left == right)
 }
 
 #[must_use]
@@ -339,7 +344,11 @@ pub fn split_identifier_path(raw: &str) -> Result<Vec<String>, String> {
                 if part.is_empty() {
                     return Err(format!("invalid qualified name '{raw}'"));
                 }
-                parts.push(part.to_string());
+                parts.push(if quoted_component {
+                    part.to_string()
+                } else {
+                    part.to_ascii_lowercase()
+                });
                 current.clear();
                 quoted_component = false;
                 closed_quote = false;
@@ -364,7 +373,12 @@ pub fn split_identifier_path(raw: &str) -> Result<Vec<String>, String> {
     if part.is_empty() {
         return Err(format!("invalid qualified name '{raw}'"));
     }
-    parts.push(part.to_string());
+    // An unquoted identifier folds to lower case; a quoted one keeps its case.
+    parts.push(if quoted_component {
+        part.to_string()
+    } else {
+        part.to_ascii_lowercase()
+    });
     Ok(parts)
 }
 

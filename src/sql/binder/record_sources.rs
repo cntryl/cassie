@@ -183,10 +183,11 @@ fn validate_value_column(column: &JsonTableValueColumn) -> Result<(), CassieErro
             "cannot use JSON format with non-string output types".into(),
         ));
     }
+    // PostgreSQL rejects only OMIT QUOTES with a wrapper; KEEP QUOTES is the wrapper default.
     if matches!(
         column.wrapper,
         JsonWrapper::Conditional | JsonWrapper::Unconditional
-    ) && column.quotes != JsonQuotes::Unspecified
+    ) && column.quotes == JsonQuotes::Omit
     {
         return Err(diagnostic(
             "42601",

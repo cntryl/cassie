@@ -62,6 +62,7 @@ pub(super) fn evaluate<R: RowAccess + ?Sized>(
             }
         }
         JsonFunction::ToJson(binary) => Some(convert(function, row, args, context, binary)),
+        JsonFunction::RowToJson => Some(convert(function, row, args, context, false)),
         _ => None,
     }
 }
@@ -310,6 +311,9 @@ fn convert<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
     binary: bool,
 ) -> Result<Value, QueryError> {
+    if function.name.to_ascii_lowercase().ends_with("row_to_json") {
+        return row_to_json(function, row, args, context);
+    }
     let [value] = args else {
         return Err(QueryError::General("invalid JSON conversion arity".into()));
     };
@@ -330,6 +334,62 @@ fn convert<R: RowAccess + ?Sized>(
     let document = values::encode(value, kind.as_ref(), controls)?;
     let value = finish(document, binary, controls)?;
     retain_builder_output(value, memory, context, controls)
+}
+
+/// `row_to_json(record [, pretty])`: the record as a JSON object, one field
+/// per line when `pretty` is true.
+fn row_to_json<R: RowAccess + ?Sized>(
+    function: &FunctionCall,
+    row: &R,
+    args: &[Value],
+    context: EvalContext<'_>,
+) -> Result<Value, QueryError> {
+    let (value, pretty) = match args {
+        [value] => (value, false),
+        [value, Value::Bool(pretty)] => (value, *pretty),
+        [_, Value::Null] => return Ok(Value::Null),
+        _ => return Err(QueryError::General("invalid row_to_json arguments".into())),
+    };
+    let record = match value {
+        Value::Null => return Ok(Value::Null),
+        Value::Typed(crate::types::typed::TypedValue::Record(record)) => record,
+        other => {
+            let kind = super::super::super::array_order::expression_type(
+                row,
+                &function.args[0],
+                context.user_functions,
+            )
+            .unwrap_or_else(|| crate::types::composite::value_data_type(other));
+            return Err(QueryError::Cassie(CassieError::from(
+                crate::app::DiagnosticError::new(
+                    "42883",
+                    format!(
+                        "function row_to_json({}) does not exist",
+                        pg_type_name(&kind)
+                    ),
+                ),
+            )));
+        }
+    };
+    let controls = super::super::temporal::context_controls(context);
+    let _types_memory = admit_types(function, row, context, controls)?;
+    let memory = reserve(
+        controls,
+        values::bound_controlled(value, None, false, controls)?,
+    )?;
+    let separator = if pretty { ",\n " } else { "," };
+    let document = values::record_object(record, separator, controls)?;
+    let value = finish(document, false, controls)?;
+    retain_builder_output(value, memory, context, controls)
+}
+
+fn pg_type_name(kind: &DataType) -> String {
+    match kind {
+        DataType::Int => "integer".to_owned(),
+        DataType::Float => "double precision".to_owned(),
+        DataType::Null => "unknown".to_owned(),
+        other => other.type_name(),
+    }
 }
 
 fn argument_types<R: RowAccess + ?Sized>(

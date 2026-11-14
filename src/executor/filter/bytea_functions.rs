@@ -15,6 +15,14 @@ pub(super) fn evaluate<R: super::RowAccess + ?Sized>(
     args: &[Value],
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Option<Result<Value, QueryError>> {
+    if super::bytea_slices::is_overloaded(name)
+        && function
+            .args
+            .first()
+            .is_some_and(|argument| expression_is_bytea(argument, row))
+    {
+        return Some(super::bytea_slices::evaluate(name, args));
+    }
     let metadata = crate::sql::functions::function(name)?;
     if !crate::sql::functions::is_bytea_function(metadata.id) {
         return None;

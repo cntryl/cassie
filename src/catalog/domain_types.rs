@@ -88,10 +88,10 @@ fn stored_schema(name: &str) -> String {
 /// names are canonical. Handles bare, `schema.name` and canonical spellings.
 #[must_use]
 pub fn same_stored_relation(left: &str, right: &str) -> bool {
-    local_name(left).eq_ignore_ascii_case(&local_name(right))
-        && stored_schema(left).eq_ignore_ascii_case(&stored_schema(right))
+    local_name(left) == local_name(right)
+        && stored_schema(left) == stored_schema(right)
         && match (relation_database_name(left), relation_database_name(right)) {
-            (Some(left), Some(right)) => left.eq_ignore_ascii_case(&right),
+            (Some(left), Some(right)) => left == right,
             _ => true,
         }
 }
@@ -100,13 +100,13 @@ impl Catalog {
     pub fn register_domain_type(&self, metadata: DomainTypeMeta) {
         self.domain_types
             .write()
-            .insert(metadata.name.to_ascii_lowercase(), metadata);
+            .insert(metadata.name.clone(), metadata);
         self.bump_version();
     }
 
     pub fn unregister_domain_type(&self, name: &str) {
         let mut types = self.domain_types.write();
-        let key = name.to_ascii_lowercase();
+        let key = name.to_owned();
         if types.remove(&key).is_none() {
             let matching = types
                 .iter()
@@ -123,7 +123,7 @@ impl Catalog {
     #[must_use]
     pub fn get_domain_type(&self, name: &str) -> Option<DomainTypeMeta> {
         let types = self.domain_types.read();
-        types.get(&name.to_ascii_lowercase()).cloned().or_else(|| {
+        types.get(name).cloned().or_else(|| {
             types
                 .values()
                 .find(|metadata| name_matches(&metadata.name, name))
@@ -280,6 +280,8 @@ impl Catalog {
                 }
             }
         }
+        // A routine taking or returning the domain keeps it alive as well.
+        dependents.extend(self.routine_dependents_on_type(oid));
         dependents.sort();
         dependents
     }
@@ -301,6 +303,53 @@ impl Catalog {
         }
         columns.sort();
         columns
+    }
+
+    /// Table columns whose stored value embeds the domain `oid` inside a row
+    /// type, as `(collection, column)`: a column typed as a table's row type
+    /// (directly, nested, or as an array element) when that table has a column
+    /// of the domain. `ALTER DOMAIN` cannot validate values stored this way.
+    #[must_use]
+    pub fn domain_container_columns(&self, oid: u32) -> Vec<(String, String)> {
+        let schemas = self.schemas.read().values().cloned().collect::<Vec<_>>();
+        let mut columns = Vec::new();
+        for schema in &schemas {
+            for field in &schema.fields {
+                if self.type_embeds_domain(&field.data_type, oid, &mut Vec::new()) {
+                    columns.push((schema.collection.clone(), field.name.clone()));
+                }
+            }
+        }
+        columns.sort();
+        columns
+    }
+
+    /// Whether a value of `data_type` holds a value of the domain `oid` in a
+    /// row-type member. `visited` breaks cycles between row types.
+    fn type_embeds_domain(&self, data_type: &DataType, oid: u32, visited: &mut Vec<u32>) -> bool {
+        match data_type {
+            DataType::Array(element) => self.type_embeds_domain(element, oid, visited),
+            DataType::Composite(embedded) => {
+                if visited.contains(&embedded.oid) {
+                    return false;
+                }
+                visited.push(embedded.oid);
+                // A column embeds a flattened copy of a table's row type; the
+                // live row type still names the domains of its columns.
+                let live = self
+                    .relation_row_type_by_oid(embedded.oid)
+                    .map(|(_, live, _)| live);
+                let fields = live.as_ref().map_or(&embedded.fields, |live| &live.fields);
+                fields.iter().any(|member| {
+                    member
+                        .data_type
+                        .domain()
+                        .is_some_and(|domain| domain.oid == oid)
+                        || self.type_embeds_domain(&member.data_type, oid, visited)
+                })
+            }
+            _ => false,
+        }
     }
 
     /// Removes every domain of `database` from the catalog (database drop).

@@ -272,3 +272,26 @@ fn should_reflect_renames_in_the_catalogs() {
     assert_eq!(labels, vec!["sad", "fine"]);
     assert_eq!(names, vec!["_feeling", "feeling"]);
 }
+
+#[test]
+fn should_render_an_enum_column_default_as_a_label_cast() {
+    // Arrange
+    let fixture = sql_fixture(
+        "enum_catalog_column_default",
+        &[
+            "CREATE TYPE stage AS ENUM ('draft', 'live')",
+            "CREATE TABLE posts (id int, s stage DEFAULT 'live')",
+            "ALTER TYPE stage RENAME VALUE 'live' TO 'published'",
+        ],
+    );
+
+    // Act
+    let default = scalar(
+        &fixture,
+        "SELECT column_default FROM information_schema.columns \
+         WHERE table_name = 'posts' AND column_name = 's'",
+    );
+
+    // Assert
+    assert_eq!(default.as_deref(), Some("'published'::stage"));
+}

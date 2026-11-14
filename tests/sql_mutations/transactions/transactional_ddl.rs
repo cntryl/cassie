@@ -18,6 +18,9 @@ mod restart_publication;
 #[path = "rebuild_swap.rs"]
 mod rebuild_swap;
 
+#[path = "multi_database.rs"]
+mod multi_database;
+
 fn visible_materialized_view(cassie: &Cassie, session: &CassieSession) -> Vec<Vec<Value>> {
     cassie
         .execute_sql(

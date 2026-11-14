@@ -7,6 +7,7 @@
 //! values rewritten is rejected before any mutation.
 
 use super::command_output::empty as empty_command;
+use super::composite_view_rewrite::{rename_field_selections, renamed_type_views};
 use super::type_command::{
     diagnostic, reject_composite_array, relation_name_occupied, rename_collision,
     set_schema_collision, ROOT_OID,
@@ -15,8 +16,8 @@ use super::type_publish::{publish_change, Altered};
 use super::{Cassie, CassieSession, QueryError, QueryResult};
 use crate::catalog::composite_alter::TypeAlterError;
 use crate::catalog::{
-    canonical_relation_name, canonical_schema_name, is_system_schema, CompositeTypeMeta,
-    DEFAULT_SCHEMA,
+    canonical_relation_name, canonical_schema_name, is_system_schema, local_name,
+    CompositeTypeMeta, ViewMeta, DEFAULT_SCHEMA,
 };
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{DomainAlteration, TypeAlteration};
@@ -149,7 +150,8 @@ pub(super) fn alter(
             let next = current
                 .with_renamed_attribute(from, to)
                 .map_err(alter_error)?;
-            publish(cassie, &current, &next)?;
+            let views = renamed_attribute_views(cassie, &current, from, to)?;
+            publish_with_views(cassie, &current, &next, views)?;
         }
         TypeAlteration::AddAttribute { attribute } => {
             reject_composite_array(&attribute.data_type)?;
@@ -160,7 +162,10 @@ pub(super) fn alter(
         }
         TypeAlteration::DropAttribute { name, if_exists } => {
             match current.with_dropped_attribute(name) {
-                Ok(next) => publish(cassie, &current, &next)?,
+                Ok(next) => {
+                    reject_drop_under_views(cassie, &current, name)?;
+                    publish(cassie, &current, &next)?;
+                }
                 Err(error) if *if_exists && error.sqlstate == "42703" => {}
                 Err(error) => return Err(alter_error(error)),
             }
@@ -175,6 +180,74 @@ pub(super) fn alter(
         }
     }
     Ok(output)
+}
+
+/// The views that select `from` from a value of the type, with each
+/// `(expr).from` renamed to `to`. A view whose definition still reaches the
+/// attribute some other way cannot be proven to keep working, so the rename is
+/// refused (`0A000`) instead of leaving a view that no longer runs.
+fn renamed_attribute_views(
+    cassie: &Cassie,
+    current: &CompositeTypeMeta,
+    from: &str,
+    to: &str,
+) -> Result<Vec<ViewMeta>, QueryError> {
+    let dependents = cassie.catalog.views_naming_composite(current, Some(from));
+    let mut views = Vec::with_capacity(dependents.len());
+    for mut view in cassie.catalog.list_views() {
+        let view_name = local_name(&view.name);
+        if !dependents.contains(&view_name) {
+            continue;
+        }
+        let renamed = rename_field_selections(&view.query, from, to);
+        let Some(query) = renamed.query.filter(|_| !renamed.ambiguous) else {
+            return Err(diagnostic(
+                "0A000",
+                format!(
+                    "cannot rename attribute \"{from}\" of type \"{}\" because view \"{view_name}\" refers to it by name",
+                    current.local_name()
+                ),
+            ));
+        };
+        view.query = query;
+        views.push(view);
+    }
+    Ok(views)
+}
+
+/// Dropping an attribute a view selects is `2BP01`, as in PostgreSQL.
+fn reject_drop_under_views(
+    cassie: &Cassie,
+    current: &CompositeTypeMeta,
+    attribute: &str,
+) -> Result<(), QueryError> {
+    let views = cassie
+        .catalog
+        .views_naming_composite(current, Some(attribute));
+    if views.is_empty() {
+        return Ok(());
+    }
+    let type_name = current.local_name();
+    Err(QueryError::from(crate::app::CassieError::from(
+        crate::app::DiagnosticError::new(
+            "2BP01",
+            format!(
+                "cannot drop column {attribute} of composite type {type_name} because other objects depend on it"
+            ),
+        )
+        .with_detail(
+            views
+                .iter()
+                .map(|view| {
+                    format!(
+                        "view {view} depends on column {attribute} of composite type {type_name}"
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .with_hint("Use DROP ... CASCADE to drop the dependent objects too."),
+    )))
 }
 
 /// Retyping an attribute would have to rewrite stored values, so it is only
@@ -264,18 +337,44 @@ fn publish(
     current: &CompositeTypeMeta,
     next: &CompositeTypeMeta,
 ) -> Result<(), QueryError> {
-    let renamed = !current.name.eq_ignore_ascii_case(&next.name);
+    publish_with_views(cassie, current, next, Vec::new())
+}
+
+/// Publishes `next` with its propagated descriptors and `views`, rewritten
+/// view definitions that are written in the same transaction. A new name also
+/// renames every cast to the type in the views of its database.
+fn publish_with_views(
+    cassie: &Cassie,
+    current: &CompositeTypeMeta,
+    next: &CompositeTypeMeta,
+    mut views: Vec<ViewMeta>,
+) -> Result<(), QueryError> {
+    let renamed = current.name != next.name;
+    if renamed {
+        views.extend(renamed_type_views(
+            cassie.catalog.list_views(),
+            current,
+            next,
+        ));
+    }
     let altered = Altered {
         next,
         previous_name: renamed.then_some(current.name.as_str()),
     };
-    publish_change(
-        cassie,
-        Some(&altered),
-        cassie
-            .catalog
-            .propagate_composite_change(&next.descriptor()),
-    )
+    let mut propagation = cassie
+        .catalog
+        .propagate_composite_change(&next.descriptor());
+    for view in views {
+        match propagation
+            .views
+            .iter_mut()
+            .find(|existing| existing.name == view.name)
+        {
+            Some(existing) => existing.query = view.query,
+            None => propagation.views.push(view),
+        }
+    }
+    publish_change(cassie, Some(&altered), propagation)
 }
 
 /// `DROP TABLE` is refused while another column or composite type holds the
@@ -342,6 +441,7 @@ pub(super) fn reject_drop_column_in_use(
             AlterTableOperation::DropColumn { .. } | AlterTableOperation::AlterColumnType { .. }
         )
     };
+    reject_row_type_self_member(cassie, table, operation)?;
     let drops = match operation {
         AlterTableOperation::Multiple { operations } => operations.iter().any(changes_layout),
         other => changes_layout(other),
@@ -361,6 +461,44 @@ pub(super) fn reject_drop_column_in_use(
             "0A000",
             format!(
                 "cannot alter table \"{}\" because column \"{column}\" uses its row type",
+                row_type.name
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// A table cannot hold its own row type, directly or through another composite
+/// type or table row type that embeds it (PostgreSQL `42P16`). Accepting such a
+/// column would leave every object of the cycle undroppable.
+fn reject_row_type_self_member(
+    cassie: &Cassie,
+    table: &str,
+    operation: &crate::sql::ast::AlterTableOperation,
+) -> Result<(), QueryError> {
+    use crate::sql::ast::AlterTableOperation;
+    let Some(row_type) = cassie.catalog.relation_row_type(table) else {
+        return Ok(());
+    };
+    let embeds_row = |inner: &AlterTableOperation| match inner {
+        AlterTableOperation::AddColumn { data_type, .. }
+        | AlterTableOperation::AlterColumnType { data_type, .. } => {
+            crate::catalog::composite_types::data_type_depends_on(
+                data_type.flattened(),
+                row_type.oid,
+            )
+        }
+        _ => false,
+    };
+    let cyclic = match operation {
+        AlterTableOperation::Multiple { operations } => operations.iter().any(embeds_row),
+        other => embeds_row(other),
+    };
+    if cyclic {
+        return Err(diagnostic(
+            "42P16",
+            format!(
+                "composite type {} cannot be made a member of itself",
                 row_type.name
             ),
         ));

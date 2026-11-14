@@ -169,11 +169,17 @@ impl Catalog {
         &self,
         database: Option<&str>,
     ) -> Vec<(String, u64, CompositeRef)> {
+        // Canonical names keep each table's own database and schema: two
+        // schemas may hold the same table name, and a local name would both
+        // resolve to one of them twice and hide which database owns it.
+        let scoped = !self.list_databases().is_empty();
         let mut types = Vec::new();
-        for collection in self.list_collections() {
+        for collection in self.list_collections_canonical() {
+            // Only an instance without a database catalog stores tables under
+            // unscoped names; with databases registered such a name has none.
             let in_database = database.is_none_or(|database| {
                 super::relation_database_name(&collection.name)
-                    .is_none_or(|name| name.eq_ignore_ascii_case(database))
+                    .map_or(!scoped, |name| name.eq_ignore_ascii_case(database))
             });
             if !in_database {
                 continue;

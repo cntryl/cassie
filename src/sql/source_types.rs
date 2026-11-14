@@ -68,12 +68,11 @@ pub(crate) fn source_field_type_map_with_parameters(
         ast::QuerySource::Join { left, right, .. } => {
             let mut fields =
                 source_field_type_map_with_parameters(left, ctes, catalog, parameter_types);
-            fields.extend(source_field_type_map_with_parameters(
-                right,
-                ctes,
-                catalog,
-                parameter_types,
-            ));
+            qualify_collection_fields(left, &mut fields);
+            let mut right_fields =
+                source_field_type_map_with_parameters(right, ctes, catalog, parameter_types);
+            qualify_collection_fields(right, &mut right_fields);
+            fields.extend(right_fields);
             fields
         }
         ast::QuerySource::Subquery { select, .. } => {
@@ -117,6 +116,25 @@ pub(crate) fn source_field_type_map_with_parameters(
         }),
         ast::QuerySource::SingleRow => FieldTypeMap::new(),
     }
+}
+
+/// Adds each column of a joined table under its qualified names too, so
+/// `t.c` keeps `t`'s type when another join input has a column `c` (a
+/// generated source names its output `column1`).
+fn qualify_collection_fields(source: &ast::QuerySource, fields: &mut FieldTypeMap) {
+    let ast::QuerySource::Collection(collection) = source else {
+        return;
+    };
+    let qualified = fields
+        .iter()
+        .filter(|(key, _)| !key.contains('.'))
+        .flat_map(|(key, data_type)| {
+            crate::catalog::qualifier_variants(collection)
+                .into_iter()
+                .map(move |qualifier| (format!("{qualifier}.{key}"), data_type.clone()))
+        })
+        .collect::<Vec<_>>();
+    fields.extend(qualified);
 }
 
 fn collection_field_type_map(collection: &str, catalog: &crate::catalog::Catalog) -> FieldTypeMap {

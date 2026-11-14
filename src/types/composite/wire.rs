@@ -31,7 +31,11 @@ impl std::error::Error for StoredRecordError {}
 #[must_use]
 pub fn record_to_storage_json(record: &RecordValue) -> serde_json::Value {
     let descriptor = record.descriptor();
-    let mut live = record.fields().iter().map(field_to_storage_json);
+    let mut live = record
+        .fields()
+        .iter()
+        .zip(&descriptor.fields)
+        .map(|(value, field)| field_to_storage_json(value, &field.data_type));
     let slots = (0..descriptor.physical_len())
         .map(|slot| {
             if descriptor.dropped_positions.contains(&slot) {
@@ -56,8 +60,13 @@ pub fn record_to_storage_json(record: &RecordValue) -> serde_json::Value {
     serde_json::Value::Object(object)
 }
 
-fn field_to_storage_json(value: &Value) -> serde_json::Value {
+/// A `json`/`jsonb` field is stored as its document, as a column of that type
+/// is, even when the evaluator still carries it as text.
+fn field_to_storage_json(value: &Value, data_type: &DataType) -> serde_json::Value {
     match value {
+        Value::String(text) if data_type.flattened().is_json() => {
+            serde_json::from_str(text).unwrap_or_else(|_| serde_json::Value::String(text.clone()))
+        }
         Value::Null => serde_json::Value::Null,
         Value::Bool(flag) => serde_json::Value::Bool(*flag),
         Value::Int64(number) => serde_json::Value::Number((*number).into()),

@@ -78,6 +78,7 @@ pub(super) fn execute(
             function,
             if lateral { outer_row } else { None },
             qualify,
+            ctes,
         );
     }
     if crate::sql::functions::is_pg_input_error_info(&function.name) {

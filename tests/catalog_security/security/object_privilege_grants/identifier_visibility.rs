@@ -299,3 +299,86 @@ fn should_let_root_resolve_qualified_names_without_a_usage_grant() {
     // Assert
     assert_eq!(rows, vec![vec![Value::Bool(true)]]);
 }
+
+/// The SQLSTATE each lookup raises for `reader`, which has no `USAGE` on `public`.
+fn reader_lookup_states<const N: usize>(lookups: [&str; N]) -> [String; N] {
+    let (cassie, _root, reader, _projector) = role_grant_fixture();
+    lookups.map(|lookup| {
+        cassie
+            .execute_sql(&reader, &format!("SELECT {lookup} IS NOT NULL"), Vec::new())
+            .map_or_else(
+                |error| error.sql_state().to_string(),
+                |_| "resolved".to_string(),
+            )
+    })
+}
+
+#[test]
+fn should_require_schema_usage_when_white_space_surrounds_the_dot_of_a_relation_name() {
+    // Arrange
+    // PostgreSQL 18.6 oracle: white space around the dot is insignificant, so
+    // each spelling is `public.authorization_documents` and raises 42501.
+    let lookups = [
+        "to_regclass('public . authorization_documents')",
+        "to_regclass('public .authorization_documents')",
+        "to_regclass('public. authorization_documents')",
+        "'public . authorization_documents'::regclass",
+    ];
+
+    // Act
+    let states = reader_lookup_states(lookups);
+
+    // Assert
+    assert_eq!(states, ["42501", "42501", "42501", "42501"]);
+}
+
+#[test]
+fn should_require_schema_usage_for_a_spaced_name_with_a_quoted_schema() {
+    // Arrange
+    let lookups = ["to_regclass('\"public\" .authorization_documents')"];
+
+    // Act
+    let states = reader_lookup_states(lookups);
+
+    // Assert
+    assert_eq!(states, ["42501"]);
+}
+
+#[test]
+fn should_require_schema_usage_for_a_spaced_database_qualified_name() {
+    // Arrange
+    let lookups = ["to_regclass('postgres . public . authorization_documents')"];
+
+    // Act
+    let states = reader_lookup_states(lookups);
+
+    // Assert
+    assert_eq!(states, ["42501"]);
+}
+
+#[test]
+fn should_require_schema_usage_for_a_spaced_type_name() {
+    // Arrange
+    let lookups = ["to_regtype('public . authorization_documents')"];
+
+    // Act
+    let states = reader_lookup_states(lookups);
+
+    // Assert
+    assert_eq!(states, ["42501"]);
+}
+
+#[test]
+fn should_require_schema_usage_for_a_spaced_routine_name() {
+    // Arrange
+    let lookups = [
+        "to_regproc('public . lookup')",
+        "to_regprocedure('public . lookup(integer)')",
+    ];
+
+    // Act
+    let states = reader_lookup_states(lookups);
+
+    // Assert
+    assert_eq!(states, ["42501", "42501"]);
+}

@@ -405,15 +405,20 @@ impl<'a> JoinCursor<'a> {
                 let Some(left) = self.left.next(env, ctes)? else {
                     return Ok(None);
                 };
-                if matches!(self.kind, JoinKind::Inner)
+                if matches!(self.kind, JoinKind::Inner | JoinKind::Left)
                     && !super::source_join::left_terms_pass(
                         env,
                         (&self.source, &*ctes),
-                        &left,
+                        (&left, None),
                         &self.template,
                         on,
                     )?
                 {
+                    // A failed preserved-side conjunct matches no right row: a left join
+                    // null-extends the row without expanding its right side.
+                    if matches!(self.kind, JoinKind::Left) {
+                        return combine(env, &left, &self.template).map(Some);
+                    }
                     continue;
                 }
                 self.right = Some(Cursor::open(env, right_source, ctes, Some(&left), true)?);

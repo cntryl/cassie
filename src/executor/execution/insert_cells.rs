@@ -4,13 +4,15 @@ use super::{Cassie, DataType, FieldMeta, QueryError, Value};
 pub(super) enum InsertValue {
     Default,
     Value(Value),
+    /// An untyped string literal, which takes the target column's type.
+    UnknownLiteral(Value),
 }
 
 impl InsertValue {
     pub(super) fn as_value(&self) -> Option<&Value> {
         match self {
             Self::Default => None,
-            Self::Value(value) => Some(value),
+            Self::Value(value) | Self::UnknownLiteral(value) => Some(value),
         }
     }
 }
@@ -25,17 +27,24 @@ pub(super) fn payload(
     let mut object = serde_json::Map::with_capacity(fields.len());
     let mut explicit_json_nulls = Vec::new();
     for (field, cell) in fields.iter().zip(row) {
-        if let InsertValue::Value(value) = cell {
-            if matches!(field.data_type, DataType::Json | DataType::Jsonb)
-                && matches!(value, Value::Null)
-            {
-                explicit_json_nulls.push(field.name.as_str());
+        let literal;
+        let value = match cell {
+            InsertValue::Default => continue,
+            InsertValue::Value(value) => value,
+            InsertValue::UnknownLiteral(value) => {
+                literal = super::super::unknown_literal_value(value.clone(), &field.data_type)?;
+                &literal
             }
-            object.insert(
-                field.name.clone(),
-                super::value_to_json_for_field(&field.name, value, &field.data_type)?,
-            );
+        };
+        if matches!(field.data_type, DataType::Json | DataType::Jsonb)
+            && matches!(value, Value::Null)
+        {
+            explicit_json_nulls.push(field.name.as_str());
         }
+        object.insert(
+            field.name.clone(),
+            super::value_to_json_for_field(&field.name, value, &field.data_type)?,
+        );
     }
     // Explicit NULL keys must remain present while defaults are filled. JSON
     // SQL NULL then uses its existing absent-key storage representation.

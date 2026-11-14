@@ -62,6 +62,9 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
         ));
         return Ok(());
     }
+    if select_binary_overload(function, types) {
+        return Ok(());
+    }
     if function.args.iter().any(|argument| {
         types
             .expression_type(argument)
@@ -75,6 +78,38 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
         return Ok(());
     };
     qualify_bytea_overload(function, types, metadata)
+}
+
+/// `length`, `octet_length` and `substring` over BYTEA count and slice bytes,
+/// not carrier characters. The first argument is marked with an explicit
+/// BYTEA cast so evaluation selects the binary overload for a column too.
+fn select_binary_overload(function: &mut FunctionCall, types: &ResultTypes) -> bool {
+    let name = function.name.to_ascii_lowercase();
+    let local = name.strip_prefix("pg_catalog.").unwrap_or(&name);
+    if !matches!(local, "length" | "octet_length" | "substring" | "substr") {
+        return false;
+    }
+    let Some(argument) = function.args.first_mut() else {
+        return false;
+    };
+    if types.expression_type(argument) != Some(DataType::Bytea) {
+        return false;
+    }
+    if !matches!(
+        argument,
+        Expr::Cast {
+            data_type: DataType::Bytea,
+            ..
+        }
+    ) {
+        *argument = Expr::Cast {
+            expr: Box::new(std::mem::replace(argument, Expr::Null)),
+            data_type: DataType::Bytea,
+            source_type: Some(DataType::Bytea),
+            identity: CastIdentity::Scalar,
+        };
+    }
+    true
 }
 
 fn qualify_digest(function: &mut FunctionCall, types: &ResultTypes) -> Result<(), CassieError> {

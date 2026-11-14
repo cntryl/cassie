@@ -12,12 +12,17 @@ pub enum JsonFunction {
     BuildObject(bool),
     BuildArray(bool),
     ToJson(bool),
+    /// `row_to_json(record [, pretty])`.
+    RowToJson,
     Set,
     SetLax,
     Insert,
     StripNulls(bool),
     Pretty,
-    ExtractPath { binary: bool, as_text: bool },
+    ExtractPath {
+        binary: bool,
+        as_text: bool,
+    },
     VariadicArray,
     PathMatch,
     PathExists,
@@ -134,6 +139,14 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ),
     constructor("to_json", JsonFunction::ToJson(false), false, true),
     constructor("to_jsonb", JsonFunction::ToJson(true), true, true),
+    ScalarFunction {
+        id: FunctionId::Json(JsonFunction::RowToJson),
+        name: "row_to_json",
+        arity: FunctionArity::Range { min: 1, max: 2 },
+        return_type: FunctionReturnType::Json,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
     mutation(
         "jsonb_set",
         JsonFunction::Set,
@@ -355,6 +368,7 @@ pub(super) const fn inputs(kind: JsonFunction) -> Option<&'static [i32]> {
         JsonFunction::BuildObject(_)
         | JsonFunction::BuildArray(_)
         | JsonFunction::ToJson(_)
+        | JsonFunction::RowToJson
         | JsonFunction::ExtractPath { .. } => None,
     }
 }

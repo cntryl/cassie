@@ -61,8 +61,55 @@ fn reject_outside_dependents(cassie: &Cassie, schema: &str) -> Result<(), QueryE
     crate::executor::execution::domain_schema_scope::reject_outside_dependents(cassie, schema)
 }
 
-/// Drops the composite and domain types of `schema`.
+/// Whether `schema` holds a function or procedure. A routine is a schema
+/// object like any other: it blocks a plain `DROP SCHEMA` and a cascade drops it.
+fn schema_has_routines(cassie: &Cassie, schema: &str) -> bool {
+    cassie
+        .catalog
+        .list_functions()
+        .into_iter()
+        .any(|function| object_in_schema(&function.name, schema))
+        || cassie
+            .catalog
+            .list_procedures()
+            .into_iter()
+            .any(|procedure| object_in_schema(&procedure.name, schema))
+}
+
+/// Drops the functions and procedures of `schema`, so none outlives it and
+/// keeps resolving through `regprocedure` or a qualified call.
+fn drop_schema_routines(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
+    for function in cassie
+        .catalog
+        .list_functions()
+        .into_iter()
+        .filter(|function| object_in_schema(&function.name, schema))
+    {
+        cassie
+            .midge
+            .delete_function(&function.name)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        cassie.catalog.unregister_function(&function.name);
+    }
+    for procedure in cassie
+        .catalog
+        .list_procedures()
+        .into_iter()
+        .filter(|procedure| object_in_schema(&procedure.name, schema))
+    {
+        cassie
+            .midge
+            .delete_procedure(&procedure.name)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        cassie.catalog.unregister_procedure(&procedure.name);
+    }
+    Ok(())
+}
+
+/// Drops the routines of `schema`, then its composite, enum and domain types.
+/// Routines go first: their arguments may use the schema's types.
 fn drop_schema_types(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
+    drop_schema_routines(cassie, schema)?;
     drop_schema_composite_types(cassie, schema)?;
     crate::executor::execution::enum_schema_scope::drop_schema_enums(cassie, schema)?;
     crate::executor::execution::domain_schema_scope::drop_schema_domains(cassie, schema)
@@ -580,6 +627,7 @@ fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
             .list_composite_types()
             .into_iter()
             .any(|composite| object_in_schema(&composite.name, schema))
+        && !schema_has_routines(cassie, schema)
         && !crate::executor::execution::domain_schema_scope::schema_has_domains(cassie, schema)
         && !crate::executor::execution::enum_schema_scope::schema_has_enums(cassie, schema)
         && !cassie

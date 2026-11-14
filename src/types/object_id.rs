@@ -144,6 +144,10 @@ pub enum ObjectIdentifierError {
     Ambiguous { kind: ObjectIdKind, name: String },
     /// A qualified name names a schema the role has no `USAGE` on.
     PermissionDenied { schema: String },
+    /// The name has more dotted parts than `database.schema.name`.
+    ImproperQualifiedName(String),
+    /// The name is qualified with a database other than the current one.
+    CrossDatabase(String),
 }
 
 impl ObjectIdentifierError {
@@ -151,7 +155,8 @@ impl ObjectIdentifierError {
     pub fn sqlstate(&self) -> &'static str {
         match self {
             Self::Syntax(_) | Self::Signature(_) => "22P02",
-            Self::TypeNameSyntax(_) => "42601",
+            Self::TypeNameSyntax(_) | Self::ImproperQualifiedName(_) => "42601",
+            Self::CrossDatabase(_) => "0A000",
             Self::OutOfRange(_) => "22003",
             Self::InvalidName(_) => "42602",
             Self::Ambiguous { .. } => "42725",
@@ -209,6 +214,14 @@ impl std::fmt::Display for ObjectIdentifierError {
             Self::PermissionDenied { schema } => {
                 write!(formatter, "permission denied for schema {schema}")
             }
+            Self::ImproperQualifiedName(name) => write!(
+                formatter,
+                "improper qualified name (too many dotted names): {name}"
+            ),
+            Self::CrossDatabase(name) => write!(
+                formatter,
+                "cross-database references are not implemented: {name}"
+            ),
             Self::Ambiguous { kind, name } => {
                 let object = if matches!(kind, ObjectIdKind::RegOper) {
                     "operator"

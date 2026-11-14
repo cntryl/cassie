@@ -26,6 +26,12 @@ pub(super) fn binary_type(
     operations::operator_type(operator, &left, &right)
 }
 
+/// Whether `name` is `substring`/`substr`, whose BYTEA overload returns BYTEA.
+fn bytea_slice(name: &str) -> bool {
+    let local = name.rsplit('.').next().unwrap_or(name);
+    local.eq_ignore_ascii_case("substring") || local.eq_ignore_ascii_case("substr")
+}
+
 /// The result type of a function call over owned family arguments.
 pub(super) fn function_type(
     function: &FunctionCall,
@@ -44,6 +50,9 @@ pub(super) fn function_type(
                 .unwrap_or(DataType::Null)
         })
         .collect();
+    if bytea_slice(&function.name) && arguments.first() == Some(&DataType::Bytea) {
+        return Some(DataType::Bytea);
+    }
     if !arguments.iter().any(operations::handles) && !operations::is_family_function(&function.name)
     {
         return None;

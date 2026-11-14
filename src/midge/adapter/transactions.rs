@@ -462,7 +462,10 @@ impl Midge {
             .read()
             .values()
             .any(|family| family.handle.id() == family_id);
-        if is_database_family && family_id != scope.family_id {
+        // The scope stages changes in one database family only. Committed
+        // state of another database stays readable (catalog-wide metadata
+        // scans visit every family); only a write there is a second database.
+        if is_database_family && family_id != scope.family_id && mode != TransactionMode::ReadOnly {
             return Err(CassieError::Unsupported(
                 "transactional DDL cannot access multiple databases".to_string(),
             ));

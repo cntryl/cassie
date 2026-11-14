@@ -315,7 +315,7 @@ Tier 2 projection-replay samples use one shared Cassie runtime but consume separ
 The `tier3_system_storage_modes` qualification owner uses a paired memory-mode
 fixture: two 100k fact copies and two 1k dimension copies. Row-only, column-only
 and mixed labels describe the query inputs, not isolated whole-database memory
-footprints. Its explicit candidate native profile is 2 GiB total Midge memory
+footprints. Its explicit native profile is 2 GiB total Midge memory
 with a 512 MiB memtable, forwarded through the published builder; the SQL query
 budget uses the explicit benchmark-only `storage_modes_100k_2g` profile at
 2 GiB for all ten cases. The 64 MiB attempt denied the eight-field full-row
@@ -331,8 +331,9 @@ is the minimum. It preserves SQL, fixture scale and native configuration; runtim
 unchanged. COPY setup uses at most 5,000 rows
 per transaction and result caching is disabled. The optional controls apply to explicit and environment-selected memory
 construction. Unset controls preserve native defaults and local/cloud opening
-remains unchanged. These capacities remain a proposed qualification envelope
-until actual setup and all selected workloads pass; they are not inferred from
+remains unchanged. This finite profile completed setup and all ten workloads at `c9f0d755` on
+2026-11-14; measured results, environment and limitations are in the
+[qualification record](v0.5-release-qualification.md). It is not inferred from
 host RAM or a model judgment. The diagnostic default-native run observed a
 12 GiB total budget with a 64 MiB memtable/flush threshold, then a COPY statistics
 write-stall after 85,000 source rows had committed. Its aggregate memtable bytes

@@ -176,9 +176,16 @@ conditions.
 ### Versioning
 
 - Layout level `cassie-midge-layout-v4-0.5.0-columnar` follows
-  `v3-0.2.0-index-generation`. `require_storage_layout_version` raises it in
-  the transaction that publishes the first column table. A binary that does
-  not know the level refuses to start without changing data.
+  `v3-0.2.0-index-generation`. `require_storage_layout_version` durably raises
+  the minimum-reader fence in the schema family as a prerequisite to the
+  database-family transaction that publishes column data and catalog metadata.
+  The fence is monotonic: it can remain at v4 after a failed, rejected or rolled
+  back first CREATE/conversion, with no automatic downgrade. SQL rows and catalog
+  metadata still publish atomically within their database family. A binary that
+  does not know the raised level refuses startup without changing data. The
+  [selected clarification](https://github.com/cntryl/cassie/issues/1105#issuecomment-6878076513)
+  follows the existing generic monotonic/durable-fence and v4 ordering witnesses;
+  it does not claim a separately executed v4 failed-SQL-rollback test.
 - `CollectionMeta.storage_version` is `1` for this format. Hydration rejects an
   unknown version with a startup error naming the table.
 - Cassie is pre-release: no migration of earlier development stores is provided.

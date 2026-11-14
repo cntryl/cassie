@@ -340,7 +340,7 @@ fn assert_retrieval_recovery(
 }
 
 #[test]
-fn should_preserve_fulltext_results_across_restart_and_index_rebuild() {
+fn should_rebuild_fulltext_from_recovered_column_authority() {
     // Arrange
     let setup = [
         "CREATE TABLE retrieval_columns (id INT, body TEXT) USING columnar",
@@ -391,7 +391,7 @@ fn assert_vector_recovery(method: &str, options: &str) {
 }
 
 #[test]
-fn should_preserve_hnsw_results_across_restart_and_index_rebuild() {
+fn should_rebuild_hnsw_from_recovered_column_authority() {
     // Arrange
     let options = "m = 4, ef_construction = 16";
 
@@ -401,7 +401,7 @@ fn should_preserve_hnsw_results_across_restart_and_index_rebuild() {
 }
 
 #[test]
-fn should_preserve_ivfflat_results_across_restart_and_index_rebuild() {
+fn should_rebuild_ivfflat_from_recovered_column_authority() {
     // Arrange
     let options = "lists = 1";
 
@@ -411,7 +411,7 @@ fn should_preserve_ivfflat_results_across_restart_and_index_rebuild() {
 }
 
 #[test]
-fn should_preserve_hybrid_results_across_restart_and_index_rebuild() {
+fn should_rebuild_hybrid_from_recovered_column_authority() {
     // Arrange
     let fulltext = "CREATE INDEX recovered_text ON retrieval_columns USING fulltext (body)";
     let vector = "CREATE INDEX recovered_vector ON retrieval_columns USING hnsw (emb vector_l2_ops) WITH (m = 4, ef_construction = 16)";
@@ -440,7 +440,7 @@ fn should_preserve_hybrid_results_across_restart_and_index_rebuild() {
 }
 
 #[test]
-fn should_preserve_time_series_results_across_restart_and_index_rebuild() {
+fn should_rebuild_time_series_from_recovered_column_authority() {
     // Arrange
     let ddl = "CREATE INDEX recovered_time ON retrieval_columns USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)";
     let setup = [

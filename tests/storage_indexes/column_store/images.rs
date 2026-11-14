@@ -78,7 +78,7 @@ fn strings(rows: &[&[&str]]) -> Vec<Vec<String>> {
 }
 
 #[test]
-fn should_restore_modes_values_and_indexed_reads_of_a_mixed_database() {
+fn should_restore_authoritative_state_of_a_mixed_database() {
     // Arrange
     let (cassie, session) = restored_pair();
 
@@ -153,7 +153,7 @@ fn should_enforce_constraints_on_restored_column_tables() {
 }
 
 #[test]
-fn should_keep_restored_column_tables_writable_and_free_of_row_blobs() {
+fn should_preserve_column_authority_when_mutating_a_restored_table() {
     // Arrange
     let (cassie, session) = restored_pair();
     let ledger = canonical_relation_name("restored", "public", "ledger");

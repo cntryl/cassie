@@ -528,10 +528,31 @@ complete sidecar, not a claim that damaged-state fallback is also O(degree).
 
 Existing `CREATE GRAPH` and positional graph functions are Experimental. Provide
 an explicit, documented conversion preserving old source tables and rows while
-creating a mapped graph. If conversion cannot safely run, preserve the data and
-give an actionable diagnostic. Specify the compatibility window and conversion
-mechanics before removal; test restart and interruption at cutover. Graph writes
-remain ordinary SQL table writes.
+creating a mapped graph. Conversion is automatic only when a preflight proves
+the legacy graph's supported query behavior is equivalent under the selected
+mapping. The old traversal can return edges without node rows, stores node and
+edge types per row, applies legacy type case-folding, uses FLOAT weights, and
+has nullable built-in columns without the new
+global unique-key guarantees. A mapped graph that excludes dangling endpoints,
+uses static mapping labels, accepts exact numeric weights and requires non-null
+unique keys cannot silently reinterpret any of these cases.
+
+Preflight must check endpoint existence and identity, mapping and per-row type
+representability, weights and key nullability and uniqueness against a single
+consistent view. Fence writes through preflight, backfill and atomic publication
+or prove a dual-write, recheck and catch-up protocol; no concurrent mutation may
+invalidate the equivalence proof. If any requirement fails or cannot be proven,
+leave the old graph, its tables, rows and legacy functions usable; publish no
+partial replacement and return a deterministic diagnostic identifying the
+incompatibility and actionable remediation. Conversion has no implicit authority
+to rewrite authoritative projection rows. Operator data correction or explicitly
+documented projection migration may precede another attempt; never
+silently drop rows, types, identity distinctions or query results. Specify the
+compatibility window and exact conversion mechanics before removal. Acceptance
+fixtures include edge-only graphs, per-row type variations, FLOAT weights,
+nullable/duplicate identifiers, concurrent writes, cancellation, interruption
+and restart, plus oracle comparisons of successful legacy and mapped queries.
+Graph writes remain ordinary SQL table writes.
 
 Implement in dependency order: contract and roadmap; completeness proof and
 format, including an explicit blocker if the API cannot supply the required

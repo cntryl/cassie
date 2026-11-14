@@ -264,6 +264,7 @@ fn should_record_failed_freshness_without_advancing_checkpoint_for_invalid_vecto
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -299,7 +300,10 @@ fn should_record_failed_freshness_without_advancing_checkpoint_for_invalid_vecto
             metadata.freshness,
             cassie::catalog::ProjectionFreshness::Failed
         );
-        assert!(metadata.last_error.is_some());
+        assert!(metadata
+            .last_error
+            .as_deref()
+            .is_some_and(|message| message.contains("expects vector(2) but got 1")));
         assert_eq!(metadata.source_checkpoint, None);
         assert!(!seen);
         assert!(rows.is_empty());

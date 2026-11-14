@@ -302777,8 +302777,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/column_store/images.rs::should_restore_modes_values_and_indexed_reads_of_a_mixed_database",
-      "name": "should_restore_modes_values_and_indexed_reads_of_a_mixed_database",
+      "id": "tests/storage_indexes/column_store/images.rs::should_restore_authoritative_state_of_a_mixed_database",
+      "name": "should_restore_authoritative_state_of_a_mixed_database",
       "current_file": "tests/storage_indexes/column_store/images.rs",
       "line": 81,
       "end_line": 123,
@@ -302789,7 +302789,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "column_store_authority::images::should_restore_modes_values_and_indexed_reads_of_a_mixed_database"
+          "name": "column_store_authority::images::should_restore_authoritative_state_of_a_mixed_database"
         }
       ],
       "attributes": [
@@ -302839,8 +302839,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/column_store/images.rs::should_keep_restored_column_tables_writable_and_free_of_row_blobs",
-      "name": "should_keep_restored_column_tables_writable_and_free_of_row_blobs",
+      "id": "tests/storage_indexes/column_store/images.rs::should_preserve_column_authority_when_mutating_a_restored_table",
+      "name": "should_preserve_column_authority_when_mutating_a_restored_table",
       "current_file": "tests/storage_indexes/column_store/images.rs",
       "line": 156,
       "end_line": 203,
@@ -302851,7 +302851,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "column_store_authority::images::should_keep_restored_column_tables_writable_and_free_of_row_blobs"
+          "name": "column_store_authority::images::should_preserve_column_authority_when_mutating_a_restored_table"
         }
       ],
       "attributes": [
@@ -303273,8 +303273,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_fulltext_results_across_restart_and_index_rebuild",
-      "name": "should_preserve_fulltext_results_across_restart_and_index_rebuild",
+      "id": "tests/storage_indexes/column_store/restart.rs::should_rebuild_fulltext_from_recovered_column_authority",
+      "name": "should_rebuild_fulltext_from_recovered_column_authority",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
       "line": 343,
       "end_line": 369,
@@ -303285,7 +303285,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "column_store_authority::restart::should_preserve_fulltext_results_across_restart_and_index_rebuild"
+          "name": "column_store_authority::restart::should_rebuild_fulltext_from_recovered_column_authority"
         }
       ],
       "attributes": [
@@ -303304,8 +303304,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_hnsw_results_across_restart_and_index_rebuild",
-      "name": "should_preserve_hnsw_results_across_restart_and_index_rebuild",
+      "id": "tests/storage_indexes/column_store/restart.rs::should_rebuild_hnsw_from_recovered_column_authority",
+      "name": "should_rebuild_hnsw_from_recovered_column_authority",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
       "line": 394,
       "end_line": 401,
@@ -303316,7 +303316,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "column_store_authority::restart::should_preserve_hnsw_results_across_restart_and_index_rebuild"
+          "name": "column_store_authority::restart::should_rebuild_hnsw_from_recovered_column_authority"
         }
       ],
       "attributes": [
@@ -303335,8 +303335,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_ivfflat_results_across_restart_and_index_rebuild",
-      "name": "should_preserve_ivfflat_results_across_restart_and_index_rebuild",
+      "id": "tests/storage_indexes/column_store/restart.rs::should_rebuild_ivfflat_from_recovered_column_authority",
+      "name": "should_rebuild_ivfflat_from_recovered_column_authority",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
       "line": 404,
       "end_line": 411,
@@ -303347,7 +303347,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "column_store_authority::restart::should_preserve_ivfflat_results_across_restart_and_index_rebuild"
+          "name": "column_store_authority::restart::should_rebuild_ivfflat_from_recovered_column_authority"
         }
       ],
       "attributes": [
@@ -303366,8 +303366,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_hybrid_results_across_restart_and_index_rebuild",
-      "name": "should_preserve_hybrid_results_across_restart_and_index_rebuild",
+      "id": "tests/storage_indexes/column_store/restart.rs::should_rebuild_hybrid_from_recovered_column_authority",
+      "name": "should_rebuild_hybrid_from_recovered_column_authority",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
       "line": 414,
       "end_line": 440,
@@ -303378,7 +303378,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "column_store_authority::restart::should_preserve_hybrid_results_across_restart_and_index_rebuild"
+          "name": "column_store_authority::restart::should_rebuild_hybrid_from_recovered_column_authority"
         }
       ],
       "attributes": [
@@ -303397,8 +303397,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_time_series_results_across_restart_and_index_rebuild",
-      "name": "should_preserve_time_series_results_across_restart_and_index_rebuild",
+      "id": "tests/storage_indexes/column_store/restart.rs::should_rebuild_time_series_from_recovered_column_authority",
+      "name": "should_rebuild_time_series_from_recovered_column_authority",
       "current_file": "tests/storage_indexes/column_store/restart.rs",
       "line": 443,
       "end_line": 467,
@@ -303409,7 +303409,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "column_store_authority::restart::should_preserve_time_series_results_across_restart_and_index_rebuild"
+          "name": "column_store_authority::restart::should_rebuild_time_series_from_recovered_column_authority"
         }
       ],
       "attributes": [
@@ -338699,7 +338699,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 203,
-      "sha256": "9b7d5eae821b005bd032128916416cd66c56b7c6f3114fa03290c8d6fcc9106d",
+      "sha256": "87305478845fe07eee57dd38fc4f4ce186d2f9652afd0d2d23087a7f79960dcf",
       "test_declarations": 3,
       "registered_suites": [
         "storage_indexes"
@@ -338744,7 +338744,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 551,
-      "sha256": "81172216ca58d81b16f8bb79573f39066bf2c0109b1c4e3b0ec257f88b037628",
+      "sha256": "ee8e4f66d59fc6f2345b60854ddcb965c2c0efb03a7d22cbf7620045afa76c56",
       "test_declarations": 10,
       "registered_suites": [
         "storage_indexes"

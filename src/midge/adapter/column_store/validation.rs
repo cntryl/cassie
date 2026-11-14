@@ -402,7 +402,7 @@ impl Midge {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{CassieError, Midge};
     use std::cell::Cell;
 
     #[test]

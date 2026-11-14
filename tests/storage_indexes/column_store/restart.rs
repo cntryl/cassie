@@ -450,3 +450,87 @@ fn should_preserve_time_series_results_across_restart_and_index_rebuild() {
         &["SELECT tenant, amount FROM retrieval_columns WHERE tenant = 'a' AND event_at >= '2026-01-01T12:00:00Z' AND event_at < '2026-01-01T14:00:00Z' ORDER BY amount"],
     );
 }
+
+#[test]
+fn should_restore_mixed_authority_from_an_independent_physical_snapshot() {
+    // Arrange
+    let root = Store::new("columnar-physical-snapshot");
+    let source_path = root.0.join("source");
+    let snapshot_path = root.0.join("snapshot");
+    let restored_path = root.0.join("restored");
+    let open = |path: &std::path::Path| {
+        let cassie = Cassie::new_with_data_dir(path).expect("local snapshot fixture");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        Env { cassie, session }
+    };
+    {
+        let source = open(&source_path);
+        source.run("CREATE TABLE snapshot_parents (id INT PRIMARY KEY, label TEXT NOT NULL)");
+        source.run("CREATE TABLE snapshot_columns (id INT PRIMARY KEY, parent_id INT REFERENCES snapshot_parents(id), note TEXT) USING columnar");
+        source.run("CREATE INDEX snapshot_note ON snapshot_columns (note)");
+        source.run("INSERT INTO snapshot_parents VALUES (1, 'captured')");
+        source.run("INSERT INTO snapshot_columns VALUES (10, 1, 'first'), (11, 1, NULL)");
+    }
+    Cassie::create_snapshot_from_data_dir(
+        &source_path,
+        &snapshot_path,
+        cassie::app::CassieSnapshotOptions::default(),
+    )
+    .expect("physical snapshot");
+    {
+        let source = open(&source_path);
+        source.run("UPDATE snapshot_parents SET label = 'source-only' WHERE id = 1");
+    }
+
+    // Act
+    Cassie::restore_snapshot(&snapshot_path, &restored_path).expect("physical restore");
+    let restored = open(&restored_path);
+    let modes = text_rows(&restored, "SELECT tablename, storage_mode FROM pg_catalog.pg_table_storage WHERE tablename IN ('snapshot_parents', 'snapshot_columns') ORDER BY tablename");
+    let rows = text_rows(&restored, "SELECT c.id::TEXT, p.label, c.note FROM snapshot_columns c JOIN snapshot_parents p ON p.id = c.parent_id ORDER BY c.id");
+    let duplicate = restored.cassie.execute_sql(
+        &restored.session,
+        "INSERT INTO snapshot_columns VALUES (10, 1, 'duplicate')",
+        vec![],
+    );
+    let orphan = restored.cassie.execute_sql(
+        &restored.session,
+        "INSERT INTO snapshot_columns VALUES (12, 99, 'orphan')",
+        vec![],
+    );
+    restored.run("UPDATE snapshot_columns SET note = 'restored-only' WHERE id = 10");
+    let source = open(&source_path);
+    let source_note = text_rows(&source, "SELECT note FROM snapshot_columns WHERE id = 10");
+    let source_label = text_rows(&source, "SELECT label FROM snapshot_parents WHERE id = 1");
+
+    // Assert
+    assert_eq!(
+        modes,
+        vec![
+            vec!["snapshot_columns".to_owned(), "column-store".to_owned()],
+            vec!["snapshot_parents".to_owned(), "row-store".to_owned()]
+        ]
+    );
+    assert_eq!(
+        rows,
+        expected(&[("10", "captured", "first"), ("11", "captured", "NULL")])
+    );
+    assert_eq!(
+        duplicate.expect_err("restored primary key").sql_state(),
+        "23505"
+    );
+    assert_eq!(
+        orphan.expect_err("restored foreign key").sql_state(),
+        "23503"
+    );
+    assert_eq!(source_note, vec![vec!["first".to_owned()]]);
+    assert_eq!(source_label, vec![vec!["source-only".to_owned()]]);
+    assert_eq!(
+        text_rows(
+            &restored,
+            "SELECT id::TEXT FROM snapshot_columns WHERE note = 'restored-only'"
+        ),
+        vec![vec!["10".to_owned()]]
+    );
+    restored.assert_column_authority("snapshot_columns", 2, 3, "physical restore");
+}

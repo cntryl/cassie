@@ -13,6 +13,8 @@ use cassie::types::Value;
 
 #[path = "tier3_system_storage_modes/data.rs"]
 mod data;
+#[path = "tier3_system_storage_modes/expected.rs"]
+mod expected;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -22,7 +24,7 @@ use data::Storage;
 
 const BENCHMARK: &str = "tier3_system_storage_modes";
 const FACT_ROWS: usize = 100_000;
-const QUERY_BUDGET: usize = 1024 * 1024 * 1024;
+const QUERY_BUDGET: usize = 64 * 1024 * 1024;
 
 struct Db {
     cassie: Arc<Cassie>,
@@ -64,14 +66,16 @@ impl Db {
     }
 
     fn seed(&self) {
-        let facts = data::fact_csv(0..FACT_ROWS);
         let dims = data::dim_csv();
         for (fact, dim, mode) in [
             ("f_row", "d_row", Storage::Row),
             ("f_col", "d_col", Storage::Column),
         ] {
             self.exec(&data::create_fact_sql(fact, mode));
-            self.copy(fact, &facts, FACT_ROWS);
+            for start in (0..FACT_ROWS).step_by(5000) {
+                let end = (start + 5000).min(FACT_ROWS);
+                self.copy(fact, &data::fact_csv(start..end), end - start);
+            }
             self.exec(&data::create_dim_sql(dim, mode));
             self.copy(dim, &dims, data::DIM_ROWS);
         }
@@ -180,7 +184,7 @@ fn main() {
     let selected: Vec<_> = cases()
         .into_iter()
         .filter_map(|(name, sql, baseline)| {
-            selected_case(&runner, name).map(|case| (case, sql, baseline))
+            selected_case(&runner, name).map(|case| (name, case, sql, baseline))
         })
         .collect();
     if selected.is_empty() {
@@ -191,8 +195,16 @@ fn main() {
     let db = Db::new();
     db.seed();
     let setup_time = setup_started.elapsed().as_nanos().to_string();
-    for (case, sql, baseline) in selected {
+    for (name, case, sql, baseline) in selected {
+        let independent = expected::rows(name, FACT_ROWS);
+        let expected_fingerprint = expected::fingerprint(&independent);
         let expected = rendered(&db.exec(&baseline));
+        assert_eq!(
+            expected,
+            rendered(&independent),
+            "independent relational oracle"
+        );
+        drop(independent);
         assert!(!expected.is_empty(), "baseline must have rows");
         assert_eq!(rendered(&db.exec(&sql)), expected, "storage-mode equality");
         let (access, fallback) = preflight(&db, &sql);
@@ -204,6 +216,11 @@ fn main() {
         runner.measure_batch(case, 1, || {
             let rows = db.exec(&sql);
             assert_eq!(rows.len(), expected.len(), "timed result cardinality");
+            assert_eq!(
+                expected::fingerprint(&rows),
+                expected_fingerprint,
+                "timed result contents"
+            );
             std::hint::black_box(rows.len())
         });
     }

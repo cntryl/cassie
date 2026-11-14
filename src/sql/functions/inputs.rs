@@ -120,9 +120,10 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
                 tail: 25,
             })
         }
-        FunctionId::Json(super::json::JsonFunction::ToJson(_)) => {
-            Some(FunctionInputSignature::AnyElement)
-        }
+        FunctionId::Json(
+            super::json::JsonFunction::ToJson(_) | super::json::JsonFunction::RowToJson,
+        )
+        | FunctionId::AnyValue => Some(FunctionInputSignature::AnyElement),
         FunctionId::Json(kind) => match super::json::inputs(kind) {
             Some(oids) => Some(FunctionInputSignature::Positional(oids)),
             None => None,
@@ -166,7 +167,6 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgMyTempSchema => Some(FunctionInputSignature::Positional(&[])),
         FunctionId::Lower | FunctionId::ConcatWs => Some(FunctionInputSignature::Text),
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
-        FunctionId::AnyValue => Some(FunctionInputSignature::AnyElement),
         FunctionId::BitAnd | FunctionId::BitOr | FunctionId::BitXor => {
             Some(FunctionInputSignature::BitwiseInteger)
         }

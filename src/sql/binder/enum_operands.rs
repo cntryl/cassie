@@ -6,7 +6,7 @@
 //! operator (`42883`).
 use super::super::coalesce_results::ResultTypes;
 use crate::app::{CassieError, DiagnosticError};
-use crate::sql::ast::{BinaryOp, CastIdentity, Expr};
+use crate::sql::ast::{BinaryOp, CastIdentity, Expr, FunctionCall};
 use crate::types::array::ParsedTextArrayElement;
 use crate::types::{DataType, EnumRef};
 
@@ -15,6 +15,66 @@ fn descriptor(data_type: Option<&DataType>) -> Option<EnumRef> {
         DataType::Enum(descriptor) => Some(descriptor.clone()),
         _ => None,
     }
+}
+
+/// `enum_first`, `enum_last` and `enum_range` take `anyenum`. A column
+/// argument is cast to its declared enum, so the type is known even for a row
+/// whose value is NULL (PostgreSQL types the argument, not the value).
+pub(in crate::sql::binder) fn type_support_arguments(
+    function: &mut FunctionCall,
+    types: &ResultTypes,
+) {
+    let name = function
+        .name
+        .rsplit('.')
+        .next()
+        .unwrap_or(function.name.as_str());
+    if !["enum_first", "enum_last", "enum_range"]
+        .iter()
+        .any(|support| name.eq_ignore_ascii_case(support))
+    {
+        return;
+    }
+    for argument in &mut function.args {
+        if !matches!(argument, Expr::Column(_)) {
+            continue;
+        }
+        let Some(target) = descriptor(types.expression_type(argument).as_ref()) else {
+            continue;
+        };
+        let column = std::mem::replace(argument, Expr::Null);
+        *argument = Expr::Cast {
+            expr: Box::new(column),
+            data_type: DataType::Enum(target),
+            source_type: None,
+            identity: CastIdentity::Scalar,
+        };
+    }
+}
+
+/// The element enum of an enum array type.
+fn array_descriptor(data_type: Option<&DataType>) -> Option<EnumRef> {
+    match data_type?.flattened() {
+        DataType::Array(element) => descriptor(Some(element.as_ref())),
+        _ => None,
+    }
+}
+
+/// Casts an unknown literal compared with an enum array to that array type,
+/// as PostgreSQL resolves `es = '{a,b}'`; any other operand is left alone.
+fn coerce_array_literal(target: &EnumRef, other: &mut Expr) -> Result<(), CassieError> {
+    let Expr::StringLiteral(literal) = other else {
+        return Ok(());
+    };
+    validate_array_labels(target, literal)?;
+    let literal = std::mem::replace(other, Expr::Null);
+    *other = Expr::Cast {
+        expr: Box::new(literal),
+        data_type: DataType::Array(Box::new(DataType::Enum(target.clone()))),
+        source_type: None,
+        identity: CastIdentity::Scalar,
+    };
+    Ok(())
 }
 
 const fn symbol(op: &BinaryOp) -> &'static str {
@@ -101,7 +161,15 @@ pub(super) fn qualify_pair(
         descriptor(left_type.as_ref()),
         descriptor(right_type.as_ref()),
     ) {
-        (None, None) => Ok(()),
+        (None, None) => {
+            if let Some(target) = array_descriptor(left_type.as_ref()) {
+                coerce_array_literal(&target, right)
+            } else if let Some(target) = array_descriptor(right_type.as_ref()) {
+                coerce_array_literal(&target, left)
+            } else {
+                Ok(())
+            }
+        }
         (Some(left_enum), Some(right_enum)) if left_enum.oid == right_enum.oid => Ok(()),
         (Some(left_enum), Some(right_enum)) => {
             Err(undefined(op, &left_enum.name, &right_enum.name))
@@ -123,13 +191,35 @@ pub(super) fn qualify_quantified(
     right: &Expr,
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
-    let (BinaryOp::Quantified { .. }, Expr::StringLiteral(literal)) = (op, right) else {
+    let BinaryOp::Quantified { comparison, .. } = op else {
         return Ok(());
     };
     let Some(target) = descriptor(types.expression_type(left).as_ref()) else {
         return Ok(());
     };
-    validate_array_labels(&target, literal)
+    match right {
+        Expr::StringLiteral(literal) => validate_array_labels(&target, literal),
+        // `ARRAY['a', 'b']` is `text[]`, which has no operator with an enum.
+        Expr::Function(constructor)
+            if constructor.name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION =>
+        {
+            match types.expression_type(right) {
+                Some(DataType::Array(element))
+                    if matches!(
+                        element.flattened(),
+                        DataType::Text
+                            | DataType::Name
+                            | DataType::Varchar { .. }
+                            | DataType::Char { .. }
+                    ) =>
+                {
+                    Err(undefined(comparison, &target.name, &pg_name(&element)))
+                }
+                _ => Ok(()),
+            }
+        }
+        _ => Ok(()),
+    }
 }
 
 fn validate_array_labels(target: &EnumRef, literal: &str) -> Result<(), CassieError> {
@@ -144,6 +234,59 @@ fn validate_array_labels(target: &EnumRef, literal: &str) -> Result<(), CassieEr
         }
     }
     Ok(())
+}
+
+/// Whether the binder's static type of `expr` is reliable enough to refuse an
+/// assignment: a column, an explicit cast, or a function of non-enum inputs.
+fn statically_typed(expr: &Expr, types: &ResultTypes) -> bool {
+    match expr {
+        Expr::Column(_) | Expr::Cast { .. } => true,
+        Expr::Function(function) => !function
+            .args
+            .iter()
+            .any(|argument| descriptor(types.expression_type(argument).as_ref()).is_some()),
+        _ => false,
+    }
+}
+
+/// An enum column accepts an unknown literal, NULL, a parameter or a value of
+/// the same enum. A `text`-typed expression or another enum has no assignment
+/// cast.
+///
+/// # Errors
+/// Returns `42804` naming the column type and the expression type.
+pub(super) fn validate_assignment(
+    expr: &Expr,
+    types: &ResultTypes,
+    expected: Option<&DataType>,
+) -> Result<(), CassieError> {
+    let Some(target) = descriptor(expected) else {
+        return Ok(());
+    };
+    if !statically_typed(expr, types) {
+        return Ok(());
+    }
+    let Some(source) = types.expression_type(expr) else {
+        return Ok(());
+    };
+    let mismatch = match source.flattened() {
+        DataType::Enum(other) => other.oid != target.oid,
+        DataType::Text | DataType::Name | DataType::Varchar { .. } | DataType::Char { .. } => true,
+        _ => false,
+    };
+    if !mismatch {
+        return Ok(());
+    }
+    Err(DiagnosticError::new(
+        "42804",
+        format!(
+            "column is of type {} but expression is of type {}",
+            target.name,
+            pg_name(&source)
+        ),
+    )
+    .with_hint("You will need to rewrite or cast the expression.")
+    .into())
 }
 
 fn input_label(target: &EnumRef, label: &str) -> Result<(), CassieError> {

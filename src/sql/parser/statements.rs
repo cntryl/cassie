@@ -427,7 +427,9 @@ pub(super) fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlErro
                 "missing data type for function argument '{name}'"
             )));
         }
-        let data_type = parse_data_type(parts[1].as_str())?;
+        // A routine argument may be declared with a domain or enum type as
+        // well as a built-in or composite one.
+        let data_type = super::domain_scope::parse_declared_data_type(parts[1].as_str())?;
 
         args.push(FunctionArg {
             name: name.to_string(),

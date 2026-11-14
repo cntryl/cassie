@@ -1,7 +1,7 @@
 use crate::app::{CassieError, CatalogObjectKind};
 use crate::catalog::{
-    canonical_relation_name, canonical_schema_name, is_system_schema, parse_name, Catalog,
-    ParsedName, DEFAULT_SCHEMA,
+    canonical_identifier_component, canonical_relation_name, canonical_schema_name,
+    is_system_schema, parse_name, Catalog, ParsedName, DEFAULT_SCHEMA,
 };
 use crate::sql::ast::IdentifierPath;
 
@@ -242,8 +242,12 @@ pub fn resolve_existing_name(
 pub fn normalize_schema_name(raw: &str, context: &BindingContext) -> Result<String, CassieError> {
     if !context.scopes_database_objects() {
         return match parse_name(raw).map_err(CassieError::Planner)? {
-            ParsedName::Unqualified(schema) => Ok(schema),
-            ParsedName::SchemaQualified { schema, name } => Ok(format!("{schema}.{name}")),
+            ParsedName::Unqualified(schema) => Ok(canonical_identifier_component(&schema)),
+            ParsedName::SchemaQualified { schema, name } => Ok(format!(
+                "{}.{}",
+                canonical_identifier_component(&schema),
+                canonical_identifier_component(&name)
+            )),
             ParsedName::DatabaseQualified { .. } => Err(CassieError::Unsupported(
                 "cross-database schema references are not supported".to_string(),
             )),

@@ -137,6 +137,7 @@ mod portal_reads;
 pub(crate) use portal_reads::PortalReadSpec;
 mod domain_enforcement;
 mod domain_scope;
+mod enum_checks;
 mod enum_notice;
 mod enum_scope;
 mod query;

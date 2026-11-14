@@ -74,6 +74,61 @@ pub(super) fn qualified_name(text: &str) -> Result<Vec<Identifier>, ObjectIdenti
     Ok(parts)
 }
 
+/// The qualified name `reg*` input starts with, for the schema `USAGE` check:
+/// identifiers joined by dots (white space around a dot is insignificant, as
+/// in [`qualified_name`]), ending at a signature's `(`, an array `[` or the
+/// second word of a type spelling such as `double precision`. Text that does
+/// not start with an identifier yields no parts.
+pub(super) fn leading_qualified_name(text: &str) -> Vec<Identifier> {
+    let mut parts = Vec::new();
+    let mut chars = text.trim().chars().peekable();
+    loop {
+        let mut value = String::new();
+        let quoted = chars.peek() == Some(&'"');
+        if quoted {
+            chars.next();
+            loop {
+                match chars.next() {
+                    Some('"') if chars.peek() == Some(&'"') => {
+                        chars.next();
+                        value.push('"');
+                    }
+                    Some('"') => break,
+                    Some(character) => value.push(character),
+                    None => return parts,
+                }
+            }
+        } else {
+            while let Some(&character) = chars.peek() {
+                if matches!(character, '.' | '(' | '[' | '"') || character.is_whitespace() {
+                    break;
+                }
+                value.push(character.to_ascii_lowercase());
+                chars.next();
+            }
+        }
+        if value.is_empty() {
+            return parts;
+        }
+        parts.push(Identifier { value, quoted });
+        while chars
+            .peek()
+            .is_some_and(|character| character.is_whitespace())
+        {
+            chars.next();
+        }
+        if chars.next() != Some('.') {
+            return parts;
+        }
+        while chars
+            .peek()
+            .is_some_and(|character| character.is_whitespace())
+        {
+            chars.next();
+        }
+    }
+}
+
 /// Splits `name(arg, arg)` into the name and its argument texts.
 pub(super) fn signature(text: &str) -> Result<(String, Vec<String>), ObjectIdentifierError> {
     let trimmed = text.trim();
@@ -161,7 +216,7 @@ pub(super) fn builtin_type_oid(text: &str) -> Result<Option<u32>, ObjectIdentifi
 
 /// Removes the repeated syntactic array dimensions accepted by PostgreSQL's
 /// type-name parser. Array bounds do not change the built-in type identity.
-fn strip_array_dimensions(text: &str) -> Result<(&str, bool), ObjectIdentifierError> {
+pub(super) fn strip_array_dimensions(text: &str) -> Result<(&str, bool), ObjectIdentifierError> {
     let text = text.trim();
     let bytes = text.as_bytes();
     let mut cursor = 0;
@@ -437,7 +492,10 @@ pub(crate) fn quote_identifier(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{builtin_type_oid, qualified_name, quote_identifier, signature, Identifier};
+    use super::{
+        builtin_type_oid, leading_qualified_name, qualified_name, quote_identifier, signature,
+        Identifier,
+    };
     use crate::types::ObjectIdentifierError;
 
     #[test]
@@ -474,6 +532,44 @@ mod tests {
 
         // Assert
         assert!(parts.is_err());
+    }
+
+    #[test]
+    fn should_read_the_leading_qualified_name_across_white_space_around_dots() {
+        // Arrange
+        let texts = [
+            "secret . docs",
+            "secret .docs",
+            "secret. docs",
+            "\"Sec2\" .docs",
+            "postgres . secret . docs",
+            "secret . hf(int)",
+            "secret . pair[]",
+            "double precision",
+        ];
+
+        // Act
+        let names = texts.map(|text| {
+            leading_qualified_name(text)
+                .into_iter()
+                .map(|part| part.value)
+                .collect::<Vec<_>>()
+        });
+
+        // Assert
+        assert_eq!(
+            names,
+            [
+                vec!["secret", "docs"],
+                vec!["secret", "docs"],
+                vec!["secret", "docs"],
+                vec!["Sec2", "docs"],
+                vec!["postgres", "secret", "docs"],
+                vec!["secret", "hf"],
+                vec!["secret", "pair"],
+                vec!["double"],
+            ]
+        );
     }
 
     #[test]

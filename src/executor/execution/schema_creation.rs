@@ -755,7 +755,7 @@ pub(super) fn create_index(
         ))
         .into());
     }
-    let metadata = catalog::IndexMeta {
+    let mut metadata = catalog::IndexMeta {
         definition_semantics_version: 1,
         collection: storage_table.clone(),
         name: statement.name.clone(),
@@ -775,6 +775,11 @@ pub(super) fn create_index(
         unique: statement.unique,
         options: statement.options.clone(),
     };
+    // The index's `pg_class.oid` comes from the common identity allocator, so
+    // it never collides with another object and survives rename and restart.
+    if let Some(oid) = catalog::object_identity::normal_oid(cassie.midge.allocate_object_id()?) {
+        metadata.set_catalog_oid_if_missing(oid);
+    }
     let output = super::command_output::empty("CREATE INDEX", controls)?;
     if matches!(statement.kind, catalog::IndexKind::Vector) {
         let vector = super::vector_index_command::vector_index_metadata(cassie, statement)?;

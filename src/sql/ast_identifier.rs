@@ -100,8 +100,9 @@ impl IdentifierPath {
                     return Err(format!("invalid qualified name '{raw}'"));
                 }
                 (
+                    // An unquoted identifier folds to lower case (PostgreSQL).
                     IdentifierComponent {
-                        value: crate::sql::identifier_text::prefix(value).to_owned(),
+                        value: crate::sql::identifier_text::prefix(value).to_ascii_lowercase(),
                         delimited: false,
                     },
                     &remaining[end..],

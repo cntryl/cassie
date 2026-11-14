@@ -479,6 +479,60 @@ The code and its regressions are authored; they have not been compiled or execut
   difference (Cassie keeps no dropped-column history for table row types).
   `ALTER TABLE ... ALTER COLUMN ... TYPE` is `0A000` ("cannot alter table "t" because
   column "u.x" uses its row type") while the row type is stored, as in PostgreSQL.
+- Record field rules settled by the v0.3.0 adversarial review (2026-11-13):
+  - a `json`/`jsonb` field carries a document, in a constructed record and in a stored one,
+    so `(v).j -> 'a'`, `@>`, `jsonb_typeof` and record equality behave as for a column;
+  - a `char(n)`/`varchar(n)` field follows column assignment on `INSERT`/`UPDATE` and in
+    record text input (`'(abcd)'::t`): excess blanks are discarded, other excess text is
+    `22001`. Only an explicit `ROW(...)::t` cast truncates, as in PostgreSQL. `char(n)`
+    fields keep Cassie's canonical unpadded form;
+  - `INSERT ... ON CONFLICT DO UPDATE` sees `EXCLUDED.c` of a composite column as the typed
+    record: `SET c = EXCLUDED.c` and `(EXCLUDED.c).field` work;
+  - a record written before `ALTER TYPE ... ADD ATTRIBUTE` (or `ALTER TABLE ... ADD COLUMN`
+    for a row type) in the same transaction commits; the added slot is NULL;
+  - record order (`<`, `ORDER BY`, `DISTINCT`) compares typed fields by value (`numeric`,
+    `date` including `infinity`, and the other extended families), field by field with a
+    NULL field last;
+  - `ROW(...) IN (ROW(...), ...)` compares constructors field by field, so a NULL field in
+    an otherwise equal pair yields NULL, as `ROW(...) = ROW(...)` does;
+  - in `ORDER BY` and `GROUP BY` a bare name that matches an output alias is that output
+    column, even when it is also the table's name; `DISTINCT ON` still reports `0A000`. A
+    whole-row name inside a window's arguments, `PARTITION BY` or `ORDER BY` is `0A000`;
+  - the alias of a derived table is its row when every output column name is evident
+    (explicit names, aliases, or `*` over one table): `SELECT x FROM (SELECT a, b FROM t) x`
+    returns the anonymous record `(a,b)`. A derived column named like the alias wins. Other
+    shapes, and the alias of a table function, are not rewritten;
+  - a table cannot gain a column of its own row type, directly or through a composite type
+    or another table's row type (`42P16`), for `ADD COLUMN` and `ALTER COLUMN ... TYPE`;
+  - views keep their definition as SQL text and bind types and attributes by name, so
+    `ALTER TYPE ... RENAME TO` and `SET SCHEMA` rewrite the view's cast targets to the new
+    schema-qualified name, and `RENAME ATTRIBUTE a TO b` rewrites each `(expr).a` field
+    selection to `(expr).b`, keeping an unaliased output column named `a`, as PostgreSQL
+    keeps the view working. When the definition also reads `.a` in a form that is not a
+    parenthesized field selection (for example a derived table's `r.a`), the rename is
+    refused with `0A000` rather than leaving a view that no longer runs. `DROP ATTRIBUTE`
+    of an attribute a view selects is `2BP01`, as in PostgreSQL;
+  - `PREPARE p(t) AS SELECT ($1).field` is accepted for a declared composite or row-type
+    parameter; `EXECUTE` casts the argument to the declared type;
+  - a `uuid` or `bytea` field compares with an untyped literal like a column of that type
+    (`(v).u = 'a0ee...'`). Other field types share the engine's general rule that an
+    untyped literal is text (`(v).i = '7'` is rejected exactly as `i = '7'` is on a column);
+  - `record::text` uses the session `TimeZone`, `DateStyle` and `IntervalStyle`, like the
+    record's own output;
+  - attribute names are exact after identifier folding: `(a int, "A" int)` is two
+    attributes, and `RENAME ATTRIBUTE a TO a` is `42701`. Type, table, view, schema and
+    other catalog names follow the same rule: an unquoted name folds to lower case at DDL
+    and at lookup, a quoted name keeps its exact spelling, and lookups compare exactly, so
+    `"Mood"` and `mood` are different types and `DROP VIEW mixedcase` does not find
+    `"MixedCase"`. REST collection names are unquoted SQL identifiers and fold the same way;
+  - `to_json`, `to_jsonb` and `row_to_json(record [, pretty])` render a composite value,
+    a table's whole row or `ROW(...)` as an object keyed by its field names (`f1`, `f2`, ...
+    for an anonymous record). The whole row of a derived table is an anonymous record, so
+    its JSON keys are `f1`, `f2`, ... rather than the derived column names (PostgreSQL uses
+    the column names);
+  - `DROP TYPE <table>` is `2BP01` ("cannot drop type t because table t requires it"). A
+    `CHECK` on a record field and an index on a record field are `0A000`;
+  - non-finite `float8` field values are rejected, as they are for a `float8` column.
 - Known limitations: in an unscoped instance a domain label (`regtype`) does not see an earlier-schema table row type that shadows the domain, so it prints `posint` where PostgreSQL prints `public.posint` (scoped instances qualify correctly); views, sequences and indexes have `reltype = 0` (PostgreSQL gives
   views a row type); `CREATE TABLE ... OF type` typed tables do not exist; renaming a
   table does not change its row-type revision; a row type embedded in another table's
@@ -499,17 +553,34 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   over scalar and array base types; `ALTER DOMAIN` SET/DROP DEFAULT, SET/DROP NOT NULL,
   ADD CONSTRAINT CHECK [NOT VALID], DROP CONSTRAINT [IF EXISTS], VALIDATE CONSTRAINT,
   RENAME TO and RENAME CONSTRAINT; `DROP DOMAIN [IF EXISTS] [RESTRICT]` with `2BP01`
-  detail for dependent table columns. Domain DDL shares the `CREATE TYPE` statement,
-  transaction and catalog-publication paths, so it is transactional.
+  detail for dependent table columns and for views whose definition casts to the
+  domain. `DROP DOMAIN ... CASCADE` (and `DROP SCHEMA ... CASCADE` of the domain's
+  schema) removes those views and the views that select from them; `CASCADE` over a
+  dependent table column stays `0A000`. `RENAME TO` and `SET SCHEMA` rewrite the cast
+  targets (`x::d`, `CAST(x AS d)`) in dependent view definitions to the new
+  schema-qualified name, so the views keep working. View dependencies are found by
+  parsing the stored view text; materialized views are not tracked. Domain DDL shares
+  the `CREATE TYPE` statement, transaction and catalog-publication paths, so it is
+  transactional.
 - Domain-typed table columns and `x::d` casts. Enforcement runs on INSERT, UPDATE,
   COPY and casts: `23514` for a failed CHECK (constraint name in the message) and
   `23502` for NULL against NOT NULL. CHECK is satisfied by TRUE or NULL. A domain
   DEFAULT applies only when the column has no default of its own.
 - `VALUE` in a CHECK is the checked value. CHECK bodies are stored as SQL text and
   evaluated by the scalar evaluator; unnamed checks are named `{domain}_check`,
-  `{domain}_check1` and so on.
+  `{domain}_check1` and so on. Constraint names are case-sensitive once quoted
+  (`"A"` and `a` are distinct). A CHECK is rejected when it is declared if it is
+  evidently not boolean (bare `VALUE` of a non-boolean base, arithmetic, concatenation,
+  a numeric literal or a cast to a non-boolean type: `42804`), calls an unknown function
+  (`42883`) or an aggregate (`42803`). Other type errors still surface when a value is
+  checked. Domain names themselves follow the catalog-wide rule shared with tables and
+  other types: they compare case-insensitively even when quoted.
 - `ALTER DOMAIN ADD CHECK` and `SET NOT NULL` validate existing rows and publish
-  nothing on failure, and validation sees the session's own staged rows. `NOT VALID`
+  nothing on failure, and validation sees the session's own staged rows. While a
+  column typed as a table's row type (directly, nested or as an array element) embeds
+  the domain, `ADD CONSTRAINT` without `NOT VALID`, `VALIDATE CONSTRAINT` and
+  `SET NOT NULL` are `0A000` (`cannot alter type "d" because column "t.c" uses it`),
+  as in PostgreSQL. `NOT VALID`
   checks are enforced on INSERT/COPY and on every newly assigned value of an UPDATE or
   `ON CONFLICT DO UPDATE`; only an unchanged legacy value is exempt until validated.
 - `ALTER TABLE ADD COLUMN` of a domain column enforces the domain NOT NULL and CHECK
@@ -560,7 +631,16 @@ Authored, not yet executed (compilation is deferred to the assembled batch):
   `gen_random_uuid()` to a populated table is `0A000` (a single value would not be
   distinct per row).
 - Flattening: operators and functions resolve through the base type, and
-  RowDescription, `atttypmod` and parameter types report the base OID. A table column
+  RowDescription, `atttypmod` and parameter types report the base OID. A cast to a
+  domain parses as `((x::base)::d)::base`: the inner cast types literals and parameters
+  as the base type, the middle cast enforces the domain and the outer cast presents the
+  base type, so `SELECT x::d`, `RETURNING x::d`, view columns, `PREPARE` bodies and
+  aggregates, `COALESCE`, `GREATEST`, `||`, boolean and JSON operators over a domain
+  cast all behave as over the base type. `CREATE TABLE AS` over a single table keeps
+  the domain of each column selected by name or through `*`; computed outputs get the
+  base type. A numeric literal `DEFAULT` of a `numeric` domain keeps its written scale.
+  `format_type(oid, typmod)` prints the name of a domain, enum, composite type or table
+  row type (schema-qualified outside the search path) instead of the OID. A table column
   keeps its domain identity separately (`FieldMeta.domain`), so `ALTER DOMAIN` never
   rewrites rows; enforcement looks the live descriptor up by OID.
 - Catalog: `pg_type` rows with `typtype = 'd'`, `typbasetype`, `typtypmod`,
@@ -579,8 +659,7 @@ Rejected with `0A000` (documented limitations, not regressions):
   and `JSON_TABLE` columns, so function signatures, sequences and `CREATE TYPE`
   attributes report the type as missing (`42704`);
 - `DEFAULT <expr>::domain` literal folding resolves no catalog names;
-- `COLLATE` on a domain, `ALTER DOMAIN OWNER TO` and `ALTER DOMAIN ... SET SCHEMA` (use
-  `ALTER TYPE <domain> SET SCHEMA`);
+- `COLLATE` on a domain and `ALTER DOMAIN OWNER TO`;
 - `DROP DOMAIN ... CASCADE` when dependents exist (use `RESTRICT` semantics);
 - restoring a database image that contains domain types fails closed;
 - prepared statements keep the descriptor seen at Parse time.
@@ -957,10 +1036,37 @@ PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
     label, while `enum_first` and ranges that stop before it still succeed.
   - If the type was created in the same transaction, the new label is usable immediately.
 - Dependencies are computed by scanning, like composite types: table columns and
-  arrays, defaults, and view or materialized-view outputs.
+  arrays, defaults, view or materialized-view outputs, routine arguments and results,
+  and views whose definition casts to the type without exposing it as an output.
   - `DROP TYPE ... RESTRICT` with dependents raises `2BP01` with PostgreSQL's
-    `column c of table t` detail.
+    `column c of table t`, `view v` and `column c of materialized view m` details.
+    Internal materialized-view output table names are never shown.
+  - A view is re-bound from its stored SQL text, so that text is its dependency
+    record. `RENAME VALUE`, `RENAME TO` and `SET SCHEMA` rewrite, in the same
+    publication, each label literal the view reads as input of the enum and each
+    reference to the type name. A view that does not bind when the type is altered,
+    and materialized-view definitions, are not rewritten.
   - `DROP SCHEMA`/`DROP DATABASE` follow the composite type rules.
+- `ALTER TYPE` and `DROP TYPE` resolve an unqualified name through the search path
+  across enum, composite and domain types: the first schema that declares the name
+  decides which object it denotes.
+- Table `CHECK` constraints on an enum column compare members. The literal is bound to
+  the member's storage form when the constraint is created (unknown label: `22P02`),
+  ordering operators use sort order, and `RENAME VALUE` keeps the constraint on the same
+  member.
+- A set operation, `greatest`, `least` or `enum_range` over two different enum types has
+  no common type. `greatest`, `least` and `nullif` accept arguments of one enum type; an
+  unknown literal beside an enum argument is not yet coerced there.
+- An enum column accepts an unknown literal, a parameter, or an expression of the same
+  enum. A `text`-typed column, cast or function result has no assignment cast (`42804`).
+- An unknown literal compared with an enum array (`es = '{a,b}'`) or searched in one
+  (`array_position(es, 'a')`) is input of the element enum. `e = ANY($1)` infers the
+  enum's array type for `$1`, and `$1 = ANY(es)` the element enum.
+- `information_schema.columns.column_default` renders an enum default as
+  `'label'::type`.
+- Quoted type names are matched case-insensitively, like every relation and type name
+  in the catalog. PostgreSQL distinguishes `"Mood"` from `mood`; this is a catalog-wide
+  divergence, not an enum-specific one.
 - Labels are 1–63 bytes. A longer label raises `42602`.
 
 ### SQL and wire behaviour
@@ -988,6 +1094,11 @@ PostgreSQL never allows enum labels to be dropped, and Cassie does not either.
 | Label longer than 63 bytes | `42602` |
 | Cast between enum and an integer type | `42846` |
 | Comparison with `text` or another enum type | `42883` |
+| `enum_range`/`enum_first`/`enum_last` over two enum types | `42883` |
+| `e = ANY(ARRAY['a'])` with a `text[]` constructor | `42883` |
+| Set operation, `greatest` or `least` over two enum types | `42846` |
+| `text`-typed or other-enum expression assigned to an enum column | `42804` |
+| Row violating a `CHECK` on an enum column | `23514` |
 | `enum_first`/`enum_last` on an empty enum | `55000` |
 | Use of an uncommitted added label | `55P04` |
 | Drop with dependents | `2BP01` |

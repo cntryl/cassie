@@ -42,6 +42,18 @@ pub(super) fn bound(
             )?,
             5,
         ),
+        Value::Typed(TypedValue::Record(record)) => record
+            .descriptor()
+            .fields
+            .iter()
+            .zip(record.fields())
+            .try_fold(2, |bytes, (field, value)| {
+                let name = add(mul(field.name.len(), 6)?, 4)?;
+                add(
+                    add(bytes, name)?,
+                    bound(value, Some(&field.data_type), binary)?,
+                )
+            }),
         Value::Typed(value) => add(mul(value.heap_bytes(), 8)?, 128),
         Value::Array(array) => arrays::bound(array, kind, binary),
         Value::Vector(value) => add(mul(value.values.len(), 64)?, 2),
@@ -109,6 +121,7 @@ pub(super) fn encode(
                 quote(&text)
             }
         }
+        Value::Typed(TypedValue::Record(record)) => record_object(record, ",", controls),
         Value::Typed(value) => quote(&typed_value_text(value, controls)),
         Value::Vector(value) => {
             let text = serde_json::to_string(&value.values)
@@ -218,6 +231,35 @@ fn floating(value: f64) -> Result<String, QueryError> {
     } else {
         quote(&text)
     }
+}
+
+/// A record as a JSON object keyed by its field names; `separator` joins the
+/// fields (`row_to_json(..., true)` puts each field on its own line).
+pub(super) fn record_object(
+    record: &crate::types::RecordValue,
+    separator: &str,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<String, QueryError> {
+    let mut object = String::from("{");
+    for (index, (field, value)) in record
+        .descriptor()
+        .fields
+        .iter()
+        .zip(record.fields())
+        .enumerate()
+    {
+        if let Some(controls) = controls {
+            controls.check_interruption()?;
+        }
+        if index > 0 {
+            object.push_str(separator);
+        }
+        object.push_str(&quote(&field.name)?);
+        object.push(':');
+        object.push_str(&encode(value, Some(&field.data_type), controls)?);
+    }
+    object.push('}');
+    Ok(object)
 }
 
 fn quote(text: &str) -> Result<String, QueryError> {

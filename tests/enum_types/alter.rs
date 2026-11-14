@@ -242,7 +242,7 @@ fn should_keep_order_when_many_values_are_inserted_into_one_gap() {
     let labels = strings(&fixture, ORDERED_LABELS);
     let orders = strings(
         &fixture,
-        "SELECT enumsortorder::text FROM pg_enum \
+        "SELECT enumsortorder::text AS sort_text FROM pg_enum \
          WHERE enumtypid = 'state_code'::regtype ORDER BY enumsortorder",
     );
     let stored = scalar(&fixture, "SELECT st::text FROM jobs WHERE id = 10");

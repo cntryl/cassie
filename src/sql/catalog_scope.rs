@@ -6,13 +6,17 @@
 //! re-parses stored or nested SQL text (view bodies, projection queries,
 //! dependency scans) uses [`parse_statement_in_catalog`] so those names keep
 //! resolving against the catalog and search path the caller already holds.
+//!
+//! All three resolvers share one search-path walk
+//! ([`Catalog::resolve_user_type`]): an unqualified name denotes the type in
+//! the first schema that holds any user type of that name, whatever its kind.
 
 use std::rc::Rc;
 
 use super::binder::BindingContext;
 use super::parser::{parse_statement, with_domain_scope, with_enum_scope, with_type_scope};
 use super::{DomainResolver, EnumResolver, SqlError, TypeResolver};
-use crate::catalog::Catalog;
+use crate::catalog::{Catalog, UserType};
 use crate::sql::ast::ParsedStatement;
 use crate::types::{CompositeRef, DomainRef, EnumRef};
 
@@ -30,10 +34,11 @@ fn type_resolver(catalog: &Catalog, context: &BindingContext) -> TypeResolver {
     let order = search_order(context);
     Rc::new(move |raw: &str| -> Option<CompositeRef> {
         let order = order.iter().map(String::as_str).collect::<Vec<_>>();
-        catalog
-            .resolve_composite_type(&database, &order, raw)
-            .map(|metadata| metadata.descriptor())
-            .or_else(|| catalog.resolve_relation_row_type(&database, &order, raw))
+        match catalog.resolve_user_type(&database, &order, raw)? {
+            UserType::Composite(metadata) => Some(metadata.descriptor()),
+            UserType::RowType(descriptor) => Some(descriptor),
+            UserType::Enum(_) | UserType::Domain(_) => None,
+        }
     })
 }
 
@@ -43,9 +48,10 @@ fn domain_resolver(catalog: &Catalog, context: &BindingContext) -> DomainResolve
     let order = search_order(context);
     Rc::new(move |raw: &str| -> Option<DomainRef> {
         let order = order.iter().map(String::as_str).collect::<Vec<_>>();
-        catalog
-            .resolve_domain_type(&database, &order, raw)
-            .map(|metadata| metadata.descriptor())
+        match catalog.resolve_user_type(&database, &order, raw)? {
+            UserType::Domain(metadata) => Some(metadata.descriptor()),
+            _ => None,
+        }
     })
 }
 
@@ -55,9 +61,10 @@ fn enum_resolver(catalog: &Catalog, context: &BindingContext) -> EnumResolver {
     let order = search_order(context);
     Rc::new(move |raw: &str| -> Option<EnumRef> {
         let order = order.iter().map(String::as_str).collect::<Vec<_>>();
-        catalog
-            .resolve_enum_type(&database, &order, raw)
-            .map(|metadata| metadata.descriptor())
+        match catalog.resolve_user_type(&database, &order, raw)? {
+            UserType::Enum(metadata) => Some(metadata.descriptor()),
+            _ => None,
+        }
     })
 }
 

@@ -3,47 +3,52 @@
 //! PostgreSQL's `record_cmp` compares field by field in declaration order,
 //! treats two NULL fields as equal and sorts a NULL field after any value.
 use super::RecordValue;
-use crate::types::typed::TypedValue;
+use crate::types::typed::TypedKey;
 use crate::types::Value;
 
-/// A byte key whose lexicographic order is the record's btree order.
-#[must_use]
-pub fn record_key(record: &RecordValue) -> Vec<u8> {
-    let mut out = Vec::new();
-    for field in record.fields() {
-        push_value(&mut out, field);
-    }
-    out
+/// A record's btree key: one ordered key per field, compared field by field.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RecordKey(Vec<FieldKey>);
+
+/// The key of one field. Variants of one declared field type always agree, so
+/// the variant order only decides how a NULL compares: after every value.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum FieldKey {
+    Bool(bool),
+    Int(i64),
+    /// `float8` bits arranged in PostgreSQL order (see [`float_order_bits`]).
+    Float(u64),
+    Text(String),
+    /// A typed field keeps its own ordered key, so `numeric`, `date` and the
+    /// other extended families order by value and not by their spelling.
+    Typed(TypedKey),
+    Null,
 }
 
-fn push_value(out: &mut Vec<u8>, value: &Value) {
-    if value.is_null() {
-        out.push(1);
-        return;
-    }
-    out.push(0);
+/// The key whose order is the record's btree order.
+#[must_use]
+pub fn record_key(record: &RecordValue) -> RecordKey {
+    RecordKey(record.fields().iter().map(field_key).collect())
+}
+
+fn field_key(value: &Value) -> FieldKey {
     match value {
-        Value::Null => {}
-        Value::Bool(flag) => out.push(u8::from(*flag)),
-        Value::Int64(number) => {
-            out.extend_from_slice(&(number.cast_unsigned() ^ (1 << 63)).to_be_bytes());
-        }
-        Value::Float64(number) => out.extend_from_slice(&float_order_bits(*number).to_be_bytes()),
-        Value::String(text) => push_escaped(out, text.as_bytes()),
-        Value::Typed(TypedValue::Record(nested)) => push_escaped(out, &record_key(nested)),
-        Value::Typed(typed) => push_escaped(out, format!("{:?}", typed.key()).as_bytes()),
-        Value::Vector(vector) => push_escaped(
-            out,
+        Value::Null => FieldKey::Null,
+        Value::Bool(flag) => FieldKey::Bool(*flag),
+        Value::Int64(number) => FieldKey::Int(*number),
+        Value::Float64(number) => FieldKey::Float(float_order_bits(*number)),
+        Value::String(text) => FieldKey::Text(text.clone()),
+        Value::Typed(typed) => FieldKey::Typed(typed.key()),
+        Value::Vector(vector) => FieldKey::Text(
             vector
                 .values
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()
-                .join(",")
-                .as_bytes(),
+                .join(","),
         ),
-        Value::Array(array) => push_escaped(out, array.to_nested_json().to_string().as_bytes()),
-        Value::Json(document) => push_escaped(out, document.to_string().as_bytes()),
+        Value::Array(array) => FieldKey::Text(array.to_nested_json().to_string()),
+        Value::Json(document) => FieldKey::Text(document.to_string()),
     }
 }
 
@@ -62,15 +67,4 @@ fn float_order_bits(number: f64) -> u64 {
     } else {
         bits | (1 << 63)
     }
-}
-
-/// Byte strings compare correctly when 0x00 is escaped and a terminator ends them.
-fn push_escaped(out: &mut Vec<u8>, bytes: &[u8]) {
-    for byte in bytes {
-        out.push(*byte);
-        if *byte == 0 {
-            out.push(0xFF);
-        }
-    }
-    out.extend_from_slice(&[0, 1]);
 }

@@ -54,6 +54,8 @@ pub(super) fn drop_schema_domains(cassie: &Cassie, schema: &str) -> Result<(), Q
         .into_iter()
         .filter(|domain| object_in_schema(&domain.name, schema))
     {
+        // The cascade reaches views that cast to the domain, in any schema.
+        super::domain_view_dependents::drop_dependent_views(cassie, &domain)?;
         cassie
             .midge
             .delete_domain_type(&domain.database, &domain.name)

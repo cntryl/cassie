@@ -64,7 +64,13 @@ pub(super) fn parse(raw: &str, open: usize, close: usize) -> Result<QuerySource,
         with_ordinality: false,
         form: Some(Box::new(TableFunctionForm::JsonTable(Box::new(spec)))),
     };
-    alias_with_declared_columns(source, &raw[close + 1..], &declared)
+    let tail = &raw[close + 1..];
+    // `JSON_TABLE` has its own `FOR ORDINALITY` column; PostgreSQL's grammar has no
+    // `WITH ORDINALITY` after it.
+    if lexical::pattern_end(lexical::trim_separators(tail), 0, "with ordinality").is_some() {
+        return Err(SqlError::syntax("syntax error at or near \"WITH\"".into()));
+    }
+    alias_with_declared_columns(source, tail, &declared)
 }
 
 /// Wraps `source` in its alias, naming the columns the alias list does not cover.

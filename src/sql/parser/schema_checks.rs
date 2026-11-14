@@ -31,6 +31,11 @@ pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlEr
     let (left, op, right) = parse_simple_comparison(inner)
         .ok_or_else(|| SqlError::new("unsupported CHECK expression".to_string()))?;
 
+    if left.starts_with('(') {
+        return Err(SqlError::unsupported(
+            "a CHECK constraint on a field of a composite column is not supported".to_string(),
+        ));
+    }
     if !left
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')

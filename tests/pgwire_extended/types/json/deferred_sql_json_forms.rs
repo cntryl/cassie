@@ -19,16 +19,24 @@ fn run_then_recover(label: &str, sql: &str) -> (Option<String>, Vec<Vec<Option<S
 }
 
 #[test]
-fn should_reject_row_to_json_as_an_unsupported_function() {
+fn should_render_row_to_json_of_an_anonymous_record() {
     // Arrange
-    let sql = "SELECT row_to_json(ROW(1, 2))";
+    let cycles = vec![fixture::execute_cycle(
+        "SELECT row_to_json(ROW(1, 2))",
+        None,
+        0,
+        true,
+    )];
 
     // Act
-    let (code, recovery) = run_then_recover("deferred-row-to-json", sql);
+    let batches = fixture::run_cycles("row-to-json-anonymous-record", &[], cycles);
 
     // Assert
-    assert_eq!(code.as_deref(), Some(UNDEFINED_FUNCTION));
-    assert_eq!(recovery, vec![vec![Some("7".into())]]);
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some(r#"{"f1":1,"f2":2}"#.into())]]
+    );
 }
 
 #[test]

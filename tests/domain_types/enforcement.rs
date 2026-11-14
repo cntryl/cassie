@@ -591,11 +591,13 @@ fn should_stop_enforcing_a_dropped_domain_check_on_a_row_type_column_insert() {
 
 #[test]
 fn should_enforce_an_added_domain_check_on_a_row_type_column_insert() {
-    // Arrange
-    let fixture = row_column_fixture("domain_row_column_added_check");
+    // Arrange: PostgreSQL refuses ADD CONSTRAINT while a row-type column holds
+    // the domain (0A000), so the check is added before the column exists.
+    let fixture = row_type_fixture("domain_row_column_added_check");
     fixture
         .execute("ALTER DOMAIN posint ADD CONSTRAINT small CHECK (VALUE < 10)")
         .unwrap();
+    fixture.execute("CREATE TABLE holder (r dt)").unwrap();
 
     // Act
     let error = fixture.error("INSERT INTO holder VALUES ('(50)')");

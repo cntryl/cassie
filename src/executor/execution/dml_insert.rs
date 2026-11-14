@@ -379,6 +379,10 @@ fn insert_source_rows(
             // source rows' internal identity.
             let mut logical = logical;
             crate::planner::logical::rewrite_reserved_id_references(&mut logical, &cassie.catalog);
+            // The planner applies this to every SELECT; a WHERE conjunct that guards a lateral
+            // set-returning source must also run before the expansion here, or a row the WHERE
+            // excludes still raises from the function (CREATE TABLE AS inserts through this too).
+            crate::planner::lateral_filter::push_into_lateral_join(&mut logical);
             let mut cte_context = CteContext::new();
             let rows = execute_plan(
                 cassie,

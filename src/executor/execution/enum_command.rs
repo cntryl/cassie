@@ -124,8 +124,37 @@ pub(super) fn create(
     Ok(output)
 }
 
-/// `ALTER TYPE` when `raw` names an enum (and no composite type, which takes
-/// precedence in the shared type namespace). Returns `None` otherwise.
+/// The enum type `raw` names when no composite or domain type of the same
+/// name sits earlier in `search_order`. The three kinds share one namespace
+/// per schema, so the first schema that declares the name decides its kind.
+pub(super) fn resolve_first_in_path(
+    cassie: &Cassie,
+    database: &str,
+    search_order: &[&str],
+    raw: &str,
+) -> Option<EnumTypeMeta> {
+    let catalog = &cassie.catalog;
+    if search_order.is_empty() {
+        return catalog.resolve_enum_type(database, search_order, raw);
+    }
+    for schema in search_order {
+        let scope = std::slice::from_ref(schema);
+        if let Some(found) = catalog.resolve_enum_type(database, scope, raw) {
+            return Some(found);
+        }
+        if catalog
+            .resolve_composite_type(database, scope, raw)
+            .is_some()
+            || catalog.resolve_domain_type(database, scope, raw).is_some()
+        {
+            return None;
+        }
+    }
+    None
+}
+
+/// `ALTER TYPE` when `raw` names an enum under the search-path rule of
+/// [`resolve_first_in_path`]. Returns `None` otherwise.
 pub(super) fn alter_if_enum(
     cassie: &Cassie,
     scope: &AlterScope<'_>,
@@ -133,16 +162,7 @@ pub(super) fn alter_if_enum(
     alteration: &TypeAlteration,
     controls: &QueryExecutionControls,
 ) -> Result<Option<QueryResult>, QueryError> {
-    if cassie
-        .catalog
-        .resolve_composite_type(scope.database, scope.search_order, raw)
-        .is_some()
-    {
-        return Ok(None);
-    }
-    let Some(current) = cassie
-        .catalog
-        .resolve_enum_type(scope.database, scope.search_order, raw)
+    let Some(current) = resolve_first_in_path(cassie, scope.database, scope.search_order, raw)
     else {
         return Ok(None);
     };
@@ -167,7 +187,9 @@ fn alter(
                     format!("type \"{new_name}\" already exists"),
                 ));
             }
-            publish(cassie, current, &current.with_name(canonical))?;
+            let views =
+                super::enum_views::rename_type(cassie, scope.session, current, new_name, None);
+            publish_with_views(cassie, current, &current.with_name(canonical), views)?;
         }
         TypeAlteration::SetSchema { schema } => set_schema(cassie, scope, current, schema)?,
         TypeAlteration::OwnerTo { owner } => {
@@ -194,7 +216,8 @@ fn alter(
         TypeAlteration::RenameValue { from, to } => {
             validate_label(to)?;
             let next = current.with_renamed_value(from, to).map_err(alter_error)?;
-            publish(cassie, current, &next)?;
+            let views = super::enum_views::rename_label(cassie, scope.session, current, from, to);
+            publish_with_views(cassie, current, &next, views)?;
         }
         TypeAlteration::RenameAttribute { .. }
         | TypeAlteration::AddAttribute { .. }
@@ -285,15 +308,45 @@ fn set_schema(
             ),
         ));
     }
-    publish(cassie, current, &current.with_name(canonical))
+    let views = super::enum_views::rename_type(
+        cassie,
+        scope.session,
+        current,
+        &current.local_name(),
+        Some(schema),
+    );
+    publish_with_views(cassie, current, &current.with_name(canonical), views)
 }
 
 /// Persists `next`, re-embeds it in every column and view that carries a copy,
 /// and swaps the catalog. The type and its dependents commit in one Midge
 /// transaction.
 fn publish(cassie: &Cassie, current: &EnumTypeMeta, next: &EnumTypeMeta) -> Result<(), QueryError> {
+    publish_with_views(cassie, current, next, Vec::new())
+}
+
+/// [`publish`], also storing the view definitions a rename rewrote. A view is
+/// re-bound from its text, so the text must follow the new label or name.
+fn publish_with_views(
+    cassie: &Cassie,
+    current: &EnumTypeMeta,
+    next: &EnumTypeMeta,
+    rewritten: Vec<super::enum_views::RewrittenView>,
+) -> Result<(), QueryError> {
     let renamed = !current.name.eq_ignore_ascii_case(&next.name);
-    let propagation = cassie.catalog.propagate_enum_change(&next.descriptor());
+    let mut propagation = cassie.catalog.propagate_enum_change(&next.descriptor());
+    for view in rewritten {
+        if let Some(embedded) = propagation
+            .views
+            .iter_mut()
+            .find(|embedded| embedded.name == view.name)
+        {
+            embedded.query = view.query;
+        } else if let Some(mut stored) = cassie.catalog.get_view(&view.name) {
+            stored.query = view.query;
+            propagation.views.push(stored);
+        }
+    }
     cassie
         .midge
         .publish_enum_group(next, renamed.then_some(current.name.as_str()), &propagation)
@@ -306,14 +359,19 @@ fn publish(cassie: &Cassie, current: &EnumTypeMeta, next: &EnumTypeMeta) -> Resu
     Ok(())
 }
 
-/// Refuses `DROP TYPE` while a table column holds the type (`2BP01`), or with
-/// `CASCADE` (`0A000`: dropping dependents is not implemented).
+/// Refuses `DROP TYPE` while a table column or a view holds the type (`2BP01`),
+/// or with `CASCADE` (`0A000`: dropping dependents is not implemented).
 pub(super) fn ensure_droppable(
     cassie: &Cassie,
     metadata: &EnumTypeMeta,
     cascade: bool,
 ) -> Result<(), QueryError> {
-    let dependents = cassie.catalog.enum_type_dependents(metadata.type_oid());
+    let mut dependents = cassie.catalog.enum_type_dependents(metadata.type_oid());
+    // A view that only casts to the type inside its definition has no typed
+    // output column; its definition is the dependency record.
+    let from_definitions =
+        super::enum_views::definition_dependents(cassie, None, metadata, &dependents);
+    dependents.extend(from_definitions);
     if dependents.is_empty() {
         return Ok(());
     }

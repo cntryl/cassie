@@ -21,8 +21,14 @@ mod catalog_oid_operands;
 mod decimal_literals;
 #[path = "declared_functions.rs"]
 mod declared_functions;
+#[path = "boolean_operand_checks.rs"]
+mod operand_checks;
+use operand_checks::{
+    validate_between_expression, validate_collation_pair, validate_concatenation_comparison,
+};
 #[path = "enum_operands.rs"]
 mod enum_operands;
+pub(super) use enum_operands::type_support_arguments;
 #[path = "math_signatures.rs"]
 mod math_signatures;
 #[path = "row_predicates.rs"]
@@ -393,6 +399,7 @@ pub(super) fn validate_value(
     if expected == Some(&DataType::Boolean) {
         require_boolean(expr, types, "Boolean assignment")?;
     }
+    enum_operands::validate_assignment(expr, types, expected)?;
     validate_expression(expr, types, catalog, context)?;
     super::conditional_types::validate_expression(expr, types)?;
     Ok(())
@@ -466,6 +473,7 @@ fn validate_expression(
                 }
             }
             super::coalesce_coercion::coerce_function(function, types);
+            enum_operands::type_support_arguments(function, types);
             validate_boolean_aggregate(function, types)?;
         }
         Expr::Exists(statement) => {
@@ -506,6 +514,7 @@ fn validate_binary(
     context: &BindingContext,
 ) -> Result<(), CassieError> {
     enum_operands::qualify_quantified(op, left, right, types)?;
+    super::network_literals::qualify(op, left, right, types);
     if matches!(
         op,
         BinaryOp::Eq
@@ -580,127 +589,6 @@ fn validate_subscripts(
         }
     }
     Ok(())
-}
-
-fn validate_collation_pair(left: &Expr, right: &Expr) -> Result<(), CassieError> {
-    fn explicit_collation(expression: &Expr) -> Option<&str> {
-        match expression {
-            Expr::Collate { collation, .. } => Some(collation.as_str()),
-            _ => None,
-        }
-    }
-    if let (Some(left), Some(right)) = (explicit_collation(left), explicit_collation(right)) {
-        if left != right {
-            return Err(crate::app::DiagnosticError::new(
-                "42P21",
-                format!("collation mismatch between explicit collations {left:?} and {right:?}"),
-            )
-            .into());
-        }
-    }
-    Ok(())
-}
-
-fn validate_between_expression(
-    expression: &mut Expr,
-    types: &ResultTypes,
-    catalog: &Catalog,
-    context: &BindingContext,
-) -> Result<(), CassieError> {
-    let Expr::Between {
-        expr,
-        low,
-        high,
-        symmetric,
-        ..
-    } = expression
-    else {
-        unreachable!("BETWEEN validation dispatch")
-    };
-    super::symmetric_between::validate([expr, low, high], *symmetric, types)?;
-    canonicalize_boolean_pair(expr, low, types)?;
-    canonicalize_boolean_pair(expr, high, types)?;
-    canonicalize_boolean_pair(low, high, types)?;
-    enum_operands::qualify_pair(&BinaryOp::Gte, expr, low, types)?;
-    enum_operands::qualify_pair(&BinaryOp::Lte, expr, high, types)?;
-    decimal_literals::narrow_pair(expr, low, types);
-    decimal_literals::narrow_pair(expr, high, types);
-    validate_expression(expr, types, catalog, context)?;
-    validate_expression(low, types, catalog, context)?;
-    validate_expression(high, types, catalog, context)?;
-    Ok(())
-}
-
-fn validate_concatenation_comparison(
-    left: &mut Expr,
-    right: &mut Expr,
-    types: &ResultTypes,
-) -> Result<(), CassieError> {
-    if types.parameter_types().is_empty()
-        || (!contains_concatenation(left) && !contains_concatenation(right))
-    {
-        return Ok(());
-    }
-    // An uncast SQL string is unknown until its comparison signature is known.
-    let literal = if types.expression_type(left) == Some(DataType::Bytea)
-        && matches!(right, Expr::StringLiteral(_))
-    {
-        Some(&mut *right)
-    } else if types.expression_type(right) == Some(DataType::Bytea)
-        && matches!(left, Expr::StringLiteral(_))
-    {
-        Some(&mut *left)
-    } else {
-        None
-    };
-    if let Some(literal) = literal {
-        *literal = Expr::Cast {
-            expr: Box::new(std::mem::replace(literal, Expr::Null)),
-            data_type: DataType::Bytea,
-            source_type: None,
-            identity: crate::sql::ast::CastIdentity::Scalar,
-        };
-    }
-    let left = types.expression_type(left);
-    let right = types.expression_type(right);
-    if let (Some(left), Some(right)) = (&left, &right) {
-        if !matches!(left, DataType::Null)
-            && !matches!(right, DataType::Null)
-            && (left == &DataType::Bytea || right == &DataType::Bytea)
-            && left != right
-        {
-            return Err(CassieError::Planner(format!(
-                "incompatible comparison operands: {left:?} and {right:?}"
-            )));
-        }
-    }
-    let family = |kind: Option<&DataType>| {
-        kind.filter(|kind| **kind != DataType::Null)
-            .map(super::validation::data_type_family)
-    };
-    super::validation::require_compatible_families(
-        family(left.as_ref()),
-        family(right.as_ref()),
-        "comparison",
-    )
-}
-
-fn contains_concatenation(expr: &Expr) -> bool {
-    matches!(
-        expr,
-        Expr::Binary {
-            op: BinaryOp::Concat | BinaryOp::ByteaConcat,
-            ..
-        }
-    ) || expr
-        .try_visit_children(|child| {
-            if contains_concatenation(child) {
-                Err(())
-            } else {
-                Ok(())
-            }
-        })
-        .is_err()
 }
 
 fn resolve_integer_operator(

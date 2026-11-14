@@ -7,6 +7,7 @@ use crate::executor::semantic::SemanticKey;
 #[cfg(test)]
 use crate::sql::ast::BinaryOp;
 use crate::sql::numeric_comparison::{join_equality_columns, NumericComparisonDomain};
+use std::sync::Arc;
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
 
@@ -86,7 +87,12 @@ pub(super) fn execute_join_source<'a>(
         return finish_retained_join(env, JoinResult::empty(env)?);
     }
 
-    if !source_contains_lateral(spec.right) {
+    // A RIGHT or FULL join cannot be driven from its left rows: the right side is the
+    // preserved side and PostgreSQL forbids it from reading the left side, so it runs once as
+    // an ordinary input even when it is a set-returning source.
+    let lateral = source_contains_lateral(spec.right)
+        && !matches!(spec.kind, JoinKind::Right | JoinKind::Full);
+    if !lateral {
         if let Some(joined) = bounded::try_execute_indexed_bounded_inner_join(env, &spec)? {
             return finish_retained_join(env, joined);
         }
@@ -110,7 +116,7 @@ pub(super) fn execute_join_source<'a>(
         spec.outer_row,
         left_row_budget,
     )?;
-    if source_contains_lateral(spec.right) {
+    if lateral {
         return execute_lateral_join(env, &spec, cte_context, left_batches);
     }
     let (left_rows, _left_memory) = prepare_join_rows(env, left_batches)?;
@@ -260,18 +266,32 @@ fn execute_lateral_join<'a>(
     let mut matched_rows = 0usize;
     let output_budget = spec.row_budget.unwrap_or(usize::MAX);
     let right_template = super::source_shape::null_row(env, spec.right, cte_context)?;
+    // Inside a correlated subquery the `ON` may read the enclosing row, exactly as the
+    // `WHERE` does once the source rows carry their outer scope.
+    let outer_scope = spec.outer_row.map(|outer| Arc::new(outer.clone()));
 
     'left: for left_row in &left_rows {
         check_timeout(env.controls)?;
-        if matches!(spec.kind, JoinKind::Inner)
+        if matches!(spec.kind, JoinKind::Inner | JoinKind::Left)
             && !left_terms_pass(
                 env,
                 (spec.source, &*cte_context),
-                left_row,
+                (left_row, outer_scope.as_ref()),
                 &right_template,
                 spec.on,
             )?
         {
+            // No right row can satisfy a failed preserved-side conjunct: an inner join drops
+            // the row and a left join null-extends it, both without expanding the right side.
+            if matches!(spec.kind, JoinKind::Left) {
+                joined.try_push_combined(left_row, &right_template, || {
+                    check_timeout(env.controls)?;
+                    Ok(Some(combine_rows(left_row, &right_template)?))
+                })?;
+                if joined.len() >= output_budget {
+                    break;
+                }
+            }
             continue;
         }
         let right_budget = matches!(spec.kind, JoinKind::Cross)
@@ -292,16 +312,19 @@ fn execute_lateral_join<'a>(
                 retention.before(JoinRetentionPhase::NestedOutput)?;
                 check_timeout(env.controls)?;
                 let combined = combine_rows(left_row, right_row)?;
-                let passes = matches!(spec.kind, JoinKind::Cross)
-                    || evaluate_join_on(
-                        env,
-                        Some(JoinPredicateContext {
-                            source: spec.source,
-                            ctes: cte_context,
-                        }),
-                        &combined,
-                        spec.on,
-                    )?;
+                let context = Some(JoinPredicateContext {
+                    source: spec.source,
+                    ctes: cte_context,
+                });
+                let passes = if matches!(spec.kind, JoinKind::Cross) {
+                    true
+                } else if outer_scope.is_some() {
+                    // The retained row stays unscoped; only the predicate sees the outer row.
+                    let probe = scoped(combined.clone(), outer_scope.as_ref());
+                    evaluate_join_on(env, context, &probe, spec.on)?
+                } else {
+                    evaluate_join_on(env, context, &combined, spec.on)?
+                };
                 Ok(passes.then_some(combined))
             })?;
             if accepted {
@@ -344,6 +367,14 @@ struct JoinPredicateContext<'a> {
     ctes: &'a CteContext,
 }
 
+/// Attaches the enclosing row of a correlated subquery, when there is one.
+fn scoped(row: BatchRow, outer: Option<&Arc<BatchRow>>) -> BatchRow {
+    match outer {
+        Some(outer) => row.with_outer_scope(Arc::clone(outer)),
+        None => row,
+    }
+}
+
 /// Whether the row declares `name` itself. Unlike `get`, a qualified name does not fall back to
 /// its bare column, so generated sources whose columns are named `column1` never shadow the
 /// preserved side.
@@ -358,7 +389,7 @@ fn declares(row: &BatchRow, name: &str) -> bool {
 pub(super) fn left_terms_pass(
     env: &SourceExecutionEnv<'_>,
     context: (&QuerySource, &CteContext),
-    left: &BatchRow,
+    (left, outer): (&BatchRow, Option<&Arc<BatchRow>>),
     right_template: &BatchRow,
     on: &Expr,
 ) -> Result<bool, QueryError> {
@@ -369,14 +400,15 @@ pub(super) fn left_terms_pass(
         let mut names = Vec::new();
         if !crate::planner::lateral_filter::simple_columns(term, &mut names)
             || names.is_empty()
-            || !names
-                .iter()
-                .all(|name| left.get(name).is_some() && !declares(right_template, name))
+            || !names.iter().all(|name| {
+                (left.get(name).is_some() || outer.is_some_and(|row| row.get(name).is_some()))
+                    && !declares(right_template, name)
+            })
         {
             continue;
         }
         if probe.is_none() {
-            probe = Some(combine_rows(left, right_template)?);
+            probe = Some(scoped(combine_rows(left, right_template)?, outer));
         }
         let row = probe.as_ref().expect("combined probe row");
         let passes = evaluate_join_on(

@@ -116,7 +116,11 @@ fn relation_type_rows(catalog: &Catalog, current_database: Option<&str>) -> Vec<
     let mut rows = Vec::new();
     for (table, _, descriptor) in catalog.list_relation_row_types(current_database) {
         let namespace = crate::catalog::RelationId::parse_canonical(&table).map_or_else(
-            || crate::catalog::relation_schema_name(&table),
+            // An unscoped catalog stores `schema.name` without its database.
+            || match crate::catalog::parse_name(&table) {
+                Ok(crate::catalog::ParsedName::SchemaQualified { schema, .. }) => schema,
+                _ => crate::catalog::relation_schema_name(&table),
+            },
             |relation| canonical_schema_name(&relation.database, &relation.schema),
         );
         let composite = DataType::Composite(descriptor.clone());

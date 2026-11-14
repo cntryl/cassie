@@ -277,6 +277,12 @@ pub(super) fn updated_payload_from_row(
                 schema,
             )?;
         } else {
+            let value = match schema.fields.iter().find(|column| column.name == *field) {
+                Some(column) if matches!(expr, Expr::StringLiteral(_)) => {
+                    super::unknown_literal_value(value, &column.data_type)?
+                }
+                _ => value,
+            };
             apply_update_value(&mut payload, field, &value, schema)?;
         }
     }

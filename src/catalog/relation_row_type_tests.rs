@@ -182,3 +182,69 @@ fn should_not_derive_a_row_type_for_a_table_without_allocated_identities() {
     // Assert
     assert!(descriptor.is_none());
 }
+
+fn register_table(catalog: &Catalog, canonical: &str, storage_id: u64) {
+    let mut meta = CollectionMeta::new(canonical.to_string(), None);
+    meta.storage_id = storage_id;
+    meta.row_type_object_id = storage_id + 1;
+    meta.row_array_object_id = storage_id + 2;
+    catalog.register_collection_meta_with_constraints(
+        meta,
+        vec![("id".to_string(), DataType::Int)],
+        Vec::new(),
+    );
+}
+
+#[test]
+fn should_list_one_row_type_per_table_when_two_schemas_share_a_table_name() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_table(&catalog, "cassie.public.t1", 10);
+    register_table(&catalog, "cassie.s1.t1", 20);
+
+    // Act
+    let listed = catalog.list_relation_row_types(Some("cassie"));
+
+    // Assert
+    let identities = listed
+        .iter()
+        .map(|(table, storage_id, descriptor)| (table.as_str(), *storage_id, descriptor.oid))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        identities,
+        vec![
+            (
+                "cassie.public.t1",
+                10,
+                crate::catalog::object_identity::normal_oid(11).unwrap_or(0)
+            ),
+            (
+                "cassie.s1.t1",
+                20,
+                crate::catalog::object_identity::normal_oid(21).unwrap_or(0)
+            ),
+        ]
+    );
+}
+
+#[test]
+fn should_list_only_the_row_types_of_the_requested_database() {
+    // Arrange
+    let catalog = Catalog::new();
+    register_table(&catalog, "cassie.public.rt", 10);
+    register_table(&catalog, "otherdb.public.elsewhere", 20);
+
+    // Act
+    let current = catalog.list_relation_row_types(Some("cassie"));
+    let other = catalog.list_relation_row_types(Some("otherdb"));
+
+    // Assert
+    let tables = |listed: &[(String, u64, CompositeRef)]| {
+        listed
+            .iter()
+            .map(|(table, _, _)| table.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(tables(&current), vec!["cassie.public.rt".to_string()]);
+    assert_eq!(tables(&other), vec!["otherdb.public.elsewhere".to_string()]);
+}

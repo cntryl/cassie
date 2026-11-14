@@ -438,3 +438,17 @@ fn should_reject_a_duplicate_type_created_in_the_same_transaction() {
     // Assert
     assert_eq!(error.sql_state(), "42710");
 }
+
+#[test]
+fn should_reject_an_array_of_a_composite_type_with_sqlstate_0a000() {
+    // Arrange
+    let fixture = fixture_with_address("composite_array_unsupported");
+
+    // Act
+    let column = fixture.error("CREATE TABLE address_lists (items address[])");
+    let cast = fixture.error("SELECT '{}'::address[]");
+
+    // Assert
+    assert_eq!(column.sql_state(), "0A000");
+    assert_eq!(cast.sql_state(), "0A000");
+}

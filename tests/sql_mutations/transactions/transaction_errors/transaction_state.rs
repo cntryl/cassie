@@ -161,3 +161,54 @@ fn should_restore_session_settings_when_commit_rolls_back_a_failed_block() {
     assert_eq!(fixture.session.transaction_status(), "idle");
 }
 
+
+#[test]
+fn should_end_the_transaction_block_when_commit_fails() {
+    // Arrange
+    let fixture = fixture("tx-error-commit-failure-ends-block");
+    let other = fixture.cassie.create_session("tester", None);
+    for sql in [
+        "BEGIN",
+        "CREATE TABLE tx_error_stale_ddl (id INT PRIMARY KEY)",
+    ] {
+        assert!(
+            fixture.cassie.execute_sql(&other, sql, vec![]).is_ok(),
+            "setup failed: {sql}"
+        );
+    }
+    for sql in [
+        "BEGIN",
+        "CREATE TABLE tx_error_first_ddl (id INT PRIMARY KEY)",
+        "COMMIT",
+    ] {
+        assert!(fixture.execute(sql).is_ok(), "setup failed: {sql}");
+    }
+
+    // Act
+    let commit = fixture.cassie.execute_sql(&other, "COMMIT", vec![]);
+    let status = other.transaction_status();
+    let next = fixture
+        .cassie
+        .execute_sql(&other, "SELECT id FROM tx_error_items", vec![]);
+    let published = fixture.cassie.execute_sql(
+        &other,
+        "SELECT table_name FROM information_schema.tables \
+         WHERE table_name = 'tx_error_stale_ddl'",
+        vec![],
+    );
+
+    // Assert
+    assert!(
+        commit.is_err_and(|error| error.sql_state() == "40001"),
+        "the stale catalog publication must fail COMMIT"
+    );
+    assert_eq!(status, "idle");
+    assert!(
+        next.is_ok(),
+        "the next statement runs without an explicit ROLLBACK"
+    );
+    assert!(
+        published.is_ok_and(|result| result.rows().is_empty()),
+        "the failed COMMIT publishes nothing"
+    );
+}

@@ -78,3 +78,82 @@ fn should_reject_boundaries_of_an_empty_enum_with_55000() {
     assert_eq!(first.sql_state(), "55000");
     assert_eq!(last.sql_state(), "55000");
 }
+
+fn column_fixture(label: &str) -> SqlFixture {
+    sql_fixture(
+        label,
+        &[
+            "CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')",
+            "CREATE TYPE other AS ENUM ('x', 'y')",
+            "CREATE TABLE days (id int, m mood)",
+            "INSERT INTO days VALUES (1, NULL), (2, 'ok')",
+        ],
+    )
+}
+
+#[test]
+fn should_take_the_enum_type_from_a_column_whose_value_is_null() {
+    // Arrange
+    let fixture = column_fixture("enum_functions_null_column");
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT enum_first(m)::text, enum_last(m)::text, enum_range(m, NULL)::text \
+         FROM days ORDER BY id",
+    );
+
+    // Assert
+    let text = |value: &str| Value::String(value.to_string());
+    assert_eq!(
+        rows,
+        vec![
+            vec![text("sad"), text("happy"), text("{sad,ok,happy}")],
+            vec![text("sad"), text("happy"), text("{ok,happy}")],
+        ]
+    );
+}
+
+#[test]
+fn should_reject_enum_support_functions_over_two_enum_types_with_42883() {
+    // Arrange
+    let fixture = column_fixture("enum_functions_mixed_types");
+
+    // Act
+    let range = fixture.error("SELECT enum_range('sad'::mood, 'x'::other)");
+
+    // Assert
+    assert_eq!(range.sql_state(), "42883");
+}
+
+#[test]
+fn should_pick_conditional_extremes_by_sort_order() {
+    // Arrange
+    let fixture = column_fixture("enum_conditional_extremes");
+
+    // Act
+    let greatest = single_text(
+        &fixture,
+        "SELECT greatest('happy'::mood, 'sad'::mood)::text",
+    );
+    let least = single_text(&fixture, "SELECT least('happy'::mood, 'ok'::mood)::text");
+    let kept = single_text(&fixture, "SELECT nullif('ok'::mood, 'sad'::mood)::text");
+    let nulled = fixture.rows("SELECT nullif('ok'::mood, 'ok'::mood)::text");
+
+    // Assert
+    assert_eq!(greatest, "happy");
+    assert_eq!(least, "ok");
+    assert_eq!(kept, "ok");
+    assert_eq!(nulled, vec![vec![Value::Null]]);
+}
+
+#[test]
+fn should_reject_conditional_extremes_over_two_enum_types_with_42846() {
+    // Arrange
+    let fixture = column_fixture("enum_conditional_mixed_types");
+
+    // Act
+    let error = fixture.error("SELECT greatest('sad'::mood, 'x'::other)");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42846");
+}

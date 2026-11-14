@@ -337,7 +337,7 @@ fn should_move_quoted_owned_sequence_with_table_schema() {
                 .owned_by
                 .as_ref()
                 .map(|owner| owner.table.as_str()),
-            Some("postgres.MoveTarget.orders")
+            Some("postgres.\"MoveTarget\".orders")
         );
         assert_eq!(
             query_rows(

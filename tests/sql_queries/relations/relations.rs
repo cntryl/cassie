@@ -231,6 +231,79 @@ fn should_reject_unknown_qualified_wildcard_sources() {
 }
 
 #[test]
+fn should_expand_an_unaliased_table_star_in_a_database_scoped_session() {
+    // Arrange: a pgwire session is scoped to its database, so these relations
+    // are stored and resolved under `postgres.public`.
+    let statements = [
+        "CREATE TABLE issue_800_employees (id BIGINT, dept_id BIGINT, name TEXT)",
+        "CREATE TABLE issue_800_departments (dept_id BIGINT, dept_name TEXT)",
+        "INSERT INTO issue_800_employees VALUES (1, 10, 'Ada'), (2, 20, 'Lin')",
+        "INSERT INTO issue_800_departments VALUES (10, 'Research'), (30, 'Design')",
+        "SELECT issue_800_employees.* FROM issue_800_employees WHERE dept_id = 10",
+        "SELECT public.issue_800_employees.* FROM public.issue_800_employees WHERE id = 2",
+        "SELECT issue_800_departments.*, issue_800_employees.name \
+         FROM issue_800_employees JOIN issue_800_departments \
+         ON issue_800_employees.dept_id = issue_800_departments.dept_id",
+    ];
+    let cycles = statements
+        .iter()
+        .map(|sql| vec![crate::support_pgwire::simple_query_frame(sql)])
+        .collect();
+
+    // Act
+    let frames = crate::support_type_metadata_contract::run_cycles(
+        "issue-800-scoped-table-star",
+        &[],
+        cycles,
+    );
+
+    // Assert
+    let rows = |cells: &[&str]| -> Vec<Vec<Option<String>>> {
+        vec![cells.iter().map(|cell| Some((*cell).to_owned())).collect()]
+    };
+    assert_eq!(
+        crate::support_pgwire::data_rows(&frames[4]),
+        rows(&["1", "10", "Ada"])
+    );
+    assert_eq!(
+        crate::support_pgwire::data_rows(&frames[5]),
+        rows(&["2", "20", "Lin"])
+    );
+    assert_eq!(
+        crate::support_pgwire::data_rows(&frames[6]),
+        rows(&["10", "Research", "Ada"])
+    );
+}
+
+#[test]
+fn should_describe_result_columns_through_object_identifier_values_casts() {
+    // Arrange
+    let fixture = sql_fixture("issue-800-values-oid-cast", &[]);
+
+    // Act
+    let described = fixture.execute(
+        "SELECT name AS \"Column\", pg_catalog.format_type(tp, tpm) AS \"Type\" \
+         FROM (VALUES ('a', '23'::pg_catalog.oid, -1), ('b', '25'::pg_catalog.oid, -1)) \
+         s(name, tp, tpm)",
+    );
+
+    // Assert
+    assert!(described.is_ok_and(|result| {
+        result.rows()
+            == [
+                vec![
+                    Value::String("a".to_owned()),
+                    Value::String("integer".to_owned()),
+                ],
+                vec![
+                    Value::String("b".to_owned()),
+                    Value::String("text".to_owned()),
+                ],
+            ]
+    }));
+}
+
+#[test]
 fn should_reject_order_ordinals_with_qualified_stars() {
     // Arrange
     let fixture = sql_fixture(

@@ -852,12 +852,7 @@ impl Cassie {
             }
 
             if let Some(check) = &constraint.check {
-                let value = existing.unwrap_or(&serde_json::Value::Null);
-                if !Self::satisfies_check_constraint(
-                    value,
-                    check,
-                    super::field_value_is_sql_null(existing, schema.as_ref(), &check.field),
-                )? {
+                if !Self::satisfies_column_check(schema.as_ref(), existing, check)? {
                     return Err(CassieError::CheckViolation {
                         table: collection.to_string(),
                         column: check.field.clone(),

@@ -24,3 +24,12 @@ mod persistence;
 
 #[path = "domain_types/wire.rs"]
 mod wire;
+
+#[path = "domain_types/cast_wire.rs"]
+mod cast_wire;
+
+#[path = "domain_types/dependents.rs"]
+mod dependents;
+
+#[path = "domain_types/definition.rs"]
+mod definition;

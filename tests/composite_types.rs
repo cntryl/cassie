@@ -29,3 +29,30 @@ mod persistence;
 
 #[path = "composite_types/wire.rs"]
 mod wire;
+
+#[path = "composite_types/field_carriers.rs"]
+mod field_carriers;
+
+#[path = "composite_types/upsert.rs"]
+mod upsert;
+
+#[path = "composite_types/transactions.rs"]
+mod transactions;
+
+#[path = "composite_types/whole_row_names.rs"]
+mod whole_row_names;
+
+#[path = "composite_types/ordering.rs"]
+mod ordering;
+
+#[path = "composite_types/dependencies.rs"]
+mod dependencies;
+
+#[path = "composite_types/field_typing.rs"]
+mod field_typing;
+
+#[path = "composite_types/definitions.rs"]
+mod definitions;
+
+#[path = "composite_types/json_conversion.rs"]
+mod json_conversion;

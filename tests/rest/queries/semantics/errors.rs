@@ -275,7 +275,7 @@ fn should_reject_rest_collection_creation_that_reuses_an_existing_table() {
                 vec![],
             )
             .expect("create table");
-    let collection = canonical_relation_name("postgres", "public", "RestExisting");
+    let collection = canonical_relation_name("postgres", "public", "restexisting");
     let original_schema = serde_json::to_value(
         cassie
             .catalog
@@ -461,7 +461,7 @@ fn should_reject_concurrent_rest_collection_creation_when_sql_table_claims_name(
             ..
         })
     ));
-    let collection = canonical_relation_name("postgres", "public", "RestConcurrent");
+    let collection = canonical_relation_name("postgres", "public", "restconcurrent");
     let catalog_schema = cassie
         .catalog
         .get_schema(&collection)
@@ -556,7 +556,7 @@ fn should_reject_concurrent_rest_collection_creation_when_sql_view_claims_name()
     );
     assert!(rest_result.is_ok(), "REST creation failed: {rest_result:?}");
     assert!(view_result.is_err(), "view creation unexpectedly succeeded");
-    let collection = canonical_relation_name("postgres", "public", "RestViewRace");
+    let collection = canonical_relation_name("postgres", "public", "restviewrace");
     assert!(cassie.catalog.get_view(&collection).is_none());
     assert!(cassie.midge.collection_schema(&collection).is_some());
 

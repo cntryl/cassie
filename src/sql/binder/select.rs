@@ -112,6 +112,7 @@ pub(super) fn bind_select_with_lateral_fields(
         canonicalize_typed_predicate_literals(filter, &field_types)?;
     }
     super::json_predicates::rewrite_select(&mut select, &field_types);
+    super::enum_literals::rewrite_select(&mut select, &field_types)?;
     super::case_unify::unify_select_case_results(&mut select, &field_types);
     super::boolean_contexts::qualify_declared_boolean_functions(&mut select, catalog, context)?;
 
@@ -136,6 +137,7 @@ pub(super) fn bind_select_with_lateral_fields(
             right: Box::new(right),
         }));
         super::set_width::validate_set_operand_widths(&select, catalog)?;
+        super::set_width::validate_set_operand_types(&select, catalog, context)?;
     }
 
     validate_functions(&select, catalog, context)?;
@@ -176,6 +178,7 @@ pub(super) fn canonicalize_typed_predicate_literals(
     expr: &mut Expr,
     field_types: &crate::sql::FieldTypeMap,
 ) -> Result<(), CassieError> {
+    super::unknown_literals::coerce(expr, field_types);
     match expr {
         Expr::RowCompare(comparison) => {
             for field in comparison.left.iter_mut().chain(&mut comparison.right) {

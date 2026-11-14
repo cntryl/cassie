@@ -23,9 +23,11 @@ pub(super) fn reject_outside_dependents(cassie: &Cassie, schema: &str) -> Result
         .filter(|metadata| object_in_schema(&metadata.name, schema))
     {
         let name = metadata.local_name();
-        let outside = cassie
-            .catalog
-            .enum_type_dependents(metadata.type_oid())
+        let mut dependents = cassie.catalog.enum_type_dependents(metadata.type_oid());
+        let from_definitions =
+            super::enum_views::definition_dependents(cassie, None, &metadata, &dependents);
+        dependents.extend(from_definitions);
+        let outside = dependents
             .into_iter()
             .filter(|dependent| !object_in_schema(&dependent.owner, schema))
             .map(|dependent| dependent.detail(&name))

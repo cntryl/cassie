@@ -14,6 +14,9 @@ use crate::sql::ast::{
 use crate::types::composite::CompositeRef;
 use crate::types::DataType;
 
+#[path = "whole_row_derived.rs"]
+mod derived;
+
 /// The table a single-table SELECT reads and the name its row is referenced by.
 struct RowScope {
     binding: String,
@@ -349,11 +352,43 @@ fn item_mentions_whole_row(item: &SelectItem, bindings: &Bindings) -> bool {
             mentions_whole_row(&Expr::Function(Box::new(function.clone())), bindings)
         }
         SelectItem::Expr { expr, .. } => mentions_whole_row(expr, bindings),
-        _ => false,
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(|expr| mentions_whole_row(expr, bindings)),
+        SelectItem::Wildcard => false,
     }
 }
 
+/// The explicit output aliases of the SELECT list.
+fn output_aliases(select: &SelectStatement) -> Vec<&str> {
+    select
+        .projection
+        .iter()
+        .filter_map(|item| match item {
+            SelectItem::Column { alias, .. }
+            | SelectItem::Function { alias, .. }
+            | SelectItem::Expr { alias, .. }
+            | SelectItem::WindowFunction { alias, .. } => alias.as_deref(),
+            SelectItem::Wildcard => None,
+        })
+        .collect()
+}
+
+/// A bare name in `ORDER BY` or `GROUP BY` that matches an output alias names
+/// that output column, not the table's row (PostgreSQL resolves the alias
+/// first for `ORDER BY` and before the row for `GROUP BY`).
+fn names_output_alias(expr: &Expr, aliases: &[&str]) -> bool {
+    let Expr::Column(name) = expr else {
+        return false;
+    };
+    aliases.iter().any(|alias| alias.eq_ignore_ascii_case(name))
+}
+
 fn mentions_in_clauses(select: &SelectStatement, bindings: &Bindings) -> bool {
+    let aliases = output_aliases(select);
     select
         .projection
         .iter()
@@ -361,14 +396,15 @@ fn mentions_in_clauses(select: &SelectStatement, bindings: &Bindings) -> bool {
         || select
             .filter
             .iter()
-            .chain(&select.group_by)
             .chain(select.having.iter())
             .chain(&select.distinct_on)
             .any(|expr| mentions_whole_row(expr, bindings))
         || select
-            .order
+            .group_by
             .iter()
-            .any(|order| mentions_whole_row(&order.expr, bindings))
+            .chain(select.order.iter().map(|order| &order.expr))
+            .filter(|expr| !names_output_alias(expr, &aliases))
+            .any(|expr| mentions_whole_row(expr, bindings))
 }
 
 fn unsupported_whole_row() -> CassieError {
@@ -381,12 +417,19 @@ fn unsupported_whole_row() -> CassieError {
 }
 
 fn mentions_in_unsupported_clauses(select: &SelectStatement, bindings: &Bindings) -> bool {
+    let aliases = output_aliases(select);
     select
         .group_by
         .iter()
+        .filter(|expr| !names_output_alias(expr, &aliases))
         .chain(select.having.iter())
         .chain(&select.distinct_on)
         .any(|expr| mentions_whole_row(expr, bindings))
+        || select.projection.iter().any(|item| {
+            // A window's arguments, PARTITION BY and ORDER BY are not rewritten.
+            matches!(item, SelectItem::WindowFunction { .. })
+                && item_mentions_whole_row(item, bindings)
+        })
 }
 
 /// Whether every source of `source` is a plain table, so `table_bindings`
@@ -489,6 +532,7 @@ pub(super) fn rewrite(
     if has_unsupported_whole_row(select, catalog, context) {
         return Err(unsupported_whole_row());
     }
+    derived::rewrite(select, catalog, context);
     let ctes: Vec<String> = select.ctes.iter().map(|cte| cte.name.clone()).collect();
     let bindings = select_bindings(select, &ctes, catalog, context);
     let scope = if is_single_table(select, &bindings) {
@@ -507,6 +551,14 @@ pub(super) fn rewrite(
         select.projection = expanded;
         return Ok(());
     };
+    let aliased_orders: Vec<bool> = {
+        let aliases = output_aliases(select);
+        select
+            .order
+            .iter()
+            .map(|order| names_output_alias(&order.expr, &aliases))
+            .collect()
+    };
     let items = std::mem::take(&mut select.projection);
     let mut rewritten = Vec::with_capacity(items.len());
     for item in items {
@@ -516,8 +568,10 @@ pub(super) fn rewrite(
     if let Some(filter) = &mut select.filter {
         scope.rewrite_expr(filter);
     }
-    for order in &mut select.order {
-        scope.rewrite_expr(&mut order.expr);
+    for (order, aliased) in select.order.iter_mut().zip(aliased_orders) {
+        if !aliased {
+            scope.rewrite_expr(&mut order.expr);
+        }
     }
     Ok(())
 }

@@ -151,16 +151,44 @@ fn should_reject_a_record_for_a_different_type() {
 }
 
 #[test]
-fn should_reject_a_record_with_the_wrong_field_count() {
+fn should_reject_a_record_with_more_fields_than_the_type() {
     // Arrange
     let descriptor = pair_type();
-    let value = record_json(descriptor.oid, &[serde_json::json!("a")]);
+    let value = record_json(
+        descriptor.oid,
+        &[
+            serde_json::json!("a"),
+            serde_json::json!(5),
+            serde_json::json!(6),
+        ],
+    );
 
     // Act
     let result = encode_composite(&descriptor, &value);
 
     // Assert
     assert!(result.is_err());
+}
+
+#[test]
+fn should_pad_a_record_staged_before_the_type_gained_an_attribute() {
+    // Arrange
+    let descriptor = pair_type();
+    let staged = record_json(descriptor.oid, &[serde_json::json!("a")]);
+
+    // Act
+    let (_, payload) = encode_composite(&descriptor, &staged).expect("encode staged record");
+    let decoded =
+        decode_composite(&mut Cursor::new(&framed(&payload)), None).expect("decode record");
+
+    // Assert
+    assert_eq!(
+        decoded,
+        record_json(
+            descriptor.oid,
+            &[serde_json::json!("a"), serde_json::Value::Null]
+        )
+    );
 }
 
 #[test]

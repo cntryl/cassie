@@ -118,6 +118,11 @@ impl Cassie {
             )));
         }
 
+        let output_names = columns
+            .iter()
+            .map(|column| column.name.clone())
+            .collect::<Vec<_>>();
+        let domains = self.ctas_output_domains(&as_query.query.statement, &output_names);
         let fields = columns
             .iter()
             .enumerate()
@@ -133,9 +138,12 @@ impl Cassie {
                             column.name.clone()
                         }
                     });
-                let data_type = self
-                    .parse_data_type_for_session(Some(session), &column.data_type)
-                    .map_err(CassieError::Parse)?;
+                let data_type = match domains.get(index).cloned().flatten() {
+                    Some(domain) => crate::types::DataType::Domain(domain),
+                    None => self
+                        .parse_data_type_for_session(Some(session), &column.data_type)
+                        .map_err(CassieError::Parse)?,
+                };
                 Ok(FieldDefinition {
                     name,
                     data_type,

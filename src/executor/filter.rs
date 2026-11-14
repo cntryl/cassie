@@ -382,7 +382,10 @@ mod casts;
 pub(crate) mod character_arrays;
 #[path = "filter/composite_cast.rs"]
 mod composite_cast;
-pub(crate) use composite_cast::record_from_text;
+#[path = "filter/membership.rs"]
+mod membership;
+pub(crate) use composite_cast::{assign_record, record_from_text};
+use membership::{eval_between_expr, eval_in_list_expr};
 #[path = "filter/domain_check.rs"]
 mod domain_check;
 #[path = "filter/enum_cast.rs"]
@@ -625,7 +628,10 @@ fn cast_scalar(
         DataType::Name => Ok(ScalarValue::Str(crate::types::name::parse_text(
             &cast_string_scalar(value),
         ))),
-        DataType::Text => Ok(ScalarValue::Str(cast_string_scalar(value))),
+        DataType::Text => Ok(ScalarValue::Str(
+            composite_cast::session_text(value, controls)
+                .unwrap_or_else(|| cast_string_scalar(value)),
+        )),
         DataType::Char { length } => casts::character(value, *length, controls),
         DataType::Varchar { length } => casts::bounded_varchar(value, *length),
         DataType::Bytea => {
@@ -944,67 +950,6 @@ fn eval_is_null_expr<R: RowAccess + ?Sized>(
     Ok(ScalarValue::Bool(composite_cast::null_test(
         &value, negated,
     )))
-}
-
-fn eval_in_list_expr<R: RowAccess + ?Sized>(
-    row: &R,
-    expr: &Expr,
-    values: &[Expr],
-    negated: bool,
-    context: EvalContext<'_>,
-) -> Result<ScalarValue, QueryError> {
-    let left = eval_scalar_with_context(row, expr, context)?;
-    let mut result = PredicateResult::False;
-    for value in values {
-        let right = eval_scalar_with_context(row, value, context)?;
-        result = match eq_value(&left, &right) {
-            Some(true) => PredicateResult::True,
-            None if matches!(result, PredicateResult::False) => PredicateResult::Unknown,
-            Some(false) | None => result,
-        };
-        if result.is_true() {
-            break;
-        }
-    }
-    if negated {
-        Ok(result.not().into_scalar())
-    } else {
-        Ok(result.into_scalar())
-    }
-}
-
-fn eval_between_expr<R: RowAccess + ?Sized>(
-    row: &R,
-    expr: &Expr,
-    low: &Expr,
-    high: &Expr,
-    negated: bool,
-    context: EvalContext<'_>,
-) -> Result<ScalarValue, QueryError> {
-    let value = eval_scalar_with_context(row, expr, context)?;
-    let low_value = eval_scalar_with_context(row, low, context)?;
-    let high_value = eval_scalar_with_context(row, high, context)?;
-    let in_range =
-        binary_expr::compare_array_operands(row, (expr, &value), (low, &low_value), context)?
-            .map(|ordering| !ordering.is_lt())
-            .or_else(|| ordered_cmp(&value, &low_value, |ordering| !ordering.is_lt()))
-            .map_or(PredicateResult::Unknown, bool_to_predicate)
-            .and(
-                binary_expr::compare_array_operands(
-                    row,
-                    (expr, &value),
-                    (high, &high_value),
-                    context,
-                )?
-                .map(|ordering| !ordering.is_gt())
-                .or_else(|| ordered_cmp(&value, &high_value, |ordering| !ordering.is_gt()))
-                .map_or(PredicateResult::Unknown, bool_to_predicate),
-            );
-    if negated {
-        Ok(in_range.not().into_scalar())
-    } else {
-        Ok(in_range.into_scalar())
-    }
 }
 
 fn eval_not_expr<R: RowAccess + ?Sized>(

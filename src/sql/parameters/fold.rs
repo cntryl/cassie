@@ -16,6 +16,8 @@ mod array_outputs;
 mod bytea_functions;
 #[path = "fold_columns.rs"]
 mod columns;
+#[path = "fold_enum_quantified.rs"]
+mod enum_quantified;
 #[path = "fold_expressions.rs"]
 mod expressions;
 #[path = "fold_functions.rs"]

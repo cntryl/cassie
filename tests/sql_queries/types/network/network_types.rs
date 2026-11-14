@@ -863,3 +863,47 @@ fn should_return_null_for_network_comparisons_with_null_operands() {
     // Assert
     assert_eq!(rows, vec![vec![Value::Null]]);
 }
+
+#[test]
+fn should_resolve_a_literal_operand_of_a_containment_operator_to_the_column_type() {
+    // Arrange
+    let fixture = sql_fixture(
+        "inet-containment-literal-operand",
+        &[
+            "CREATE TABLE hosts (id int primary key, ip inet, net cidr)",
+            "INSERT INTO hosts VALUES (1, '10.1.2.3', '10.0.0.0/8')",
+        ],
+    );
+
+    // Act
+    let rows = query_rows(
+        &fixture,
+        "SELECT ip << '10.0.0.0/8', ip <<= '10.1.2.3/32', net >> '10.1.0.0/16', \
+         '10.0.0.0/8' >> ip FROM hosts",
+    );
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true); 4]]);
+}
+
+#[test]
+fn should_resolve_a_literal_beside_inet_by_the_operator_it_meets() {
+    // Arrange
+    let fixture = sql_fixture(
+        "inet-literal-operator-resolution",
+        &[
+            "CREATE TABLE peers (id int primary key, ip inet)",
+            "INSERT INTO peers VALUES (1, '10.0.0.5')",
+        ],
+    );
+
+    // Act
+    let rows = query_rows(
+        &fixture,
+        "SELECT ip + '1' = '10.0.0.6'::inet, ip - '10.0.0.1' = 4, ip || 'x' = ip::text || 'x', \
+         ip & '0.0.0.255' = '0.0.0.5'::inet FROM peers",
+    );
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true); 4]]);
+}

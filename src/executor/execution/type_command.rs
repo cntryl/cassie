@@ -230,10 +230,8 @@ pub(super) fn reject_composite_array(data_type: &DataType) -> Result<(), QueryEr
 fn validated_fields(attributes: &[TypeAttribute]) -> Result<Vec<CompositeField>, QueryError> {
     let mut fields: Vec<CompositeField> = Vec::with_capacity(attributes.len());
     for attribute in attributes {
-        if fields
-            .iter()
-            .any(|field| field.name.eq_ignore_ascii_case(&attribute.name))
-        {
+        // Names arrive folded: unquoted lower case, quoted exactly as written.
+        if fields.iter().any(|field| field.name == attribute.name) {
             return Err(diagnostic(
                 "42701",
                 format!("column \"{}\" specified more than once", attribute.name),
@@ -246,6 +244,18 @@ fn validated_fields(attributes: &[TypeAttribute]) -> Result<Vec<CompositeField>,
         });
     }
     Ok(fields)
+}
+
+/// A table's row type lives and dies with the table (PostgreSQL `2BP01`).
+fn row_type_requires_table(name: &str) -> QueryError {
+    CassieError::from(
+        DiagnosticError::new(
+            "2BP01",
+            format!("cannot drop type {name} because table {name} requires it"),
+        )
+        .with_hint(format!("You can drop table {name} instead.")),
+    )
+    .into()
 }
 
 fn drop_types(
@@ -261,6 +271,15 @@ fn drop_types(
     let mut domains = Vec::new();
     let mut enums = Vec::new();
     for raw in names {
+        // An enum earlier in the search path than any same-named composite or
+        // domain type is the object the name denotes (#827).
+        if let Some(enum_type) =
+            super::enum_command::resolve_first_in_path(cassie, database, search_order, raw)
+        {
+            super::enum_command::ensure_droppable(cassie, &enum_type, cascade)?;
+            enums.push(enum_type);
+            continue;
+        }
         let Some(metadata) = cassie
             .catalog
             .resolve_composite_type(database, search_order, raw)
@@ -280,6 +299,13 @@ fn drop_types(
                 super::enum_command::ensure_droppable(cassie, &enum_type, cascade)?;
                 enums.push(enum_type);
                 continue;
+            }
+            if let Some(row_type) =
+                cassie
+                    .catalog
+                    .resolve_relation_row_type(database, search_order, raw)
+            {
+                return Err(row_type_requires_table(&row_type.name));
             }
             if if_exists {
                 continue;

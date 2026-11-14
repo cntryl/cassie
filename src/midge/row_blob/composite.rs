@@ -43,18 +43,21 @@ pub(super) fn encode_composite(
         .get("fields")
         .and_then(serde_json::Value::as_array)
         .ok_or_else(invalid)?;
-    if fields.len() != descriptor.physical_len() {
+    // A row staged before the type gained an attribute in the same transaction
+    // carries fewer slots; the missing trailing slots are NULL, as on read.
+    if fields.len() > descriptor.physical_len() {
         return Err(invalid());
     }
 
     let mut out = vec![COMPOSITE_PAYLOAD_VERSION];
     out.extend_from_slice(&descriptor.oid.to_be_bytes());
     out.extend_from_slice(&descriptor.revision.to_be_bytes());
-    let count = u32::try_from(fields.len())
+    let count = u32::try_from(descriptor.physical_len())
         .map_err(|_| CassieError::Parse("composite field count overflow".to_string()))?;
     out.extend_from_slice(&count.to_be_bytes());
     let mut live = descriptor.fields.iter();
-    for (slot, stored) in fields.iter().enumerate() {
+    for slot in 0..descriptor.physical_len() {
+        let stored = fields.get(slot).unwrap_or(&serde_json::Value::Null);
         // A dropped attribute keeps its slot but never carries a value.
         let field = if descriptor.dropped_positions.contains(&slot) {
             None

@@ -6,9 +6,33 @@ use super::lexical::{matching_paren, pattern_end, quoted_end, trim_separators};
 use super::schema::{parse_constant_literal, parse_identifier, parse_if_exists, split_first_token};
 use super::{ParsedStatement, QueryStatement, SqlError};
 use crate::sql::ast::{
-    DomainAction, DomainAlteration, DomainCheckDefinition, DomainDefaultDefinition, TypeAction,
-    TypeStatement,
+    CastIdentity, DomainAction, DomainAlteration, DomainCheckDefinition, DomainDefaultDefinition,
+    Expr, TypeAction, TypeStatement,
 };
+use crate::types::DataType;
+
+/// Builds the expression for `operand::target`.
+///
+/// A domain target is layered as `((operand::base)::domain)::base`: the inner
+/// cast types literals and parameters exactly as a cast to the base type does,
+/// the middle cast enforces the domain's constraints, and the outer cast
+/// presents the base type, so result typing and every operator, function and
+/// aggregate resolve through the base type as PostgreSQL resolves a domain.
+pub(super) fn cast_expression(operand: Expr, target: DataType, identity: CastIdentity) -> Expr {
+    let cast = |expr: Expr, data_type: DataType| Expr::Cast {
+        expr: Box::new(expr),
+        data_type,
+        source_type: None,
+        identity,
+    };
+    let Some(base) = target
+        .domain()
+        .map(|domain| domain.base.flattened().clone())
+    else {
+        return cast(operand, target);
+    };
+    cast(cast(cast(operand, base.clone()), target), base)
+}
 
 /// Keywords that start a clause after a domain's base type.
 const CLAUSE_STARTERS: [&str; 6] = [
@@ -305,9 +329,15 @@ fn parse_alteration(rest: &str) -> Result<DomainAlteration, SqlError> {
             "RENAME TO",
         )?));
     }
-    if pattern_end(rest, 0, "owner to").is_some() || pattern_end(rest, 0, "set schema").is_some() {
+    if let Some(end) = pattern_end(rest, 0, "set schema") {
+        return Ok(DomainAlteration::SetSchema(single_name(
+            &rest[end..],
+            "SET SCHEMA",
+        )?));
+    }
+    if pattern_end(rest, 0, "owner to").is_some() {
         return Err(SqlError::unsupported(
-            "ALTER DOMAIN OWNER TO and SET SCHEMA are not supported in this version".into(),
+            "ALTER DOMAIN OWNER TO is not supported in this version".into(),
         ));
     }
     Err(SqlError::syntax("unsupported ALTER DOMAIN action".into()))

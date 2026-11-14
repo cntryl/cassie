@@ -159,7 +159,14 @@ impl Catalog {
         // canonical_schema_name can own escaped components and its combined output together.
         let size = checked_add(database.len(), schema.len())?;
         let _memory = reserve_scratch(controls, scratch_bytes(size)?)?;
-        let canonical = canonical_schema_name(database, schema);
+        // A search-path entry is identifier text: unquoted names fold to lower case.
+        // Untrimmed entries keep the session's existing exact-text behavior.
+        let folded = (schema == schema.trim())
+            .then(|| crate::catalog::split_identifier_path(schema).ok())
+            .flatten()
+            .and_then(|parts| <[String; 1]>::try_from(parts).ok())
+            .map(|[part]| part);
+        let canonical = canonical_schema_name(database, folded.as_deref().unwrap_or(schema));
         let namespaces = read_catalog(&self.namespaces, controls)?;
         if namespaces.contains_key(&canonical) {
             return Ok(true);

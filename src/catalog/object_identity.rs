@@ -9,7 +9,7 @@ use crate::catalog::builtin_identity::{
 };
 use crate::catalog::{
     canonical_identifier_component, canonical_relation_name, canonical_schema_name, local_name,
-    Catalog, DEFAULT_SCHEMA,
+    Catalog, SchemaId, DEFAULT_SCHEMA,
 };
 use crate::sql::binder::BindingContext;
 use crate::types::object_id::{parse_oid_text, FIRST_NORMAL_OBJECT_ID};
@@ -25,7 +25,10 @@ mod names;
 mod routines;
 #[path = "object_identity/user_routines.rs"]
 mod user_routines;
+#[path = "object_identity/user_types.rs"]
+mod user_types;
 
+pub(crate) use identify::dropped_column_name;
 pub use identify::{ObjectIdentity, UnsupportedObjectClass};
 
 pub(crate) use names::quote_identifier;
@@ -81,19 +84,9 @@ impl<'a> ObjectScope<'a> {
         {
             return Ok(());
         }
-        let mut quoted = false;
-        let end = text
-            .char_indices()
-            .find(|&(_, character)| {
-                if character == '"' {
-                    quoted = !quoted;
-                }
-                !quoted && matches!(character, '(' | '[' | ' ')
-            })
-            .map_or(text.len(), |(index, _)| index);
-        let Ok(parts) = qualified_name(&text[..end]) else {
-            return Ok(());
-        };
+        // White space around a dot is insignificant in a qualified name, so
+        // the schema is read by the same rules the resolvers apply.
+        let parts = names::leading_qualified_name(text);
         let Some(schema) = parts
             .len()
             .checked_sub(2)
@@ -140,7 +133,7 @@ impl<'a> ObjectScope<'a> {
             ObjectIdKind::RegClass => self.resolve_relation(trimmed),
             ObjectIdKind::RegType => match names::builtin_type_oid(trimmed)? {
                 Some(oid) => Ok(Some(oid)),
-                None => Ok(self.resolve_user_type(trimmed)),
+                None => self.resolve_user_type(trimmed),
             },
             ObjectIdKind::RegNamespace => self.resolve_namespace_text(trimmed),
             ObjectIdKind::RegRole => self.resolve_role(trimmed),
@@ -191,9 +184,7 @@ impl<'a> ObjectScope<'a> {
             ObjectIdKind::RegType => builtin_identities()
                 .type_by_oid(oid)
                 .map(|row| row.display.clone())
-                .or_else(|| self.user_type_label(oid))
-                .or_else(|| self.domain_type_label(oid))
-                .or_else(|| self.enum_type_label(oid)),
+                .or_else(|| self.user_type_label(oid)),
             ObjectIdKind::RegNamespace => {
                 self.namespace_name(oid).map(|name| quote_identifier(&name))
             }
@@ -213,146 +204,53 @@ impl<'a> ObjectScope<'a> {
         label.unwrap_or_else(|| oid.to_string())
     }
 
-    /// A user composite, domain or enum type named by `text`, or its `[]` array type.
-    fn resolve_user_type(&self, text: &str) -> Option<u32> {
-        let search_order = self.context.relation_search_order();
-        let resolve = |name: &str| {
-            self.catalog
-                .resolve_composite_type(&self.context.database, &search_order, name)
-        };
-        let resolve_row = |name: &str| {
-            self.catalog
-                .resolve_relation_row_type(&self.context.database, &search_order, name)
-        };
-        let resolve_domain = |name: &str| {
-            self.catalog
-                .resolve_domain_type(&self.context.database, &search_order, name)
-        };
-        if let Some(oid) = self.resolve_enum_type_oid(text) {
-            return Some(oid);
-        }
-        if let Some(base) = text.trim_end().strip_suffix("[]") {
-            let base = base.trim_end();
-            return resolve(base)
-                .map(|metadata| metadata.array_oid())
-                .or_else(|| resolve_row(base).map(|row| row.array_oid))
-                .or_else(|| resolve_domain(base).map(|metadata| metadata.array_oid()));
-        }
-        resolve(text)
-            .map(|metadata| metadata.type_oid())
-            .or_else(|| resolve_row(text).map(|row| row.oid))
-            .or_else(|| resolve_domain(text).map(|metadata| metadata.type_oid()))
-    }
-
-    /// `regtype` output for a user domain type or its array type.
-    fn domain_type_label(&self, oid: u32) -> Option<String> {
-        let (metadata, suffix) = self.catalog.get_domain_type_by_oid(oid).map_or_else(
-            || {
-                self.catalog
-                    .get_domain_type_by_array_oid(oid)
-                    .map(|metadata| (metadata, "[]"))
-            },
-            |metadata| Some((metadata, "")),
-        )?;
-        let search_order = self.context.relation_search_order();
-        // Like PostgreSQL's TypeIsVisible, the first schema on the search path
-        // that holds any type of this name (domain, composite or table row
-        // type) decides: the domain is visible only when that schema is its own.
-        let local = metadata.local_name();
-        let visible = search_order
-            .iter()
-            .find(|schema| {
-                let canonical = canonical_relation_name(&self.context.database, schema, &local);
-                self.catalog.domain_type_exists(&canonical)
-                    || self.catalog.enum_type_exists(&canonical)
-                    || self.catalog.composite_type_exists(&canonical)
-                    || self.catalog.relation_row_type(&canonical).is_some()
-            })
-            .is_some_and(|schema| schema.eq_ignore_ascii_case(&metadata.schema_name()));
-        let name = if visible {
-            quote_identifier(&metadata.local_name())
-        } else {
-            format!(
-                "{}.{}",
-                quote_identifier(&metadata.schema_name()),
-                quote_identifier(&metadata.local_name())
-            )
-        };
-        Some(format!("{name}{suffix}"))
-    }
-
-    /// `regtype` output for a user composite type or its array type.
-    fn user_type_label(&self, oid: u32) -> Option<String> {
-        if let Some(label) = self.relation_row_type_label(oid) {
-            return Some(label);
-        }
-        let (metadata, suffix) = self.catalog.get_composite_type_by_oid(oid).map_or_else(
-            || {
-                self.catalog
-                    .get_composite_type_by_array_oid(oid)
-                    .map(|metadata| (metadata, "[]"))
-            },
-            |metadata| Some((metadata, "")),
-        )?;
-        let search_order = self.context.relation_search_order();
-        let visible = self
-            .catalog
-            .resolve_composite_type(
-                &self.context.database,
-                &search_order,
-                &quote_identifier(&metadata.local_name()),
-            )
-            .is_some_and(|found| found.type_oid() == metadata.type_oid());
-        let name = if visible {
-            quote_identifier(&metadata.local_name())
-        } else {
-            format!(
-                "{}.{}",
-                quote_identifier(&metadata.schema_name()),
-                quote_identifier(&metadata.local_name())
-            )
-        };
-        Some(format!("{name}{suffix}"))
-    }
-
-    /// `regtype` output for a table's row type or its array type.
-    fn relation_row_type_label(&self, oid: u32) -> Option<String> {
-        let (table, _, is_array) = self.catalog.relation_row_type_by_oid(oid)?;
-        let (schema, local) = self.stored_relation_parts(&table)?;
-        let search_order = self.context.relation_search_order();
-        let visible = self
-            .catalog
-            .resolve_relation_row_type(
-                &self.context.database,
-                &search_order,
-                &quote_identifier(&local),
-            )
-            .is_some_and(|found| found.oid == oid || found.array_oid == oid);
-        let name = if visible {
-            quote_identifier(&local)
-        } else {
-            format!("{}.{}", quote_identifier(&schema), quote_identifier(&local))
-        };
-        Some(format!("{name}{}", if is_array { "[]" } else { "" }))
-    }
-
     fn resolve_relation(&self, text: &str) -> Result<Option<u32>, ObjectIdentifierError> {
         let parts = qualified_name(text)?;
-        let found = match parts.as_slice() {
-            [name] => self
+        let (schema, name) = match parts.as_slice() {
+            [name] => (None, name),
+            [schema, name] => (Some(schema), name),
+            [database, schema, name] => {
+                if !database.value.eq_ignore_ascii_case(&self.context.database) {
+                    return Err(ObjectIdentifierError::CrossDatabase(text.to_string()));
+                }
+                (Some(schema), name)
+            }
+            _ => {
+                return Err(ObjectIdentifierError::ImproperQualifiedName(
+                    text.to_string(),
+                ))
+            }
+        };
+        let found = match schema {
+            None => self
                 .context
                 .relation_search_order()
                 .into_iter()
                 .find_map(|schema| self.relation_in_schema(schema, &name.value)),
-            [schema, name] => self.relation_in_schema(&schema.value, &name.value),
-            [database, schema, name]
-                if database.value.eq_ignore_ascii_case(&self.context.database) =>
-            {
-                self.relation_in_schema(&schema.value, &name.value)
-            }
-            _ => None,
+            Some(schema) => self.relation_in_schema(&schema.value, &name.value),
         };
-        Ok(found.map(|relation| relation.oid))
+        Ok(found
+            .filter(|relation| self.matches_quoted_relation(relation.oid, schema, name))
+            .map(|relation| relation.oid))
+    }
+
+    /// Whether the relation `oid` is spelled exactly as the quoted parts of a
+    /// name. Unquoted input is folded and matched without regard to case,
+    /// because unquoted DDL keeps the case a relation or schema was written in.
+    fn matches_quoted_relation(
+        &self,
+        oid: u32,
+        schema: Option<&Identifier>,
+        name: &Identifier,
+    ) -> bool {
+        if !name.quoted && !schema.is_some_and(|schema| schema.quoted) {
+            return true;
+        }
+        let Some(stored) = self.relation_by_oid(oid) else {
+            return true;
+        };
+        (!name.quoted || stored.name == name.value)
+            && schema.is_none_or(|schema| !schema.quoted || stored.schema == schema.value)
     }
 
     fn relation_in_schema(&self, schema: &str, name: &str) -> Option<RelationIdentity> {
@@ -605,7 +503,14 @@ impl<'a> ObjectScope<'a> {
         let [name] = parts.as_slice() else {
             return Err(ObjectIdentifierError::InvalidName(text.to_string()));
         };
-        Ok(self.namespace_oid(&name.value))
+        // A quoted schema name is exact; unquoted DDL keeps the written case,
+        // so an unquoted name matches without regard to case.
+        Ok(self.namespace_oid(&name.value).filter(|oid| {
+            !name.quoted
+                || self
+                    .namespace_name(*oid)
+                    .is_none_or(|stored| stored == name.value)
+        }))
     }
 
     /// The OID of schema `name` in the current database.
@@ -636,10 +541,14 @@ impl<'a> ObjectScope<'a> {
                     .list_namespaces()
                     .into_iter()
                     .find(|namespace| namespace.object_id == id)?;
-                let (database, schema) = namespace.name.split_once('.')?;
-                database
+                // The stored name is canonical: a component holding a quote,
+                // dot or space is quoted and escaped there, so it is parsed
+                // back to the plain schema name before `quote_ident` output.
+                let stored = SchemaId::parse_canonical(&namespace.name)?;
+                stored
+                    .database
                     .eq_ignore_ascii_case(&self.context.database)
-                    .then(|| schema.trim_matches('"').to_string())
+                    .then_some(stored.schema)
             }
             _ => None,
         }
@@ -713,7 +622,8 @@ fn stable_materialized_view_oid(projection_id: &str) -> u32 {
     u32::try_from(hash % oid_range).unwrap_or(0) | 0x8000_0000
 }
 
-/// The stable catalog OID used for an index relation.
+/// The name-derived catalog OID of an index relation stored without an
+/// assigned identity.
 #[must_use]
 pub(crate) fn stable_index_oid(name: &str) -> u32 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
@@ -725,7 +635,12 @@ pub(crate) fn stable_index_oid(name: &str) -> u32 {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
-    u32::try_from(200_000_u64 + hash % 800_000).unwrap_or(0)
+    // The upper half of the OID space never meets an allocator identity
+    // (`FIRST_NORMAL_OBJECT_ID` upward), and its width makes a name collision
+    // between two indexes negligible. `CREATE INDEX` assigns an allocator
+    // identity instead; this hash only names an index stored without one.
+    let oid_range = u64::from(u32::MAX - 0x8000_0000);
+    u32::try_from(hash % oid_range).unwrap_or(0) | 0x8000_0000
 }
 
 /// The catalog OID of an index, preserving the assigned identity across a rename.
@@ -806,137 +721,5 @@ fn builtin_label(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{catalog_index_oid, ObjectScope};
-    use crate::catalog::{
-        canonical_relation_name, Catalog, ExtensionMeta, IndexKind, IndexMeta,
-        VectorAnnCatalogIdentityIds, VectorCatalogIdentitySet, VectorDistanceOperatorIds,
-    };
-    use crate::sql::binder::BindingContext;
-    use crate::types::ObjectIdKind;
-
-    fn index(kind: IndexKind, name: &str) -> IndexMeta {
-        IndexMeta {
-            definition_semantics_version: 0,
-            collection: canonical_relation_name("object_identity_test", "public", "events"),
-            name: name.to_string(),
-            field: "event_at".to_string(),
-            fields: vec!["event_at".to_string()],
-            expressions: Vec::new(),
-            include_fields: Vec::new(),
-            predicate: None,
-            kind,
-            unique: false,
-            options: std::collections::BTreeMap::new(),
-        }
-    }
-
-    fn vector_extension() -> ExtensionMeta {
-        let ann_identities = |access_method| VectorAnnCatalogIdentityIds {
-            access_method,
-            l2_operator_family: access_method + 1,
-            inner_product_operator_family: access_method + 2,
-            cosine_operator_family: access_method + 3,
-            l2_operator_class: access_method + 4,
-            inner_product_operator_class: access_method + 5,
-            cosine_operator_class: access_method + 6,
-        };
-        ExtensionMeta {
-            format_version: 2,
-            database: "object_identity_test".to_string(),
-            name: "vector".to_string(),
-            version: "0.8.7".to_string(),
-            schema: "object_identity_test.public".to_string(),
-            owner_oid: 10,
-            object_id: 1,
-            digest_text_object_id: None,
-            digest_bytea_object_id: None,
-            vector_type_object_id: Some(2),
-            vector_catalog_identities: Some(VectorCatalogIdentitySet {
-                operators: VectorDistanceOperatorIds {
-                    l2: 3,
-                    inner_product: 4,
-                    cosine: 5,
-                },
-                hnsw: ann_identities(10),
-                ivfflat: ann_identities(20),
-            }),
-        }
-    }
-
-    #[test]
-    fn should_resolve_only_index_relations_published_in_postgresql_catalogs() {
-        // Arrange
-        let catalog = Catalog::new();
-        let column_index = index(IndexKind::Column, "events_column_idx");
-        let time_series_index = index(IndexKind::TimeSeries, "events_time_series_idx");
-        let scalar_index = index(IndexKind::Scalar, "events_btree_idx");
-        let legacy_vector_index = index(IndexKind::Vector, "events_legacy_vector_idx");
-        let mut hnsw_index = index(IndexKind::Vector, "events_hnsw_idx");
-        hnsw_index.options.insert(
-            IndexMeta::ACCESS_METHOD_OPTION.to_string(),
-            "hnsw".to_string(),
-        );
-        catalog.register_index(column_index.clone());
-        catalog.register_index(time_series_index.clone());
-        catalog.register_index(scalar_index.clone());
-        catalog.register_index(legacy_vector_index.clone());
-        catalog.register_index(hnsw_index.clone());
-        let context = BindingContext::new("object_identity_test", vec!["public".to_string()]);
-        let scope = ObjectScope::new(&catalog, &context);
-
-        // Act
-        let column_name = scope
-            .resolve(ObjectIdKind::RegClass, "events_column_idx")
-            .expect("parse Column index identity");
-        let time_series_name = scope
-            .resolve(ObjectIdKind::RegClass, "events_time_series_idx")
-            .expect("parse TimeSeries index identity");
-        let scalar_name = scope
-            .resolve(ObjectIdKind::RegClass, "events_btree_idx")
-            .expect("parse scalar index identity");
-        let legacy_vector_name = scope
-            .resolve(ObjectIdKind::RegClass, "events_legacy_vector_idx")
-            .expect("parse legacy Vector index identity");
-        let hnsw_name_before_install = scope
-            .resolve(ObjectIdKind::RegClass, "events_hnsw_idx")
-            .expect("parse HNSW index identity before extension install");
-        let column_label = scope.label(ObjectIdKind::RegClass, catalog_index_oid(&column_index));
-        let time_series_label = scope.label(
-            ObjectIdKind::RegClass,
-            catalog_index_oid(&time_series_index),
-        );
-        let legacy_vector_label = scope.label(
-            ObjectIdKind::RegClass,
-            catalog_index_oid(&legacy_vector_index),
-        );
-
-        // Install extension identities before resolving the selected pgvector method.
-        catalog.register_extension(vector_extension());
-        let hnsw_name_after_install = scope
-            .resolve(ObjectIdKind::RegClass, "events_hnsw_idx")
-            .expect("resolve HNSW only after vector identities are installed");
-        let hnsw_label = scope.label(ObjectIdKind::RegClass, catalog_index_oid(&hnsw_index));
-
-        // Assert
-        assert_eq!(column_name, None);
-        assert_eq!(time_series_name, None);
-        assert!(scalar_name.is_some());
-        assert_eq!(legacy_vector_name, None);
-        assert_eq!(hnsw_name_before_install, None);
-        assert_eq!(
-            hnsw_name_after_install,
-            Some(catalog_index_oid(&hnsw_index))
-        );
-        assert_eq!(column_label, catalog_index_oid(&column_index).to_string());
-        assert_eq!(
-            time_series_label,
-            catalog_index_oid(&time_series_index).to_string()
-        );
-        assert_eq!(
-            legacy_vector_label,
-            catalog_index_oid(&legacy_vector_index).to_string()
-        );
-        assert_eq!(hnsw_label, "events_hnsw_idx");
-    }
-}
+#[path = "object_identity/index_tests.rs"]
+mod tests;

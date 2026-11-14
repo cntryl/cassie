@@ -5,6 +5,7 @@ use cassie::app::CassieError;
 use cassie::types::Value;
 use serde_json::{json, Value as Json};
 use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 
 impl FixtureKind {
     fn columns(self) -> &'static [&'static str] {
@@ -51,6 +52,14 @@ fn update(hash: &mut Sha256, key: i64, values: &[Json]) -> Result<(), CassieErro
     Ok(())
 }
 
+fn lowercase_hex(bytes: &[u8]) -> String {
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(encoded, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    encoded
+}
+
 fn expected_digest(kind: FixtureKind, rows: usize) -> Result<String, CassieError> {
     let mut hash = Sha256::new();
     for id in 0..rows {
@@ -60,7 +69,7 @@ fn expected_digest(kind: FixtureKind, rows: usize) -> Result<String, CassieError
             &kind.expected_values(id),
         )?;
     }
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(lowercase_hex(&hash.finalize()))
 }
 
 pub(super) fn authoritative(
@@ -99,7 +108,7 @@ pub(super) fn authoritative(
     for (key, values) in &rows {
         update(&mut hash, *key, values)?;
     }
-    let actual = format!("{:x}", hash.finalize());
+    let actual = lowercase_hex(&hash.finalize());
     let before = expected_digest(kind, acknowledged)?;
     let requested = expected_digest(kind, requested_end)?;
     Ok(

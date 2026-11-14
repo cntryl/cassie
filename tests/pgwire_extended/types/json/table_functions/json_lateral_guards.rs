@@ -215,3 +215,27 @@ fn should_still_raise_given_the_failing_row_is_selected() {
     assert_eq!(wire::error_code(&frames).as_deref(), Some("22023"));
     assert_eq!(wire::data_rows(&frames), Rows::new());
 }
+
+#[test]
+fn should_type_a_table_column_named_like_a_generated_source_column_by_its_table() {
+    // Arrange
+    let setup = vec![
+        (
+            "CREATE TABLE lf_kv (id INT PRIMARY KEY, value JSONB, column1 TEXT)",
+            Vec::new(),
+        ),
+        ("INSERT INTO lf_kv VALUES (1, '[1,2]', 'c1')", Vec::new()),
+    ];
+    let sql = "SELECT lf_kv.id, e.value::text FROM lf_kv, jsonb_array_elements(lf_kv.value) e \
+               WHERE lf_kv.column1 = 'c1' ORDER BY 2";
+
+    // Act
+    let frames = query("json-generated-column-name", &setup, sql, false);
+
+    // Assert
+    assert_eq!(error_message(&frames), None, "{sql}");
+    assert_eq!(
+        wire::data_rows(&frames),
+        expected(&[&[Some("1"), Some("1")], &[Some("1"), Some("2")]])
+    );
+}

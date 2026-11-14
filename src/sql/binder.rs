@@ -91,6 +91,8 @@ use scope::CteScope;
 
 #[path = "binder/case_unify.rs"]
 mod case_unify;
+mod enum_literals;
+mod network_literals;
 pub(crate) use case_unify::coerce_parameterized_boolean_case_results;
 #[path = "binder/commands.rs"]
 mod commands;

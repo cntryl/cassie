@@ -112,6 +112,7 @@ pub(super) fn bind_select_with_lateral_fields(
         canonicalize_typed_predicate_literals(filter, &field_types)?;
     }
     super::json_predicates::rewrite_select(&mut select, &field_types);
+    super::enum_literals::rewrite_select(&mut select, &field_types)?;
     super::case_unify::unify_select_case_results(&mut select, &field_types);
     super::boolean_contexts::qualify_declared_boolean_functions(&mut select, catalog, context)?;
 

@@ -43,6 +43,9 @@ mod runtime_functions;
 #[path = "enum_types/runtime/arrays.rs"]
 mod runtime_arrays;
 
+#[path = "enum_types/runtime/conditionals.rs"]
+mod runtime_conditionals;
+
 #[path = "enum_types/constraints.rs"]
 mod constraints;
 

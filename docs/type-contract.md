@@ -504,12 +504,14 @@ The code and its regressions are authored; they have not been compiled or execut
     shapes, and the alias of a table function, are not rewritten;
   - a table cannot gain a column of its own row type, directly or through a composite type
     or another table's row type (`42P16`), for `ADD COLUMN` and `ALTER COLUMN ... TYPE`;
-  - views keep their definition as SQL text and bind types and attributes by name. `ALTER
-    TYPE ... RENAME TO` and `RENAME ATTRIBUTE` are therefore refused with `0A000` while a
-    view's definition names the type or selects the attribute (PostgreSQL keeps the view
-    working; Cassie reports the limit instead of leaving a view that no longer runs).
-    `DROP ATTRIBUTE` of an attribute a view selects is `2BP01`, as in PostgreSQL. The check
-    reads the definition's words, so an unrelated identifier of the same name also blocks;
+  - views keep their definition as SQL text and bind types and attributes by name, so
+    `ALTER TYPE ... RENAME TO` and `SET SCHEMA` rewrite the view's cast targets to the new
+    schema-qualified name, and `RENAME ATTRIBUTE a TO b` rewrites each `(expr).a` field
+    selection to `(expr).b`, keeping an unaliased output column named `a`, as PostgreSQL
+    keeps the view working. When the definition also reads `.a` in a form that is not a
+    parenthesized field selection (for example a derived table's `r.a`), the rename is
+    refused with `0A000` rather than leaving a view that no longer runs. `DROP ATTRIBUTE`
+    of an attribute a view selects is `2BP01`, as in PostgreSQL;
   - `PREPARE p(t) AS SELECT ($1).field` is accepted for a declared composite or row-type
     parameter; `EXECUTE` casts the argument to the declared type;
   - a `uuid` or `bytea` field compares with an untyped literal like a column of that type
@@ -518,8 +520,16 @@ The code and its regressions are authored; they have not been compiled or execut
   - `record::text` uses the session `TimeZone`, `DateStyle` and `IntervalStyle`, like the
     record's own output;
   - attribute names are exact after identifier folding: `(a int, "A" int)` is two
-    attributes, and `RENAME ATTRIBUTE a TO a` is `42701`. Type names still resolve
-    case-insensitively, like every relation name in the catalog;
+    attributes, and `RENAME ATTRIBUTE a TO a` is `42701`. Type, table, view, schema and
+    other catalog names follow the same rule: an unquoted name folds to lower case at DDL
+    and at lookup, a quoted name keeps its exact spelling, and lookups compare exactly, so
+    `"Mood"` and `mood` are different types and `DROP VIEW mixedcase` does not find
+    `"MixedCase"`. REST collection names are unquoted SQL identifiers and fold the same way;
+  - `to_json`, `to_jsonb` and `row_to_json(record [, pretty])` render a composite value,
+    a table's whole row or `ROW(...)` as an object keyed by its field names (`f1`, `f2`, ...
+    for an anonymous record). The whole row of a derived table is an anonymous record, so
+    its JSON keys are `f1`, `f2`, ... rather than the derived column names (PostgreSQL uses
+    the column names);
   - `DROP TYPE <table>` is `2BP01` ("cannot drop type t because table t requires it"). A
     `CHECK` on a record field and an index on a record field are `0A000`;
   - non-finite `float8` field values are rejected, as they are for a `float8` column.

@@ -96,7 +96,7 @@ fn should_track_extension_identity_through_relocation_lifecycle() {
     runtime.block_on(async {
         let server = CompatibilityServer::start_with_query_budget(
             "extension_identity_dependency",
-            128 * 1024 * 1024,
+            32 * 1024 * 1024,
         ).await;
         let (client, connection) = server.connect().await;
         execute_statements(&client, &["CREATE SCHEMA ext_a", "CREATE SCHEMA ext_b", "CREATE EXTENSION pgcrypto SCHEMA ext_a"]).await.expect("install");

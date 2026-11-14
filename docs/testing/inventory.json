@@ -164,11 +164,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1709,
-    "rust_files": 1672,
-    "rust_test_declarations": 10129,
+    "files": 1711,
+    "rust_files": 1674,
+    "rust_test_declarations": 10153,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10130,
+    "registered_rust_instances": 10154,
     "unregistered_rust_tests": [
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_publish_pgcrypto_extension_transactionally",
       "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_restore_pgcrypto_namespace_after_savepoint_rollback",
@@ -302250,6 +302250,37 @@
       }
     },
     {
+      "id": "tests/storage_indexes/column_store/alter.rs::should_distinguish_authority_from_a_derived_column_accelerator",
+      "name": "should_distinguish_authority_from_a_derived_column_accelerator",
+      "current_file": "tests/storage_indexes/column_store/alter.rs",
+      "line": 399,
+      "end_line": 441,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::alter::should_distinguish_authority_from_a_derived_column_accelerator"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/alter.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_reads_when_a_live_marker_lacks_a_field_key",
       "name": "should_fail_reads_when_a_live_marker_lacks_a_field_key",
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
@@ -302461,6 +302492,192 @@
         "category": "storage",
         "directory": "tests/storage_indexes/storage",
         "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_a_full_scan_when_a_field_has_no_live_marker",
+      "name": "should_fail_a_full_scan_when_a_field_has_no_live_marker",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 219,
+      "end_line": 238,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_fail_a_full_scan_when_a_field_has_no_live_marker"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_fail_a_batched_scan_when_a_field_has_no_live_marker",
+      "name": "should_fail_a_batched_scan_when_a_field_has_no_live_marker",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 241,
+      "end_line": 258,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_fail_a_batched_scan_when_a_field_has_no_live_marker"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/corruption.rs::should_preserve_orphan_fields_when_rejecting_conversion_to_heap",
+      "name": "should_preserve_orphan_fields_when_rejecting_conversion_to_heap",
+      "current_file": "tests/storage_indexes/column_store/corruption.rs",
+      "line": 261,
+      "end_line": 291,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::corruption::should_preserve_orphan_fields_when_rejecting_conversion_to_heap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/corruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/images.rs::should_restore_modes_values_and_indexed_reads_of_a_mixed_database",
+      "name": "should_restore_modes_values_and_indexed_reads_of_a_mixed_database",
+      "current_file": "tests/storage_indexes/column_store/images.rs",
+      "line": 81,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::images::should_restore_modes_values_and_indexed_reads_of_a_mixed_database"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/images.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/images.rs::should_enforce_constraints_on_restored_column_tables",
+      "name": "should_enforce_constraints_on_restored_column_tables",
+      "current_file": "tests/storage_indexes/column_store/images.rs",
+      "line": 126,
+      "end_line": 153,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::images::should_enforce_constraints_on_restored_column_tables"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/images.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/images.rs::should_keep_restored_column_tables_writable_and_free_of_row_blobs",
+      "name": "should_keep_restored_column_tables_writable_and_free_of_row_blobs",
+      "current_file": "tests/storage_indexes/column_store/images.rs",
+      "line": 156,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::images::should_keep_restored_column_tables_writable_and_free_of_row_blobs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/images.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -302740,6 +302957,316 @@
         "category": "storage",
         "directory": "tests/storage_indexes/storage",
         "file": "tests/storage_indexes/storage/no_row_blob.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_recover_a_mixed_database_after_restart",
+      "name": "should_recover_a_mixed_database_after_restart",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 92,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_recover_a_mixed_database_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_fail_reads_with_data_corrupted_after_a_restart",
+      "name": "should_fail_reads_with_data_corrupted_after_a_restart",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 174,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_fail_reads_with_data_corrupted_after_a_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_refuse_startup_naming_a_corrupt_column_table_with_stale_statistics",
+      "name": "should_refuse_startup_naming_a_corrupt_column_table_with_stale_statistics",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 201,
+      "end_line": 233,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_refuse_startup_naming_a_corrupt_column_table_with_stale_statistics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_rebuild_a_recovered_column_table_index_from_authoritative_values",
+      "name": "should_rebuild_a_recovered_column_table_index_from_authoritative_values",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 236,
+      "end_line": 289,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_rebuild_a_recovered_column_table_index_from_authoritative_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_fulltext_results_across_restart_and_index_rebuild",
+      "name": "should_preserve_fulltext_results_across_restart_and_index_rebuild",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 330,
+      "end_line": 355,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_preserve_fulltext_results_across_restart_and_index_rebuild"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_hnsw_results_across_restart_and_index_rebuild",
+      "name": "should_preserve_hnsw_results_across_restart_and_index_rebuild",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 380,
+      "end_line": 387,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_preserve_hnsw_results_across_restart_and_index_rebuild"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_ivfflat_results_across_restart_and_index_rebuild",
+      "name": "should_preserve_ivfflat_results_across_restart_and_index_rebuild",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 390,
+      "end_line": 397,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_preserve_ivfflat_results_across_restart_and_index_rebuild"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_hybrid_results_across_restart_and_index_rebuild",
+      "name": "should_preserve_hybrid_results_across_restart_and_index_rebuild",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 400,
+      "end_line": 426,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_preserve_hybrid_results_across_restart_and_index_rebuild"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_preserve_time_series_results_across_restart_and_index_rebuild",
+      "name": "should_preserve_time_series_results_across_restart_and_index_rebuild",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 429,
+      "end_line": 452,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_preserve_time_series_results_across_restart_and_index_rebuild"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_restore_mixed_authority_from_an_independent_physical_snapshot",
+      "name": "should_restore_mixed_authority_from_an_independent_physical_snapshot",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 455,
+      "end_line": 536,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_restore_mixed_authority_from_an_independent_physical_snapshot"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -307155,8 +307682,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_publish_a_column_table_created_in_a_committed_transaction",
       "name": "should_publish_a_column_table_created_in_a_committed_transaction",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 135,
-      "end_line": 151,
+      "line": 167,
+      "end_line": 183,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307186,8 +307713,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_not_publish_a_column_table_created_in_a_rolled_back_transaction",
       "name": "should_not_publish_a_column_table_created_in_a_rolled_back_transaction",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 154,
-      "end_line": 176,
+      "line": 186,
+      "end_line": 208,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307217,8 +307744,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_discard_a_column_table_created_after_a_rolled_back_savepoint",
       "name": "should_discard_a_column_table_created_after_a_rolled_back_savepoint",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 179,
-      "end_line": 197,
+      "line": 211,
+      "end_line": 229,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307248,8 +307775,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_preserve_each_table_mode_across_a_local_restart",
       "name": "should_preserve_each_table_mode_across_a_local_restart",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 200,
-      "end_line": 244,
+      "line": 232,
+      "end_line": 276,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307279,8 +307806,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_refuse_an_unknown_collection_storage_version_at_startup",
       "name": "should_refuse_an_unknown_collection_storage_version_at_startup",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 247,
-      "end_line": 269,
+      "line": 279,
+      "end_line": 301,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307310,8 +307837,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_convert_a_row_table_to_columnar_preserving_its_logical_contents",
       "name": "should_convert_a_row_table_to_columnar_preserving_its_logical_contents",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 272,
-      "end_line": 301,
+      "line": 304,
+      "end_line": 333,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307341,8 +307868,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_convert_a_column_table_back_to_heap_preserving_its_logical_contents",
       "name": "should_convert_a_column_table_back_to_heap_preserving_its_logical_contents",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 304,
-      "end_line": 328,
+      "line": 336,
+      "end_line": 360,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307372,8 +307899,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_treat_a_same_mode_conversion_as_a_no_op",
       "name": "should_treat_a_same_mode_conversion_as_a_no_op",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 331,
-      "end_line": 343,
+      "line": 363,
+      "end_line": 375,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307403,8 +307930,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_convert_an_empty_table_in_both_directions",
       "name": "should_convert_an_empty_table_in_both_directions",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 346,
-      "end_line": 358,
+      "line": 378,
+      "end_line": 390,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307434,8 +307961,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_reject_conversion_to_columnar_while_a_column_index_exists",
       "name": "should_reject_conversion_to_columnar_while_a_column_index_exists",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 361,
-      "end_line": 373,
+      "line": 393,
+      "end_line": 405,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307465,8 +307992,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_reject_unsupported_methods_without_changing_the_table",
       "name": "should_reject_unsupported_methods_without_changing_the_table",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 376,
-      "end_line": 390,
+      "line": 408,
+      "end_line": 422,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307496,8 +308023,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_roll_back_a_conversion_with_its_explicit_transaction",
       "name": "should_roll_back_a_conversion_with_its_explicit_transaction",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 393,
-      "end_line": 408,
+      "line": 425,
+      "end_line": 440,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307527,8 +308054,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_commit_a_conversion_with_rows_written_earlier_in_the_same_transaction",
       "name": "should_commit_a_conversion_with_rows_written_earlier_in_the_same_transaction",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 411,
-      "end_line": 431,
+      "line": 443,
+      "end_line": 463,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307558,8 +308085,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_preserve_a_committed_conversion_across_a_local_restart",
       "name": "should_preserve_a_committed_conversion_across_a_local_restart",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 434,
-      "end_line": 463,
+      "line": 466,
+      "end_line": 495,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307589,8 +308116,8 @@
       "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_fail_a_conversion_over_the_memory_budget_without_changing_the_table",
       "name": "should_fail_a_conversion_over_the_memory_budget_without_changing_the_table",
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
-      "line": 466,
-      "end_line": 489,
+      "line": 498,
+      "end_line": 521,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -307599,6 +308126,223 @@
         {
           "suite": "storage_indexes",
           "name": "columnar_lifecycle::should_fail_a_conversion_over_the_memory_budget_without_changing_the_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_charge_column_field_payloads_before_converting_to_heap",
+      "name": "should_charge_column_field_payloads_before_converting_to_heap",
+      "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+      "line": 524,
+      "end_line": 562,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "columnar_lifecycle::should_charge_column_field_payloads_before_converting_to_heap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_keep_row_authority_after_a_conversion_rejected_before_commit",
+      "name": "should_keep_row_authority_after_a_conversion_rejected_before_commit",
+      "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+      "line": 565,
+      "end_line": 581,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "columnar_lifecycle::should_keep_row_authority_after_a_conversion_rejected_before_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_keep_column_authority_after_a_conversion_rejected_before_commit",
+      "name": "should_keep_column_authority_after_a_conversion_rejected_before_commit",
+      "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+      "line": 584,
+      "end_line": 601,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "columnar_lifecycle::should_keep_column_authority_after_a_conversion_rejected_before_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_complete_a_conversion_retried_after_an_injected_precommit_failure",
+      "name": "should_complete_a_conversion_retried_after_an_injected_precommit_failure",
+      "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+      "line": 604,
+      "end_line": 618,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "columnar_lifecycle::should_complete_a_conversion_retried_after_an_injected_precommit_failure"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_not_publish_a_like_clone_when_a_copied_comment_is_invalid",
+      "name": "should_not_publish_a_like_clone_when_a_copied_comment_is_invalid",
+      "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+      "line": 621,
+      "end_line": 666,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "columnar_lifecycle::should_not_publish_a_like_clone_when_a_copied_comment_is_invalid"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_reserve_json_decode_space_before_conversion_to_heap",
+      "name": "should_reserve_json_decode_space_before_conversion_to_heap",
+      "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+      "line": 704,
+      "end_line": 711,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "columnar_lifecycle::should_reserve_json_decode_space_before_conversion_to_heap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/storage/columnar_lifecycle.rs::should_reserve_array_decode_space_before_conversion_to_heap",
+      "name": "should_reserve_array_decode_space_before_conversion_to_heap",
+      "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
+      "line": 714,
+      "end_line": 721,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "columnar_lifecycle::should_reserve_array_decode_space_before_conversion_to_heap"
         }
       ],
       "attributes": [
@@ -337738,9 +338482,9 @@
       "current_file": "tests/storage_indexes/column_store/alter.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 396,
-      "sha256": "21b4e4d3c29a479065e204fedb395066ec5a238b4e35e0a5837ccccdb433c810",
-      "test_declarations": 16,
+      "lines": 441,
+      "sha256": "3f24eba39451b6a69a3ec312a06783dc7e76a4413a56da8526f148b3fc724cec",
+      "test_declarations": 17,
       "registered_suites": [
         "storage_indexes"
       ],
@@ -337753,9 +338497,9 @@
       "current_file": "tests/storage_indexes/column_store/corruption.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 216,
-      "sha256": "7fdcbe9f50c032e7643665a8b18fa97aaedde01f47279aafe089580fa119d085",
-      "test_declarations": 7,
+      "lines": 291,
+      "sha256": "d0ae7328d767b711c848bd899bb79d614ffa4788ec7ba874ab75ee20921e8ff4",
+      "test_declarations": 10,
       "registered_suites": [
         "storage_indexes"
       ],
@@ -337765,11 +338509,26 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/storage_indexes/column_store/images.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 203,
+      "sha256": "9b7d5eae821b005bd032128916416cd66c56b7c6f3114fa03290c8d6fcc9106d",
+      "test_declarations": 3,
+      "registered_suites": [
+        "storage_indexes"
+      ],
+      "destinations": [
+        "tests/storage_indexes/storage/images.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/storage_indexes/column_store/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 131,
-      "sha256": "3b2b653904064f605d5693af6517f2493a2fb74b56f778477bd2251ec96bf8d8",
+      "lines": 133,
+      "sha256": "998185f8baf162de1f5249c20383d526b728de5281463592b242441956b5cf2f",
       "test_declarations": 0,
       "registered_suites": [
         "storage_indexes"
@@ -337791,6 +338550,21 @@
       ],
       "destinations": [
         "tests/storage_indexes/storage/no_row_blob.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 536,
+      "sha256": "5faf065d671337592d0ee4a8941b2c055af9a5b7254b9e2a58c5745c3c866e99",
+      "test_declarations": 10,
+      "registered_suites": [
+        "storage_indexes"
+      ],
+      "destinations": [
+        "tests/storage_indexes/storage/restart.rs"
       ],
       "line_limit": 1000
     },
@@ -338143,9 +338917,9 @@
       "current_file": "tests/storage_indexes/storage/columnar_lifecycle.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 489,
-      "sha256": "d52f8d9f18a0a1214873798870fc62cd698b5c13a1fd60ca31389394dca6941e",
-      "test_declarations": 15,
+      "lines": 721,
+      "sha256": "3d11d81e4133de0484f95c0f07b7ce9cb1adad5051dc854ffb4fc525b73f8df2",
+      "test_declarations": 22,
       "registered_suites": [
         "storage_indexes"
       ],

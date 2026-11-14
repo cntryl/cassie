@@ -318,8 +318,9 @@ and mixed labels describe the query inputs, not isolated whole-database memory
 footprints. Its explicit candidate native profile is 2 GiB total Midge memory
 with a 512 MiB memtable, forwarded through the published builder; the SQL query
 budget remains independently fixed at 64 MiB. COPY setup uses at most 5,000 rows
-per transaction and result caching is disabled. Neither native option changes
-product defaults. These capacities remain a proposed qualification envelope
+per transaction and result caching is disabled. The optional controls apply to explicit and environment-selected memory
+construction. Unset controls preserve native defaults and local/cloud opening
+remains unchanged. These capacities remain a proposed qualification envelope
 until actual setup and all selected workloads pass; they are not inferred from
 host RAM or a model judgment. Record the built native options, observed runtime
 memtable bytes/stalls/snapshots, and batch progress alongside the workload
@@ -327,7 +328,8 @@ results. A native fixture-capacity failure is distinct from SQL query-memory
 admission and must not be hidden by switching an ephemeral fixture to local
 storage or reporting a compilation/configuration-only run as measured evidence.
 See the [v0.5.0 qualification record](v0.5-release-qualification.md) and the
-[selected profile correction](https://github.com/cntryl/cassie/issues/1113#issuecomment-6879208650).
+[selected profile correction](https://github.com/cntryl/cassie/issues/1113#issuecomment-6879208650)
+and [operator scope amendment](https://github.com/cntryl/cassie/issues/1113#issuecomment-6879529857).
 
 When a scenario changes owners without changing behavior, it keeps its existing scenario ID. When a Tier 3 representative case is intentionally repeated as part of a Tier 5 curve, the scale case uses a distinct `perf.scale.*` ID.
 

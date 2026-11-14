@@ -53,3 +53,6 @@ mod field_typing;
 
 #[path = "composite_types/definitions.rs"]
 mod definitions;
+
+#[path = "composite_types/json_conversion.rs"]
+mod json_conversion;

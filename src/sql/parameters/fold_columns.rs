@@ -10,7 +10,10 @@ impl Fold<'_, '_> {
     /// is a qualified comparison candidate like a primitive column, so a
     /// compared parameter takes the enum's OID as PostgreSQL resolves it (#827).
     pub(super) fn column_summary(&self, context: usize, name: &str) -> Summary {
-        let Some(column_oid) = self.column_oid(context, name) else {
+        let Some(column_oid) = self
+            .column_oid(context, name)
+            .or_else(|| self.whole_row_oid(context, name))
+        else {
             return Summary::unqualified();
         };
         let mut summary = Summary::known(column_oid);
@@ -21,6 +24,15 @@ impl Fold<'_, '_> {
             });
         }
         summary
+    }
+
+    /// A bare name that qualifies columns of this scope is a whole-row
+    /// reference, typed `record` (OID 2249).
+    fn whole_row_oid(&self, context: usize, name: &str) -> Option<i32> {
+        if name.contains(['.', '"']) {
+            return None;
+        }
+        source_named(self.contexts.values[context].source, name).then_some(2249)
     }
 
     pub(super) fn column_oid(&self, context: usize, name: &str) -> Option<i32> {
@@ -142,4 +154,23 @@ impl Fold<'_, '_> {
 fn owns_alias(alias: &str, requested: &str) -> bool {
     ColumnIdentifierPath::parse(alias)
         .is_ok_and(|path| !path.is_qualified() && path.namespace_key() == requested)
+}
+
+/// Whether `source` exposes a relation called `name` (a whole-row reference).
+fn source_named(source: &ast::QuerySource, name: &str) -> bool {
+    match source {
+        ast::QuerySource::Collection(path) => crate::catalog::qualifier_variants(path)
+            .iter()
+            .any(|candidate| candidate == name),
+        ast::QuerySource::Aliased { alias, .. }
+        | ast::QuerySource::Subquery { alias, .. }
+        | ast::QuerySource::Cte(alias) => alias == name,
+        ast::QuerySource::TableSample { source, .. } => source_named(source, name),
+        ast::QuerySource::Join { left, right, .. } => {
+            source_named(left, name) || source_named(right, name)
+        }
+        ast::QuerySource::TableFunction { .. }
+        | ast::QuerySource::Values { .. }
+        | ast::QuerySource::SingleRow => false,
+    }
 }

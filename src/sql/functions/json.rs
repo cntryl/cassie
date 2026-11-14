@@ -134,6 +134,14 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ),
     constructor("to_json", JsonFunction::ToJson(false), false, true),
     constructor("to_jsonb", JsonFunction::ToJson(true), true, true),
+    ScalarFunction {
+        id: FunctionId::Json(JsonFunction::ToJson(false)),
+        name: "row_to_json",
+        arity: FunctionArity::Range { min: 1, max: 2 },
+        return_type: FunctionReturnType::Json,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
     mutation(
         "jsonb_set",
         JsonFunction::Set,

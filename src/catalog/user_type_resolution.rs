@@ -7,7 +7,7 @@
 //! composite in a later schema shadow a domain or enum in an earlier one.
 use super::{
     canonical_relation_name, local_name, parse_name, Catalog, CompositeTypeMeta, DomainTypeMeta,
-    EnumTypeMeta, ParsedName,
+    EnumTypeMeta, ParsedName, DEFAULT_SCHEMA,
 };
 use crate::types::composite::CompositeRef;
 use crate::types::DataType;
@@ -112,6 +112,13 @@ impl Catalog {
                 .user_type_in_schema(database, &schema, &name)
                 .or_else(|| {
                     self.resolve_relation_row_type(database, &[], raw)
+                        .map(UserType::RowType)
+                })
+                // An unscoped catalog stores `public` tables under their bare names.
+                .or_else(|| {
+                    (schema == DEFAULT_SCHEMA)
+                        .then(|| self.resolve_relation_row_type(database, &[], &name))
+                        .flatten()
                         .map(UserType::RowType)
                 }),
             ParsedName::DatabaseQualified {

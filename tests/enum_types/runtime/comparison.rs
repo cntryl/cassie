@@ -31,7 +31,7 @@ fn should_order_by_sort_order_not_label_text() {
     let fixture = fixture("enum_order_by");
 
     // Act
-    let rows = fixture.rows("SELECT m::text FROM days WHERE m IS NOT NULL ORDER BY m, id");
+    let rows = fixture.rows("SELECT m::text AS label FROM days WHERE m IS NOT NULL ORDER BY m, id");
 
     // Assert
     assert_eq!(texts(&rows), vec!["sad", "sad", "ok", "happy"]);
@@ -73,8 +73,8 @@ fn should_collapse_equal_members_when_grouping() {
     let fixture = fixture("enum_group_distinct");
 
     // Act
-    let groups = fixture.rows("SELECT m::text, count(*) FROM days GROUP BY m ORDER BY m");
-    let distinct = fixture.rows("SELECT DISTINCT m::text FROM days WHERE m IS NOT NULL ORDER BY m");
+    let groups = fixture.rows("SELECT m::text AS label, count(*) FROM days GROUP BY m ORDER BY m");
+    let distinct = fixture.rows("SELECT m::text AS label FROM (SELECT DISTINCT m FROM days WHERE m IS NOT NULL) d ORDER BY m");
 
     // Assert
     assert_eq!(groups.len(), 4);
@@ -141,7 +141,7 @@ fn should_order_a_limited_read_by_sort_order_not_member_id() {
     let fixture = reordered_fixture("enum_top_k_ascending");
 
     // Act
-    let rows = fixture.rows("SELECT id, e::text FROM ranked ORDER BY e LIMIT 2");
+    let rows = fixture.rows("SELECT id, e::text AS label FROM ranked ORDER BY e LIMIT 2");
     let bare = fixture.rows("SELECT id, e FROM ranked ORDER BY e LIMIT 2");
 
     // Assert
@@ -201,7 +201,7 @@ fn should_union_two_branches_of_the_same_enum_type() {
 
     // Act
     let rows = fixture.rows(
-        "SELECT x::text FROM (SELECT 'happy'::mood AS x UNION SELECT 'sad'::mood) u ORDER BY x",
+        "SELECT x::text AS label FROM (SELECT 'happy'::mood AS x UNION SELECT 'sad'::mood) u ORDER BY x",
     );
 
     // Assert

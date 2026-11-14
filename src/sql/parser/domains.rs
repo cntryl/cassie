@@ -329,9 +329,15 @@ fn parse_alteration(rest: &str) -> Result<DomainAlteration, SqlError> {
             "RENAME TO",
         )?));
     }
-    if pattern_end(rest, 0, "owner to").is_some() || pattern_end(rest, 0, "set schema").is_some() {
+    if let Some(end) = pattern_end(rest, 0, "set schema") {
+        return Ok(DomainAlteration::SetSchema(single_name(
+            &rest[end..],
+            "SET SCHEMA",
+        )?));
+    }
+    if pattern_end(rest, 0, "owner to").is_some() {
         return Err(SqlError::unsupported(
-            "ALTER DOMAIN OWNER TO and SET SCHEMA are not supported in this version".into(),
+            "ALTER DOMAIN OWNER TO is not supported in this version".into(),
         ));
     }
     Err(SqlError::syntax("unsupported ALTER DOMAIN action".into()))

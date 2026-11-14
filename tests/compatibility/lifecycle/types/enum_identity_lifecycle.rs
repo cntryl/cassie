@@ -82,7 +82,7 @@ fn read_enum_identity_state(
     let values = cassie
         .execute_sql(
             session,
-            &format!("SELECT id, state::TEXT FROM {schema}.jobs ORDER BY state"),
+            &format!("SELECT id, state::TEXT AS label FROM {schema}.jobs ORDER BY state"),
             vec![],
         )
         .expect("read persisted values in enum order")
@@ -384,7 +384,7 @@ fn should_scope_enum_alterations_to_the_named_schema() {
             .expect("read the schema-qualified enum labels after alteration");
         let rows = client
             .query(
-                "SELECT id, state::TEXT FROM compat_enum_lifecycle_a.jobs \
+                "SELECT id, state::TEXT AS label FROM compat_enum_lifecycle_a.jobs \
                  ORDER BY state",
                 &[],
             )

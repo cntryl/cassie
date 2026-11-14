@@ -232,42 +232,47 @@ fn should_reject_unknown_qualified_wildcard_sources() {
 
 #[test]
 fn should_expand_an_unaliased_table_star_in_a_database_scoped_session() {
-    // Arrange
-    let fixture = join_fixture("issue-800-scoped-table-star");
-    let session = fixture
-        .cassie
-        .create_session("tester", Some("postgres".to_string()));
-    let run = |sql: &str| fixture.cassie.execute_sql(&session, sql, vec![]);
+    // Arrange: a pgwire session is scoped to its database, so these relations
+    // are stored and resolved under `postgres.public`.
+    let statements = [
+        "CREATE TABLE issue_800_employees (id BIGINT, dept_id BIGINT, name TEXT)",
+        "CREATE TABLE issue_800_departments (dept_id BIGINT, dept_name TEXT)",
+        "INSERT INTO issue_800_employees VALUES (1, 10, 'Ada'), (2, 20, 'Lin')",
+        "INSERT INTO issue_800_departments VALUES (10, 'Research'), (30, 'Design')",
+        "SELECT issue_800_employees.* FROM issue_800_employees WHERE dept_id = 10",
+        "SELECT public.issue_800_employees.* FROM public.issue_800_employees WHERE id = 2",
+        "SELECT issue_800_departments.*, issue_800_employees.name \
+         FROM issue_800_employees JOIN issue_800_departments \
+         ON issue_800_employees.dept_id = issue_800_departments.dept_id",
+    ];
+    let cycles = statements
+        .iter()
+        .map(|sql| vec![crate::support_pgwire::simple_query_frame(sql)])
+        .collect();
 
     // Act
-    let bare = run("SELECT issue_800_employees.* FROM issue_800_employees WHERE dept_id = 10");
-    let schema_qualified =
-        run("SELECT public.issue_800_employees.* FROM public.issue_800_employees WHERE id = 2");
-    let joined = run("SELECT issue_800_departments.*, issue_800_employees.name \
-         FROM issue_800_employees JOIN issue_800_departments \
-         ON issue_800_employees.dept_id = issue_800_departments.dept_id");
+    let frames = crate::support_type_metadata_contract::run_cycles(
+        "issue-800-scoped-table-star",
+        &[],
+        cycles,
+    );
 
     // Assert
-    let ada = vec![
-        Value::Int64(1),
-        Value::Int64(10),
-        Value::String("Ada".to_owned()),
-    ];
-    let lin = vec![
-        Value::Int64(2),
-        Value::Int64(20),
-        Value::String("Lin".to_owned()),
-    ];
-    assert!(bare.is_ok_and(|result| result.rows() == [ada]));
-    assert!(schema_qualified.is_ok_and(|result| result.rows() == [lin]));
-    assert!(joined.is_ok_and(|result| {
-        result.rows()
-            == [vec![
-                Value::Int64(10),
-                Value::String("Research".to_owned()),
-                Value::String("Ada".to_owned()),
-            ]]
-    }));
+    let rows = |cells: &[&str]| -> Vec<Vec<Option<String>>> {
+        vec![cells.iter().map(|cell| Some((*cell).to_owned())).collect()]
+    };
+    assert_eq!(
+        crate::support_pgwire::data_rows(&frames[4]),
+        rows(&["1", "10", "Ada"])
+    );
+    assert_eq!(
+        crate::support_pgwire::data_rows(&frames[5]),
+        rows(&["2", "20", "Lin"])
+    );
+    assert_eq!(
+        crate::support_pgwire::data_rows(&frames[6]),
+        rows(&["10", "Research", "Ada"])
+    );
 }
 
 #[test]

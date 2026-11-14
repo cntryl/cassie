@@ -21,6 +21,7 @@ mod decimal_literals;
 mod declared_functions;
 #[path = "enum_operands.rs"]
 mod enum_operands;
+pub(super) use enum_operands::type_support_arguments;
 #[path = "math_signatures.rs"]
 mod math_signatures;
 #[path = "row_predicates.rs"]
@@ -465,6 +466,7 @@ fn validate_expression(
                 }
             }
             super::coalesce_coercion::coerce_function(function, types);
+            enum_operands::type_support_arguments(function, types);
             validate_boolean_aggregate(function, types)?;
         }
         Expr::Exists(statement) => {

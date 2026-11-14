@@ -6,7 +6,7 @@
 //! operator (`42883`).
 use super::super::coalesce_results::ResultTypes;
 use crate::app::{CassieError, DiagnosticError};
-use crate::sql::ast::{BinaryOp, CastIdentity, Expr};
+use crate::sql::ast::{BinaryOp, CastIdentity, Expr, FunctionCall};
 use crate::types::array::ParsedTextArrayElement;
 use crate::types::{DataType, EnumRef};
 
@@ -14,6 +14,41 @@ fn descriptor(data_type: Option<&DataType>) -> Option<EnumRef> {
     match data_type?.flattened() {
         DataType::Enum(descriptor) => Some(descriptor.clone()),
         _ => None,
+    }
+}
+
+/// `enum_first`, `enum_last` and `enum_range` take `anyenum`. A column
+/// argument is cast to its declared enum, so the type is known even for a row
+/// whose value is NULL (PostgreSQL types the argument, not the value).
+pub(in crate::sql::binder) fn type_support_arguments(
+    function: &mut FunctionCall,
+    types: &ResultTypes,
+) {
+    let name = function
+        .name
+        .rsplit('.')
+        .next()
+        .unwrap_or(function.name.as_str());
+    if !["enum_first", "enum_last", "enum_range"]
+        .iter()
+        .any(|support| name.eq_ignore_ascii_case(support))
+    {
+        return;
+    }
+    for argument in &mut function.args {
+        if !matches!(argument, Expr::Column(_)) {
+            continue;
+        }
+        let Some(target) = descriptor(types.expression_type(argument).as_ref()) else {
+            continue;
+        };
+        let column = std::mem::replace(argument, Expr::Null);
+        *argument = Expr::Cast {
+            expr: Box::new(column),
+            data_type: DataType::Enum(target),
+            source_type: None,
+            identity: CastIdentity::Scalar,
+        };
     }
 }
 

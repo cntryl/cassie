@@ -196,7 +196,7 @@ fn should_return_distinct_enum_values() {
     // Act
     let distinct = strings(
         &fixture,
-        "SELECT p::text FROM (SELECT DISTINCT p FROM tasks) d ORDER BY p",
+        "SELECT p::text AS label FROM (SELECT DISTINCT p FROM tasks) d ORDER BY p",
     );
 
     // Assert
@@ -495,7 +495,7 @@ fn should_order_an_unnested_enum_array_by_declared_order() {
     // Act
     let ordered = strings(
         &fixture,
-        "SELECT v::text FROM unnest(ARRAY['high','low','medium']::priority[]) v ORDER BY v",
+        "SELECT v::text AS label FROM unnest(ARRAY['high','low','medium']::priority[]) v ORDER BY v",
     );
     let any_match = scalar(
         &fixture,

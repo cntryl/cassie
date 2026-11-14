@@ -242,7 +242,7 @@ fn should_accept_inserts_with_every_label_after_restart() {
     let stored = column(&cassie, "SELECT history::text FROM app.jobs WHERE id = 5");
     let rows = column(
         &cassie,
-        "SELECT st::text FROM app.jobs WHERE st > 'paused' ORDER BY st, id",
+        "SELECT st::text AS label FROM app.jobs WHERE st > 'paused' ORDER BY st, id",
     );
 
     // Assert

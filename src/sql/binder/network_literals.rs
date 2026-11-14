@@ -45,7 +45,7 @@ fn literal_type(op: &BinaryOp, other: DataType) -> Option<DataType> {
             other,
             DataType::Extended(ExtendedType::Inet | ExtendedType::Cidr)
         )
-        .then_some(DataType::Int64),
+        .then_some(DataType::BigInt),
         // `inet || 'x'` is text concatenation.
         Some(TypedOperator::Concat) => None,
         Some(_) => Some(other),

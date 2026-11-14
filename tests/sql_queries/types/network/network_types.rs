@@ -900,7 +900,7 @@ fn should_resolve_a_literal_beside_inet_by_the_operator_it_meets() {
     // Act
     let rows = query_rows(
         &fixture,
-        "SELECT ip + '1' = '10.0.0.6'::inet, ip - '10.0.0.1' = 4, ip || 'x' = '10.0.0.5/32x', \
+        "SELECT ip + '1' = '10.0.0.6'::inet, ip - '10.0.0.1' = 4, ip || 'x' = ip::text || 'x', \
          ip & '0.0.0.255' = '0.0.0.5'::inet FROM peers",
     );
 

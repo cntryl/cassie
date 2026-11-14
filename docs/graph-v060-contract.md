@@ -358,9 +358,14 @@ gets a new identity. An operation resolving a reference from a different
 database or a removed graph/mapping fails deterministically instead of
 retargeting it. Element identity is mapping plus typed key, with no row
 incarnation: after delete and reinsertion of the same key in the same mapping,
-the old reference resolves to the replacement row in a later snapshot. Export,
-restore and cloning must document identity handling;
-do not promise cross-database reference portability. A missing durable allocator
+the old reference resolves to the replacement row in a later snapshot. Restore
+of an image to the same logical database preserves the database, graph and
+mapping UUIDs and catalog type OIDs recorded in that image; objects absent from
+the restored image remain unresolved. A distinct live clone or import receives a
+fresh database UUID. Graph-reference values copied from the source retain their
+source UUID and resolve as `42704` in the clone until an explicit, authorized
+remap; detached structural inspection remains possible. Never silently retarget
+a reference across databases. A missing durable allocator
 for database, graph and mapping identities is an explicit #1268 prerequisite;
 these identities are a target contract, not a claim about today's catalog. Public labels and
 properties are resolved from the applicable graph snapshot; identity equality
@@ -413,16 +418,27 @@ successful retry after resolution. User DDL must not alter,
 rename, replace or drop them, including by cascade. Bootstrap the schema,
 composite descriptors, type and array OIDs and backing composite relation OIDs
 atomically before publishing the graph feature; failed bootstrap leaves none
-partially visible. Use the database-scoped `Midge::allocate_object_id` precedent
-for named composite type, array and `relkind = 'c'` relation OIDs; do not use
+partially visible. Use the persistent schema-family `Midge::allocate_object_id`
+precedent for named composite type, array and `relkind = 'c'` relation OIDs;
+the allocator has no database argument, while named type metadata is scoped to
+the database. Do not use
 OIDs as the durable graph identities above. Type and array OIDs and their fields
 must be discoverable through `pg_type`, `pg_class` and `pg_attribute`. They
 remain stable across restart for the life of the database, but clients must
-discover them rather than assume fixed OIDs. Image restore and clone must define
-and test OID and logical-identity handling before cross-database use; an old
-reference must never silently resolve to a different mapping.
+discover them rather than assume fixed or globally shared OIDs. Restore and
+clone must implement and test the identity policy above; an old reference must
+never silently resolve to a different mapping.
 Use PostgreSQL composite and array text and binary framing, including nested
-quoting, element type OIDs, NULLs and array bounds. Prepared statements and
+quoting, element type OIDs, NULLs and array bounds. Composite binary fields use
+big-endian signed 32-bit field count followed by each field's 32-bit type OID,
+signed 32-bit byte length (`-1` for NULL), and native type payload. Array binary
+uses big-endian signed 32-bit dimension count and null flag, 32-bit element OID,
+each dimension's signed 32-bit length and lower bound, then signed 32-bit
+length-prefixed native element payloads (`-1` for NULL); path invariants reject
+NULL elements and noncanonical bounds. Empty arrays use zero dimensions.
+Text fields and nested arrays use PostgreSQL's composite and array text quoting
+and escaping. Exact OIDs are allocated and persisted, not globally preassigned.
+Prepared statements and
 result metadata must preserve the same types. Some drivers require explicit
 registration to decode named composite arrays; the scalar expansion interface
 must work without it. PostgreSQL composite types cannot themselves enforce the
@@ -523,9 +539,13 @@ NULL elements inside a non-NULL labels array return `22004`. Explicit NULL
 `direction` or `k` returns `22004`; omitting them uses their defaults.
 NULL `max_cost` means no limit; otherwise it is finite, non-negative and
 inclusive. Required NULL arguments return `22004`; invalid bounds or direction
-return `22023`. Unknown properties return `42703` and incompatible declared
-types return `42804`. Named and positional calls support defaults; duplicate or
-unknown argument names reject. The weight property must exist with a compatible
+return `22023`. A well-formed edge reference supplied as source or target
+returns `22023`; an unknown graph, mapping, label or missing element and a
+cross-graph or cross-database reference return `42704`; insufficient authority
+returns `42501`. Unknown properties return `42703` and incompatible declared
+types return `42804`. Named and positional calls support defaults; duplicate
+argument names or positional arguments after named ones return `42601`.
+Unknown argument names that do not resolve an overload return `42883`. The weight property must exist with a compatible
 exact numeric or integer type on each selected mapping; FLOAT weights are
 rejected until their conversion and ordering semantics are selected and proven.
 Accumulate as NUMERIC without silent rounding; an unrepresentable intermediate
@@ -687,9 +707,9 @@ strings for integer values. Requests and responses are
 retained under ignored `target/graph-v060-review/`. These judgments are leads,
 not evidence of correctness or standard conformance.
 
-Before dependent implementation, validate the selected total order, freeze path
-type OIDs and wire encoding, complete weighted-function diagnostic details, and
-establish the storage integrity proof. Compare the normative grammar before any
+Before dependent implementation, qualify the selected total order, implement and
+qualify the selected type/OID and wire contracts, and establish the storage
+integrity proof. Compare the normative grammar before any
 future standard-conformance claim, not as a prerequisite to implementing the
 selected Cassie dialect. The proof
 must explicitly address correlated sidecar/certificate damage: if the published

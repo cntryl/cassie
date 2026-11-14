@@ -7,6 +7,9 @@ use super::*;
 use crate::app::{Cassie, CassieSession, SessionReadScope};
 use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
 
+#[path = "tests/replay_process_crash.rs"]
+mod replay_process_crash;
+
 fn controls(budget: usize) -> QueryExecutionControls {
     QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {

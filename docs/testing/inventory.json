@@ -166,9 +166,9 @@
     ],
     "files": 1712,
     "rust_files": 1675,
-    "rust_test_declarations": 10164,
+    "rust_test_declarations": 10163,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10170,
+    "registered_rust_instances": 10169,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -30986,42 +30986,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_track_extension_identity_through_relocation_lifecycle",
-      "name": "should_track_extension_identity_through_relocation_lifecycle",
-      "current_file": "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs",
-      "line": 93,
-      "end_line": 121,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::pgcrypto_lifecycle::should_track_extension_identity_through_relocation_lifecycle"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "compatibility",
-        "category": "clients",
-        "directory": "tests/compatibility/clients",
-        "file": "tests/compatibility/clients/pgcrypto_lifecycle.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
       "id": "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs::should_resolve_digest_bytea_overload_for_selected_algorithms",
       "name": "should_resolve_digest_bytea_overload_for_selected_algorithms",
       "current_file": "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs",
-      "line": 124,
-      "end_line": 162,
+      "line": 93,
+      "end_line": 131,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -318335,8 +318304,8 @@
       "current_file": "tests/compatibility/clients/tokio_postgres/matrix/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 173,
-      "sha256": "35dec9bbe196035393a9aa350d06c34f4d77176c41ccf042c1752343e6f1be74",
+      "lines": 163,
+      "sha256": "e879e70a60e6be0c88f576d2f1def346d8b945d23ee86b4891ccdb95960bfe71",
       "test_declarations": 0,
       "registered_suites": [
         "compatibility"
@@ -319248,9 +319217,9 @@
       "current_file": "tests/compatibility/lifecycle/extensions/pgcrypto_lifecycle.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 162,
-      "sha256": "06d6bb69eeb1231ea13aae42b08cbdd3a7238b1c24f3eb9d5dbf872335b8f7ab",
-      "test_declarations": 5,
+      "lines": 131,
+      "sha256": "552742d21f94f0d23fccd024094a301372d3907c50ac3936330d1c7f750822f7",
+      "test_declarations": 4,
       "registered_suites": [
         "compatibility"
       ],

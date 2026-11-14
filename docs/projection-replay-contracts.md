@@ -78,4 +78,10 @@ Do not swap an active projection version after a failed replay solely because a 
 
 - `tests/analytics.rs` module `projection_lifecycle` owns idempotent duplicate skip, out-of-order failed freshness, duplicate event ids inside one batch, restart hydration, atomic rollback of rows with replay metadata, no-op checkpoint advancement, and retry after an uncertain commit. Newly authored atomic replay assertions require execution on the qualified bundle.
 - `src/midge/adapter/statement_read/tests.rs` authors a pinned Data-family snapshot regression for replay rows, scalar index entries, ledger, and stored checkpoint across a concurrent commit. `src/app/statement_read_tests/replay_native_unknown.rs` authors two narrow adapter-seam simulations of `OutcomeUnknown`: one after an actual successful native commit and one after dropping an uncommitted native transaction. They require publication fencing, restart and safe same-batch reconciliation; neither simulates an actual process crash or every native failure mode. The same module also authors a post-commit metadata-read failure and same-batch reconciliation probe. These tests have not been executed.
+- `src/midge/adapter/statement_read/tests/replay_process_crash.rs` authors local
+  child-process kill-and-reopen probes at a precommit boundary and after an
+  acknowledged replay, including recovered row, scalar index, ledger,
+  checkpoint and same-batch retry assertions. These probes are unexecuted; even
+  if they pass, process death is not power-loss, buffered-WAL or cloud-durability
+  evidence.
 - `docs/production-readiness.md` records the Stable local projection lifecycle promotion and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that promotion.

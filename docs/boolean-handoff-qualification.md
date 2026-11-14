@@ -27,7 +27,7 @@ The implementation is fully qualified locally at `889d493fa5e939852757ed8c942260
 | Backing lifetime, views and controls | `typed_batch/column/boolean_tests.rs` checks repeated gather/slice/clone aliases, declared-type rejection, denied admission and canceled construction; final owner releases query reservation |
 | Scan advancement, native cells, SQL and staged visibility | `scan/typed/profile_tests.rs` checks repeated selected aliases over parent/source advancement, exact >2^53 SUM/count/OIDs and no JSON/Value transport; staged INSERT/UPDATE/DELETE use controlled documents, rollback restores the committed native source |
 
-Seventeen new tiny probes and the updated existing native-lane trace probe all passed. They were authored before the implementation with execution deferred; no baseline RED was observed. Input and complete integrated reviews identify exact base/head/tree and source-backed Jev dispositions. A model judgment does not replace executable qualification.
+Seventeen new tiny probes and the updated existing native-lane trace probe all passed. Focused regressions were authored before implementation; additional adversarial probes were added during the same increment. All execution was deferred; no baseline RED was observed. Input and complete integrated reviews identify exact base/head/tree and source-backed Jev dispositions. A model judgment does not replace executable qualification.
 
 All times below are UTC on 2026-11-14. The integration target was private, jobs=2/test threads=4.
 

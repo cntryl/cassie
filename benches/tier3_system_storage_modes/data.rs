@@ -54,7 +54,7 @@ fn note(i: usize) -> Option<String> {
 pub fn fact_csv(range: std::ops::Range<usize>) -> String {
     let mut out = String::new();
     for i in range {
-        let amount = amount(i).map(|v| v.to_string()).unwrap_or_default();
+        let amount = amount(i).map_or_else(String::new, |value| value.to_string());
         let note = note(i).unwrap_or_default();
         let _ = writeln!(
             out,

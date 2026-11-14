@@ -151,6 +151,7 @@ impl<'a> TypedScanStream<'a> {
                 size_of::<crate::executor::typed_batch::Column>(),
             )?)?;
             let mut columns = Vec::with_capacity(self.schema.len());
+            let mut lanes = ProfileLanes::default();
             for (name, data_type) in &self.schema {
                 let field = segment
                     .fields
@@ -164,6 +165,12 @@ impl<'a> TypedScanStream<'a> {
                     .ok_or_else(|| {
                         QueryError::General("validated encoded field missing".to_owned())
                     })?;
+                if field.get().numeric_values().is_some() {
+                    lanes.numeric = lanes.numeric.saturating_add(segment.row_ids.len());
+                } else {
+                    lanes.json = lanes.json.saturating_add(field.get().values().len());
+                    lanes.values = lanes.values.saturating_add(field.get().values().len());
+                }
                 columns.push(crate::executor::typed_batch::Column::from_encoded(
                     self.controls,
                     data_type,
@@ -178,8 +185,13 @@ impl<'a> TypedScanStream<'a> {
                 None,
             )?;
             self.encoded_position += 1;
+            profile_batch("encoded", &batch, lanes);
             return Ok(Some(batch));
         }
+        self.next_document_batch(max_rows)
+    }
+
+    fn next_document_batch(&mut self, max_rows: usize) -> Result<Option<TypedBatch>, QueryError> {
         let documents = self
             .cursor
             .as_mut()
@@ -202,7 +214,15 @@ impl<'a> TypedScanStream<'a> {
         )?;
         let mut memory = self.controls.reserve_query_memory(bytes)?;
         let mut columns = Vec::with_capacity(self.schema.len());
+        let mut lanes = ProfileLanes::default();
         for (name, data_type) in &self.schema {
+            // Classify the same branch as the per-lane conversion below, once per column.
+            if is_row_identity_column(name) {
+                lanes.identity = lanes.identity.saturating_add(documents.len());
+            } else {
+                lanes.documents = lanes.documents.saturating_add(documents.len());
+            }
+            lanes.values = lanes.values.saturating_add(documents.len());
             let mut values = Vec::with_capacity(documents.len());
             for source in &documents {
                 conversion::check_controls(self.controls)?;
@@ -240,9 +260,34 @@ impl<'a> TypedScanStream<'a> {
         self.cassie
             .runtime
             .record_storage_access("data", false, true);
+        profile_batch("documents", &batch, lanes);
         Ok(Some(batch))
     }
 }
+
+#[derive(Clone, Copy, Default)]
+struct ProfileLanes {
+    documents: usize,
+    identity: usize,
+    values: usize,
+    numeric: usize,
+    json: usize,
+}
+
+fn profile_batch(source: &'static str, batch: &TypedBatch, lanes: ProfileLanes) {
+    // Completed-batch observations, not allocation counts or whole-query success.
+    tracing::trace!(target: "cassie::typed_profile",
+        event = "typed_transport_batch", source, rows = batch.len(), fields = batch.schema().len(),
+        document_field_lanes = lanes.documents, document_identity_lanes = lanes.identity,
+        value_carrier_slots = lanes.values,
+        value_carrier_bytes = lanes.values.saturating_mul(size_of::<crate::types::Value>()),
+        encoded_numeric_lanes = lanes.numeric, encoded_json_lanes = lanes.json,
+    );
+}
+
+#[cfg(test)]
+#[path = "typed/profile_tests.rs"]
+mod profile_tests;
 
 #[cfg(test)]
 mod tests {

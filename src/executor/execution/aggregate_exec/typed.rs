@@ -246,6 +246,13 @@ pub(in crate::executor::execution) fn try_execute(
             .runtime
             .record_parallel_aggregation_fallback(diagnostic.fallback);
     }
+    // Operator completion is separate from the enclosing SQL result publication.
+    tracing::trace!(target: "cassie::typed_profile", event = "typed_aggregate_complete",
+        selected_input_rows = diagnostic.rows, workers = diagnostic.workers,
+        aggregate_fields = output.first().map_or(0, |row| row.entries().len()),
+        current_admitted_query_bytes = controls.current_query_memory_bytes(),
+        peak_admitted_query_bytes = controls.peak_query_memory_bytes(),
+    );
     Ok(Some(output))
 }
 

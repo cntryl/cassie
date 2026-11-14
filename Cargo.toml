@@ -162,6 +162,11 @@ harness = false
 path = "benches/tier3_system_storage_modes.rs"
 
 [[bench]]
+name = "tier3_system_typed_primitive"
+harness = false
+path = "benches/tier3_system_typed_primitive.rs"
+
+[[bench]]
 name = "tier3_system_startup"
 harness = false
 path = "benches/tier3_system_startup.rs"

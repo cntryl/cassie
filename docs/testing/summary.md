@@ -129,7 +129,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 
 | Proposed file | Test body lines | Tests |
 | --- | ---: | ---: |
-| `tests/analytics/projections/projection_lifecycle/metadata.rs` | 829 | 11 |
+| `tests/analytics/projections/projection_lifecycle/metadata.rs` | 833 | 11 |
 | `tests/catalog_security/catalogs/types/catalog_discovery/semantics.rs` | 824 | 28 |
 | `tests/compatibility/lifecycle/indexes/pgvector_profile.rs` | 825 | 10 |
 | `tests/compatibility/lifecycle/tables/table_forms/semantics.rs` | 818 | 16 |

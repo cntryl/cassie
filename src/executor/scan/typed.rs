@@ -165,7 +165,9 @@ impl<'a> TypedScanStream<'a> {
                     .ok_or_else(|| {
                         QueryError::General("validated encoded field missing".to_owned())
                     })?;
-                if field.get().numeric_values().is_some() {
+                if field.get().boolean_values().is_some() {
+                    lanes.boolean = lanes.boolean.saturating_add(segment.row_ids.len());
+                } else if field.get().numeric_values().is_some() {
                     lanes.numeric = lanes.numeric.saturating_add(segment.row_ids.len());
                 } else {
                     lanes.json = lanes.json.saturating_add(field.get().values().len());
@@ -271,6 +273,7 @@ struct ProfileLanes {
     identity: usize,
     values: usize,
     numeric: usize,
+    boolean: usize,
     json: usize,
 }
 
@@ -281,7 +284,8 @@ fn profile_batch(source: &'static str, batch: &TypedBatch, lanes: ProfileLanes) 
         document_field_lanes = lanes.documents, document_identity_lanes = lanes.identity,
         value_carrier_slots = lanes.values,
         value_carrier_bytes = lanes.values.saturating_mul(size_of::<crate::types::Value>()),
-        encoded_numeric_lanes = lanes.numeric, encoded_json_lanes = lanes.json,
+        encoded_numeric_lanes = lanes.numeric, encoded_boolean_lanes = lanes.boolean,
+        encoded_json_lanes = lanes.json,
     );
 }
 

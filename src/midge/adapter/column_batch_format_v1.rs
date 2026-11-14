@@ -2,6 +2,7 @@ mod alp;
 mod alp_chunk;
 mod binary;
 mod bitpack;
+mod boolean;
 mod chunk;
 mod fsst;
 mod manifest;
@@ -12,6 +13,7 @@ mod selected;
 use crate::app::CassieError;
 
 pub(crate) use alp_chunk::decode_scaled as decode_alp_scaled;
+pub(crate) use boolean::decode as decode_boolean_column_chunk;
 pub(crate) use chunk::{Codec, DecodedChunk, EncodedChunk, LogicalType};
 pub(crate) use numeric::{decode as decode_numeric_column_chunk, NumericValues};
 
@@ -125,3 +127,6 @@ pub fn decode_column_batch_manifest_for_test(
 
 #[cfg(test)]
 mod numeric_tests;
+
+#[cfg(test)]
+pub(crate) mod boolean_tests;

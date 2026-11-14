@@ -1,4 +1,5 @@
 //! Private immutable CBC1 input owners. Existing validators decide eligibility and framing.
+mod boolean;
 mod numeric;
 
 use std::collections::BTreeSet;
@@ -21,6 +22,7 @@ pub(crate) struct ValidatedEncodedField {
     raw: bytes::Bytes,
     values: Vec<serde_json::Value>,
     numeric: Option<super::super::NumericValues>,
+    boolean: Option<Vec<Option<bool>>>,
     metadata: Arc<Accounted<ColumnBatchMetadata>>,
     segment: usize,
 }
@@ -37,6 +39,9 @@ impl ValidatedEncodedField {
     }
     pub(crate) fn numeric_values(&self) -> Option<&super::super::NumericValues> {
         self.numeric.as_ref()
+    }
+    pub(crate) fn boolean_values(&self) -> Option<&[Option<bool>]> {
+        self.boolean.as_deref()
     }
     pub(crate) fn storage_type(&self) -> &str {
         &self.metadata.get().segments[self.segment].field_chunks[&self.name].logical_type
@@ -169,8 +174,15 @@ impl Midge {
                 };
                 let bytes = field_retained_bytes(chunk, segment.row_count, field)?;
                 let field_memory = controls.reserve_query_memory(bytes)?;
-                let loaded = match numeric::load(&tx, relation_id, index_id, segment, field, chunk)?
+                let loaded = if chunk.logical_type == "boolean"
+                    && chunk.codec_id
+                        == crate::midge::adapter::column_batch_format_v1::Codec::Plain as u8
                 {
+                    boolean::load(&tx, relation_id, index_id, segment, field, chunk)?
+                } else {
+                    numeric::load(&tx, relation_id, index_id, segment, field, chunk)?
+                };
+                let loaded = match loaded {
                     Ok(loaded) => loaded,
                     Err(reason) => return Ok(EncodedSourceDecision::Fallback(reason)),
                 };
@@ -184,6 +196,7 @@ impl Midge {
                         raw: loaded.raw,
                         values: loaded.values,
                         numeric: loaded.numeric,
+                        boolean: loaded.boolean,
                         metadata: Arc::clone(metadata),
                         segment: segment_index,
                     },
@@ -280,3 +293,6 @@ fn record_segment(
     metrics.physical_bytes += segment.row_ids.encoded_len;
     metrics.logical_bytes += segment.row_ids.decoded_len;
 }
+
+#[cfg(test)]
+mod boolean_tests;

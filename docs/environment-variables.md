@@ -60,6 +60,8 @@ names belong in `CASSIE_STORAGE_PROVIDER`, never in `CASSIE_STORAGE_MODE`.
 | --- | --- | --- | --- |
 | `CASSIE_STORAGE_MODE` | `memory`, `local`, or `cloud` | `local` | Selects ephemeral memory, persistent local disk, or cloud-backed storage. |
 | `CASSIE_STORAGE_PATH` | Directory path | `./.cassie` | Persistent data directory when `CASSIE_STORAGE_MODE=local`. |
+| `CASSIE_STORAGE_MEMORY_BUDGET_BYTES` | Positive integer bytes | Unset | Optional native Midge memory budget for explicit in-memory Cassie construction; separate from the SQL query budget. |
+| `CASSIE_STORAGE_MEMTABLE_SIZE_BYTES` | Positive integer bytes | Unset | Optional native Midge memtable size for explicit in-memory Cassie construction; validated against the native memory pools. |
 | `CASSIE_STORAGE_PROVIDER` | Provider identifier listed below | Unset | Required when `CASSIE_STORAGE_MODE=cloud`. |
 | `CASSIE_STORAGE_CLOUD_DURABILITY` | `background` or `strict` | `background` | Cloud commit durability. `background` acknowledges after the local barrier and uploads asynchronously; `strict` waits for cloud-provider acknowledgement. Used only when `CASSIE_STORAGE_MODE=cloud`. |
 | `CASSIE_STORAGE_PREFIX` | Object-key prefix | Empty | Optional namespace prefix for cloud objects. |
@@ -70,6 +72,15 @@ names belong in `CASSIE_STORAGE_PROVIDER`, never in `CASSIE_STORAGE_MODE`.
 | `CASSIE_STORAGE_REGION` | Region name | Unset | Provider region. AWS also accepts `AWS_REGION` or `AWS_DEFAULT_REGION`. |
 | `CASSIE_STORAGE_NAMESPACE` | Namespace name | Unset | Required by `oci-s3`. |
 | `CASSIE_STORAGE_FORCE_PATH_STYLE` | Boolean | Provider-specific | Controls path-style addressing for S3-compatible providers. Defaults to `true` for `s3-compatible` and `false` for `oci-s3`. |
+
+These two native-memory options apply to the explicit in-memory embedded
+constructor. Unset options preserve Midge's published defaults. They do not
+change storage-mode selection, SQL query-memory admission, persistent layouts,
+or local/cloud constructor behavior. Positive values still need to satisfy
+Midge's combined memory-pool validation: room is required for two memtable
+generations and the transaction/compaction pools. A total budget cannot be
+assumed to equal the permitted size of one memtable. Effective native options
+and observed runtime memtable/snapshot metrics are distinct diagnostics.
 
 ### Valid Storage Providers
 

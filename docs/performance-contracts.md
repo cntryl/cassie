@@ -312,6 +312,23 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 
 Tier 2 projection-replay samples use one shared Cassie runtime but consume separate, prebuilt empty projection lanes. Each timed batch therefore exercises the same 2,048-event production replay path from an equivalent source position without including fixture setup or accumulating prior samples' event history. Runtime evidence remains scoped to the shared runtime, and the gate continues to report one logical event per applied event.
 
+The `tier3_system_storage_modes` qualification owner uses a paired memory-mode
+fixture: two 100k fact copies and two 1k dimension copies. Row-only, column-only
+and mixed labels describe the query inputs, not isolated whole-database memory
+footprints. Its explicit candidate native profile is 2 GiB total Midge memory
+with a 512 MiB memtable, forwarded through the published builder; the SQL query
+budget remains independently fixed at 64 MiB. COPY setup uses at most 5,000 rows
+per transaction and result caching is disabled. Neither native option changes
+product defaults. These capacities remain a proposed qualification envelope
+until actual setup and all selected workloads pass; they are not inferred from
+host RAM or a model judgment. Record the built native options, observed runtime
+memtable bytes/stalls/snapshots, and batch progress alongside the workload
+results. A native fixture-capacity failure is distinct from SQL query-memory
+admission and must not be hidden by switching an ephemeral fixture to local
+storage or reporting a compilation/configuration-only run as measured evidence.
+See the [v0.5.0 qualification record](v0.5-release-qualification.md) and the
+[selected profile correction](https://github.com/cntryl/cassie/issues/1113#issuecomment-6879208650).
+
 When a scenario changes owners without changing behavior, it keeps its existing scenario ID. When a Tier 3 representative case is intentionally repeated as part of a Tier 5 curve, the scale case uses a distinct `perf.scale.*` ID.
 
 ## Typed Runners and Timing

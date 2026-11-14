@@ -317,12 +317,17 @@ fixture: two 100k fact copies and two 1k dimension copies. Row-only, column-only
 and mixed labels describe the query inputs, not isolated whole-database memory
 footprints. Its explicit candidate native profile is 2 GiB total Midge memory
 with a 512 MiB memtable, forwarded through the published builder; the SQL query
-budget uses the explicit benchmark-only `storage_modes_100k_256m` profile at
-256 MiB for all ten cases. The 64 MiB attempt denied the eight-field full-row
+budget uses the explicit benchmark-only `storage_modes_100k_2g` profile at
+2 GiB for all ten cases. The 64 MiB attempt denied the eight-field full-row
 result at 67,262,253 bytes and filtered aggregation at 67,114,230 bytes; its
 partial narrow-projection measurement does not qualify the complete owner.
-The [selected profile](https://github.com/cntryl/cassie/issues/1113#issuecomment-6880624809)
-preserves SQL, fixture scale and native configuration; runtime defaults remain
+A subsequent 256 MiB attempt measured the full-row and narrow cases but denied
+filtered aggregation at 268,437,309 bytes. Grouped-source collection retains
+complete accounted JSON documents before filtering, and conversion buffers
+overlap those owners; group count alone does not bound that retained input.
+The [source-backed selected profile](https://github.com/cntryl/cassie/issues/1113#issuecomment-6880742926)
+is a finite qualification envelope, not a claim that 1 GiB failed or that 2 GiB
+is the minimum. It preserves SQL, fixture scale and native configuration; runtime defaults remain
 unchanged. COPY setup uses at most 5,000 rows
 per transaction and result caching is disabled. The optional controls apply to explicit and environment-selected memory
 construction. Unset controls preserve native defaults and local/cloud opening

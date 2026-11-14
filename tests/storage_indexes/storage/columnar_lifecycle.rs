@@ -664,3 +664,58 @@ fn should_not_publish_a_like_clone_when_a_copied_comment_is_invalid() {
         "only the source canary remains"
     );
 }
+
+fn rejected_decode_conversion(data_type: &str, payload: serde_json::Value) {
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.query_memory_budget_bytes = 256 * 1024;
+    let fixture = Memory::with_config(
+        config,
+        &[&format!(
+            "CREATE TABLE decoded_columns (body {data_type}) USING columnar"
+        )],
+    );
+    fixture
+        .cassie
+        .midge
+        .put_document(
+            "decoded_columns",
+            Some("one".to_owned()),
+            serde_json::json!({"body": payload}),
+        )
+        .expect("seed compact field");
+    let before = fixture.column_entries("decoded_columns");
+    let result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "ALTER TABLE decoded_columns SET ACCESS METHOD heap",
+        vec![],
+    );
+    assert_eq!(
+        result
+            .expect_err("decode envelope exceeds budget")
+            .sql_state(),
+        "54000"
+    );
+    assert_eq!(fixture.mode_of("decoded_columns"), mode("column-store"));
+    assert_eq!(fixture.column_entries("decoded_columns"), before);
+    assert!(fixture.row_entries("decoded_columns").is_empty());
+}
+
+#[test]
+fn should_reserve_json_decode_space_before_conversion_to_heap() {
+    // Arrange
+    let payload = serde_json::json!({"value": "x".repeat(2048)});
+
+    // Act
+    // Assert
+    rejected_decode_conversion("JSONB", payload);
+}
+
+#[test]
+fn should_reserve_array_decode_space_before_conversion_to_heap() {
+    // Arrange
+    let payload = serde_json::json!(vec![1_i64; 1024]);
+
+    // Act
+    // Assert
+    rejected_decode_conversion("BIGINT[]", payload);
+}

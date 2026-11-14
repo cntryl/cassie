@@ -170,7 +170,21 @@ impl Midge {
                 let field_key =
                     Self::column_store_field_key(row_schema.relation_id, field.field_id, &id);
                 if let Some(value) = tx.get(&field_key).map_err(CassieError::from)? {
-                    charge(retained_bytes(&field_key, &value, &id))?;
+                    let decode_factor =
+                        super::streaming_scans::decode_expansion_factor(&field.data_type);
+                    // Keep the controlled-reader decode envelope and also retain
+                    // compact input plus the target row encoding until commit.
+                    let field_bytes = value
+                        .len()
+                        .checked_mul(decode_factor.saturating_add(2))
+                        .and_then(|bytes| bytes.checked_add(field_key.len()))
+                        .and_then(|bytes| bytes.checked_add(id.len()))
+                        .ok_or_else(|| {
+                            CassieError::ResourceLimit(
+                                "column conversion field accounting overflow".to_owned(),
+                            )
+                        })?;
+                    charge(field_bytes)?;
                 }
             }
             let payload =

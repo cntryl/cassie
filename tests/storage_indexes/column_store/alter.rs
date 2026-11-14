@@ -394,3 +394,48 @@ fn should_keep_altered_column_tables_across_restart() {
     assert_eq!(rows, expected);
     reopened.assert_column_authority("t", 3, FIELDS + 1, "after restart");
 }
+
+#[test]
+fn should_distinguish_authority_from_a_derived_column_accelerator() {
+    // Arrange
+    let env = env();
+    env.run("CREATE TABLE authoritative_columns (id INT, label TEXT) USING columnar");
+    env.run("CREATE TABLE accelerated_rows (id INT, label TEXT)");
+    env.run("INSERT INTO authoritative_columns VALUES (1, 'one')");
+    env.run("INSERT INTO accelerated_rows VALUES (1, 'one')");
+    env.run("CREATE INDEX row_accelerator ON accelerated_rows USING column (label)");
+
+    // Act
+    let column_plan = format!(
+        "{:?}",
+        env.rows("EXPLAIN SELECT label FROM authoritative_columns")
+    );
+    let row_plan = format!(
+        "{:?}",
+        env.rows("EXPLAIN SELECT label FROM accelerated_rows")
+    );
+    let modes = env.rows("SELECT tablename, storage_mode FROM pg_catalog.pg_table_storage WHERE tablename IN ('authoritative_columns', 'accelerated_rows') ORDER BY tablename");
+
+    // Assert
+    assert!(
+        column_plan.contains("storage_mode=column-store"),
+        "{column_plan}"
+    );
+    assert!(
+        row_plan.contains("storage_mode=column-indexed"),
+        "{row_plan}"
+    );
+    assert_eq!(
+        modes,
+        vec![
+            vec![
+                cassie::types::Value::String("accelerated_rows".to_owned()),
+                cassie::types::Value::String("column-indexed".to_owned())
+            ],
+            vec![
+                cassie::types::Value::String("authoritative_columns".to_owned()),
+                cassie::types::Value::String("column-store".to_owned())
+            ]
+        ]
+    );
+}

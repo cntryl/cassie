@@ -244,7 +244,7 @@ fn decoded_field_name_count(
     current_name.saturating_add(aliases)
 }
 
-pub(super) fn decode_expansion_factor(data_type: &DataType) -> usize {
+pub(in crate::midge::adapter) fn decode_expansion_factor(data_type: &DataType) -> usize {
     match data_type {
         DataType::Array(inner) => {
             let inner_factor = decode_expansion_factor(inner);

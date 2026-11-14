@@ -399,3 +399,60 @@ impl Midge {
         self.verify_column_store_rows(collection)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    #[test]
+    fn should_check_interruption_between_column_field_validation_entries() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("memory Midge");
+        midge.ensure_families_ready().expect("families");
+        let schema = crate::types::Schema {
+            fields: vec![crate::types::FieldSchema {
+                name: "label".to_owned(),
+                data_type: crate::types::DataType::Text,
+                nullable: true,
+            }],
+        };
+        let metadata = crate::catalog::CollectionMeta::new_with_storage_mode(
+            "checked_fields",
+            None,
+            crate::catalog::CollectionStorageMode::ColumnStore,
+        );
+        midge
+            .create_collection_with_meta("checked_fields", &schema, &metadata)
+            .expect("column table");
+        for id in ["a", "b"] {
+            midge
+                .put_document(
+                    "checked_fields",
+                    Some(id.to_owned()),
+                    serde_json::json!({"label": id}),
+                )
+                .expect("seed");
+        }
+        let row_schema = midge.row_schema("checked_fields").expect("row schema");
+        let tx = midge
+            .begin_data_readonly_tx_for("checked_fields")
+            .expect("snapshot");
+        let checks = Cell::new(0);
+
+        // Act
+        let result =
+            Midge::validate_column_store_field_markers(&tx, "checked_fields", &row_schema, || {
+                checks.set(checks.get() + 1);
+                if checks.get() == 3 {
+                    Err(CassieError::QueryCanceled)
+                } else {
+                    Ok(())
+                }
+            });
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
+        assert_eq!(checks.get(), 3);
+    }
+}

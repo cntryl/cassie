@@ -9,6 +9,7 @@ mod column_store;
 #[cfg(test)]
 mod tests;
 
+pub(super) use accounted_page::decode_expansion_factor;
 use accounted_page::provisional_document_bytes;
 pub(crate) use accounted_page::provisional_document_bytes as provisional_controlled_document_bytes;
 pub(crate) use accounted_page::{AccountedDocument, AccountedDocumentPage};

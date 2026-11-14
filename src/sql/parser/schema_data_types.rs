@@ -25,7 +25,8 @@ pub(in crate::sql::parser) fn parse_data_type(raw: &str) -> Result<DataType, Sql
             }
         }
     }
-    if let (Err(_), Some(composite)) = (&parsed, super::super::type_scope::resolve_named_type(raw)) {
+    if let (Err(_), Some(composite)) = (&parsed, super::super::type_scope::resolve_named_type(raw))
+    {
         if is_sql_standard_array {
             return Err(SqlError::unsupported(
                 "arrays of composite types are not supported".into(),

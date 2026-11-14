@@ -18,8 +18,8 @@ use crate::catalog::RoleObjectPrivilege;
 mod schema_checks;
 #[path = "schema_data_types.rs"]
 mod schema_data_types;
-pub(super) use schema_data_types::parse_data_type;
 use schema_checks::parse_check_constraint;
+pub(super) use schema_data_types::parse_data_type;
 #[path = "schema_tokens.rs"]
 mod schema_tokens;
 pub(super) use schema_tokens::tokenize_schema_field;

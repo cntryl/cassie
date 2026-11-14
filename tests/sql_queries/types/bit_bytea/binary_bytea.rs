@@ -545,3 +545,22 @@ fn should_reject_a_negative_bytea_substring_length() {
     // Assert
     assert_eq!(error.sql_state(), "22011");
 }
+
+#[test]
+fn should_type_a_bytea_substring_result_as_bytea() {
+    // Arrange
+    let fixture = sql_fixture(
+        "bytea-substring-result-type",
+        &[
+            "CREATE TABLE typed_blobs (id int primary key, b bytea)",
+            r"INSERT INTO typed_blobs VALUES (1, '\x0a0b0c')",
+        ],
+    );
+
+    // Act
+    // Assert
+    assert_true(
+        &fixture,
+        "SELECT pg_typeof(substring(b FROM 2))::text = 'bytea', pg_typeof(substr(b, 1, 1))::text = 'bytea', pg_typeof(length(b))::text = 'integer' FROM typed_blobs",
+    );
+}

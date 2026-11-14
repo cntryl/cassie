@@ -111,3 +111,32 @@ fn should_return_null_for_a_null_record_in_row_to_json() {
     // Assert
     assert_eq!(rows, vec![vec![Value::Null]]);
 }
+
+#[test]
+fn should_put_each_later_record_or_array_on_its_own_line_in_json_agg() {
+    // Arrange
+    let fixture = sql_fixture(
+        "record_json_agg_layout",
+        &[
+            "CREATE TYPE rja AS (a int, b text)",
+            "CREATE TABLE rjg (id int primary key, v rja)",
+            "INSERT INTO rjg VALUES (1, ROW(1, 'x')), (2, NULL), (3, ROW(3, 'z'))",
+        ],
+    );
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT json_agg(v ORDER BY id)::text, json_agg(ARRAY[id] ORDER BY id)::text, json_agg(id ORDER BY id)::text, jsonb_agg(v ORDER BY id)::text FROM rjg",
+    );
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![
+            text("[{\"a\":1,\"b\":\"x\"}, null, \n {\"a\":3,\"b\":\"z\"}]"),
+            text("[[1], \n [2], \n [3]]"),
+            text("[1, 2, 3]"),
+            text(r#"[{"a": 1, "b": "x"}, null, {"a": 3, "b": "z"}]"#),
+        ]]
+    );
+}

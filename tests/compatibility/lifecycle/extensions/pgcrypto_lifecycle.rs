@@ -90,37 +90,6 @@ fn should_expose_only_selected_extension_versions() {
 }
 
 #[test]
-fn should_track_extension_identity_through_relocation_lifecycle() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start_with_query_budget(
-            "extension_identity_dependency",
-            32 * 1024 * 1024,
-        ).await;
-        let (client, connection) = server.connect().await;
-        execute_statements(&client, &["CREATE SCHEMA ext_a", "CREATE SCHEMA ext_b", "CREATE EXTENSION pgcrypto SCHEMA ext_a"]).await.expect("install");
-        let before = client.query_one("SELECT oid FROM pg_catalog.pg_extension WHERE extname = 'pgcrypto'", &[]).await.expect("extension OID").get::<_, u32>(0);
-        let members = client.query("SELECT p.oid FROM pg_catalog.pg_depend d JOIN pg_catalog.pg_proc p ON p.oid = d.objid JOIN pg_catalog.pg_extension e ON e.oid = d.refobjid WHERE e.extname = 'pgcrypto' AND p.proname = 'digest' AND d.deptype = 'e'", &[]).await.expect("digest members");
-
-        // Act
-        client.batch_execute("ALTER EXTENSION pgcrypto SET SCHEMA ext_b").await.expect("relocate");
-        let after = client.query_one("SELECT oid FROM pg_catalog.pg_extension WHERE extname = 'pgcrypto'", &[]).await.expect("same extension OID").get::<_, u32>(0);
-        client.batch_execute("DROP EXTENSION pgcrypto").await.expect("drop");
-        let remaining = client.query("SELECT p.oid FROM pg_catalog.pg_depend d JOIN pg_catalog.pg_proc p ON p.oid = d.objid WHERE p.proname = 'digest' AND d.deptype = 'e'", &[]).await.expect("remaining members");
-
-        // Assert
-        assert_ne!(before, 0);
-        assert_eq!(after, before);
-        assert_eq!(members.len(), 2);
-        assert_ne!(members[0].get::<_, u32>(0), members[1].get::<_, u32>(0));
-        assert!(remaining.is_empty());
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
 fn should_resolve_digest_bytea_overload_for_selected_algorithms() {
     // Arrange
     let runtime = current_thread_runtime();

@@ -102,6 +102,13 @@ alongside the public checkpoint-view snapshot work
 ([#1272](https://github.com/cntryl/cassie/issues/1272)). Neither issue is closed;
 statement-level co-snapshot semantics for the public view are not yet claimed.
 
+## Deferred catalog compatibility
+
+The selected extension-membership rows in `pg_depend` are absent and are
+tracked by [#1273](https://github.com/cntryl/cassie/issues/1273). A previously
+unregistered test requiring those rows is not evidence of existing support;
+the catalog feature remains outside the replay milestone.
+
 ## v0.5.0 Authoritative Columnar Tables
 
 This is a substantial storage feature, not a relabeling of existing derived

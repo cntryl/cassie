@@ -62,6 +62,7 @@ pub(super) fn evaluate<R: RowAccess + ?Sized>(
             }
         }
         JsonFunction::ToJson(binary) => Some(convert(function, row, args, context, binary)),
+        JsonFunction::RowToJson => Some(convert(function, row, args, context, false)),
         _ => None,
     }
 }

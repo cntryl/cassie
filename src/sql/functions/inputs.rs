@@ -120,9 +120,9 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
                 tail: 25,
             })
         }
-        FunctionId::Json(super::json::JsonFunction::ToJson(_)) => {
-            Some(FunctionInputSignature::AnyElement)
-        }
+        FunctionId::Json(
+            super::json::JsonFunction::ToJson(_) | super::json::JsonFunction::RowToJson,
+        ) => Some(FunctionInputSignature::AnyElement),
         FunctionId::Json(kind) => match super::json::inputs(kind) {
             Some(oids) => Some(FunctionInputSignature::Positional(oids)),
             None => None,

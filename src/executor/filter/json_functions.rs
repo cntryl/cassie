@@ -202,6 +202,7 @@ fn inspect_value(
         JsonFunction::BuildObject(_)
         | JsonFunction::BuildArray(_)
         | JsonFunction::ToJson(_)
+        | JsonFunction::RowToJson
         | JsonFunction::Set
         | JsonFunction::SetLax
         | JsonFunction::Insert

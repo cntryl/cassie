@@ -21,7 +21,7 @@ fn should_count_native_commits_only_within_observation_scope() {
     midge
         .raw_put(StorageFamily::Schema, b"after", b"value")
         .unwrap();
-    let (_, empty) = observe_native_commits(|| ());
+    let ((), empty) = observe_native_commits(|| ());
 
     // Assert
     result.unwrap();
@@ -99,7 +99,7 @@ fn should_distinguish_failed_native_commit_outcomes() {
     use super::observe_native_commit;
 
     // Act
-    let (_, observation) = observe_native_commits(|| {
+    let ((), observation) = observe_native_commits(|| {
         let _ = observe_native_commit::<()>(|| {
             Err(cntryl_midge::MidgeError::Internal("failed".into()))
         });

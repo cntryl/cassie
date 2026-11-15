@@ -4,9 +4,7 @@ use crate::app::{Cassie, CassieError, CassieSession};
 use crate::catalog::SequenceCursor;
 use crate::config::CassieRuntimeConfig;
 use crate::types::Value;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::time::Duration;
 
 fn fixture() -> (Cassie, CassieSession, String, SequenceCursor) {
@@ -94,33 +92,6 @@ fn assert_history_is_40(cassie: &Cassie, session: &CassieSession, name: &str) {
 }
 
 #[test]
-fn should_remove_idle_orphan_restorers_when_discarding_sequence_history() {
-    // Arrange
-    let (cassie, session, name, prior) = fixture();
-    let called = Arc::new(AtomicBool::new(false));
-    let observed = Arc::clone(&called);
-    let restorer: super::SequenceRestorer = Arc::new(move |_, _| {
-        observed.store(true, Ordering::SeqCst);
-    });
-    session.record_sequence_restart(&name, prior, &restorer);
-    assert_eq!(session.transaction_status(), "idle");
-
-    // Act
-    session.discard_sequence_values();
-    cassie
-        .execute_sql(&session, "BEGIN", vec![])
-        .expect("begin");
-    cassie
-        .execute_sql(&session, "ROLLBACK", vec![])
-        .expect("rollback");
-
-    // Assert
-    assert!(!called.load(Ordering::SeqCst));
-    assert_eq!(cursor(&cassie, &name), prior);
-    assert_history_missing(&cassie, &session, &name);
-}
-
-#[test]
 fn should_preserve_restart_when_discarding_history_in_failed_transaction() {
     // Arrange
     let (cassie, session, name, prior) = fixture();
@@ -134,7 +105,8 @@ fn should_preserve_restart_when_discarding_history_in_failed_transaction() {
             vec![],
         )
         .expect("restart");
-    assert_ne!(cursor(&cassie, &name), prior);
+    // The restart is staged with the transaction, not committed natively.
+    assert_eq!(cursor(&cassie, &name), prior);
     session.mark_transaction_failed();
 
     // Act
@@ -162,7 +134,8 @@ fn should_preserve_restart_when_discarding_history_in_implicit_transaction() {
             vec![],
         )
         .expect("restart");
-    assert_ne!(cursor(&cassie, &name), prior);
+    // The restart is staged with the transaction, not committed natively.
+    assert_eq!(cursor(&cassie, &name), prior);
 
     // Act
     session.discard_sequence_values();
@@ -171,29 +144,6 @@ fn should_preserve_restart_when_discarding_history_in_implicit_transaction() {
     // Assert
     assert_eq!(cursor(&cassie, &name), prior);
     assert_history_missing(&cassie, &session, &name);
-}
-
-#[test]
-fn should_preserve_root_restorer_when_detached_fork_is_idle() {
-    // Arrange
-    let (cassie, session, name, prior) = fixture();
-    session.begin_transaction(None).expect("root transaction");
-    let called = Arc::new(AtomicBool::new(false));
-    let observed = Arc::clone(&called);
-    let restorer: super::SequenceRestorer = Arc::new(move |_, _| {
-        observed.store(true, Ordering::SeqCst);
-    });
-    session.record_sequence_restart(&name, prior, &restorer);
-    let fork = session.fork_statement_batch().expect("detached fork");
-    fork.session().force_idle_for_discard_test();
-
-    // Act
-    fork.session().discard_sequence_values();
-    session.rollback_transaction();
-
-    // Assert
-    assert!(called.load(Ordering::SeqCst));
-    assert_eq!(cursor(&cassie, &name), prior);
 }
 
 #[test]
@@ -251,64 +201,6 @@ fn should_make_progress_when_lastval_and_discard_share_sequence_state() {
 }
 
 #[test]
-fn should_preserve_new_transaction_restorer_when_begin_waits_for_idle_discard() {
-    const CASE: &str = "discard-begin-lock-order";
-    const TEST: &str = "app::session_sequences::discard_restart_tests::should_preserve_new_transaction_restorer_when_begin_waits_for_idle_discard";
-    if !crate::app::query_failure_watchdog::enter_child(TEST, CASE) {
-        return;
-    }
-    {
-        // Arrange
-        let (cassie, session, name, prior) = fixture();
-        let (locked_tx, locked_rx) = mpsc::channel();
-        let (release_tx, release_rx) = mpsc::channel();
-        let discard_session = session.clone();
-        let discard = std::thread::spawn(move || {
-            discard_session.discard_sequence_values_observed(
-                || {},
-                |status| {
-                    assert_eq!(status, Some(crate::app::SessionTransactionStatus::Idle));
-                    locked_tx
-                        .send(())
-                        .expect("idle status observed under transaction lock");
-                    release_rx.recv().expect("release discard");
-                },
-            );
-        });
-        locked_rx
-            .recv_timeout(Duration::from_secs(5))
-            .expect("discard holds transaction lock");
-        let called = Arc::new(AtomicBool::new(false));
-        let observed = Arc::clone(&called);
-        let (contended_tx, contended_rx) = mpsc::channel();
-        let begin_session = session.clone();
-
-        // Act
-        let begin = std::thread::spawn(move || {
-            begin_session
-                .begin_transaction_observed(contended_tx)
-                .expect("begin after discard");
-            let restorer: super::SequenceRestorer =
-                Arc::new(move |_, _| observed.store(true, Ordering::SeqCst));
-            begin_session.record_sequence_restart(&name, prior, &restorer);
-        });
-        contended_rx
-            .recv_timeout(Duration::from_secs(5))
-            .expect("begin contends on transaction lock");
-        release_tx.send(()).expect("release discard");
-        discard.join().expect("discard worker");
-        begin.join().expect("begin worker");
-        session.rollback_transaction();
-
-        // Assert
-        assert!(called.load(Ordering::SeqCst));
-        assert_eq!(session.transaction_status(), "idle");
-        drop(cassie);
-    }
-    crate::app::query_failure_watchdog::complete_child(CASE);
-}
-
-#[test]
 fn should_restore_identity_restart_after_discard_sequences_rollback() {
     // Arrange
     let (cassie, session, name, prior) = fixture();
@@ -323,8 +215,8 @@ fn should_restore_identity_restart_after_discard_sequences_rollback() {
             vec![],
         )
         .expect("restart identity");
-    let restarted = cursor(&cassie, &name);
-    assert_ne!(restarted, prior);
+    let during_transaction = cursor(&cassie, &name);
+    assert_eq!(during_transaction, prior);
 
     // Act
     cassie
@@ -363,8 +255,8 @@ fn should_keep_identity_restart_after_discard_sequences_commit() {
             vec![],
         )
         .expect("restart identity");
-    let restarted = cursor(&cassie, &name);
-    assert_ne!(restarted, prior);
+    let during_transaction = cursor(&cassie, &name);
+    assert_eq!(during_transaction, prior);
 
     // Act
     cassie
@@ -384,7 +276,7 @@ fn should_keep_identity_restart_after_discard_sequences_commit() {
         .expect("independent row read");
 
     // Assert
-    assert_eq!(committed, restarted);
+    assert_ne!(committed, prior);
     assert_eq!(rows.rows(), &[] as &[Vec<Value>]);
     assert_history_missing(&cassie, &session, &name);
 }
@@ -424,7 +316,7 @@ fn should_restore_identity_restart_after_normal_rollback() {
             vec![],
         )
         .expect("restart identity");
-    let restarted = cursor(&cassie, &name);
+    let during_transaction = cursor(&cassie, &name);
 
     // Act
     cassie
@@ -441,7 +333,7 @@ fn should_restore_identity_restart_after_normal_rollback() {
         .expect("independent row read");
 
     // Assert
-    assert_ne!(restarted, prior);
+    assert_eq!(during_transaction, prior);
     assert_eq!(restored, prior);
     assert_eq!(rows.rows(), &[vec![Value::String("retained".into())]]);
     assert_history_is_40(&cassie, &session, &name);
@@ -461,7 +353,7 @@ fn should_reject_discard_all_without_losing_restart_restoration() {
             vec![],
         )
         .expect("restart identity");
-    let restarted = cursor(&cassie, &name);
+    let during_transaction = cursor(&cassie, &name);
 
     // Act
     let result = cassie.execute_sql(&session, "DISCARD ALL", vec![]);
@@ -483,7 +375,7 @@ fn should_reject_discard_all_without_losing_restart_restoration() {
     let error: CassieError = result.expect_err("DISCARD ALL rejected in transaction");
     assert_eq!(error.descriptor().sql_state, "25001");
     assert!(failed);
-    assert_ne!(restarted, prior);
+    assert_eq!(during_transaction, prior);
     assert_eq!(restored, prior);
     assert_eq!(rows.rows(), &[vec![Value::String("retained".into())]]);
     assert_history_is_40(&cassie, &session, &name);

@@ -5,19 +5,14 @@
 mod discard_restart_tests;
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use super::{CassieError, CassieSession, SessionTransactionStatus};
-use crate::catalog::{SequenceCursor, SequenceError};
-
-/// Writes a sequence position back when its transaction rolls back.
-pub(crate) type SequenceRestorer = Arc<dyn Fn(&str, SequenceCursor) + Send + Sync>;
+use crate::catalog::SequenceError;
 
 #[derive(Default)]
 pub(crate) struct SessionSequenceValues {
     by_sequence: HashMap<String, i64>,
     last: Option<(String, u64)>,
-    restarts: Vec<(String, SequenceCursor, SequenceRestorer)>,
 }
 
 impl std::fmt::Debug for SessionSequenceValues {
@@ -26,7 +21,6 @@ impl std::fmt::Debug for SessionSequenceValues {
             .debug_struct("SessionSequenceValues")
             .field("by_sequence", &self.by_sequence)
             .field("last", &self.last)
-            .field("restarts", &self.restarts.len())
             .finish()
     }
 }
@@ -90,7 +84,7 @@ impl CassieSession {
     }
 
     /// `DISCARD SEQUENCES`: forgets this session's `currval`/`lastval`
-    /// history without changing any sequence or active rollback restoration.
+    /// history without changing any sequence.
     pub(crate) fn discard_sequence_values(&self) {
         self.discard_sequence_values_inner(|| {}, |_| {});
     }
@@ -112,18 +106,12 @@ impl CassieSession {
             on_contended();
             self.sequence_values.lock()
         };
-        let orphaned = self.with_root_transaction_status_locked(|status| {
+        self.with_root_transaction_status_locked(|status| {
             after_status(status);
             values.by_sequence = HashMap::new();
             values.last = None;
-            if status == Some(SessionTransactionStatus::Idle) {
-                std::mem::take(&mut values.restarts)
-            } else {
-                Vec::new()
-            }
         });
         drop(values);
-        drop(orphaned);
     }
 
     #[cfg(test)]
@@ -178,39 +166,5 @@ impl CassieSession {
             .get(&sequence_identity(name, *identity))
             .copied()
             .ok_or_else(|| not_defined("lastval is not yet defined in this session".to_string()))
-    }
-
-    /// Remembers `cursor`, the position `sequence` had before the current
-    /// transaction restarted it, unless an earlier restart already did.
-    pub(crate) fn record_sequence_restart(
-        &self,
-        sequence: &str,
-        cursor: SequenceCursor,
-        restorer: &SequenceRestorer,
-    ) {
-        let mut values = self.sequence_values.lock();
-        if values
-            .restarts
-            .iter()
-            .any(|(name, _, _)| name.eq_ignore_ascii_case(sequence))
-        {
-            return;
-        }
-        values
-            .restarts
-            .push((sequence.to_string(), cursor, Arc::clone(restorer)));
-    }
-
-    /// Forgets restart positions once their transaction commits.
-    pub(crate) fn discard_sequence_restarts(&self) {
-        self.sequence_values.lock().restarts.clear();
-    }
-
-    /// Restores each restarted sequence when its transaction rolls back.
-    pub(crate) fn restore_sequence_restarts(&self) {
-        let restarts = std::mem::take(&mut self.sequence_values.lock().restarts);
-        for (sequence, cursor, restore) in restarts.into_iter().rev() {
-            restore(&sequence, cursor);
-        }
     }
 }

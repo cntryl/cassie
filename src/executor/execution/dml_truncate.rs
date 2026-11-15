@@ -2,11 +2,10 @@
 //!
 //! Rows are removed through the statement's staging session, so a surrounding
 //! transaction keeps the truncation private until COMMIT and a ROLLBACK
-//! restores the rows. `RESTART IDENTITY` resets the owned sequences; inside an
-//! explicit transaction their prior positions are restored on ROLLBACK.
+//! restores the rows. `RESTART IDENTITY` resets the owned sequences; inside a
+//! transaction the restart is staged with the rows and publishes at COMMIT.
 
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use super::{
     batch, check_timeout, ensure_query_memory_budget, row_id_from_batch_row, scan, Cassie,
@@ -199,17 +198,11 @@ fn restart_owned_sequences(
     working: &CassieSession,
     tables: &[String],
 ) -> Result<(), QueryError> {
-    let transaction = session.filter(|session| session.is_transaction_active());
-    let midge = Arc::clone(&cassie.midge);
-    let catalog = cassie.metadata_write_catalog.clone();
-    let restorer: crate::app::SequenceRestorer = Arc::new(move |sequence, cursor| {
-        if let Ok(((), updated)) = midge.update_sequence(sequence, |metadata| {
-            metadata.set_cursor(cursor);
-            Ok(())
-        }) {
-            catalog.register_sequence(updated);
-        }
-    });
+    // Inside a transaction the restart is staged in the transaction's storage
+    // overlay and publishes in the same atomic Data commit as the truncation.
+    // Savepoint rollback restores it and ROLLBACK discards it, so there is no
+    // separately committed restart to compensate for (#1302).
+    let transactional = session.is_some_and(CassieSession::is_transaction_active);
     for sequence in owned_sequences(cassie, tables) {
         let private = cassie
             .catalog
@@ -218,7 +211,8 @@ fn restart_owned_sequences(
             .transpose()
             .map_err(QueryError::from)?
             .unwrap_or(false);
-        let _private_scope = if private {
+        let staged = private || transactional;
+        let _staging_scope = if staged {
             Some(
                 cassie
                     .midge
@@ -234,22 +228,29 @@ fn restart_owned_sequences(
         } else {
             None
         };
-        let (prior, updated) = cassie
+        let ((), updated) = cassie
             .midge
             .update_sequence(&sequence, |metadata| {
-                let prior = metadata.cursor();
-                let mut cursor = prior;
+                let mut cursor = metadata.cursor();
                 cursor.restart(&metadata.parameters(), None)?;
                 metadata.set_cursor(cursor);
-                Ok(prior)
+                Ok(())
             })
             .map_err(QueryError::from)?;
-        cassie.metadata_write_catalog.register_sequence(updated);
-        if !private {
-            if let Some(session) = transaction {
-                session.record_sequence_restart(&sequence, prior, &restorer);
-            }
+        if transactional && !private {
+            working
+                .transaction_storage_overlay()
+                .lock()
+                .mark_sequence_restarted(updated.object_id);
+        }
+        // A staged restart must not reach the published catalog before COMMIT.
+        if !staged || working.transaction_catalog_overlay().is_some() {
+            cassie.metadata_write_catalog.register_sequence(updated);
         }
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "dml_truncate_restart_tests.rs"]
+mod restart_tests;

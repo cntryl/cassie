@@ -88,11 +88,15 @@ pub(crate) struct StorageOverlay {
     sequence_cursors: Arc<sequence_owner::SequenceOwner>,
     sequence_epochs: Option<Arc<sequence_owner::EpochSelections>>,
     sequence_fork: Option<Arc<sequence_owner::SequenceForkLease>>,
+    /// Published sequences whose cursor this transaction restarted. They are
+    /// allocated from the staged cursor until COMMIT publishes it (#1302).
+    restarted_sequences: std::collections::BTreeSet<u64>,
 }
 
 impl PartialEq for StorageOverlay {
     fn eq(&self, other: &Self) -> bool {
         self.changes == other.changes
+            && self.restarted_sequences == other.restarted_sequences
             && self.sequence_epochs.as_deref().map(|owner| &owner.epochs)
                 == other.sequence_epochs.as_deref().map(|owner| &owner.epochs)
     }
@@ -100,6 +104,12 @@ impl PartialEq for StorageOverlay {
 impl Eq for StorageOverlay {}
 
 impl StorageOverlay {
+    /// Routes later allocations of a restarted published sequence through the
+    /// transaction's staged cursor instead of the native, non-transactional one.
+    pub(crate) fn mark_sequence_restarted(&mut self, object_id: u64) {
+        self.restarted_sequences.insert(object_id);
+    }
+
     pub(crate) fn schema_write_collections(&self) -> Vec<String> {
         let prefix = Midge::schema_collection_prefix();
         self.changes

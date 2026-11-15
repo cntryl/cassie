@@ -21,6 +21,7 @@ thread_local! {
 #[derive(Debug)]
 pub(crate) struct StatementOverlay {
     writes: Option<SharedTransactionWrites>,
+    checkpoint_storage: Option<Arc<crate::midge::adapter::CheckpointStorageSnapshot>>,
     active_transaction: bool,
     identity: Weak<Mutex<SessionTransactionState>>,
     generation: u64,
@@ -28,6 +29,10 @@ pub(crate) struct StatementOverlay {
 }
 
 impl StatementOverlay {
+    pub(crate) fn checkpoint_storage(&self) -> Option<&Arc<crate::midge::adapter::CheckpointStorageSnapshot>> {
+        self.checkpoint_storage.as_ref()
+    }
+
     pub(crate) const fn accounted_bytes(&self) -> usize {
         self.memory.bytes()
     }
@@ -86,10 +91,21 @@ impl CassieSession {
         transaction: &SessionTransactionState,
         controls: &QueryExecutionControls,
     ) -> Result<Arc<StatementOverlay>, CassieError> {
+        // READ COMMITTED's scoped native transaction already includes staged
+        // storage. A retained REPEATABLE READ base is committed-only and must
+        // instead merge this command's own changes over that base.
+        let checkpoint_storage = if !transaction.implicit
+            && transaction.isolation == Some(crate::sql::ast::TransactionIsolation::RepeatableRead)
+        {
+            transaction.storage_overlay.lock().copy_checkpoint_snapshot(controls)?
+        } else {
+            None
+        };
         self.capture_overlay_from_writes(
             (!transaction.writes.is_empty()).then_some(&transaction.writes),
             transaction.status != SessionTransactionStatus::Idle,
             transaction.generation,
+            checkpoint_storage,
             controls,
         )
     }
@@ -106,6 +122,7 @@ impl CassieSession {
             original.writes.as_ref(),
             original.active_transaction,
             self.transaction_generation(),
+            original.checkpoint_storage.clone(),
             controls,
         )?;
         StatementDataRead::with_overlay(owner, Some(overlay), controls)
@@ -116,6 +133,7 @@ impl CassieSession {
         writes: Option<&SharedTransactionWrites>,
         active_transaction: bool,
         generation: u64,
+        checkpoint_storage: Option<Arc<crate::midge::adapter::CheckpointStorageSnapshot>>,
         controls: &QueryExecutionControls,
     ) -> Result<Arc<StatementOverlay>, CassieError> {
         controls.check_interruption()?;
@@ -149,6 +167,7 @@ impl CassieSession {
         let memory = controls.reserve_query_memory(bytes)?;
         Ok(Arc::new(StatementOverlay {
             writes: writes.cloned(),
+            checkpoint_storage,
             active_transaction,
             identity: Arc::downgrade(&self.transaction),
             generation,

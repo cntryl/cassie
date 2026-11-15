@@ -15,6 +15,23 @@ pub(crate) struct CopyStorageSnapshot {
     _memory: QueryMemoryReservation,
 }
 
+/// Checkpoint-visible subset of one command's immutable storage overlay.
+#[derive(Debug)]
+pub(crate) struct CheckpointStorageSnapshot {
+    changes: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
+    _memory: QueryMemoryReservation,
+}
+
+impl CheckpointStorageSnapshot {
+    pub(crate) fn get(&self, key: &[u8]) -> Option<Option<&[u8]>> {
+        self.changes.get(key).map(|value| value.as_deref())
+    }
+
+    pub(crate) fn entries(&self) -> impl Iterator<Item = (&[u8], Option<&[u8]>)> {
+        self.changes.iter().map(|(key, value)| (key.as_slice(), value.as_deref()))
+    }
+}
+
 fn copy_bytes(bytes: &[u8], controls: &QueryExecutionControls) -> Result<Vec<u8>, CassieError> {
     let mut copy = Vec::new();
     copy.try_reserve_exact(bytes.len())
@@ -49,6 +66,40 @@ fn bytes_equal(
 }
 
 impl StorageOverlay {
+    pub(crate) fn copy_checkpoint_snapshot(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Arc<CheckpointStorageSnapshot>>, CassieError> {
+        let projection_prefix = super::super::Midge::projection_prefix();
+        let collections_key = super::super::Midge::collections_key();
+        let relevant = |key: &[u8]| key == collections_key.as_slice() || key.starts_with(&projection_prefix);
+        let mut bytes = size_of::<CheckpointStorageSnapshot>() + 2 * size_of::<usize>() + NODE_BYTES;
+        let mut any = false;
+        for (key, change) in &self.changes {
+            controls.check_interruption()?;
+            if relevant(key) {
+                any = true;
+                bytes = add(bytes, add(NODE_BYTES, key.len())?)?;
+                if let Some(value) = &change.value {
+                    bytes = add(bytes, value.len())?;
+                }
+            }
+        }
+        if !any {
+            return Ok(None);
+        }
+        let memory = controls.reserve_query_memory(bytes)?;
+        let mut changes = BTreeMap::new();
+        for (key, change) in &self.changes {
+            controls.check_interruption()?;
+            if relevant(key) {
+                let value = change.value.as_ref().map(|value| copy_bytes(value, controls)).transpose()?;
+                changes.insert(copy_bytes(key, controls)?, value);
+            }
+        }
+        Ok(Some(Arc::new(CheckpointStorageSnapshot { changes, _memory: memory })))
+    }
+
     pub(crate) fn copy_snapshot(
         &self,
         controls: &QueryExecutionControls,

@@ -63,7 +63,7 @@ fn commit_native_transaction(
 
 #[path = "transactions/copy_snapshot.rs"]
 mod copy_snapshot;
-pub(crate) use copy_snapshot::CopyStorageSnapshot;
+pub(crate) use copy_snapshot::{CheckpointStorageSnapshot, CopyStorageSnapshot};
 
 #[path = "transactions/index_cleanup_guard.rs"]
 mod index_cleanup_guard;
@@ -483,6 +483,22 @@ impl Midge {
         mode: TransactionMode,
     ) -> Result<AdapterTransaction, CassieError> {
         let mut transaction = self.begin_scoped_adapter_tx(family_id, mode)?;
+        transaction.publication = Some(self.publication.family(family_id));
+        Ok(transaction)
+    }
+
+    /// Pin committed state even when a nested caller has a staged DDL scope.
+    /// A repeatable-read command applies its captured own overlay separately.
+    pub(super) fn begin_committed_read_adapter_tx(
+        &self,
+        family_id: cntryl_midge::ColumnFamilyId,
+    ) -> Result<AdapterTransaction, CassieError> {
+        self.publication.ensure_recovered()?;
+        let inner = self
+            .engine
+            .begin_tx(family_id, TransactionMode::ReadOnly)
+            .map_err(CassieError::from)?;
+        let mut transaction = AdapterTransaction::raw(inner);
         transaction.publication = Some(self.publication.family(family_id));
         Ok(transaction)
     }

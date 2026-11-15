@@ -1,7 +1,11 @@
 //! Private operation classification for the selected wire transaction profile.
 
+#[cfg(test)]
+#[path = "transactions/portal_snapshot_test_hooks.rs"]
+pub(super) mod portal_snapshot_test_hooks;
+
 use super::state::SessionState;
-use crate::app::{Cassie, CassieError, CassieSession};
+use crate::app::{Cassie, CassieError, CassieSession, SessionTransactionStatus};
 use crate::runtime::RuntimeState;
 use crate::sql::ast::{ParsedStatement, QueryStatement, StatementFamily};
 use std::sync::Arc;
@@ -25,7 +29,10 @@ pub(super) fn clear_idle_portals(
     state: &mut SessionState,
     session: &CassieSession,
 ) {
-    if !session.is_transaction_active() && !session.is_transaction_failed() {
+    let status = session.transaction_status_snapshot();
+    #[cfg(test)]
+    portal_snapshot_test_hooks::after_snapshot(session, status);
+    if status == SessionTransactionStatus::Idle {
         state.clear_all_portals(runtime);
     }
 }

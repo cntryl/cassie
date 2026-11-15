@@ -435,7 +435,7 @@ fn assert_replay_not_committed(cassie: &Cassie, session: &CassieSession, project
 }
 
 #[test]
-fn should_roll_back_rows_and_checkpoint_when_replay_commit_fails() {
+fn should_roll_back_atomic_replay_when_commit_fails() {
     // Arrange
     let (_runtime, path, cassie, session, projection) =
         start_projection_replay_retry_fixture("projection_replay_metadata_commit_retry");

@@ -362,7 +362,7 @@ fn replay_snapshot_index_ids(
 }
 
 #[test]
-fn should_keep_replayed_row_and_checkpoint_together_in_pinned_data_snapshot() {
+fn should_preserve_atomic_replay_in_pinned_data_snapshot() {
     // Arrange
 
     let cassie =

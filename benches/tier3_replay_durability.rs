@@ -1,4 +1,4 @@
-//! Local strict-durability replay evidence. One process owns one fresh engine.
+//! Local strict or buffered replay evidence. One process owns one fresh engine.
 //! Results report foreground native commits and engine-wide sync counters separately.
 
 use cassie::app::{Cassie, ProjectionReplayBatch, ProjectionReplayEvent};
@@ -6,6 +6,10 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::midge::adapter::observe_native_commits;
 use serde_json::json;
 use std::time::Instant;
+
+#[path = "tier3_replay_durability/mode.rs"]
+mod mode;
+use mode::ReplayMode;
 
 fn parameter(name: &str, default: usize) -> usize {
     let value = std::env::var(name).map_or(default, |value| {
@@ -18,6 +22,7 @@ fn parameter(name: &str, default: usize) -> usize {
 }
 
 fn main() {
+    let mode = ReplayMode::from_environment();
     let batch_size = parameter("CASSIE_REPLAY_BENCH_BATCH_SIZE", 64);
     let batches = parameter("CASSIE_REPLAY_BENCH_BATCHES", 32);
     let total_events = batches
@@ -76,9 +81,16 @@ fn main() {
     let measured_start = Instant::now();
     for batch in inputs {
         let start = Instant::now();
-        let (report, commits) =
-            observe_native_commits(|| cassie.replay_projection_batch_strict(batch));
+        let (report, commits) = observe_native_commits(|| match mode {
+            ReplayMode::Strict => cassie.replay_projection_batch_strict(batch),
+            ReplayMode::Buffered => cassie.replay_projection_batch(batch),
+        });
         let elapsed_ns = start.elapsed().as_nanos();
+        assert_eq!(
+            commits.first_policy,
+            Some(mode.native_policy()),
+            "native replay commit must match the selected benchmark profile"
+        );
         let report = report.expect("replay batch");
         assert_eq!(
             report.applied_event_count,
@@ -102,7 +114,8 @@ fn main() {
         "{}",
         json!({
             "source": source,
-            "mode": "local_strict",
+            "mode": mode.label(),
+            "replay_api": mode.api(),
             "os": std::env::consts::OS,
             "arch": std::env::consts::ARCH,
             "storage_path": path,

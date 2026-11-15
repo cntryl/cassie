@@ -146,6 +146,9 @@ impl Cassie {
         {
             return result;
         }
+        // Every statement enters here, including CTAS, which returns before the
+        // bound-statement path below.
+        session.note_statement_projection_effect(&parsed.statement);
         if let QueryStatement::CreateTable(statement) = &parsed.statement {
             if statement.as_query.is_some() {
                 self.ensure_session_database_access(session)?;
@@ -294,7 +297,6 @@ impl Cassie {
             }
         }
         Self::mark_statement_transaction_query(session, &parsed.statement);
-        session.note_statement_projection_effect(&parsed.statement);
         if let QueryStatement::SessionObject(statement) = &parsed.statement {
             let call = super::session_objects::SessionObjectCall {
                 controls,

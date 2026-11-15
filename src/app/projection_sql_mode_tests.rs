@@ -257,7 +257,7 @@ fn should_select_strict_policy_for_declared_strict_transaction() {
 }
 
 #[test]
-fn should_promote_declared_transaction_with_ddl_to_existing_policy() {
+fn should_promote_declared_transaction_with_ddl_to_strict_policy() {
     // Arrange
     let (cassie, session) = sql_fixture();
     declare_replayable(&cassie, &session);
@@ -269,7 +269,7 @@ fn should_promote_declared_transaction_with_ddl_to_existing_policy() {
     execute(&cassie, &session, "COMMIT");
 
     // Assert
-    assert_eq!(policy, ProjectionCommitPolicy::Existing);
+    assert_eq!(policy, ProjectionCommitPolicy::Strict);
 }
 
 #[test]
@@ -292,7 +292,7 @@ fn should_keep_sequence_promotion_sticky_after_savepoint_rollback() {
     execute(&cassie, &session, "COMMIT");
 
     // Assert
-    assert_eq!(policy, ProjectionCommitPolicy::Existing);
+    assert_eq!(policy, ProjectionCommitPolicy::Strict);
 }
 
 #[test]

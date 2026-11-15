@@ -345,16 +345,20 @@ Implemented, pending the ordered gate:
   `SHOW`, `SET` and transaction control are not effects by themselves.
   `nextval`, `setval` and identity or default sequence advances are classified
   where the value is recorded, so they are caught inside any statement. Every
-  other statement requires the existing policy: DDL, security, sequences,
+  other statement promotes the transaction to strict: DDL, security, sequences,
   `TRUNCATE`, `MERGE`, `COPY`, `CALL`, SQL-level `PREPARE`/`EXECUTE` and cursors,
   projection and retention commands, extensions and `EXPLAIN`. A staged
-  transactional DDL overlay at COMMIT also requires it.
+  transactional DDL overlay at COMMIT also promotes it. User-defined functions
+  are evaluated as expressions by the same evaluator, so a sequence advance
+  inside one is classified; no other function-level effect census was done.
 - **Policy selection.** Selected for the transaction's own Data submission
   under the session transaction lock, and re-selected before a unique-conflict
   retry, so strictness can only increase. A declared, entirely replayable
   transaction uses buffered local WAL or the configured lazy cloud policy;
-  `strict` uses local sync or cloud-strict; a declared transaction with any
-  other effect keeps the existing policy. Undeclared SQL, implicit transactions
+  `strict` uses local sync or cloud-strict; a declared replayable transaction
+  with any other effect is promoted to that same strict policy, which can be
+  stronger than what the transaction would get undeclared on a cloud-background
+  configuration (Jev selected forcing strict over falling back to the default). Undeclared SQL, implicit transactions
   and autocommit are unchanged. Configured cloud-strict is never downgraded.
 
 Not implemented, and therefore not claimed:
@@ -366,7 +370,7 @@ Not implemented, and therefore not claimed:
   fork performs independently (a sequence advance) are classified on the shared
   authority but could land after the policy was selected.
 - **Replayable transactional COPY.** COPY rows staged in a declared transaction
-  keep the existing policy because COPY owner lifetime and admission are not
+  promote it to strict because COPY owner lifetime and admission are not
   proven. This is conservative, not a qualification of COPY.
 - **Extended-protocol and pool evidence.** The mode is transaction-owned, so it
   cannot survive COMMIT or ROLLBACK, but no pgwire pool-reuse or

@@ -51,11 +51,12 @@ impl ProjectionWriteMode {
 /// The policy a commit of this transaction's own Data writes must use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProjectionCommitPolicy {
-    /// The existing policy for undeclared or promoted transactions.
+    /// The existing policy for undeclared transactions.
     Existing,
     /// Buffered local WAL or the configured lazy cloud policy.
     Replayable,
-    /// Local synchronous or cloud-strict publication.
+    /// Local synchronous or cloud-strict publication: declared `strict`, or
+    /// declared `replayable` with any non-replayable effect.
     Strict,
 }
 
@@ -109,12 +110,14 @@ impl ProjectionWriteAuthority {
     fn commit_policy(&self, strict_effects: bool) -> ProjectionCommitPolicy {
         let state = self.state.lock();
         match state.mode {
-            ProjectionWriteMode::Strict => ProjectionCommitPolicy::Strict,
+            ProjectionWriteMode::Default => ProjectionCommitPolicy::Existing,
             ProjectionWriteMode::Replayable if !state.strict_required && !strict_effects => {
                 ProjectionCommitPolicy::Replayable
             }
-            ProjectionWriteMode::Replayable | ProjectionWriteMode::Default => {
-                ProjectionCommitPolicy::Existing
+            // A declared transaction with any non-replayable effect is promoted
+            // to the strictest policy, never merely back to the default.
+            ProjectionWriteMode::Replayable | ProjectionWriteMode::Strict => {
+                ProjectionCommitPolicy::Strict
             }
         }
     }
@@ -188,8 +191,8 @@ impl CassieSession {
     /// Classifies a statement at its execution boundary. Row DML is a
     /// replayable write. Reads, settings and transaction control are not
     /// effects. Everything else, including DDL, security, COPY, procedure calls
-    /// and EXPLAIN (which may execute its statement), conservatively requires
-    /// the existing strict policy.
+    /// and EXPLAIN (which may execute its statement), conservatively promotes a
+    /// declared transaction to the strict policy.
     pub(crate) fn note_statement_projection_effect(&self, statement: &QueryStatement) {
         match statement {
             QueryStatement::Select(_)

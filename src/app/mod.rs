@@ -195,6 +195,8 @@ pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayR
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
 
 #[cfg(test)]
+mod commit_unknown_outcome_tests;
+#[cfg(test)]
 mod implicit_sequence_database_tests;
 #[cfg(all(test, feature = "replay-benchmark-observation"))]
 mod projection_sql_durability_tests;

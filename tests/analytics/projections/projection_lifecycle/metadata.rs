@@ -172,7 +172,7 @@ fn should_commit_checkpoint_for_new_event_deleting_missing_row() {
     assert!(seen);
     assert_eq!(metadata.source_checkpoint.as_deref(), Some("checkpoint-1"));
     assert_eq!(metadata.source_position, Some(1));
-    assert!(rows.is_empty());
+    assert_eq!(rows, Vec::<Vec<Value>>::new());
 }
 
 #[test]
@@ -213,7 +213,7 @@ fn should_record_failed_freshness_when_precommit_replay_write_stalls() {
     assert!(metadata.last_error.is_some());
     assert_eq!(metadata.source_checkpoint, None);
     assert!(!seen);
-    assert!(rows.is_empty());
+    assert_eq!(rows, Vec::<Vec<Value>>::new());
 }
 
 #[test]
@@ -306,7 +306,7 @@ fn should_record_failed_freshness_without_advancing_checkpoint_for_invalid_vecto
             .is_some_and(|message| message.contains("expects vector(2) but got 1")));
         assert_eq!(metadata.source_checkpoint, None);
         assert!(!seen);
-        assert!(rows.is_empty());
+        assert_eq!(rows, Vec::<Vec<Value>>::new());
         assert_eq!(
             cassie.metrics()["projections"]["replay_errors"].as_u64(),
             Some(1)
@@ -362,10 +362,76 @@ fn should_reject_replay_prepared_before_checkpoint_changed() {
     assert!(
         matches!(result, Err(CassieError::StorageRetryable(ref error)) if error.kind() == StorageRetryKind::WriteConflict)
     );
-    assert!(rows.is_empty());
+    assert_eq!(rows, Vec::<Vec<Value>>::new());
     assert!(!event_seen);
     assert_eq!(latest.source_position, Some(9));
     assert_eq!(latest.source_checkpoint.as_deref(), Some("checkpoint-9"));
+}
+
+fn replay_metadata(cassie: &Cassie, projection: &str) -> cassie::catalog::ProjectionMeta {
+    cassie
+        .midge
+        .projection_metadata(projection)
+        .unwrap()
+        .unwrap()
+}
+
+fn assert_replay_recovered(
+    path: &str,
+    projection: &str,
+    expected_rows: &[Vec<Value>],
+    event: &str,
+    checkpoint: &str,
+) {
+    let recovered = Cassie::new_with_data_dir(path).unwrap();
+    recovered.startup().unwrap();
+    let recovered_session = recovered.create_session("tester", None);
+    let recovered_rows = query_rows(
+        &recovered,
+        &recovered_session,
+        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    );
+    let recovered_metadata = recovered
+        .midge
+        .projection_metadata(projection)
+        .unwrap()
+        .unwrap();
+    let recovered_event_seen = recovered
+        .midge
+        .has_projection_event(projection, "orders-stream", event)
+        .unwrap();
+
+    assert_eq!(recovered_rows.as_slice(), expected_rows);
+    assert!(recovered_event_seen);
+    assert_eq!(
+        recovered_metadata.source_checkpoint.as_deref(),
+        Some(checkpoint)
+    );
+    recovered.shutdown();
+}
+
+fn assert_replay_not_committed(cassie: &Cassie, session: &CassieSession, projection: &str) {
+    assert_eq!(
+        query_rows(
+            cassie,
+            session,
+            "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+        ),
+        Vec::<Vec<Value>>::new()
+    );
+    assert!(!cassie
+        .midge
+        .has_projection_event(projection, "orders-stream", "event-1")
+        .unwrap());
+    assert_eq!(
+        cassie
+            .midge
+            .projection_metadata(projection)
+            .unwrap()
+            .unwrap()
+            .source_checkpoint,
+        None
+    );
 }
 
 #[test]
@@ -393,24 +459,22 @@ fn should_roll_back_rows_and_checkpoint_when_replay_commit_fails() {
         .midge
         .has_projection_event(&projection, "orders-stream", "event-1")
         .unwrap();
-    let metadata_after_failed_metadata_commit = cassie
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
+    let metadata_after_failed_metadata_commit = replay_metadata(&cassie, &projection);
 
     // Assert
     assert!(
         failed.is_err(),
         "metadata failure was not returned: {failed:?}"
     );
-    assert!(rows_after_failed_metadata_commit.is_empty());
-    assert!(query_rows(
-        &cassie,
-        &session,
-        "SELECT title FROM projection_replay_schema_retry_docs WHERE title = 'alpha'",
-    )
-    .is_empty());
+    assert_eq!(rows_after_failed_metadata_commit, Vec::<Vec<Value>>::new());
+    assert_eq!(
+        query_rows(
+            &cassie,
+            &session,
+            "SELECT title FROM projection_replay_schema_retry_docs WHERE title = 'alpha'",
+        ),
+        Vec::<Vec<Value>>::new()
+    );
     assert!(!event_seen_after_failed_metadata_commit);
     assert_eq!(
         metadata_after_failed_metadata_commit.source_checkpoint,
@@ -426,25 +490,7 @@ fn should_roll_back_rows_and_checkpoint_when_replay_commit_fails() {
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
-    assert!(query_rows(
-        &cassie,
-        &session,
-        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
-    )
-    .is_empty());
-    assert!(!cassie
-        .midge
-        .has_projection_event(&projection, "orders-stream", "event-1")
-        .unwrap());
-    assert_eq!(
-        cassie
-            .midge
-            .projection_metadata(&projection)
-            .unwrap()
-            .unwrap()
-            .source_checkpoint,
-        None
-    );
+    assert_replay_not_committed(&cassie, &session, &projection);
 
     let retry = cassie.replay_projection_batch(batch).unwrap();
     let rows_after_retry = query_rows(
@@ -452,11 +498,7 @@ fn should_roll_back_rows_and_checkpoint_when_replay_commit_fails() {
         &session,
         "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
     );
-    let metadata_after_retry = cassie
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
+    let metadata_after_retry = replay_metadata(&cassie, &projection);
     let event_seen_after_retry = cassie
         .midge
         .has_projection_event(&projection, "orders-stream", "event-1")
@@ -488,33 +530,13 @@ fn should_roll_back_rows_and_checkpoint_when_replay_commit_fails() {
 
     cassie.shutdown();
     drop(cassie);
-    let recovered = Cassie::new_with_data_dir(&path).unwrap();
-    recovered.startup().unwrap();
-    let recovered_session = recovered.create_session("tester", None);
-    let recovered_rows = query_rows(
-        &recovered,
-        &recovered_session,
-        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    assert_replay_recovered(
+        &path,
+        &projection,
+        &rows_after_retry,
+        "event-1",
+        "checkpoint-1",
     );
-    let recovered_metadata = recovered
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
-    let recovered_event_seen = recovered
-        .midge
-        .has_projection_event(&projection, "orders-stream", "event-1")
-        .unwrap();
-
-    // Assert
-    assert_eq!(recovered_rows, rows_after_retry);
-    assert!(recovered_event_seen);
-    assert_eq!(
-        recovered_metadata.source_checkpoint.as_deref(),
-        Some("checkpoint-1")
-    );
-
-    recovered.shutdown();
     let _ = std::fs::remove_dir_all(path);
 }
 
@@ -546,18 +568,9 @@ fn should_retry_projection_replay_after_metadata_commit_conflict() {
         &session,
         "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
     );
-    let checkpoint_before_commit = cassie
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap()
-        .source_checkpoint;
+    let checkpoint_before_commit = replay_metadata(&cassie, &projection).source_checkpoint;
     set_schema_write_commit_barriers(None, None, None);
-    let mut competing_metadata = cassie
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
+    let mut competing_metadata = replay_metadata(&cassie, &projection);
     competing_metadata.last_error = Some("concurrent schema writer".to_string());
     cassie
         .midge
@@ -574,14 +587,10 @@ fn should_retry_projection_replay_after_metadata_commit_conflict() {
         .midge
         .has_projection_event(&projection, "orders-stream", "event-1")
         .unwrap();
-    let metadata_after_conflict = cassie
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
+    let metadata_after_conflict = replay_metadata(&cassie, &projection);
 
     // Assert
-    assert!(rows_before_commit.is_empty());
+    assert_eq!(rows_before_commit, Vec::<Vec<Value>>::new());
     assert_eq!(checkpoint_before_commit, None);
     match failed {
         Err(CassieError::StorageRetryable(error)) => {
@@ -590,7 +599,7 @@ fn should_retry_projection_replay_after_metadata_commit_conflict() {
         Err(error) => panic!("unexpected replay error: {error}"),
         Ok(report) => panic!("conflicting metadata commit unexpectedly succeeded: {report:?}"),
     }
-    assert!(rows_after_conflict.is_empty());
+    assert_eq!(rows_after_conflict, Vec::<Vec<Value>>::new());
     assert!(!event_seen_after_conflict);
     assert_eq!(
         metadata_after_conflict.last_error.as_deref(),
@@ -605,11 +614,7 @@ fn should_retry_projection_replay_after_metadata_commit_conflict() {
         &session,
         "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
     );
-    let metadata_after_retry = cassie
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
+    let metadata_after_retry = replay_metadata(&cassie, &projection);
     let event_seen_after_retry = cassie
         .midge
         .has_projection_event(&projection, "orders-stream", "event-1")
@@ -640,19 +645,7 @@ fn should_keep_projection_replay_checkpoint_after_uncertain_metadata_commit() {
     let (_runtime, path, cassie, session, projection) =
         start_projection_replay_retry_fixture("projection_replay_uncertain_metadata_commit");
     cassie
-        .replay_projection_batch(ProjectionReplayBatch {
-            projection: projection.clone(),
-            source_identity: "orders-stream".to_string(),
-            batch_id: "batch-1".to_string(),
-            lag: 0,
-            events: vec![ProjectionReplayEvent {
-                event_id: "event-1".to_string(),
-                checkpoint: "checkpoint-1".to_string(),
-                position: Some(1),
-                document_id: "doc-1".to_string(),
-                payload: Some(serde_json::json!({"title": "alpha"})),
-            }],
-        })
+        .replay_projection_batch(projection_replay_retry_batch(&projection))
         .unwrap();
     let uncertain_batch = ProjectionReplayBatch {
         projection: projection.clone(),
@@ -672,11 +665,7 @@ fn should_keep_projection_replay_checkpoint_after_uncertain_metadata_commit() {
     // Act
     let uncertain_commit = cassie.replay_projection_batch(uncertain_batch.clone());
     set_projection_replay_post_commit_failure_point(false);
-    let metadata_after_uncertain_commit = cassie
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
+    let metadata_after_uncertain_commit = replay_metadata(&cassie, &projection);
     let event_seen_after_uncertain_commit = cassie
         .midge
         .has_projection_event(&projection, "orders-stream", "event-2")
@@ -714,11 +703,7 @@ fn should_keep_projection_replay_checkpoint_after_uncertain_metadata_commit() {
     );
 
     let retry = cassie.replay_projection_batch(uncertain_batch).unwrap();
-    let metadata_after_retry = cassie
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
+    let metadata_after_retry = replay_metadata(&cassie, &projection);
     let rows_after_retry = query_rows(
         &cassie,
         &session,
@@ -742,33 +727,13 @@ fn should_keep_projection_replay_checkpoint_after_uncertain_metadata_commit() {
 
     cassie.shutdown();
     drop(cassie);
-    let recovered = Cassie::new_with_data_dir(&path).unwrap();
-    recovered.startup().unwrap();
-    let recovered_session = recovered.create_session("tester", None);
-    let recovered_rows = query_rows(
-        &recovered,
-        &recovered_session,
-        "SELECT title FROM projection_replay_schema_retry_docs ORDER BY title",
+    assert_replay_recovered(
+        &path,
+        &projection,
+        &rows_after_retry,
+        "event-2",
+        "checkpoint-2",
     );
-    let recovered_metadata = recovered
-        .midge
-        .projection_metadata(&projection)
-        .unwrap()
-        .unwrap();
-    let recovered_event_seen = recovered
-        .midge
-        .has_projection_event(&projection, "orders-stream", "event-2")
-        .unwrap();
-
-    // Assert
-    assert_eq!(recovered_rows, rows_after_retry);
-    assert!(recovered_event_seen);
-    assert_eq!(
-        recovered_metadata.source_checkpoint.as_deref(),
-        Some("checkpoint-2")
-    );
-
-    recovered.shutdown();
     let _ = std::fs::remove_dir_all(path);
 }
 

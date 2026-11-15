@@ -429,6 +429,9 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<(), CassieError> {
+        let _source = super::commit_source::CommitSourceScope::enter(
+            super::commit_source::CommitSource::TimeSeriesMaintenance,
+        );
         for index in self.list_indexes()?.into_iter().filter(|index| {
             index.collection == collection && Self::time_series_index_supports_storage(index)
         }) {

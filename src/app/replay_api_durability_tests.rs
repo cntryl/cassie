@@ -270,3 +270,31 @@ fn should_apply_selected_cloud_policy_to_replay_commit() {
         ]
     );
 }
+
+#[test]
+fn should_attribute_every_replay_acknowledgement_commit_to_one_source() {
+    // Arrange
+    let (cassie, projection) = fixture();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX replay_policy_title_idx ON replay_policy_docs USING btree (title)",
+            vec![],
+        )
+        .unwrap();
+
+    // Act
+    let (result, writes) =
+        observe_native_commits(|| cassie.replay_projection_batch(batch(&projection)));
+
+    // Assert
+    result.unwrap();
+    let maintenance = writes.column_maintenance_attempts
+        + writes.hash_maintenance_attempts
+        + writes.time_series_maintenance_attempts;
+    assert_eq!(writes.first_policy, Some("local_buffered"));
+    assert!(writes.primary_attempts >= 1);
+    assert_eq!(writes.attempted, writes.primary_attempts + maintenance);
+    assert!(writes.maintenance_barrier_attempts <= maintenance);
+}

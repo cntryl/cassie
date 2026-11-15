@@ -127,6 +127,11 @@ pub(super) fn execute_set(
     };
     match statement.action {
         SettingAction::ResetAll => session.reset_all_settings(),
+        SettingAction::SetDefault
+            if statement.local && crate::app::is_projection_write_mode(&variable) =>
+        {
+            session.set_projection_write_mode(None)?;
+        }
         SettingAction::Reset | SettingAction::SetDefault => session.reset_setting(&variable)?,
         SettingAction::Set if variable == "search_path" => {
             let path = parse_search_path(statement.value.as_deref().unwrap_or(""));

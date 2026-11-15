@@ -111,6 +111,7 @@ impl Cassie {
         let collections = writes.keys().cloned().collect::<Vec<_>>();
         let mut options = self.document_write_options_for_collections(&collections);
         options.refresh_after_commit = false;
+        self.apply_projection_commit_policy(staging, transactional_ddl.is_some(), &mut options);
         check_publication_controls(controls)?;
         let initial = if let Some((_, overlay)) = transactional_ddl {
             self.midge
@@ -139,6 +140,13 @@ impl Cassie {
                     let mut retry_options =
                         self.document_write_options_for_collections(&retry_collections);
                     retry_options.refresh_after_commit = false;
+                    // Re-select after conflict resolution: it may have run
+                    // sequence or default effects, which only raise strictness.
+                    self.apply_projection_commit_policy(
+                        staging,
+                        transactional_ddl.is_some(),
+                        &mut retry_options,
+                    );
                     check_publication_controls(controls)?;
                     if let Some((_, overlay)) = transactional_ddl {
                         self.midge
@@ -157,6 +165,25 @@ impl Cassie {
         };
 
         Ok(self.account_acknowledged_write_reports(reports))
+    }
+
+    /// Selects the native policy for this transaction's own Data submission.
+    /// Undeclared, implicit and promoted transactions keep the existing policy.
+    fn apply_projection_commit_policy(
+        &self,
+        staging: &CassieSession,
+        transactional_ddl: bool,
+        options: &mut crate::midge::adapter::DocumentWriteBatchOptions,
+    ) {
+        match staging.projection_commit_policy(transactional_ddl) {
+            crate::app::ProjectionCommitPolicy::Existing => {}
+            crate::app::ProjectionCommitPolicy::Replayable => {
+                options.commit = self.midge.write_options_replayable();
+            }
+            crate::app::ProjectionCommitPolicy::Strict => {
+                options.commit = self.midge.write_options_strict_replay();
+            }
+        }
     }
 
     pub(super) fn finish_acknowledged_copy_report(

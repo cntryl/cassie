@@ -4,6 +4,7 @@ use super::{CassieError, CassieSession};
 
 impl CassieSession {
     pub(crate) fn set_startup_setting(&self, name: &str, value: &str) -> Result<(), CassieError> {
+        Self::reject_projection_write_mode_change(name)?;
         self.settings.lock().set_startup(name, value)?;
         if name.eq_ignore_ascii_case("search_path") {
             self.reset_setting(name)?;
@@ -12,6 +13,7 @@ impl CassieSession {
     }
 
     pub(crate) fn reset_setting(&self, name: &str) -> Result<(), CassieError> {
+        Self::reject_projection_write_mode_change(name)?;
         if matches!(
             name.to_ascii_lowercase().as_str(),
             "transaction_read_only" | "transaction_isolation" | "transaction_deferrable"

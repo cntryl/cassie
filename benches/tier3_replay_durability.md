@@ -53,3 +53,30 @@ full 100k-row, indexed/unindexed and SQL comparison remains in #1271.
 Performance comparisons include all differences between source versions and
 observation overhead; they cannot by themselves attribute a
 change solely to the removed commit barrier.
+
+## Shapes, SQL projector lanes and commit attribution
+
+`CASSIE_REPLAY_BENCH_SHAPE` selects `indexed` (default) or `unindexed`; the
+unindexed fixture omits the scalar index so the two shapes can be compared on
+matched stores. `CASSIE_REPLAY_BENCH_MODE` also accepts `sql_default` and
+`sql_replayable`. Those lanes run one explicit SQL transaction per batch that
+inserts the batch's rows and updates a single-row checkpoint table; the
+replayable lane first runs `SET LOCAL cassie.projection_write_mode =
+'replayable'` (#1279). For SQL lanes the timed acknowledgement covers the whole
+transaction, while native commits are observed around `COMMIT` only, so earlier
+statement work is in the latency sample but not in the commit counts. A SQL
+checkpoint table has no replay event ledger; these lanes do not exercise
+duplicate detection.
+
+Each sample's `foreground_native_commits` attributes caller-thread commit
+attempts to one source: `primary_attempts` (outside any maintenance scope),
+`column_maintenance_attempts`, `hash_maintenance_attempts` and
+`time_series_maintenance_attempts`. `maintenance_barrier_attempts` counts the
+local-sync or cloud-strict attempts made inside a maintenance scope (#1277).
+These are call attempts on the observing thread. They are not physical syncs,
+they exclude background threads and staged or suppressed commits, and one
+physical WAL sync can satisfy several of them.
+
+No run of these lanes is recorded here. The 100k-row matched comparison across
+batch sizes, the duplicate and no-op cases, recovery time, and any cloud
+profile remain open under #1271.

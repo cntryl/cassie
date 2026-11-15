@@ -572,6 +572,9 @@ impl CassieSession {
         controls: &QueryExecutionControls,
         _publication: &parking_lot::RecursiveRwLockReadGuard<'_, ()>,
     ) -> Result<StatementMutationBatch, CassieError> {
+        // COPY owner admission is not yet proven replayable (#1279): keep the
+        // existing strict policy for transactions that stage COPY rows.
+        self.note_projection_effect(true);
         let _controls = crate::midge::adapter::PublicationControlScope::enter(Some(controls));
         self.fork_statement_batch_checked(|transaction| {
             controls.check_interruption()?;

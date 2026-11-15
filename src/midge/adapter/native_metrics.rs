@@ -1,5 +1,6 @@
 //! Bounded native observations for durability benchmarking.
 
+use super::commit_source::{current_commit_source, CommitSource};
 use super::{CassieError, Midge};
 #[cfg(feature = "replay-benchmark-observation")]
 use std::cell::Cell;
@@ -61,6 +62,14 @@ pub struct NativeCommitObservation {
     pub cloud_async_attempts: u64,
     pub cloud_strict_attempts: u64,
     pub best_effort_attempts: u64,
+    /// Attempts outside any post-write maintenance scope, such as the primary
+    /// row and checkpoint commit.
+    pub primary_attempts: u64,
+    pub column_maintenance_attempts: u64,
+    pub hash_maintenance_attempts: u64,
+    pub time_series_maintenance_attempts: u64,
+    /// Local-sync or cloud-strict attempts made inside a maintenance scope.
+    pub maintenance_barrier_attempts: u64,
 }
 
 #[cfg(feature = "replay-benchmark-observation")]
@@ -127,6 +136,26 @@ pub(super) fn observe_native_commit<T>(
                 }
             };
             *count = count.saturating_add(1);
+            let source = current_commit_source();
+            let source_count = match source {
+                CommitSource::Primary => &mut observed.primary_attempts,
+                CommitSource::ColumnMaintenance => &mut observed.column_maintenance_attempts,
+                CommitSource::HashMaintenance => &mut observed.hash_maintenance_attempts,
+                CommitSource::TimeSeriesMaintenance => {
+                    &mut observed.time_series_maintenance_attempts
+                }
+            };
+            *source_count = source_count.saturating_add(1);
+            if source != CommitSource::Primary
+                && matches!(
+                    options.policy(),
+                    cntryl_midge::DurabilityPolicy::Sync
+                        | cntryl_midge::DurabilityPolicy::CloudStrict
+                )
+            {
+                observed.maintenance_barrier_attempts =
+                    observed.maintenance_barrier_attempts.saturating_add(1);
+            }
             if observed.first_policy.is_none() {
                 observed.first_policy = Some(name);
             }

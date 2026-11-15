@@ -145,3 +145,41 @@ fn should_report_native_commit_attempts_by_selected_policy() {
     assert_eq!(observation.cloud_strict_attempts, 1);
     assert_eq!(observation.best_effort_attempts, 1);
 }
+
+#[cfg(feature = "replay-benchmark-observation")]
+#[test]
+fn should_attribute_native_commits_to_the_outermost_maintenance_scope() {
+    // Arrange
+    use super::observe_native_commit;
+    use crate::midge::adapter::commit_source::{CommitSource, CommitSourceScope};
+    use cntryl_midge::WriteOptions;
+    let commit = |options| observe_native_commit(options, || Ok::<_, cntryl_midge::MidgeError>(()));
+
+    // Act
+    let ((), observation) = observe_native_commits(|| {
+        commit(WriteOptions::buffered()).unwrap();
+        {
+            let _column = CommitSourceScope::enter(CommitSource::ColumnMaintenance);
+            commit(WriteOptions::sync()).unwrap();
+            let _nested = CommitSourceScope::enter(CommitSource::HashMaintenance);
+            commit(WriteOptions::buffered()).unwrap();
+        }
+        {
+            let _hash = CommitSourceScope::enter(CommitSource::HashMaintenance);
+            commit(WriteOptions::cloud_strict()).unwrap();
+        }
+        {
+            let _series = CommitSourceScope::enter(CommitSource::TimeSeriesMaintenance);
+            commit(WriteOptions::buffered()).unwrap();
+        }
+        commit(WriteOptions::sync()).unwrap();
+    });
+
+    // Assert
+    assert_eq!(observation.attempted, 6);
+    assert_eq!(observation.primary_attempts, 2);
+    assert_eq!(observation.column_maintenance_attempts, 2);
+    assert_eq!(observation.hash_maintenance_attempts, 1);
+    assert_eq!(observation.time_series_maintenance_attempts, 1);
+    assert_eq!(observation.maintenance_barrier_attempts, 2);
+}

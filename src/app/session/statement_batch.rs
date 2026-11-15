@@ -133,6 +133,8 @@ impl CassieSession {
             storage_overlay: Arc::new(Mutex::new(storage_overlay)),
             session_state: None,
             local_settings: Vec::new(),
+            // Forks share the authority so effects they cause stay classified.
+            projection_write: Arc::clone(&current.projection_write),
         })
     }
 

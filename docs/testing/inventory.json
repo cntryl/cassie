@@ -166,9 +166,9 @@
     ],
     "files": 1713,
     "rust_files": 1676,
-    "rust_test_declarations": 10168,
+    "rust_test_declarations": 10170,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10174,
+    "registered_rust_instances": 10176,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -6363,6 +6363,68 @@
         {
           "suite": "bench_diagnostics",
           "name": "replay_mode::should_report_the_selected_replay_api_policy"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/replay_mode.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_mode.rs::should_select_sql_projector_replay_modes",
+      "name": "should_select_sql_projector_replay_modes",
+      "current_file": "tests/bench_diagnostics/replay_mode.rs",
+      "line": 86,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_mode::should_select_sql_projector_replay_modes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/replay_mode.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_mode.rs::should_select_indexed_shape_unless_unindexed_is_requested",
+      "name": "should_select_indexed_shape_unless_unindexed_is_requested",
+      "current_file": "tests/bench_diagnostics/replay_mode.rs",
+      "line": 108,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_mode::should_select_indexed_shape_unless_unindexed_is_requested"
         }
       ],
       "attributes": [
@@ -316735,9 +316797,9 @@
       "current_file": "tests/bench_diagnostics/replay_mode.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 83,
-      "sha256": "fed02be2ebd8295949326cd9b618ae1dd3da071672a001bdee27052e1b2aedb6",
-      "test_declarations": 5,
+      "lines": 123,
+      "sha256": "c0fca4069ee678c8a2a3fad961385e2dabb17f1dee0c5acc6f55ee3908c4d804",
+      "test_declarations": 7,
       "registered_suites": [
         "bench_diagnostics"
       ],

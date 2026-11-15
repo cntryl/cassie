@@ -470,6 +470,45 @@ impl Midge {
         self.with_collection_gates(collections, operation)
     }
 
+    /// Like [`Self::with_collection_write_gates`], but waits for each gate in
+    /// bounded steps and returns the first interruption `check` reports. No gate
+    /// is retained when the wait is interrupted.
+    pub(crate) fn with_collection_write_gates_interruptible<T>(
+        &self,
+        collections: &[String],
+        check: impl Fn() -> Result<(), CassieError>,
+        operation: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        const STEP: std::time::Duration = std::time::Duration::from_millis(2);
+        let _referential_guard = loop {
+            check()?;
+            if let Some(guard) = self.referential_write_gate.try_lock_for(STEP) {
+                break guard;
+            }
+        };
+        let mut names = collections
+            .iter()
+            .map(|collection| collection.to_ascii_lowercase())
+            .collect::<Vec<_>>();
+        names.sort();
+        names.dedup();
+        let gates = names
+            .iter()
+            .map(|collection| self.collection_write_gate(collection))
+            .collect::<Vec<_>>();
+        let mut guards = Vec::with_capacity(gates.len());
+        for gate in &gates {
+            guards.push(loop {
+                check()?;
+                if let Some(guard) = gate.try_lock_for(STEP) {
+                    break guard;
+                }
+            });
+        }
+        check()?;
+        operation()
+    }
+
     /// Holds only the per-collection write gates, without the global referential
     /// gate. Use it only for writes to collections outside any FOREIGN KEY.
     pub(crate) fn with_collection_gates<T>(

@@ -4117,8 +4117,8 @@
       }
     },
     {
-      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_roll_back_rows_and_checkpoint_when_replay_commit_fails",
-      "name": "should_roll_back_rows_and_checkpoint_when_replay_commit_fails",
+      "id": "tests/analytics/projections/projection_lifecycle/metadata.rs::should_roll_back_atomic_replay_when_commit_fails",
+      "name": "should_roll_back_atomic_replay_when_commit_fails",
       "current_file": "tests/analytics/projections/projection_lifecycle/metadata.rs",
       "line": 438,
       "end_line": 541,
@@ -4129,7 +4129,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "projection_lifecycle::should_roll_back_rows_and_checkpoint_when_replay_commit_fails"
+          "name": "projection_lifecycle::should_roll_back_atomic_replay_when_commit_fails"
         }
       ],
       "attributes": [
@@ -316310,7 +316310,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 884,
-      "sha256": "e627a0f5ad638809a77083399c3c5225a2b7860fa1e4d915fe30f7da6383bac8",
+      "sha256": "cd0a53cfa98ac27c899c9e857d0fdf3f14e8400019cf118517578d1062bda576",
       "test_declarations": 11,
       "registered_suites": [
         "analytics"

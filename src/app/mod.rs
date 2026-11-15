@@ -100,7 +100,8 @@ pub use error::{
 pub use session::CassieSession;
 pub(crate) use session::{
     BoundReadScope, BoundReadView, CommandCatalogScope, CopyBindingContext, CopyCommandOwner,
-    SessionRandom, SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
+    SessionRandom, SessionReadScope, SessionTransactionStatus, StagedWriteSnapshot,
+    StatementMutationBatch, StatementOverlay,
     TransactionConflictIntent, TransactionRowChange,
 };
 pub(crate) use session::{

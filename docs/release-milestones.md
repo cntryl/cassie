@@ -96,11 +96,14 @@ Earlier documented release dependencies remain in force.
 ## Replay durability and throughput
 
 The [replay durability and throughput milestone](https://github.com/cntryl/cassie/milestone/14)
-tracks the selected one-transaction replay contract and its recovery and
-performance evidence ([#1270](https://github.com/cntryl/cassie/issues/1270)),
-alongside the public checkpoint-view snapshot work
-([#1272](https://github.com/cntryl/cassie/issues/1272)). Neither issue is closed;
-statement-level co-snapshot semantics for the public view are not yet claimed.
+tracks buffered replay durability and workload evidence
+([#1271](https://github.com/cntryl/cassie/issues/1271)), alongside the public
+checkpoint-view snapshot work ([#1272](https://github.com/cntryl/cassie/issues/1272)).
+The atomic replay prerequisite [#1270](https://github.com/cntryl/cassie/issues/1270)
+is closed. The replay API policy slice [#1276](https://github.com/cntryl/cassie/issues/1276)
+does not complete the SQL projector mode, cloud qualification, or the broader
+performance milestone. Statement-level co-snapshot semantics for the public view
+are not yet claimed.
 
 ## Deferred catalog compatibility
 

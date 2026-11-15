@@ -337,7 +337,14 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
         // Assert
         assert_eq!(
             section_ids,
-            vec!["tables", "views", "indexes", "udfs", "procedures"]
+            vec![
+                "tables",
+                "views",
+                "indexes",
+                "udfs",
+                "procedures",
+                "property_graphs"
+            ]
         );
         assert_eq!(status, StatusCode::OK);
         assert!(contains_item(
@@ -459,7 +466,14 @@ fn should_serve_restful_admin_aliases() {
         // Assert
         assert_eq!(
             catalog_section_ids,
-            vec!["tables", "views", "indexes", "udfs", "procedures"]
+            vec![
+                "tables",
+                "views",
+                "indexes",
+                "udfs",
+                "procedures",
+                "property_graphs"
+            ]
         );
         assert_eq!(catalog_status, StatusCode::OK);
         assert!(contains_item(

@@ -6,6 +6,7 @@ use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::sql::ast::{ExtensionAction, QueryStatement, TransactionAction, TypeAction};
 
 mod owned;
+mod property_graphs;
 pub use owned::{RestQueryExplainResponse, RestQueryResult};
 
 #[cfg(test)]
@@ -242,7 +243,7 @@ pub(crate) fn explain_converted<T>(
 /// Panics when persisted catalog object names violate the canonical
 /// `database.schema.name` invariant.
 pub fn schema(cassie: &Cassie) -> QuerySchemaResponse {
-    schema_for_database(cassie, &cassie.default_database)
+    schema_for_database(cassie, None, &cassie.default_database)
         .expect("catalog metadata must use canonical relation names")
 }
 
@@ -254,11 +255,12 @@ pub(crate) fn schema_with_session(
     let database = session
         .current_database()
         .unwrap_or(&cassie.default_database);
-    schema_for_database(cassie, database)
+    schema_for_database(cassie, Some(session), database)
 }
 
 fn schema_for_database(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     database: &str,
 ) -> Result<QuerySchemaResponse, CassieError> {
     Ok(QuerySchemaResponse {
@@ -271,6 +273,11 @@ fn schema_for_database(
                 "procedures",
                 "Procedures",
                 procedure_items(cassie, database)?,
+            ),
+            section(
+                "property_graphs",
+                "Property graphs",
+                property_graphs::items(cassie, session, database)?,
             ),
         ],
     })
@@ -554,6 +561,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::CallProcedure(_) => "CALL",
         QueryStatement::DropSchema(_) => "DROP SCHEMA",
         QueryStatement::AlterSchema(_) => "ALTER SCHEMA",
+        QueryStatement::PropertyGraph(statement) => statement.action.command_tag(),
         QueryStatement::Type(statement) => match &statement.action {
             TypeAction::Create { .. } | TypeAction::CreateEnum { .. } => "CREATE TYPE",
             TypeAction::Drop { .. } => "DROP TYPE",

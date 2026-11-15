@@ -29,6 +29,12 @@ pub use ast_domain::{
 #[path = "ast_type.rs"]
 mod ast_type;
 pub use ast_type::{TypeAction, TypeAlteration, TypeAttribute, TypeStatement};
+#[path = "ast_property_graph.rs"]
+mod ast_property_graph;
+pub use ast_property_graph::{
+    CreatePropertyGraph, GraphEdgeMapping, GraphEndpoint, GraphLabel, GraphProperty,
+    GraphVertexMapping, PropertyGraphAction, PropertyGraphStatement,
+};
 #[path = "ast_object_comment.rs"]
 mod ast_object_comment;
 pub use ast_object_comment::{CommentOnObjectKind, CommentOnStatement};
@@ -170,6 +176,7 @@ pub enum QueryStatement {
     CallProcedure(CallProcedureStatement),
     Extension(ExtensionStatement),
     Type(TypeStatement),
+    PropertyGraph(PropertyGraphStatement),
     DropSchema(DropSchemaStatement),
     AlterSchema(AlterSchemaStatement),
 }

@@ -206,6 +206,7 @@ async fn post_admin_query(
 }
 
 include!("semantics.rs");
+include!("property_graphs.rs");
 
 include!("errors.rs");
 

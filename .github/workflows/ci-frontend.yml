@@ -44,6 +44,9 @@ jobs:
 
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
+        with:
+          # The package lives in ui/; the next step installs it with npm.
+          run-install: false
 
       - name: Install UI dependencies
         run: npm ci

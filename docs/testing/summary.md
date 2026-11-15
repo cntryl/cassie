@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1717 |
-| Rust files | 1680 |
-| Rust test declarations | 10197 |
+| Files under `tests/` | 1718 |
+| Rust files | 1681 |
+| Rust test declarations | 10198 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10203 |
+| Static Rust registration instances | 10204 |
 | Cargo test targets | 40 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -54,7 +54,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [planner_controls](inventory/planner_controls.md) | 124 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 76 | 0 |
-| [rest](inventory/rest.md) | 100 | 0 |
+| [rest](inventory/rest.md) | 101 | 0 |
 | [search](inventory/search.md) | 64 | 0 |
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 7 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |

@@ -247,6 +247,48 @@ metadata_heap!(crate::catalog::graphs::GraphMeta {
     weight_field,
 });
 
+metadata_heap!(crate::catalog::property_graphs::PropertyGraphMeta {
+    name,
+    object_id,
+    graph_id,
+    database_id,
+    vertices,
+    edges,
+});
+
+metadata_heap!(crate::catalog::property_graphs::GraphVertexMeta {
+    mapping_id,
+    alias,
+    table,
+    key,
+    labels,
+});
+
+metadata_heap!(crate::catalog::property_graphs::GraphEdgeMeta {
+    mapping_id,
+    alias,
+    table,
+    key,
+    source,
+    destination,
+    labels,
+});
+
+metadata_heap!(crate::catalog::property_graphs::GraphKeyColumn { name, data_type });
+
+metadata_heap!(crate::catalog::property_graphs::GraphEndpointMeta {
+    columns,
+    vertex_alias,
+});
+
+metadata_heap!(crate::catalog::property_graphs::GraphLabelMeta { name, properties });
+
+metadata_heap!(crate::catalog::property_graphs::GraphPropertyMeta {
+    name,
+    column,
+    data_type,
+});
+
 unit_enum_heap!(crate::catalog::constraints::IdentityGeneration { Always, ByDefault });
 
 metadata_heap!(crate::catalog::cardinality::IndexCardinalityStats { cardinality });

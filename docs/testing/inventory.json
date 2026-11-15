@@ -164,11 +164,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1717,
-    "rust_files": 1680,
-    "rust_test_declarations": 10197,
+    "files": 1718,
+    "rust_files": 1681,
+    "rust_test_declarations": 10198,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10203,
+    "registered_rust_instances": 10204,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -3563,7 +3563,7 @@
       "name": "should_support_admin_rest_manifest_consistency_workflow",
       "current_file": "tests/analytics/projections/projection_consistency.rs",
       "line": 359,
-      "end_line": 448,
+      "end_line": 445,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -3593,8 +3593,8 @@
       "id": "tests/analytics/projections/projection_consistency.rs::should_support_restful_projection_consistency_aliases",
       "name": "should_support_restful_projection_consistency_aliases",
       "current_file": "tests/analytics/projections/projection_consistency.rs",
-      "line": 451,
-      "end_line": 556,
+      "line": 448,
+      "end_line": 550,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -220397,6 +220397,37 @@
       }
     },
     {
+      "id": "tests/rest/queries/admin_query/property_graphs.rs::should_list_property_graphs_in_the_admin_catalog",
+      "name": "should_list_property_graphs_in_the_admin_catalog",
+      "current_file": "tests/rest/queries/admin_query/property_graphs.rs",
+      "line": 2,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "rest",
+          "name": "rest_admin_query::should_list_property_graphs_in_the_admin_catalog"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "rest",
+        "category": "queries",
+        "directory": "tests/rest/queries",
+        "file": "tests/rest/queries/property_graphs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/rest/queries/admin_query/semantics.rs::should_scope_each_admin_request_to_its_explicit_database",
       "name": "should_scope_each_admin_request_to_its_explicit_database",
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
@@ -220556,7 +220587,7 @@
       "name": "should_return_admin_query_schema_sections_in_stable_order",
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
       "line": 303,
-      "end_line": 382,
+      "end_line": 389,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -220586,8 +220617,8 @@
       "id": "tests/rest/queries/admin_query/semantics.rs::should_serve_restful_admin_aliases",
       "name": "should_serve_restful_admin_aliases",
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
-      "line": 385,
-      "end_line": 488,
+      "line": 392,
+      "end_line": 502,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -317304,8 +317335,8 @@
       "current_file": "tests/analytics/projections/projection_consistency.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 556,
-      "sha256": "ca84fa1681102e367565677e991e4a2f16886cfae61b6e2ce7a394d8853ef7a7",
+      "lines": 550,
+      "sha256": "36e1654a35503c242e0711e1c6aaaa7b471a61407054e0b8d69611d050fec677",
       "test_declarations": 10,
       "registered_suites": [
         "analytics"
@@ -334691,8 +334722,8 @@
       "current_file": "tests/rest/queries/admin_query/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 212,
-      "sha256": "845c73525a2e2b089b76e0bafe1226fa2a27a5c6461a3ab2d603fe777d8fbf43",
+      "lines": 213,
+      "sha256": "b7107869441496f998a5feb93628322ef1c72af69b92b64a3798b0065868895f",
       "test_declarations": 0,
       "registered_suites": [
         "rest"
@@ -334703,11 +334734,26 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/rest/queries/admin_query/property_graphs.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 74,
+      "sha256": "9807d8ad1f8276d160bc29befe3c658c79fc742b2c773330e976f3a4aaf1756d",
+      "test_declarations": 1,
+      "registered_suites": [
+        "rest"
+      ],
+      "destinations": [
+        "tests/rest/queries/property_graphs.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 488,
-      "sha256": "8a0294fa3f27cc08afb402ed38861976d72a764da5851ea29db6117351be9e88",
+      "lines": 502,
+      "sha256": "6ae8cf6ae6d270120c303234c56ee170196dc531ef351c72f7e98db742be670b",
       "test_declarations": 7,
       "registered_suites": [
         "rest"

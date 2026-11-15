@@ -380,6 +380,7 @@ pub use failure_points::{
 };
 mod fresh_documents;
 mod graphs;
+mod property_graphs;
 pub(crate) use graphs::graph_edge_record_from_payload;
 mod key_encoding;
 mod layout;

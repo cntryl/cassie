@@ -1,12 +1,17 @@
 # Transaction-owned COPY stale entry
 
 A transactional COPY FROM binding retains the session transaction identity,
-generation and database captured at bind time. Before decoding or evaluating
-its payload, reject an owner already known to belong to a different session,
-transaction generation, database, or a non-active transaction with the existing
-COPY stale-owner serialization error. An unowned autocommit COPY keeps its current
-behavior. Respect existing request cancellation and deadline checks, and leave
-the later descriptor, storage, collection and generation checks in place.
+generation and database captured at bind time. Preserve payload decoding and
+CSV header validation before the new check, so their existing malformed-input
+diagnostics retain precedence. Immediately before WHERE evaluation and the
+write fork, check cancellation and deadline, then validate the owner under the
+session transaction lock without retaining it over SQL or storage work. A
+matching identity, generation and database in a failed block retains the existing
+25P02 failed-transaction error. Reject another session, generation or database,
+or an already-idle transaction with the existing stale-owner serialization
+error. An unowned autocommit COPY keeps its current behavior. Check cancellation
+before and after acquiring the lock; leave the later descriptor, storage,
+collection and generation checks in place.
 
 This is a stale-at-entry guard. It does not hold transaction authority during
 predicate execution, nor protect an operation from a concurrent COMMIT,
@@ -31,3 +36,11 @@ TOCTOU limitation; reusing the complete checked fork as a preflight has a 0.75
 risk of new snapshot, locking or resource behavior. Jev does not establish
 SQL predicate support or an observed failure. The false-green risk (0.69) is
 addressed by the exact-error assertion and identical valid-owner control.
+
+Jev selected the after-decoding/header ordering at 0.95 and preserving the
+matching failed block's 25P02 at 0.88 (`target/1282-review/entry-order-{request,
+response}.json`). The guard does not detect a same-generation savepoint rollback
+and cannot rule out retirement after it returns; both remain #1279 obligations.
+Focused tests must cover malformed-header precedence, failed block, already
+canceled and expired request, stale generation and session identity, valid
+owner, and unowned autocommit.

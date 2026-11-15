@@ -184,7 +184,7 @@ fn should_add_a_serial_column_sequence_in_the_table_database() {
 }
 
 #[test]
-fn should_keep_identity_rename_and_schema_sequences_in_the_table_database() {
+fn should_keep_altered_table_sequences_in_the_table_database() {
     // Arrange
     let (cassie, _default, extra) = fixture();
     for sql in [

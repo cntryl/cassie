@@ -111,6 +111,12 @@ struct PreparedReplay {
 }
 
 impl Cassie {
+    /// Replay a reconstructible projection with buffered local WAL or the
+    /// configured cloud durability policy. A successful result need not survive
+    /// loss of local storage; callers must reconcile the recovered checkpoint
+    /// with retained source events. Use [`Self::replay_projection_batch_strict`]
+    /// when the acknowledgement must use local sync or cloud-strict durability.
+    ///
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -118,17 +124,38 @@ impl Cassie {
         &self,
         batch: ProjectionReplayBatch,
     ) -> Result<ProjectionReplayReport, CassieError> {
+        self.replay_projection_batch_with_options(batch, self.midge.write_options_replayable())
+    }
+
+    /// Replay with local synchronous or cloud-strict durability.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn replay_projection_batch_strict(
+        &self,
+        batch: ProjectionReplayBatch,
+    ) -> Result<ProjectionReplayReport, CassieError> {
+        self.replay_projection_batch_with_options(batch, self.midge.write_options_strict_replay())
+    }
+
+    fn replay_projection_batch_with_options(
+        &self,
+        batch: ProjectionReplayBatch,
+        commit: cntryl_midge::WriteOptions,
+    ) -> Result<ProjectionReplayReport, CassieError> {
         Self::validate_replay_batch(&batch)?;
         let gated_projection = batch.projection.clone();
         self.midge
             .with_collection_write_gates(std::slice::from_ref(&gated_projection), || {
-                self.replay_projection_batch_gated(batch)
+                self.replay_projection_batch_gated(batch, commit)
             })
     }
 
     fn replay_projection_batch_gated(
         &self,
         batch: ProjectionReplayBatch,
+        commit: cntryl_midge::WriteOptions,
     ) -> Result<ProjectionReplayReport, CassieError> {
         let stored_metadata = self.midge.projection_metadata(&batch.projection)?;
         let metadata = stored_metadata
@@ -140,7 +167,7 @@ impl Cassie {
         let prepared =
             self.prepare_projection_replay(&metadata, stored_metadata.as_ref(), &batch)?;
         pause_projection_replay_after_prepare(&batch.batch_id);
-        self.finalize_projection_replay(metadata, batch, prepared, stored_metadata)
+        self.finalize_projection_replay(metadata, batch, prepared, stored_metadata, commit)
     }
 
     fn validate_replay_batch(batch: &ProjectionReplayBatch) -> Result<(), CassieError> {
@@ -294,6 +321,7 @@ impl Cassie {
         batch: ProjectionReplayBatch,
         mut prepared: PreparedReplay,
         stored_metadata: Option<crate::catalog::ProjectionMeta>,
+        commit: cntryl_midge::WriteOptions,
     ) -> Result<ProjectionReplayReport, CassieError> {
         let previous_metadata = metadata.clone();
         if metadata.source_identity.is_none() {
@@ -329,6 +357,7 @@ impl Cassie {
             &batch.projection,
             std::mem::take(&mut prepared.write_ops),
             replay,
+            commit,
         );
         let write_report = match result {
             Ok(report) => report,

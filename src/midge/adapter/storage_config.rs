@@ -37,6 +37,16 @@ impl WritePolicy {
     }
 
     #[must_use]
+    pub(super) fn replayable(self) -> WriteOptions {
+        self.buffered()
+    }
+
+    #[must_use]
+    pub(super) fn strict_replay(self) -> WriteOptions {
+        self.compatibility_upgrade()
+    }
+
+    #[must_use]
     pub(super) fn sync(self) -> WriteOptions {
         match self {
             Self::Local => WriteOptions::sync(),
@@ -402,7 +412,7 @@ mod tests {
 
     use cntryl_midge::{Storage, WriteOptions};
 
-    use super::{endpoint_is_loopback, open_config_from};
+    use super::{endpoint_is_loopback, open_config_from, WritePolicy};
 
     fn reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).map(ToString::to_string)
@@ -676,6 +686,44 @@ mod tests {
 
         // Assert
         assert!(error.to_string().contains("expected background or strict"));
+    }
+
+    #[test]
+    fn should_select_replayable_wal_policy_without_downgrading_cloud_strict() {
+        // Arrange
+        let cases = [
+            (WritePolicy::Local, WriteOptions::buffered()),
+            (WritePolicy::CloudBackground, WriteOptions::cloud_async()),
+            (WritePolicy::CloudStrict, WriteOptions::cloud_strict()),
+        ];
+
+        // Act
+        let actual = cases.map(|(policy, expected)| (policy.replayable(), expected));
+
+        // Assert
+        for (actual, expected) in actual {
+            assert_eq!(actual, expected);
+            assert!(!actual.is_best_effort());
+        }
+    }
+
+    #[test]
+    fn should_offer_strict_replay_for_each_storage_mode() {
+        // Arrange
+        let cases = [
+            (WritePolicy::Local, WriteOptions::sync()),
+            (WritePolicy::CloudBackground, WriteOptions::cloud_strict()),
+            (WritePolicy::CloudStrict, WriteOptions::cloud_strict()),
+        ];
+
+        // Act
+        let actual = cases.map(|(policy, expected)| (policy.strict_replay(), expected));
+
+        // Assert
+        for (actual, expected) in actual {
+            assert_eq!(actual, expected);
+            assert!(!actual.is_best_effort());
+        }
     }
 
     #[test]

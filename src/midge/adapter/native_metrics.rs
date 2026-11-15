@@ -47,13 +47,20 @@ impl Midge {
 }
 
 #[cfg(feature = "replay-benchmark-observation")]
-/// Calls to Midge's native commit on the observing thread only.
+/// Native commit calls on the observing thread. Per-policy counters count
+/// attempts, including failed or outcome-unknown calls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub struct NativeCommitObservation {
     pub attempted: u64,
+    pub first_policy: Option<&'static str>,
     pub succeeded: u64,
     pub failed: u64,
     pub outcome_unknown: u64,
+    pub local_sync_attempts: u64,
+    pub local_buffered_attempts: u64,
+    pub cloud_async_attempts: u64,
+    pub cloud_strict_attempts: u64,
+    pub best_effort_attempts: u64,
 }
 
 #[cfg(feature = "replay-benchmark-observation")]
@@ -96,11 +103,33 @@ pub fn observe_native_commits<T>(operation: impl FnOnce() -> T) -> (T, NativeCom
 
 #[cfg(feature = "replay-benchmark-observation")]
 pub(super) fn observe_native_commit<T>(
+    options: cntryl_midge::WriteOptions,
     operation: impl FnOnce() -> Result<T, cntryl_midge::MidgeError>,
 ) -> Result<T, cntryl_midge::MidgeError> {
     COMMITS.with(|commits| {
         if let Some(mut observed) = commits.get() {
             observed.attempted = observed.attempted.saturating_add(1);
+            let (name, count) = match options.policy() {
+                cntryl_midge::DurabilityPolicy::Sync => {
+                    ("local_sync", &mut observed.local_sync_attempts)
+                }
+                cntryl_midge::DurabilityPolicy::Buffered => {
+                    ("local_buffered", &mut observed.local_buffered_attempts)
+                }
+                cntryl_midge::DurabilityPolicy::CloudAsync => {
+                    ("cloud_async", &mut observed.cloud_async_attempts)
+                }
+                cntryl_midge::DurabilityPolicy::CloudStrict => {
+                    ("cloud_strict", &mut observed.cloud_strict_attempts)
+                }
+                cntryl_midge::DurabilityPolicy::BestEffort => {
+                    ("best_effort", &mut observed.best_effort_attempts)
+                }
+            };
+            *count = count.saturating_add(1);
+            if observed.first_policy.is_none() {
+                observed.first_policy = Some(name);
+            }
             commits.set(Some(observed));
         }
     });

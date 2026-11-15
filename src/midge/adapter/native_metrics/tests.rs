@@ -100,10 +100,10 @@ fn should_distinguish_failed_native_commit_outcomes() {
 
     // Act
     let ((), observation) = observe_native_commits(|| {
-        let _ = observe_native_commit::<()>(|| {
+        let _ = observe_native_commit::<()>(cntryl_midge::WriteOptions::sync(), || {
             Err(cntryl_midge::MidgeError::Internal("failed".into()))
         });
-        let _ = observe_native_commit::<()>(|| {
+        let _ = observe_native_commit::<()>(cntryl_midge::WriteOptions::sync(), || {
             Err(cntryl_midge::MidgeError::OutcomeUnknown("unknown".into()))
         });
     });
@@ -113,4 +113,35 @@ fn should_distinguish_failed_native_commit_outcomes() {
     assert_eq!(observation.succeeded, 0);
     assert_eq!(observation.failed, 1);
     assert_eq!(observation.outcome_unknown, 1);
+}
+
+#[cfg(feature = "replay-benchmark-observation")]
+#[test]
+fn should_report_native_commit_attempts_by_selected_policy() {
+    // Arrange
+    use super::observe_native_commit;
+    use cntryl_midge::WriteOptions;
+
+    // Act
+    let ((), observation) = observe_native_commits(|| {
+        for options in [
+            WriteOptions::sync(),
+            WriteOptions::buffered(),
+            WriteOptions::cloud_async(),
+            WriteOptions::cloud_strict(),
+            WriteOptions::best_effort(),
+        ] {
+            observe_native_commit(options, || Ok::<_, cntryl_midge::MidgeError>(())).unwrap();
+        }
+    });
+
+    // Assert
+    assert_eq!(observation.first_policy, Some("local_sync"));
+    assert_eq!(observation.attempted, 5);
+    assert_eq!(observation.succeeded, 5);
+    assert_eq!(observation.local_sync_attempts, 1);
+    assert_eq!(observation.local_buffered_attempts, 1);
+    assert_eq!(observation.cloud_async_attempts, 1);
+    assert_eq!(observation.cloud_strict_attempts, 1);
+    assert_eq!(observation.best_effort_attempts, 1);
 }

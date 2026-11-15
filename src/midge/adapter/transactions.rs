@@ -48,7 +48,8 @@ fn commit_native_transaction(
         ));
     }
     #[cfg(feature = "replay-benchmark-observation")]
-    let result = super::native_metrics::observe_native_commit(|| transaction.commit(options));
+    let result =
+        super::native_metrics::observe_native_commit(options, || transaction.commit(options));
     #[cfg(not(feature = "replay-benchmark-observation"))]
     let result = transaction.commit(options);
     #[cfg(test)]

@@ -1,4 +1,4 @@
-//! Local strict-durability replay evidence. One process owns one fresh engine.
+//! Local strict or buffered replay evidence. One process owns one fresh engine.
 //! Results report foreground native commits and engine-wide sync counters separately.
 
 use cassie::app::{Cassie, ProjectionReplayBatch, ProjectionReplayEvent};
@@ -6,6 +6,10 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::midge::adapter::observe_native_commits;
 use serde_json::json;
 use std::time::Instant;
+
+#[path = "tier3_replay_durability/mode.rs"]
+mod mode;
+use mode::ReplayMode;
 
 fn parameter(name: &str, default: usize) -> usize {
     let value = std::env::var(name).map_or(default, |value| {
@@ -17,7 +21,42 @@ fn parameter(name: &str, default: usize) -> usize {
     value
 }
 
+fn prepare_batches(
+    projection: &str,
+    batches: usize,
+    batch_size: usize,
+) -> Vec<ProjectionReplayBatch> {
+    (0..batches)
+        .map(|batch| {
+            let events = (0..batch_size)
+                .map(|index| {
+                    let number = batch
+                        .checked_mul(batch_size)
+                        .and_then(|n| n.checked_add(index + 1))
+                        .expect("batch event count overflow");
+                    ProjectionReplayEvent {
+                        event_id: format!("event-{number}"),
+                        checkpoint: format!("checkpoint-{number}"),
+                        position: Some(u64::try_from(number).expect("event position fits u64")),
+                        document_id: format!("doc-{number}"),
+                        payload: Some(json!({"title": format!("title-{}", number % 16)})),
+                    }
+                })
+                .collect();
+            ProjectionReplayBatch {
+                projection: projection.to_owned(),
+                source_identity: "replay-benchmark".to_owned(),
+                batch_id: format!("batch-{batch}"),
+                lag: 0,
+                events,
+            }
+        })
+        .collect()
+}
+
 fn main() {
+    let mode = ReplayMode::parse(std::env::var_os("CASSIE_REPLAY_BENCH_MODE").as_deref())
+        .unwrap_or_else(|error| panic!("{error}"));
     let batch_size = parameter("CASSIE_REPLAY_BENCH_BATCH_SIZE", 64);
     let batches = parameter("CASSIE_REPLAY_BENCH_BATCHES", 32);
     let total_events = batches
@@ -41,32 +80,7 @@ fn main() {
             .expect("fixture DDL");
     }
     let projection = cassie.midge.canonical_collection_name("replay_bench");
-    let inputs: Vec<_> = (0..batches)
-        .map(|batch| {
-            let events = (0..batch_size)
-                .map(|index| {
-                    let number = batch
-                        .checked_mul(batch_size)
-                        .and_then(|n| n.checked_add(index + 1))
-                        .expect("batch event count overflow");
-                    ProjectionReplayEvent {
-                        event_id: format!("event-{number}"),
-                        checkpoint: format!("checkpoint-{number}"),
-                        position: Some(u64::try_from(number).expect("event position fits u64")),
-                        document_id: format!("doc-{number}"),
-                        payload: Some(json!({"title": format!("title-{}", number % 16)})),
-                    }
-                })
-                .collect();
-            ProjectionReplayBatch {
-                projection: projection.clone(),
-                source_identity: "replay-benchmark".to_owned(),
-                batch_id: format!("batch-{batch}"),
-                lag: 0,
-                events,
-            }
-        })
-        .collect();
+    let inputs = prepare_batches(&projection, batches, batch_size);
     let setup_ns = setup_start.elapsed().as_nanos();
     let before = cassie
         .midge
@@ -76,8 +90,16 @@ fn main() {
     let measured_start = Instant::now();
     for batch in inputs {
         let start = Instant::now();
-        let (report, commits) = observe_native_commits(|| cassie.replay_projection_batch(batch));
+        let (report, commits) = observe_native_commits(|| match mode {
+            ReplayMode::Strict => cassie.replay_projection_batch_strict(batch),
+            ReplayMode::Buffered => cassie.replay_projection_batch(batch),
+        });
         let elapsed_ns = start.elapsed().as_nanos();
+        assert_eq!(
+            commits.first_policy,
+            Some(mode.native_policy()),
+            "native replay commit must match the selected benchmark profile"
+        );
         let report = report.expect("replay batch");
         assert_eq!(
             report.applied_event_count,
@@ -101,7 +123,8 @@ fn main() {
         "{}",
         json!({
             "source": source,
-            "mode": "local_strict",
+            "mode": mode.label(),
+            "replay_api": mode.api(),
             "os": std::env::consts::OS,
             "arch": std::env::consts::ARCH,
             "storage_path": path,

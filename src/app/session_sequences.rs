@@ -1,9 +1,13 @@
 //! Session-local sequence history for `currval` and `lastval`, and the
 //! sequence positions a rolled-back `TRUNCATE ... RESTART IDENTITY` restores.
+#[cfg(test)]
+#[path = "session_sequences/discard_restart_tests.rs"]
+mod discard_restart_tests;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::{CassieError, CassieSession};
+use super::{CassieError, CassieSession, SessionTransactionStatus};
 use crate::catalog::{SequenceCursor, SequenceError};
 
 /// Writes a sequence position back when its transaction rolls back.
@@ -86,9 +90,49 @@ impl CassieSession {
     }
 
     /// `DISCARD SEQUENCES`: forgets this session's `currval`/`lastval`
-    /// history without changing any sequence.
+    /// history without changing any sequence or active rollback restoration.
     pub(crate) fn discard_sequence_values(&self) {
-        *self.sequence_values.lock() = SessionSequenceValues::default();
+        self.discard_sequence_values_inner(|| {}, |_| {});
+    }
+
+    fn discard_sequence_values_inner(
+        &self,
+        on_contended: impl FnOnce(),
+        after_status: impl FnOnce(Option<SessionTransactionStatus>),
+    ) {
+        #[cfg(not(test))]
+        let mut values = {
+            let _ = on_contended;
+            self.sequence_values.lock()
+        };
+        #[cfg(test)]
+        let mut values = if let Some(values) = self.sequence_values.try_lock() {
+            values
+        } else {
+            on_contended();
+            self.sequence_values.lock()
+        };
+        let orphaned = self.with_root_transaction_status_locked(|status| {
+            after_status(status);
+            values.by_sequence = HashMap::new();
+            values.last = None;
+            if status == Some(SessionTransactionStatus::Idle) {
+                std::mem::take(&mut values.restarts)
+            } else {
+                Vec::new()
+            }
+        });
+        drop(values);
+        drop(orphaned);
+    }
+
+    #[cfg(test)]
+    fn discard_sequence_values_observed(
+        &self,
+        on_contended: impl FnOnce(),
+        after_status: impl FnOnce(Option<SessionTransactionStatus>),
+    ) {
+        self.discard_sequence_values_inner(on_contended, after_status);
     }
 
     /// `lastval`.
@@ -96,7 +140,17 @@ impl CassieSession {
     /// # Errors
     /// Returns `55000` before this session called `nextval`.
     pub(crate) fn last_sequence_value(&self) -> Result<i64, CassieError> {
+        self.last_sequence_value_inner(|| {})
+    }
+
+    #[cfg(test)]
+    fn last_sequence_value_observed(&self, after_lock: impl FnOnce()) -> Result<i64, CassieError> {
+        self.last_sequence_value_inner(after_lock)
+    }
+
+    fn last_sequence_value_inner(&self, after_lock: impl FnOnce()) -> Result<i64, CassieError> {
         let values = self.sequence_values.lock();
+        after_lock();
         let (name, identity) = values
             .last
             .as_ref()

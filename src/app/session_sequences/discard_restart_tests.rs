@@ -1,0 +1,511 @@
+//! DISCARD forgets session sequence history without losing rollback work.
+
+use crate::app::{Cassie, CassieError, CassieSession};
+use crate::catalog::SequenceCursor;
+use crate::config::CassieRuntimeConfig;
+use crate::types::Value;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
+use std::sync::Arc;
+use std::time::Duration;
+
+fn fixture() -> (Cassie, CassieSession, String, SequenceCursor) {
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE discard_restart_probe (id SERIAL PRIMARY KEY, payload TEXT)",
+            vec![],
+        )
+        .expect("committed identity table");
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO discard_restart_probe (payload) VALUES ('retained')",
+            vec![],
+        )
+        .expect("committed row");
+    let sequence = cassie
+        .catalog
+        .list_sequences()
+        .into_iter()
+        .find(|sequence| {
+            sequence.owned_by.as_ref().is_some_and(|owner| {
+                crate::catalog::name_matches(&owner.table, "discard_restart_probe")
+            })
+        })
+        .expect("owned sequence");
+    assert!(!cassie
+        .midge
+        .is_private_sequence(&sequence)
+        .expect("native sequence route"));
+    cassie
+        .execute_sql(
+            &session,
+            &format!("SELECT setval('{}', 39, true)", sequence.name),
+            vec![],
+        )
+        .expect("seed cursor");
+    let advanced = cassie
+        .execute_sql(
+            &session,
+            &format!("SELECT nextval('{}')", sequence.name),
+            vec![],
+        )
+        .expect("seed session history");
+    assert_eq!(advanced.rows(), &[vec![Value::Int64(40)]]);
+    let prior = cursor(&cassie, &sequence.name);
+    (cassie, session, sequence.name, prior)
+}
+
+fn cursor(cassie: &Cassie, name: &str) -> SequenceCursor {
+    cassie
+        .midge
+        .get_sequence(name)
+        .expect("read native sequence")
+        .expect("sequence exists")
+        .cursor()
+}
+
+fn assert_history_missing(cassie: &Cassie, session: &CassieSession, name: &str) {
+    for sql in [
+        format!("SELECT currval('{name}')"),
+        "SELECT lastval()".to_owned(),
+    ] {
+        let result = cassie.execute_sql(session, &sql, vec![]);
+        let error = result.expect_err("discarded history is unavailable");
+        assert_eq!(error.descriptor().sql_state, "55000", "{sql}: {error}");
+    }
+}
+
+fn assert_history_is_40(cassie: &Cassie, session: &CassieSession, name: &str) {
+    for sql in [
+        format!("SELECT currval('{name}')"),
+        "SELECT lastval()".to_owned(),
+    ] {
+        let result = cassie
+            .execute_sql(session, &sql, vec![])
+            .expect("sequence history");
+        assert_eq!(result.rows(), &[vec![Value::Int64(40)]]);
+    }
+}
+
+#[test]
+fn should_remove_idle_orphan_restorers_when_discarding_sequence_history() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    let called = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&called);
+    let restorer: super::SequenceRestorer = Arc::new(move |_, _| {
+        observed.store(true, Ordering::SeqCst);
+    });
+    session.record_sequence_restart(&name, prior, &restorer);
+    assert_eq!(session.transaction_status(), "idle");
+
+    // Act
+    session.discard_sequence_values();
+    cassie
+        .execute_sql(&session, "BEGIN", vec![])
+        .expect("begin");
+    cassie
+        .execute_sql(&session, "ROLLBACK", vec![])
+        .expect("rollback");
+
+    // Assert
+    assert!(!called.load(Ordering::SeqCst));
+    assert_eq!(cursor(&cassie, &name), prior);
+    assert_history_missing(&cassie, &session, &name);
+}
+
+#[test]
+fn should_preserve_restart_when_discarding_history_in_failed_transaction() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    cassie
+        .execute_sql(&session, "BEGIN", vec![])
+        .expect("begin");
+    cassie
+        .execute_sql(
+            &session,
+            "TRUNCATE discard_restart_probe RESTART IDENTITY",
+            vec![],
+        )
+        .expect("restart");
+    assert_ne!(cursor(&cassie, &name), prior);
+    session.mark_transaction_failed();
+
+    // Act
+    session.discard_sequence_values();
+    cassie
+        .execute_sql(&session, "ROLLBACK", vec![])
+        .expect("rollback");
+
+    // Assert
+    assert_eq!(cursor(&cassie, &name), prior);
+    assert_history_missing(&cassie, &session, &name);
+}
+
+#[test]
+fn should_preserve_restart_when_discarding_history_in_implicit_transaction() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    session
+        .begin_implicit_transaction()
+        .expect("implicit begin");
+    cassie
+        .execute_sql(
+            &session,
+            "TRUNCATE discard_restart_probe RESTART IDENTITY",
+            vec![],
+        )
+        .expect("restart");
+    assert_ne!(cursor(&cassie, &name), prior);
+
+    // Act
+    session.discard_sequence_values();
+    session.rollback_transaction();
+
+    // Assert
+    assert_eq!(cursor(&cassie, &name), prior);
+    assert_history_missing(&cassie, &session, &name);
+}
+
+#[test]
+fn should_preserve_root_restorer_when_detached_fork_is_idle() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    session.begin_transaction(None).expect("root transaction");
+    let called = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&called);
+    let restorer: super::SequenceRestorer = Arc::new(move |_, _| {
+        observed.store(true, Ordering::SeqCst);
+    });
+    session.record_sequence_restart(&name, prior, &restorer);
+    let fork = session.fork_statement_batch().expect("detached fork");
+    fork.session().force_idle_for_discard_test();
+
+    // Act
+    fork.session().discard_sequence_values();
+    session.rollback_transaction();
+
+    // Assert
+    assert!(called.load(Ordering::SeqCst));
+    assert_eq!(cursor(&cassie, &name), prior);
+}
+
+#[test]
+fn should_make_progress_when_lastval_and_discard_share_sequence_state() {
+    const CASE: &str = "discard-lastval-lock-order";
+    const TEST: &str = "app::session_sequences::discard_restart_tests::should_make_progress_when_lastval_and_discard_share_sequence_state";
+    if !crate::app::query_failure_watchdog::enter_child(TEST, CASE) {
+        return;
+    }
+    {
+        // Arrange
+        let (cassie, session, _, _) = fixture();
+        let (held_tx, held_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let last_session = session.clone();
+        let last = std::thread::spawn(move || {
+            last_session.last_sequence_value_observed(|| {
+                held_tx.send(()).expect("sequence lock observed");
+                release_rx.recv().expect("release lastval");
+            })
+        });
+        held_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("lastval holds sequence lock");
+        let (contended_tx, contended_rx) = mpsc::channel();
+        let discard_session = session.clone();
+
+        // Act
+        let discard = std::thread::spawn(move || {
+            discard_session.discard_sequence_values_observed(
+                || contended_tx.send(()).expect("discard contention observed"),
+                |_| {},
+            );
+        });
+        contended_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("discard attempts sequence lock");
+        release_tx.send(()).expect("release lastval");
+        let value = last.join().expect("lastval worker").expect("last value");
+        discard.join().expect("discard worker");
+
+        // Assert
+        assert_eq!(value, 40);
+        assert_eq!(
+            session
+                .last_sequence_value()
+                .expect_err("discarded history")
+                .descriptor()
+                .sql_state,
+            "55000"
+        );
+        drop(cassie);
+    }
+    crate::app::query_failure_watchdog::complete_child(CASE);
+}
+
+#[test]
+fn should_preserve_new_transaction_restorer_when_begin_waits_for_idle_discard() {
+    const CASE: &str = "discard-begin-lock-order";
+    const TEST: &str = "app::session_sequences::discard_restart_tests::should_preserve_new_transaction_restorer_when_begin_waits_for_idle_discard";
+    if !crate::app::query_failure_watchdog::enter_child(TEST, CASE) {
+        return;
+    }
+    {
+        // Arrange
+        let (cassie, session, name, prior) = fixture();
+        let (locked_tx, locked_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let discard_session = session.clone();
+        let discard = std::thread::spawn(move || {
+            discard_session.discard_sequence_values_observed(
+                || {},
+                |status| {
+                    assert_eq!(status, Some(crate::app::SessionTransactionStatus::Idle));
+                    locked_tx
+                        .send(())
+                        .expect("idle status observed under transaction lock");
+                    release_rx.recv().expect("release discard");
+                },
+            );
+        });
+        locked_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("discard holds transaction lock");
+        let called = Arc::new(AtomicBool::new(false));
+        let observed = Arc::clone(&called);
+        let (contended_tx, contended_rx) = mpsc::channel();
+        let begin_session = session.clone();
+
+        // Act
+        let begin = std::thread::spawn(move || {
+            begin_session
+                .begin_transaction_observed(contended_tx)
+                .expect("begin after discard");
+            let restorer: super::SequenceRestorer =
+                Arc::new(move |_, _| observed.store(true, Ordering::SeqCst));
+            begin_session.record_sequence_restart(&name, prior, &restorer);
+        });
+        contended_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("begin contends on transaction lock");
+        release_tx.send(()).expect("release discard");
+        discard.join().expect("discard worker");
+        begin.join().expect("begin worker");
+        session.rollback_transaction();
+
+        // Assert
+        assert!(called.load(Ordering::SeqCst));
+        assert_eq!(session.transaction_status(), "idle");
+        drop(cassie);
+    }
+    crate::app::query_failure_watchdog::complete_child(CASE);
+}
+
+#[test]
+fn should_restore_identity_restart_after_discard_sequences_rollback() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    assert_history_is_40(&cassie, &session, &name);
+    cassie
+        .execute_sql(&session, "BEGIN", vec![])
+        .expect("begin");
+    cassie
+        .execute_sql(
+            &session,
+            "TRUNCATE discard_restart_probe RESTART IDENTITY",
+            vec![],
+        )
+        .expect("restart identity");
+    let restarted = cursor(&cassie, &name);
+    assert_ne!(restarted, prior);
+
+    // Act
+    cassie
+        .execute_sql(&session, "DISCARD SEQUENCES", vec![])
+        .expect("discard history");
+    cassie
+        .execute_sql(&session, "ROLLBACK", vec![])
+        .expect("rollback");
+    let restored = cursor(&cassie, &name);
+    let observer = cassie.create_session("observer", None);
+    let rows = cassie
+        .execute_sql(
+            &observer,
+            "SELECT payload FROM discard_restart_probe",
+            vec![],
+        )
+        .expect("independent row read");
+
+    // Assert
+    assert_eq!(restored, prior);
+    assert_eq!(rows.rows(), &[vec![Value::String("retained".into())]]);
+    assert_history_missing(&cassie, &session, &name);
+}
+
+#[test]
+fn should_keep_identity_restart_after_discard_sequences_commit() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    cassie
+        .execute_sql(&session, "BEGIN", vec![])
+        .expect("begin");
+    cassie
+        .execute_sql(
+            &session,
+            "TRUNCATE discard_restart_probe RESTART IDENTITY",
+            vec![],
+        )
+        .expect("restart identity");
+    let restarted = cursor(&cassie, &name);
+    assert_ne!(restarted, prior);
+
+    // Act
+    cassie
+        .execute_sql(&session, "DISCARD SEQUENCES", vec![])
+        .expect("discard history");
+    cassie
+        .execute_sql(&session, "COMMIT", vec![])
+        .expect("commit");
+    let committed = cursor(&cassie, &name);
+    let observer = cassie.create_session("observer", None);
+    let rows = cassie
+        .execute_sql(
+            &observer,
+            "SELECT payload FROM discard_restart_probe",
+            vec![],
+        )
+        .expect("independent row read");
+
+    // Assert
+    assert_eq!(committed, restarted);
+    assert_eq!(rows.rows(), &[] as &[Vec<Value>]);
+    assert_history_missing(&cassie, &session, &name);
+}
+
+#[test]
+fn should_forget_sequence_history_without_rewinding_outside_transaction() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    assert_history_is_40(&cassie, &session, &name);
+
+    // Act
+    cassie
+        .execute_sql(&session, "DISCARD SEQUENCES", vec![])
+        .expect("discard history");
+    let after = cursor(&cassie, &name);
+
+    // Assert
+    assert_eq!(after, prior);
+    assert_history_missing(&cassie, &session, &name);
+    let next = cassie
+        .execute_sql(&session, &format!("SELECT nextval('{name}')"), vec![])
+        .expect("next value");
+    assert_eq!(next.rows(), &[vec![Value::Int64(41)]]);
+}
+
+#[test]
+fn should_restore_identity_restart_after_normal_rollback() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    cassie
+        .execute_sql(&session, "BEGIN", vec![])
+        .expect("begin");
+    cassie
+        .execute_sql(
+            &session,
+            "TRUNCATE discard_restart_probe RESTART IDENTITY",
+            vec![],
+        )
+        .expect("restart identity");
+    let restarted = cursor(&cassie, &name);
+
+    // Act
+    cassie
+        .execute_sql(&session, "ROLLBACK", vec![])
+        .expect("rollback");
+    let restored = cursor(&cassie, &name);
+    let observer = cassie.create_session("observer", None);
+    let rows = cassie
+        .execute_sql(
+            &observer,
+            "SELECT payload FROM discard_restart_probe",
+            vec![],
+        )
+        .expect("independent row read");
+
+    // Assert
+    assert_ne!(restarted, prior);
+    assert_eq!(restored, prior);
+    assert_eq!(rows.rows(), &[vec![Value::String("retained".into())]]);
+    assert_history_is_40(&cassie, &session, &name);
+}
+
+#[test]
+fn should_reject_discard_all_without_losing_restart_restoration() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    cassie
+        .execute_sql(&session, "BEGIN", vec![])
+        .expect("begin");
+    cassie
+        .execute_sql(
+            &session,
+            "TRUNCATE discard_restart_probe RESTART IDENTITY",
+            vec![],
+        )
+        .expect("restart identity");
+    let restarted = cursor(&cassie, &name);
+
+    // Act
+    let result = cassie.execute_sql(&session, "DISCARD ALL", vec![]);
+    let failed = session.is_transaction_failed();
+    cassie
+        .execute_sql(&session, "ROLLBACK", vec![])
+        .expect("rollback failed block");
+    let restored = cursor(&cassie, &name);
+    let observer = cassie.create_session("observer", None);
+    let rows = cassie
+        .execute_sql(
+            &observer,
+            "SELECT payload FROM discard_restart_probe",
+            vec![],
+        )
+        .expect("independent row read");
+
+    // Assert
+    let error: CassieError = result.expect_err("DISCARD ALL rejected in transaction");
+    assert_eq!(error.descriptor().sql_state, "25001");
+    assert!(failed);
+    assert_ne!(restarted, prior);
+    assert_eq!(restored, prior);
+    assert_eq!(rows.rows(), &[vec![Value::String("retained".into())]]);
+    assert_history_is_40(&cassie, &session, &name);
+}
+
+#[test]
+fn should_forget_sequence_history_after_discard_all_outside_transaction() {
+    // Arrange
+    let (cassie, session, name, prior) = fixture();
+    assert_history_is_40(&cassie, &session, &name);
+
+    // Act
+    cassie
+        .execute_sql(&session, "DISCARD ALL", vec![])
+        .expect("discard all");
+    let after = cursor(&cassie, &name);
+
+    // Assert
+    assert_eq!(after, prior);
+    assert_history_missing(&cassie, &session, &name);
+    let next = cassie
+        .execute_sql(&session, &format!("SELECT nextval('{name}')"), vec![])
+        .expect("next value");
+    assert_eq!(next.rows(), &[vec![Value::Int64(41)]]);
+}

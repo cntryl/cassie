@@ -849,11 +849,12 @@ fn statement_binding_context(
         || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
         |session| cassie.binding_search_path(session),
     );
-    if cassie.database_catalog_enforced() {
+    let context = if cassie.database_catalog_enforced() {
         crate::sql::binder::BindingContext::scoped(database, search_path)
     } else {
         crate::sql::binder::BindingContext::unscoped(database, search_path)
-    }
+    };
+    context.with_unqualified_database(cassie.default_database.clone())
 }
 
 fn exists_binding_context(

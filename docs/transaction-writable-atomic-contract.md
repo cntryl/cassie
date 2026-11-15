@@ -1,8 +1,7 @@
 # Atomic transaction writable check
 
-Status: #1292 is implemented in the local candidate but unqualified. The child is
-based on the #1291 integrated head `5a1bdbca4e2cb56b5d3099248521ef370e2332d6`
-while that prerequisite is qualifying; rebase and review after its merge.
+Status: #1292 is implemented in the local candidate but unqualified. Its #1291
+prerequisite merged at `eecde895576fc52d3015385c8143d39d2fc006d8`.
 This is a bounded internal failure-transition fix, not completion of #1290's
 query/pgwire error ownership or #1279's effect admission and durability mode.
 

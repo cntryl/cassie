@@ -1,6 +1,6 @@
 # ReadyForQuery transaction status snapshot
 
-Status: #1291; selected source-backed contract, not implemented or qualified.
+Status: #1291; implemented in the local candidate, not yet qualified.
 This fixes a point-in-time wire-status race and does not implement #1290's
 operation-owned failure handling, transaction retirement or #1279 admission.
 
@@ -17,8 +17,9 @@ explicitly selected wire mapping rather than silently becoming Idle.
 At baseline `12431805adee449eb2775116faadde724c7ae8d6`, the writer reads
 `is_transaction_failed` and `is_transaction_active` using separate lock
 acquisitions. If active A becomes Failed between those reads, both predicates are
-false and the writer can emit `I`, even though A was never Idle. The selected projection exposes the existing status enum only within the crate
-and captures its Copy value with one mutex acquisition. The public
+false and the writer can emit `I`, even though A was never Idle. The selected
+projection exposes the existing status enum only within the crate and captures
+its Copy value with one mutex acquisition. The public
 `transaction_status()` delegates to that snapshot and keeps its existing strings;
 the writer exhaustively maps the typed variants. This makes a future status
 variant require an explicit mapping instead of silently reporting Idle. The

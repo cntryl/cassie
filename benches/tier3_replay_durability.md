@@ -11,8 +11,7 @@ order, repeat runs, and record host, build, source commit and instrumentation
 commit identities. The source label is provided by the operator and must be
 verified against Git; it is not automatically attested by the driver.
 
-Once the assembler has registered the `replay-benchmark-observation` feature
-and this bench target in each comparison checkout, a representative invocation is:
+With the `replay-benchmark-observation` feature enabled, a representative invocation is:
 
 ```sh
 CASSIE_REPLAY_BENCH_SOURCE='<source-and-instrumentation-commits>' CASSIE_REPLAY_BENCH_BATCH_SIZE=64 CASSIE_REPLAY_BENCH_BATCHES=32 cargo bench --locked --features replay-benchmark-observation --bench tier3_replay_durability

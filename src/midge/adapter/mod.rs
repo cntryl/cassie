@@ -29,6 +29,12 @@ pub(crate) use column_batch_format_v1::NumericValues;
 mod collection_gates;
 mod core;
 pub mod fulltext_retrieval;
+#[cfg(feature = "replay-benchmark-observation")]
+mod native_metrics;
+#[cfg(feature = "replay-benchmark-observation")]
+pub use native_metrics::{
+    observe_native_commits, NativeCommitObservation, NativeDurabilityMetrics,
+};
 mod object_comments;
 mod publication;
 mod role_object_grants;

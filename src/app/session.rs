@@ -129,7 +129,7 @@ struct SessionSavepoint {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SessionTransactionStatus {
+pub(crate) enum SessionTransactionStatus {
     Idle,
     InTransaction,
     Failed,
@@ -308,9 +308,13 @@ impl CassieSession {
         self.access != SessionAccess::TrustedEmbedded
     }
 
+    pub(crate) fn transaction_status_snapshot(&self) -> SessionTransactionStatus {
+        self.transaction.lock().status
+    }
+
     #[must_use]
     pub fn transaction_status(&self) -> &'static str {
-        match self.transaction.lock().status {
+        match self.transaction_status_snapshot() {
             SessionTransactionStatus::Idle => "idle",
             SessionTransactionStatus::InTransaction => "in_transaction",
             SessionTransactionStatus::Failed => "failed",

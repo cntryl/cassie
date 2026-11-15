@@ -523,13 +523,29 @@ pub(super) async fn write_ready_for_query(
     write_half: &mut (impl AsyncWrite + Unpin),
     session: &CassieSession,
 ) -> io::Result<()> {
-    let status = if session.is_transaction_failed() {
-        b'E'
-    } else if session.is_transaction_active() {
-        b'T'
-    } else {
-        b'I'
+    write_ready_for_query_inner(write_half, session, || {}).await
+}
+
+#[cfg(test)]
+async fn write_ready_for_query_observed(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    after_snapshot: impl FnOnce(),
+) -> io::Result<()> {
+    write_ready_for_query_inner(write_half, session, after_snapshot).await
+}
+
+async fn write_ready_for_query_inner(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    after_snapshot: impl FnOnce(),
+) -> io::Result<()> {
+    let status = match session.transaction_status_snapshot() {
+        crate::app::SessionTransactionStatus::Idle => b'I',
+        crate::app::SessionTransactionStatus::InTransaction => b'T',
+        crate::app::SessionTransactionStatus::Failed => b'E',
     };
+    after_snapshot();
     write_backend_frame(write_half, b'Z', &[status]).await
 }
 
@@ -588,7 +604,108 @@ pub(super) fn result_format_for_index(result_formats: &[i16], index: usize) -> i
 
 #[cfg(test)]
 mod tests {
-    use super::{append_backend_frame, is_backend_frame_too_large, MAX_BACKEND_FRAME_BYTES};
+    use super::{
+        append_backend_frame, is_backend_frame_too_large, write_ready_for_query,
+        write_ready_for_query_observed, MAX_BACKEND_FRAME_BYTES,
+    };
+    use crate::app::CassieSession;
+
+    fn session() -> CassieSession {
+        CassieSession::new("tester".to_owned(), None)
+    }
+
+    fn ready_frame(session: &CassieSession) -> Vec<u8> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let mut output = Vec::new();
+        runtime
+            .block_on(write_ready_for_query(&mut output, session))
+            .expect("ready frame");
+        output
+    }
+
+    #[test]
+    fn should_encode_idle_ready_status() {
+        // Arrange
+        let session = session();
+
+        // Act
+        let output = ready_frame(&session);
+
+        // Assert
+        assert_eq!(output, [b'Z', 0, 0, 0, 5, b'I']);
+        assert_eq!(session.transaction_status(), "idle");
+    }
+
+    #[test]
+    fn should_encode_active_ready_status() {
+        // Arrange
+        let session = session();
+        session.begin_transaction(None).expect("begin");
+
+        // Act
+        let output = ready_frame(&session);
+
+        // Assert
+        assert_eq!(output, [b'Z', 0, 0, 0, 5, b'T']);
+        assert_eq!(session.transaction_status(), "in_transaction");
+    }
+
+    #[test]
+    fn should_encode_failed_ready_status() {
+        // Arrange
+        let session = session();
+        session.begin_transaction(None).expect("begin");
+        session.mark_transaction_failed();
+
+        // Act
+        let output = ready_frame(&session);
+
+        // Assert
+        assert_eq!(output, [b'Z', 0, 0, 0, 5, b'E']);
+        assert_eq!(session.transaction_status(), "failed");
+    }
+
+    #[test]
+    fn should_preserve_ready_snapshot_when_transaction_fails_before_write() {
+        // Arrange
+        let session = session();
+        session.begin_transaction(None).expect("begin");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let mut output = Vec::new();
+        let (transition_tx, transition_rx) = std::sync::mpsc::sync_channel(1);
+        let concurrent_session = session.clone();
+        let mut worker = None;
+        let mut transitioned_before_write = false;
+
+        // Act: transition at the post-snapshot, pre-write boundary.
+        runtime
+            .block_on(write_ready_for_query_observed(
+                &mut output,
+                &session,
+                || {
+                    worker = Some(std::thread::spawn(move || {
+                        concurrent_session.mark_transaction_failed();
+                        transition_tx.send(()).expect("transition reported");
+                    }));
+                    transitioned_before_write = transition_rx
+                        .recv_timeout(std::time::Duration::from_secs(5))
+                        .is_ok();
+                },
+            ))
+            .expect("ready frame");
+        worker.expect("transition worker").join().expect("worker");
+
+        // Assert
+        assert!(transitioned_before_write, "snapshot must release the mutex");
+        assert_eq!(output, [b'Z', 0, 0, 0, 5, b'T']);
+        assert_eq!(session.transaction_status(), "failed");
+    }
 
     #[test]
     fn should_reject_an_individual_backend_frame_over_sixteen_mebibytes() {

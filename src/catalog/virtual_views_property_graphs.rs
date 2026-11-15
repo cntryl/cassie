@@ -238,8 +238,7 @@ fn edge_component_rows(graph: &PropertyGraphMeta) -> Vec<VirtualRow> {
                 .vertices
                 .iter()
                 .find(|vertex| vertex.alias == endpoint.vertex_alias)
-                .map(|vertex| vertex.key.as_slice())
-                .unwrap_or_default();
+                .map_or(&[][..], |vertex| vertex.key.as_slice());
             for (index, column) in endpoint.columns.iter().enumerate() {
                 let vertex_column = vertex_key.get(index).map_or("", |key| key.name.as_str());
                 rows.push(vec![

@@ -31,8 +31,11 @@ fn property(column: &str, name: &str) -> GraphProperty {
 
 #[test]
 fn should_parse_vertex_mapping_of_the_contract_example() {
-    // Arrange / Act
-    let PropertyGraphAction::Create(graph) = action(SOCIAL) else {
+    // Arrange
+    let sql = SOCIAL;
+
+    // Act
+    let PropertyGraphAction::Create(graph) = action(sql) else {
         panic!("expected CREATE");
     };
     let vertex = &graph.vertices[0];
@@ -54,8 +57,11 @@ fn should_parse_vertex_mapping_of_the_contract_example() {
 
 #[test]
 fn should_parse_edge_mapping_of_the_contract_example() {
-    // Arrange / Act
-    let PropertyGraphAction::Create(graph) = action(SOCIAL) else {
+    // Arrange
+    let sql = SOCIAL;
+
+    // Act
+    let PropertyGraphAction::Create(graph) = action(sql) else {
         panic!("expected CREATE");
     };
     let edge = &graph.edges[0];
@@ -143,9 +149,14 @@ fn should_fold_unquoted_names_but_keep_quoted_ones() {
 
 #[test]
 fn should_parse_drop_with_optional_if_exists() {
-    // Arrange / Act
-    let plain = action("DROP PROPERTY GRAPH social");
-    let guarded = action("drop property graph if exists app.social;");
+    // Arrange
+    let statements = [
+        "DROP PROPERTY GRAPH social",
+        "drop property graph if exists app.social;",
+    ];
+
+    // Act
+    let [plain, guarded] = statements.map(action);
 
     // Assert
     assert!(matches!(
@@ -160,8 +171,11 @@ fn should_parse_drop_with_optional_if_exists() {
 
 #[test]
 fn should_parse_rename() {
-    // Arrange / Act
-    let renamed = action("ALTER PROPERTY GRAPH social RENAME TO Network");
+    // Arrange
+    let sql = "ALTER PROPERTY GRAPH social RENAME TO Network";
+
+    // Act
+    let renamed = action(sql);
 
     // Assert
     assert!(matches!(

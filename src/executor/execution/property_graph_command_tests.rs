@@ -389,11 +389,7 @@ fn should_drop_a_graph_without_touching_its_tables() {
     // Assert
     assert_eq!(command, "DROP PROPERTY GRAPH");
     assert!(graph(&cassie, "social").is_none());
-    assert!(cassie
-        .midge
-        .list_property_graphs()
-        .expect("list")
-        .is_empty());
+    assert_eq!(cassie.midge.list_property_graphs().expect("list"), vec![]);
     assert_eq!(rows, 1);
 }
 

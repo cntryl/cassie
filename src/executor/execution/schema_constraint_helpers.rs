@@ -143,16 +143,15 @@ pub(super) fn alter_table_drop_constraint(
         &constrained_unique_fields,
     )?;
     constraints.retain(constraint_is_populated);
-    let primary_key_index = format!("{}_pkey", crate::catalog::local_name(table));
-    let mut removed_indexes = dropped_index.iter().map(String::as_str).collect::<Vec<_>>();
-    if !constraints.iter().any(|constraint| constraint.primary_key) {
-        removed_indexes.push(&primary_key_index);
-    }
+    let removed_indexes = released_constraint_indexes(table, &constraints, dropped_index);
     crate::executor::execution::property_graph_dependents::reject_unbacked_keys(
         cassie,
         table,
         &constraints,
-        &removed_indexes,
+        &removed_indexes
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
     )?;
     let released_unique_fields =
         unique_fields_without_constraints(&constraints, constrained_unique_fields);
@@ -168,17 +167,24 @@ pub(super) fn alter_table_drop_constraint(
         .catalog
         .register_constraints(table, constraints.clone());
 
-    if let Some(index) = dropped_index {
-        drop_constraint_index(cassie, table, &index)?;
-    }
-    if !constraints.iter().any(|constraint| constraint.primary_key) {
-        drop_constraint_index(
-            cassie,
-            table,
-            &format!("{}_pkey", crate::catalog::local_name(table)),
-        )?;
+    for index in &removed_indexes {
+        drop_constraint_index(cassie, table, index)?;
     }
     Ok(())
+}
+
+/// The indexes a constraint drop removes: the dropped constraint's own index
+/// and the primary key index once no primary key remains.
+fn released_constraint_indexes(
+    table: &str,
+    remaining: &[FieldConstraint],
+    dropped_index: Option<String>,
+) -> Vec<String> {
+    let mut indexes = dropped_index.into_iter().collect::<Vec<_>>();
+    if !remaining.iter().any(|constraint| constraint.primary_key) {
+        indexes.push(format!("{}_pkey", crate::catalog::local_name(table)));
+    }
+    indexes
 }
 
 fn constraint_index_to_drop(

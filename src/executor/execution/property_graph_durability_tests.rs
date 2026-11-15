@@ -53,7 +53,7 @@ fn should_discard_a_graph_created_in_a_rolled_back_transaction() {
     let recreate = run(&cassie, &session, SOCIAL);
 
     // Assert
-    assert!(stored.is_empty());
+    assert_eq!(stored, vec![]);
     assert!(recreate.is_ok());
 }
 

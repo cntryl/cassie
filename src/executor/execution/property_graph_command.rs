@@ -41,7 +41,7 @@ pub(super) fn execute(
     match &statement.action {
         PropertyGraphAction::Create(graph) => create(cassie, &context, graph)?,
         PropertyGraphAction::Drop { name, if_exists } => {
-            drop_graph(cassie, &context, name, *if_exists)?
+            drop_graph(cassie, &context, name, *if_exists)?;
         }
         PropertyGraphAction::Rename { name, new_name } => {
             rename(cassie, &context, name, new_name)?;

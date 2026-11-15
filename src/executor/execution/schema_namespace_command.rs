@@ -106,9 +106,10 @@ fn drop_schema_routines(cassie: &Cassie, schema: &str) -> Result<(), QueryError>
     Ok(())
 }
 
-/// Drops the routines of `schema`, then its composite, enum and domain types.
-/// Routines go first: their arguments may use the schema's types.
+/// Drops the property graphs and routines of `schema`, then its composite, enum
+/// and domain types. Routines go first: their arguments may use the schema's types.
 fn drop_schema_types(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
+    crate::executor::execution::property_graph_dependents::drop_schema_graphs(cassie, schema)?;
     drop_schema_routines(cassie, schema)?;
     drop_schema_composite_types(cassie, schema)?;
     crate::executor::execution::enum_schema_scope::drop_schema_enums(cassie, schema)?;
@@ -151,10 +152,6 @@ pub(crate) fn drop_schema(
     }
     let output = empty_command("DROP SCHEMA", controls)?;
     if statement.cascade {
-        crate::executor::execution::property_graph_dependents::drop_schema_graphs(
-            cassie,
-            &statement.schema,
-        )?;
         drop_schema_types(cassie, &statement.schema)?;
         let schema_views = cassie
             .catalog

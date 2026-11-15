@@ -1,6 +1,7 @@
 # ReadyForQuery transaction status snapshot
 
-Status: #1291; implemented in the local candidate, not yet qualified.
+Status: #1291; the full ordered local gate passed at `5a1bdbca`; final-head
+hosted qualification is pending.
 This fixes a point-in-time wire-status race and does not implement #1290's
 operation-owned failure handling, transaction retirement or #1279 admission.
 
@@ -29,8 +30,9 @@ A test-only callback after the fixed status snapshot, with the session mutex
 released, changes active A to Failed before the frame is written. Assert exactly
 `Z/T` for the captured active state and verify final session status is Failed.
 Separate direct Idle, active and Failed controls verify `Z/I`, `Z/T` and `Z/E`
-and public status strings. The callback is a deterministic interleaving, not a
-production feature. An instrumented baseline would invoke its callback between
+and public status strings. These tests passed in the full locked suite at
+`5a1bdbca`. The callback is a deterministic interleaving, not a production
+feature. An instrumented baseline would invoke its callback between
 the old status reads and produce `Z/I`; no baseline RED is claimed until that
 baseline actually runs. Avoid fixed sleeps and keep output failures observable.
 

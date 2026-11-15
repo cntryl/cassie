@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::midge::adapter::{documents::ReplayBatchCommit, DocumentWriteOp};
+use crate::midge::adapter::{
+    documents::ReplayBatchCommit, DocumentWriteOp, PublicationControlScope,
+};
 
 use super::{Cassie, CassieError};
 
@@ -139,6 +141,61 @@ impl Cassie {
         self.replay_projection_batch_with_options(batch, self.midge.write_options_strict_replay())
     }
 
+    /// Replay like [`Self::replay_projection_batch`], observing `cancellation`
+    /// together with any ambient request cancellation or deadline.
+    ///
+    /// Cancellation observed before native commit submission returns
+    /// [`CassieError::QueryCanceled`] and leaves rows, derived indexes, the event
+    /// ledger and the checkpoint unchanged; it does not mark the projection
+    /// failed, so the same batch can be retried. Once submission begins the
+    /// actual outcome is reported: a confirmed commit returns success despite a
+    /// later cancellation, and an unknown outcome stays fenced for
+    /// reconciliation and is never reported as a cancellation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when canceled before submission, or when validation,
+    /// storage, or execution fails.
+    pub fn replay_projection_batch_cancellable(
+        &self,
+        batch: ProjectionReplayBatch,
+        cancellation: &super::QueryCancellationHandle,
+    ) -> Result<ProjectionReplayReport, CassieError> {
+        let _scope = PublicationControlScope::enter_for_replay(cancellation);
+        self.replay_projection_batch_controlled(batch, self.midge.write_options_replayable())
+    }
+
+    /// Cancellable replay with local synchronous or cloud-strict durability.
+    /// See [`Self::replay_projection_batch_cancellable`] for the cancellation
+    /// contract.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when canceled before submission, or when validation,
+    /// storage, or execution fails.
+    pub fn replay_projection_batch_strict_cancellable(
+        &self,
+        batch: ProjectionReplayBatch,
+        cancellation: &super::QueryCancellationHandle,
+    ) -> Result<ProjectionReplayReport, CassieError> {
+        let _scope = PublicationControlScope::enter_for_replay(cancellation);
+        self.replay_projection_batch_controlled(batch, self.midge.write_options_strict_replay())
+    }
+
+    fn replay_projection_batch_controlled(
+        &self,
+        batch: ProjectionReplayBatch,
+        commit: cntryl_midge::WriteOptions,
+    ) -> Result<ProjectionReplayReport, CassieError> {
+        Self::validate_replay_batch(&batch)?;
+        let gated_projection = batch.projection.clone();
+        self.midge.with_collection_write_gates_interruptible(
+            std::slice::from_ref(&gated_projection),
+            PublicationControlScope::check_current,
+            || self.replay_projection_batch_gated(batch, commit),
+        )
+    }
+
     fn replay_projection_batch_with_options(
         &self,
         batch: ProjectionReplayBatch,
@@ -167,6 +224,7 @@ impl Cassie {
         let prepared =
             self.prepare_projection_replay(&metadata, stored_metadata.as_ref(), &batch)?;
         pause_projection_replay_after_prepare(&batch.batch_id);
+        PublicationControlScope::check_current()?;
         self.finalize_projection_replay(metadata, batch, prepared, stored_metadata, commit)
     }
 
@@ -253,6 +311,7 @@ impl Cassie {
             .collect();
 
         for (event, already_seen) in batch.events.iter().zip(event_seen) {
+            PublicationControlScope::check_current()?;
             duplicate_checks = duplicate_checks.saturating_add(1);
             if already_seen {
                 skipped = skipped.saturating_add(1);
@@ -361,6 +420,12 @@ impl Cassie {
         );
         let write_report = match result {
             Ok(report) => report,
+            // Interrupted before native submission: nothing was published and
+            // this is not a projection failure, so no diagnostic is persisted
+            // with the already-interrupted authority.
+            Err(error @ (CassieError::QueryCanceled | CassieError::DeadlineExceeded)) => {
+                return Err(error);
+            }
             Err(CassieError::StorageRetryable(error))
                 if error.kind() == super::StorageRetryKind::WriteStall =>
             {
@@ -388,6 +453,8 @@ impl Cassie {
                 );
             }
         };
+        // The publication is confirmed; a later cancellation cannot undo it.
+        let _terminal = PublicationControlScope::terminal_completion();
         if let Some(epoch) = write_report.data_epoch {
             self.runtime.set_data_epoch(epoch);
         }
@@ -441,3 +508,7 @@ impl Cassie {
         Err(CassieError::Execution(message))
     }
 }
+
+#[cfg(test)]
+#[path = "replay_cancellation_tests.rs"]
+mod cancellation_tests;

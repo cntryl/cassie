@@ -129,6 +129,8 @@ enum PublicationBoundary {
 struct PublicationWaitControls {
     query: Option<QueryExecutionControls>,
     rest: Option<RestWaitControls>,
+    /// Explicit replay cancellation handles, combined with ambient authority.
+    replay: Vec<QueryCancellationHandle>,
 }
 
 #[derive(Clone)]
@@ -149,6 +151,9 @@ impl PublicationWaitControls {
             if Instant::now() >= controls.deadline {
                 return Err(CassieError::DeadlineExceeded);
             }
+        }
+        if self.replay.iter().any(QueryCancellationHandle::is_canceled) {
+            return Err(CassieError::QueryCanceled);
         }
         Ok(())
     }
@@ -354,6 +359,25 @@ impl PublicationControlScope {
             deadline,
         });
         Self::replace(Some(controls))
+    }
+
+    /// Adds an explicit replay cancellation handle to the ambient authority.
+    /// Unlike [`Self::for_request`], an enclosing request never discards it.
+    pub(crate) fn enter_for_replay(cancellation: &QueryCancellationHandle) -> Self {
+        let mut controls = CURRENT_CONTROLS
+            .with(|slot| slot.borrow().clone())
+            .unwrap_or_default();
+        controls.replay.push(cancellation.clone());
+        Self::replace(Some(controls))
+    }
+
+    /// Checks the current call stack's combined cancellation and deadline.
+    pub(crate) fn check_current() -> Result<(), CassieError> {
+        CURRENT_CONTROLS.with(|slot| {
+            slot.borrow()
+                .as_ref()
+                .map_or(Ok(()), PublicationWaitControls::check_interruption)
+        })
     }
 
     pub(crate) fn current_query_controls() -> Option<QueryExecutionControls> {

@@ -88,7 +88,8 @@ impl Midge {
 
     /// Like [`Self::update_sequence`], but retries when a concurrent update to
     /// the same sequence wins the commit, so SQL callers never observe the
-    /// storage write conflict that PostgreSQL's `nextval` cannot raise.
+    /// storage write conflict that PostgreSQL's `nextval` cannot raise. A
+    /// fenced writer returns its error immediately and must recover its lease.
     ///
     /// # Errors
     ///
@@ -112,7 +113,13 @@ impl Midge {
         let mut attempt = 1;
         loop {
             match self.update_sequence(name, &mut update) {
-                Err(CassieError::StorageRetryable(_)) if attempt < MAX_ATTEMPTS => attempt += 1,
+                Err(error @ CassieError::StorageRetryable(_))
+                    if attempt < MAX_ATTEMPTS
+                        && error.storage_retry_kind()
+                            != Some(crate::app::StorageRetryKind::Fenced) =>
+                {
+                    attempt += 1;
+                }
                 outcome => return outcome,
             }
         }

@@ -356,6 +356,7 @@ impl CassieSession {
     }
 
     /// Whether a COMMIT currently owns this session's transaction.
+    #[cfg(test)]
     pub(crate) fn is_sealed_for_commit(&self) -> bool {
         self.transaction.lock().sealed_for_commit
     }

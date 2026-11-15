@@ -119,3 +119,52 @@ The remaining acceptance criteria (a reviewed debt, generation and repair
 contract, deterministic index-lifecycle and restart tests for a changed
 maintenance path, and matched latency comparison) apply to a future
 optimization and stay open on #1277.
+
+## Selected reduction: buffered intermediate hash rebuild commits (2026-11-15)
+
+Supersedes "current post-write maintenance is retained unchanged" for the eager
+projection hash rebuild only. The candidates above stay blocked; this one does
+not depend on debt identity, a retained transaction or a format change.
+
+**Change.** `rebuild_projection_hashes` commits, in order: delete the root,
+delete obsolete row and range hash keys, write row-hash chunks, write
+range-hash chunks, write the root. The first four now use the buffered policy;
+root publication, the hash metadata update, the failure record and the debt
+clear stay synchronous. `WritePolicy::buffered()` returns the buffered option
+only for local storage. Cloud-background and cloud-strict return exactly what
+`sync()` returns, so cloud behaviour is unchanged.
+
+**Why it is safe.**
+
+- Published `cntryl-midge` 0.5.2 tracks local durability as one engine-wide
+  monotonic frontier: `runtime/frontiers.rs` records "a local sync through
+  `sequence`", and `wal/fs/writer_io.rs` `write_footer` syncs a WAL segment when
+  it is sealed. A file sync covers every earlier record in the open segment and
+  sealed segments are already synced, so a synchronous commit makes every
+  earlier buffered commit durable.
+- The durable state when the function returns is therefore the same as before:
+  the synchronous root commit is the durability barrier for the whole rebuild.
+- A crash before the root commit leaves a durable prefix of the same commit
+  sequence with no root. Every such prefix was already reachable when all five
+  commits were synchronous, so recovery and reader fallback see no new state.
+- In-process visibility between commits is unchanged; buffered commits are
+  applied locally. The collection write gate, generation check, durable
+  maintenance debt and failure recording are untouched.
+- Strict replay is unaffected: its primary commit stays synchronous and the
+  acknowledgement still follows the synchronous root and debt-clear commits.
+
+Jev selected this candidate (0.94) and flagged the prefix-durability assumption
+(0.65); the two source references above are the probe that resolved it. Power
+loss cannot be exercised by a process-level test, so the ordering claim rests on
+the published source, not on a test.
+
+**Evidence.** Reopen tests for a completed and an interrupted rebuild; with the
+`replay-benchmark-observation` feature, the local durable frontier equals the
+current sequence when the rebuild returns and its commits are observed as
+buffered followed by synchronous root publication. The existing interrupted
+rebuild, process-death replay and strict or buffered replay suites continue to
+apply.
+
+**Not changed.** Column batch maintenance, the stale-marking path for large
+collections, time-series maintenance and both debt clears keep their existing
+synchronous commits.

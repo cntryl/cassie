@@ -293,21 +293,18 @@ impl Midge {
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
         tx.delete(Self::root_hash_key(&collection))
             .map_err(CassieError::from)?;
-        tx.commit(intermediate)
-            .map_err(CassieError::from)?;
+        tx.commit(intermediate).map_err(CassieError::from)?;
         for keys in obsolete_keys.chunks(PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
             let mut tx = self.begin_data_rw_tx_for(&collection)?;
             delete_keys_from_tx(&mut tx, keys)?;
-            tx.commit(intermediate)
-                .map_err(CassieError::from)?;
+            tx.commit(intermediate).map_err(CassieError::from)?;
         }
         for range in write_ranges(records.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
             let mut tx = self.begin_data_rw_tx_for(&collection)?;
             for record in &records[range] {
                 write_row_hash_record_to_tx(&mut tx, record)?;
             }
-            tx.commit(intermediate)
-                .map_err(CassieError::from)?;
+            tx.commit(intermediate).map_err(CassieError::from)?;
         }
         check_projection_output_failure_point(ProjectionOutputFailurePoint::AfterRowBatches)?;
         for range in write_ranges(ranges.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
@@ -315,8 +312,7 @@ impl Midge {
             for record in &ranges[range] {
                 write_range_hash_record_to_tx(&mut tx, record)?;
             }
-            tx.commit(intermediate)
-                .map_err(CassieError::from)?;
+            tx.commit(intermediate).map_err(CassieError::from)?;
         }
         // Root publication stays synchronous: it is the durability barrier for
         // the whole rebuild.

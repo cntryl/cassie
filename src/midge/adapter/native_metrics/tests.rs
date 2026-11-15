@@ -209,7 +209,10 @@ fn should_buffer_hash_rebuild_commits_before_synchronous_root_publication() {
     midge
         .put_documents(
             "hash_rebuild_policy",
-            vec![(Some("row-1".to_string()), serde_json::json!({"value": "one"}))],
+            vec![(
+                Some("row-1".to_string()),
+                serde_json::json!({"value": "one"}),
+            )],
         )
         .unwrap();
 

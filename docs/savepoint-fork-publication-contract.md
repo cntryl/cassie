@@ -1,8 +1,9 @@
 # Savepoint rollback and detached fork publication
 
-Status: selected #1286 / #1279 prerequisite; tests and implementation require
-review and executable qualification. This is not the transaction admission,
-replayable SQL mode, or full rollback-isolation contract.
+Status: #1286 / #1279 prerequisite. The integrated source was reviewed and the
+complete locked suite passed on `d76c9258bb3bdc862dbc0e8068a4447277b25cae`.
+This is not the transaction admission, replayable SQL mode, or full
+rollback-isolation contract.
 
 A detached statement fork records an in-memory rollback epoch from its parent
 while holding the same transaction mutex that protects the parent snapshot. A
@@ -39,8 +40,8 @@ claim broader panic recovery or atomic restoration of every session component.
 Invalidation is deliberately conservative: every in-flight older fork is
 rejected after rollback-to, including an independent fork begun before an
 internal CTAS savepoint. This avoids silently publishing work captured against
-an earlier transaction epoch. Test nested/CTAS paths and confirm their existing
-success, error and new-fork behavior before qualification.
+an earlier transaction epoch. Nested/CTAS success and failure controls passed
+in the full suite on the head identified above.
 
 Source witness at merged main `e91e92433e5d6c185166b471a06f0690d5c695d4`:
 `session/statement_batch.rs` captures generation and before-images, then checks
@@ -49,7 +50,8 @@ changing the transaction generation. `BEGIN; SAVEPOINT s;` followed by a fork
 that stages a previously absent row, `ROLLBACK TO s`, and late fork publication
 can pass the existing equal-before-image and generation checks. The regression
 must construct this order deterministically, assert no staged row survives,
-and prove a fresh post-rollback fork succeeds. No baseline test has run.
+and prove a fresh post-rollback fork succeeds. Both passed in the full suite
+on the head identified above. No baseline test has run.
 
 This epoch only fences **publication into the parent session**. It cannot undo
 or prevent an independently durable `nextval`, a COPY predicate effect, a native
@@ -61,5 +63,7 @@ fencing remain open under #1279 and are not qualified by this increment.
 Jev selected the epoch prerequisite 1.0 and identified the source schedule at
 0.90, with failed-rollback ordering risk 0.80; receipts live in the preserved
 `cassie-sql-copy-admission-1279/target/1279-design/savepoint-fork-{request,response}.json`.
-Jev is advisory; source review, focused regressions and the complete gate are
-required.
+The full suite also passed missing-savepoint, canceled preflight, exhaustion,
+new-transaction recovery and later owner-key failure controls. The unwind
+probe injects after successful pruning, not inside pruning. Jev is advisory;
+source review and executable checks do not establish broader admission.

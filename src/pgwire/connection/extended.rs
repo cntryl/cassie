@@ -133,11 +133,8 @@ pub(super) async fn handle_frontend_message(
             } else {
                 session.mark_transaction_failed();
             }
-            if cassie.check_storage_recovery_required().is_err()
-                && !session.is_transaction_active()
-                && !session.is_transaction_failed()
-            {
-                state.clear_all_portals(runtime);
+            if cassie.check_storage_recovery_required().is_err() {
+                super::transactions::clear_idle_portals(runtime, state, session);
             }
             if super::writers::write_changed_parameter_statuses(
                 write_half,
@@ -245,9 +242,7 @@ async fn dispatch_message(
                 }
                 state.clear_all_portals(runtime);
             }
-            if !session.is_transaction_active() && !session.is_transaction_failed() {
-                state.clear_all_portals(runtime);
-            }
+            super::transactions::clear_idle_portals(runtime, state, session);
             state.extended_cycle = super::transactions::ExtendedCycle::default();
             let _ = write_ready_for_query(write_half, session).await;
         }

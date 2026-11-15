@@ -20,6 +20,10 @@ const MAX_FRONTEND_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_STARTUP_MESSAGE_BYTES: usize = 64 * 1024;
 const PGWIRE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
+#[cfg(test)]
+#[path = "connection/idle_portal_snapshot_tests.rs"]
+mod idle_portal_snapshot_tests;
+
 #[path = "connection/blocking.rs"]
 mod blocking;
 #[path = "connection/codecs.rs"]
@@ -472,10 +476,10 @@ async fn handle_sync_wait(
             runtime.record_pgwire_message("sync");
             *awaiting_sync = false;
             state.extended_cycle = transactions::ExtendedCycle::default();
-            if std::mem::take(&mut state.invalidate_portals_on_sync)
-                || (!session.is_transaction_active() && !session.is_transaction_failed())
-            {
+            if std::mem::take(&mut state.invalidate_portals_on_sync) {
                 state.clear_all_portals(runtime);
+            } else {
+                transactions::clear_idle_portals(runtime, state, session);
             }
             let _ = write_ready_for_query(write_half, session).await;
         }

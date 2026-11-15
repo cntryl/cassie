@@ -621,7 +621,37 @@ fn should_adopt_own_savepoint_restore_in_real_pgwire_worker() {
 }
 
 #[test]
-fn should_fail_current_owner_after_nested_pgwire_procedure_error() {
+fn should_forward_pgwire_authority_to_idle_procedure() {
+    // Arrange: CALL is supported without an active transaction.
+    let (cassie, session) = fixture();
+    cassie
+        .execute_sql(
+            &session,
+            r#"CREATE PROCEDURE worker_error() AS "SELECT 1 / 0""#,
+            vec![],
+        )
+        .expect("create procedure");
+    let (observed_tx, observed_rx) = mpsc::sync_channel(1);
+    let _hook = super::authority_test_hooks::install_on_nested(&cassie, &session, observed_tx);
+
+    // Act
+    let result = run_entry_sql(&cassie, &session, PgwireEntry::Text, "CALL worker_error()");
+    let observed = observed_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("nested operation authority");
+    let status = session.transaction_status();
+
+    // Assert: a present authority with no owner differs from no authority.
+    assert!(
+        matches!(&result, Err(CassieError::Execution(message)) if message == "execution error: division by zero"),
+        "nested result: {result:?}"
+    );
+    assert_eq!(observed, (true, None));
+    assert_eq!(status, "idle");
+}
+
+#[test]
+fn should_reject_procedure_call_in_active_transaction() {
     // Arrange
     let (cassie, session) = fixture();
     cassie
@@ -633,24 +663,18 @@ fn should_fail_current_owner_after_nested_pgwire_procedure_error() {
         .expect("create procedure");
     session.begin_transaction(None).expect("begin");
     let owner = session.transaction_unique_owner_id();
-    let epoch = session.rollback_epoch_for_test();
-    let (observed_tx, observed_rx) = mpsc::sync_channel(1);
-    let _hook = super::authority_test_hooks::install_on_nested(&cassie, &session, observed_tx);
 
     // Act
     let result = run_entry_sql(&cassie, &session, PgwireEntry::Text, "CALL worker_error()");
-    let observed = observed_rx
-        .recv_timeout(Duration::from_secs(5))
-        .expect("nested operation authority");
     let failed = session.is_transaction_failed();
     let current = session.transaction_unique_owner_id();
     session.rollback_transaction();
 
     // Assert
     assert!(
-        matches!(result, Err(CassieError::Execution(ref message)) if message == "execution error: division by zero")
+        matches!(&result, Err(CassieError::Unsupported(message)) if message == "this DDL or catalog operation is not supported inside an active transaction"),
+        "active CALL result: {result:?}"
     );
-    assert_eq!(observed, Some((owner, epoch)));
     assert_eq!(current, owner);
     assert!(failed);
 }

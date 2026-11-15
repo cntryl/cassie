@@ -170,7 +170,7 @@ fn should_capture_replacement_after_pgwire_worker_admission() {
 }
 
 #[test]
-fn should_preserve_pgwire_unsupported_error_before_cancellation() {
+fn should_cancel_pgwire_before_installing_statement_text() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
@@ -190,8 +190,60 @@ fn should_preserve_pgwire_unsupported_error_before_cancellation() {
     session.rollback_transaction();
 
     // Assert
-    assert!(
-        matches!(result, Err(CassieError::Unsupported(ref message)) if message == "LISTEN is not supported")
-    );
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(failed);
+}
+
+#[test]
+fn should_preserve_pgwire_unsupported_error_after_statement_text_is_installed() {
+    const CASE: &str = "pgwire_cancel_after_statement_text";
+    if !crate::app::query_failure_watchdog::enter_child("app::query_prepared::authority_capture_tests::should_preserve_pgwire_unsupported_error_after_statement_text_is_installed", CASE) { return; }
+    {
+        // Arrange: the future scoped hook pauses after actual statement-text installation.
+        let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+            .expect("memory fixture");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        session.begin_transaction(None).expect("begin");
+        let owner = session.transaction_unique_owner_id();
+        let cancellation = QueryCancellationHandle::new();
+        let worker_cancellation = cancellation.clone();
+        let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+        let (resume_tx, resume_rx) = mpsc::sync_channel(1);
+        let old_cassie = cassie.clone();
+        let old_session = session.clone();
+        let worker = std::thread::spawn(move || {
+            let _hook = super::authority_test_hooks::install_after_statement_text(
+                &old_cassie,
+                &old_session,
+                ready_tx,
+                resume_rx,
+            );
+            old_cassie.execute_pgwire_sql_with_cancellation(
+                &old_session,
+                ("LISTEN channel", "LISTEN channel"),
+                &worker_cancellation,
+            )
+        });
+        ready_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("statement text installed");
+
+        // Act: cancellation now occurs before the later unsupported SQL check.
+        cancellation.cancel();
+        resume_tx.send(()).expect("resume worker");
+        let result = worker.join().expect("worker");
+        let current = session.transaction_unique_owner_id();
+        let failed = session.is_transaction_failed();
+        session.rollback_transaction();
+
+        // Assert
+        assert!(
+            matches!(&result, Err(CassieError::Unsupported(message)) if message == "LISTEN is not supported"),
+            "result: {result:?}"
+        );
+        assert_eq!(current, owner);
+        assert!(failed);
+    }
+    crate::app::query_failure_watchdog::complete_child(CASE);
 }

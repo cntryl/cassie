@@ -87,3 +87,63 @@ fn should_begin_explicit_transaction_with_explicit_origin() {
     assert!(session.is_transaction_active());
     assert!(!session.is_implicit_transaction());
 }
+
+#[test]
+fn should_preserve_implicit_origin_on_repeated_implicit_begin() {
+    // Arrange
+    let session = CassieSession::new("root".to_owned(), None);
+    session
+        .begin_implicit_transaction()
+        .expect("implicit begin");
+    session.mark_transaction_query();
+    let generation = session.transaction_generation();
+    let characteristics = session.transaction_characteristics();
+
+    // Act
+    session
+        .begin_implicit_transaction()
+        .expect("repeated begin");
+
+    // Assert
+    assert!(session.is_transaction_active());
+    assert!(session.is_implicit_transaction());
+    assert_eq!(session.transaction_generation(), generation);
+    assert_eq!(session.transaction_characteristics(), characteristics);
+}
+
+#[test]
+fn should_reject_implicit_begin_during_explicit_transaction() {
+    // Arrange
+    let session = CassieSession::new("root".to_owned(), None);
+    session.begin_transaction(None).expect("explicit begin");
+    let generation = session.transaction_generation();
+
+    // Act
+    let result = session.begin_implicit_transaction();
+
+    // Assert
+    assert!(result.is_err());
+    assert!(session.is_transaction_active());
+    assert!(!session.is_implicit_transaction());
+    assert_eq!(session.transaction_generation(), generation);
+}
+
+#[test]
+fn should_reject_implicit_begin_during_failed_transaction() {
+    // Arrange
+    let session = CassieSession::new("root".to_owned(), None);
+    session
+        .begin_implicit_transaction()
+        .expect("implicit begin");
+    session.mark_transaction_failed();
+    let generation = session.transaction_generation();
+
+    // Act
+    let result = session.begin_implicit_transaction();
+
+    // Assert
+    assert!(result.is_err());
+    assert!(session.is_transaction_failed());
+    assert!(session.is_implicit_transaction());
+    assert_eq!(session.transaction_generation(), generation);
+}

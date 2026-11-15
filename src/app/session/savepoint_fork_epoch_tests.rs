@@ -271,11 +271,9 @@ fn should_reject_old_fork_when_savepoint_pruning_unwinds() {
     let (_midge, session, normal) = transaction_with_private_sequence();
     let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
     let batch = stage_fork(&session, "old");
-    super::savepoints::arm_panic_after_sequence_prune_for_test();
-
-    // Act
+    // Act: the test-only hook is reached only after the cursor prune returns.
     let restore = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        session.rollback_to_savepoint("before_fork")
+        session.rollback_to_savepoint_observed("before_fork", || panic!("after prune"))
     }));
     let publication = session.publish_statement_batch(&batch);
 

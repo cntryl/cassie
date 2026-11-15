@@ -242,3 +242,45 @@ fn should_reject_old_fork_when_owner_key_restore_fails_after_savepoint_restore()
     assert!(is_stale_fork(&publication));
     assert!(session.document_change("epoch_rows", "old").is_none());
 }
+
+#[test]
+fn should_preserve_fork_when_savepoint_cursor_pruning_lacks_controls() {
+    // Arrange
+    let (_midge, session, normal) = transaction_with_private_sequence();
+    let batch = {
+        let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
+        stage_fork(&session, "kept")
+    };
+
+    // Act
+    let restore = session.rollback_to_savepoint("before_fork");
+    let publication = {
+        let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
+        session.publish_statement_batch(&batch)
+    };
+
+    // Assert
+    assert!(matches!(restore, Err(CassieError::Unsupported(_))));
+    assert!(publication.is_ok());
+    assert!(session.document_change("epoch_rows", "kept").is_some());
+}
+
+#[test]
+fn should_reject_old_fork_when_savepoint_pruning_unwinds() {
+    // Arrange
+    let (_midge, session, normal) = transaction_with_private_sequence();
+    let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
+    let batch = stage_fork(&session, "old");
+    super::savepoints::arm_panic_after_sequence_prune_for_test();
+
+    // Act
+    let restore = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        session.rollback_to_savepoint("before_fork")
+    }));
+    let publication = session.publish_statement_batch(&batch);
+
+    // Assert
+    assert!(restore.is_err());
+    assert!(is_stale_fork(&publication));
+    assert!(session.document_change("epoch_rows", "old").is_none());
+}

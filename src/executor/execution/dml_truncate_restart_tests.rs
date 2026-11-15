@@ -188,3 +188,33 @@ fn should_restart_immediately_outside_a_transaction() {
     // Assert
     assert_eq!(after, Value::Int64(1));
 }
+
+#[test]
+fn should_reject_commit_when_another_session_advanced_the_restarted_sequence() {
+    // Arrange
+    let (cassie, session, sequence) = fixture("restart_race");
+    let other = cassie.create_session("other", None);
+    run(&cassie, &session, "BEGIN");
+    run(
+        &cassie,
+        &session,
+        "TRUNCATE restart_race_rows RESTART IDENTITY",
+    );
+    let concurrent = next(&cassie, &other, &sequence);
+
+    // Act
+    let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+    let rows = cassie
+        .execute_sql(&other, "SELECT count(*) FROM restart_race_rows", vec![])
+        .unwrap()
+        .rows()
+        .to_vec();
+    let after = next(&cassie, &other, &sequence);
+
+    // Assert
+    assert_eq!(concurrent, Value::Int64(3));
+    assert!(commit.is_err());
+    assert!(!session.is_transaction_active());
+    assert_eq!(rows, vec![vec![Value::Int64(2)]]);
+    assert_eq!(after, Value::Int64(4));
+}

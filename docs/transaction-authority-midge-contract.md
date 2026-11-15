@@ -71,10 +71,14 @@ A transaction that restarts an identity is treated as carrying catalog state,
 so its COMMIT takes the global catalog publication guard and a declared
 replayable transaction is promoted to strict.
 
-Still open: the overlay already records the value each key had when the
-transaction first changed it, but this slice adds no test that a concurrent
-advance by another session fails the COMMIT, and it does not select that
-failure's SQLSTATE. An explicit `setval` by another session that restores
+A concurrent advance by another session between the restart and COMMIT fails
+the COMMIT through Midge's value assertion on the sequence key: the overlay
+records the value each key had when the transaction first changed it. Nothing
+is published, the transaction ends, and the other session's allocations are
+kept. A test covers this.
+
+Still open: that failure currently surfaces as the generic retryable storage
+conflict (`57P03`), and the SQLSTATE a client should see is not selected. An explicit `setval` by another session that restores
 identical cursor bytes cannot be seen by a value assertion (Jev rated the
 assertion sufficient at 0.75, not higher). The process-death window is removed
 by construction, since there is no separate native commit, but no

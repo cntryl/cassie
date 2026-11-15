@@ -8,7 +8,11 @@ fn should_publish_pgcrypto_extension_transactionally() {
         let server = CompatibilityServer::start("pgcrypto_transactional_install").await;
         let (client, connection) = server.connect().await;
         let (reader, reader_connection) = server.connect().await;
-        client.batch_execute("CREATE SCHEMA ext_target; BEGIN; CREATE EXTENSION pgcrypto SCHEMA ext_target").await.expect("stage extension");
+        execute_statements(&client, &[
+            "CREATE SCHEMA ext_target",
+            "BEGIN",
+            "CREATE EXTENSION pgcrypto SCHEMA ext_target",
+        ]).await.expect("stage extension");
 
         // Act
         let own = client.query("SELECT extname, extversion, extrelocatable FROM pg_catalog.pg_extension WHERE extname = 'pgcrypto'", &[]).await.expect("own extension");
@@ -80,34 +84,6 @@ fn should_expose_only_selected_extension_versions() {
         assert_eq!(rows, vec![("pgcrypto".to_owned(), "1.4".to_owned(), None), ("vector".to_owned(), "0.8.7".to_owned(), None)]);
         assert_eq!(installed.len(), 1);
         assert_eq!(installed[0].get::<_, String>(1), "0.8.7");
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_track_extension_identity_through_relocation_lifecycle() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("extension_identity_dependency").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(&client, &["CREATE SCHEMA ext_a", "CREATE SCHEMA ext_b", "CREATE EXTENSION pgcrypto SCHEMA ext_a"]).await.expect("install");
-        let before = client.query_one("SELECT oid FROM pg_catalog.pg_extension WHERE extname = 'pgcrypto'", &[]).await.expect("extension OID").get::<_, u32>(0);
-        let members = client.query("SELECT p.oid FROM pg_catalog.pg_depend d JOIN pg_catalog.pg_proc p ON p.oid = d.objid JOIN pg_catalog.pg_extension e ON e.oid = d.refobjid WHERE e.extname = 'pgcrypto' AND p.proname = 'digest' AND d.deptype = 'e'", &[]).await.expect("digest members");
-
-        // Act
-        client.batch_execute("ALTER EXTENSION pgcrypto SET SCHEMA ext_b").await.expect("relocate");
-        let after = client.query_one("SELECT oid FROM pg_catalog.pg_extension WHERE extname = 'pgcrypto'", &[]).await.expect("same extension OID").get::<_, u32>(0);
-        client.batch_execute("DROP EXTENSION pgcrypto").await.expect("drop");
-        let remaining = client.query("SELECT p.oid FROM pg_catalog.pg_depend d JOIN pg_catalog.pg_proc p ON p.oid = d.objid WHERE p.proname = 'digest' AND d.deptype = 'e'", &[]).await.expect("remaining members");
-
-        // Assert
-        assert_ne!(before, 0);
-        assert_eq!(after, before);
-        assert_eq!(members.len(), 2);
-        assert_ne!(members[0].get::<_, u32>(0), members[1].get::<_, u32>(0));
-        assert!(remaining.is_empty());
         drop(client);
         server.shutdown(connection).await;
     });

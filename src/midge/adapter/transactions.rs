@@ -20,6 +20,46 @@ thread_local! {
     static COLLECTION_FLUSH_FAMILY: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
 }
 
+#[cfg(test)]
+thread_local! {
+    static INJECT_NATIVE_COMMIT_UNKNOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static INJECT_NATIVE_ABORT_UNKNOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(crate) fn inject_native_commit_unknown_after_success() {
+    INJECT_NATIVE_COMMIT_UNKNOWN.with(|flag| flag.set(true));
+}
+
+#[cfg(test)]
+pub(crate) fn inject_native_commit_unknown_before_commit() {
+    INJECT_NATIVE_ABORT_UNKNOWN.with(|flag| flag.set(true));
+}
+
+fn commit_native_transaction(
+    transaction: cntryl_midge::Transaction,
+    options: WriteOptions,
+) -> Result<(), cntryl_midge::MidgeError> {
+    #[cfg(test)]
+    if INJECT_NATIVE_ABORT_UNKNOWN.with(|flag| flag.replace(false)) {
+        drop(transaction);
+        return Err(cntryl_midge::MidgeError::OutcomeUnknown(
+            "injected unknown outcome after dropping uncommitted native transaction".to_owned(),
+        ));
+    }
+    #[cfg(feature = "replay-benchmark-observation")]
+    let result = super::native_metrics::observe_native_commit(|| transaction.commit(options));
+    #[cfg(not(feature = "replay-benchmark-observation"))]
+    let result = transaction.commit(options);
+    #[cfg(test)]
+    if result.is_ok() && INJECT_NATIVE_COMMIT_UNKNOWN.with(|flag| flag.replace(false)) {
+        return Err(cntryl_midge::MidgeError::OutcomeUnknown(
+            "injected native commit response after actual successful commit".to_owned(),
+        ));
+    }
+    result
+}
+
 #[path = "transactions/copy_snapshot.rs"]
 mod copy_snapshot;
 pub(crate) use copy_snapshot::CopyStorageSnapshot;
@@ -372,12 +412,12 @@ impl AdapterTransaction {
         }
         if let Some(publication) = self.publication {
             if let Some(keys) = self.row_keys {
-                publication.publish_rows_current(keys, || inner.commit(options))
+                publication.publish_rows_current(keys, || commit_native_transaction(inner, options))
             } else {
-                publication.publish_current(|| inner.commit(options))
+                publication.publish_current(|| commit_native_transaction(inner, options))
             }
         } else {
-            inner.commit(options).map_err(AdapterCommitError::Native)
+            commit_native_transaction(inner, options).map_err(AdapterCommitError::Native)
         }
     }
 

@@ -6,6 +6,9 @@ publish = false
 autotests = false
 license-file = "LICENSE"
 
+[features]
+replay-benchmark-observation = []
+
 [dependencies]
 num-traits = "0.2.19"
 num-bigint = "0.5.1"
@@ -150,6 +153,12 @@ path = "benches/tier2_subsystem_column_scan.rs"
 name = "tier2_subsystem_ingest"
 harness = false
 path = "benches/tier2_subsystem_ingest.rs"
+
+[[bench]]
+name = "tier3_replay_durability"
+harness = false
+path = "benches/tier3_replay_durability.rs"
+required-features = ["replay-benchmark-observation"]
 
 [[bench]]
 name = "tier3_system_query"

@@ -29,6 +29,12 @@ pub(crate) use column_batch_format_v1::NumericValues;
 mod collection_gates;
 mod core;
 pub mod fulltext_retrieval;
+#[cfg(feature = "replay-benchmark-observation")]
+mod native_metrics;
+#[cfg(feature = "replay-benchmark-observation")]
+pub use native_metrics::{
+    observe_native_commits, NativeCommitObservation, NativeDurabilityMetrics,
+};
 mod object_comments;
 mod publication;
 mod role_object_grants;
@@ -357,6 +363,10 @@ pub(crate) use database_catalog_rewrite::{
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
+#[cfg(test)]
+pub(crate) use transactions::{
+    inject_native_commit_unknown_after_success, inject_native_commit_unknown_before_commit,
+};
 mod failure_points;
 pub(crate) use failure_points::{
     check_document_write_failure_point, check_document_write_storage_failure_injection,

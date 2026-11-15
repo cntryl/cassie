@@ -1,11 +1,99 @@
-use super::schema_write_control::{pause_before_schema_write_commit, SchemaWritePausePoint};
 use super::{
     check_projection_metadata_persistence_failure_point,
-    check_projection_replay_metadata_commit_failure_point,
-    check_projection_replay_post_commit_failure_point, CassieError, Midge, ProjectionMeta,
+    check_projection_replay_metadata_commit_failure_point, CassieError, Midge, ProjectionMeta,
 };
 
+#[derive(Debug, Clone)]
+pub(crate) struct ReplayBatchCommit {
+    pub(crate) expected_metadata: Option<ProjectionMeta>,
+    pub(crate) metadata: ProjectionMeta,
+    pub(crate) source_identity: String,
+    pub(crate) batch_id: String,
+    pub(crate) observed_events: Vec<(String, bool)>,
+    pub(crate) new_event_ids: Vec<String>,
+}
+
 impl Midge {
+    pub(super) fn stage_projection_replay_in_tx(
+        &self,
+        tx: &mut super::AdapterTransaction,
+        replay: &ReplayBatchCommit,
+    ) -> Result<(), CassieError> {
+        self.require_projection_definition(&replay.metadata)?;
+        let collection = self.canonical_collection_name(&replay.metadata.collection);
+        Self::assert_replay_metadata_in_tx(tx, &collection, replay.expected_metadata.as_ref())?;
+        for (event_id, expected_seen) in &replay.observed_events {
+            let key = Self::projection_event_key(&collection, &replay.source_identity, event_id);
+            let actual = tx.get(&key).map_err(CassieError::from)?;
+            if actual.is_some() != *expected_seen {
+                return Err(CassieError::from(cntryl_midge::MidgeError::WriteConflict(
+                    "projection replay event ledger changed during preparation".to_owned(),
+                )));
+            }
+            tx.assert_value(key, actual.map(|bytes| bytes.to_vec()))
+                .map_err(CassieError::from)?;
+        }
+        for event_id in &replay.new_event_ids {
+            tx.put(
+                Self::projection_event_key(&collection, &replay.source_identity, event_id),
+                replay.batch_id.as_bytes().to_vec(),
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+        let mut metadata = replay.metadata.clone();
+        metadata.collection = collection;
+        Self::save_projection_metadata_to_tx(tx, &metadata)?;
+        check_projection_metadata_persistence_failure_point()?;
+        check_projection_replay_metadata_commit_failure_point()?;
+        Ok(())
+    }
+
+    fn assert_replay_metadata_in_tx(
+        tx: &mut super::AdapterTransaction,
+        collection: &str,
+        expected: Option<&ProjectionMeta>,
+    ) -> Result<(), CassieError> {
+        let metadata_key = Self::projection_key(collection);
+        let stored = tx.get(&metadata_key).map_err(CassieError::from)?;
+        let stored_metadata = stored
+            .as_deref()
+            .map(serde_json::from_slice::<ProjectionMeta>)
+            .transpose()
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        let mut expected = expected.cloned();
+        if let Some(metadata) = &mut expected {
+            collection.clone_into(&mut metadata.collection);
+        }
+        let actual_value = serde_json::to_value(&stored_metadata)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        let expected_value = serde_json::to_value(&expected)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        if actual_value != expected_value {
+            return Err(CassieError::from(cntryl_midge::MidgeError::WriteConflict(
+                "projection replay metadata changed during preparation".to_owned(),
+            )));
+        }
+        tx.assert_value(metadata_key, stored.map(|bytes| bytes.to_vec()))
+            .map_err(CassieError::from)
+    }
+
+    pub(crate) fn put_replay_failure_if_unchanged(
+        &self,
+        expected: Option<&ProjectionMeta>,
+        metadata: &ProjectionMeta,
+    ) -> Result<(), CassieError> {
+        self.require_projection_definition(metadata)?;
+        let mut metadata = metadata.clone();
+        metadata.collection = self.canonical_collection_name(&metadata.collection);
+        let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
+        Self::assert_replay_metadata_in_tx(&mut tx, &metadata.collection, expected)?;
+        Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
+        check_projection_metadata_persistence_failure_point()?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -141,40 +229,6 @@ impl Midge {
         }
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
-        Ok(())
-    }
-
-    /// Records replay idempotency keys and their checkpoint in one database-family transaction.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when metadata validation, storage, or commit fails.
-    pub(crate) fn record_projection_events_and_metadata_batch(
-        &self,
-        metadata: &ProjectionMeta,
-        source_identity: &str,
-        event_ids: &[&str],
-        replay_batch_id: &str,
-    ) -> Result<(), CassieError> {
-        self.require_projection_definition(metadata)?;
-        let mut metadata = metadata.clone();
-        metadata.collection = self.canonical_collection_name(&metadata.collection);
-        let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
-        for event_id in event_ids {
-            tx.put(
-                Self::projection_event_key(&metadata.collection, source_identity, event_id),
-                replay_batch_id.as_bytes().to_vec(),
-                None,
-            )
-            .map_err(CassieError::from)?;
-        }
-        Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
-        check_projection_metadata_persistence_failure_point()?;
-        check_projection_replay_metadata_commit_failure_point()?;
-        pause_before_schema_write_commit(SchemaWritePausePoint::ProjectionReplayMetadataCommit);
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
-        check_projection_replay_post_commit_failure_point()?;
         Ok(())
     }
 }

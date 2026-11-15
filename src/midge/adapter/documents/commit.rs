@@ -19,7 +19,7 @@ impl Midge {
         >,
         fulltext_indexes_by_collection: &BTreeMap<String, Vec<crate::catalog::IndexMeta>>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        if changed_collections.is_empty() {
+        if changed_collections.is_empty() && options.replay.is_none() {
             tx.rollback().map_err(CassieError::from)?;
             return Ok(reports);
         }
@@ -63,7 +63,11 @@ impl Midge {
             }
             generations.insert(collection.clone(), generation);
         }
-        let epoch = Self::increment_data_epoch_in_tx(&mut tx)?;
+        let epoch = if changed_collections.is_empty() {
+            None
+        } else {
+            Some(Self::increment_data_epoch_in_tx(&mut tx)?)
+        };
         if let Some((key, value)) = &options.publication_marker {
             tx.put(key.clone(), value.clone(), None)
                 .map_err(CassieError::from)?;
@@ -72,17 +76,27 @@ impl Midge {
             tx.rollback().map_err(CassieError::from)?;
             return Err(error);
         }
+        if options.replay.is_some() {
+            super::super::schema_write_control::pause_before_schema_write_commit(
+                super::super::schema_write_control::SchemaWritePausePoint::ProjectionReplayMetadataCommit,
+            );
+        }
         tx.commit(options.commit).map_err(CassieError::from)?;
         let mut sorted_changed_collections = changed_collections;
         sorted_changed_collections.sort();
 
         for collection in &sorted_changed_collections {
             let Some(report) = reports.get_mut(collection) else {
+                if options.replay.is_some() {
+                    return Err(CassieError::from(cntryl_midge::MidgeError::OutcomeUnknown(
+                        format!("replay committed but write report for '{collection}' is missing"),
+                    )));
+                }
                 return Err(CassieError::Execution(format!(
                     "missing write report for collection '{collection}'"
                 )));
             };
-            report.data_epoch = Some(epoch);
+            report.data_epoch = epoch;
             report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
         }
 

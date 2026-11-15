@@ -142,6 +142,15 @@ pub(super) fn drop_sequence(
     Ok(output)
 }
 
+/// Whether the sequence a default names exists. The name is qualified the way
+/// it will be stored first: a bare name would otherwise match a same-named
+/// sequence in any other database.
+fn stored_sequence_exists(cassie: &Cassie, sequence: &str) -> bool {
+    cassie
+        .catalog
+        .sequence_exists(&cassie.midge.canonical_collection_name(sequence))
+}
+
 pub(super) fn prepare_create_table_sequences(
     cassie: &Cassie,
     statement: &crate::sql::ast::CreateTableStatement,
@@ -153,7 +162,7 @@ pub(super) fn prepare_create_table_sequences(
                 continue;
             };
             if constraint.default_sequence_owned.is_owned() {
-                if cassie.catalog.sequence_exists(sequence) {
+                if stored_sequence_exists(cassie, sequence) {
                     return Err(QueryError::General(format!(
                         "sequence '{sequence}' already exists"
                     )));
@@ -164,7 +173,7 @@ pub(super) fn prepare_create_table_sequences(
                     column: field.name.clone(),
                 });
                 created.push(metadata);
-            } else if !cassie.catalog.sequence_exists(sequence) {
+            } else if !stored_sequence_exists(cassie, sequence) {
                 return Err(QueryError::General(format!(
                     "sequence '{sequence}' does not exist"
                 )));
@@ -185,7 +194,7 @@ pub(super) fn prepare_add_column_sequences(
             continue;
         };
         if constraint.default_sequence_owned.is_owned() {
-            if cassie.catalog.sequence_exists(sequence) {
+            if stored_sequence_exists(cassie, sequence) {
                 return Err(QueryError::General(format!(
                     "sequence '{sequence}' already exists"
                 )));
@@ -194,7 +203,7 @@ pub(super) fn prepare_add_column_sequences(
                 sequence,
                 data_type.clone(),
             ));
-        } else if !cassie.catalog.sequence_exists(sequence) {
+        } else if !stored_sequence_exists(cassie, sequence) {
             return Err(QueryError::General(format!(
                 "sequence '{sequence}' does not exist"
             )));

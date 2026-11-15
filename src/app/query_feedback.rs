@@ -29,11 +29,12 @@ impl Cassie {
             || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
             |session| self.binding_search_path(session),
         );
-        if self.database_catalog_enforced() {
+        let context = if self.database_catalog_enforced() {
             binder::BindingContext::scoped(database.to_string(), search_path)
         } else {
             binder::BindingContext::unscoped(database.to_string(), search_path)
-        }
+        };
+        context.with_unqualified_database(self.default_database.clone())
     }
 
     pub(crate) fn user_functions_for_session(

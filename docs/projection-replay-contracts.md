@@ -146,6 +146,13 @@ entrypoints are unchanged and take no handle.
   outcome. An unknown native outcome returns the storage error, latches
   recovery-required fencing and must be reconciled after recovery by retrying
   the same batch; it is never reported as a cancellation.
+- **Existing entrypoints under an ambient control.** `replay_projection_batch`
+  and `replay_projection_batch_strict` take no handle and behave as before when
+  the calling stack has no request control. When one is present (a REST or SQL
+  request deadline or cancellation), they now observe it at the same check
+  points and return the interruption without writing a failed-projection
+  diagnostic; previously the interruption surfaced only at the publication gate
+  and was followed by an attempted diagnostic write.
 - **Midge boundary.** Published `cntryl-midge` 0.5.2 offers no cancellation of an
   admitted commit, so a cancellation that arrives during native submission
   cannot abort it. This is a property of the published API, not a blocker for

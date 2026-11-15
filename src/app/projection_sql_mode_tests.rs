@@ -423,3 +423,59 @@ fn should_reject_targeted_reset_of_projector_mode() {
     // Assert
     assert!(result.is_err());
 }
+
+#[test]
+fn should_promote_declared_transaction_after_truncate() {
+    // Arrange
+    let (cassie, session) = sql_fixture();
+    declare_replayable(&cassie, &session);
+
+    // Act
+    let truncated = cassie.execute_sql(&session, "TRUNCATE replay_sql_data", vec![]);
+    let policy = session.projection_commit_policy(false);
+    execute(&cassie, &session, "ROLLBACK");
+
+    // Assert
+    assert!(truncated.is_ok());
+    assert_eq!(policy, ProjectionCommitPolicy::Strict);
+}
+
+#[test]
+fn should_promote_declared_transaction_after_explain() {
+    // Arrange
+    let (cassie, session) = sql_fixture();
+    declare_replayable(&cassie, &session);
+
+    // Act
+    execute(
+        &cassie,
+        &session,
+        "EXPLAIN SELECT value FROM replay_sql_data",
+    );
+    let policy = session.projection_commit_policy(false);
+    execute(&cassie, &session, "ROLLBACK");
+
+    // Assert
+    assert_eq!(policy, ProjectionCommitPolicy::Strict);
+}
+
+#[test]
+fn should_keep_replayable_policy_after_reads_in_declared_transaction() {
+    // Arrange
+    let (cassie, session) = sql_fixture();
+    declare_replayable(&cassie, &session);
+
+    // Act
+    execute(&cassie, &session, "SELECT value FROM replay_sql_data");
+    execute(&cassie, &session, "SHOW cassie.projection_write_mode");
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+    );
+    let policy = session.projection_commit_policy(false);
+    execute(&cassie, &session, "COMMIT");
+
+    // Assert
+    assert_eq!(policy, ProjectionCommitPolicy::Replayable);
+}

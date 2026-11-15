@@ -262,3 +262,20 @@ fn should_leave_uncontrolled_replay_unaffected_by_cancellable_entrypoints() {
     assert_eq!(report.applied_event_count, 1);
     assert_eq!(state, (true, true, Some("checkpoint-1".to_owned()), None));
 }
+
+#[test]
+fn should_stop_uncontrolled_replay_at_an_expired_ambient_deadline() {
+    // Arrange
+    let (cassie, projection) = fixture("replay_cancel_deadline");
+    let ambient = QueryCancellationHandle::new();
+    let _ambient_scope =
+        PublicationControlScope::enter_for_rest(&ambient, std::time::Instant::now());
+
+    // Act
+    let result = cassie.replay_projection_batch(batch(&projection));
+    let state = replay_state(&cassie, &projection);
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::DeadlineExceeded)));
+    assert_eq!(state, (false, false, None, None));
+}

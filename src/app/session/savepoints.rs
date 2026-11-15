@@ -153,10 +153,7 @@ impl CassieSession {
             }
             after_prune();
         }
-        transaction.modes = transaction.savepoints[index].modes;
-        transaction
-            .projection_write
-            .restore_mode(transaction.savepoints[index].projection_write_mode);
+        restore_savepoint_modes(&mut transaction, index);
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
         let catalog_overlay = transaction.savepoints[index]
@@ -222,4 +219,15 @@ impl CassieSession {
         transaction.savepoints.truncate(index);
         Ok(())
     }
+}
+
+/// Restores the transaction modes and projection write declaration recorded by
+/// a savepoint. Sticky projection effect history is deliberately left alone.
+fn restore_savepoint_modes(transaction: &mut super::SessionTransactionState, index: usize) {
+    let savepoint = &transaction.savepoints[index];
+    let (modes, projection_write_mode) = (savepoint.modes, savepoint.projection_write_mode);
+    transaction.modes = modes;
+    transaction
+        .projection_write
+        .restore_mode(projection_write_mode);
 }

@@ -93,6 +93,13 @@ building blocks, dependencies and qualification criteria. The existing
 experimental implementation is not evidence that those criteria are met.
 Earlier documented release dependencies remain in force.
 
+Delivery order, by owner decision of 2026-11-15: mapped graphs (#1255), native
+path types (#1268), the `GRAPH_TABLE` surface (#1256), exact execution (#1257
+and the transaction-view part of #1254), weighted paths and removal of the
+legacy graph feature without conversion (#1258), fast reads (#1253, the
+read-bound part of #1254, and #1259), then qualification (#1260). Query
+execution uses exact reads of the mapped tables until the fast-reads step.
+
 ## Replay durability and throughput
 
 The [replay durability and throughput milestone](https://github.com/cntryl/cassie/milestone/14)

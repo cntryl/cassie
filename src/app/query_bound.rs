@@ -4,6 +4,7 @@ use super::{
     Cassie, CassieError, CassieSession, ExecutionMode, QueryExecutionControls, QueryResult,
     QueryStatement, Value,
 };
+use crate::app::session::PublicationFenceScope;
 
 impl Cassie {
     pub(crate) fn execute_parsed_statement_core(
@@ -133,6 +134,7 @@ impl Cassie {
                 parameters,
                 mode,
                 controls,
+                &mut PublicationFenceScope::none(),
             );
         }
 
@@ -173,6 +175,11 @@ impl Cassie {
         let transaction_active = session.is_transaction_active();
         let catalog_statement =
             parsed.statement.family() != crate::sql::ast::StatementFamily::Runtime;
+        // The caller holds the global publication guard; the session fence
+        // follows it. Catalog statements keep the fence through execution so a
+        // same-session reader never sees staged storage without its catalog
+        // publication; readers drop it once their statement view is captured.
+        let mut fence = session.enter_publication_fence(controls, catalog_statement)?;
         if catalog_statement {
             session.check_repeatable_catalog_write(&self.publication_catalog, controls)?;
         }
@@ -217,6 +224,7 @@ impl Cassie {
             parameters,
             mode,
             controls,
+            &mut fence,
         )
     }
 
@@ -228,6 +236,7 @@ impl Cassie {
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
+        fence: &mut PublicationFenceScope,
     ) -> Result<QueryResult, CassieError> {
         // A new top-level statement never borrows an enclosing read authority.
         // This also protects early transaction/EXPLAIN returns and fresh gated
@@ -259,7 +268,15 @@ impl Cassie {
             };
             return self.execute_session_object(session, statement, &parsed.raw_sql, call);
         }
-        self.execute_bound_query(session, parsed, sql_fingerprint, parameters, mode, controls)
+        self.execute_bound_query(
+            session,
+            parsed,
+            sql_fingerprint,
+            parameters,
+            mode,
+            controls,
+            fence,
+        )
     }
 
     /// Plans and runs one admitted statement inside the caller's read scopes.
@@ -271,6 +288,7 @@ impl Cassie {
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
+        fence: &mut PublicationFenceScope,
     ) -> Result<QueryResult, CassieError> {
         let (mut params, declared_oids, wire_output) = parameters;
         let (parameter_types, bound_parameters) =
@@ -333,6 +351,7 @@ impl Cassie {
 
         let statement_controls =
             self.capture_bound_statement_read(session, &physical.logical, controls)?;
+        fence.release_after_capture();
         let controls = &statement_controls;
         let (_read_scope, _overlay_scope) =
             Self::enter_bound_statement_read(&mut cache_context, controls);

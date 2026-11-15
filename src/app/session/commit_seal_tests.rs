@@ -174,3 +174,80 @@ fn should_keep_the_transaction_usable_after_a_failed_commit_is_rolled_back() {
     assert!(commit.is_err());
     assert!(second.is_ok());
 }
+
+#[test]
+fn should_refuse_transaction_control_while_a_commit_is_in_progress() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let cassie = std::sync::Arc::new(cassie);
+    let clone = session.clone();
+    run(&cassie, &session, "BEGIN");
+    run(&cassie, &session, "SAVEPOINT held");
+    let seal = session.seal_transaction_for_commit();
+    let other_cassie = std::sync::Arc::clone(&cassie);
+
+    // Act: a second client thread competes while this thread owns the COMMIT.
+    let refused = std::thread::spawn(move || {
+        [
+            "BEGIN",
+            "COMMIT",
+            "ROLLBACK",
+            "SAVEPOINT s",
+            "ROLLBACK TO SAVEPOINT held",
+        ]
+        .map(|sql| {
+            other_cassie
+                .execute_sql(&clone, sql, vec![])
+                .map_err(|error| error.sql_state())
+                .err()
+        })
+    })
+    .join()
+    .unwrap();
+    let failed_while_sealed = session.is_transaction_failed();
+    drop(seal);
+    let after = cassie.execute_sql(&session, "ROLLBACK", vec![]);
+
+    // Assert
+    assert_eq!(refused, [Some("25000"); 5]);
+    assert!(!failed_while_sealed);
+    assert!(after.is_ok());
+}
+
+#[test]
+fn should_not_retire_a_later_transaction_when_the_committed_one_is_gone() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let clone = session.clone();
+    run(&cassie, &session, "BEGIN");
+    let mut seal = session.seal_transaction_for_commit();
+    clone.rollback_transaction();
+    clone.begin_transaction(None).unwrap();
+    run(&cassie, &clone, "INSERT INTO seal_rows (value) VALUES (7)");
+
+    // Act
+    seal.retire_committed();
+    drop(seal);
+    let still_active = clone.is_transaction_active();
+    run(&cassie, &clone, "COMMIT");
+
+    // Assert
+    assert!(still_active);
+    assert_eq!(values(&cassie, &session), vec![vec![Value::Int64(7)]]);
+}
+
+#[test]
+fn should_retire_the_committed_transaction_through_its_seal() {
+    // Arrange
+    let (cassie, session) = fixture();
+    run(&cassie, &session, "BEGIN");
+    let mut seal = session.seal_transaction_for_commit();
+
+    // Act
+    seal.retire_committed();
+    drop(seal);
+
+    // Assert
+    assert!(!session.is_transaction_active());
+    assert!(!session.is_sealed_for_commit());
+}

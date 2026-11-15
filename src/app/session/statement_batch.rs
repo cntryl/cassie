@@ -136,6 +136,7 @@ impl CassieSession {
             // Forks share the authority so effects they cause stay classified.
             projection_write: Arc::clone(&current.projection_write),
             sealed_for_commit: false,
+            commit_thread: None,
         })
     }
 

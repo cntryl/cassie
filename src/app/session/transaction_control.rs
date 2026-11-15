@@ -157,6 +157,7 @@ impl CassieSession {
         transaction.local_settings.clear();
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
+        transaction.commit_thread = None;
         if let Some(authority) = authority {
             authority.adopt_start(self, &transaction);
         }
@@ -350,7 +351,19 @@ impl CassieSession {
     }
 
     pub(crate) fn commit_transaction(&self) {
-        let mut transaction = self.transaction.lock();
+        let transaction = self.transaction.lock();
+        self.retire_committed_locked(transaction);
+    }
+
+    /// Whether a COMMIT currently owns this session's transaction.
+    pub(crate) fn is_sealed_for_commit(&self) -> bool {
+        self.transaction.lock().sealed_for_commit
+    }
+
+    fn retire_committed_locked(
+        &self,
+        mut transaction: parking_lot::MutexGuard<'_, super::SessionTransactionState>,
+    ) {
         let unique_owner_id = transaction.unique_owner_id;
         transaction.status = SessionTransactionStatus::Idle;
         transaction.implicit = false;
@@ -371,6 +384,7 @@ impl CassieSession {
         let locals = std::mem::take(&mut transaction.local_settings);
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
+        transaction.commit_thread = None;
         // Retire everything the transaction owned before releasing the mutex.
         // BEGIN needs this mutex, so no later transaction can start, attach a
         // schema context, declare a cursor or snapshot settings until the old
@@ -402,6 +416,7 @@ impl CassieSession {
             && !transaction.sealed_for_commit;
         if sealed {
             transaction.sealed_for_commit = true;
+            transaction.commit_thread = Some(std::thread::current().id());
         }
         CommitSeal {
             session: self,
@@ -450,6 +465,7 @@ impl CassieSession {
         transaction.local_settings.clear();
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
+        transaction.commit_thread = None;
         // See `commit_transaction`: cleanup completes before the mutex is released.
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
@@ -472,6 +488,25 @@ pub(crate) struct CommitSeal<'a> {
     sealed: bool,
 }
 
+impl CommitSeal<'_> {
+    /// Retires the transaction this COMMIT published. If another path already
+    /// ended that transaction, or a later one has started, nothing is touched:
+    /// COMMIT never resets a transaction it did not commit (#1290).
+    pub(crate) fn retire_committed(&mut self) {
+        if !self.sealed {
+            // An enclosing COMMIT holds the seal; keep the previous behaviour
+            // for this nested or re-entrant commit.
+            self.session.commit_transaction();
+            return;
+        }
+        self.sealed = false;
+        let transaction = self.session.transaction.lock();
+        if transaction.generation == self.generation && transaction.sealed_for_commit {
+            self.session.retire_committed_locked(transaction);
+        }
+    }
+}
+
 impl Drop for CommitSeal<'_> {
     fn drop(&mut self) {
         if !self.sealed {
@@ -482,6 +517,7 @@ impl Drop for CommitSeal<'_> {
         // has a new generation; only the still-open sealed one is unsealed.
         if transaction.generation == self.generation {
             transaction.sealed_for_commit = false;
+            transaction.commit_thread = None;
         }
     }
 }

@@ -116,6 +116,18 @@ increment at 0.96 and a remaining hazard at 0.16. It does not replace the cell:
 an operation that outlives its transaction is still stopped by generation,
 epoch and failure-authority checks rather than by ownership of a cell.
 
+**Second increment implemented: COMMIT owns its transaction.** While a COMMIT
+is sealed, another `BEGIN`, `COMMIT`, `ROLLBACK` or savepoint statement on the
+same session is refused immediately with `25000` ("a COMMIT is in progress on
+this session; retry after it completes"). Cassie does not wait, because Midge
+cannot cancel an admitted commit. Only the thread running that COMMIT can mark
+the sealed transaction failed, so a refused statement does not change the
+outcome the COMMIT reports. COMMIT's final cleanup retires only the transaction
+it sealed: if another path already ended it, or a later transaction has begun,
+nothing is reset. Rollbacks issued directly by pgwire error handling do not go
+through the SQL statement path and are not refused; the owner check is what
+keeps a later transaction safe in that case.
+
 Jev's adversarial probability that a hazard remains through state that cannot
 live in the cell is 0.59, so this is the main proof obligation. Session-level
 state that outlives a transaction (session `SET` values, the search path, the

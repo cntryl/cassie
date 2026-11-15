@@ -162,4 +162,3 @@ fn should_retain_sequence_effect_classification_after_savepoint_rollback() {
     assert_eq!(writes.local_buffered_attempts, 0);
     assert_eq!(writes.best_effort_attempts, 0);
 }
-

@@ -69,7 +69,10 @@ fn sql_transaction(
         .events
         .iter()
         .map(|event| {
-            let title = event.payload.as_ref().and_then(|payload| payload["title"].as_str());
+            let title = event
+                .payload
+                .as_ref()
+                .and_then(|payload| payload["title"].as_str());
             format!("('{}')", title.expect("benchmark payload title"))
         })
         .collect::<Vec<_>>()
@@ -85,10 +88,15 @@ fn sql_transaction(
             run("SET LOCAL cassie.projection_write_mode = 'replayable'")?;
         }
         run(&format!("INSERT INTO replay_bench (title) VALUES {values}"))?;
-        run(&format!("UPDATE replay_bench_checkpoint SET position = {position}"))
+        run(&format!(
+            "UPDATE replay_bench_checkpoint SET position = {position}"
+        ))
     })();
     if let Err(error) = staged {
-        return (Err(error), cassie::midge::adapter::NativeCommitObservation::default());
+        return (
+            Err(error),
+            cassie::midge::adapter::NativeCommitObservation::default(),
+        );
     }
     observe_native_commits(|| run("COMMIT"))
 }

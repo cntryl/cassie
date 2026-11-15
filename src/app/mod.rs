@@ -195,6 +195,10 @@ pub use replay::{projection_concurrency_test_guard, set_projection_replay_prepar
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
 
+#[cfg(all(test, feature = "replay-benchmark-observation"))]
+mod projection_sql_durability_tests;
+#[cfg(test)]
+mod projection_sql_mode_tests;
 #[cfg(test)]
 mod query_failure_admission_tests;
 #[cfg(test)]
@@ -209,10 +213,6 @@ mod query_failure_savepoint_tests;
 pub(crate) mod query_failure_watchdog;
 #[cfg(test)]
 mod query_result_cache_key_tests;
-#[cfg(all(test, feature = "replay-benchmark-observation"))]
-mod projection_sql_durability_tests;
-#[cfg(test)]
-mod projection_sql_mode_tests;
 #[cfg(all(test, feature = "replay-benchmark-observation"))]
 mod replay_api_durability_tests;
 #[cfg(test)]

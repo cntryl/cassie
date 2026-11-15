@@ -206,7 +206,11 @@ fn should_select_replayable_policy_for_declared_row_only_transaction() {
     // Arrange
     let (cassie, session) = sql_fixture();
     declare_replayable(&cassie, &session);
-    execute(&cassie, &session, "INSERT INTO replay_sql_data (value) VALUES (7)");
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+    );
     execute(
         &cassie,
         &session,
@@ -226,7 +230,11 @@ fn should_keep_existing_policy_for_undeclared_transaction() {
     // Arrange
     let (cassie, session) = sql_fixture();
     execute(&cassie, &session, "BEGIN");
-    execute(&cassie, &session, "INSERT INTO replay_sql_data (value) VALUES (7)");
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+    );
 
     // Act
     let policy = session.projection_commit_policy(false);
@@ -246,7 +254,11 @@ fn should_select_strict_policy_for_declared_strict_transaction() {
         &session,
         "SET LOCAL cassie.projection_write_mode = 'strict'",
     );
-    execute(&cassie, &session, "INSERT INTO replay_sql_data (value) VALUES (7)");
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+    );
 
     // Act
     let policy = session.projection_commit_policy(false);
@@ -261,8 +273,16 @@ fn should_promote_declared_transaction_with_ddl_to_strict_policy() {
     // Arrange
     let (cassie, session) = sql_fixture();
     declare_replayable(&cassie, &session);
-    execute(&cassie, &session, "CREATE TABLE replay_sql_mixed (value INT)");
-    execute(&cassie, &session, "INSERT INTO replay_sql_data (value) VALUES (7)");
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE replay_sql_mixed (value INT)",
+    );
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+    );
 
     // Act
     let policy = session.projection_commit_policy(false);
@@ -276,7 +296,11 @@ fn should_promote_declared_transaction_with_ddl_to_strict_policy() {
 fn should_keep_sequence_promotion_sticky_after_savepoint_rollback() {
     // Arrange
     let (cassie, session) = sql_fixture();
-    execute(&cassie, &session, "CREATE SEQUENCE replay_sql_mode_sequence");
+    execute(
+        &cassie,
+        &session,
+        "CREATE SEQUENCE replay_sql_mode_sequence",
+    );
     declare_replayable(&cassie, &session);
     execute(&cassie, &session, "SAVEPOINT before_sequence");
     execute(
@@ -285,7 +309,11 @@ fn should_keep_sequence_promotion_sticky_after_savepoint_rollback() {
         "SELECT nextval('replay_sql_mode_sequence')",
     );
     execute(&cassie, &session, "ROLLBACK TO SAVEPOINT before_sequence");
-    execute(&cassie, &session, "INSERT INTO replay_sql_data (value) VALUES (7)");
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+    );
 
     // Act
     let policy = session.projection_commit_policy(false);
@@ -301,7 +329,11 @@ fn should_keep_declaration_window_closed_after_savepoint_rollback_of_first_write
     let (cassie, session) = sql_fixture();
     execute(&cassie, &session, "BEGIN");
     execute(&cassie, &session, "SAVEPOINT before_write");
-    execute(&cassie, &session, "INSERT INTO replay_sql_data (value) VALUES (7)");
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+    );
     execute(&cassie, &session, "ROLLBACK TO SAVEPOINT before_write");
 
     // Act

@@ -159,7 +159,7 @@ fn should_report_success_when_canceled_after_native_commit_confirmation() {
     let (cassie, projection) = fixture("replay_cancel_confirmed");
     let cancellation = QueryCancellationHandle::new();
     let confirmed = cancellation.clone();
-    let _hook = PublicationControlScope::observe_next_row_commit_for_test(move || {
+    let _hook = crate::midge::adapter::Midge::observe_next_row_commit_for_test(move || {
         confirmed.cancel();
     });
 
@@ -202,7 +202,7 @@ fn should_report_unknown_outcome_instead_of_cancellation_after_submission() {
         .canonical_collection_name("replay_cancel_unknown");
     let cancellation = QueryCancellationHandle::new();
     let confirmed = cancellation.clone();
-    let _hook = PublicationControlScope::observe_next_row_commit_for_test(move || {
+    let _hook = crate::midge::adapter::Midge::observe_next_row_commit_for_test(move || {
         confirmed.cancel();
     });
     crate::midge::adapter::inject_native_commit_unknown_after_success();

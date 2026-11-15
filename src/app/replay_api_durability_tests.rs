@@ -285,7 +285,8 @@ fn should_attribute_every_replay_acknowledgement_commit_to_one_source() {
         .unwrap();
 
     // Act
-    let (result, writes) = observe_native_commits(|| cassie.replay_projection_batch(batch(&projection)));
+    let (result, writes) =
+        observe_native_commits(|| cassie.replay_projection_batch(batch(&projection)));
 
     // Assert
     result.unwrap();

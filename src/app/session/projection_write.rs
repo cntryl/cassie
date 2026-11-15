@@ -148,10 +148,7 @@ impl CassieSession {
     /// `25P01` outside an explicit transaction block, `25P02` in a failed
     /// block, `22023` for an unknown value and `25000` after the first write or
     /// independently durable effect of the transaction.
-    pub(crate) fn set_projection_write_mode(
-        &self,
-        value: Option<&str>,
-    ) -> Result<(), CassieError> {
+    pub(crate) fn set_projection_write_mode(&self, value: Option<&str>) -> Result<(), CassieError> {
         let transaction = self.transaction.lock();
         match transaction.status {
             SessionTransactionStatus::InTransaction if !transaction.implicit => {}

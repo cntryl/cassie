@@ -117,6 +117,20 @@ struct SessionTransactionState {
     /// Declared projection write mode and sticky effect history, shared with
     /// every statement fork of this transaction.
     projection_write: Arc<projection_write::ProjectionWriteAuthority>,
+    /// Set while COMMIT owns the transaction: its writes and declared mode are
+    /// frozen, and a statement fork can no longer publish into it (#1279).
+    sealed_for_commit: bool,
+    /// The thread running that COMMIT. Only it may fail the sealed transaction.
+    commit_thread: Option<std::thread::ThreadId>,
+}
+
+impl SessionTransactionState {
+    /// Whether this thread may mark the transaction failed. While a COMMIT owns
+    /// the transaction, an error from another thread's statement (for example a
+    /// refused `ROLLBACK`) must not change the outcome the COMMIT will report.
+    fn may_be_failed_by_current_thread(&self) -> bool {
+        !self.sealed_for_commit || self.commit_thread == Some(std::thread::current().id())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -286,6 +300,8 @@ impl CassieSession {
                 session_state: None,
                 local_settings: Vec::new(),
                 projection_write: Arc::default(),
+                sealed_for_commit: false,
+                commit_thread: None,
             })),
             transaction_unique_waits: Arc::default(),
             owns_transaction_lifecycle: true,
@@ -523,7 +539,9 @@ impl CassieSession {
 
     pub(crate) fn mark_transaction_failed(&self) {
         let mut transaction = self.transaction.lock();
-        if transaction.status == SessionTransactionStatus::InTransaction {
+        if transaction.status == SessionTransactionStatus::InTransaction
+            && transaction.may_be_failed_by_current_thread()
+        {
             transaction.status = SessionTransactionStatus::Failed;
         }
     }

@@ -164,7 +164,8 @@ impl CassieSession {
             }
         }
         let mode = value.map_or(Ok(ProjectionWriteMode::Default), ProjectionWriteMode::parse)?;
-        let staged_effects = !transaction.writes.is_empty()
+        let staged_effects = transaction.sealed_for_commit
+            || !transaction.writes.is_empty()
             || transaction.catalog_overlay.is_some()
             || !transaction.conflict_intents.is_empty();
         transaction.projection_write.declare(mode, staged_effects)
@@ -187,8 +188,10 @@ impl CassieSession {
 
     /// Classifies a statement at its execution boundary. Row DML is a
     /// replayable write. Reads, settings and transaction control are not
-    /// effects. Everything else, including DDL, security, COPY, procedure calls
-    /// and EXPLAIN (which may execute its statement), conservatively promotes a
+    /// effects. `COPY` stages rows and is a replayable write; a sequence
+    /// advance in its defaults or query is classified where the value is
+    /// recorded. Everything else, including DDL, security, procedure calls and
+    /// EXPLAIN (which may execute its statement), conservatively promotes a
     /// declared transaction to the strict policy.
     pub(crate) fn note_statement_projection_effect(&self, statement: &QueryStatement) {
         match statement {
@@ -196,7 +199,10 @@ impl CassieSession {
             | QueryStatement::Show(_)
             | QueryStatement::Set(_)
             | QueryStatement::Transaction(_) => {}
-            QueryStatement::Insert(_) | QueryStatement::Update(_) | QueryStatement::Delete(_) => {
+            QueryStatement::Insert(_)
+            | QueryStatement::Update(_)
+            | QueryStatement::Delete(_)
+            | QueryStatement::Copy(_) => {
                 self.note_projection_effect(false);
             }
             _ => self.note_projection_effect(true),

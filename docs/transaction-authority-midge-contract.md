@@ -1,6 +1,6 @@
 # Transaction authority within Midge as published
 
-Status: **selected design; section 1 and the first increment of section 2 implemented, the rest not**. This document selects how the
+Status: **selected design; sections 1 and 3 and the first increment of section 2 implemented; the per-transaction cell, outcome handling and reserved-key documentation are not**. This document selects how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
 [#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
@@ -116,6 +116,22 @@ increment at 0.96 and a remaining hazard at 0.16. It does not replace the cell:
 an operation that outlives its transaction is still stopped by generation,
 epoch and failure-authority checks rather than by ownership of a cell.
 
+**Second increment implemented: COMMIT owns its transaction.** While a COMMIT
+is sealed, another `BEGIN`, `COMMIT`, `ROLLBACK` or savepoint statement on the
+same session is refused immediately with `25000` ("a COMMIT is in progress on
+this session; retry after it completes"). Cassie does not wait, because Midge
+cannot cancel an admitted commit. Only the thread running that COMMIT can mark
+the sealed transaction failed, so a refused statement does not change the
+outcome the COMMIT reports. COMMIT's final cleanup retires only the transaction
+it sealed: if another path already ended it, or a later transaction has begun,
+nothing is reset. The committing thread is never refused
+its own transaction control. A failure mark from another thread's statement is
+dropped while the COMMIT is sealed; if that COMMIT then fails and leaves the
+transaction open, the other statement's failure is not recorded on it.
+Rollbacks issued directly by pgwire error handling do not go
+through the SQL statement path and are not refused; the owner check is what
+keeps a later transaction safe in that case.
+
 Jev's adversarial probability that a hazard remains through state that cannot
 live in the cell is 0.59, so this is the main proof obligation. Session-level
 state that outlives a transaction (session `SET` values, the search path, the
@@ -132,10 +148,15 @@ effects are staged, nothing a late fork does is durable, so there is nothing to
 drain. This removes the self-wait, lock-order and async-reactor-stall hazards
 that #1279 lists for a draining COMMIT.
 
+**Implemented for #1279.** COMMIT seals the transaction before capturing its
+writes; a later fork publication and a later mode declaration are rejected, and
+a failed COMMIT that leaves the transaction open releases the seal.
+Transactional `COPY ... FROM` no longer promotes a declared transaction.
+
 Replayable transactional COPY becomes a consequence of this: COPY rows are
 staged like any other rows, so a declared transaction that stages only rows and
 its checkpoint can keep the replayable policy once COPY's fork is bound to the
-cell. Until that binding exists COPY keeps promoting to strict.
+cell. 
 
 ### 4. Outcomes and cancellation
 

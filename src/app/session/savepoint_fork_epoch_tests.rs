@@ -266,7 +266,7 @@ fn should_preserve_fork_when_savepoint_cursor_pruning_lacks_controls() {
 }
 
 #[test]
-fn should_reject_old_fork_when_savepoint_pruning_unwinds() {
+fn should_reject_old_fork_when_rollback_unwinds_after_sequence_prune() {
     // Arrange
     let (_midge, session, normal) = transaction_with_private_sequence();
     let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));

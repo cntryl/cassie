@@ -1,9 +1,11 @@
 # COPY bindings across savepoint rollback
 
 Status: #1286 / PR #1287 merged at `78c6ed77bb600189fa5797d0c58ee28b27e453a7`.
-The #1288 contract below is implemented in the local candidate but unqualified;
-its regressions have not run. See [the COPY stale-entry contract](copy-stale-entry-contract.md)
-and #1279 for the broader effect-admission work.
+The #1288 contract below has passed local tests; hosted qualification remains
+pending. The full locked suite passed at `9d21f969`, and the affected stale-entry
+tests passed at `d45b411d` after test-assertion-only corrections. See
+[the COPY stale-entry contract](copy-stale-entry-contract.md) and #1279 for the
+broader effect-admission work.
 
 An active transaction's COPY owner captures the rollback epoch, session identity
 and transaction generation under the same session mutex as its descriptor and
@@ -40,8 +42,8 @@ shared effect owner or change SQL durability. A regression must pair an already
 bound same-generation rollback and a provisional-to-final rollback with exact
 errors and an identical valid WHERE predicate that actually advances a sequence
 and inserts a row. Additional controls cover failure/interrupt ordering, rollback
-failures, RELEASE, fresh/new-generation owners and unowned COPY. Authored tests
-are not observed failures or passing evidence until run.
+failures, RELEASE, fresh/new-generation owners and unowned COPY. The tests passed
+in the local runs identified above; a failing baseline was not observed.
 
 Jev selected the epoch check and provisional-to-final rejection (each 1.0), and
 existing per-path error precedence (1.0). Risks identified include the remaining

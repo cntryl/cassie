@@ -45,13 +45,13 @@ impl Cassie {
         }
         let parsed = (*declare.query).clone();
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
-        let result = self.execute_bound_statement(
+        let result = self.execute_bound_statement_for_operation(
             session,
             parsed,
             fingerprint,
             (Vec::new(), &[], call.wire_output),
             call.mode,
-            call.controls,
+            (call.controls, call.authority),
         )?;
         let output = command_result("DECLARE CURSOR", call.controls)?;
         session.with_session_objects(|objects| {

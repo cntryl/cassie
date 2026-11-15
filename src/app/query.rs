@@ -303,6 +303,7 @@ impl Cassie {
         self.describe_parsed_statement(parsed, sql_fingerprint)
     }
 
+    #[cfg(test)]
     pub(crate) fn execute_sql_with_controls(
         &self,
         session: &CassieSession,
@@ -314,6 +315,7 @@ impl Cassie {
         self.execute_sql_core(session, sql, params, mode, controls)
     }
 
+    #[cfg(test)]
     pub(super) fn explain_sql_core(
         &self,
         session: &CassieSession,
@@ -321,6 +323,17 @@ impl Cassie {
         params: Vec<crate::types::Value>,
         controls: &QueryExecutionControls,
     ) -> Result<QueryExplainOutput, CassieError> {
+        self.explain_sql_core_for_operation(session, sql, params, (controls, None))
+    }
+
+    pub(super) fn explain_sql_core_for_operation(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryExplainOutput, CassieError> {
+        let (controls, authority) = scope;
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }
@@ -364,10 +377,11 @@ impl Cassie {
             *statement.statement,
             params,
             statement.analyze,
-            controls,
+            (controls, authority),
         )
     }
 
+    #[cfg(test)]
     pub(super) fn execute_sql_core(
         &self,
         session: &CassieSession,
@@ -376,6 +390,18 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_sql_core_for_operation(session, sql, params, mode, (controls, None))
+    }
+
+    pub(super) fn execute_sql_core_for_operation(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        mode: ExecutionMode,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }
@@ -403,7 +429,14 @@ impl Cassie {
         self.runtime.record_sql_parse();
         let parsed = self.parse_statement_for_session(Some(session), sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
-        self.execute_parsed_statement_core(session, parsed, sql_fingerprint, params, mode, controls)
+        self.execute_parsed_statement_core_for_operation(
+            session,
+            parsed,
+            sql_fingerprint,
+            params,
+            mode,
+            (controls, authority),
+        )
     }
 
     pub(super) fn ensure_statement_can_execute(
@@ -660,15 +693,13 @@ impl Cassie {
         parameter_type_oids: &[i32],
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
-        crate::executor::run_with_session_parameter_oids(
-            self,
-            Some(session),
+        self.execute_physical_statement_with_parameter_oids_for_operation(
+            session,
             physical,
             params,
             parameter_type_oids,
-            controls,
+            (controls, None),
         )
-        .map_err(CassieError::from)
     }
 
     pub(super) fn record_query_feedback(
@@ -723,11 +754,11 @@ impl Cassie {
         statement: crate::sql::ast::ParsedStatement,
         parameters: (Vec<crate::types::Value>, &[i32]),
         analyze: bool,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         Ok(self
             .explain_statement_output_with_parameter_oids(
-                session, statement, parameters, analyze, controls,
+                session, statement, parameters, analyze, scope,
             )?
             .into_parts()
             .0)
@@ -739,7 +770,7 @@ impl Cassie {
         statement: crate::sql::ast::ParsedStatement,
         params: Vec<crate::types::Value>,
         analyze: bool,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryExplainOutput, CassieError> {
         let parameter_type_oids = super::query_parameters::parameter_type_oids(&params);
         self.explain_statement_output_with_parameter_oids(
@@ -747,7 +778,7 @@ impl Cassie {
             statement,
             (params, &parameter_type_oids),
             analyze,
-            controls,
+            scope,
         )
     }
 
@@ -757,8 +788,9 @@ impl Cassie {
         statement: crate::sql::ast::ParsedStatement,
         parameters: (Vec<crate::types::Value>, &[i32]),
         analyze: bool,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryExplainOutput, CassieError> {
+        let (controls, authority) = scope;
         let (params, parameter_type_oids) = parameters;
         let admitted = super::query_parameters::admit_parameter_types(
             self,
@@ -796,7 +828,7 @@ impl Cassie {
                 &physical,
                 params,
                 parameter_type_oids,
-                controls,
+                (controls, authority),
                 &before.expect("analyze snapshot"),
             )?;
             append_explain_analyze(&mut plan, &physical, &report, controls)?;
@@ -818,9 +850,10 @@ impl Cassie {
         physical: &Arc<crate::planner::physical::PhysicalPlan>,
         params: Vec<crate::types::Value>,
         parameter_type_oids: &[i32],
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
         before: &crate::runtime::RuntimeMetricsSnapshot,
     ) -> Result<ExplainAnalyzeReport, CassieError> {
+        let (controls, authority) = scope;
         self.runtime
             .record_adaptive_plan_decision(&physical.adaptive_plan);
         let feedback_keys = self.feedback_keys_for_plan(
@@ -830,12 +863,12 @@ impl Cassie {
         );
         self.observe_feedback_lookup(&feedback_keys);
         let started_at = Instant::now();
-        let result = self.execute_physical_statement_with_parameter_oids(
+        let result = self.execute_physical_statement_with_parameter_oids_for_operation(
             session,
             physical,
             params,
             parameter_type_oids,
-            controls,
+            (controls, authority),
         )?;
         let elapsed_ms = started_at.elapsed().as_millis();
         let after = self.runtime.snapshot();

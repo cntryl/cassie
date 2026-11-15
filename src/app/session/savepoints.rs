@@ -1,11 +1,19 @@
 //! Savepoint payloads exclude the transaction-wide retained read view.
 
+#[cfg(test)]
+mod authority_test_hooks;
+
 use super::{
     BTreeSet, CassieError, CassieSession, Catalog, SessionSavepoint, SessionTransactionStatus,
     MAX_SAVEPOINTS_PER_TRANSACTION,
 };
 
 impl CassieSession {
+    #[cfg(test)]
+    pub(crate) fn rollback_epoch_for_test(&self) -> u64 {
+        self.transaction.lock().rollback_epoch
+    }
+
     pub(crate) fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
         match transaction.status {
@@ -53,7 +61,15 @@ impl CassieSession {
     }
 
     pub(crate) fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
-        self.rollback_to_savepoint_inner(name, || {})
+        self.rollback_to_savepoint_inner(name, None, || {})
+    }
+
+    pub(crate) fn rollback_to_savepoint_for_operation(
+        &self,
+        name: &str,
+        authority: Option<&super::FailureAuthority>,
+    ) -> Result<(), CassieError> {
+        self.rollback_to_savepoint_inner(name, authority, || {})
     }
 
     #[cfg(test)]
@@ -62,12 +78,13 @@ impl CassieSession {
         name: &str,
         after_prune: impl FnOnce(),
     ) -> Result<(), CassieError> {
-        self.rollback_to_savepoint_inner(name, after_prune)
+        self.rollback_to_savepoint_inner(name, None, after_prune)
     }
 
     fn rollback_to_savepoint_inner(
         &self,
         name: &str,
+        authority: Option<&super::FailureAuthority>,
         after_prune: impl FnOnce(),
     ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
@@ -96,10 +113,15 @@ impl CassieSession {
         transaction.rollback_epoch = previous_epoch.checked_add(1).ok_or_else(|| {
             CassieError::ResourceLimit("savepoint rollback epoch exhausted".to_owned())
         })?;
+        let adopted = authority.is_some_and(|authority| {
+            authority.advance_savepoint(self, &transaction, previous_epoch)
+        });
         if transaction.savepoints[index]
             .storage_overlay
             .has_sequence_cursors()
         {
+            #[cfg(test)]
+            authority_test_hooks::before_prune(self, transaction.rollback_epoch);
             let pruning = (|| {
                 let controls =
                     crate::midge::adapter::PublicationControlScope::current_query_controls()
@@ -119,6 +141,11 @@ impl CassieSession {
             })();
             if let Err(error) = pruning {
                 transaction.rollback_epoch = previous_epoch;
+                if adopted {
+                    if let Some(authority) = authority {
+                        authority.revert_savepoint(self, &transaction, previous_epoch);
+                    }
+                }
                 return Err(error);
             }
             after_prune();
@@ -135,6 +162,8 @@ impl CassieSession {
         let session_state = transaction.savepoints[index].session_state.clone();
         let object_mark = transaction.savepoints[index].object_mark;
         let unique_owner_id = transaction.unique_owner_id;
+        #[cfg(test)]
+        let restored_epoch = transaction.rollback_epoch;
         let unique_keys = transaction.savepoints[index].unique_keys.clone();
         transaction.conflict_intents = conflict_intents;
         transaction.catalog_overlay = catalog_overlay;
@@ -146,7 +175,17 @@ impl CassieSession {
         drop(transaction);
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
-            waits.restore_owner_keys(unique_owner_id, &unique_keys)?;
+            let restored = waits.restore_owner_keys(unique_owner_id, &unique_keys);
+            #[cfg(test)]
+            if let Err(error) = &restored {
+                authority_test_hooks::after_restore_error(
+                    self,
+                    unique_owner_id,
+                    restored_epoch,
+                    error,
+                );
+            }
+            restored?;
         }
         self.restore_session_state(session_state);
         self.rollback_session_objects_to(object_mark);

@@ -6,25 +6,26 @@ use super::{
 };
 
 impl Cassie {
-    pub(crate) fn execute_parsed_statement_core(
+    pub(crate) fn execute_parsed_statement_core_for_operation(
         &self,
         session: &CassieSession,
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         params: Vec<crate::types::Value>,
         mode: ExecutionMode,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
-        self.execute_parsed_statement_core_with_parameter_oids(
+        self.execute_parsed_statement_core_with_parameter_oids_for_operation(
             session,
             parsed,
             sql_fingerprint,
             (params, &[]),
             mode,
-            controls,
+            scope,
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn execute_parsed_statement_core_with_parameter_oids(
         &self,
         session: &CassieSession,
@@ -34,6 +35,26 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_parsed_statement_core_with_parameter_oids_for_operation(
+            session,
+            parsed,
+            sql_fingerprint,
+            parameters,
+            mode,
+            (controls, None),
+        )
+    }
+
+    fn execute_parsed_statement_core_with_parameter_oids_for_operation(
+        &self,
+        session: &CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameters: (Vec<crate::types::Value>, &[i32]),
+        mode: ExecutionMode,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {
@@ -42,13 +63,13 @@ impl Cassie {
         let (_command_catalog, command_controls) =
             self.prepare_command_catalog_scope(session, &parsed, controls)?;
         let controls = &command_controls;
-        self.execute_bound_statement(
+        self.execute_bound_statement_for_operation(
             session,
             parsed,
             sql_fingerprint,
             (parameters.0, parameters.1, false),
             mode,
-            controls,
+            (controls, authority),
         )
     }
 
@@ -100,6 +121,26 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_bound_statement_for_operation(
+            session,
+            parsed,
+            sql_fingerprint,
+            parameters,
+            mode,
+            (controls, None),
+        )
+    }
+
+    pub(super) fn execute_bound_statement_for_operation(
+        &self,
+        session: &CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameters: (Vec<Value>, &[i32], bool),
+        mode: ExecutionMode,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {
@@ -115,13 +156,13 @@ impl Cassie {
                     session.prune_transaction_sequence_cursors(controls)?;
                 }
                 Self::mark_statement_transaction_query(session, &parsed.statement);
-                return self.execute_create_table_as(
+                return self.execute_create_table_as_for_operation(
                     session,
                     statement,
                     &parsed.raw_sql,
                     parameters,
                     mode,
-                    controls,
+                    (controls, authority),
                 );
             }
         }
@@ -132,7 +173,7 @@ impl Cassie {
                 sql_fingerprint,
                 parameters,
                 mode,
-                controls,
+                (controls, authority),
             );
         }
 
@@ -140,23 +181,23 @@ impl Cassie {
         if session.is_implicit_transaction()
             && matches!(parsed.statement, QueryStatement::CreateTable(_))
         {
-            return self.execute_implicit_table_creation(
+            return self.execute_implicit_table_creation_for_operation(
                 session,
                 parsed,
                 sql_fingerprint,
                 parameters,
                 mode,
-                controls,
+                (controls, authority),
             );
         }
         let _publication_read = self.catalog_publication.read();
-        self.execute_bound_catalog_scoped(
+        self.execute_bound_catalog_scoped_for_operation(
             session,
             parsed,
             sql_fingerprint,
             parameters,
             mode,
-            controls,
+            (controls, authority),
         )
     }
 
@@ -170,6 +211,26 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_bound_catalog_scoped_for_operation(
+            session,
+            parsed,
+            sql_fingerprint,
+            parameters,
+            mode,
+            (controls, None),
+        )
+    }
+
+    pub(super) fn execute_bound_catalog_scoped_for_operation(
+        &self,
+        session: &CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameters: (Vec<Value>, &[i32], bool),
+        mode: ExecutionMode,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         let transaction_active = session.is_transaction_active();
         let catalog_statement =
             parsed.statement.family() != crate::sql::ast::StatementFamily::Runtime;
@@ -216,7 +277,7 @@ impl Cassie {
             sql_fingerprint,
             parameters,
             mode,
-            controls,
+            (controls, authority),
         )
     }
 
@@ -227,8 +288,9 @@ impl Cassie {
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         // A new top-level statement never borrows an enclosing read authority.
         // This also protects early transaction/EXPLAIN returns and fresh gated
         // commit validation when embedded execution is nested on one thread.
@@ -254,12 +316,20 @@ impl Cassie {
         if let QueryStatement::SessionObject(statement) = &parsed.statement {
             let call = super::session_objects::SessionObjectCall {
                 controls,
+                authority,
                 mode,
                 wire_output: parameters.2,
             };
             return self.execute_session_object(session, statement, &parsed.raw_sql, call);
         }
-        self.execute_bound_query(session, parsed, sql_fingerprint, parameters, mode, controls)
+        self.execute_bound_query(
+            session,
+            parsed,
+            sql_fingerprint,
+            parameters,
+            mode,
+            (controls, authority),
+        )
     }
 
     /// Plans and runs one admitted statement inside the caller's read scopes.
@@ -270,8 +340,9 @@ impl Cassie {
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         let (mut params, declared_oids, wire_output) = parameters;
         let (parameter_types, bound_parameters) =
             super::query_parameters::prepare_bound_parameters(
@@ -292,11 +363,11 @@ impl Cassie {
                 statement,
                 params,
                 parameter_type_oids,
-                controls,
+                (controls, authority),
             );
         }
         if let QueryStatement::Transaction(statement) = &parsed.statement {
-            return self.execute_bound_transaction(session, statement, controls);
+            return self.execute_bound_transaction(session, statement, controls, authority);
         }
 
         let mut cache_context = self.query_cache_context_with_controls(
@@ -360,7 +431,7 @@ impl Cassie {
             params,
             parameter_type_oids,
             cache_context.is_select,
-            controls,
+            (controls, authority),
         )?;
         if let Some(columns) = output_columns {
             result = result.try_with_columns(controls, &columns)?;
@@ -410,14 +481,14 @@ impl Cassie {
         statement: &crate::sql::ast::ExplainStatement,
         params: Vec<Value>,
         parameter_type_oids: &[i32],
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         self.explain_statement(
             session,
             statement.statement.as_ref().clone(),
             (params, parameter_type_oids),
             statement.analyze,
-            controls,
+            scope,
         )
     }
 
@@ -426,8 +497,15 @@ impl Cassie {
         session: &CassieSession,
         statement: &crate::sql::ast::TransactionStatement,
         controls: &QueryExecutionControls,
+        authority: Option<&super::FailureAuthority>,
     ) -> Result<QueryResult, CassieError> {
-        self.execute_transaction_statement(session, statement, controls)
+        if authority.is_some() {
+            self.execute_transaction_statement_for_operation(
+                session, statement, controls, authority,
+            )
+        } else {
+            self.execute_transaction_statement(session, statement, controls)
+        }
     }
 
     fn disable_query_cache_for_bound_execution(
@@ -456,20 +534,21 @@ impl Cassie {
         params: Vec<Value>,
         parameter_type_oids: &[i32],
         is_select: bool,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         let feedback = self.capture_query_feedback(
             is_select,
             session.database.as_deref(),
             &session.search_path(),
             physical,
         );
-        let execution = self.execute_physical_statement_with_parameter_oids(
+        let execution = self.execute_physical_statement_with_parameter_oids_for_operation(
             session,
             physical,
             params,
             parameter_type_oids,
-            controls,
+            (controls, authority),
         );
         self.record_query_feedback(feedback, &execution);
         execution

@@ -1,4 +1,7 @@
 //! Decoding and executing a single buffered COPY input.
+
+#[cfg(test)]
+pub(super) mod authority_test_hooks;
 use super::request::{CopyHeader, CopyLogVerbosity, CopyOnError, CopyWireFormat};
 use super::{
     filter, input, payload_owner, request, validation, Cassie, CassieError, CassieSession,
@@ -10,6 +13,7 @@ pub(super) struct CopyCompletion {
     pub(super) notices: Vec<String>,
 }
 
+#[cfg(test)]
 pub(super) fn execute_copy_payload(
     cassie: &Cassie,
     session: &CassieSession,
@@ -19,6 +23,30 @@ pub(super) fn execute_copy_payload(
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
     owner: Option<&crate::app::CopyCommandOwner>,
 ) -> Result<CopyCompletion, filter::CopyWhereError> {
+    execute_copy_payload_for_operation(
+        cassie,
+        session,
+        request,
+        statement,
+        payload,
+        cancellation,
+        (owner, None),
+    )
+}
+
+pub(super) fn execute_copy_payload_for_operation(
+    cassie: &Cassie,
+    session: &CassieSession,
+    request: &CopyRequest,
+    statement: &CopyStatement,
+    payload: &[u8],
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+    scope: (
+        Option<&crate::app::CopyCommandOwner>,
+        Option<&crate::app::FailureAuthority>,
+    ),
+) -> Result<CopyCompletion, filter::CopyWhereError> {
+    let (owner, authority) = scope;
     let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
         .ok_or_else(|| CassieError::Execution("COPY requires request controls".into()))?;
     let decoded_payload =
@@ -75,10 +103,18 @@ pub(super) fn execute_copy_payload(
     }
     if let Some(owner) = owner {
         owner.ensure_current_transaction(session, &controls)?;
+        #[cfg(test)]
+        authority_test_hooks::after_owner_check(cassie, session);
     }
     if let Some(predicate) = request.where_clause.as_deref() {
-        let (accepted, memory) =
-            filter::filter_rows(cassie, session, statement, rows, predicate, &controls)?;
+        let (accepted, memory) = filter::filter_rows_for_operation(
+            cassie,
+            session,
+            statement,
+            rows,
+            predicate,
+            (&controls, authority),
+        )?;
         rows = accepted;
         _filter_rows_memory = Some(memory);
     } else {

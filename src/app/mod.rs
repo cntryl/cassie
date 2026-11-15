@@ -98,6 +98,7 @@ pub use error::{
     RetryableStorageError, StorageRetryKind,
 };
 pub use session::CassieSession;
+pub(crate) use session::FailureAuthority;
 pub(crate) use session::{
     BoundReadScope, BoundReadView, CommandCatalogScope, CopyBindingContext, CopyCommandOwner,
     SessionRandom, SessionReadScope, SessionTransactionStatus, StagedWriteSnapshot,
@@ -150,6 +151,7 @@ mod query_explain;
 mod query_feedback;
 mod query_implicit_ddl;
 mod query_lifecycle;
+mod query_operation;
 mod query_wire;
 pub(crate) use domain_enforcement::DomainRowRule;
 mod type_scope;
@@ -192,6 +194,18 @@ pub use replay::{projection_concurrency_test_guard, set_projection_replay_prepar
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
 
+#[cfg(test)]
+pub(crate) mod query_failure_watchdog;
+#[cfg(test)]
+mod query_failure_admission_tests;
+#[cfg(test)]
+mod query_failure_quarantine_tests;
+#[cfg(test)]
+mod query_failure_basic_tests;
+#[cfg(test)]
+mod query_failure_converted_tests;
+#[cfg(test)]
+mod query_failure_savepoint_tests;
 #[cfg(test)]
 mod query_result_cache_key_tests;
 #[cfg(all(test, feature = "replay-benchmark-observation"))]

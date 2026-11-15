@@ -9,6 +9,8 @@ use super::{
 use crate::sql::ast::CopyStatement;
 use std::collections::HashMap;
 
+#[path = "copy/binding.rs"]
+mod binding;
 #[path = "copy/execute.rs"]
 mod execute;
 #[path = "copy/filter.rs"]
@@ -29,6 +31,16 @@ mod request;
 mod validation;
 
 #[cfg(test)]
+#[path = "copy/binding_accounting_test_hooks.rs"]
+mod binding_accounting_test_hooks;
+#[cfg(test)]
+#[path = "copy/binding_authority_accounting_tests.rs"]
+mod binding_authority_accounting_tests;
+#[cfg(test)]
+#[path = "copy/origin_failure_authority_tests.rs"]
+mod origin_failure_authority_tests;
+
+#[cfg(test)]
 #[path = "copy/cancellation_tests.rs"]
 pub(super) mod cancellation_tests;
 
@@ -44,6 +56,7 @@ mod diagnostic_tests;
 #[path = "copy/stale_entry_tests.rs"]
 mod stale_entry_tests;
 
+use binding::CopyFromBinding;
 use input_read::{read_admitted_copy_message, CopyReadOutcome};
 #[cfg(test)]
 use input_read::{read_copy_frontend_message, select_copy_read};
@@ -230,6 +243,7 @@ fn bind_copy_from_stdin(
     let binding_sql = request
         .table_binding_sql()
         .ok_or_else(|| CassieError::Parse("COPY FROM STDIN requires a table target".to_string()))?;
+    let authority = crate::app::FailureAuthority::capture(session);
     let parsed = cassie.parse_statement_for_session(Some(session), &binding_sql)?;
     session.authorize_statement(&parsed.statement)?;
     cassie.authorize_role_object_access(session, &parsed.statement)?;
@@ -281,6 +295,29 @@ fn bind_copy_from_stdin(
         ));
     }
     validation::validate_force_columns(&scoped, &request, &statement)?;
+    let binding_bytes = binding::charged_bytes(owner.is_some())?;
+    #[cfg(test)]
+    let mut observed = binding_accounting_test_hooks::before_admission(
+        cassie,
+        session,
+        &mut controls,
+        binding_bytes,
+        owner.is_some(),
+    );
+    let interruption = controls.check_interruption();
+    #[cfg(test)]
+    if interruption.is_err() {
+        if let Some(observed) = observed.take() {
+            observed.finish(false);
+        }
+    }
+    interruption?;
+    let authority_reservation = controls.reserve_query_memory(binding_bytes);
+    #[cfg(test)]
+    if let Some(observed) = observed {
+        observed.finish(true);
+    }
+    let authority_reservation = authority_reservation?;
     Ok(BoundCopyRequest::From(
         request,
         Box::new(statement),
@@ -288,6 +325,8 @@ fn bind_copy_from_stdin(
             cassie: Arc::new(scoped),
             owner,
             controls,
+            authority,
+            _authority_reservation: authority_reservation,
         }),
     ))
 }
@@ -329,12 +368,6 @@ fn bind_copy_to_stdout(
     Cassie::ensure_transaction_recovery(session, &parsed)?;
     session.mark_transaction_query();
     Ok(BoundCopyRequest::To(request, query_sql))
-}
-
-struct CopyFromBinding {
-    cassie: Arc<Cassie>,
-    owner: Option<crate::app::CopyCommandOwner>,
-    controls: crate::runtime::QueryExecutionControls,
 }
 
 enum BoundCopyRequest {
@@ -859,14 +892,14 @@ async fn finish_simple_copy(
         move |cassie| {
             let _controls =
                 crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
-            execute::execute_copy_payload(
+            execute::execute_copy_payload_for_operation(
                 &cassie,
                 &session_for_copy,
                 &request,
                 &statement,
                 payload.as_slice(),
                 cancellation.as_ref(),
-                binding.owner.as_ref(),
+                (binding.owner.as_ref(), Some(&binding.authority)),
             )
         },
     )

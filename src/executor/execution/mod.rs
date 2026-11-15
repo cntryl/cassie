@@ -98,7 +98,7 @@ mod result;
 pub(crate) use entrypoints::{
     mark_source_projections_stale_external, refresh_rollups_for_source_external,
     rollup_rewrite_name_for_plan, run_with_session_controls, run_with_session_parameter_oids,
-    sync_derived_maintenance_debt_external,
+    run_with_session_parameter_oids_for_operation, sync_derived_maintenance_debt_external,
 };
 pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 pub(crate) use scored::install_ann_rerank_barriers;

@@ -132,6 +132,28 @@ pub(crate) fn run_with_session_parameter_oids(
     parameter_type_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    run_with_session_parameter_oids_for_operation(
+        cassie,
+        session,
+        plan,
+        params,
+        parameter_type_oids,
+        (controls, None),
+    )
+}
+
+pub(crate) fn run_with_session_parameter_oids_for_operation(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &Arc<PhysicalPlan>,
+    params: Vec<Value>,
+    parameter_type_oids: &[i32],
+    scope: (
+        &QueryExecutionControls,
+        Option<&crate::app::FailureAuthority>,
+    ),
+) -> Result<QueryResult, QueryError> {
+    let (controls, authority) = scope;
     cassie
         .check_storage_recovery_required()
         .map_err(QueryError::from)?;
@@ -151,19 +173,20 @@ pub(crate) fn run_with_session_parameter_oids(
         params: &params,
         user_functions: &user_functions,
         controls,
+        authority,
     };
     if let Some(result) = super::modifying_ctes::run(&inputs, plan)? {
         return Ok(result);
     }
 
     if let Some(command) = plan.logical.command.as_ref() {
-        return dml_command::execute_command(
+        return dml_command::execute_command_for_operation(
             cassie,
             session,
             command,
             &params,
             &user_functions,
-            controls,
+            (controls, authority),
         );
     }
 

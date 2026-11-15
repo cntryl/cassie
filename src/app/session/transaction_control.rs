@@ -32,11 +32,30 @@ impl CassieSession {
         self.begin_transaction_with_origin(isolation, modes, false)
     }
 
+    pub(crate) fn begin_transaction_with_modes_for_operation(
+        &self,
+        isolation: Option<TransactionIsolation>,
+        modes: TransactionModes,
+        authority: Option<&super::FailureAuthority>,
+    ) -> Result<(), CassieError> {
+        self.begin_transaction_with_origin_for_operation(isolation, modes, false, authority)
+    }
+
     pub(super) fn begin_transaction_with_origin(
         &self,
         isolation: Option<TransactionIsolation>,
         modes: TransactionModes,
         implicit: bool,
+    ) -> Result<(), CassieError> {
+        self.begin_transaction_with_origin_for_operation(isolation, modes, implicit, None)
+    }
+
+    pub(super) fn begin_transaction_with_origin_for_operation(
+        &self,
+        isolation: Option<TransactionIsolation>,
+        modes: TransactionModes,
+        implicit: bool,
+        authority: Option<&super::FailureAuthority>,
     ) -> Result<(), CassieError> {
         if isolation == Some(TransactionIsolation::Serializable) {
             return Err(CassieError::Unsupported(
@@ -117,6 +136,9 @@ impl CassieSession {
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.session_state = Some(session_state);
         transaction.local_settings.clear();
+        if let Some(authority) = authority {
+            authority.adopt_start(self, &transaction);
+        }
         Ok(())
     }
 

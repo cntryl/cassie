@@ -8,7 +8,7 @@ use crate::types::composite::CompositeRef;
 use crate::types::{DataType, SqlArray, Value};
 
 /// The record descriptor of an array-of-composite column, at any depth.
-pub(super) fn element_descriptor(data_type: &DataType) -> Option<&CompositeRef> {
+pub(crate) fn element_descriptor(data_type: &DataType) -> Option<&CompositeRef> {
     let DataType::Array(element) = data_type else {
         return None;
     };

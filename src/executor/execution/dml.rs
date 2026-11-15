@@ -109,6 +109,7 @@ pub(super) fn value_to_json_for_field(
     }
 
     if (matches!(data_type, DataType::Composite(_))
+        || crate::executor::scan::composite_array_descriptor(data_type).is_some()
         || crate::types::enum_type::is_enum_family(data_type))
         && !matches!(value, Value::Null)
     {

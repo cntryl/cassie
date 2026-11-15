@@ -245,6 +245,15 @@ pub(crate) fn parameter_data_type_for_oid_in_database(
     {
         return Some(DataType::Composite(composite.descriptor()));
     }
+    if let Some(composite) = u32::try_from(oid)
+        .ok()
+        .and_then(|oid| catalog.get_composite_type_by_array_oid(oid))
+        .filter(|composite| composite.database.eq_ignore_ascii_case(database))
+    {
+        return Some(DataType::Array(Box::new(DataType::Composite(
+            composite.descriptor(),
+        ))));
+    }
     if let Some(domain) = u32::try_from(oid)
         .ok()
         .and_then(|oid| catalog.get_domain_type_by_oid(oid))

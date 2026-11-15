@@ -501,3 +501,7 @@ impl Source {
 #[cfg(test)]
 #[path = "property_graph_command_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "property_graph_durability_tests.rs"]
+mod durability_tests;

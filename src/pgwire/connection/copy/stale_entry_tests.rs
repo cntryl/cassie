@@ -124,3 +124,208 @@ fn should_execute_sequence_predicate_with_current_copy_owner() {
     assert_eq!(current.rows(), &[vec![Value::Int64(1)]]);
     assert_eq!(rows.rows(), &[vec![Value::Int64(41)]]);
 }
+
+struct EntryFixture {
+    cassie: Cassie,
+    session: crate::app::CassieSession,
+    request: request::CopyRequest,
+    statement: Box<crate::sql::ast::CopyStatement>,
+    binding: Box<super::CopyFromBinding>,
+}
+
+impl EntryFixture {
+    fn new(sql: &str, cancellation: Option<crate::runtime::QueryCancellationHandle>) -> Self {
+        let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+            .expect("memory fixture");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for setup in [
+            "CREATE TABLE copy_entry_precedence (id INT)",
+            "CREATE SEQUENCE copy_entry_precedence_seq",
+            "BEGIN",
+        ] {
+            cassie.execute_sql(&session, setup, vec![]).expect("setup");
+        }
+        let request = request::parse_copy_request(sql)
+            .expect("parse COPY")
+            .expect("COPY request");
+        let bound =
+            bind_copy_from_stdin(&cassie, &session, request, cancellation).expect("bind COPY");
+        let BoundCopyRequest::From(request, statement, binding) = bound else {
+            panic!("COPY FROM binding")
+        };
+        Self {
+            cassie,
+            session,
+            request,
+            statement,
+            binding,
+        }
+    }
+
+    fn run(
+        &self,
+        session: &crate::app::CassieSession,
+        payload: &[u8],
+    ) -> Result<execute::CopyCompletion, filter::CopyWhereError> {
+        let _controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(&self.binding.controls));
+        execute::execute_copy_payload(
+            &self.binding.cassie,
+            session,
+            &self.request,
+            &self.statement,
+            payload,
+            None,
+            self.binding.owner.as_ref(),
+        )
+    }
+
+    fn retire(&self) {
+        self.cassie
+            .execute_sql(&self.session, "ROLLBACK", vec![])
+            .expect("retire owner");
+    }
+}
+
+const ENTRY_COPY_SQL: &str = "COPY copy_entry_precedence (id) FROM STDIN WHERE (id > 0 AND nextval('copy_entry_precedence_seq') > 0)";
+
+#[test]
+fn should_preserve_failed_transaction_error_for_current_copy_owner() {
+    // Arrange
+    let fixture = EntryFixture::new(ENTRY_COPY_SQL, None);
+    fixture.session.mark_transaction_failed();
+
+    // Act
+    let result = fixture.run(&fixture.session, b"41\n");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(
+            crate::app::CassieError::Transaction {
+                kind: crate::app::TransactionErrorKind::FailedTransaction,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn should_preserve_cancellation_before_rejecting_stale_copy_owner() {
+    // Arrange
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let fixture = EntryFixture::new(ENTRY_COPY_SQL, Some(cancellation.clone()));
+    fixture.retire();
+    cancellation.cancel();
+
+    // Act
+    let result = fixture.run(&fixture.session, b"41\n");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(
+            crate::app::CassieError::QueryCanceled
+        ))
+    ));
+}
+
+#[test]
+fn should_preserve_deadline_before_rejecting_stale_copy_owner() {
+    // Arrange
+    let mut fixture = EntryFixture::new(ENTRY_COPY_SQL, None);
+    fixture.retire();
+    fixture.binding.controls.deadline = Some(std::time::Instant::now());
+
+    // Act
+    let result = fixture.run(&fixture.session, b"41\n");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(
+            crate::app::CassieError::DeadlineExceeded
+        ))
+    ));
+}
+
+#[test]
+fn should_preserve_invalid_header_diagnostic_for_stale_copy_owner() {
+    // Arrange
+    let fixture = EntryFixture::new(
+        "COPY copy_entry_precedence (id) FROM STDIN WITH (FORMAT CSV, HEADER MATCH) WHERE (id > 0)",
+        None,
+    );
+    fixture.retire();
+
+    // Act
+    let result = fixture.run(&fixture.session, b"wrong\n41\n");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(error)) if error.sql_state() == "22P04"
+    ));
+}
+
+#[test]
+fn should_reject_copy_owner_from_another_active_session() {
+    // Arrange
+    let fixture = EntryFixture::new(ENTRY_COPY_SQL, None);
+    let other = fixture.cassie.create_session("other", None);
+    fixture
+        .cassie
+        .execute_sql(&other, "BEGIN", vec![])
+        .expect("other transaction");
+
+    // Act
+    let result = fixture.run(&other, b"41\n");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(crate::app::CassieError::Transaction {
+            kind: crate::app::TransactionErrorKind::SerializationFailure,
+            message,
+        })) if message == "COPY owner no longer matches the active transaction"
+    ));
+}
+
+#[test]
+fn should_preserve_autocommit_copy_without_owner() {
+    // Arrange
+    let fixture = EntryFixture::new(ENTRY_COPY_SQL, None);
+    fixture.retire();
+    let bound = bind_copy_from_stdin(&fixture.cassie, &fixture.session, fixture.request, None)
+        .expect("autocommit binding");
+    let BoundCopyRequest::From(request, statement, binding) = bound else {
+        panic!("COPY FROM binding")
+    };
+    assert!(binding.owner.is_none());
+
+    // Act
+    let controls = crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+    let result = execute::execute_copy_payload(
+        &binding.cassie,
+        &fixture.session,
+        &request,
+        &statement,
+        b"41\n",
+        None,
+        binding.owner.as_ref(),
+    );
+    drop(controls);
+    let rows = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT id FROM copy_entry_precedence",
+            vec![],
+        )
+        .expect("read row");
+
+    // Assert
+    assert!(result.is_ok());
+    assert_eq!(rows.rows(), &[vec![Value::Int64(41)]]);
+}

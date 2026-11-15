@@ -183,3 +183,50 @@ fn should_attribute_native_commits_to_the_outermost_maintenance_scope() {
     assert_eq!(observation.time_series_maintenance_attempts, 1);
     assert_eq!(observation.maintenance_barrier_attempts, 2);
 }
+
+#[cfg(feature = "replay-benchmark-observation")]
+#[test]
+fn should_buffer_hash_rebuild_commits_before_synchronous_root_publication() {
+    // Arrange
+    use crate::types::{DataType, FieldSchema, Schema};
+    let path = std::env::temp_dir().join(format!(
+        "cassie_hash_rebuild_policy_{}",
+        uuid::Uuid::new_v4()
+    ));
+    let midge = Midge::new_with_data_dir(&path).expect("local engine");
+    midge
+        .create_collection(
+            "hash_rebuild_policy",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_string(),
+                    data_type: DataType::Text,
+                    nullable: false,
+                }],
+            },
+        )
+        .unwrap();
+    midge
+        .put_documents(
+            "hash_rebuild_policy",
+            vec![(Some("row-1".to_string()), serde_json::json!({"value": "one"}))],
+        )
+        .unwrap();
+
+    // Act
+    let (root, observed) =
+        observe_native_commits(|| midge.rebuild_projection_hashes("hash_rebuild_policy"));
+
+    // Assert
+    assert_eq!(root.unwrap().row_count, 1);
+    assert!(observed.local_buffered_attempts >= 3);
+    assert!(observed.local_sync_attempts >= 1);
+    assert_eq!(
+        observed.attempted,
+        observed.local_buffered_attempts + observed.local_sync_attempts
+    );
+    assert_eq!(observed.best_effort_attempts, 0);
+
+    drop(midge);
+    let _ = std::fs::remove_dir_all(path);
+}

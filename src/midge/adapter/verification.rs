@@ -284,15 +284,21 @@ impl Midge {
             .map(|(key, _)| key),
         );
 
+        // Everything before root publication is derived, guarded by durable
+        // maintenance debt and rebuilt from rows. Local durability is a prefix
+        // frontier, so the synchronous root commit below also makes these
+        // commits durable; a crash before it leaves a prefix of this same
+        // sequence, with no root. Cloud policies return their sync option here.
+        let intermediate = self.write_options_buffered();
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
         tx.delete(Self::root_hash_key(&collection))
             .map_err(CassieError::from)?;
-        tx.commit(self.write_options_sync())
+        tx.commit(intermediate)
             .map_err(CassieError::from)?;
         for keys in obsolete_keys.chunks(PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
             let mut tx = self.begin_data_rw_tx_for(&collection)?;
             delete_keys_from_tx(&mut tx, keys)?;
-            tx.commit(self.write_options_sync())
+            tx.commit(intermediate)
                 .map_err(CassieError::from)?;
         }
         for range in write_ranges(records.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
@@ -300,7 +306,7 @@ impl Midge {
             for record in &records[range] {
                 write_row_hash_record_to_tx(&mut tx, record)?;
             }
-            tx.commit(self.write_options_sync())
+            tx.commit(intermediate)
                 .map_err(CassieError::from)?;
         }
         check_projection_output_failure_point(ProjectionOutputFailurePoint::AfterRowBatches)?;
@@ -309,9 +315,11 @@ impl Midge {
             for record in &ranges[range] {
                 write_range_hash_record_to_tx(&mut tx, record)?;
             }
-            tx.commit(self.write_options_sync())
+            tx.commit(intermediate)
                 .map_err(CassieError::from)?;
         }
+        // Root publication stays synchronous: it is the durability barrier for
+        // the whole rebuild.
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
         write_root_hash_record_to_tx(&mut tx, &root)?;
         tx.commit(self.write_options_sync())

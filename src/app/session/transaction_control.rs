@@ -104,6 +104,7 @@ impl CassieSession {
         transaction.modes = modes;
         transaction.has_query = false;
         transaction.generation = transaction.generation.wrapping_add(1);
+        transaction.rollback_epoch = 0;
         transaction.unique_owner_id = uuid::Uuid::new_v4();
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();

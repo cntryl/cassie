@@ -8,7 +8,46 @@ use crate::app::TransactionErrorKind;
 use crate::catalog::Catalog;
 use crate::sql::ast::TransactionModes;
 
+#[cfg(test)]
+thread_local! {
+    static BEGIN_CONTENTION_OBSERVER: std::cell::RefCell<Option<std::sync::mpsc::Sender<()>>> = const { std::cell::RefCell::new(None) };
+}
+
 impl CassieSession {
+    /// Observe root status under the transaction mutex. Detached forks have
+    /// their own mutex and must not be mistaken for the root's authority.
+    pub(crate) fn with_root_transaction_status_locked<T>(
+        &self,
+        operation: impl FnOnce(Option<SessionTransactionStatus>) -> T,
+    ) -> T {
+        if !self.owns_transaction_lifecycle {
+            return operation(None);
+        }
+        let transaction = self.transaction.lock();
+        operation(Some(transaction.status))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn force_idle_for_discard_test(&self) {
+        assert!(!self.owns_transaction_lifecycle);
+        self.transaction.lock().status = SessionTransactionStatus::Idle;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn begin_transaction_observed(
+        &self,
+        sender: std::sync::mpsc::Sender<()>,
+    ) -> Result<(), CassieError> {
+        BEGIN_CONTENTION_OBSERVER.with(|observer| {
+            assert!(observer.borrow_mut().replace(sender).is_none());
+        });
+        let result = self.begin_transaction(None);
+        BEGIN_CONTENTION_OBSERVER.with(|observer| {
+            observer.borrow_mut().take();
+        });
+        result
+    }
+
     pub(crate) fn transaction_relation_exists(&self, catalog: &Catalog, relation: &str) -> bool {
         let transaction = self.transaction.lock();
         transaction.catalog_overlay.as_ref().map_or_else(
@@ -85,7 +124,18 @@ impl CassieSession {
             ));
         }
         let session_state = self.session_state_snapshot();
+        #[cfg(not(test))]
         let mut transaction = self.transaction.lock();
+        #[cfg(test)]
+        let mut transaction = if let Some(transaction) = self.transaction.try_lock() {
+            transaction
+        } else {
+            let observer = BEGIN_CONTENTION_OBSERVER.with(|observer| observer.borrow_mut().take());
+            if let Some(observer) = observer {
+                let _ = observer.send(());
+            }
+            self.transaction.lock()
+        };
         if transaction.status == SessionTransactionStatus::Failed
             || (transaction.status != SessionTransactionStatus::Idle && !transaction.implicit)
         {

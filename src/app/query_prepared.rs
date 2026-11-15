@@ -1,3 +1,13 @@
+#[cfg(test)]
+#[path = "query_prepared/authority_capture_tests.rs"]
+mod authority_capture_tests;
+#[cfg(test)]
+#[path = "query_prepared/authority_test_hooks.rs"]
+pub(super) mod authority_test_hooks;
+#[cfg(test)]
+#[path = "query_prepared/authority_tests.rs"]
+mod authority_tests;
+
 use std::time::Instant;
 
 use super::{
@@ -15,7 +25,7 @@ impl Cassie {
         mode: ExecutionMode,
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
-        self.execute_pgwire_query(session, cancellation, |controls| {
+        self.execute_pgwire_query(session, cancellation, |controls, authority| {
             let (parsed, sql) = statement;
             if let Some(result) =
                 self.quarantined_statement_result(session, &parsed.statement, controls)
@@ -23,13 +33,13 @@ impl Cassie {
                 return result;
             }
             let execution_session = session.with_statement_text(sql, controls)?;
-            self.execute_pgwire_statement_core(
+            self.execute_pgwire_statement_core_for_operation(
                 &execution_session,
                 parsed,
                 sql_fingerprint,
                 parameters,
                 mode,
-                controls,
+                (controls, authority),
             )
         })
     }
@@ -40,7 +50,7 @@ impl Cassie {
         query: (&str, &str),
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
-        self.execute_pgwire_query(session, cancellation, |controls| {
+        self.execute_pgwire_query(session, cancellation, |controls, authority| {
             let (sql, frontend_sql) = query;
             if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
                 return result;
@@ -66,13 +76,13 @@ impl Cassie {
             self.runtime.record_sql_parse();
             let parsed = self.parse_statement_for_session(Some(session), sql)?;
             let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
-            self.execute_pgwire_statement_core(
+            self.execute_pgwire_statement_core_for_operation(
                 session,
                 parsed,
                 sql_fingerprint,
                 (Vec::new(), &[]),
                 ExecutionMode::SimpleQuery,
-                controls,
+                (controls, authority),
             )
         })
     }
@@ -81,10 +91,18 @@ impl Cassie {
         &self,
         session: &CassieSession,
         cancellation: &QueryCancellationHandle,
-        execute: impl FnOnce(&QueryExecutionControls) -> Result<QueryResult, CassieError>,
+        execute: impl FnOnce(
+            &QueryExecutionControls,
+            Option<&super::FailureAuthority>,
+        ) -> Result<QueryResult, CassieError>,
     ) -> Result<QueryResult, CassieError> {
         let query_started = Instant::now();
-        let running_guard = if self.check_storage_recovery_required().is_err() {
+        let recovery_required = self.check_storage_recovery_required().is_err();
+        #[cfg(test)]
+        if !recovery_required {
+            authority_test_hooks::after_healthy_check(self, session);
+        }
+        let running_guard = if recovery_required {
             None
         } else if let Some(guard) = self.runtime.try_begin_running_query() {
             Some(guard)
@@ -104,8 +122,24 @@ impl Cassie {
             cancellation.clone(),
         );
         session.apply_statement_timeout(&mut controls, query_started);
+        #[cfg(test)]
+        if running_guard.is_some() {
+            authority_test_hooks::after_admission(self, session);
+        }
+        #[cfg(test)]
+        let authority = running_guard.as_ref().map(|_| {
+            super::FailureAuthority::capture_with_contention(session, || {
+                authority_test_hooks::on_capture_contended(self, session, &mut controls);
+            })
+        });
+        #[cfg(not(test))]
+        let authority = running_guard
+            .as_ref()
+            .map(|_| super::FailureAuthority::capture(session));
         self.runtime.record_query_memory(&controls);
-        let result = execute(&controls);
+        let result = execute(&controls, authority.as_ref());
+        #[cfg(test)]
+        authority_test_hooks::after_worker_result(self, session, authority.as_ref(), &result);
         let elapsed = query_started.elapsed();
         self.runtime.record_query_memory(&controls);
 
@@ -115,7 +149,9 @@ impl Cassie {
                 .record_query_success(elapsed, result.row_count()),
             Err(error) => {
                 self.runtime.record_query_error(elapsed, error);
-                if session.is_transaction_active() {
+                if let Some(authority) = authority.as_ref() {
+                    authority.mark_failed_if_current(session);
+                } else if session.is_transaction_active() {
                     session.mark_transaction_failed();
                 }
             }

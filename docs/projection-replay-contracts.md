@@ -205,17 +205,14 @@ staged CREATE/DROP with savepoints and rollback at READ COMMITTED and REPEATABLE
 READ, post-commit metadata reread failure, nested CTAS over the view, missing
 and mismatched markers, quoted identities, budget and cancellation.
 
-Not yet covered by a dedicated test and therefore not claimed: role-level
-authorization of this view and retained REPEATABLE READ Bind portals.
-SQL `ROLLBACK`, `SAVEPOINT`, `ROLLBACK TO SAVEPOINT` and `RELEASE` hold the
-fence through execution. `COMMIT` and `BEGIN` do not: COMMIT waits for the
-global publication guard, which must not be awaited while holding the fence,
-and a COMMIT that publishes catalog state already excludes readers through that
-global write guard. Rollbacks issued by pgwire error handling outside the SQL
-statement path do not take the fence and remain covered by #1290's retirement
-work. Existing integration suites exercise this view across database scope,
-snapshot restore and materialized projection lifecycle; they run in the gate
-but were not written for this issue. Autocommit CREATE TABLE publishes under the global write guard
+Not yet covered by a dedicated test and therefore not claimed: authorization
+and database isolation of this view specifically (existing database-scope
+suites run in the gate but do not target it), materialized-projection rows,
+restart on local storage, and retained REPEATABLE READ Bind portals.
+Transaction-control statements (COMMIT, ROLLBACK, SAVEPOINT) do not take the
+fence, so a concurrent same-session reader during ROLLBACK TO SAVEPOINT is not
+protected against observing the storage restoration before the catalog
+restoration. Autocommit CREATE TABLE publishes under the global write guard
 without a separate staged overlay and is unaffected.
 
 Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. The selected #1271 policy above remains unimplemented and does not establish crash atomicity for a new durability policy.

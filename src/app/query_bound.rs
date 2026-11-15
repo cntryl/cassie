@@ -173,22 +173,7 @@ impl Cassie {
                 );
             }
         }
-        if let QueryStatement::Transaction(statement) = &parsed.statement {
-            // Rollback and savepoint control restore staged storage and catalog
-            // state separately, so they hold the session fence like DDL. COMMIT
-            // and BEGIN do not: COMMIT waits for the global publication guard,
-            // which must never be awaited while holding the fence.
-            let mut fence = if matches!(
-                statement.action,
-                crate::sql::ast::TransactionAction::Rollback
-                    | crate::sql::ast::TransactionAction::Savepoint { .. }
-                    | crate::sql::ast::TransactionAction::RollbackTo { .. }
-                    | crate::sql::ast::TransactionAction::Release { .. }
-            ) {
-                session.enter_publication_fence(controls, true)?
-            } else {
-                PublicationFenceScope::none()
-            };
+        if matches!(&parsed.statement, QueryStatement::Transaction(_)) {
             return self.execute_bound_statement_inner(
                 session,
                 parsed,
@@ -196,7 +181,7 @@ impl Cassie {
                 parameters,
                 StatementAdmission {
                     mode,
-                    fence: &mut fence,
+                    fence: &mut PublicationFenceScope::none(),
                 },
                 (controls, authority),
             );

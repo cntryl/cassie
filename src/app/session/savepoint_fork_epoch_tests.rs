@@ -384,9 +384,13 @@ fn should_retire_fork_when_failed_ctas_restores_its_internal_savepoint() {
 fn should_recover_savepoint_epoch_after_full_transaction_rollback() {
     // Arrange
     let session = transaction_with_savepoint();
-    session.transaction.lock().rollback_epoch = u64::MAX;
+    session
+        .rollback_to_savepoint("before_fork")
+        .expect("establish old epoch");
     let old_generation = session.transaction_generation();
+    let old_epoch = session.transaction.lock().rollback_epoch;
     let old = stage_fork(&session, "old_generation");
+    session.transaction.lock().rollback_epoch = u64::MAX;
     let exhausted = session.rollback_to_savepoint("before_fork");
 
     // Act
@@ -396,6 +400,7 @@ fn should_recover_savepoint_epoch_after_full_transaction_rollback() {
     let initial_epoch = session.transaction.lock().rollback_epoch;
     session.create_savepoint("fresh").expect("fresh savepoint");
     let restore = session.rollback_to_savepoint("fresh");
+    let current_epoch = session.transaction.lock().rollback_epoch;
     let current = stage_fork(&session, "new_generation");
     let old_result = session.publish_statement_batch(&old);
     let current_result = session.publish_statement_batch(&current);
@@ -405,6 +410,7 @@ fn should_recover_savepoint_epoch_after_full_transaction_rollback() {
     assert_ne!(old_generation, new_generation);
     assert_eq!(initial_epoch, 0);
     assert!(restore.is_ok());
+    assert_eq!(old_epoch, current_epoch);
     assert!(is_stale_fork(&old_result));
     assert!(current_result.is_ok());
     assert!(session

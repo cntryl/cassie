@@ -136,6 +136,7 @@ fn should_report_native_commit_attempts_by_selected_policy() {
     });
 
     // Assert
+    assert_eq!(observation.first_policy, Some("local_sync"));
     assert_eq!(observation.attempted, 5);
     assert_eq!(observation.succeeded, 5);
     assert_eq!(observation.local_sync_attempts, 1);

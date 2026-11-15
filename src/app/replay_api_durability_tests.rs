@@ -44,6 +44,7 @@ fn should_use_buffered_wal_for_default_replay() {
 
     // Assert
     assert_eq!(result.unwrap().applied_event_count, 1);
+    assert_eq!(writes.first_policy, Some("local_buffered"));
     assert!(writes.local_buffered_attempts > 0);
     assert_eq!(writes.best_effort_attempts, 0);
     assert_eq!(
@@ -69,6 +70,7 @@ fn should_use_synchronous_wal_for_strict_replay() {
 
     // Assert
     assert_eq!(result.unwrap().applied_event_count, 1);
+    assert_eq!(writes.first_policy, Some("local_sync"));
     assert!(writes.local_sync_attempts > 0);
     assert_eq!(writes.local_buffered_attempts, 0);
     assert_eq!(writes.best_effort_attempts, 0);
@@ -104,6 +106,8 @@ fn should_use_replayable_policy_for_metadata_only_batches() {
     // Assert
     assert_eq!(empty_result.unwrap().applied_event_count, 0);
     assert_eq!(duplicate_result.unwrap().skipped_duplicate_count, 1);
+    assert_eq!(empty_writes.first_policy, Some("local_buffered"));
+    assert_eq!(duplicate_writes.first_policy, Some("local_buffered"));
     assert!(empty_writes.local_buffered_attempts > 0);
     assert!(duplicate_writes.local_buffered_attempts > 0);
     assert_eq!(empty_writes.best_effort_attempts, 0);
@@ -130,8 +134,139 @@ fn should_use_strict_policy_for_metadata_only_batches() {
     // Assert
     assert_eq!(empty_result.unwrap().applied_event_count, 0);
     assert_eq!(duplicate_result.unwrap().skipped_duplicate_count, 1);
+    assert_eq!(empty_writes.first_policy, Some("local_sync"));
+    assert_eq!(duplicate_writes.first_policy, Some("local_sync"));
     assert!(empty_writes.local_sync_attempts > 0);
     assert!(duplicate_writes.local_sync_attempts > 0);
     assert_eq!(empty_writes.local_buffered_attempts, 0);
     assert_eq!(duplicate_writes.local_buffered_attempts, 0);
+}
+
+fn delete_missing(projection: &str) -> ProjectionReplayBatch {
+    let mut batch = batch(projection);
+    batch.batch_id = "batch-2".to_owned();
+    batch.events[0].event_id = "event-2".to_owned();
+    batch.events[0].checkpoint = "checkpoint-2".to_owned();
+    batch.events[0].position = Some(2);
+    batch.events[0].document_id = "missing".to_owned();
+    batch.events[0].payload = None;
+    batch
+}
+
+#[test]
+fn should_use_replayable_policy_for_missing_row_deletion() {
+    // Arrange
+    let (cassie, projection) = fixture();
+    cassie
+        .replay_projection_batch_strict(batch(&projection))
+        .unwrap();
+
+    // Act
+    let (result, writes) =
+        observe_native_commits(|| cassie.replay_projection_batch(delete_missing(&projection)));
+
+    // Assert
+    assert_eq!(result.unwrap().applied_event_count, 1);
+    assert_eq!(writes.first_policy, Some("local_buffered"));
+    assert_eq!(writes.best_effort_attempts, 0);
+    assert_eq!(
+        cassie
+            .midge
+            .projection_metadata(&projection)
+            .unwrap()
+            .unwrap()
+            .source_checkpoint
+            .as_deref(),
+        Some("checkpoint-2")
+    );
+}
+
+#[test]
+fn should_use_strict_policy_for_missing_row_deletion() {
+    // Arrange
+    let (cassie, projection) = fixture();
+    cassie
+        .replay_projection_batch_strict(batch(&projection))
+        .unwrap();
+
+    // Act
+    let (result, writes) = observe_native_commits(|| {
+        cassie.replay_projection_batch_strict(delete_missing(&projection))
+    });
+
+    // Assert
+    assert_eq!(result.unwrap().applied_event_count, 1);
+    assert_eq!(writes.first_policy, Some("local_sync"));
+    assert_eq!(writes.best_effort_attempts, 0);
+    assert_eq!(
+        cassie
+            .midge
+            .projection_metadata(&projection)
+            .unwrap()
+            .unwrap()
+            .source_checkpoint
+            .as_deref(),
+        Some("checkpoint-2")
+    );
+}
+
+fn cloud_policy_case(
+    configured_strict: bool,
+    explicit_strict: bool,
+) -> (u64, Option<&'static str>, u64) {
+    let path = std::env::temp_dir().join(format!(
+        "cassie-replay-cloud-policy-{}",
+        uuid::Uuid::new_v4()
+    ));
+    let config = CassieRuntimeConfig::default();
+    let midge = crate::midge::adapter::Midge::new_cloud_simulated_for_test(
+        &path,
+        &config.database,
+        configured_strict,
+    )
+    .unwrap();
+    let cassie = Cassie::new_with_midge_and_config(std::sync::Arc::new(midge), config).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE replay_policy_docs (title TEXT)",
+            vec![],
+        )
+        .unwrap();
+    let projection = cassie.midge.canonical_collection_name("replay_policy_docs");
+    let (result, writes) = observe_native_commits(|| {
+        if explicit_strict {
+            cassie.replay_projection_batch_strict(batch(&projection))
+        } else {
+            cassie.replay_projection_batch(batch(&projection))
+        }
+    });
+    let applied = result.unwrap().applied_event_count;
+    cassie.shutdown();
+    drop(session);
+    drop(cassie);
+    std::fs::remove_dir_all(path).unwrap();
+    (applied, writes.first_policy, writes.best_effort_attempts)
+}
+
+#[test]
+fn should_apply_selected_cloud_policy_to_replay_commit() {
+    // Arrange
+    let cases = [(false, false), (false, true), (true, false), (true, true)];
+
+    // Act
+    let observed = cases.map(|(configured, explicit)| cloud_policy_case(configured, explicit));
+
+    // Assert
+    assert_eq!(
+        observed,
+        [
+            (1, Some("cloud_async"), 0),
+            (1, Some("cloud_strict"), 0),
+            (1, Some("cloud_strict"), 0),
+            (1, Some("cloud_strict"), 0),
+        ]
+    );
 }

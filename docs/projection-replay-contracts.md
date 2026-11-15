@@ -138,4 +138,9 @@ Do not swap an active projection version after a failed replay solely because a 
   evidence. The synchronous cases explicitly call `replay_projection_batch_strict`.
   Separate buffered precommit and post-acknowledgement process-death cases are
   authored but unexecuted; a process kill does not model power or cloud-cache loss.
+- Feature-gated replay policy tests observe the first native commit policy and
+  per-policy attempt counts, including cloud-simulated background and strict
+  configuration. These tests are authored but unexecuted; simulated provider
+  policy selection does not qualify real provider acknowledgement or cloud-cache
+  loss recovery.
 - `docs/production-readiness.md` records the Stable local projection lifecycle promotion and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that promotion.

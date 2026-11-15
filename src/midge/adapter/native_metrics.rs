@@ -52,6 +52,7 @@ impl Midge {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub struct NativeCommitObservation {
     pub attempted: u64,
+    pub first_policy: Option<&'static str>,
     pub succeeded: u64,
     pub failed: u64,
     pub outcome_unknown: u64,
@@ -108,14 +109,27 @@ pub(super) fn observe_native_commit<T>(
     COMMITS.with(|commits| {
         if let Some(mut observed) = commits.get() {
             observed.attempted = observed.attempted.saturating_add(1);
-            let count = match options.policy() {
-                cntryl_midge::DurabilityPolicy::Sync => &mut observed.local_sync_attempts,
-                cntryl_midge::DurabilityPolicy::Buffered => &mut observed.local_buffered_attempts,
-                cntryl_midge::DurabilityPolicy::CloudAsync => &mut observed.cloud_async_attempts,
-                cntryl_midge::DurabilityPolicy::CloudStrict => &mut observed.cloud_strict_attempts,
-                cntryl_midge::DurabilityPolicy::BestEffort => &mut observed.best_effort_attempts,
+            let (name, count) = match options.policy() {
+                cntryl_midge::DurabilityPolicy::Sync => {
+                    ("local_sync", &mut observed.local_sync_attempts)
+                }
+                cntryl_midge::DurabilityPolicy::Buffered => {
+                    ("local_buffered", &mut observed.local_buffered_attempts)
+                }
+                cntryl_midge::DurabilityPolicy::CloudAsync => {
+                    ("cloud_async", &mut observed.cloud_async_attempts)
+                }
+                cntryl_midge::DurabilityPolicy::CloudStrict => {
+                    ("cloud_strict", &mut observed.cloud_strict_attempts)
+                }
+                cntryl_midge::DurabilityPolicy::BestEffort => {
+                    ("best_effort", &mut observed.best_effort_attempts)
+                }
             };
             *count = count.saturating_add(1);
+            if observed.first_policy.is_none() {
+                observed.first_policy = Some(name);
+            }
             commits.set(Some(observed));
         }
     });

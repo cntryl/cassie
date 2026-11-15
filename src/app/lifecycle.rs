@@ -76,7 +76,7 @@ impl Cassie {
         Self::new_with_midge_and_config(midge, runtime_config)
     }
 
-    fn new_with_midge_and_config(
+    pub(super) fn new_with_midge_and_config(
         midge: Arc<Midge>,
         runtime_config: CassieRuntimeConfig,
     ) -> Result<Self, CassieError> {

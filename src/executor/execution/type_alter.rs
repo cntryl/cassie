@@ -9,8 +9,7 @@
 use super::command_output::empty as empty_command;
 use super::composite_view_rewrite::{rename_field_selections, renamed_type_views};
 use super::type_command::{
-    diagnostic, relation_name_occupied, rename_collision,
-    set_schema_collision, ROOT_OID,
+    diagnostic, relation_name_occupied, rename_collision, set_schema_collision, ROOT_OID,
 };
 use super::type_publish::{publish_change, Altered};
 use super::{Cassie, CassieSession, QueryError, QueryResult};

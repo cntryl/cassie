@@ -9,13 +9,14 @@ use crate::types::{DataType, SqlArray, Value};
 
 /// The record descriptor of an array-of-composite column, at any depth.
 pub(super) fn element_descriptor(data_type: &DataType) -> Option<&CompositeRef> {
-    let DataType::Array(mut element) = data_type else {
+    let DataType::Array(element) = data_type else {
         return None;
     };
-    while let DataType::Array(inner) = &**element {
-        element = inner;
+    let mut element = element.as_ref();
+    while let DataType::Array(inner) = element {
+        element = inner.as_ref();
     }
-    match &**element {
+    match element {
         DataType::Composite(descriptor) => Some(descriptor),
         _ => None,
     }

@@ -10,7 +10,7 @@ use crate::catalog::{
 };
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{TypeAction, TypeAttribute, TypeStatement};
-use crate::types::{CompositeField, DataType};
+use crate::types::CompositeField;
 
 pub(super) const ROOT_OID: u32 = 10;
 /// First revision of a newly created composite descriptor.

@@ -16,7 +16,11 @@ fn typed(value: &Value, descriptor: &CompositeRef) -> io::Result<SqlArray> {
     let converted = match value {
         Value::Array(array) => crate::executor::scan::composite_array_records(array, descriptor),
         Value::String(text) => crate::executor::scan::composite_array_from_text(text, descriptor),
-        _ => return Err(invalid("composite array column holds a value that is not an array")),
+        _ => {
+            return Err(invalid(
+                "composite array column holds a value that is not an array",
+            ))
+        }
     }
     .map_err(invalid)?;
     match converted {

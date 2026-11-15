@@ -39,10 +39,7 @@ fn should_render_an_array_of_records_with_nested_quoting() {
     );
 
     // Assert
-    assert_eq!(
-        rendered.as_deref(),
-        Some(r#"{"(\"a b\",1)",NULL,"(c,2)"}"#)
-    );
+    assert_eq!(rendered.as_deref(), Some(r#"{"(\"a b\",1)",NULL,"(c,2)"}"#));
 }
 
 #[test]
@@ -102,7 +99,10 @@ fn should_round_trip_a_composite_array_column() {
 
     // Act
     let stops = first_column_text(&fixture.rows("SELECT stops::text FROM trips ORDER BY id"));
-    let zip = text(&fixture, "SELECT (stops[3]).zip::text FROM trips WHERE id = 1");
+    let zip = text(
+        &fixture,
+        "SELECT (stops[3]).zip::text FROM trips WHERE id = 1",
+    );
     let length = text(
         &fixture,
         "SELECT array_length(stops, 1)::text FROM trips WHERE id = 1",
@@ -193,16 +193,13 @@ fn should_describe_a_composite_array_column_in_the_catalogs() {
     let attribute_type = text(
         &fixture,
         "SELECT t.typname FROM pg_attribute att \
-         JOIN pg_class c ON c.oid = att.attrelid \
+         JOIN pg_class c ON c.oid = att.attrelid_oid \
          JOIN pg_type t ON t.oid = att.atttypid \
          WHERE c.relname = 'trips' AND att.attname = 'stops'",
     );
 
     // Assert
-    assert_eq!(
-        first_column_text(&column),
-        vec![Some("ARRAY".to_owned())]
-    );
+    assert_eq!(first_column_text(&column), vec![Some("ARRAY".to_owned())]);
     assert_eq!(
         column[0].get(1),
         Some(&cassie::types::Value::String("_address".to_owned()))

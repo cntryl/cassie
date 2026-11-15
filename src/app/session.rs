@@ -2,6 +2,9 @@ mod bound_read;
 pub(crate) use bound_read::{BoundReadScope, BoundReadView};
 mod catalog_overlay;
 mod copy_owner;
+mod projection_write;
+pub(crate) use projection_write::{is_projection_write_mode, ProjectionCommitPolicy};
+use projection_write::ProjectionWriteMode;
 pub(crate) use copy_owner::{CopyBindingContext, CopyCommandOwner};
 mod command_catalog;
 pub(crate) use command_catalog::CommandCatalogScope;
@@ -106,6 +109,9 @@ struct SessionTransactionState {
     session_state: Option<SessionStateSnapshot>,
     /// Settings changed by `SET LOCAL`, restored when the transaction ends.
     local_settings: Vec<String>,
+    /// Declared projection write mode and sticky effect history, shared with
+    /// every statement fork of this transaction.
+    projection_write: Arc<projection_write::ProjectionWriteAuthority>,
 }
 
 #[derive(Debug, Clone)]
@@ -120,6 +126,7 @@ struct SessionSavepoint {
     /// Cursors declared after this mark close on rollback to the savepoint.
     object_mark: u64,
     modes: crate::sql::ast::TransactionModes,
+    projection_write_mode: ProjectionWriteMode,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
     catalog_overlay: Option<Catalog>,
@@ -272,6 +279,7 @@ impl CassieSession {
                 storage_overlay: Arc::new(Mutex::new(StorageOverlay::default())),
                 session_state: None,
                 local_settings: Vec::new(),
+                projection_write: Arc::default(),
             })),
             transaction_unique_waits: Arc::default(),
             owns_transaction_lifecycle: true,
@@ -394,6 +402,7 @@ impl CassieSession {
         if name.trim().eq_ignore_ascii_case("transaction_read_only") {
             return self.set_transaction_read_only(value);
         }
+        Self::reject_projection_write_mode_change(name)?;
         self.settings.lock().set(name, value)
     }
 

@@ -99,6 +99,7 @@ pub use error::{
 };
 pub use session::CassieSession;
 pub(crate) use session::FailureAuthority;
+pub(crate) use session::{is_projection_write_mode, ProjectionCommitPolicy};
 pub(crate) use session::{
     BoundReadScope, BoundReadView, CommandCatalogScope, CopyBindingContext, CopyCommandOwner,
     SessionRandom, SessionReadScope, SessionTransactionStatus, StagedWriteSnapshot,
@@ -208,6 +209,10 @@ mod query_failure_savepoint_tests;
 pub(crate) mod query_failure_watchdog;
 #[cfg(test)]
 mod query_result_cache_key_tests;
+#[cfg(all(test, feature = "replay-benchmark-observation"))]
+mod projection_sql_durability_tests;
+#[cfg(test)]
+mod projection_sql_mode_tests;
 #[cfg(all(test, feature = "replay-benchmark-observation"))]
 mod replay_api_durability_tests;
 #[cfg(test)]

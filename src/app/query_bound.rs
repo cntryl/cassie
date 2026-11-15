@@ -294,6 +294,7 @@ impl Cassie {
             }
         }
         Self::mark_statement_transaction_query(session, &parsed.statement);
+        session.note_statement_projection_effect(&parsed.statement);
         if let QueryStatement::SessionObject(statement) = &parsed.statement {
             let call = super::session_objects::SessionObjectCall {
                 controls,

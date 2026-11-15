@@ -139,6 +139,7 @@ impl CassieSession {
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.session_state = Some(session_state);
         transaction.local_settings.clear();
+        transaction.projection_write = Arc::default();
         if let Some(authority) = authority {
             authority.adopt_start(self, &transaction);
         }
@@ -293,6 +294,9 @@ impl CassieSession {
     }
 
     pub(crate) fn transaction_setting(&self, name: &str) -> Option<&'static str> {
+        if super::is_projection_write_mode(name) {
+            return Some(self.projection_write_mode().as_str());
+        }
         let transaction = self.transaction.lock();
         match name.trim().to_ascii_lowercase().as_str() {
             "transaction_isolation" | "transaction isolation level" => Some(
@@ -349,6 +353,7 @@ impl CassieSession {
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
+        transaction.projection_write = Arc::default();
         drop(transaction);
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
@@ -366,6 +371,9 @@ impl CassieSession {
     /// `SET LOCAL`: applies a setting until the transaction ends. Outside a
     /// transaction block it has no effect, as in PostgreSQL.
     pub(crate) fn set_local_setting(&self, name: &str, value: &str) -> Result<(), CassieError> {
+        if super::is_projection_write_mode(name) {
+            return self.set_projection_write_mode(Some(value));
+        }
         let mut transaction = self.transaction.lock();
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Ok(());
@@ -399,6 +407,7 @@ impl CassieSession {
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.local_settings.clear();
+        transaction.projection_write = Arc::default();
         drop(transaction);
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {

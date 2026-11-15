@@ -32,6 +32,7 @@ impl CassieSession {
         let writes = transaction.writes.clone();
         let conflict_intents = transaction.conflict_intents.clone();
         let modes = transaction.modes;
+        let projection_write_mode = transaction.projection_write.mode();
         let catalog_overlay = transaction
             .catalog_overlay
             .as_ref()
@@ -48,6 +49,7 @@ impl CassieSession {
             name: name.to_ascii_lowercase(),
             object_mark: self.session_objects_mark(),
             modes,
+            projection_write_mode,
             writes,
             conflict_intents,
             catalog_overlay,
@@ -152,6 +154,9 @@ impl CassieSession {
             after_prune();
         }
         transaction.modes = transaction.savepoints[index].modes;
+        transaction
+            .projection_write
+            .restore_mode(transaction.savepoints[index].projection_write_mode);
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
         let catalog_overlay = transaction.savepoints[index]

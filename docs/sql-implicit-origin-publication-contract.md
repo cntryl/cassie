@@ -15,10 +15,11 @@ snapshot, catalog-publication lock, connection-wide execution mutex, Midge
 format or durability policy is introduced by this prerequisite.
 
 A deterministic regression pauses initialization at the origin publication
-boundary and reads from a second clone of the same session. Its test-only seam
-is placed between the two writes in the old implementation and after the single
-atomic publication in the replacement, with no session mutex held during the
-pause. The assertion observes the state while the initiating call is paused, not
+boundary and reads from a second clone of the same session. The replacement
+uses a test-only seam after the single atomic publication, with no session mutex
+held during the pause. A future instrumented baseline probe must place an
+equivalent seam between the two old writes; the test-first baseline was not
+instrumented or executed. The assertion observes the state while the initiating call is paused, not
 only after it returns. Preserve implicit-to-explicit promotion and ordinary
 explicit BEGIN as separate controls. The test seam has no production build
 overhead. Newly authored regressions are not observed RED until executed.

@@ -284,3 +284,100 @@ fn should_reject_old_fork_when_savepoint_pruning_unwinds() {
     assert!(is_stale_fork(&publication));
     assert!(session.document_change("epoch_rows", "old").is_none());
 }
+
+#[test]
+fn should_publish_nested_forks_in_the_current_savepoint_epoch() {
+    // Arrange
+    let session = transaction_with_savepoint();
+    let parent = session.fork_statement_batch().expect("parent fork");
+    let nested = parent
+        .session()
+        .fork_statement_batch()
+        .expect("nested fork");
+    nested
+        .session()
+        .stage_document_write("epoch_rows", "nested".to_owned(), json!({"id": "nested"}))
+        .expect("nested row");
+
+    // Act
+    let nested_result = parent.session().publish_statement_batch(&nested);
+    let parent_result = session.publish_statement_batch(&parent);
+
+    // Assert
+    assert!(nested_result.is_ok());
+    assert!(parent_result.is_ok());
+    assert!(session.document_change("epoch_rows", "nested").is_some());
+}
+
+#[test]
+fn should_preserve_successful_ctas_inside_explicit_transaction() {
+    // Arrange
+    let cassie = crate::app::Cassie::new_in_memory_with_config(
+        crate::config::CassieRuntimeConfig::default(),
+    )
+    .expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE epoch_ctas_source (id INT)",
+        "INSERT INTO epoch_ctas_source VALUES (7)",
+        "BEGIN",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).expect("setup");
+    }
+
+    // Act
+    let ctas = cassie.execute_sql(
+        &session,
+        "CREATE TABLE epoch_ctas_result AS SELECT id FROM epoch_ctas_source",
+        vec![],
+    );
+    let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+    let rows = cassie
+        .execute_sql(&session, "SELECT id FROM epoch_ctas_result", vec![])
+        .expect("read result");
+
+    // Assert
+    assert!(ctas.is_ok());
+    assert!(commit.is_ok());
+    assert_eq!(rows.rows(), &[vec![crate::types::Value::Int64(7)]]);
+}
+
+#[test]
+fn should_retire_fork_when_failed_ctas_restores_its_internal_savepoint() {
+    // Arrange
+    let cassie = crate::app::Cassie::new_in_memory_with_config(
+        crate::config::CassieRuntimeConfig::default(),
+    )
+    .expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE epoch_ctas_error_source (id INT)",
+        "INSERT INTO epoch_ctas_error_source VALUES (1)",
+        "BEGIN",
+        "SAVEPOINT before_ctas",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).expect("setup");
+    }
+    let batch = stage_fork(&session, "old");
+    let before = session.transaction.lock().rollback_epoch;
+
+    // Act
+    let ctas = cassie.execute_sql(
+        &session,
+        "CREATE TABLE epoch_ctas_error AS SELECT 1 / (id - id) AS value FROM epoch_ctas_error_source",
+        vec![],
+    );
+    let after = session.transaction.lock().rollback_epoch;
+    cassie
+        .execute_sql(&session, "ROLLBACK TO before_ctas", vec![])
+        .expect("recover failed statement");
+    let publication = session.publish_statement_batch(&batch);
+
+    // Assert
+    assert!(ctas.is_err());
+    assert!(after > before, "CTAS must restore its internal savepoint");
+    assert!(is_stale_fork(&publication));
+    assert!(session.document_change("epoch_rows", "old").is_none());
+}

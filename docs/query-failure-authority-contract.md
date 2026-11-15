@@ -1,7 +1,10 @@
 # Query failure and transaction authority
 
-Status: bounded converted-completion candidate implemented, not qualified;
-the full #1290 design remains unimplemented. Its preceding
+Status: bounded #1295 converted-completion candidate passed local validation;
+final-head hosted checks are pending. Full #1290 remains incomplete. The full
+locked suite and strict Clippy passed at `a59e7c65`; formatting, touched-test
+policy and inventory passed at `94e171a4` after test-only ordering and comment
+changes. No instrumented baseline RED was observed. Its preceding
 COPY prerequisite #1288 / PR #1289 merged at
 `12431805adee449eb2775116faadde724c7ae8d6`; atomic ReadyForQuery and writable
 decision prerequisites #1291 and #1292 merged through PRs #1293 and #1294,
@@ -413,10 +416,9 @@ conversion, while a nested COPY predicate is paused and then canceled, and
 across two independent operations that reuse one cancellation handle.
 Both shared-handle schedules are necessary: one retains B while old A fails;
 the other requires B's own error to fail B before C replaces it and A returns.
-These are unregistered and unrun; the COPY predicate probe covers nested
-execution, not the full COPY wire lifecycle. Positive same-owner controls, nested control
-reuse, early-error precedence, actual own-start adoption, and resource accounting
-must be reviewed and executed. No baseline RED or complete #1290 fix is claimed.
+These bounded probes and their same-owner, nested-control, early-error, own-start
+and resource-accounting controls passed in the locked suite at `a59e7c65`. The
+COPY predicate probe covers nested execution, not the full COPY wire lifecycle. No baseline RED or complete #1290 fix is claimed.
 
 The authored COPY-origin discriminator binds COPY in A and requires a future
 test-only accessor to read A from the real bound operation authority. A scoped
@@ -434,7 +436,7 @@ authority must survive it. A same-owner control uses
 the identical predicate and must fail A. The changed-owner test runs under the
 existing child-process watchdog so a broken pause or worker cannot hang the
 parent indefinitely. The accessor, observer and test registration are present
-in this candidate, but neither probe has run. This probes operation authority at nested entry;
+in this candidate, and both probes passed in the locked suite at `a59e7c65`. This probes operation authority at nested entry;
 it does not establish #1279's stronger protection of in-flight COPY effects.
 
 ### Selected explicit context candidate
@@ -442,7 +444,7 @@ it does not establish #1279's stronger protection of in-flight COPY effects.
 The selected candidate is a separately owned, per-operation context with weak
 identity for the originating transaction mutex, rather than a slot whose
 lifetime is tied to `QueryMemoryTracker` or the ambient publication scope.
-The candidate creates and transfers this context; it is not yet qualified. Its
+The candidate creates and transfers this context; the bounded local checks passed. Its
 initialization must capture the current owner and status together under the
 root transaction mutex;
 an Idle operation initially owns none. An actual own BEGIN/CHAIN must adopt its
@@ -557,7 +559,7 @@ promotion retains the UUID only when it is already that operation's owner. If
 A captured Idle and an independent clone starts implicit B before A's BEGIN,
 the existing BEGIN can promote B, but A must not adopt B for failure completion.
 An authored post-capture/pre-BEGIN synchronized test exercises that distinction;
-the keyed test hook is implemented and the test is unrun. Preventing the
+the keyed test hook is implemented and the test passed at `a59e7c65`. Preventing the
 promotion itself is outside this bounded completion fix. A detached fork must
 not overwrite the root slot using a copied UUID or acquire fork and root locks
 in an unproved order.
@@ -618,7 +620,7 @@ root state changes, and a synchronized later rollback before that old error
 returns. Another authored test stages a private sequence and uses a scoped
 test seam to cancel only after the actual cursor-prune branch advances
 the epoch; setup's ambient controls are dropped before the request. The
-observers and epoch accessor are implemented in this candidate, and no tests have run.
+observers and epoch accessor are implemented, and the bounded tests passed at `a59e7c65`.
 Jev favored epoch comparison
 (0.79), flagged stale re-failure (0.66), own-rollback adoption (0.67), and
 partial-failure risk (0.42). Source and regressions decide correctness; receipts:
@@ -642,7 +644,7 @@ capture lock also needs an explicit outcome: returning before capture cannot
 identify an active owner to fail, while waiting can delay cancellation. Do not
 silently discard same-owner failure semantics or claim the quarantine rollback
 is owner-safe. The selected partial ordering and interruption behavior are
-described below; no test in this section has run.
+described below; bounded tests in this section passed at `a59e7c65`.
 
 Two additional authored controls specify existing recovery precedence. A
 latched recovery error wins over both an occupied query slot and an already
@@ -650,7 +652,7 @@ canceled request, while an active matching transaction becomes Failed. A
 separate synchronized test requires a future hook to observe the actual
 healthy recovery check before admission; if recovery latches only afterward
 while the slot is occupied, the original single-check path returns admission
-exhausted. The hook and test are present in this candidate but unrun. Terminal
+exhausted. The hook and test passed at `a59e7c65`. Terminal
 quarantined rollback still needs owner-safe retirement and its own race tests;
 neither control proves that lifecycle.
 
@@ -672,8 +674,8 @@ deadline for a query already admitted. Authored synchronized controls use a
 disabled global timeout, change the session setting while the actual capture is
 contended, and observe the same controls delivered to the EXPLAIN converter in
 both disabled-to-enabled and enabled-to-disabled directions. The current
-candidate restores the original timeout-before-capture order; the tests are
-unrun and it does not claim to control other session-setting races.
+candidate restores the original timeout-before-capture order; these tests passed
+at `a59e7c65`. It does not claim to control other session-setting races.
 
 For an admitted request whose root mutex is held, the selected candidate waits
 for that mutex, captures its then-current owner and epoch, and then runs the

@@ -53,6 +53,23 @@ impl CassieSession {
     }
 
     pub(crate) fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
+        self.rollback_to_savepoint_inner(name, || {})
+    }
+
+    #[cfg(test)]
+    pub(super) fn rollback_to_savepoint_observed(
+        &self,
+        name: &str,
+        after_prune: impl FnOnce(),
+    ) -> Result<(), CassieError> {
+        self.rollback_to_savepoint_inner(name, after_prune)
+    }
+
+    fn rollback_to_savepoint_inner(
+        &self,
+        name: &str,
+        after_prune: impl FnOnce(),
+    ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
         if !matches!(
             transaction.status,
@@ -72,26 +89,39 @@ impl CassieSession {
             return Err(CassieError::missing_savepoint(&normalized));
         };
 
-        // Compute and retire only identities absent from the restored savepoint.
-        // The shared owner keeps advances for identities that still exist there.
+        // Invalidate prior forks before the first possible rollback mutation.
+        // An ordinary prune error occurs before its retain; restore the old
+        // epoch while still holding the parent mutex. An unwind keeps it advanced.
+        let previous_epoch = transaction.rollback_epoch;
+        transaction.rollback_epoch = previous_epoch.checked_add(1).ok_or_else(|| {
+            CassieError::ResourceLimit("savepoint rollback epoch exhausted".to_owned())
+        })?;
         if transaction.savepoints[index]
             .storage_overlay
             .has_sequence_cursors()
         {
-            let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
-                .ok_or_else(|| {
-                    CassieError::Unsupported(
-                        "savepoint sequence recovery requires query controls".into(),
+            let pruning = (|| {
+                let controls =
+                    crate::midge::adapter::PublicationControlScope::current_query_controls()
+                        .ok_or_else(|| {
+                            CassieError::Unsupported(
+                                "savepoint sequence recovery requires query controls".into(),
+                            )
+                        })?;
+                transaction.savepoints[index]
+                    .storage_overlay
+                    .prune_sequence_cursors_with(
+                        transaction.savepoints[..=index]
+                            .iter()
+                            .map(|savepoint| &savepoint.storage_overlay),
+                        &controls,
                     )
-                })?;
-            transaction.savepoints[index]
-                .storage_overlay
-                .prune_sequence_cursors_with(
-                    transaction.savepoints[..=index]
-                        .iter()
-                        .map(|savepoint| &savepoint.storage_overlay),
-                    &controls,
-                )?;
+            })();
+            if let Err(error) = pruning {
+                transaction.rollback_epoch = previous_epoch;
+                return Err(error);
+            }
+            after_prune();
         }
         transaction.modes = transaction.savepoints[index].modes;
         transaction.writes = transaction.savepoints[index].writes.clone();

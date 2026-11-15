@@ -25,6 +25,7 @@ pub mod object_comment;
 pub mod object_identity;
 pub mod operational;
 pub mod programs;
+pub mod property_graphs;
 pub mod relation_row_type;
 pub mod repair;
 pub mod retention;
@@ -85,6 +86,10 @@ pub use metadata::Catalog;
 pub(crate) use metadata::{ControlledCatalogSnapshot, FunctionInputScope};
 pub use object_comment::{ObjectCommentAddress, ObjectCommentMeta};
 pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
+pub use property_graphs::{
+    GraphEdgeMeta, GraphEndpointMeta, GraphKeyColumn, GraphLabelMeta, GraphPropertyMeta,
+    GraphVertexMeta, PropertyGraphMeta,
+};
 pub use user_type_resolution::UserType;
 pub(crate) const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_view";
 pub use programs::{

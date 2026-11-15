@@ -51,6 +51,9 @@ mod virtual_views_pg;
 mod virtual_views_procedures;
 #[path = "virtual_views_projections.rs"]
 mod virtual_views_projections;
+#[path = "virtual_views_property_graphs.rs"]
+mod virtual_views_property_graphs;
+pub(crate) use virtual_views_property_graphs::visible_property_graphs;
 #[path = "virtual_views_relations.rs"]
 mod virtual_views_relations;
 #[path = "virtual_views_repair.rs"]
@@ -133,6 +136,11 @@ fn rows_for_database(
             .or_else(|| session.transaction_catalog_snapshot())
     });
     let catalog = snapshot.as_ref().map_or(catalog, |owner| owner.catalog());
+    if let Some(rows) =
+        virtual_views_property_graphs::rows(catalog, name.as_str(), session, current_database)
+    {
+        return Some(Ok(rows));
+    }
     information_schema_rows_for(catalog, name.as_str(), current_database)
         .map(Ok)
         .or_else(|| pg_catalog_rows_for(catalog, midge, name.as_str(), current_database))

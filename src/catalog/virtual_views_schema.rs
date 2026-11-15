@@ -2,9 +2,9 @@
 use super::{
     bool, int, text, virtual_views_constraints, virtual_views_dependencies, virtual_views_empty,
     virtual_views_extensions, virtual_views_pg, virtual_views_procedures,
-    virtual_views_projections, virtual_views_relations, virtual_views_sequences,
-    virtual_views_session_objects, virtual_views_shared_dependencies, virtual_views_storage,
-    virtual_views_timezones, DataType, INFORMATION_SCHEMA_TABLES,
+    virtual_views_projections, virtual_views_property_graphs, virtual_views_relations,
+    virtual_views_sequences, virtual_views_session_objects, virtual_views_shared_dependencies,
+    virtual_views_storage, virtual_views_timezones, DataType, INFORMATION_SCHEMA_TABLES,
 };
 
 pub(super) type SchemaFactory = fn() -> Vec<(String, DataType)>;
@@ -33,6 +33,7 @@ pub(super) fn lookup(name: &str) -> Option<Descriptor> {
         .or_else(|| pg_catalog_runtime_schema(name).map(Descriptor::Factory))
         .or_else(|| virtual_views_timezones::schema_factory(name).map(Descriptor::Factory))
         .or_else(|| virtual_views_session_objects::schema_factory(name).map(Descriptor::Factory))
+        .or_else(|| virtual_views_property_graphs::schema_factory(name).map(Descriptor::Factory))
 }
 
 fn information_schema_schema(name: &str) -> Option<SchemaFactory> {

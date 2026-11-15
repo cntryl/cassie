@@ -106,9 +106,10 @@ fn drop_schema_routines(cassie: &Cassie, schema: &str) -> Result<(), QueryError>
     Ok(())
 }
 
-/// Drops the routines of `schema`, then its composite, enum and domain types.
-/// Routines go first: their arguments may use the schema's types.
+/// Drops the property graphs and routines of `schema`, then its composite, enum
+/// and domain types. Routines go first: their arguments may use the schema's types.
 fn drop_schema_types(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
+    crate::executor::execution::property_graph_dependents::drop_schema_graphs(cassie, schema)?;
     drop_schema_routines(cassie, schema)?;
     drop_schema_composite_types(cassie, schema)?;
     crate::executor::execution::enum_schema_scope::drop_schema_enums(cassie, schema)?;
@@ -409,6 +410,12 @@ fn rename_schema_descendants(
         next_schema,
         &relation_renames,
     )?;
+    crate::executor::execution::property_graph_dependents::rename_schema(
+        cassie,
+        current_schema,
+        next_schema,
+        &relation_renames,
+    )?;
     rename_schema_rollups(cassie, current_schema, next_schema, &relation_renames)?;
     rename_schema_retention_policies(cassie, current_schema, next_schema, &relation_renames)?;
     rename_schema_materialized_projections(cassie, current_schema, next_schema, &relation_renames)?;
@@ -416,7 +423,7 @@ fn rename_schema_descendants(
     Ok(())
 }
 
-pub(super) type RelationRenames = std::collections::HashMap<String, String>;
+pub(crate) type RelationRenames = std::collections::HashMap<String, String>;
 
 fn relation_rename_map(collection_renames: &[(String, String)]) -> RelationRenames {
     collection_renames.iter().cloned().collect()
@@ -635,6 +642,7 @@ fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
             .list_graphs()
             .into_iter()
             .any(|graph| object_in_schema(&graph.name, schema))
+        && !crate::executor::execution::property_graph_dependents::schema_has_graphs(cassie, schema)
         && !cassie
             .catalog
             .list_projection_metadata()
@@ -697,6 +705,9 @@ fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
             .list_graphs()
             .into_iter()
             .any(|graph| crate::catalog::relation_belongs_to_database(&graph.name, database))
+        && !crate::executor::execution::property_graph_dependents::database_has_graphs(
+            cassie, database,
+        )
         && !cassie
             .catalog
             .list_projection_metadata()

@@ -120,6 +120,24 @@ implemented. Source schema/table/column renames preserve resolved identities and
 update displayed metadata atomically. Cross-schema graph moves, graph-definition
 alteration beyond rename, and graph mutation syntax return `0A000`.
 
+The lifecycle guard covers every column a mapping reads: key, endpoint and
+exposed property columns reject `DROP COLUMN` and type change with `2BP01`, a
+key column also rejects `DROP NOT NULL`, and a constraint or index may be
+dropped only while another non-partial unique key still covers exactly the
+mapped key tuple. `DROP TABLE ... CASCADE`, `DROP COLUMN ... CASCADE` and a
+`DROP SCHEMA ... CASCADE` that would orphan a graph of another schema return
+`0A000`; a schema cascade drops the graphs the schema itself owns. Graph DDL is
+transactional and, like other DDL, is reserved to administrators (`42501`).
+
+Discovery uses the SQL/PGQ `information_schema` views `property_graphs`,
+`pg_element_tables`, `pg_element_table_key_columns`,
+`pg_edge_table_components`, `pg_element_table_labels`,
+`pg_element_table_properties` and `pg_label_properties`, plus
+`pg_catalog.pg_property_graph_identities`, which carries the durable database,
+graph and mapping identities the standard views cannot. The administrative REST
+catalog lists graphs in a `property_graphs` section. Every one of these lists a
+graph only to a session that may read all of its mapped tables.
+
 For example:
 
 ```sql

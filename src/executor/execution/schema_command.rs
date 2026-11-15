@@ -255,6 +255,7 @@ fn drop_table_target(
     if if_exists && !cassie.catalog.exists(table) {
         return Ok(());
     }
+    super::property_graph_dependents::reject_table_drop(cassie, table, cascade)?;
     super::type_alter::reject_row_type_dependents(cassie, table, cascade)?;
     super::sequence_default_dependents::resolve_for_table(
         cassie,
@@ -514,7 +515,11 @@ fn execute_alter_table_operation(
             field,
             data_type,
             using,
-        } => using_context.apply(&statement.table, field, data_type, using),
+        } => {
+            let table = &statement.table;
+            super::property_graph_dependents::reject_column_change(cassie, table, field, false)?;
+            using_context.apply(table, field, data_type, using)
+        }
     }
 }
 
@@ -767,6 +772,7 @@ fn alter_table_drop_column(
     cascade: bool,
 ) -> Result<(), QueryError> {
     schema_graph_rename::reject_graph_column_drop(cassie, table, field)?;
+    super::property_graph_dependents::reject_column_change(cassie, table, field, cascade)?;
     if cascade {
         schema_foreign_keys::drop_referencing_foreign_keys_on_column(cassie, table, field)?;
     } else {
@@ -871,6 +877,7 @@ fn alter_table_rename_column(
     cassie.catalog.rename_collection_field(table, from, to);
     schema_foreign_keys::rename_referenced_field(cassie, table, from, to)?;
     schema_graph_rename::rename_graph_columns(cassie, table, from, to)?;
+    super::property_graph_dependents::rename_column(cassie, table, from, to)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
         .map_err(QueryError::Cassie)?;
@@ -899,6 +906,7 @@ fn alter_table_rename_table(
         .map_err(|error| QueryError::General(error.to_string()))?;
     schema_sequence_rename::rename_owned_table_sequences(cassie, next_table)?;
     schema_graph_rename::rename_graph_tables(cassie, table, next_table)?;
+    super::property_graph_dependents::rename_table(cassie, table, next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, next_table)
 }
 
@@ -948,6 +956,7 @@ fn alter_table_set_schema(
     }
     schema_sequence_rename::move_owned_table_sequences(cassie, sequence_move)?;
     schema_graph_rename::rename_graph_tables(cassie, table, &next_table)?;
+    super::property_graph_dependents::rename_table(cassie, table, &next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, &next_table)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()

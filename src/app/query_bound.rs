@@ -73,6 +73,7 @@ impl Cassie {
         )
     }
 
+    #[cfg(test)]
     pub(super) fn execute_pgwire_statement_core(
         &self,
         session: &CassieSession,
@@ -82,6 +83,26 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_pgwire_statement_core_for_operation(
+            session,
+            parsed,
+            sql_fingerprint,
+            parameters,
+            mode,
+            (controls, None),
+        )
+    }
+
+    pub(super) fn execute_pgwire_statement_core_for_operation(
+        &self,
+        session: &CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameters: (Vec<Value>, &[i32]),
+        mode: ExecutionMode,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {
@@ -93,41 +114,22 @@ impl Cassie {
         if session.is_implicit_transaction()
             && matches!(&parsed.statement, QueryStatement::CreateTable(table) if table.as_query.is_none())
         {
-            return self.execute_implicit_table_creation(
+            return self.execute_implicit_table_creation_for_operation(
                 session,
                 parsed,
                 sql_fingerprint,
                 (parameters.0, parameters.1, true),
                 mode,
-                controls,
+                (controls, authority),
             );
         }
-        self.execute_bound_statement(
+        self.execute_bound_statement_for_operation(
             session,
             parsed,
             sql_fingerprint,
             (parameters.0, parameters.1, true),
             mode,
-            controls,
-        )
-    }
-
-    pub(super) fn execute_bound_statement(
-        &self,
-        session: &CassieSession,
-        parsed: crate::sql::ast::ParsedStatement,
-        sql_fingerprint: u64,
-        parameters: (Vec<Value>, &[i32], bool),
-        mode: ExecutionMode,
-        controls: &QueryExecutionControls,
-    ) -> Result<QueryResult, CassieError> {
-        self.execute_bound_statement_for_operation(
-            session,
-            parsed,
-            sql_fingerprint,
-            parameters,
-            mode,
-            (controls, None),
+            (controls, authority),
         )
     }
 

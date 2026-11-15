@@ -1,6 +1,7 @@
 //! Decoding and executing a single buffered COPY input.
 
 #[cfg(test)]
+#[path = "execute/authority_test_hooks.rs"]
 pub(super) mod authority_test_hooks;
 use super::request::{CopyHeader, CopyLogVerbosity, CopyOnError, CopyWireFormat};
 use super::{

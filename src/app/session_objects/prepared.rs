@@ -87,13 +87,13 @@ impl Cassie {
     ) -> Result<QueryResult, CassieError> {
         let parsed = bound_statement(self, session, execute)?;
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
-        self.execute_bound_statement(
+        self.execute_bound_statement_for_operation(
             session,
             parsed,
             fingerprint,
             (Vec::new(), &[], call.wire_output),
             call.mode,
-            call.controls,
+            (call.controls, call.authority),
         )
     }
 

@@ -1,5 +1,8 @@
 //! Keep conversion and response preparation inside the originating query lifecycle.
 
+#[cfg(test)]
+pub(crate) mod authority_test_hooks;
+
 use std::time::Instant;
 
 use crate::executor::QueryResult;
@@ -46,11 +49,33 @@ impl Cassie {
         params: Vec<Value>,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_copy_where_inner(session, sql, params, controls, None)
+    }
+
+    pub(crate) fn execute_copy_where_with_authority(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<Value>,
+        controls: &QueryExecutionControls,
+        authority: &super::FailureAuthority,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_copy_where_inner(session, sql, params, controls, Some(authority))
+    }
+
+    fn execute_copy_where_inner(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<Value>,
+        controls: &QueryExecutionControls,
+        authority: Option<&super::FailureAuthority>,
+    ) -> Result<QueryResult, CassieError> {
         let started = Instant::now();
         let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(controls));
         if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
             let rows = result.as_ref().map_or(0, QueryResult::row_count);
-            self.finish_converted_query(session, started, controls, &result, rows);
+            self.finish_converted_query(session, started, controls, &result, rows, None);
             return result;
         }
         let Some(running) = self.runtime.try_begin_running_query() else {
@@ -58,11 +83,22 @@ impl Cassie {
                 "query admission exhausted".to_owned(),
             ));
         };
+        let local_authority = authority
+            .is_none()
+            .then(|| super::FailureAuthority::capture(session));
+        let authority = authority
+            .or(local_authority.as_ref())
+            .expect("COPY failure authority");
         self.runtime.record_query_memory(controls);
-        let result =
-            self.execute_sql_core(session, sql, params, ExecutionMode::SimpleQuery, controls);
+        let result = self.execute_sql_core_for_operation(
+            session,
+            sql,
+            params,
+            ExecutionMode::SimpleQuery,
+            (controls, Some(authority)),
+        );
         let rows = result.as_ref().map_or(0, QueryResult::row_count);
-        self.finish_converted_query(session, started, controls, &result, rows);
+        self.finish_converted_query(session, started, controls, &result, rows, Some(authority));
         drop(running);
         if self.check_storage_recovery_required().is_ok() {
             let _ = self.run_deferred_schema_cleanup();
@@ -82,13 +118,18 @@ impl Cassie {
         let mut controls =
             QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, execution.1);
         session.apply_statement_timeout(&mut controls, started);
-        if let Some(result) = self.quarantined_sql_result(session, sql, &controls) {
+        let quarantine = self.quarantined_sql_result(session, sql, &controls);
+        #[cfg(test)]
+        if quarantine.is_none() {
+            authority_test_hooks::after_healthy_recovery_check(self, session);
+        }
+        if let Some(result) = quarantine {
             let mut rows = 0;
             let result = result.and_then(|result| {
                 rows = result.row_count();
                 convert(result, &controls)
             });
-            self.finish_converted_query(session, started, &controls, &result, rows);
+            self.finish_converted_query(session, started, &controls, &result, rows, None);
             return result;
         }
         let Some(running) = self.runtime.try_begin_running_query() else {
@@ -96,15 +137,31 @@ impl Cassie {
                 "query admission exhausted".to_owned(),
             ));
         };
+        #[cfg(test)]
+        authority_test_hooks::after_admission_before_capture(self, session);
+        #[cfg(test)]
+        let authority = super::FailureAuthority::capture_with_contention(session, || {
+            authority_test_hooks::on_capture_contended(self, session, &mut controls);
+        });
+        #[cfg(not(test))]
+        let authority = super::FailureAuthority::capture(session);
+        #[cfg(test)]
+        authority_test_hooks::after_root_capture(self, session, &authority);
         self.runtime.record_query_memory(&controls);
         let mut rows = 0;
         let result = self
-            .execute_sql_core(session, sql, params, execution.0, &controls)
+            .execute_sql_core_for_operation(
+                session,
+                sql,
+                params,
+                execution.0,
+                (&controls, Some(&authority)),
+            )
             .and_then(|result| {
                 rows = result.row_count();
                 convert(result, &controls)
             });
-        self.finish_converted_query(session, started, &controls, &result, rows);
+        self.finish_converted_query(session, started, &controls, &result, rows, Some(&authority));
         drop(running);
         if self.check_storage_recovery_required().is_ok() {
             let _ = self.run_deferred_schema_cleanup();
@@ -133,15 +190,21 @@ impl Cassie {
             cancellation.clone(),
         );
         session.apply_statement_timeout(&mut controls, started);
+        #[cfg(test)]
+        let authority = super::FailureAuthority::capture_with_contention(session, || {
+            authority_test_hooks::on_capture_contended(self, session, &mut controls);
+        });
+        #[cfg(not(test))]
+        let authority = super::FailureAuthority::capture(session);
         self.runtime.record_query_memory(&controls);
         let mut rows = 0;
         let result = self
-            .explain_sql_core(session, sql, params, &controls)
+            .explain_sql_core_for_operation(session, sql, params, (&controls, Some(&authority)))
             .and_then(|output| {
                 rows = output.result().row_count();
                 convert(output, &controls)
             });
-        self.finish_converted_query(session, started, &controls, &result, rows);
+        self.finish_converted_query(session, started, &controls, &result, rows, Some(&authority));
         drop(running);
         if self.check_storage_recovery_required().is_ok() {
             let _ = self.run_deferred_schema_cleanup();
@@ -156,13 +219,16 @@ impl Cassie {
         controls: &QueryExecutionControls,
         result: &Result<T, CassieError>,
         rows: usize,
+        authority: Option<&super::FailureAuthority>,
     ) {
         self.runtime.record_query_memory(controls);
         match result {
             Ok(_) => self.runtime.record_query_success(started.elapsed(), rows),
             Err(error) => {
                 self.runtime.record_query_error(started.elapsed(), error);
-                if session.is_transaction_active() {
+                if let Some(authority) = authority {
+                    authority.mark_failed_if_current(session);
+                } else if session.is_transaction_active() {
                     session.mark_transaction_failed();
                 }
             }

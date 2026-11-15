@@ -37,6 +37,7 @@ fn reserve_filter_rows(
     crate::runtime::owned_memory::try_reserve_vec(count, &base)
 }
 
+#[cfg(test)]
 pub(super) fn filter_rows(
     cassie: &Cassie,
     session: &CassieSession,
@@ -45,6 +46,28 @@ pub(super) fn filter_rows(
     predicate: &str,
     controls: &QueryExecutionControls,
 ) -> Result<CopyRowsWithMemory, CopyWhereError> {
+    filter_rows_for_operation(
+        cassie,
+        session,
+        statement,
+        rows,
+        predicate,
+        (controls, None),
+    )
+}
+
+pub(super) fn filter_rows_for_operation(
+    cassie: &Cassie,
+    session: &CassieSession,
+    statement: &CopyStatement,
+    rows: Vec<Vec<Option<String>>>,
+    predicate: &str,
+    scope: (
+        &QueryExecutionControls,
+        Option<&crate::app::FailureAuthority>,
+    ),
+) -> Result<CopyRowsWithMemory, CopyWhereError> {
+    let (controls, authority) = scope;
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
@@ -100,7 +123,12 @@ pub(super) fn filter_rows(
             values.push(value);
             parameter_memory.absorb(memory);
         }
-        let result = cassie.execute_copy_where_with_controls(session, &query, values, controls)?;
+        let result = if let Some(authority) = authority {
+            cassie
+                .execute_copy_where_with_authority(session, &query, values, controls, authority)?
+        } else {
+            cassie.execute_copy_where_with_controls(session, &query, values, controls)?
+        };
         drop(parameter_memory);
         let Some(value) = result.rows().first().and_then(|row| row.first()) else {
             continue;

@@ -17,17 +17,37 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
-        // Both ordinary wire protocols already require a standalone DDL
-        // statement. Keep its complete publication inside this worker, before
-        // either protocol can expose CommandComplete or release this guard.
-        let publication = lock_publication(self, controls, || {})?;
-        let result = self.execute_bound_catalog_scoped(
+        self.execute_implicit_table_creation_for_operation(
             session,
             parsed,
             fingerprint,
             parameters,
             mode,
-            controls,
+            (controls, None),
+        )
+    }
+
+    pub(super) fn execute_implicit_table_creation_for_operation(
+        &self,
+        session: &CassieSession,
+        parsed: ParsedStatement,
+        fingerprint: u64,
+        parameters: (Vec<Value>, &[i32], bool),
+        mode: ExecutionMode,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
+        // Both ordinary wire protocols already require a standalone DDL
+        // statement. Keep its complete publication inside this worker, before
+        // either protocol can expose CommandComplete or release this guard.
+        let publication = lock_publication(self, controls, || {})?;
+        let result = self.execute_bound_catalog_scoped_for_operation(
+            session,
+            parsed,
+            fingerprint,
+            parameters,
+            mode,
+            (controls, authority),
         )?;
         // The scoped execution has retired its thread-local staging scope.
         // Committing within that scope would stage the publication itself.

@@ -66,6 +66,7 @@ impl SessionObjectError {
 #[derive(Clone, Copy)]
 pub(super) struct SessionObjectCall<'a> {
     pub(super) controls: &'a QueryExecutionControls,
+    pub(super) authority: Option<&'a super::FailureAuthority>,
     pub(super) mode: ExecutionMode,
     /// Whether results are described for the wire protocol.
     pub(super) wire_output: bool,

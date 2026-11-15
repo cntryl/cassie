@@ -157,6 +157,11 @@ pub struct QueryMemoryReservation {
 }
 
 impl QueryMemoryReservation {
+    #[cfg(test)]
+    pub(crate) fn bytes_for_test(&self) -> usize {
+        self.bytes
+    }
+
     pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
         Arc::ptr_eq(&self.tracker, &controls.memory)
     }

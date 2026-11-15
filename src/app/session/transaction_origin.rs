@@ -9,7 +9,19 @@ use crate::sql::ast::TransactionModes;
 
 impl CassieSession {
     pub(crate) fn begin_implicit_transaction(&self) -> Result<(), CassieError> {
-        self.begin_transaction_with_origin(None, TransactionModes::default(), true)?;
+        self.begin_implicit_transaction_for_operation(None)
+    }
+
+    pub(crate) fn begin_implicit_transaction_for_operation(
+        &self,
+        authority: Option<&super::FailureAuthority>,
+    ) -> Result<(), CassieError> {
+        self.begin_transaction_with_origin_for_operation(
+            None,
+            TransactionModes::default(),
+            true,
+            authority,
+        )?;
         #[cfg(test)]
         tests::pause_after_implicit_origin_publication();
         Ok(())

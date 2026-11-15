@@ -47,6 +47,9 @@ fn commit_native_transaction(
             "injected unknown outcome after dropping uncommitted native transaction".to_owned(),
         ));
     }
+    #[cfg(feature = "replay-benchmark-observation")]
+    let result = super::native_metrics::observe_native_commit(|| transaction.commit(options));
+    #[cfg(not(feature = "replay-benchmark-observation"))]
     let result = transaction.commit(options);
     #[cfg(test)]
     if result.is_ok() && INJECT_NATIVE_COMMIT_UNKNOWN.with(|flag| flag.replace(false)) {

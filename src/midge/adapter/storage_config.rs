@@ -412,7 +412,7 @@ mod tests {
 
     use cntryl_midge::{Storage, WriteOptions};
 
-    use super::{endpoint_is_loopback, open_config_from};
+    use super::{endpoint_is_loopback, open_config_from, WritePolicy};
 
     fn reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).map(ToString::to_string)

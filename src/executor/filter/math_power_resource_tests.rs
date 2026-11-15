@@ -99,7 +99,7 @@ fn should_keep_numeric_power_memory_owned_until_the_expression_owner_drops() {
     .expect("admitted numeric power");
     let result_bytes = match &result {
         Value::Typed(value @ TypedValue::Numeric(Numeric::Finite { .. })) => value.heap_bytes(),
-        other => panic!("expected an exact numeric result, got {other:?}"),
+        _ => panic!("expected an exact finite numeric result"),
     };
     let retained = controls.current_query_memory_bytes();
 
@@ -133,7 +133,7 @@ fn should_keep_numeric_power_operator_output_without_retaining_its_operands() {
     .expect("admitted numeric power operator");
     let result_bytes = match &result {
         Value::Typed(value @ TypedValue::Numeric(Numeric::Finite { .. })) => value.heap_bytes(),
-        other => panic!("expected an exact numeric result, got {other:?}"),
+        _ => panic!("expected an exact finite numeric result"),
     };
 
     // Assert

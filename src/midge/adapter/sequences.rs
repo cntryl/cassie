@@ -88,7 +88,8 @@ impl Midge {
 
     /// Like [`Self::update_sequence`], but retries when a concurrent update to
     /// the same sequence wins the commit, so SQL callers never observe the
-    /// storage write conflict that PostgreSQL's `nextval` cannot raise.
+    /// storage write conflict that PostgreSQL's `nextval` cannot raise. A
+    /// fenced writer returns its error immediately without another attempt.
     ///
     /// # Errors
     ///
@@ -112,7 +113,13 @@ impl Midge {
         let mut attempt = 1;
         loop {
             match self.update_sequence(name, &mut update) {
-                Err(CassieError::StorageRetryable(_)) if attempt < MAX_ATTEMPTS => attempt += 1,
+                Err(error @ CassieError::StorageRetryable(_))
+                    if attempt < MAX_ATTEMPTS
+                        && error.storage_retry_kind()
+                            != Some(crate::app::StorageRetryKind::Fenced) =>
+                {
+                    attempt += 1;
+                }
                 outcome => return outcome,
             }
         }
@@ -179,5 +186,126 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok((result, metadata))
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::Midge;
+    use crate::app::{CassieError, RetryableStorageError, StorageRetryKind};
+    use crate::catalog::SequenceMeta;
+    use crate::types::DataType;
+
+    fn fixture() -> Midge {
+        let midge = Midge::new_in_memory("postgres").expect("memory Midge");
+        midge
+            .put_sequence(&SequenceMeta::new("sequence_retry", DataType::BigInt))
+            .expect("create sequence");
+        midge
+    }
+
+    #[test]
+    fn should_return_simulated_fenced_sequence_error_after_one_attempt() {
+        // Arrange
+        let midge = fixture();
+        let before = midge.get_sequence("sequence_retry").expect("read");
+        let mut attempts = 0;
+
+        // Act: the callback simulates the typed error; no native fencing is injected.
+        let result = midge.update_sequence_retrying("sequence_retry", |metadata| {
+            attempts += 1;
+            metadata.advance().expect("advance tentative metadata");
+            Err::<i64, _>(CassieError::from(cntryl_midge::MidgeError::Fenced(
+                "simulated stale writer".to_owned(),
+            )))
+        });
+
+        // Assert
+        let error = result.expect_err("fenced update must fail");
+        assert_eq!(error.storage_retry_kind(), Some(StorageRetryKind::Fenced));
+        assert!(error.to_string().contains("simulated stale writer"));
+        assert_eq!(attempts, 1);
+        assert_eq!(midge.get_sequence("sequence_retry").expect("read"), before);
+    }
+
+    #[test]
+    fn should_retry_simulated_sequence_write_conflict() {
+        // Arrange
+        let midge = fixture();
+        let mut attempts = 0;
+
+        // Act
+        let (value, _) = midge
+            .update_sequence_retrying("sequence_retry", |metadata| {
+                attempts += 1;
+                if attempts == 1 {
+                    return Err(CassieError::from(cntryl_midge::MidgeError::WriteConflict(
+                        "simulated conflict".to_owned(),
+                    )));
+                }
+                metadata.advance().map_err(Into::into)
+            })
+            .expect("retry conflict");
+
+        // Assert
+        assert_eq!(attempts, 2);
+        assert_eq!(value, 1);
+        let stored = midge
+            .get_sequence("sequence_retry")
+            .expect("read")
+            .expect("sequence");
+        assert_eq!(stored.current_value, 1);
+        assert!(stored.is_called);
+    }
+
+    #[test]
+    fn should_return_simulated_unknown_sequence_outcome_without_retry() {
+        // Arrange
+        let midge = fixture();
+        let before = midge.get_sequence("sequence_retry").expect("read");
+        let mut attempts = 0;
+
+        // Act: this is a callback error, not an injected native commit outcome.
+        let result = midge.update_sequence_retrying("sequence_retry", |metadata| {
+            attempts += 1;
+            metadata.advance().expect("advance tentative metadata");
+            Err::<i64, _>(CassieError::from(cntryl_midge::MidgeError::OutcomeUnknown(
+                "simulated unknown".to_owned(),
+            )))
+        });
+
+        // Assert
+        assert!(
+            matches!(result, Err(CassieError::Storage(message)) if message.contains("simulated unknown"))
+        );
+        assert_eq!(attempts, 1);
+        assert_eq!(midge.get_sequence("sequence_retry").expect("read"), before);
+    }
+
+    #[test]
+    fn should_preserve_other_sequence_retryable_classifications() {
+        // Arrange
+        for kind in [StorageRetryKind::WriteStall, StorageRetryKind::Unavailable] {
+            let midge = fixture();
+            let mut attempts = 0;
+
+            // Act
+            let (value, _) = midge
+                .update_sequence_retrying("sequence_retry", |metadata| {
+                    attempts += 1;
+                    if attempts == 1 {
+                        return Err(CassieError::StorageRetryable(RetryableStorageError::new(
+                            kind,
+                            "simulated temporary error".to_owned(),
+                        )));
+                    }
+                    metadata.advance().map_err(Into::into)
+                })
+                .expect("retry existing classification");
+
+            // Assert
+            assert_eq!(attempts, 2);
+            assert_eq!(value, 1);
+        }
     }
 }

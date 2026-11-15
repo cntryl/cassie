@@ -628,3 +628,223 @@ fn should_cancel_copy_owner_check_after_acquiring_session_lock() {
     assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(session.transaction.try_lock().is_some());
 }
+
+#[test]
+fn should_reject_copy_binding_when_savepoint_changes_between_owner_captures() {
+    // Arrange
+    let (cassie, session) = fixture();
+    session.create_savepoint("copy_epoch").expect("savepoint");
+    let worker_cassie = cassie.clone();
+    let worker_session = session.clone();
+    let (captured_tx, captured_rx) = std::sync::mpsc::sync_channel(1);
+    let (resume_tx, resume_rx) = std::sync::mpsc::sync_channel(1);
+    let worker = std::thread::spawn(move || {
+        worker_cassie
+            .capture_bound_copy_command_owner_observed(
+                &worker_session,
+                "public.copy_owner_fence",
+                &controls(),
+                || {
+                    captured_tx.send(()).expect("provisional capture");
+                    resume_rx
+                        .recv_timeout(std::time::Duration::from_secs(5))
+                        .expect("resume capture");
+                    Ok(())
+                },
+            )
+            .map(|_| ())
+    });
+    captured_rx
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("provisional capture");
+
+    // Act
+    session
+        .rollback_to_savepoint("copy_epoch")
+        .expect("restore unchanged savepoint");
+    resume_tx.send(()).expect("resume capture");
+    let stale = worker.join().expect("capture worker");
+    let fresh = cassie.capture_copy_command_owner(&session, "public.copy_owner_fence", &controls());
+
+    // Assert
+    assert!(matches!(stale, Err(CassieError::Transaction {
+        kind: crate::app::TransactionErrorKind::SerializationFailure,
+        message,
+    }) if message == "COPY owner no longer matches the active transaction"));
+    assert!(fresh.is_ok());
+}
+
+#[test]
+fn should_reject_old_copy_owner_at_guarded_fork_after_savepoint_restore() {
+    // Arrange
+    let (cassie, session) = fixture();
+    session.create_savepoint("copy_epoch").expect("savepoint");
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls())
+        .expect("owner");
+    session
+        .rollback_to_savepoint("copy_epoch")
+        .expect("restore savepoint");
+
+    // Act
+    let fork = session.fork_copy_statement_batch(&owner, &controls());
+
+    // Assert
+    assert!(matches!(fork, Err(CassieError::Transaction {
+        kind: crate::app::TransactionErrorKind::SerializationFailure,
+        message,
+    }) if message == "COPY owner no longer matches the active transaction"));
+}
+
+#[test]
+fn should_preserve_failed_transaction_precedence_at_copy_fork() {
+    // Arrange
+    let (cassie, session) = fixture();
+    session.create_savepoint("copy_epoch").expect("savepoint");
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls())
+        .expect("owner");
+    session
+        .rollback_to_savepoint("copy_epoch")
+        .expect("restore savepoint");
+    session.mark_transaction_failed();
+
+    // Act
+    let fork = session.fork_copy_statement_batch(&owner, &controls());
+
+    // Assert
+    assert!(matches!(
+        fork,
+        Err(CassieError::Transaction {
+            kind: crate::app::TransactionErrorKind::FailedTransaction,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn should_preserve_copy_owner_after_missing_savepoint() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls())
+        .expect("owner");
+
+    // Act
+    let restore = session.rollback_to_savepoint("missing");
+    let valid = owner.ensure_current_transaction(&session, &controls());
+
+    // Assert
+    assert!(matches!(
+        restore,
+        Err(CassieError::Transaction {
+            kind: crate::app::TransactionErrorKind::InvalidSavepoint,
+            ..
+        })
+    ));
+    assert!(valid.is_ok());
+}
+
+#[test]
+fn should_preserve_copy_owner_after_savepoint_release() {
+    // Arrange
+    let (cassie, session) = fixture();
+    session.create_savepoint("copy_epoch").expect("savepoint");
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls())
+        .expect("owner");
+
+    // Act
+    session.release_savepoint("copy_epoch").expect("release");
+    let valid = session.fork_copy_statement_batch(&owner, &controls());
+
+    // Assert
+    assert!(valid.is_ok());
+}
+
+#[test]
+fn should_preserve_copy_owner_when_savepoint_pruning_is_canceled() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let normal = controls();
+    {
+        let _controls = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
+        let _ddl = cassie
+            .midge
+            .enter_transactional_ddl_scope(
+                &cassie.default_database,
+                session.transaction_storage_overlay(),
+                true,
+            )
+            .expect("private sequence scope");
+        let mut sequence = crate::catalog::SequenceMeta::new(
+            "copy_owner_private_seq",
+            crate::types::DataType::BigInt,
+        );
+        sequence.object_id = 481;
+        cassie
+            .midge
+            .put_sequence(&sequence)
+            .expect("stage sequence");
+        cassie
+            .midge
+            .update_sequence_retrying("copy_owner_private_seq", |metadata| {
+                metadata.advance().map_err(Into::into)
+            })
+            .expect("advance private cursor");
+    }
+    session.create_savepoint("copy_epoch").expect("savepoint");
+    assert!(session
+        .transaction
+        .lock()
+        .savepoints
+        .last()
+        .expect("savepoint")
+        .storage_overlay
+        .has_sequence_cursors());
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &normal)
+        .expect("owner");
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let canceled = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+
+    // Act
+    let restore = {
+        let _controls = crate::midge::adapter::PublicationControlScope::enter(Some(&canceled));
+        session.rollback_to_savepoint("copy_epoch")
+    };
+    let valid = owner.ensure_current_transaction(&session, &normal);
+
+    // Assert
+    assert!(matches!(restore, Err(CassieError::QueryCanceled)));
+    assert!(valid.is_ok());
+}
+
+#[test]
+fn should_reject_copy_target_binding_after_savepoint_restore() {
+    // Arrange
+    let (cassie, session) = fixture();
+    session.create_savepoint("copy_epoch").expect("savepoint");
+    let controls = controls();
+    let mut owner = cassie
+        .capture_copy_command_view(&session, &controls)
+        .expect("owner");
+    session
+        .rollback_to_savepoint("copy_epoch")
+        .expect("restore savepoint");
+    let _publication = owner.lock_catalog(&controls).expect("catalog guard");
+
+    // Act
+    let result = owner.bind_target_guarded(&session, "postgres.public.copy_owner_fence", &controls);
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::Transaction {
+        kind: crate::app::TransactionErrorKind::SerializationFailure,
+        message,
+    }) if message == "COPY owner no longer matches the active transaction"));
+}

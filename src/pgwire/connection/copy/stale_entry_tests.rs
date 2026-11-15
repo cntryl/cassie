@@ -135,6 +135,14 @@ struct EntryFixture {
 
 impl EntryFixture {
     fn new(sql: &str, cancellation: Option<crate::runtime::QueryCancellationHandle>) -> Self {
+        Self::new_with_savepoint(sql, cancellation, false)
+    }
+
+    fn new_with_savepoint(
+        sql: &str,
+        cancellation: Option<crate::runtime::QueryCancellationHandle>,
+        savepoint: bool,
+    ) -> Self {
         let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
             .expect("memory fixture");
         cassie.startup().expect("startup");
@@ -145,6 +153,11 @@ impl EntryFixture {
             "BEGIN",
         ] {
             cassie.execute_sql(&session, setup, vec![]).expect("setup");
+        }
+        if savepoint {
+            cassie
+                .execute_sql(&session, "SAVEPOINT copy_entry", vec![])
+                .expect("savepoint");
         }
         let request = request::parse_copy_request(sql)
             .expect("parse COPY")
@@ -347,5 +360,271 @@ fn should_reject_copy_owner_when_session_database_changes() {
             kind: crate::app::TransactionErrorKind::SerializationFailure,
             message,
         })) if message == "COPY owner no longer matches the active transaction"
+    ));
+}
+
+#[test]
+fn should_reject_copy_predicate_after_savepoint_restoration() {
+    // Arrange
+    let fixture = EntryFixture::new_with_savepoint(ENTRY_COPY_SQL, None, true);
+    let transaction = fixture.session.clone();
+    transaction
+        .rollback_to_savepoint("copy_entry")
+        .expect("restore unchanged savepoint");
+
+    // Act
+    let result = fixture.run(&fixture.session, b"41\n");
+    fixture.retire();
+    let next = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT nextval('copy_entry_precedence_seq')",
+            vec![],
+        )
+        .expect("sequence");
+    let rows = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT id FROM copy_entry_precedence",
+            vec![],
+        )
+        .expect("rows");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(crate::app::CassieError::Transaction {
+            kind: crate::app::TransactionErrorKind::SerializationFailure,
+            message,
+        })) if message == "COPY owner no longer matches the active transaction"
+    ));
+    assert_eq!(next.rows(), &[vec![Value::Int64(1)]]);
+    assert!(rows.rows().is_empty());
+}
+
+#[test]
+fn should_execute_fresh_copy_predicate_after_savepoint_restoration() {
+    // Arrange
+    let fixture = EntryFixture::new_with_savepoint(ENTRY_COPY_SQL, None, true);
+    fixture
+        .session
+        .rollback_to_savepoint("copy_entry")
+        .expect("restore savepoint");
+    let bound = bind_copy_from_stdin(
+        &fixture.cassie,
+        &fixture.session,
+        fixture.request.clone(),
+        None,
+    )
+    .expect("fresh binding");
+    let BoundCopyRequest::From(request, statement, binding) = bound else {
+        panic!("COPY FROM binding")
+    };
+
+    // Act
+    let result = {
+        let _controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+        execute::execute_copy_payload(
+            &binding.cassie,
+            &fixture.session,
+            &request,
+            &statement,
+            b"41\n",
+            None,
+            binding.owner.as_ref(),
+        )
+    };
+    fixture
+        .cassie
+        .execute_sql(&fixture.session, "COMMIT", vec![])
+        .expect("commit");
+    let current = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT currval('copy_entry_precedence_seq')",
+            vec![],
+        )
+        .expect("sequence");
+    let rows = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT id FROM copy_entry_precedence",
+            vec![],
+        )
+        .expect("rows");
+
+    // Assert
+    assert!(matches!(result, Ok(ref completion) if completion.command == "COPY 1"));
+    assert_eq!(current.rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(rows.rows(), &[vec![Value::Int64(41)]]);
+}
+
+#[test]
+fn should_report_stale_entry_before_failed_transaction_after_savepoint_restore() {
+    // Arrange
+    let fixture = EntryFixture::new_with_savepoint(ENTRY_COPY_SQL, None, true);
+    fixture
+        .session
+        .rollback_to_savepoint("copy_entry")
+        .expect("rollback");
+    fixture.session.mark_transaction_failed();
+
+    // Act
+    let result = fixture.run(&fixture.session, b"41\n");
+
+    // Assert
+    assert!(matches!(result, Err(filter::CopyWhereError::Cassie(
+        crate::app::CassieError::Transaction {
+            kind: crate::app::TransactionErrorKind::SerializationFailure,
+            message,
+        })) if message == "COPY owner no longer matches the active transaction"));
+}
+
+#[test]
+fn should_preserve_header_error_before_savepoint_stale_owner() {
+    // Arrange
+    let fixture = EntryFixture::new_with_savepoint(
+        "COPY copy_entry_precedence (id) FROM STDIN WITH (FORMAT CSV, HEADER MATCH) WHERE (id > 0)",
+        None,
+        true,
+    );
+    fixture
+        .session
+        .rollback_to_savepoint("copy_entry")
+        .expect("rollback");
+
+    // Act
+    let result = fixture.run(&fixture.session, b"wrong\n41\n");
+
+    // Assert
+    assert!(
+        matches!(result, Err(filter::CopyWhereError::Cassie(error)) if error.sql_state() == "22P04")
+    );
+}
+
+#[test]
+fn should_reject_copy_binding_across_savepoint_restore() {
+    // Arrange
+    let fixture = EntryFixture::new_with_savepoint(ENTRY_COPY_SQL, None, true);
+    let session = fixture.session.clone();
+
+    // Act: the callback runs after the provisional owner resolved this target.
+    let stale = fixture.cassie.capture_copy_command_owner_after_provisional(
+        &fixture.session,
+        "public.copy_entry_precedence",
+        &fixture.binding.controls,
+        || session.rollback_to_savepoint("copy_entry"),
+    );
+    let first = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT nextval('copy_entry_precedence_seq')",
+            vec![],
+        )
+        .expect("unadvanced sequence");
+    let bound = bind_copy_from_stdin(
+        &fixture.cassie,
+        &fixture.session,
+        fixture.request.clone(),
+        None,
+    )
+    .expect("fresh bind");
+    let BoundCopyRequest::From(request, statement, binding) = bound else {
+        panic!("COPY FROM binding")
+    };
+    let fresh = {
+        let _controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+        execute::execute_copy_payload(
+            &binding.cassie,
+            &fixture.session,
+            &request,
+            &statement,
+            b"41\n",
+            None,
+            binding.owner.as_ref(),
+        )
+    };
+    fixture
+        .cassie
+        .execute_sql(&fixture.session, "COMMIT", vec![])
+        .expect("commit");
+    let current = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT currval('copy_entry_precedence_seq')",
+            vec![],
+        )
+        .expect("sequence");
+    let rows = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT id FROM copy_entry_precedence",
+            vec![],
+        )
+        .expect("rows");
+
+    // Assert
+    assert!(matches!(stale, Err(crate::app::CassieError::Transaction {
+        kind: crate::app::TransactionErrorKind::SerializationFailure,
+        message,
+    }) if message == "COPY owner no longer matches the active transaction"));
+    assert_eq!(first.rows(), &[vec![Value::Int64(1)]]);
+    assert!(matches!(fresh, Ok(ref completion) if completion.command == "COPY 1"));
+    assert_eq!(current.rows(), &[vec![Value::Int64(2)]]);
+    assert_eq!(rows.rows(), &[vec![Value::Int64(41)]]);
+}
+
+#[test]
+fn should_preserve_cancellation_before_savepoint_stale_owner() {
+    // Arrange
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let fixture =
+        EntryFixture::new_with_savepoint(ENTRY_COPY_SQL, Some(cancellation.clone()), true);
+    fixture
+        .session
+        .rollback_to_savepoint("copy_entry")
+        .expect("rollback");
+    cancellation.cancel();
+
+    // Act
+    let result = fixture.run(&fixture.session, b"41\n");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(
+            crate::app::CassieError::QueryCanceled
+        ))
+    ));
+}
+
+#[test]
+fn should_preserve_deadline_before_savepoint_stale_owner() {
+    // Arrange
+    let mut fixture = EntryFixture::new_with_savepoint(ENTRY_COPY_SQL, None, true);
+    fixture
+        .session
+        .rollback_to_savepoint("copy_entry")
+        .expect("rollback");
+    fixture.binding.controls.deadline = Some(std::time::Instant::now());
+
+    // Act
+    let result = fixture.run(&fixture.session, b"41\n");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(
+            crate::app::CassieError::DeadlineExceeded
+        ))
     ));
 }

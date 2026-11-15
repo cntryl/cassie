@@ -47,7 +47,7 @@ fn should_use_buffered_wal_for_declared_sql_projection_transaction() {
     // Assert
     result.unwrap();
     assert_eq!(writes.first_policy, Some("local_buffered"));
-    assert!(writes.local_buffered_attempts > 0);
+    assert!(writes.primary_buffered_attempts > 0);
     assert_eq!(writes.best_effort_attempts, 0);
     assert_eq!(
         cassie
@@ -100,7 +100,7 @@ fn should_use_strict_policy_for_mixed_projection_transaction() {
     result.unwrap();
     assert_eq!(writes.first_policy, Some("local_sync"));
     assert!(writes.local_sync_attempts > 0);
-    assert_eq!(writes.local_buffered_attempts, 0);
+    assert_eq!(writes.primary_buffered_attempts, 0);
     assert_eq!(writes.best_effort_attempts, 0);
 }
 
@@ -129,7 +129,7 @@ fn should_restore_default_policy_after_savepoint_rollback() {
     // Assert
     result.unwrap();
     assert!(writes.local_sync_attempts > 0);
-    assert_eq!(writes.local_buffered_attempts, 0);
+    assert_eq!(writes.primary_buffered_attempts, 0);
 }
 
 #[test]
@@ -159,6 +159,6 @@ fn should_retain_sequence_effect_classification_after_savepoint_rollback() {
     // Assert
     result.unwrap();
     assert_eq!(writes.first_policy, Some("local_sync"));
-    assert_eq!(writes.local_buffered_attempts, 0);
+    assert_eq!(writes.primary_buffered_attempts, 0);
     assert_eq!(writes.best_effort_attempts, 0);
 }

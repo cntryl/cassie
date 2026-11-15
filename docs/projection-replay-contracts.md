@@ -159,6 +159,35 @@ mutable catalog aliases must not escape as supposedly immutable authorities.
 Mutation coverage, lock ordering, budget ownership, retry behavior and tests
 remain design and implementation obligations, not established guarantees.
 
+**Selected fence design (2026-11-15, supersedes the candidate above).** Jev
+(`target/jev/1272-fence-response.json`) selected a per-session, re-entrant
+command-publication fence over stamp-and-retry (0.98). Source probes refined it:
+
+- Readers acquire the fence at statement start, after the global
+  `catalog_publication` read guard and before the descriptor snapshot and name
+  binding, and release it after Data capture and before execution and portal
+  delivery. Constant-only and other Data-free statements still take no Data
+  snapshot.
+- Every statement that stages storage and then separately publishes catalog
+  state holds the same fence from staging through publication. This is a
+  second acquisition site, because readers release theirs before execution.
+  Every such mutator (CREATE/DROP/ALTER TABLE, indexes, views, sequences,
+  materialized views, projection management) must be audited and covered; an
+  uncovered mutator is a defect, not an accepted gap.
+- The fence is re-entrant per thread so nested CTAS, CALL and embedded
+  `execute_sql` on one session cannot self-deadlock.
+- Lock order is global publication guard, then session fence, then the session
+  transaction mutex, everywhere. The REPEATABLE READ capture and COMMIT paths
+  already take the global guard first and must not wait for it while holding the
+  fence. Acquisition honors cancellation and deadlines.
+- Statements sharing one session serialize through bind and capture; independent
+  sessions stay concurrent. Real pgwire connections already run one statement
+  at a time.
+- Jev's adversarial gap probability was 0.58 and lock-order risk 0.32; the
+  findings above (mutator coverage and re-entrancy) are the confirmed leads.
+  Retained REPEATABLE READ Bind owners keep their captured overlay and
+  `rebind_statement_read` reuses it, so they do not mix revisions.
+
 Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. The selected #1271 policy above remains unimplemented and does not establish crash atomicity for a new durability policy.
 
 ## Operator Workflow After Replay Failure

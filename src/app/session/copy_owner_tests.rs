@@ -837,7 +837,8 @@ fn should_reject_copy_target_binding_after_savepoint_restore() {
     session
         .rollback_to_savepoint("copy_epoch")
         .expect("restore savepoint");
-    let _publication = owner.lock_catalog(&controls).expect("catalog guard");
+    let publication = Arc::clone(&owner.publication_guard);
+    let _publication = publication.read();
 
     // Act
     let result = owner.bind_target_guarded(&session, "postgres.public.copy_owner_fence", &controls);

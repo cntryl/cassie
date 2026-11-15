@@ -17,12 +17,12 @@ explicitly selected wire mapping rather than silently becoming Idle.
 At baseline `12431805adee449eb2775116faadde724c7ae8d6`, the writer reads
 `is_transaction_failed` and `is_transaction_active` using separate lock
 acquisitions. If active A becomes Failed between those reads, both predicates are
-false and the writer can emit `I`, even though A was never Idle. The existing
-`transaction_status()` captures the current status and maps it to a stable
-public string under one mutex; reusing it avoids a new public API. The selected
-mapping explicitly accepts the three existing strings and reports an internal
-error for any unrecognized future string rather than guessing its wire state.
-The future Retiring state under #1290 must get its own reviewed mapping.
+false and the writer can emit `I`, even though A was never Idle. The selected projection exposes the existing status enum only within the crate
+and captures its Copy value with one mutex acquisition. The public
+`transaction_status()` delegates to that snapshot and keeps its existing strings;
+the writer exhaustively maps the typed variants. This makes a future status
+variant require an explicit mapping instead of silently reporting Idle. The
+future Retiring state under #1290 must get its own reviewed mapping.
 
 A test-only callback after the fixed status snapshot, with the session mutex
 released, changes active A to Failed before the frame is written. Assert exactly
@@ -39,3 +39,10 @@ Independent review also confirmed the schedule and the need to release the mutex
 before the callback. Request/response evidence is retained in the #1290 design
 worktree's `target/1290-design/ready-status-{request,response}.json`; Jev is
 advisory and does not establish test results.
+
+Jev selected the crate-private typed projection over string matching (0.91 vs
+0.07) and identified a callback-under-lock deadlock risk (0.90). Independent
+review also selected exhaustive typed mapping. Receipts:
+`target/1291-design/projection-choice-{request,response}.json`. The shared
+session enum, snapshot accessor and crate-only re-export are assembler-owned;
+the writer, focused tests and this contract are coder-owned.

@@ -182,3 +182,64 @@ fn should_add_a_serial_column_sequence_in_the_table_database() {
     // Assert
     assert_eq!(names, vec!["extra_db.public.widgets_id_seq".to_owned()]);
 }
+
+#[test]
+fn should_keep_identity_rename_and_schema_sequences_in_the_table_database() {
+    // Arrange
+    let (cassie, _default, extra) = fixture();
+    for sql in [
+        "CREATE TABLE plain (id BIGINT NOT NULL, name TEXT)",
+        "CREATE TABLE renamed_from (id SERIAL PRIMARY KEY)",
+        "CREATE SCHEMA app",
+    ] {
+        run(&cassie, &extra, sql);
+    }
+
+    // Act
+    for sql in [
+        "ALTER TABLE plain ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY",
+        "ALTER TABLE renamed_from RENAME TO renamed_to",
+        "CREATE TABLE app.scoped (id SERIAL PRIMARY KEY)",
+    ] {
+        run(&cassie, &extra, sql);
+    }
+    let names = sequence_names(&cassie);
+    let renamed_first = inserted_id(&cassie, &extra, "renamed_to");
+
+    // Assert
+    assert_eq!(
+        names,
+        vec![
+            "extra_db.app.scoped_id_seq".to_owned(),
+            "extra_db.public.plain_id_seq".to_owned(),
+            "extra_db.public.renamed_to_id_seq".to_owned(),
+        ]
+    );
+    assert_eq!(renamed_first, Value::Int64(1));
+}
+
+#[test]
+fn should_reject_bare_name_sequence_commands_from_another_database() {
+    // Arrange
+    let (cassie, default, extra) = fixture();
+    run(
+        &cassie,
+        &extra,
+        "CREATE TABLE source (id SERIAL PRIMARY KEY)",
+    );
+
+    // Act
+    let rejected = [
+        "DROP SEQUENCE source_id_seq",
+        "ALTER SEQUENCE source_id_seq RESTART WITH 50",
+        "SELECT currval('source_id_seq')",
+        "SELECT setval('source_id_seq', 99)",
+        "CREATE TABLE borrow (id BIGINT DEFAULT nextval('source_id_seq'))",
+    ]
+    .map(|sql| cassie.execute_sql(&default, sql, vec![]).is_err());
+    let first = inserted_id(&cassie, &extra, "source");
+
+    // Assert
+    assert_eq!(rejected, [true; 5]);
+    assert_eq!(first, Value::Int64(1));
+}

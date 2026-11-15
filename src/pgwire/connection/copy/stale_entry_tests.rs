@@ -329,3 +329,23 @@ fn should_preserve_autocommit_copy_without_owner() {
     assert!(result.is_ok());
     assert_eq!(rows.rows(), &[vec![Value::Int64(41)]]);
 }
+
+#[test]
+fn should_reject_copy_owner_when_session_database_changes() {
+    // Arrange
+    let fixture = EntryFixture::new(ENTRY_COPY_SQL, None);
+    let mut other_database = fixture.session.clone();
+    other_database.database = Some("other_database".to_owned());
+
+    // Act
+    let result = fixture.run(&other_database, b"41\n");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(filter::CopyWhereError::Cassie(crate::app::CassieError::Transaction {
+            kind: crate::app::TransactionErrorKind::SerializationFailure,
+            message,
+        })) if message == "COPY owner no longer matches the active transaction"
+    ));
+}

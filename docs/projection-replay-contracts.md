@@ -138,9 +138,12 @@ entrypoints are unchanged and take no handle.
   retained, and the projection is not marked failed: no failure diagnostic is
   written with the interrupted authority. The same batch can be retried and
   applies every event.
-- **After submission.** Cancellation is no longer consulted. A confirmed commit
-  completes post-commit maintenance and catalog registration and returns
-  success. An unknown native outcome returns the storage error, latches
+- **After submission.** A confirmed commit returns success. Its metadata reread
+  and catalog registration run with the request authority retired, so a late
+  cancellation cannot turn a committed batch into an error. Post-commit derived
+  maintenance keeps the request authority as before: if it is interrupted its
+  durable debt remains and is repaired later, without affecting the reported
+  outcome. An unknown native outcome returns the storage error, latches
   recovery-required fencing and must be reconciled after recovery by retrying
   the same batch; it is never reported as a cancellation.
 - **Midge boundary.** Published `cntryl-midge` 0.5.2 offers no cancellation of an

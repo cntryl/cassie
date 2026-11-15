@@ -82,12 +82,6 @@ impl Midge {
             );
         }
         tx.commit(options.commit).map_err(CassieError::from)?;
-        // A confirmed replay publication completes even if its caller cancels
-        // afterwards: cancellation wins only before native submission.
-        let _terminal = options
-            .replay
-            .as_ref()
-            .map(|_| crate::midge::adapter::PublicationControlScope::terminal_completion());
         let mut sorted_changed_collections = changed_collections;
         sorted_changed_collections.sort();
 

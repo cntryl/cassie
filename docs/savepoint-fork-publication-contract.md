@@ -16,9 +16,15 @@ using existing before-image/metadata conflict handling. No session mutex is
 held across statement execution, no new global lock is added, and this slice
 does not change WAL, cloud or write policy.
 
-The epoch is a checked monotonic in-memory counter, separate from every
-savepoint payload. It is never restored from a savepoint or silently wrapped;
-exhaustion must return an error before cursor pruning or restoration. Missing
+The epoch is a checked in-memory counter for the current transaction, separate
+from every savepoint payload. It is never restored from a savepoint or silently
+wrapped; exhaustion must return an error before cursor pruning or restoration.
+A true Idle-to-active transaction start resets it to zero under the same mutex,
+so a full rollback followed by BEGIN recovers from epoch exhaustion. Promoting
+an implicit transaction to explicit preserves its existing epoch. The existing
+generation check rejects a batch from the immediately previous transaction;
+that generation currently uses wrapping arithmetic, so this increment does not
+claim absolute identity protection after generation wrap. Missing
 savepoints and ordinary fallible pre-restore cursor-pruning errors must not
 invalidate otherwise valid forks. After target validation and checked addition,
 advance the epoch under the parent mutex before pruning. The source's pruning

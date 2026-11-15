@@ -154,7 +154,11 @@ impl StatementDataRead {
             controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
         let family = midge.database_family(database)?;
         let family_id = family.id();
-        let tx = midge.begin_adapter_tx(family_id, TransactionMode::ReadOnly)?;
+        let tx = if descriptor_authority == DescriptorAuthority::CurrentCatalog {
+            midge.begin_committed_read_adapter_tx(family_id)?
+        } else {
+            midge.begin_adapter_tx(family_id, TransactionMode::ReadOnly)?
+        };
         // The temporary family handle does not become statement-owned backing.
         drop(family);
         let epoch_scratch =
@@ -188,6 +192,10 @@ pub(super) struct DataReadTransaction {
 }
 
 impl DataReadTransaction {
+    pub(super) fn checkpoint_storage(&self) -> Option<&Arc<super::CheckpointStorageSnapshot>> {
+        self.shared.as_ref()?.overlay()?.checkpoint_storage()
+    }
+
     pub(super) fn fresh(tx: crate::midge::adapter::AdapterTransaction) -> Self {
         Self {
             fresh: Some(tx),

@@ -7,6 +7,27 @@ use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{CreateIndexStatement, CreateTableStatement};
 use std::collections::HashSet;
 
+#[cfg(test)]
+thread_local! {
+    static CHECKPOINT_DDL_STAGE_HOOK: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn install_checkpoint_ddl_stage_hook(hook: impl FnOnce() + 'static) {
+    CHECKPOINT_DDL_STAGE_HOOK.with(|slot| {
+        assert!(slot.borrow().is_none());
+        *slot.borrow_mut() = Some(Box::new(hook));
+    });
+}
+
+#[cfg(test)]
+fn after_checkpoint_ddl_storage_staged() {
+    let hook = CHECKPOINT_DDL_STAGE_HOOK.with(|slot| slot.borrow_mut().take());
+    if let Some(hook) = hook {
+        hook();
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 struct TableLikeCopyOptions {
     defaults: TableLikeCopyState,
@@ -239,6 +260,8 @@ fn create_table_gated(
     } else {
         super::sequence_command::persist_created_sequences(cassie, table_sequences)?;
     }
+    #[cfg(test)]
+    after_checkpoint_ddl_storage_staged();
     cassie.catalog.register_collection_meta_with_constraints(
         collection_meta,
         schema

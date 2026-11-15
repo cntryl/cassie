@@ -213,6 +213,9 @@ mod window_exec;
 mod tests;
 
 #[cfg(test)]
+pub(crate) use schema_creation::install_checkpoint_ddl_stage_hook;
+
+#[cfg(test)]
 mod statement_visibility;
 #[cfg(test)]
 pub(crate) use statement_visibility::JoinReadProbe;

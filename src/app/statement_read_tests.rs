@@ -6,10 +6,26 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 mod replay_native_unknown;
+mod replay_snapshot;
 
 thread_local! {
     static AFTER_CAPTURE: RefCell<Option<Box<dyn FnOnce()>>> = RefCell::new(None);
     static BEFORE_CAPTURE: RefCell<Option<Box<dyn FnOnce()>>> = RefCell::new(None);
+    static CHECKPOINT_CAPTURE_WAIT: RefCell<Option<Box<dyn FnOnce()>>> = RefCell::new(None);
+}
+
+fn install_checkpoint_capture_wait_hook(callback: impl FnOnce() + 'static) {
+    CHECKPOINT_CAPTURE_WAIT.with(|slot| {
+        assert!(slot.borrow().is_none());
+        *slot.borrow_mut() = Some(Box::new(callback));
+    });
+}
+
+pub(super) fn checkpoint_capture_waiting() {
+    let callback = CHECKPOINT_CAPTURE_WAIT.with(|slot| slot.borrow_mut().take());
+    if let Some(callback) = callback {
+        callback();
+    }
 }
 
 pub(super) fn after_statement_view_capture() {

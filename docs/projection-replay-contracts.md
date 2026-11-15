@@ -104,15 +104,122 @@ For preflight conflicts such as empty event ids, out-of-order positions, and dup
 
 Replay publishes rows, transactional index mutations, event ledger entries, and checkpoint metadata in one transaction in the owning database family. A committed event's row mutations and checkpoint are visible together in the same storage snapshot. If the transaction aborts, neither its row mutations nor its ledger or checkpoint updates are visible. This includes a new event whose deletion targets a missing row: the ledger and checkpoint must still commit. Duplicate-only and empty batches still commit their replay metadata and diagnostics. A preparation based on a stale checkpoint or duplicate-ledger view fails with a retryable conflict; the caller retries the whole batch after reading current state. The in-process collection gate is not a substitute for storage transaction conflict detection. Cassie does not automatically retry an uncertain commit outcome; the caller reconciles the recovered ledger and retries the same deterministic batch.
 
-The stored row, ledger and checkpoint share an atomic Data-family commit.
-`pg_catalog.pg_projection_checkpoints` currently reads projection metadata from
-the live catalog, however, so a SQL statement that joins it to rows pinned by
-an earlier Data snapshot can observe different replay generations. Do not use
-that virtual view and a projection-row query as a same-snapshot consistency
-check. [#1272](https://github.com/cntryl/cassie/issues/1272) tracks the public
-view's snapshot, transactional DDL, retained portal and resource-control work.
-Until that work is complete, inspect recovered persisted replay metadata when
-reconciling the durable checkpoint and event ledger.
+The selected checkpoint-view contract reads projection metadata from the same
+statement Data-family snapshot as projection rows, merged with the same
+statement's admitted immutable relevant storage overlay. Capture the overlay
+and row view with a proven command-publication fence so own staged CREATE/DROP,
+savepoints and rollback cannot mix revisions. The session transaction mutex
+alone is insufficient: DDL can stage its storage overlay before separately
+publishing its catalog update. REPEATABLE READ retains its base
+Data snapshot but captures own storage changes per command. Preserve exact
+case-sensitive canonical identities and database isolation. Modern collection
+creation writes an initial projection metadata record in the collection's Data
+transaction. A collection present in the captured collection directory but
+missing its metadata marker is indistinguishable from lost state and fails
+closed with an actionable repair/rebuild diagnostic; it must not receive a
+fabricated default or a later live-catalog checkpoint. Pre-release older stores
+with missing markers need an explicit repair/rebuild before this view can be
+used. The directory, metadata scans, overlay capture and materialized output
+must check cancellation, reserve memory before allocation, retain reservations
+with results, and release them on failure/drop. Materialized projection
+metadata is drawn from the same merged snapshot. This is implemented; see the
+implementation status below for what is and is not yet proven.
+
+The selected fence is per session and protects DDL storage staging together with
+its corresponding catalog publication, and protects capture of each matching
+catalog/Data owner. It is released before post-capture hooks, query execution,
+and retained portal delivery. Independent sessions and same-session row-only
+operations remain concurrent. When both locks are needed, acquire the global
+catalog publication guard before the session fence; never wait for that global
+guard while holding the session fence. Guard acquisition must honor cancellation
+and deadlines. A COMMIT first classifies its required global guard without
+holding the session fence, then takes global before session and rechecks the
+transaction generation and required guard strength. If either changed it drops
+both and retries or fails closed; it must reuse an already-held implicit-DDL
+publication guard. Bind descriptor validation and its retained catalog/Data
+owner must observe one protected revision. No overlay mutex may be retained while
+opening a scoped Midge transaction, which acquires that mutex internally. The
+relative order of the database publication gate and session fence, nested SQL,
+and reentrancy must be proven before implementation; this paragraph records the
+selected design; its implemented form is described under implementation
+status below.
+
+A candidate for reconciling this fence with conditional Data capture is to
+capture immutable catalog/descriptor authorities and a session publication
+stamp under the short fence, plan and authorize without the fence, then reacquire
+it before Data capture and verify that the stamp still matches. A mismatch may
+retry only pure, not-yet-executed planning under the original query controls;
+CTAS, CALL and other operations with side effects cannot be restarted this way.
+Retained REPEATABLE READ Bind owners must retain their original authority. This
+candidate must preserve the existing rule that constant and other proven
+Data-free statements do not acquire a Data snapshot. Transaction generation is
+not a sufficient stamp: it does not change on every staged DDL mutation. All
+relevant partial failures, storage and catalog changes, savepoint restoration,
+transaction controls and COPY publication need comprehensive coverage, and
+mutable catalog aliases must not escape as supposedly immutable authorities.
+Mutation coverage, lock ordering, budget ownership, retry behavior and tests
+remain design and implementation obligations, not established guarantees.
+
+**Selected fence design (2026-11-15, supersedes the candidate above).** Jev
+(`target/jev/1272-fence-response.json`) selected a per-session, re-entrant
+command-publication fence over stamp-and-retry (0.98). Source probes refined it:
+
+- Readers acquire the fence at statement start, after the global
+  `catalog_publication` read guard and before the descriptor snapshot and name
+  binding, and release it after Data capture and before execution and portal
+  delivery. Constant-only and other Data-free statements still take no Data
+  snapshot.
+- Every statement that stages storage and then separately publishes catalog
+  state holds the same fence from staging through publication. This is a
+  second acquisition site, because readers release theirs before execution.
+  Every such mutator (CREATE/DROP/ALTER TABLE, indexes, views, sequences,
+  materialized views, projection management) must be audited and covered; an
+  uncovered mutator is a defect, not an accepted gap.
+- The fence is re-entrant per thread so nested CTAS, CALL and embedded
+  `execute_sql` on one session cannot self-deadlock.
+- Lock order is global publication guard, then session fence, then the session
+  transaction mutex, everywhere. The REPEATABLE READ capture and COMMIT paths
+  already take the global guard first and must not wait for it while holding the
+  fence. Acquisition honors cancellation and deadlines.
+- Statements sharing one session serialize through bind and capture; independent
+  sessions stay concurrent. Real pgwire connections already run one statement
+  at a time.
+- Jev's adversarial gap probability was 0.58 and lock-order risk 0.32; the
+  findings above (mutator coverage and re-entrancy) are the confirmed leads.
+  Retained REPEATABLE READ Bind owners keep their captured overlay and
+  `rebind_statement_read` reuses it, so they do not mix revisions.
+
+**Implementation status (#1272).** `pg_catalog.pg_projection_checkpoints` is
+materialized from the statement's Data-family snapshot merged with the command's
+own staged checkpoint-visible changes, with query-memory reservations retained
+by the result and cancellation checks at the directory, scan and overlay
+boundaries. A missing marker, a key and identity that disagree, an orphan
+collection record or a duplicate directory entry fails closed with a repair or
+rebuild diagnostic. The per-session re-entrant fence is acquired in
+`execute_bound_catalog_scoped` after the global publication guard; catalog,
+projection and retention statements hold it through execution and readers
+release it after Data capture. Executable evidence: a synchronized
+DDL-staged-before-publication regression (observed failing with
+`CatalogObjectNotFound` before the fence), same-snapshot old-row regression,
+staged CREATE/DROP with savepoints and rollback at READ COMMITTED and REPEATABLE
+READ, post-commit metadata reread failure, nested CTAS over the view, missing
+and mismatched markers, quoted identities, budget and cancellation.
+
+Not yet covered by a dedicated test and therefore not claimed: authorization
+and database isolation of this view specifically (existing database-scope
+suites run in the gate but do not target it), materialized-projection rows,
+restart on local storage, and retained REPEATABLE READ Bind portals.
+Transaction-control statements (COMMIT, ROLLBACK, SAVEPOINT) do not take the
+fence, so a concurrent same-session reader during ROLLBACK TO SAVEPOINT is not
+protected against observing the storage restoration before the catalog
+restoration. Fencing them was tried and rejected: the supported schedule in
+which a later ROLLBACK TO recovers a session while an older one is still
+unwinding (`should_preserve_later_recovery_after_old_savepoint_restoration_error`)
+requires savepoint control to stay concurrent on one session. Rollback ordering
+belongs to #1290's retirement work. Existing integration suites exercise this
+view across database scope, snapshot restore and materialized projection
+lifecycle; they run in the gate but were not written for this issue. Autocommit CREATE TABLE publishes under the global write guard
+without a separate staged overlay and is unaffected.
 
 Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. The selected #1271 policy above remains unimplemented and does not establish crash atomicity for a new durability policy.
 

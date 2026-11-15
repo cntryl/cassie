@@ -38,8 +38,8 @@ native pre-restart and restarted cursors, and check the row after rollback and
 commit. Verify that `currval` and `lastval` are forgotten after the terminal
 operation, along with ordinary outside-transaction DISCARD, normal rollback and
 `DISCARD ALL` rejection. Avoid deliberate history errors before a commit
-control: an error inside a block itself changes transaction state. A newly
-test was not run against an instrumented baseline, so no baseline RED was
+control: an error inside a block itself changes transaction state. The new
+tests were not run against an instrumented baseline, so no baseline RED was
 observed.
 
 This bounded fix does not solve the observed cross-session sequence overwrite

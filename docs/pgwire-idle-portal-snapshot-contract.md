@@ -3,8 +3,8 @@
 This child of #1297 / PR #1299 covers four conditional idle portal-clear
 choices: `transactions::clear_idle_portals`, the extended error path's recovery
 cleanup, extended Sync, and the Sync-wait handler. The parent merged as
-`fdb9038b122d0fa73ef815195312cf4ae8c54591`; this child requires review and
-qualification against that final base. These choices must each derive from one
+`fdb9038b122d0fa73ef815195312cf4ae8c54591`. The full ordered local gate passed
+at `a5ca12c9`; final-head hosted checks are pending. These choices derive from one
 `transaction_status_snapshot`, clearing only if that point-in-time status is
 Idle; release the transaction mutex before clearing portals or awaiting I/O.
 
@@ -23,6 +23,7 @@ real status snapshot with the transaction lock released. Restore a Failed block
 to InTransaction via ROLLBACK TO while paused, then verify the Failed snapshot
 retains the portal; also check ordinary Idle, InTransaction and Failed outcomes,
 real Sync/recovery paths and the unconditional Sync-wait invalidation branch.
-Use an externally owned watchdog where blocked asynchronous execution could
-prevent an in-runtime deadline. A baseline RED requires separate instrumentation
-between the old reads and an actual execution; it is not presumed.
+The nine portal controls passed in the locked suite at `a5ca12c9`. An externally
+owned watchdog bounds blocked asynchronous execution. A baseline RED requires
+separate instrumentation between the old reads and an actual execution; it was
+not observed.

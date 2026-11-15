@@ -25,6 +25,7 @@ impl CassieSession {
         let working_state = self.statement_fork_state(&transaction)?;
         drop(transaction);
         let base_generation = working_state.generation;
+        let base_rollback_epoch = working_state.rollback_epoch;
         let base_writes = working_state.writes.clone();
         let conflict_intents = &working_state.conflict_intents;
         let catalog_overlay = working_state
@@ -57,6 +58,7 @@ impl CassieSession {
             session,
             base_transaction_active,
             base_generation,
+            base_rollback_epoch,
             base_writes,
             base_conflict_intent_count,
             base_catalog_overlay: catalog_overlay,
@@ -91,6 +93,7 @@ impl CassieSession {
             },
             has_query: active && current.has_query,
             generation: current.generation,
+            rollback_epoch: current.rollback_epoch,
             repeatable_read: if active {
                 current.repeatable_read.clone()
             } else {
@@ -144,7 +147,9 @@ impl CassieSession {
             ));
         }
 
-        if transaction.generation != batch.base_generation {
+        if transaction.generation != batch.base_generation
+            || transaction.rollback_epoch != batch.base_rollback_epoch
+        {
             return Err(CassieError::Execution(
                 "session transaction changed while statement was executing".to_owned(),
             ));

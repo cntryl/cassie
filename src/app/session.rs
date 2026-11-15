@@ -91,6 +91,7 @@ struct SessionTransactionState {
     modes: crate::sql::ast::TransactionModes,
     has_query: bool,
     generation: u64,
+    rollback_epoch: u64,
     repeatable_read: Option<Arc<TransactionReadSnapshot>>,
     unique_owner_id: Uuid,
     writes: SharedTransactionWrites,
@@ -157,6 +158,7 @@ pub(crate) struct StatementMutationBatch {
     session: CassieSession,
     base_transaction_active: bool,
     base_generation: u64,
+    base_rollback_epoch: u64,
     base_writes: SharedTransactionWrites,
     base_conflict_intent_count: usize,
     base_catalog_overlay: Option<Catalog>,
@@ -256,6 +258,7 @@ impl CassieSession {
                 modes: crate::sql::ast::TransactionModes::default(),
                 has_query: false,
                 generation: 0,
+                rollback_epoch: 0,
                 repeatable_read: None,
                 unique_owner_id: Uuid::new_v4(),
                 writes: SharedTransactionWrites::default(),
@@ -747,6 +750,10 @@ fn rename_expression_column(expression: &mut crate::sql::ast::Expr, current_key:
         Ok::<(), std::convert::Infallible>(())
     });
 }
+
+#[cfg(test)]
+#[path = "session/savepoint_fork_epoch_tests.rs"]
+mod savepoint_fork_epoch_tests;
 
 #[cfg(test)]
 #[path = "session/tests.rs"]

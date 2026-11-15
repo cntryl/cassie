@@ -192,8 +192,39 @@ impl CassieSession {
     }
 
     pub(crate) fn ensure_transaction_writable(&self) -> Result<(), CassieError> {
-        if self.is_transaction_read_only() {
-            self.mark_transaction_failed();
+        self.ensure_transaction_writable_inner(|| {})
+    }
+
+    #[cfg(test)]
+    fn ensure_transaction_writable_observed(
+        &self,
+        after_decision: impl FnOnce(),
+    ) -> Result<(), CassieError> {
+        self.ensure_transaction_writable_inner(after_decision)
+    }
+
+    fn ensure_transaction_writable_inner(
+        &self,
+        after_decision: impl FnOnce(),
+    ) -> Result<(), CassieError> {
+        let read_only = {
+            let mut transaction = self.transaction.lock();
+            if transaction.status == SessionTransactionStatus::Idle {
+                // Settings have their own lock; an idle check must not later
+                // fail a transaction started by another session clone.
+                drop(transaction);
+                self.default_transaction_read_only()
+            } else {
+                let read_only = transaction.modes.read_only.unwrap_or(false);
+                // Make the decision and failure transition against one owner.
+                if read_only && transaction.status == SessionTransactionStatus::InTransaction {
+                    transaction.status = SessionTransactionStatus::Failed;
+                }
+                read_only
+            }
+        };
+        after_decision();
+        if read_only {
             return Err(CassieError::Transaction {
                 kind: TransactionErrorKind::ReadOnlyTransaction,
                 message: "cannot execute a write in a read-only transaction".to_string(),

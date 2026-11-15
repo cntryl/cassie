@@ -1,6 +1,6 @@
 # Atomic transaction writable check
 
-Status: selected #1292 contract, not yet implemented or qualified. The child is
+Status: #1292 is implemented in the local candidate but unqualified. The child is
 based on the #1291 integrated head `5a1bdbca4e2cb56b5d3099248521ef370e2332d6`
 while that prerequisite is qualifying; rebase and review after its merge.
 This is a bounded internal failure-transition fix, not completion of #1290's

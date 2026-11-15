@@ -78,7 +78,7 @@ fn install(cassie: &Cassie, session: &CassieSession, action: Action) -> Guard {
         assert!(
             slot.replace(Some(hook)).is_none(),
             "nested pgwire authority hook"
-        )
+        );
     });
     Guard(id)
 }

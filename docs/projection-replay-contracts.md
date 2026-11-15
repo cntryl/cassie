@@ -116,6 +116,41 @@ reconciling the durable checkpoint and event ledger.
 
 Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. The selected #1271 policy above remains unimplemented and does not establish crash atomicity for a new durability policy.
 
+## Cancellable Replay
+
+`Cassie::replay_projection_batch_cancellable` and
+`Cassie::replay_projection_batch_strict_cancellable` take an explicit
+`QueryCancellationHandle` ([#1274](https://github.com/cntryl/cassie/issues/1274)).
+The existing `replay_projection_batch` and `replay_projection_batch_strict`
+entrypoints are unchanged and take no handle.
+
+- **Authority.** The explicit handle is added to any ambient request
+  cancellation or deadline on the calling stack; neither replaces the other.
+- **Check points.** Cancellation is checked before and while waiting for the
+  referential and collection write gates, for each event during preparation,
+  after preparation, and while waiting for and immediately after acquiring the
+  database publication gate. That last check, taken under the publication gate
+  directly before the native Midge commit is invoked, is the commit-submission
+  boundary.
+- **Before submission.** A cancellation observed at or before that boundary
+  returns `QueryCanceled` (or `DeadlineExceeded` for an ambient deadline). Rows,
+  derived indexes, the event ledger and the checkpoint are unchanged, no gate is
+  retained, and the projection is not marked failed: no failure diagnostic is
+  written with the interrupted authority. The same batch can be retried and
+  applies every event.
+- **After submission.** A confirmed commit returns success. Its metadata reread
+  and catalog registration run with the request authority retired, so a late
+  cancellation cannot turn a committed batch into an error. Post-commit derived
+  maintenance keeps the request authority as before: if it is interrupted its
+  durable debt remains and is repaired later, without affecting the reported
+  outcome. An unknown native outcome returns the storage error, latches
+  recovery-required fencing and must be reconciled after recovery by retrying
+  the same batch; it is never reported as a cancellation.
+- **Midge boundary.** Published `cntryl-midge` 0.5.2 offers no cancellation of an
+  admitted commit, so a cancellation that arrives during native submission
+  cannot abort it. This is a property of the published API, not a blocker for
+  the contract above.
+
 ## Operator Workflow After Replay Failure
 
 1. Inspect `pg_catalog.pg_projection_checkpoints` for `freshness`, `last_error`, `replay_batch_id`, `source_checkpoint`, and `last_applied_event_id`.

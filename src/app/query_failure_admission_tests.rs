@@ -83,7 +83,9 @@ fn should_reject_saturated_query_before_waiting_for_transaction_lock() {
     ) {
         return;
     }
-    // Arrange / Act / Assert are inside the helper for both transaction states.
+    // Arrange: The watchdog bounds both transaction-state scenarios.
+    // Act: Run each synchronized scenario.
+    // Assert: The helper checks its result before returning.
     for active in [false, true] {
         assert_saturated_request_finishes_before_transaction_unlock(active, false);
     }
@@ -99,7 +101,9 @@ fn should_preserve_saturated_admission_error_when_request_is_canceled() {
     ) {
         return;
     }
-    // Arrange / Act / Assert are inside the helper.
+    // Arrange: The watchdog bounds this scenario.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_saturated_request_finishes_before_transaction_unlock(true, true);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -225,7 +229,9 @@ fn should_fail_current_owner_when_capture_wait_is_canceled() {
     ) {
         return;
     }
-    // Arrange / Act / Assert are inside the helper.
+    // Arrange: The watchdog bounds this scenario.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_contended_capture_fails_its_current_owner(CaptureCase::Cancellation);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -239,7 +245,9 @@ fn should_fail_current_owner_when_capture_wait_exceeds_deadline() {
     ) {
         return;
     }
-    // Arrange / Act / Assert are inside the helper.
+    // Arrange: The watchdog bounds this scenario.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_contended_capture_fails_its_current_owner(CaptureCase::Deadline);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -250,7 +258,9 @@ fn should_preserve_unsupported_error_when_capture_wait_is_canceled() {
     if !super::query_failure_watchdog::enter_child(
         "app::query_failure_admission_tests::should_preserve_unsupported_error_when_capture_wait_is_canceled", CASE,
     ) { return; }
-    // Arrange / Act / Assert are inside the helper.
+    // Arrange: The watchdog bounds this scenario.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_contended_capture_fails_its_current_owner(CaptureCase::Unsupported);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -261,7 +271,9 @@ fn should_preserve_empty_user_error_when_capture_wait_is_canceled() {
     if !super::query_failure_watchdog::enter_child(
         "app::query_failure_admission_tests::should_preserve_empty_user_error_when_capture_wait_is_canceled", CASE,
     ) { return; }
-    // Arrange / Act / Assert are inside the helper.
+    // Arrange: The watchdog bounds this scenario.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_contended_capture_fails_its_current_owner(CaptureCase::EmptyUser);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -272,7 +284,9 @@ fn should_preserve_missing_database_error_when_capture_wait_is_canceled() {
     if !super::query_failure_watchdog::enter_child(
         "app::query_failure_admission_tests::should_preserve_missing_database_error_when_capture_wait_is_canceled", CASE,
     ) { return; }
-    // Arrange / Act / Assert are inside the helper.
+    // Arrange: The watchdog bounds this scenario.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_contended_capture_fails_its_current_owner(CaptureCase::MissingDatabase);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -283,7 +297,9 @@ fn should_preserve_inner_recovery_error_when_capture_wait_is_canceled() {
     if !super::query_failure_watchdog::enter_child(
         "app::query_failure_admission_tests::should_preserve_inner_recovery_error_when_capture_wait_is_canceled", CASE,
     ) { return; }
-    // Arrange / Act / Assert are inside the helper.
+    // Arrange: The watchdog bounds this scenario.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_contended_capture_fails_its_current_owner(CaptureCase::Recovery);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -294,7 +310,9 @@ fn should_prefer_cancellation_when_capture_wait_also_exceeds_deadline() {
     if !super::query_failure_watchdog::enter_child(
         "app::query_failure_admission_tests::should_prefer_cancellation_when_capture_wait_also_exceeds_deadline", CASE,
     ) { return; }
-    // Arrange / Act / Assert are inside the helper.
+    // Arrange: The watchdog bounds this scenario.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_contended_capture_fails_its_current_owner(CaptureCase::CancellationBeforeDeadline);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -442,7 +460,9 @@ fn should_preserve_disabled_explain_timeout_during_capture_wait() {
     if !super::query_failure_watchdog::enter_child(
         "app::query_failure_admission_tests::should_preserve_disabled_explain_timeout_during_capture_wait", CASE,
     ) { return; }
-    // Arrange / Act / Assert are inside the helper; the long timeout is not a latency assertion.
+    // Arrange: The watchdog bounds this scenario; the long timeout is not a latency assertion.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_explain_timeout_snapshot("0", "600000", false);
     super::query_failure_watchdog::complete_child(CASE);
 }
@@ -453,7 +473,9 @@ fn should_preserve_enabled_explain_timeout_during_capture_wait() {
     if !super::query_failure_watchdog::enter_child(
         "app::query_failure_admission_tests::should_preserve_enabled_explain_timeout_during_capture_wait", CASE,
     ) { return; }
-    // Arrange / Act / Assert are inside the helper; the long timeout is not a latency assertion.
+    // Arrange: The watchdog bounds this scenario; the long timeout is not a latency assertion.
+    // Act: Run the synchronized scenario.
+    // Assert: The helper checks its result before returning.
     assert_explain_timeout_snapshot("600000", "0", true);
     super::query_failure_watchdog::complete_child(CASE);
 }

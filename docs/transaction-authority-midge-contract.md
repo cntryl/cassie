@@ -162,11 +162,16 @@ cell.
 
 - **Cancellation** is honoured up to the final check before native submission
   and not after (0.91). This is the same boundary cancellable replay uses.
-- **`OutcomeUnknown`** retires the cell as outcome-unknown, latches the existing
-  storage recovery-required fence and reports the error without retrying
-  (0.67, with 0.32 on "none"). The client-visible status and what a following
-  BEGIN returns while fenced are not settled and need a decision before
-  implementation.
+- **`OutcomeUnknown`.** Observed and now pinned by tests: a SQL `COMMIT` whose
+  native outcome is unknown returns `58030` and ends the session's transaction
+  (neither active nor failed). The storage recovery-required fence is latched
+  for the whole instance: every later read, write and `BEGIN`, on that session
+  and on others, returns `58030` without being submitted, and `ROLLBACK` is
+  accepted. Nothing is retried. After the store is reopened the transaction is
+  present in full if the commit had applied and absent if it had not, and
+  writes are accepted again. This matches the fence-until-recovery option (Jev
+  0.67); no code change was needed. What an operator should do while fenced,
+  short of a restart, is not defined.
 
 ### 5. Raw native writers (0.99)
 

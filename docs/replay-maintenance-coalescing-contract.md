@@ -173,6 +173,15 @@ buffered followed by synchronous root publication. The existing interrupted
 rebuild, process-death replay and strict or buffered replay suites continue to
 apply.
 
+**Correctness coverage added (#1277).** Under both the strict and the
+replayable replay profile: an unindexed projection publishes current hashes; a
+scalar index that exists before replay, is created between batches, or is
+dropped between batches still serves the replayed rows; an interrupted hash
+refresh leaves durable debt and readable rows, and `retry_maintenance_debt`
+restores current hashes; and after an interrupted refresh a restart on local
+storage repairs the hashes. These are process-level tests; they do not exercise
+power loss.
+
 **Not changed.** Column batch maintenance, the stale-marking path for large
 collections, time-series maintenance and both debt clears keep their existing
 synchronous commits.

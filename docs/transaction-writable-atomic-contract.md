@@ -1,7 +1,7 @@
 # Atomic transaction writable check
 
-Status: #1292 is implemented in the local candidate but unqualified. Its #1291
-prerequisite merged at `eecde895576fc52d3015385c8143d39d2fc006d8`.
+Status: #1292 passed the full ordered local gate at `c2c227d2`; final-head
+hosted qualification is pending. Its #1291 prerequisite merged at `eecde895576fc52d3015385c8143d39d2fc006d8`.
 This is a bounded internal failure-transition fix, not completion of #1290's
 query/pgwire error ownership or #1279's effect admission and durability mode.
 
@@ -36,7 +36,9 @@ callback. Instrumented baseline probes would place the same callback between
 its old check and mark; no baseline RED is claimed until executed.
 
 Controls cover active read-only, read-write, already-Failed modes, implicit
-read-only, and Idle defaults on/off, preserving their current outputs. Jev selected
+read-only, and Idle defaults on/off, preserving their current outputs. These
+controls and both synchronized race tests passed in the full locked suite at
+`c2c227d2`. Jev selected
 the atomic active transition 1.0 and identified the remaining idle/default
 observation and outer-wrapper races at 0.93 and 0.95; independent source/Jev
 review confirmed the scope. Receipts are in the preserved #1290 design worktree

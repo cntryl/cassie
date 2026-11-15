@@ -161,8 +161,10 @@ fn transaction_with_private_sequence() -> (
 fn should_preserve_fork_when_savepoint_cursor_pruning_is_canceled() {
     // Arrange
     let (_midge, session, normal) = transaction_with_private_sequence();
-    let normal_scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
-    let batch = stage_fork(&session, "kept");
+    let batch = {
+        let _normal_scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
+        stage_fork(&session, "kept")
+    };
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     let canceled = crate::runtime::QueryExecutionControls::with_cancellation(
         &crate::config::CassieRuntimeLimits::default(),
@@ -177,8 +179,10 @@ fn should_preserve_fork_when_savepoint_cursor_pruning_is_canceled() {
             crate::midge::adapter::PublicationControlScope::enter(Some(&canceled));
         session.rollback_to_savepoint("before_fork")
     };
-    let publication = session.publish_statement_batch(&batch);
-    drop(normal_scope);
+    let publication = {
+        let _normal_scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
+        session.publish_statement_batch(&batch)
+    };
 
     // Assert
     assert!(matches!(restore, Err(CassieError::QueryCanceled)));

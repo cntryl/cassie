@@ -385,7 +385,7 @@ fn should_keep_identity_restart_after_discard_sequences_commit() {
 
     // Assert
     assert_eq!(committed, restarted);
-    assert!(rows.rows().is_empty());
+    assert_eq!(rows.rows(), &[] as &[Vec<Value>]);
     assert_history_missing(&cassie, &session, &name);
 }
 

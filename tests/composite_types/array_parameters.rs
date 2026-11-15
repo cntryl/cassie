@@ -194,3 +194,73 @@ fn should_reject_malformed_binary_composite_input_with_sqlstate_22p03() {
     // Assert
     assert_eq!(codes, [(); 3].map(|()| Some("22P03".to_owned())));
 }
+
+#[test]
+fn should_keep_awkward_text_fields_of_binary_parameters_intact() {
+    // Arrange
+    let (element_oid, array_oid) = type_oids("composite-param-fidelity");
+    let streets = ["a\"b\\c,d (e) {f}", "", "NULL", " padded ", "null"];
+    let body = array(
+        element_oid,
+        &streets
+            .iter()
+            .map(|street| Some(record(street, 1)))
+            .collect::<Vec<_>>(),
+    );
+    let cycles = (1..=streets.len())
+        .map(|position| {
+            fixture::execute_cycle(
+                &format!("SELECT coalesce((($1::address[])[{position}]).street, '<sql null>')"),
+                Some((array_oid, 1, Some(&body))),
+                0,
+                false,
+            )
+        })
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("composite-param-fidelity", &setup(), cycles);
+    let returned = batches
+        .iter()
+        .map(|batch| wire::data_rows(batch)[0][0].clone().expect("street"))
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(returned, streets);
+}
+
+#[test]
+fn should_reject_an_array_header_that_claims_more_elements_than_it_carries() {
+    // Arrange
+    let (element_oid, array_oid) = type_oids("composite-param-header");
+    let mut oversized = vec![0, 0, 0, 2, 0, 0, 0, 0];
+    oversized.extend_from_slice(&element_oid.to_be_bytes());
+    oversized.extend_from_slice(&[0x7f, 0xff, 0xff, 0xff, 0, 0, 0, 1]);
+    oversized.extend_from_slice(&[0x7f, 0xff, 0xff, 0xff, 0, 0, 0, 1]);
+    let mut negative = vec![0, 0, 0, 1, 0, 0, 0, 0];
+    negative.extend_from_slice(&element_oid.to_be_bytes());
+    negative.extend_from_slice(&[0xff, 0xff, 0xff, 0xfe, 0, 0, 0, 1]);
+    let too_many_dimensions = [0_u8, 0, 0, 99, 0, 0, 0, 0, 0, 0, 0, 0];
+    let cycle = |body: &[u8]| {
+        vec![fixture::execute_cycle(
+            "SELECT $1::text",
+            Some((array_oid, 1, Some(body))),
+            0,
+            false,
+        )]
+    };
+
+    // Act
+    let codes = [
+        oversized.as_slice(),
+        negative.as_slice(),
+        too_many_dimensions.as_slice(),
+    ]
+    .map(|body| {
+        let batches = fixture::run_cycles("composite-param-header", &setup(), cycle(body));
+        wire::error_code(&batches[0])
+    });
+
+    // Assert
+    assert_eq!(codes, [(); 3].map(|()| Some("22P03".to_owned())));
+}

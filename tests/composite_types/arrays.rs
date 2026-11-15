@@ -75,12 +75,12 @@ fn should_reject_an_element_that_is_not_a_record_of_the_type() {
     // Act
     let bad_field = fixture.error(r#"SELECT '{"(a,notint)"}'::address[]"#);
     let extra_field = fixture.error(r#"SELECT '{"(a,1,2)"}'::address[]"#);
-    let unbalanced = fixture.error(r#"SELECT '{"(a,1)"'::address[]"#);
+    let malformed = fixture.error(r#"SELECT '{"(a,1)" "(b,2)"}'::address[]"#);
 
     // Assert
     assert_eq!(bad_field.sql_state(), "22P02");
     assert_eq!(extra_field.sql_state(), "22P02");
-    assert_eq!(unbalanced.sql_state(), "22P02");
+    assert_eq!(malformed.sql_state(), "22P02");
 }
 
 #[test]
@@ -328,4 +328,51 @@ fn should_convert_a_composite_array_to_json_by_field_name() {
         json.as_deref(),
         Some(r#"[{"zip": 1, "street": "a"}, null]"#)
     );
+}
+
+#[test]
+fn should_store_typed_records_through_every_write_path() {
+    // Arrange
+    let fixture = sql_fixture(
+        "composite_array_write_paths",
+        &[
+            "CREATE TYPE address AS (street text, zip int)",
+            "CREATE TABLE rows_t (id int PRIMARY KEY, stops address[])",
+            "CREATE TABLE cols_t (id int PRIMARY KEY, stops address[]) USING columnar",
+        ],
+    );
+    for table in ["rows_t", "cols_t"] {
+        fixture
+            .execute(&format!(
+                "INSERT INTO {table} VALUES (1, '{{\"(a,1)\"}}'), (2, NULL)"
+            ))
+            .unwrap();
+        fixture
+            .execute(&format!(
+                "UPDATE {table} SET stops = '{{\"(b,2)\",\"(c,3)\"}}' WHERE id = 2"
+            ))
+            .unwrap();
+        fixture
+            .execute(&format!(
+                "INSERT INTO {table} VALUES (1, '{{\"(z,9)\"}}') \
+                 ON CONFLICT (id) DO UPDATE SET stops = EXCLUDED.stops"
+            ))
+            .unwrap();
+    }
+
+    // Act
+    let read = |table: &str| {
+        first_column_text(&fixture.rows(&format!(
+            "SELECT (stops[1]).street || ':' || (stops[1]).zip::text FROM {table} ORDER BY id"
+        )))
+    };
+    let row_store = read("rows_t");
+    let column_store = read("cols_t");
+    let rejected = fixture.error("INSERT INTO cols_t VALUES (3, '{\"(a,notint)\"}')");
+
+    // Assert
+    let expected = vec![Some("z:9".to_owned()), Some("b:2".to_owned())];
+    assert_eq!(row_store, expected);
+    assert_eq!(column_store, expected);
+    assert_eq!(rejected.sql_state(), "22P02");
 }

@@ -80,7 +80,6 @@ mod session;
 mod session_objects;
 mod session_schema;
 mod session_sequences;
-pub(crate) use session_sequences::SequenceRestorer;
 mod session_settings;
 mod state;
 mod vector_backfill;

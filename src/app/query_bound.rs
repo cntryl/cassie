@@ -238,6 +238,14 @@ impl Cassie {
         if catalog_statement {
             session.check_repeatable_catalog_write(&self.publication_catalog, controls)?;
         }
+        // A staged identity restart publishes with the transaction's catalog
+        // state, so COMMIT applies its storage overlay with the truncated rows.
+        if transaction_active
+            && matches!(&parsed.statement, QueryStatement::Truncate(truncate) if truncate.restart_identity)
+            && session.transaction_catalog_overlay().is_none()
+        {
+            session.begin_transaction_catalog_overlay(&self.publication_catalog, controls)?;
+        }
         let descriptor_owner = if catalog_statement {
             None
         } else {

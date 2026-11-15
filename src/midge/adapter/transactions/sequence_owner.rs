@@ -597,12 +597,17 @@ impl Midge {
         }
         if let Some(original) = original {
             if original == &key {
-                return Ok(SequenceTarget::Native);
+                // An altered published sequence keeps allocating natively. One
+                // restarted by this transaction allocates from its staged cursor.
+                if !overlay.restarted_sequences.contains(&metadata.object_id) {
+                    return Ok(SequenceTarget::Native);
+                }
+            } else {
+                return Err(CassieError::Unsupported(
+                    "advancing a renamed published sequence in transactional DDL is not supported"
+                        .into(),
+                ));
             }
-            return Err(CassieError::Unsupported(
-                "advancing a renamed published sequence in transactional DDL is not supported"
-                    .into(),
-            ));
         }
         let epoch = overlay.sequence_epoch(metadata.object_id);
         Ok(SequenceTarget::Private {

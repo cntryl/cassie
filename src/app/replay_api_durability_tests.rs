@@ -45,7 +45,7 @@ fn should_use_buffered_wal_for_default_replay() {
     // Assert
     assert_eq!(result.unwrap().applied_event_count, 1);
     assert_eq!(writes.first_policy, Some("local_buffered"));
-    assert!(writes.local_buffered_attempts > 0);
+    assert!(writes.primary_buffered_attempts > 0);
     assert_eq!(writes.best_effort_attempts, 0);
     assert_eq!(
         cassie
@@ -72,7 +72,7 @@ fn should_use_synchronous_wal_for_strict_replay() {
     assert_eq!(result.unwrap().applied_event_count, 1);
     assert_eq!(writes.first_policy, Some("local_sync"));
     assert!(writes.local_sync_attempts > 0);
-    assert_eq!(writes.local_buffered_attempts, 0);
+    assert_eq!(writes.primary_buffered_attempts, 0);
     assert_eq!(writes.best_effort_attempts, 0);
     assert_eq!(
         cassie
@@ -108,8 +108,8 @@ fn should_use_replayable_policy_for_metadata_only_batches() {
     assert_eq!(duplicate_result.unwrap().skipped_duplicate_count, 1);
     assert_eq!(empty_writes.first_policy, Some("local_buffered"));
     assert_eq!(duplicate_writes.first_policy, Some("local_buffered"));
-    assert!(empty_writes.local_buffered_attempts > 0);
-    assert!(duplicate_writes.local_buffered_attempts > 0);
+    assert!(empty_writes.primary_buffered_attempts > 0);
+    assert!(duplicate_writes.primary_buffered_attempts > 0);
     assert_eq!(empty_writes.best_effort_attempts, 0);
     assert_eq!(duplicate_writes.best_effort_attempts, 0);
 }

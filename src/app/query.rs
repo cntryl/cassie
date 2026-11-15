@@ -685,6 +685,7 @@ impl Cassie {
         )
     }
 
+    #[cfg(test)]
     pub(super) fn execute_physical_statement_with_parameter_oids(
         &self,
         session: &CassieSession,

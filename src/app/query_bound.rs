@@ -202,25 +202,6 @@ impl Cassie {
     }
 
     /// The caller holds the publication read or write guard for this statement.
-    pub(super) fn execute_bound_catalog_scoped(
-        &self,
-        session: &CassieSession,
-        parsed: crate::sql::ast::ParsedStatement,
-        sql_fingerprint: u64,
-        parameters: (Vec<Value>, &[i32], bool),
-        mode: ExecutionMode,
-        controls: &QueryExecutionControls,
-    ) -> Result<QueryResult, CassieError> {
-        self.execute_bound_catalog_scoped_for_operation(
-            session,
-            parsed,
-            sql_fingerprint,
-            parameters,
-            mode,
-            (controls, None),
-        )
-    }
-
     pub(super) fn execute_bound_catalog_scoped_for_operation(
         &self,
         session: &CassieSession,

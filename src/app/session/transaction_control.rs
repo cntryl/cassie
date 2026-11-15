@@ -17,6 +17,7 @@ impl CassieSession {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn begin_transaction(
         &self,
         isolation: Option<TransactionIsolation>,
@@ -24,6 +25,7 @@ impl CassieSession {
         self.begin_transaction_with_modes(isolation, TransactionModes::default())
     }
 
+    #[cfg(test)]
     pub(crate) fn begin_transaction_with_modes(
         &self,
         isolation: Option<TransactionIsolation>,
@@ -41,6 +43,7 @@ impl CassieSession {
         self.begin_transaction_with_origin_for_operation(isolation, modes, false, authority)
     }
 
+    #[cfg(test)]
     pub(super) fn begin_transaction_with_origin(
         &self,
         isolation: Option<TransactionIsolation>,

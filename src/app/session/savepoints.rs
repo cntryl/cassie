@@ -60,6 +60,7 @@ impl CassieSession {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
         self.rollback_to_savepoint_inner(name, None, || {})
     }

@@ -65,6 +65,9 @@ pub struct NativeCommitObservation {
     /// Attempts outside any post-write maintenance scope, such as the primary
     /// row and checkpoint commit.
     pub primary_attempts: u64,
+    /// Buffered attempts outside any maintenance scope. Zero for a transaction
+    /// whose own commit must be synchronous, whatever derived maintenance does.
+    pub primary_buffered_attempts: u64,
     pub column_maintenance_attempts: u64,
     pub hash_maintenance_attempts: u64,
     pub time_series_maintenance_attempts: u64,
@@ -146,6 +149,12 @@ pub(super) fn observe_native_commit<T>(
                 }
             };
             *source_count = source_count.saturating_add(1);
+            if source == CommitSource::Primary
+                && matches!(options.policy(), cntryl_midge::DurabilityPolicy::Buffered)
+            {
+                observed.primary_buffered_attempts =
+                    observed.primary_buffered_attempts.saturating_add(1);
+            }
             if source != CommitSource::Primary
                 && matches!(
                     options.policy(),

@@ -282,3 +282,110 @@ fn should_serialize_projection_hash_repair_with_collection_writes() {
     drop(midge);
     let _ = std::fs::remove_dir_all(path);
 }
+
+fn hash_rebuild_fixture(name: &str, rows: usize) -> (std::path::PathBuf, Midge) {
+    let path = std::env::temp_dir().join(format!("cassie_{name}_{}", uuid::Uuid::new_v4()));
+    let midge = Midge::new_with_data_dir(&path).expect("create Midge");
+    midge
+        .create_collection(
+            name,
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_string(),
+                    data_type: crate::types::DataType::Text,
+                    nullable: false,
+                }],
+            },
+        )
+        .expect("create projection collection");
+    let documents = (0..rows)
+        .map(|index| {
+            (
+                Some(format!("row-{index:05}")),
+                serde_json::json!({"value": format!("value-{index:05}")}),
+            )
+        })
+        .collect();
+    midge.put_documents(name, documents).expect("seed rows");
+    (path, midge)
+}
+
+#[cfg(feature = "replay-benchmark-observation")]
+#[test]
+fn should_reach_the_local_durable_frontier_when_hash_rebuild_returns() {
+    // Arrange
+    let (path, midge) = hash_rebuild_fixture("projection_hash_rebuild_frontier", 600);
+
+    // Act
+    let root = midge
+        .rebuild_projection_hashes("projection_hash_rebuild_frontier")
+        .expect("rebuild projection hashes");
+    let metrics = midge.native_durability_metrics().expect("native metrics");
+
+    // Assert
+    assert_eq!(root.row_count, 600);
+    assert_eq!(metrics.wal_local_durable_seq, metrics.current_sequence);
+
+    drop(midge);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_recover_published_hashes_after_reopening_the_store() {
+    // Arrange
+    let (path, midge) = hash_rebuild_fixture("projection_hash_rebuild_reopen", 600);
+    let built = midge
+        .rebuild_projection_hashes("projection_hash_rebuild_reopen")
+        .expect("rebuild projection hashes");
+    drop(midge);
+
+    // Act
+    let reopened = Midge::new_with_data_dir(&path).expect("reopen Midge");
+    let root = reopened
+        .root_hash("projection_hash_rebuild_reopen")
+        .expect("read recovered root");
+    let row_hashes = reopened
+        .list_row_hashes("projection_hash_rebuild_reopen")
+        .expect("list recovered row hashes")
+        .len();
+
+    // Assert
+    let summary = |record: &super::RootHashRecord| {
+        (
+            record.built_generation,
+            record.row_count,
+            record.range_count,
+        )
+    };
+    assert_eq!(root.as_ref().map(summary), Some(summary(&built)));
+    assert_eq!(row_hashes, 600);
+
+    drop(reopened);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_keep_interrupted_hash_rebuild_unpublished_across_reopen() {
+    // Arrange
+    let (path, midge) = hash_rebuild_fixture("projection_hash_rebuild_interrupted", 600);
+    set_projection_output_failure_point(Some(ProjectionOutputFailurePoint::AfterRowBatches));
+    let interrupted = midge.rebuild_projection_hashes("projection_hash_rebuild_interrupted");
+    drop(midge);
+
+    // Act
+    let reopened = Midge::new_with_data_dir(&path).expect("reopen Midge");
+    let unpublished = reopened
+        .root_hash("projection_hash_rebuild_interrupted")
+        .expect("read interrupted root");
+    let retried = reopened
+        .rebuild_projection_hashes("projection_hash_rebuild_interrupted")
+        .expect("retry projection hash rebuild");
+
+    // Assert
+    assert!(interrupted.is_err());
+    assert!(unpublished.is_none());
+    assert_eq!(retried.row_count, 600);
+
+    drop(reopened);
+    let _ = std::fs::remove_dir_all(path);
+}

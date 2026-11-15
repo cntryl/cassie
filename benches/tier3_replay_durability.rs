@@ -101,6 +101,28 @@ fn sql_transaction(
     observe_native_commits(|| run("COMMIT"))
 }
 
+/// Creates the measured table, its optional index and the SQL checkpoint row.
+fn create_fixture(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+    mode: ReplayMode,
+    shape: Shape,
+) {
+    let mut fixture = vec!["CREATE TABLE replay_bench (title TEXT)"];
+    if shape == Shape::Indexed {
+        fixture.push("CREATE INDEX replay_bench_title_idx ON replay_bench USING btree (title)");
+    }
+    if mode.is_sql() {
+        fixture.push("CREATE TABLE replay_bench_checkpoint (position BIGINT)");
+        fixture.push("INSERT INTO replay_bench_checkpoint (position) VALUES (0)");
+    }
+    for sql in fixture {
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect("fixture DDL");
+    }
+}
+
 fn main() {
     let mode = ReplayMode::parse(std::env::var_os("CASSIE_REPLAY_BENCH_MODE").as_deref())
         .unwrap_or_else(|error| panic!("{error}"));
@@ -120,19 +142,7 @@ fn main() {
         .expect("local Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("benchmark", None);
-    let mut fixture = vec!["CREATE TABLE replay_bench (title TEXT)"];
-    if shape == Shape::Indexed {
-        fixture.push("CREATE INDEX replay_bench_title_idx ON replay_bench USING btree (title)");
-    }
-    if mode.is_sql() {
-        fixture.push("CREATE TABLE replay_bench_checkpoint (position BIGINT)");
-        fixture.push("INSERT INTO replay_bench_checkpoint (position) VALUES (0)");
-    }
-    for sql in fixture {
-        cassie
-            .execute_sql(&session, sql, vec![])
-            .expect("fixture DDL");
-    }
+    create_fixture(&cassie, &session, mode, shape);
     let projection = cassie.midge.canonical_collection_name("replay_bench");
     let inputs = prepare_batches(&projection, batches, batch_size);
     let setup_ns = setup_start.elapsed().as_nanos();

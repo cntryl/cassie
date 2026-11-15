@@ -56,6 +56,8 @@ impl Cassie {
                 return result;
             }
             let execution_session = session.with_statement_text(frontend_sql, controls)?;
+            #[cfg(test)]
+            authority_test_hooks::after_statement_text(self, session);
             let session = &execution_session;
             if session.user.is_empty() {
                 return Err(CassieError::Unauthorized);

@@ -30,11 +30,15 @@ enum Action {
         observed: SyncSender<()>,
         resume: Receiver<()>,
     },
+    StatementText {
+        observed: SyncSender<()>,
+        resume: Receiver<()>,
+    },
     ImplicitDdl {
         observed: SyncSender<Captured>,
     },
     Nested {
-        observed: SyncSender<Captured>,
+        observed: SyncSender<(bool, Captured)>,
     },
 }
 
@@ -149,9 +153,18 @@ pub(crate) fn install_on_implicit_ddl(
 pub(crate) fn install_on_nested(
     cassie: &Cassie,
     session: &CassieSession,
-    observed: SyncSender<Captured>,
+    observed: SyncSender<(bool, Captured)>,
 ) -> Guard {
     install(cassie, session, Action::Nested { observed })
+}
+
+pub(crate) fn install_after_statement_text(
+    cassie: &Cassie,
+    session: &CassieSession,
+    observed: SyncSender<()>,
+    resume: Receiver<()>,
+) -> Guard {
+    install(cassie, session, Action::StatementText { observed, resume })
 }
 
 fn take_if(
@@ -249,6 +262,22 @@ pub(super) fn after_healthy_check(cassie: &Cassie, session: &CassieSession) {
     }
 }
 
+pub(super) fn after_statement_text(cassie: &Cassie, session: &CassieSession) {
+    if let Some(Hook {
+        action: Action::StatementText { observed, resume },
+        ..
+    }) = take_if(cassie, session, |action| {
+        matches!(action, Action::StatementText { .. })
+    }) {
+        observed
+            .send(())
+            .expect("actual statement-text installation");
+        resume
+            .recv_timeout(Duration::from_secs(5))
+            .expect("resume statement execution");
+    }
+}
+
 pub(crate) fn on_implicit_ddl(
     cassie: &Cassie,
     session: &CassieSession,
@@ -278,7 +307,10 @@ pub(crate) fn on_nested(
         matches!(action, Action::Nested { .. })
     }) {
         observed
-            .send(authority.and_then(FailureAuthority::owner_for_test))
+            .send((
+                authority.is_some(),
+                authority.and_then(FailureAuthority::owner_for_test),
+            ))
             .expect("nested authority");
     }
 }

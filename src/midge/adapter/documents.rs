@@ -252,8 +252,9 @@ impl Midge {
         collection: &str,
         operations: Vec<DocumentWriteOp>,
         replay: ReplayBatchCommit,
+        commit: cntryl_midge::WriteOptions,
     ) -> Result<DocumentWriteBatchReport, CassieError> {
-        let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
+        let mut options = DocumentWriteBatchOptions::sync(commit);
         options.replay = Some(replay);
         self.apply_document_write_batch_with_options(collection, operations, &options)
     }

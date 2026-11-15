@@ -188,6 +188,16 @@ impl Midge {
     }
 
     #[must_use]
+    pub(crate) fn write_options_replayable(&self) -> WriteOptions {
+        self.write_policy.replayable()
+    }
+
+    #[must_use]
+    pub(crate) fn write_options_strict_replay(&self) -> WriteOptions {
+        self.write_policy.strict_replay()
+    }
+
+    #[must_use]
     pub(crate) fn write_options_buffered(&self) -> WriteOptions {
         self.write_policy.buffered()
     }

@@ -23,6 +23,58 @@ production readiness remains separate.
 
 Cassie must not be treated as the source event store. A Cassie snapshot or projection checkpoint is recovery evidence for local projection state, not a replacement for the application event stream.
 
+## Replayable durability policy (#1271, selected; implementation pending)
+
+The default replay API changes from synchronous local writes to buffered WAL.
+Existing callers that require the previous local acknowledgement should migrate
+to `replay_projection_batch_strict`; on cloud this explicitly waits for the
+strict cloud policy instead of inheriting background upload.
+
+A replayable write is a declaration that the projection can be reconstructed
+from its retained source events. The existing `replay_projection_batch` API selects this profile by default;
+`replay_projection_batch_strict` selects strict replay for callers that require
+a durable acknowledgement. Declared SQL projector work
+uses `BEGIN; SET LOCAL cassie.projection_write_mode = 'replayable';` before any
+writes, followed by row and checkpoint writes in the same transaction. The
+setting is transaction-local, cannot be installed through session/startup SET,
+and must not survive COMMIT, ROLLBACK, a failed transaction, or connection reuse.
+Undeclared SQL, autocommit and COPY retain their existing policy. Mixed writes
+must use the strictest applicable policy, including schema, roles, sequences,
+security metadata and other effects that are not themselves replayable; a write
+cannot be weakened solely because its table looks like a projection. Unknown
+write classifications fail closed. Savepoint rollback restores the declared
+setting and staged changes, while independently published sequence effects must
+retain their required durability even if a savepoint is rolled back.
+
+Local replayable commits use Midge `WriteOptions::buffered()` and keep the WAL
+enabled. Their acknowledgement means the transaction is accepted locally, not
+that a power loss cannot discard it. For cloud background mode, replayable
+commits use Midge `cloud_async()`: visibility and local acknowledgement can
+precede remote upload. A configured cloud-strict policy is never downgraded;
+the explicit strict replay option uses local `sync()` or cloud `cloud_strict()`.
+Midge `best_effort()` is not a replayable policy. Postcommit index and derived
+maintenance may perform additional writes or syncs before acknowledgement; the
+primary commit mode alone does not establish a barrier-free path.
+
+Rows, transactional indexes, duplicate ledger and checkpoint share one commit,
+but that atomicity does not make a buffered acknowledgement durable or make an
+external source offset safe. After a restart or loss of local/cloud cache, the
+projector must reconcile against the recovered Cassie checkpoint, rewind the
+source to that checkpoint or rebuild from an earlier retained point, then replay
+and verify before serving the projection as ready. An external offset that can
+outlive Cassie must not be the only recovery authority; source retention must
+cover the rewind or full rebuild. If the source cannot be rewound far enough,
+the projection remains unavailable until rebuilt from another authoritative
+source. Cassie does not currently automate this source coordination. No fixed
+loss window, power-loss guarantee, cloud cache-loss guarantee or throughput
+improvement is claimed without independent qualification.
+
+This section selects the intended contract; #1271 implementation, fault/restart
+qualification, operator diagnostics and representative benchmarks are pending.
+The #1270 synchronous process-death evidence does not qualify buffered or cloud
+recovery. The public checkpoint view's separate snapshot limitation remains
+tracked by #1272.
+
 ## Deterministic Handler Expectations
 
 - Events for one `(projection, source_identity)` pair must be replayed in monotonically increasing source position when positions are present.
@@ -62,7 +114,7 @@ view's snapshot, transactional DDL, retained portal and resource-control work.
 Until that work is complete, inspect recovered persisted replay metadata when
 reconciling the durable checkpoint and event ledger.
 
-Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. This contract does not change the selected Midge write policy or establish crash atomicity for a new durability policy.
+Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. The selected #1271 policy above remains unimplemented and does not establish crash atomicity for a new durability policy.
 
 ## Operator Workflow After Replay Failure
 

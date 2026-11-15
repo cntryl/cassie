@@ -54,6 +54,11 @@ pub struct NativeCommitObservation {
     pub succeeded: u64,
     pub failed: u64,
     pub outcome_unknown: u64,
+    pub local_sync: u64,
+    pub local_buffered: u64,
+    pub cloud_async: u64,
+    pub cloud_strict: u64,
+    pub best_effort: u64,
 }
 
 #[cfg(feature = "replay-benchmark-observation")]
@@ -96,11 +101,20 @@ pub fn observe_native_commits<T>(operation: impl FnOnce() -> T) -> (T, NativeCom
 
 #[cfg(feature = "replay-benchmark-observation")]
 pub(super) fn observe_native_commit<T>(
+    options: cntryl_midge::WriteOptions,
     operation: impl FnOnce() -> Result<T, cntryl_midge::MidgeError>,
 ) -> Result<T, cntryl_midge::MidgeError> {
     COMMITS.with(|commits| {
         if let Some(mut observed) = commits.get() {
             observed.attempted = observed.attempted.saturating_add(1);
+            let count = match options.policy() {
+                cntryl_midge::DurabilityPolicy::Sync => &mut observed.local_sync,
+                cntryl_midge::DurabilityPolicy::Buffered => &mut observed.local_buffered,
+                cntryl_midge::DurabilityPolicy::CloudAsync => &mut observed.cloud_async,
+                cntryl_midge::DurabilityPolicy::CloudStrict => &mut observed.cloud_strict,
+                cntryl_midge::DurabilityPolicy::BestEffort => &mut observed.best_effort,
+            };
+            *count = count.saturating_add(1);
             commits.set(Some(observed));
         }
     });

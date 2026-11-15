@@ -1,5 +1,6 @@
 //! Bounded native observations for durability benchmarking.
 
+use super::commit_source::{current_commit_source, CommitSource};
 use super::{CassieError, Midge};
 #[cfg(feature = "replay-benchmark-observation")]
 use std::cell::Cell;
@@ -76,58 +77,6 @@ thread_local! {
     static COMMITS: Cell<Option<NativeCommitObservation>> = const { Cell::new(None) };
 }
 
-/// The post-write path a caller-thread native commit belongs to.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum CommitSource {
-    #[default]
-    Primary,
-    ColumnMaintenance,
-    HashMaintenance,
-    TimeSeriesMaintenance,
-}
-
-#[cfg(feature = "replay-benchmark-observation")]
-thread_local! {
-    static SOURCE: Cell<CommitSource> = const { Cell::new(CommitSource::Primary) };
-}
-
-/// Attributes native commits on this thread to a maintenance path while held.
-/// The outermost maintenance scope wins, so nested helpers keep their caller's
-/// attribution. Without the observation feature this is a no-op.
-pub(super) struct CommitSourceScope {
-    #[cfg(feature = "replay-benchmark-observation")]
-    previous: Option<CommitSource>,
-}
-
-impl CommitSourceScope {
-    #[cfg(feature = "replay-benchmark-observation")]
-    pub(super) fn enter(source: CommitSource) -> Self {
-        let current = SOURCE.get();
-        if current == CommitSource::Primary {
-            SOURCE.set(source);
-            Self {
-                previous: Some(current),
-            }
-        } else {
-            Self { previous: None }
-        }
-    }
-
-    #[cfg(not(feature = "replay-benchmark-observation"))]
-    pub(super) const fn enter(_source: CommitSource) -> Self {
-        Self {}
-    }
-}
-
-#[cfg(feature = "replay-benchmark-observation")]
-impl Drop for CommitSourceScope {
-    fn drop(&mut self) {
-        if let Some(previous) = self.previous.take() {
-            SOURCE.set(previous);
-        }
-    }
-}
-
 #[cfg(feature = "replay-benchmark-observation")]
 struct ObservationGuard;
 
@@ -187,7 +136,7 @@ pub(super) fn observe_native_commit<T>(
                 }
             };
             *count = count.saturating_add(1);
-            let source = SOURCE.get();
+            let source = current_commit_source();
             let source_count = match source {
                 CommitSource::Primary => &mut observed.primary_attempts,
                 CommitSource::ColumnMaintenance => &mut observed.column_maintenance_attempts,

@@ -141,8 +141,8 @@ impl Midge {
         target_generation: u64,
         changed_ids: Option<&[String]>,
     ) -> Result<(), CassieError> {
-        let _source = super::native_metrics::CommitSourceScope::enter(
-            super::native_metrics::CommitSource::ColumnMaintenance,
+        let _source = super::commit_source::CommitSourceScope::enter(
+            super::commit_source::CommitSource::ColumnMaintenance,
         );
         let rebuild = check_column_batch_maintenance_failure_point().and_then(|()| {
             changed_ids.map_or_else(
@@ -187,8 +187,8 @@ impl Midge {
         target_generation: u64,
         row_delta: i64,
     ) -> Result<(), CassieError> {
-        let _source = super::native_metrics::CommitSourceScope::enter(
-            super::native_metrics::CommitSource::HashMaintenance,
+        let _source = super::commit_source::CommitSourceScope::enter(
+            super::commit_source::CommitSource::HashMaintenance,
         );
         let refresh = check_projection_hash_maintenance_failure_point()
             .and_then(|()| self.refresh_projection_hashes_after_write(collection, row_delta));

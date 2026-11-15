@@ -150,7 +150,8 @@ fn should_report_native_commit_attempts_by_selected_policy() {
 #[test]
 fn should_attribute_native_commits_to_the_outermost_maintenance_scope() {
     // Arrange
-    use super::{observe_native_commit, CommitSource, CommitSourceScope};
+    use super::observe_native_commit;
+    use crate::midge::adapter::commit_source::{CommitSource, CommitSourceScope};
     use cntryl_midge::WriteOptions;
     let commit = |options| observe_native_commit(options, || Ok::<_, cntryl_midge::MidgeError>(()));
 

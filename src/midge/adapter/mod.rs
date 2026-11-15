@@ -43,8 +43,8 @@ mod raw_ops;
 pub(crate) use publication::PublicationControlScope;
 mod transactions;
 pub(crate) use transactions::{
-    AdapterTransaction, CopyStorageSnapshot, IndexCleanupCommitGuard, RetainedRowFence,
-    StorageOverlay,
+    AdapterTransaction, CheckpointStorageSnapshot, CopyStorageSnapshot, IndexCleanupCommitGuard,
+    RetainedRowFence, StagedCheckpointChange, StorageOverlay,
 };
 
 #[doc(hidden)]

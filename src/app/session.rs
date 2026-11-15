@@ -2,7 +2,9 @@ mod bound_read;
 pub(crate) use bound_read::{BoundReadScope, BoundReadView};
 mod catalog_overlay;
 mod copy_owner;
+mod publication_fence;
 pub(crate) use copy_owner::{CopyBindingContext, CopyCommandOwner};
+pub(crate) use publication_fence::PublicationFenceScope;
 mod command_catalog;
 pub(crate) use command_catalog::CommandCatalogScope;
 mod failure_authority;
@@ -60,6 +62,9 @@ pub struct CassieSession {
     backend_pid: Arc<AtomicI32>,
     #[serde(skip)]
     transaction: Arc<Mutex<SessionTransactionState>>,
+    /// Serializes staged-storage-plus-catalog publication against readers.
+    #[serde(skip)]
+    publication_fence: publication_fence::PublicationFence,
     #[serde(skip)]
     transaction_unique_waits: Arc<Mutex<Option<Arc<super::TransactionUniqueWaits>>>>,
     #[serde(skip)]
@@ -253,6 +258,7 @@ impl CassieSession {
             settings: Arc::new(Mutex::new(SessionSettings::default())),
             backend_pid: Arc::new(AtomicI32::new(0)),
             sequence_values: Arc::default(),
+            publication_fence: Arc::default(),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::Idle,
                 implicit: false,

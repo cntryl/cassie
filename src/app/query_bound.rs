@@ -4,6 +4,13 @@ use super::{
     Cassie, CassieError, CassieSession, ExecutionMode, QueryExecutionControls, QueryResult,
     QueryStatement, Value,
 };
+use crate::app::session::PublicationFenceScope;
+
+/// Execution mode and the session fence a statement holds while it is admitted.
+struct StatementAdmission<'a> {
+    mode: ExecutionMode,
+    fence: &'a mut PublicationFenceScope,
+}
 
 impl Cassie {
     pub(crate) fn execute_parsed_statement_core_for_operation(
@@ -174,7 +181,10 @@ impl Cassie {
                 parsed,
                 sql_fingerprint,
                 parameters,
-                mode,
+                StatementAdmission {
+                    mode,
+                    fence: &mut PublicationFenceScope::none(),
+                },
                 (controls, authority),
             );
         }
@@ -217,6 +227,11 @@ impl Cassie {
         let transaction_active = session.is_transaction_active();
         let catalog_statement =
             parsed.statement.family() != crate::sql::ast::StatementFamily::Runtime;
+        // The caller holds the global publication guard; the session fence
+        // follows it. Catalog statements keep the fence through execution so a
+        // same-session reader never sees staged storage without its catalog
+        // publication; readers drop it once their statement view is captured.
+        let mut fence = session.enter_publication_fence(controls, catalog_statement)?;
         if catalog_statement {
             session.check_repeatable_catalog_write(&self.publication_catalog, controls)?;
         }
@@ -259,7 +274,10 @@ impl Cassie {
             parsed,
             sql_fingerprint,
             parameters,
-            mode,
+            StatementAdmission {
+                mode,
+                fence: &mut fence,
+            },
             (controls, authority),
         )
     }
@@ -270,9 +288,10 @@ impl Cassie {
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
-        mode: ExecutionMode,
+        admission: StatementAdmission<'_>,
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let StatementAdmission { mode, fence } = admission;
         let (controls, authority) = scope;
         // A new top-level statement never borrows an enclosing read authority.
         // This also protects early transaction/EXPLAIN returns and fresh gated
@@ -310,7 +329,7 @@ impl Cassie {
             parsed,
             sql_fingerprint,
             parameters,
-            mode,
+            StatementAdmission { mode, fence },
             (controls, authority),
         )
     }
@@ -322,9 +341,10 @@ impl Cassie {
         mut parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
-        mode: ExecutionMode,
+        admission: StatementAdmission<'_>,
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let StatementAdmission { mode, fence } = admission;
         let (controls, authority) = scope;
         let (mut params, declared_oids, wire_output) = parameters;
         let (parameter_types, bound_parameters) =
@@ -387,6 +407,7 @@ impl Cassie {
 
         let statement_controls =
             self.capture_bound_statement_read(session, &physical.logical, controls)?;
+        fence.release_after_capture();
         let controls = &statement_controls;
         let (_read_scope, _overlay_scope) =
             Self::enter_bound_statement_read(&mut cache_context, controls);

@@ -155,9 +155,12 @@ fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
     );
     assert!(event);
     assert_eq!(checkpoint.as_deref(), Some("checkpoint-1"));
+    // The view reads the committed storage snapshot, not the live catalog the
+    // failed post-commit reread left stale, so it matches the stored checkpoint
+    // and rows before any retry reconciles the catalog.
     assert_eq!(
         catalog_before_retry,
-        vec![vec![Value::String(String::new())]]
+        vec![vec![Value::String("checkpoint-1".to_owned())]]
     );
     assert_eq!(
         catalog_after_retry,

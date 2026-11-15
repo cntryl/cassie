@@ -45,6 +45,7 @@ impl CassieSession {
             settings: Arc::new(Mutex::new(self.settings.lock().clone())),
             backend_pid: Arc::clone(&self.backend_pid),
             sequence_values: Arc::clone(&self.sequence_values),
+            publication_fence: Arc::clone(&self.publication_fence),
             transaction: Arc::new(Mutex::new(working_state)),
             transaction_unique_waits: Arc::clone(&self.transaction_unique_waits),
             owns_transaction_lifecycle: false,

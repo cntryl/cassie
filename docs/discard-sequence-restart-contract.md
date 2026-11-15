@@ -1,5 +1,11 @@
 # DISCARD sequence history and restart rollback (#1304)
 
+> **Superseded for the restart list (#1302).** Transactional identity restarts are
+> now staged with the transaction and published at COMMIT, so there is no
+> session-shared restart list or rollback restorer for `DISCARD` to preserve.
+> `DISCARD SEQUENCES` and `DISCARD ALL` still only forget `currval`/`lastval`
+> history. See [Transaction authority within Midge as published](transaction-authority-midge-contract.md).
+
 `DISCARD SEQUENCES` forgets the session's `currval` and `lastval` history; it
 does not discard a transaction's pending `TRUNCATE ... RESTART IDENTITY`
 restoration. Clear the history fields while retaining restart compensators

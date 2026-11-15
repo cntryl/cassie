@@ -1,13 +1,13 @@
 # Transaction authority within Midge as published
 
-Status: **selected design, not implemented**. This document selects how the
+Status: **selected design; section 1 implemented, sections 2 to 5 not**. This document selects how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
 [#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
 [#1279](https://github.com/cntryl/cassie/issues/1279)) is built so that Cassie
 works with published `cntryl-midge` 0.5.2 exactly as it is. It supersedes the
 admission-permit-and-drain and admission-lease-with-compensator directions
-recorded on those issues. Nothing here is evidence of implementation.
+recorded on those issues. Only section 1 is implemented.
 
 ## What Midge provides, and what it does not
 
@@ -58,11 +58,27 @@ observed when the restart was staged. If another session advanced the sequence
 in between, the commit fails and nothing is published, instead of silently
 discarding the values that session allocated.
 
-Open points to settle with source and tests before implementation: the SQLSTATE
-for that failed commit; `nextval` by the same transaction after its own staged
-restart (it must read the staged cursor); an explicit `setval` by another
-session that restores identical cursor bytes, which a value assertion cannot
-see (Jev rated the assertion sufficient at 0.75, not higher).
+**Implemented for #1302.** `TRUNCATE ... RESTART IDENTITY` inside a
+transaction stages the restarted cursor in the storage overlay, marks the
+sequence so later allocations in that transaction read the staged cursor, and
+begins the transaction's catalog overlay so COMMIT publishes the storage
+overlay with the rows. Other sessions keep allocating from the published
+cursor until COMMIT. The session-shared restart list, its rollback restorer
+and the commit-time discard were removed; nothing is committed natively and
+nothing is compensated. Outside a transaction the restart is still immediate.
+
+A transaction that restarts an identity is treated as carrying catalog state,
+so its COMMIT takes the global catalog publication guard and a declared
+replayable transaction is promoted to strict.
+
+Still open: the overlay already records the value each key had when the
+transaction first changed it, but this slice adds no test that a concurrent
+advance by another session fails the COMMIT, and it does not select that
+failure's SQLSTATE. An explicit `setval` by another session that restores
+identical cursor bytes cannot be seen by a value assertion (Jev rated the
+assertion sufficient at 0.75, not higher). The process-death window is removed
+by construction, since there is no separate native commit, but no
+process-kill test was added.
 
 `nextval` and `setval` on an existing sequence outside this path stay
 independent and are never rolled back, matching PostgreSQL. They are recorded

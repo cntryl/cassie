@@ -528,6 +528,14 @@ fn should_reject_copy_binding_across_savepoint_restore() {
             vec![],
         )
         .expect("unadvanced sequence");
+    let before = fixture
+        .cassie
+        .execute_sql(
+            &fixture.session,
+            "SELECT id FROM copy_entry_precedence",
+            vec![],
+        )
+        .expect("rows before fresh bind");
     let bound = bind_copy_from_stdin(
         &fixture.cassie,
         &fixture.session,
@@ -578,6 +586,7 @@ fn should_reject_copy_binding_across_savepoint_restore() {
         message,
     }) if message == "COPY owner no longer matches the active transaction"));
     assert_eq!(first.rows(), &[vec![Value::Int64(1)]]);
+    assert!(before.rows().is_empty());
     assert!(matches!(fresh, Ok(ref completion) if completion.command == "COPY 1"));
     assert_eq!(current.rows(), &[vec![Value::Int64(2)]]);
     assert_eq!(rows.rows(), &[vec![Value::Int64(41)]]);

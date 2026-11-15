@@ -63,8 +63,11 @@ fn observed_retirement(terminal: &str) -> (Retired, String) {
 
 #[test]
 fn should_finish_commit_cleanup_before_releasing_the_transaction_mutex() {
-    // Arrange / Act
-    let (retired, original) = observed_retirement("COMMIT");
+    // Arrange
+    let terminal = "COMMIT";
+
+    // Act
+    let (retired, original) = observed_retirement(terminal);
 
     // Assert
     assert_eq!(
@@ -78,8 +81,11 @@ fn should_finish_commit_cleanup_before_releasing_the_transaction_mutex() {
 
 #[test]
 fn should_finish_rollback_cleanup_before_releasing_the_transaction_mutex() {
-    // Arrange / Act
-    let (retired, original) = observed_retirement("ROLLBACK");
+    // Arrange
+    let terminal = "ROLLBACK";
+
+    // Act
+    let (retired, original) = observed_retirement(terminal);
 
     // Assert
     assert_eq!(

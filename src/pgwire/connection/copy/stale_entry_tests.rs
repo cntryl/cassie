@@ -36,7 +36,7 @@ fn should_reject_stale_copy_owner_before_predicate_sequence_effect() {
         .expect("new generation");
 
     // Act
-    let _controls = crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+    let controls = crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
     let result = execute::execute_copy_payload(
         &binding.cassie,
         &session,
@@ -46,7 +46,7 @@ fn should_reject_stale_copy_owner_before_predicate_sequence_effect() {
         None,
         binding.owner.as_ref(),
     );
-    drop(_controls);
+    drop(controls);
     cassie
         .execute_sql(&session, "ROLLBACK", vec![])
         .expect("rollback");

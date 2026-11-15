@@ -306,6 +306,23 @@ fn graph_rows(name: &str, graph: &PropertyGraphMeta, database: &str) -> Vec<Virt
     }
 }
 
+/// The graphs of `current_database` whose every mapped table `session` may read.
+pub(crate) fn visible_property_graphs(
+    catalog: &Catalog,
+    session: Option<&CassieSession>,
+    current_database: Option<&str>,
+) -> Vec<PropertyGraphMeta> {
+    let mut graphs = catalog.list_property_graphs();
+    graphs.retain(|graph| {
+        current_database.is_none_or(|database| relation_belongs_to_database(&graph.name, database))
+            && graph
+                .mapped_tables()
+                .iter()
+                .all(|table| may_read(catalog, session, table))
+    });
+    graphs
+}
+
 pub(super) fn rows(
     catalog: &Catalog,
     name: &str,
@@ -314,16 +331,7 @@ pub(super) fn rows(
 ) -> Option<Vec<VirtualRow>> {
     schema_factory(name)?;
     let mut rows = Vec::new();
-    for graph in catalog.list_property_graphs() {
-        if current_database
-            .is_some_and(|database| !relation_belongs_to_database(&graph.name, database))
-            || !graph
-                .mapped_tables()
-                .iter()
-                .all(|table| may_read(catalog, session, table))
-        {
-            continue;
-        }
+    for graph in visible_property_graphs(catalog, session, current_database) {
         let database = database_of(&graph.name, current_database);
         let prefix = [
             text(GRAPH_COLUMNS[0], database.clone()),

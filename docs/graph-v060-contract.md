@@ -1,6 +1,7 @@
 # v0.6 graph contract and delivery plan
 
-Status: **selected planning direction, not implemented or qualified**. This
+Status: **selected planning direction with owner decisions of 2026-11-15; not
+implemented or qualified**. This
 document does not claim SQL:2023 conformance. Reconcile live issue wording with
 these decisions before implementation. Normative verification, implementation
 feasibility and the storage proof remain gates. Existing graph traversal remains
@@ -139,7 +140,9 @@ property only when its type is compatible across all mappings selected by that
 label; otherwise binding that property fails. Undefined tables or columns,
 non-unique or nullable keys, incompatible endpoints, and unsupported key
 types fail graph creation atomically. A graph over existing populated tables
-must publish its definition only after an initial consistent backfill succeeds.
+must publish its definition only after an initial consistent backfill succeeds,
+once derived adjacency exists. Until the fast-reads step there is no derived
+state to backfill and a definition publishes with its catalog transaction.
 Fence concurrent writers for backfill and publication, or prove a dual-write
 and catch-up protocol with atomic visibility. Synchronized writer/backfill
 tests must cover inserts, updates, deletes, failure, cancellation and restart;
@@ -577,7 +580,9 @@ prefix tie rule. This is an oracle requirement, not current implementation.
 
 ## Access, recovery and resources
 
-The source tables remain authoritative. Derived adjacency is transactionally
+The source tables remain authoritative, and until the fast-reads step every
+graph read is an exact read of them in the statement's snapshot and overlay.
+Once derived adjacency exists it is transactionally
 maintained and is never allowed to silently omit or add an edge. The fast-path
 design must state its integrity assumptions, proof, atomicity, snapshot and
 recovery behavior against the published Midge API. The existing whole-graph
@@ -618,70 +623,54 @@ complete sidecar, not a claim that damaged-state fallback is also O(degree).
 
 ## Compatibility, delivery and exit
 
-Existing `CREATE GRAPH` and positional graph functions are Experimental. Provide
-an explicit, documented conversion preserving old source tables and rows while
-creating a mapped graph. Conversion is automatic only when a preflight proves
-the legacy graph's supported query behavior is equivalent under the selected
-mapping. The old traversal can return edges without node rows, stores node and
-edge types per row, applies legacy type case-folding, uses FLOAT weights, and
-has nullable built-in columns without the new
-global unique-key guarantees. A mapped graph that excludes dangling endpoints,
-uses static mapping labels, accepts exact numeric weights and requires non-null
-unique keys cannot silently reinterpret any of these cases.
+**Owner decision, 2026-11-15: the legacy graph feature is removed without
+conversion.** `CREATE GRAPH`, its fixed `g_nodes` and `g_edges` tables and the
+positional `graph_neighbors`, `graph_expand` and `graph_shortest_path` functions
+are Experimental and have no production usage; Cassie is pre-release and makes
+no on-disk compatibility promise. They are deleted once mapped property graphs,
+`GRAPH_TABLE` and `graph_weighted_paths` cover their uses, and their tests and
+benchmark are migrated to mapped graphs. No conversion tool, equivalence
+preflight or compatibility window is provided. A store that still holds a
+legacy graph definition after the removal ignores it; its former node and edge
+tables remain ordinary tables that a new graph may map. Graph writes remain
+ordinary SQL table writes.
 
-Preflight must check endpoint existence and identity, mapping and per-row type
-representability, weights and key nullability and uniqueness against a single
-consistent view. Fence writes through preflight, backfill and atomic publication
-or prove a dual-write, recheck and catch-up protocol; no concurrent mutation may
-invalidate the equivalence proof. If any requirement fails or cannot be proven,
-leave the old graph, its tables, rows and legacy functions usable; publish no
-partial replacement and return a deterministic diagnostic identifying the
-incompatibility and actionable remediation. Conversion has no implicit authority
-to rewrite authoritative projection rows. Operator data correction or explicitly
-documented projection migration may precede another attempt; never
-silently drop rows, types, identity distinctions or query results. Specify the
-compatibility window and exact conversion mechanics before removal. Acceptance
-fixtures include edge-only graphs, per-row type variations, FLOAT weights,
-nullable/duplicate identifiers, concurrent writes, cancellation, interruption
-and restart, plus oracle comparisons of successful legacy and mapped queries.
-Graph writes remain ordinary SQL table writes.
+The removal deliberately drops three legacy behaviours that the mapped model
+does not carry: traversal over edges whose endpoint rows do not exist, FLOAT
+edge weights, and per-row node and edge type values in place of mapping labels.
+A table that relied on them must add the missing vertex rows, use an exact
+numeric weight column and declare labels on mappings before it is mapped. Jev
+rated the chance that removal leaves a capability gap at 0.37; these three are
+the known gap and are accepted.
 
-Untouched default legacy `CREATE GRAPH` tables have nullable, non-unique
-built-in fields and a FLOAT weight; they do not meet the selected target key and
-weight contracts merely by being mapped. A successful conversion therefore
-requires operator-authorized schema or projection remediation, or an actually
-implemented compatibility capability whose equivalence is separately proved.
-Do not promise conversion without one of those prerequisites. Demonstrate at
-least one successful preflight and conversion with query-equivalence fixtures,
-as well as safe refusal when the prerequisite is absent.
-
-Implement in dependency order: contract and roadmap; completeness proof and
-format, including an explicit blocker if the API cannot supply the required
-proof; mapping and transaction visibility; native path/type building blocks;
-parser/binder/executor vertical
-slice; weighted paths; safe batching/pushdown; qualification and guide. Earlier
-roadmap prerequisites remain gates. Stable requires actual client/wire,
-independent semantic oracle, resource, corruption, lifecycle and benchmark
-evidence on the release candidate, plus normal complete local and hosted gates.
-Experimental support is not automatically promoted when code lands.
+**Owner decision, 2026-11-15: features first on exact reads.** v0.6.0 query
+execution reads the mapped vertex and edge tables exactly, inside the
+statement's own Data snapshot and transaction overlay. That is correct by
+construction with the published Midge API and needs no derived state. Derived
+adjacency, its completeness argument and the O(degree) read bound are an
+optimization delivered last; if the bound cannot be justified against the
+published API, the blocker is recorded and exact reads remain. Stable still
+requires actual client and wire, independent semantic oracle, resource,
+lifecycle and benchmark evidence on the release candidate, plus the normal
+complete local and hosted gates. Experimental support is not automatically
+promoted when code lands.
 
 ### Execution sequence
 
 | Step | Owner | Exit before the next dependent step |
 | --- | --- | --- |
-| Contract | #1252 | Commit this contract, grammar and compatibility records; record the explicit completeness proof gap without claiming it solved. |
-| Storage design | #1253 | Document Midge API evidence and a sound format/proof, or the exact blocker; preserve exact verification until proof and regressions pass. The intermediate once-per-snapshot option cannot close the O(degree) criterion. |
-| Mapped graph | #1255 | Define, backfill and migrate graphs safely, with row/column authority, multi-graph fan-out, permissions and lifecycle evidence. |
-| Transaction view | #1254 | Prove the same snapshot and overlay for all mapped tables, own writes, savepoints, cross-session writes and fallback. |
-| Native path building block | #1268 | Implement types, composite arrays, catalog/wire codecs, constructors and real-client roundtrips. |
-| Query surface and execution | #1256, #1257 | Bind and run the finite grammar with independent path oracles and cancellation/resource tests. Do not use pruning that changes multiplicity or path history. |
-| Weighted paths | #1258 | Validate all applicable weights or prove a stronger invariant, then compare k paths and costs with exhaustive oracles. |
-| Optimization | #1259 | Prove pushdown, batching and LIMIT preserve ordering, errors, NULLs, multiplicity and correlated inputs before enabling them. |
-| Qualification | #1260 | Complete the guide, clients, lifecycle/corruption cases, measured scaling and exact-head local and hosted gates; decide promotion based on evidence. |
+| Contract | #1252 | This contract, including the two owner decisions above. |
+| Mapped graph | #1255 | Define, drop and rename graphs over existing tables with durable identities, key and endpoint validation, lifecycle guards, permissions and discovery. No derived state is built. |
+| Native path building block | #1268 | Composite arrays, the reserved types, catalog and wire codecs, constructors and real-client round trips. |
+| Query surface | #1256 | Parse and bind the finite grammar with typed Describe output and deterministic rejections. |
+| Exact execution | #1257, #1254 (transaction view) | Run the grammar on exact reads with independent path oracles, own-write and savepoint visibility, cancellation and resource tests. Do not use pruning that changes multiplicity or path history. |
+| Weighted paths and legacy removal | #1258 | Validate all applicable weights, compare k paths and costs with exhaustive oracles, then delete the legacy feature and migrate its tests. |
+| Fast reads | #1253, #1254 (read bounds), #1259 | Record the integrity model and completeness argument or the exact blocker; add adjacency, per-anchor overlay merge, batching and pushdown only with results identical to exact execution. |
+| Qualification | #1260 | Guide, clients, lifecycle cases, measured scaling and exact-head local and hosted gates; decide promotion from evidence. |
 
-The GitHub native blockers carry the issue dependency graph. Independent design
-preparation may proceed in parallel, but runtime implementation must respect
-the proof and contract gates. No row in this table asserts a completed feature.
+The GitHub native blockers carry the issue dependency graph; where they
+disagree with this table, this table is the delivery order. Independent design
+preparation may proceed in parallel. No row in this table asserts a completed feature.
 
 Excluded from this milestone: arbitrary multi-pattern joins inside one MATCH,
 pattern unions, graph mutation syntax, graph analytics such as PageRank,

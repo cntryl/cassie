@@ -14,6 +14,7 @@ use std::time::Duration;
 pub(crate) struct CopyCommandOwner {
     identity: Weak<Mutex<SessionTransactionState>>,
     generation: u64,
+    rollback_epoch: u64,
     database: String,
     default_database: String,
     target: Option<(String, u64, u64)>,
@@ -79,6 +80,7 @@ impl CopyCommandOwner {
             controls.check_interruption()?;
             if !std::ptr::eq(self.identity.as_ptr(), Arc::as_ptr(&session.transaction))
                 || transaction.generation != self.generation
+                || transaction.rollback_epoch != self.rollback_epoch
                 || session.current_database().unwrap_or(&self.default_database) != self.database
             {
                 return Err(stale_copy());
@@ -121,6 +123,7 @@ impl CopyCommandOwner {
         if !std::ptr::eq(self.identity.as_ptr(), Arc::as_ptr(&session.transaction))
             || transaction.status != SessionTransactionStatus::InTransaction
             || transaction.generation != self.generation
+            || transaction.rollback_epoch != self.rollback_epoch
             || session.current_database().unwrap_or(&self.default_database) != self.database
         {
             return Err(stale_copy());
@@ -410,6 +413,7 @@ impl Cassie {
         Ok(CopyCommandOwner {
             identity: Arc::downgrade(&session.transaction),
             generation: transaction.generation,
+            rollback_epoch: transaction.rollback_epoch,
             database,
             default_database,
             target: None,
@@ -495,6 +499,12 @@ impl Cassie {
                 if resolved != candidate {
                     return Err(stale_copy());
                 }
+                if !Weak::ptr_eq(&provisional.identity, &owner.identity)
+                    || provisional.generation != owner.generation
+                    || provisional.rollback_epoch != owner.rollback_epoch
+                {
+                    return Err(stale_copy());
+                }
                 owner.bind_target_guarded(session, &resolved, controls)?;
                 Ok((
                     owner,
@@ -505,6 +515,18 @@ impl Cassie {
                 ))
             },
         )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn capture_copy_command_owner_after_provisional(
+        &self,
+        session: &CassieSession,
+        target: &str,
+        controls: &QueryExecutionControls,
+        after_provisional: impl FnOnce() -> Result<(), CassieError>,
+    ) -> Result<CopyCommandOwner, CassieError> {
+        self.capture_bound_copy_command_owner_observed(session, target, controls, after_provisional)
+            .map(|(owner, _)| owner)
     }
 
     #[cfg(test)]
@@ -548,6 +570,7 @@ impl CassieSession {
             if !std::ptr::eq(owner.identity.as_ptr(), Arc::as_ptr(&self.transaction))
                 || transaction.status != SessionTransactionStatus::InTransaction
                 || transaction.generation != owner.generation
+                || transaction.rollback_epoch != owner.rollback_epoch
                 || self.current_database().unwrap_or(&owner.default_database) != owner.database
             {
                 return Err(stale_copy());

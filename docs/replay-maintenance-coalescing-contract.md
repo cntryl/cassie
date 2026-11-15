@@ -136,12 +136,18 @@ only for local storage. Cloud-background and cloud-strict return exactly what
 
 **Why it is safe.**
 
-- Published `cntryl-midge` 0.5.2 tracks local durability as one engine-wide
-  monotonic frontier: `runtime/frontiers.rs` records "a local sync through
-  `sequence`", and `wal/fs/writer_io.rs` `write_footer` syncs a WAL segment when
-  it is sealed. A file sync covers every earlier record in the open segment and
-  sealed segments are already synced, so a synchronous commit makes every
-  earlier buffered commit durable.
+- This relies only on Midge's published external contract, not on engine
+  internals. `cntryl-midge` 0.5.2
+  `docs/user-guides/transaction-durability-contract.md` states that successful
+  writes publish in admitted sequence order; that every engine tracks monotonic
+  frontiers and "a write at sequence `s` has crossed a frontier once the
+  frontier is at or above `s`"; that `sync()` crosses the local durable frontier
+  at return; and that a `buffered()` write is kept across a process crash "only
+  if the later fsync ran". A synchronous commit at a later sequence therefore
+  places every earlier buffered commit at or below the local durable frontier.
+  The engine source (`runtime/frontiers.rs`, sealed-segment sync in
+  `wal/fs/writer_io.rs`) is consistent with that contract and was read only to
+  check it; Cassie does not depend on anything the contract does not state.
 - The durable state when the function returns is therefore the same as before:
   the synchronous root commit is the durability barrier for the whole rebuild.
 - A crash before the root commit leaves a durable prefix of the same commit
@@ -154,9 +160,11 @@ only for local storage. Cloud-background and cloud-strict return exactly what
   acknowledgement still follows the synchronous root and debt-clear commits.
 
 Jev selected this candidate (0.94) and flagged the prefix-durability assumption
-(0.65); the two source references above are the probe that resolved it. Power
-loss cannot be exercised by a process-level test, so the ordering claim rests on
-the published source, not on a test.
+(0.65); the published durability contract quoted above is what resolves it.
+Power loss cannot be exercised by a process-level test, so the ordering claim
+rests on that published contract, not on a test. The same contract bounds what
+this change may assume: local disk loss still loses local-only data, and
+nothing here applies to cloud policies.
 
 **Evidence.** Reopen tests for a completed and an interrupted rebuild; with the
 `replay-benchmark-observation` feature, the local durable frontier equals the

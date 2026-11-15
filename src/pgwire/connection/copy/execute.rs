@@ -73,6 +73,9 @@ pub(super) fn execute_copy_payload(
     if request.header != CopyHeader::None && !rows.is_empty() {
         rows.remove(0);
     }
+    if let Some(owner) = owner {
+        owner.ensure_current_transaction(session, &controls)?;
+    }
     if let Some(predicate) = request.where_clause.as_deref() {
         let (accepted, memory) =
             filter::filter_rows(cassie, session, statement, rows, predicate, &controls)?;

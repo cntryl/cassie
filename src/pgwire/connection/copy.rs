@@ -40,6 +40,10 @@ mod payload_limit_tests;
 #[path = "copy/diagnostic_tests.rs"]
 mod diagnostic_tests;
 
+#[cfg(test)]
+#[path = "copy/stale_entry_tests.rs"]
+mod stale_entry_tests;
+
 use input_read::{read_admitted_copy_message, CopyReadOutcome};
 #[cfg(test)]
 use input_read::{read_copy_frontend_message, select_copy_read};

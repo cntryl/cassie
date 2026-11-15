@@ -508,3 +508,123 @@ fn should_admit_quote_heavy_copy_schema_canonicalization() {
     assert!(canonical.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_cancel_copy_owner_check_while_waiting_for_session_lock() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls)
+        .expect("owner");
+    let lock = session.transaction.lock();
+    let (waiting_tx, waiting_rx) = std::sync::mpsc::sync_channel(1);
+    let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
+    let worker_session = session.clone();
+    let worker = std::thread::spawn(move || {
+        let mut waiting = Some(waiting_tx);
+        let result = owner.ensure_current_transaction_observed(
+            &worker_session,
+            &controls,
+            || {
+                if let Some(sender) = waiting.take() {
+                    sender.send(()).expect("wait observer");
+                }
+            },
+            || {},
+        );
+        result_tx.send(result).expect("result observer");
+    });
+    waiting_rx
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("owner check reached contended lock");
+
+    // Act
+    cancellation.cancel();
+    let result = result_rx.recv_timeout(std::time::Duration::from_secs(5));
+    drop(lock);
+    worker.join().expect("owner-check worker");
+
+    // Assert
+    assert!(matches!(
+        result.expect("canceled before lock release"),
+        Err(CassieError::QueryCanceled)
+    ));
+    assert!(session.transaction.try_lock().is_some());
+}
+
+#[test]
+fn should_expire_copy_owner_check_while_waiting_for_session_lock() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls())
+        .expect("owner");
+    let mut controls = controls();
+    controls.deadline = Some(Instant::now() + std::time::Duration::from_secs(3));
+    let lock = session.transaction.lock();
+    let (waiting_tx, waiting_rx) = std::sync::mpsc::sync_channel(1);
+    let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
+    let worker_session = session.clone();
+    let worker = std::thread::spawn(move || {
+        let mut waiting = Some(waiting_tx);
+        let result = owner.ensure_current_transaction_observed(
+            &worker_session,
+            &controls,
+            || {
+                if let Some(sender) = waiting.take() {
+                    sender.send(()).expect("wait observer");
+                }
+            },
+            || {},
+        );
+        result_tx.send(result).expect("result observer");
+    });
+    waiting_rx
+        .recv_timeout(std::time::Duration::from_secs(2))
+        .expect("owner check reached contended lock before deadline");
+
+    // Act
+    let result = result_rx.recv_timeout(std::time::Duration::from_secs(5));
+    drop(lock);
+    worker.join().expect("owner-check worker");
+
+    // Assert
+    assert!(matches!(
+        result.expect("deadline before lock release"),
+        Err(CassieError::DeadlineExceeded)
+    ));
+    assert!(session.transaction.try_lock().is_some());
+}
+
+#[test]
+fn should_cancel_copy_owner_check_after_acquiring_session_lock() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls)
+        .expect("owner");
+
+    // Act
+    let result = owner.ensure_current_transaction_observed(
+        &session,
+        &controls,
+        || panic!("uncontended check should not wait"),
+        || cancellation.cancel(),
+    );
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
+    assert!(session.transaction.try_lock().is_some());
+}

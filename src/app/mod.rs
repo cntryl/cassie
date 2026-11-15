@@ -192,9 +192,9 @@ pub use replay::{projection_concurrency_test_guard, set_projection_replay_prepar
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
 
-#[cfg(all(test, feature = "replay-benchmark-observation"))]
-mod replay_api_durability_tests;
 #[cfg(test)]
 mod query_result_cache_key_tests;
+#[cfg(all(test, feature = "replay-benchmark-observation"))]
+mod replay_api_durability_tests;
 #[cfg(test)]
 mod statement_read_tests;

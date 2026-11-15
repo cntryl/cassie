@@ -209,3 +209,92 @@ fn should_complete_nested_ctas_over_checkpoint_view_under_publication_fence() {
     assert!(completed.is_ok());
     execute(&cassie, &session, "ROLLBACK");
 }
+
+fn checkpoint_collections(cassie: &Cassie, session: &super::CassieSession) -> Vec<Vec<Value>> {
+    execute(
+        cassie,
+        session,
+        "SELECT collection FROM pg_catalog.pg_projection_checkpoints ORDER BY collection",
+    )
+}
+
+#[test]
+fn should_list_remaining_checkpoints_after_autocommit_drop() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("reader", None);
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE checkpoint_kept (title TEXT)",
+    );
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE checkpoint_dropped (title TEXT)",
+    );
+    let kept = cassie.midge.canonical_collection_name("checkpoint_kept");
+
+    // Act
+    execute(&cassie, &session, "DROP TABLE checkpoint_dropped");
+    let rows = checkpoint_collections(&cassie, &session);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::String(kept)]]);
+}
+
+#[test]
+fn should_list_renamed_table_checkpoint_under_its_new_name() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("reader", None);
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE checkpoint_old_name (title TEXT)",
+    );
+    let renamed = cassie
+        .midge
+        .canonical_collection_name("checkpoint_new_name");
+
+    // Act
+    execute(
+        &cassie,
+        &session,
+        "ALTER TABLE checkpoint_old_name RENAME TO checkpoint_new_name",
+    );
+    let rows = checkpoint_collections(&cassie, &session);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::String(renamed)]]);
+}
+
+#[test]
+fn should_read_own_created_table_in_repeatable_read_transaction() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("reader", None);
+    execute(&cassie, &session, "BEGIN ISOLATION LEVEL REPEATABLE READ");
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE checkpoint_rr_own (title TEXT)",
+    );
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO checkpoint_rr_own (title) VALUES ('own')",
+    );
+
+    // Act
+    let rows = execute(&cassie, &session, "SELECT title FROM checkpoint_rr_own");
+    execute(&cassie, &session, "COMMIT");
+    let committed = execute(&cassie, &session, "SELECT title FROM checkpoint_rr_own");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::String("own".to_owned())]]);
+    assert_eq!(committed, rows);
+}

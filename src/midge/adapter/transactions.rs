@@ -63,7 +63,9 @@ fn commit_native_transaction(
 
 #[path = "transactions/copy_snapshot.rs"]
 mod copy_snapshot;
-pub(crate) use copy_snapshot::{CheckpointStorageSnapshot, CopyStorageSnapshot};
+pub(crate) use copy_snapshot::{
+    CheckpointStorageSnapshot, CopyStorageSnapshot, StagedCheckpointChange,
+};
 
 #[path = "transactions/index_cleanup_guard.rs"]
 mod index_cleanup_guard;

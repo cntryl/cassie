@@ -6,6 +6,12 @@ use super::{
 };
 use crate::app::session::PublicationFenceScope;
 
+/// Execution mode and the session fence a statement holds while it is admitted.
+struct StatementAdmission<'a> {
+    mode: ExecutionMode,
+    fence: &'a mut PublicationFenceScope,
+}
+
 impl Cassie {
     pub(crate) fn execute_parsed_statement_core(
         &self,
@@ -132,9 +138,11 @@ impl Cassie {
                 parsed,
                 sql_fingerprint,
                 parameters,
-                mode,
+                StatementAdmission {
+                    mode,
+                    fence: &mut PublicationFenceScope::none(),
+                },
                 controls,
-                &mut PublicationFenceScope::none(),
             );
         }
 
@@ -222,9 +230,11 @@ impl Cassie {
             parsed,
             sql_fingerprint,
             parameters,
-            mode,
+            StatementAdmission {
+                mode,
+                fence: &mut fence,
+            },
             controls,
-            &mut fence,
         )
     }
 
@@ -234,10 +244,10 @@ impl Cassie {
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
-        mode: ExecutionMode,
+        admission: StatementAdmission<'_>,
         controls: &QueryExecutionControls,
-        fence: &mut PublicationFenceScope,
     ) -> Result<QueryResult, CassieError> {
+        let StatementAdmission { mode, fence } = admission;
         // A new top-level statement never borrows an enclosing read authority.
         // This also protects early transaction/EXPLAIN returns and fresh gated
         // commit validation when embedded execution is nested on one thread.
@@ -273,9 +283,8 @@ impl Cassie {
             parsed,
             sql_fingerprint,
             parameters,
-            mode,
+            StatementAdmission { mode, fence },
             controls,
-            fence,
         )
     }
 
@@ -286,10 +295,10 @@ impl Cassie {
         mut parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
-        mode: ExecutionMode,
+        admission: StatementAdmission<'_>,
         controls: &QueryExecutionControls,
-        fence: &mut PublicationFenceScope,
     ) -> Result<QueryResult, CassieError> {
+        let StatementAdmission { mode, fence } = admission;
         let (mut params, declared_oids, wire_output) = parameters;
         let (parameter_types, bound_parameters) =
             super::query_parameters::prepare_bound_parameters(

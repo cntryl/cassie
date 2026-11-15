@@ -55,10 +55,17 @@ fn checkpoint_value<'a>(
     overlay: Option<&'a super::CheckpointStorageSnapshot>,
     key: &[u8],
 ) -> Result<Option<CheckpointValue<'a>>, CassieError> {
-    if let Some(value) = overlay.and_then(|owner| owner.get(key)) {
-        return Ok(value.map(CheckpointValue::Staged));
+    match overlay.and_then(|owner| owner.get(key)) {
+        Some(super::StagedCheckpointChange::Value(value)) => {
+            return Ok(Some(CheckpointValue::Staged(value)));
+        }
+        Some(super::StagedCheckpointChange::Deleted) => return Ok(None),
+        None => {}
     }
-    Ok(tx.get(key).map_err(CassieError::from)?.map(CheckpointValue::Stored))
+    Ok(tx
+        .get(key)
+        .map_err(CassieError::from)?
+        .map(CheckpointValue::Stored))
 }
 
 #[derive(Debug, Clone)]
@@ -76,18 +83,25 @@ impl Midge {
         &self,
         database: &str,
         controls: &crate::runtime::QueryExecutionControls,
-    ) -> Result<Vec<(ProjectionCheckpoint, crate::runtime::QueryMemoryReservation)>, CassieError> {
+    ) -> Result<Vec<(ProjectionCheckpoint, crate::runtime::QueryMemoryReservation)>, CassieError>
+    {
         controls.check_interruption()?;
         let tx = self.begin_database_readonly_tx(database)?;
-        let overlay = tx.checkpoint_storage().map(|snapshot| snapshot.as_ref());
+        let overlay = tx.checkpoint_storage().map(AsRef::as_ref);
         let directory_key = Self::collections_key();
         let directory = checkpoint_value(&tx, overlay, &directory_key)?;
         let directory_bytes = directory.as_ref().map_or(0, |value| value.as_ref().len());
-        let directory_reservation = directory_bytes.checked_mul(32).and_then(|bytes| bytes.checked_add(2048))
-            .ok_or_else(|| CassieError::ResourceLimit("checkpoint directory accounting overflow".to_owned()))?;
+        let directory_reservation = directory_bytes
+            .checked_mul(32)
+            .and_then(|bytes| bytes.checked_add(2048))
+            .ok_or_else(|| {
+                CassieError::ResourceLimit("checkpoint directory accounting overflow".to_owned())
+            })?;
         let _directory_memory = controls.reserve_query_memory(directory_reservation)?;
         let mut collections: Vec<String> = match directory {
-            Some(value) => serde_json::from_slice(value.as_ref()).map_err(|error| CassieError::Parse(format!("invalid collection directory: {error}")))?,
+            Some(value) => serde_json::from_slice(value.as_ref()).map_err(|error| {
+                CassieError::Parse(format!("invalid collection directory: {error}"))
+            })?,
             None => Vec::new(),
         };
         collections.sort_unstable();
@@ -104,33 +118,49 @@ impl Midge {
         let prefix = Self::projection_prefix();
         let _prefix_memory = controls.reserve_query_memory(prefix.len())?;
         let query = super::Query::new().prefix(prefix.clone().into());
-        let mut scan = tx.scan(&query).map_err(CassieError::from)?;
+        let scan = tx.scan(&query).map_err(CassieError::from)?;
         let mut output = Vec::new();
-        while let Some(entry) = scan.next() {
+        for entry in scan {
             controls.check_interruption()?;
             let (key, value) = entry.map_err(CassieError::from)?;
             self.record_query_scan_entry();
             if super::query_scan_control::should_cancel_controlled_query_scan(controls) {
                 return Err(CassieError::QueryCanceled);
             }
-            let effective = overlay.and_then(|owner| owner.get(&key));
-            let selected = match effective {
-                Some(Some(value)) => Some(value),
-                Some(None) => None,
+            let selected = match overlay.and_then(|owner| owner.get(&key)) {
+                Some(super::StagedCheckpointChange::Value(staged)) => Some(staged),
+                Some(super::StagedCheckpointChange::Deleted) => None,
                 None => Some(value.as_ref()),
             };
             if let Some(value) = selected {
-                Self::append_checkpoint_row(&mut output, &collections, database, &key, value, controls)?;
+                Self::append_checkpoint_row(
+                    &mut output,
+                    &collections,
+                    database,
+                    &key,
+                    value,
+                    controls,
+                )?;
             }
         }
         if let Some(overlay) = overlay {
             for (key, value) in overlay.entries() {
                 controls.check_interruption()?;
-                if !key.starts_with(&prefix) || value.is_none() || tx.get(key).map_err(CassieError::from)?.is_some() {
+                if !key.starts_with(&prefix)
+                    || value.is_none()
+                    || tx.get(key).map_err(CassieError::from)?.is_some()
+                {
                     continue;
                 }
                 if let Some(value) = value {
-                    Self::append_checkpoint_row(&mut output, &collections, database, key, value, controls)?;
+                    Self::append_checkpoint_row(
+                        &mut output,
+                        &collections,
+                        database,
+                        key,
+                        value,
+                        controls,
+                    )?;
                 }
             }
         }
@@ -146,11 +176,19 @@ impl Midge {
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
         controls.check_interruption()?;
-        let bytes = value.len().checked_mul(2).and_then(|bytes| bytes.checked_add(4096))
-            .ok_or_else(|| CassieError::ResourceLimit("checkpoint row accounting overflow".to_owned()))?;
+        let bytes = value
+            .len()
+            .checked_mul(2)
+            .and_then(|bytes| bytes.checked_add(4096))
+            .ok_or_else(|| {
+                CassieError::ResourceLimit("checkpoint row accounting overflow".to_owned())
+            })?;
         let memory = controls.reserve_query_memory(bytes)?;
-        let entry: ProjectionCheckpoint = serde_json::from_slice(value)
-            .map_err(|error| CassieError::Parse(format!("invalid projection checkpoint metadata; repair or rebuild: {error}")))?;
+        let entry: ProjectionCheckpoint = serde_json::from_slice(value).map_err(|error| {
+            CassieError::Parse(format!(
+                "invalid projection checkpoint metadata; repair or rebuild: {error}"
+            ))
+        })?;
         if let Some(definition) = &entry.materialized {
             crate::sql::definition_guard::version(definition.definition_semantics_version)?;
         }
@@ -160,10 +198,17 @@ impl Midge {
         if Self::projection_key(&entry.collection) != key {
             return Err(CassieError::Storage("projection checkpoint key and identity disagree; repair or rebuild from the event stream".to_owned()));
         }
-        if entry.kind == crate::catalog::ProjectionKind::Collection && collections.binary_search(&entry.collection).is_err() {
-            return Err(CassieError::Storage(format!("orphan projection checkpoint for '{}'; repair or rebuild from the event stream", entry.collection)));
+        if entry.kind == crate::catalog::ProjectionKind::Collection
+            && collections.binary_search(&entry.collection).is_err()
+        {
+            return Err(CassieError::Storage(format!(
+                "orphan projection checkpoint for '{}'; repair or rebuild from the event stream",
+                entry.collection
+            )));
         }
-        output.try_reserve(1).map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        output
+            .try_reserve(1)
+            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
         output.push((entry, memory));
         Ok(())
     }
@@ -387,95 +432,6 @@ impl Midge {
     }
 }
 
-#[cfg(test)]
-mod checkpoint_snapshot_tests {
-    use super::Midge;
-    use crate::app::CassieError;
-    use crate::config::CassieRuntimeLimits;
-    use crate::runtime::QueryExecutionControls;
-    use crate::types::Schema;
-    use std::time::Instant;
-
-    fn fixture() -> Midge {
-        let midge = Midge::new_in_memory("postgres").unwrap();
-        midge.create_collection("checkpoint_fixture", Schema { fields: vec![] }).unwrap();
-        midge
-    }
-
-    #[test]
-    fn should_fail_closed_for_missing_checkpoint_marker() {
-        // Arrange
-        let midge = fixture();
-        let collection = midge.canonical_collection_name("checkpoint_fixture");
-        let mut tx = midge.begin_data_rw_tx_for(&collection).unwrap();
-        tx.delete(Midge::projection_key(&collection)).unwrap();
-        tx.commit(midge.write_options_sync()).unwrap();
-        let controls = QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
-
-        // Act
-        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
-
-        // Assert
-        assert!(matches!(result, Err(CassieError::Storage(ref message)) if message.contains("repair or rebuild")));
-        assert_eq!(controls.current_query_memory_bytes(), 0);
-    }
-
-    #[test]
-    fn should_enforce_checkpoint_scan_memory_budget() {
-        // Arrange
-        let midge = fixture();
-        let mut limits = CassieRuntimeLimits::default();
-        limits.query_memory_budget_bytes = 1;
-        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
-
-        // Act
-        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
-
-        // Assert
-        assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
-        assert_eq!(controls.current_query_memory_bytes(), 0);
-    }
-
-    #[test]
-    fn should_cancel_checkpoint_scan_at_entry_boundary() {
-        // Arrange
-        let _guard = super::super::query_scan_control::query_scan_control_test_guard();
-        let midge = fixture();
-        super::super::query_scan_control::set_query_scan_cancellation_after_entries(Some(1));
-        let controls = QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
-
-        // Act
-        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
-
-        // Assert
-        assert!(matches!(result, Err(CassieError::QueryCanceled)));
-        assert_eq!(controls.current_query_memory_bytes(), 0);
-    }
-
-    #[test]
-    fn should_preserve_exact_quoted_checkpoint_identities() {
-        // Arrange
-        let midge = fixture();
-        let mut tx = midge.begin_data_rw_tx_for("checkpoint_fixture").unwrap();
-        let mut names = Midge::load_collections(&tx).unwrap();
-        let first = "postgres.public.\"Foo\"".to_string();
-        let second = "postgres.public.\"FOO\"".to_string();
-        names.extend([first.clone(), second.clone()]);
-        Midge::save_collections(&mut tx, &names).unwrap();
-        Midge::save_projection_metadata_to_tx(&mut tx, &crate::catalog::ProjectionMeta::new(&first, 1)).unwrap();
-        Midge::save_projection_metadata_to_tx(&mut tx, &crate::catalog::ProjectionMeta::new(&second, 1)).unwrap();
-        tx.commit(midge.write_options_sync()).unwrap();
-        let controls = QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
-
-        // Act
-        let rows = midge.checkpoint_rows_for_statement("postgres", &controls).unwrap();
-
-        // Assert
-        assert!(rows.iter().any(|(row, _)| row.collection == first));
-        assert!(rows.iter().any(|(row, _)| row.collection == second));
-    }
-}
-
 impl Midge {
     /// Rekeys one SQL materialized-view definition in the owning database family.
     pub(crate) fn rename_sql_materialized_view_metadata(
@@ -512,5 +468,113 @@ impl Midge {
         check_projection_metadata_persistence_failure_point()?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_snapshot_tests {
+    use super::Midge;
+    use crate::app::CassieError;
+    use crate::config::CassieRuntimeLimits;
+    use crate::runtime::QueryExecutionControls;
+    use crate::types::Schema;
+    use std::time::Instant;
+
+    fn fixture() -> Midge {
+        let midge = Midge::new_in_memory("postgres").unwrap();
+        midge
+            .create_collection("checkpoint_fixture", Schema { fields: vec![] })
+            .unwrap();
+        midge
+    }
+
+    #[test]
+    fn should_fail_closed_for_missing_checkpoint_marker() {
+        // Arrange
+        let midge = fixture();
+        let collection = midge.canonical_collection_name("checkpoint_fixture");
+        let mut tx = midge.begin_data_rw_tx_for(&collection).unwrap();
+        tx.delete(Midge::projection_key(&collection)).unwrap();
+        tx.commit(midge.write_options_sync()).unwrap();
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+
+        // Act
+        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
+
+        // Assert
+        assert!(
+            matches!(result, Err(CassieError::Storage(ref message)) if message.contains("repair or rebuild"))
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_enforce_checkpoint_scan_memory_budget() {
+        // Arrange
+        let midge = fixture();
+        let limits = CassieRuntimeLimits {
+            query_memory_budget_bytes: 1,
+            ..CassieRuntimeLimits::default()
+        };
+        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+
+        // Act
+        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_cancel_checkpoint_scan_at_entry_boundary() {
+        // Arrange
+        let _guard = super::super::query_scan_control::query_scan_control_test_guard();
+        let midge = fixture();
+        super::super::query_scan_control::set_query_scan_cancellation_after_entries(Some(1));
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+
+        // Act
+        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_preserve_exact_quoted_checkpoint_identities() {
+        // Arrange
+        let midge = fixture();
+        let mut tx = midge.begin_data_rw_tx_for("checkpoint_fixture").unwrap();
+        let mut names = Midge::load_collections(&tx).unwrap();
+        let first = "postgres.public.\"Foo\"".to_string();
+        let second = "postgres.public.\"FOO\"".to_string();
+        names.extend([first.clone(), second.clone()]);
+        Midge::save_collections(&mut tx, &names).unwrap();
+        Midge::save_projection_metadata_to_tx(
+            &mut tx,
+            &crate::catalog::ProjectionMeta::new(&first, 1),
+        )
+        .unwrap();
+        Midge::save_projection_metadata_to_tx(
+            &mut tx,
+            &crate::catalog::ProjectionMeta::new(&second, 1),
+        )
+        .unwrap();
+        tx.commit(midge.write_options_sync()).unwrap();
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+
+        // Act
+        let rows = midge
+            .checkpoint_rows_for_statement("postgres", &controls)
+            .unwrap();
+
+        // Assert
+        assert!(rows.iter().any(|(row, _)| row.collection == first));
+        assert!(rows.iter().any(|(row, _)| row.collection == second));
     }
 }

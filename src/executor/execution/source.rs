@@ -50,10 +50,10 @@ pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 #[path = "source_join.rs"]
 mod source_join;
 
-#[path = "source_collection.rs"]
-mod source_collection;
 #[path = "source_checkpoint.rs"]
 mod source_checkpoint;
+#[path = "source_collection.rs"]
+mod source_collection;
 #[path = "source_collection_pull.rs"]
 mod source_collection_pull;
 
@@ -212,7 +212,10 @@ fn execute_collection_source(
     row_budget: Option<usize>,
     traversal: crate::midge::adapter::RowTraversal,
 ) -> SourceExecution {
-    if name.trim().eq_ignore_ascii_case("pg_catalog.pg_projection_checkpoints") {
+    if name
+        .trim()
+        .eq_ignore_ascii_case("pg_catalog.pg_projection_checkpoints")
+    {
         let batches = source_checkpoint::materialize(env)?;
         return finalize_source_batches(env, batches, Vec::new(), qualify, name);
     }

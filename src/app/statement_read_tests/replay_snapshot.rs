@@ -3,7 +3,7 @@ use crate::app::{ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
 
 #[test]
-fn should_read_replay_row_and_checkpoint_from_same_statement_snapshot() {
+fn should_read_replay_row_with_checkpoint_from_same_statement_snapshot() {
     // Arrange
     let cassie =
         Arc::new(Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap());
@@ -65,13 +65,17 @@ fn should_read_replay_row_and_checkpoint_from_same_statement_snapshot() {
 }
 
 #[test]
-fn should_merge_staged_checkpoint_ddl_and_savepoint_changes() {
+fn should_merge_staged_checkpoint_ddl_across_savepoint_changes() {
     // Arrange
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("reader", None);
     execute(&cassie, &session, "BEGIN");
-    execute(&cassie, &session, "CREATE TABLE checkpoint_staged (title TEXT)");
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE checkpoint_staged (title TEXT)",
+    );
     let collection = cassie.midge.canonical_collection_name("checkpoint_staged");
     let sql = format!("SELECT collection FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{collection}'");
     let created = execute(&cassie, &session, &sql);
@@ -87,11 +91,10 @@ fn should_merge_staged_checkpoint_ddl_and_savepoint_changes() {
 
     // Assert
     assert_eq!(created, vec![vec![Value::String(collection.clone())]]);
-    assert!(dropped.is_empty());
+    assert_eq!(dropped, Vec::<Vec<Value>>::new());
     assert_eq!(restored, created);
-    assert!(discarded.is_empty());
+    assert_eq!(discarded, Vec::<Vec<Value>>::new());
 }
-
 
 #[test]
 fn should_retain_repeatable_read_checkpoint_ddl_through_savepoint_rollback() {
@@ -100,8 +103,14 @@ fn should_retain_repeatable_read_checkpoint_ddl_through_savepoint_rollback() {
     cassie.startup().unwrap();
     let session = cassie.create_session("reader", None);
     execute(&cassie, &session, "BEGIN ISOLATION LEVEL REPEATABLE READ");
-    execute(&cassie, &session, "CREATE TABLE checkpoint_rr_staged (title TEXT)");
-    let collection = cassie.midge.canonical_collection_name("checkpoint_rr_staged");
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE checkpoint_rr_staged (title TEXT)",
+    );
+    let collection = cassie
+        .midge
+        .canonical_collection_name("checkpoint_rr_staged");
     let sql = format!("SELECT collection FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{collection}'");
     let created = execute(&cassie, &session, &sql);
     execute(&cassie, &session, "SAVEPOINT before_drop");
@@ -115,16 +124,17 @@ fn should_retain_repeatable_read_checkpoint_ddl_through_savepoint_rollback() {
 
     // Assert
     assert_eq!(created, vec![vec![Value::String(collection)]]);
-    assert!(dropped.is_empty());
+    assert_eq!(dropped, Vec::<Vec<Value>>::new());
     assert_eq!(restored, created);
 }
 
 #[test]
-fn should_capture_checkpoint_and_relation_after_staged_ddl_publication() {
+fn should_capture_consistent_checkpoint_view_after_staged_ddl_publication() {
     // Arrange
     use std::sync::mpsc;
     use std::time::Duration;
-    let cassie = Arc::new(Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap());
+    let cassie =
+        Arc::new(Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap());
     cassie.startup().unwrap();
     let session = cassie.create_session("reader", None);
     execute(&cassie, &session, "BEGIN");
@@ -137,7 +147,11 @@ fn should_capture_checkpoint_and_relation_after_staged_ddl_publication() {
             staged_tx.send(()).unwrap();
             resume_rx.recv_timeout(Duration::from_secs(10)).unwrap();
         });
-        execute(&ddl_cassie, &ddl_session, "CREATE TABLE checkpoint_race (title TEXT)");
+        execute(
+            &ddl_cassie,
+            &ddl_session,
+            "CREATE TABLE checkpoint_race (title TEXT)",
+        );
     });
     staged_rx.recv_timeout(Duration::from_secs(10)).unwrap();
     let (waiting_tx, waiting_rx) = mpsc::channel();

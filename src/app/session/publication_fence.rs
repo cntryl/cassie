@@ -26,7 +26,10 @@ pub(crate) struct PublicationFenceScope {
 impl PublicationFenceScope {
     /// A scope that holds nothing, for statements that never take the fence.
     pub(crate) const fn none() -> Self {
-        Self { guard: None, hold_through_execution: false }
+        Self {
+            guard: None,
+            hold_through_execution: false,
+        }
     }
 
     /// Readers drop the fence once their statement view is captured.
@@ -48,10 +51,14 @@ impl CassieSession {
         let mut waited = false;
         loop {
             controls.check_interruption()?;
-            if let Some(guard) =
-                self.publication_fence.try_lock_arc_for(Duration::from_millis(2))
+            if let Some(guard) = self
+                .publication_fence
+                .try_lock_arc_for(Duration::from_millis(2))
             {
-                return Ok(PublicationFenceScope { guard: Some(guard), hold_through_execution });
+                return Ok(PublicationFenceScope {
+                    guard: Some(guard),
+                    hold_through_execution,
+                });
             }
             if !waited {
                 waited = true;

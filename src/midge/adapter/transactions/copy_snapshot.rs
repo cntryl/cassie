@@ -22,13 +22,25 @@ pub(crate) struct CheckpointStorageSnapshot {
     _memory: QueryMemoryReservation,
 }
 
+/// A staged change to one checkpoint-visible key.
+pub(crate) enum StagedCheckpointChange<'a> {
+    Deleted,
+    Value(&'a [u8]),
+}
+
 impl CheckpointStorageSnapshot {
-    pub(crate) fn get(&self, key: &[u8]) -> Option<Option<&[u8]>> {
-        self.changes.get(key).map(|value| value.as_deref())
+    /// The staged change for `key`, or `None` when the command did not touch it.
+    pub(crate) fn get(&self, key: &[u8]) -> Option<StagedCheckpointChange<'_>> {
+        self.changes.get(key).map(|value| match value {
+            Some(bytes) => StagedCheckpointChange::Value(bytes),
+            None => StagedCheckpointChange::Deleted,
+        })
     }
 
     pub(crate) fn entries(&self) -> impl Iterator<Item = (&[u8], Option<&[u8]>)> {
-        self.changes.iter().map(|(key, value)| (key.as_slice(), value.as_deref()))
+        self.changes
+            .iter()
+            .map(|(key, value)| (key.as_slice(), value.as_deref()))
     }
 }
 
@@ -72,8 +84,10 @@ impl StorageOverlay {
     ) -> Result<Option<Arc<CheckpointStorageSnapshot>>, CassieError> {
         let projection_prefix = super::super::Midge::projection_prefix();
         let collections_key = super::super::Midge::collections_key();
-        let relevant = |key: &[u8]| key == collections_key.as_slice() || key.starts_with(&projection_prefix);
-        let mut bytes = size_of::<CheckpointStorageSnapshot>() + 2 * size_of::<usize>() + NODE_BYTES;
+        let relevant =
+            |key: &[u8]| key == collections_key.as_slice() || key.starts_with(&projection_prefix);
+        let mut bytes =
+            size_of::<CheckpointStorageSnapshot>() + 2 * size_of::<usize>() + NODE_BYTES;
         let mut any = false;
         for (key, change) in &self.changes {
             controls.check_interruption()?;
@@ -93,11 +107,18 @@ impl StorageOverlay {
         for (key, change) in &self.changes {
             controls.check_interruption()?;
             if relevant(key) {
-                let value = change.value.as_ref().map(|value| copy_bytes(value, controls)).transpose()?;
+                let value = change
+                    .value
+                    .as_ref()
+                    .map(|value| copy_bytes(value, controls))
+                    .transpose()?;
                 changes.insert(copy_bytes(key, controls)?, value);
             }
         }
-        Ok(Some(Arc::new(CheckpointStorageSnapshot { changes, _memory: memory })))
+        Ok(Some(Arc::new(CheckpointStorageSnapshot {
+            changes,
+            _memory: memory,
+        })))
     }
 
     pub(crate) fn copy_snapshot(

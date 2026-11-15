@@ -29,7 +29,9 @@ pub(crate) struct StatementOverlay {
 }
 
 impl StatementOverlay {
-    pub(crate) fn checkpoint_storage(&self) -> Option<&Arc<crate::midge::adapter::CheckpointStorageSnapshot>> {
+    pub(crate) fn checkpoint_storage(
+        &self,
+    ) -> Option<&Arc<crate::midge::adapter::CheckpointStorageSnapshot>> {
         self.checkpoint_storage.as_ref()
     }
 
@@ -97,7 +99,10 @@ impl CassieSession {
         let checkpoint_storage = if !transaction.implicit
             && transaction.isolation == Some(crate::sql::ast::TransactionIsolation::RepeatableRead)
         {
-            transaction.storage_overlay.lock().copy_checkpoint_snapshot(controls)?
+            transaction
+                .storage_overlay
+                .lock()
+                .copy_checkpoint_snapshot(controls)?
         } else {
             None
         };

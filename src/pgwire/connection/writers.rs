@@ -523,13 +523,29 @@ pub(super) async fn write_ready_for_query(
     write_half: &mut (impl AsyncWrite + Unpin),
     session: &CassieSession,
 ) -> io::Result<()> {
-    let status = if session.is_transaction_failed() {
-        b'E'
-    } else if session.is_transaction_active() {
-        b'T'
-    } else {
-        b'I'
+    write_ready_for_query_inner(write_half, session, || {}).await
+}
+
+#[cfg(test)]
+async fn write_ready_for_query_observed(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    after_snapshot: impl FnOnce(),
+) -> io::Result<()> {
+    write_ready_for_query_inner(write_half, session, after_snapshot).await
+}
+
+async fn write_ready_for_query_inner(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    after_snapshot: impl FnOnce(),
+) -> io::Result<()> {
+    let status = match session.transaction_status_snapshot() {
+        crate::app::SessionTransactionStatus::Idle => b'I',
+        crate::app::SessionTransactionStatus::InTransaction => b'T',
+        crate::app::SessionTransactionStatus::Failed => b'E',
     };
+    after_snapshot();
     write_backend_frame(write_half, b'Z', &[status]).await
 }
 

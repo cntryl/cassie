@@ -14,6 +14,8 @@ impl Cassie {
         mode: ExecutionMode,
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        #[cfg(test)]
+        super::query_prepared::authority_test_hooks::on_nested(self, session, scope.1);
         self.execute_sql_core_for_operation(session, sql, params, mode, scope)
     }
 

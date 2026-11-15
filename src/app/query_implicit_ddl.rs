@@ -8,25 +8,6 @@ use super::{
 use crate::sql::ParsedStatement;
 
 impl Cassie {
-    pub(super) fn execute_implicit_table_creation(
-        &self,
-        session: &CassieSession,
-        parsed: ParsedStatement,
-        fingerprint: u64,
-        parameters: (Vec<Value>, &[i32], bool),
-        mode: ExecutionMode,
-        controls: &QueryExecutionControls,
-    ) -> Result<QueryResult, CassieError> {
-        self.execute_implicit_table_creation_for_operation(
-            session,
-            parsed,
-            fingerprint,
-            parameters,
-            mode,
-            (controls, None),
-        )
-    }
-
     pub(super) fn execute_implicit_table_creation_for_operation(
         &self,
         session: &CassieSession,
@@ -37,6 +18,8 @@ impl Cassie {
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         let (controls, authority) = scope;
+        #[cfg(test)]
+        super::query_prepared::authority_test_hooks::on_implicit_ddl(self, session, authority);
         // Both ordinary wire protocols already require a standalone DDL
         // statement. Keep its complete publication inside this worker, before
         // either protocol can expose CommandComplete or release this guard.

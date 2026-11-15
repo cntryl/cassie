@@ -143,6 +143,17 @@ pub(super) fn alter_table_drop_constraint(
         &constrained_unique_fields,
     )?;
     constraints.retain(constraint_is_populated);
+    let primary_key_index = format!("{}_pkey", crate::catalog::local_name(table));
+    let mut removed_indexes = dropped_index.iter().map(String::as_str).collect::<Vec<_>>();
+    if !constraints.iter().any(|constraint| constraint.primary_key) {
+        removed_indexes.push(&primary_key_index);
+    }
+    crate::executor::execution::property_graph_dependents::reject_unbacked_keys(
+        cassie,
+        table,
+        &constraints,
+        &removed_indexes,
+    )?;
     let released_unique_fields =
         unique_fields_without_constraints(&constraints, constrained_unique_fields);
     cassie

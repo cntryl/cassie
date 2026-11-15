@@ -21,6 +21,7 @@ pub(super) fn alter_column_flag(
             super::sequence_command::alter_column_set_not_null(cassie, table, field)
         }
         AlterTableOperation::AlterColumnDropNotNull { field } => {
+            super::property_graph_dependents::reject_key_nullable(cassie, table, field)?;
             super::sequence_command::alter_column_drop_not_null(cassie, table, field)
         }
         AlterTableOperation::AlterColumnStorage { field, setting } => {

@@ -196,7 +196,7 @@ fn reject_duplicate_alias<'a>(
 }
 
 /// One mapped table and the catalog facts its mapping is checked against.
-struct Source {
+pub(super) struct Source {
     table: String,
     columns: Vec<(String, DataType)>,
     constraints: Vec<crate::catalog::FieldConstraint>,
@@ -204,6 +204,36 @@ struct Source {
 }
 
 impl Source {
+    /// The catalog facts of an existing table, by canonical name.
+    pub(super) fn of_table(cassie: &Cassie, canonical: &str) -> Option<Self> {
+        let schema = cassie.catalog.get_schema(canonical)?;
+        Some(Self {
+            columns: schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+            constraints: cassie.catalog.get_constraints(&schema.collection),
+            indexes: cassie.catalog.list_indexes(&schema.collection),
+            table: schema.collection,
+        })
+    }
+
+    pub(super) fn replace_constraints(
+        &mut self,
+        constraints: Vec<crate::catalog::FieldConstraint>,
+    ) {
+        self.constraints = constraints;
+    }
+
+    pub(super) fn forget_indexes(&mut self, names: &[&str]) {
+        self.indexes.retain(|index| {
+            !names
+                .iter()
+                .any(|name| index.name.eq_ignore_ascii_case(name))
+        });
+    }
+
     fn resolve(
         cassie: &Cassie,
         context: &BindingContext,
@@ -220,21 +250,11 @@ impl Source {
                 ),
             ));
         }
-        let schema = cassie.catalog.get_schema(&canonical).ok_or_else(|| {
+        Self::of_table(cassie, &canonical).ok_or_else(|| {
             QueryError::Cassie(crate::app::CassieError::CatalogObjectNotFound {
                 kind: crate::app::CatalogObjectKind::Relation,
                 name: table.as_str().to_owned(),
             })
-        })?;
-        Ok(Self {
-            columns: schema
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), field.data_type.clone()))
-                .collect(),
-            constraints: cassie.catalog.get_constraints(&schema.collection),
-            indexes: cassie.catalog.list_indexes(&schema.collection),
-            table: schema.collection,
         })
     }
 
@@ -302,7 +322,7 @@ impl Source {
         })
     }
 
-    fn has_unique_key(&self, key: &[GraphKeyColumn]) -> bool {
+    pub(super) fn has_unique_key(&self, key: &[GraphKeyColumn]) -> bool {
         let wanted = key
             .iter()
             .map(|column| column.name.as_str())

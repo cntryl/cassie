@@ -151,6 +151,10 @@ pub(crate) fn drop_schema(
     }
     let output = empty_command("DROP SCHEMA", controls)?;
     if statement.cascade {
+        crate::executor::execution::property_graph_dependents::drop_schema_graphs(
+            cassie,
+            &statement.schema,
+        )?;
         drop_schema_types(cassie, &statement.schema)?;
         let schema_views = cassie
             .catalog
@@ -409,6 +413,12 @@ fn rename_schema_descendants(
         next_schema,
         &relation_renames,
     )?;
+    crate::executor::execution::property_graph_dependents::rename_schema(
+        cassie,
+        current_schema,
+        next_schema,
+        &relation_renames,
+    )?;
     rename_schema_rollups(cassie, current_schema, next_schema, &relation_renames)?;
     rename_schema_retention_policies(cassie, current_schema, next_schema, &relation_renames)?;
     rename_schema_materialized_projections(cassie, current_schema, next_schema, &relation_renames)?;
@@ -416,7 +426,7 @@ fn rename_schema_descendants(
     Ok(())
 }
 
-pub(super) type RelationRenames = std::collections::HashMap<String, String>;
+pub(crate) type RelationRenames = std::collections::HashMap<String, String>;
 
 fn relation_rename_map(collection_renames: &[(String, String)]) -> RelationRenames {
     collection_renames.iter().cloned().collect()
@@ -635,6 +645,7 @@ fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
             .list_graphs()
             .into_iter()
             .any(|graph| object_in_schema(&graph.name, schema))
+        && !crate::executor::execution::property_graph_dependents::schema_has_graphs(cassie, schema)
         && !cassie
             .catalog
             .list_projection_metadata()
@@ -697,6 +708,9 @@ fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
             .list_graphs()
             .into_iter()
             .any(|graph| crate::catalog::relation_belongs_to_database(&graph.name, database))
+        && !crate::executor::execution::property_graph_dependents::database_has_graphs(
+            cassie, database,
+        )
         && !cassie
             .catalog
             .list_projection_metadata()

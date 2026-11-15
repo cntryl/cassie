@@ -86,6 +86,12 @@ pub(in crate::executor::execution) fn drop_index(
     if let Some(index) = index.as_ref() {
         schema_foreign_keys::reject_referenced_unique_index_drop(cassie, table, index)?;
         schema_constraint_helpers::reject_constraint_index_drop(cassie, table, &index.name)?;
+        crate::executor::execution::property_graph_dependents::reject_unbacked_keys(
+            cassie,
+            table,
+            &cassie.catalog.get_constraints(table),
+            &[index.name.as_str()],
+        )?;
     }
 
     let output = empty_command("DROP INDEX", controls)?;

@@ -473,3 +473,47 @@ fn should_mint_new_identities_when_a_graph_is_recreated() {
     assert_ne!(second.vertices[0].mapping_id, first.vertices[0].mapping_id);
     assert_eq!(second.database_id, first.database_id);
 }
+
+#[test]
+fn should_map_row_authoritative_together_with_column_authoritative_tables() {
+    // Arrange
+    let (cassie, session) = fixture();
+    for sql in [
+        "CREATE TABLE accounts (id UUID PRIMARY KEY, owner TEXT) USING columnar",
+        "CREATE TABLE transfers (id BIGINT PRIMARY KEY, payer UUID NOT NULL, \
+         payee UUID NOT NULL, amount BIGINT) USING columnar",
+        "CREATE TABLE owners (id BIGINT PRIMARY KEY, account UUID NOT NULL)",
+    ] {
+        run(&cassie, &session, sql).expect("table");
+    }
+
+    // Act
+    let created = run(
+        &cassie,
+        &session,
+        "CREATE PROPERTY GRAPH ledger
+           VERTEX TABLES (
+             accounts AS account KEY (id) LABEL account PROPERTIES (owner),
+             people AS person KEY (id) LABEL person PROPERTIES (name))
+           EDGE TABLES (
+             transfers AS transfer KEY (id)
+               SOURCE KEY (payer) REFERENCES account (id)
+               DESTINATION KEY (payee) REFERENCES account (id)
+               LABEL transfer PROPERTIES (amount),
+             owners AS owns KEY (id)
+               SOURCE KEY (id) REFERENCES person (id)
+               DESTINATION KEY (account) REFERENCES account (id)
+               LABEL owns PROPERTIES (id))",
+    );
+    let stored = graph(&cassie, "ledger").expect("stored");
+    let key_types = stored
+        .vertices
+        .iter()
+        .map(|vertex| vertex.key[0].data_type.type_name())
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(created.is_ok());
+    assert_eq!(key_types, vec!["uuid".to_owned(), "bigint".to_owned()]);
+    assert_eq!(stored.edges.len(), 2);
+}

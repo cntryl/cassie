@@ -4,6 +4,8 @@ pub mod batch;
 mod execution;
 mod lineage_keys;
 mod search_lineage;
+#[cfg(test)]
+pub(crate) use execution::install_checkpoint_ddl_stage_hook;
 pub(crate) use execution::native_result_text_bound;
 pub(crate) use execution::plan_needs_statement_data;
 pub(crate) use execution::refresh_materialized_view_concurrently_external;

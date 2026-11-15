@@ -42,8 +42,9 @@ Every issue and test must serve one of these five product areas:
    `DELETE`; the selected replay contract commits each event batch's row and
    derived-index mutations, duplicate ledger and checkpoint in one transaction
    in the owning database family. Retry the same deterministic batch after an
-   uncertain outcome. The atomic replay change was qualified under
-   [#1270](https://github.com/cntryl/cassie/issues/1270). Replay API defaults use
+   uncertain outcome. Strict-profile atomic publication and bounded local recovery
+   were qualified under [#1270](https://github.com/cntryl/cassie/issues/1270);
+   buffered and cloud recovery qualification remains open. Replay API defaults use
    WAL-enabled buffered local writes and configured cloud durability; an explicit
    strict entrypoint is available. PostgreSQL projector mode and broader durability
    qualification remain under [#1271](https://github.com/cntryl/cassie/issues/1271);

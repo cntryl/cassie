@@ -21,6 +21,9 @@ mod values;
 #[path = "composite_types/arrays.rs"]
 mod arrays;
 
+#[path = "composite_types/array_wire.rs"]
+mod array_wire;
+
 #[path = "composite_types/records.rs"]
 mod records;
 

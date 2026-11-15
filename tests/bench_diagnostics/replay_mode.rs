@@ -3,7 +3,7 @@
 #[path = "../../benches/tier3_replay_durability/mode.rs"]
 mod mode;
 
-use mode::ReplayMode;
+use mode::{ReplayMode, Shape};
 use std::ffi::OsStr;
 
 #[test]
@@ -80,4 +80,40 @@ fn should_report_the_selected_replay_api_policy() {
             ),
         ]
     );
+}
+
+#[test]
+fn should_select_sql_projector_replay_modes() {
+    // Arrange
+    let modes = [OsStr::new("sql_default"), OsStr::new("sql_replayable")];
+
+    // Act
+    let actual = modes.map(|mode| {
+        let mode = ReplayMode::parse(Some(mode)).unwrap();
+        (mode.label(), mode.native_policy(), mode.is_sql())
+    });
+
+    // Assert
+    assert_eq!(
+        actual,
+        [
+            ("sql_default", "local_sync", true),
+            ("sql_replayable", "local_buffered", true),
+        ]
+    );
+    assert!(!ReplayMode::Strict.is_sql());
+}
+
+#[test]
+fn should_select_indexed_shape_unless_unindexed_is_requested() {
+    // Arrange
+    let inputs = [None, Some(OsStr::new("indexed")), Some(OsStr::new("unindexed"))];
+
+    // Act
+    let actual = inputs.map(|input| Shape::parse(input).map(Shape::label));
+    let rejected = Shape::parse(Some(OsStr::new("partial")));
+
+    // Assert
+    assert_eq!(actual, [Ok("indexed"), Ok("indexed"), Ok("unindexed")]);
+    assert!(rejected.is_err());
 }

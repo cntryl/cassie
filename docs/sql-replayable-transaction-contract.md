@@ -361,17 +361,22 @@ Implemented, pending the ordered gate:
   configuration (Jev selected forcing strict over falling back to the default). Undeclared SQL, implicit transactions
   and autocommit are unchanged. Configured cloud-strict is never downgraded.
 
+- **Sealing COMMIT.** COMMIT seals the transaction under the session
+  transaction mutex before it captures writes. From then on a statement fork
+  cannot publish into the transaction and the mode cannot be declared, so the
+  writes and the declared mode COMMIT uses are the ones it froze. Nothing a
+  rejected fork staged is durable. If COMMIT fails and leaves the transaction
+  open, the seal is released. A sequence advance a fork performs independently
+  can still only raise strictness.
+- **Replayable transactional COPY.** `COPY ... FROM` rows are staged like other
+  rows and count as a replayable write. A sequence advance in a COPY default or
+  in a `COPY (query) TO` still promotes the transaction to strict.
+
 Not implemented, and therefore not claimed:
 
-- **Admission owner and drain.** There is no generation-bound admission permit
-  and COMMIT does not drain in-flight detached forks before freezing. A fork
-  that publishes its batch after COMMIT has captured the writes is rejected by
-  the existing generation and epoch checks rather than drained. Effects such a
-  fork performs independently (a sequence advance) are classified on the shared
-  authority but could land after the policy was selected.
-- **Replayable transactional COPY.** COPY rows staged in a declared transaction
-  promote it to strict because COPY owner lifetime and admission are not
-  proven. This is conservative, not a qualification of COPY.
+- **A drain.** COMMIT does not wait for in-flight statement forks. It seals the
+  transaction instead (see below), which is the selected design in
+  [Transaction authority within Midge as published](transaction-authority-midge-contract.md).
 - **Extended-protocol and pool evidence.** The mode is transaction-owned, so it
   cannot survive COMMIT or ROLLBACK, but no pgwire pool-reuse or
   extended-protocol test was written.

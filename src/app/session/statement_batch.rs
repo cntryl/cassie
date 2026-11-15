@@ -135,6 +135,8 @@ impl CassieSession {
             local_settings: Vec::new(),
             // Forks share the authority so effects they cause stay classified.
             projection_write: Arc::clone(&current.projection_write),
+            sealed_for_commit: false,
+            commit_thread: None,
         })
     }
 
@@ -147,6 +149,13 @@ impl CassieSession {
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Err(CassieError::Execution(
                 "statement mutation requires an active transaction".to_string(),
+            ));
+        }
+        if transaction.sealed_for_commit {
+            // COMMIT has frozen this transaction's writes. Nothing the fork
+            // staged is durable, so it is rejected instead of drained.
+            return Err(CassieError::Execution(
+                "session transaction changed while statement was executing".to_owned(),
             ));
         }
 

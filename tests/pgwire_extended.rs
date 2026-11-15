@@ -138,6 +138,9 @@ mod pgwire_boolean_parameter_families;
 #[path = "pgwire_extended/transactions/transaction_boundaries.rs"]
 mod pgwire_transaction_boundaries;
 
+#[path = "pgwire_extended/copy/replayable_transactions.rs"]
+mod pgwire_copy_replayable_transactions;
+
 #[path = "pgwire_extended/transactions/transaction_portal_handoffs.rs"]
 mod pgwire_transaction_portal_handoffs;
 

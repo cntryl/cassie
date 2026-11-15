@@ -70,6 +70,16 @@ impl Cassie {
         controls: &crate::runtime::QueryExecutionControls,
         authority: Option<&super::FailureAuthority>,
     ) -> Result<QueryResult, CassieError> {
+        // A COMMIT in progress owns the transaction until its native outcome is
+        // known. Midge cannot cancel an admitted commit, so competing
+        // transaction control is refused immediately instead of waiting.
+        if session.is_committing_on_another_thread() {
+            return Err(CassieError::Transaction {
+                kind: TransactionErrorKind::InvalidState,
+                message: "a COMMIT is in progress on this session; retry after it completes"
+                    .to_owned(),
+            });
+        }
         let savepoint_control = match statement.action {
             TransactionAction::Savepoint { .. } => Some("SAVEPOINT"),
             TransactionAction::RollbackTo { .. } => Some("ROLLBACK TO SAVEPOINT"),
@@ -222,6 +232,9 @@ impl Cassie {
         let _publication_controls =
             crate::midge::adapter::PublicationControlScope::enter(Some(controls));
         self.ensure_commit_admissible(session)?;
+        // Freeze the writes and declared mode COMMIT is about to capture. A
+        // statement fork that finishes later is rejected, not waited for.
+        let mut commit_seal = session.seal_transaction_for_commit();
         let (storage_overlay, _sequence_buffers, _sequence_directory) = session
             .transaction_storage_overlay_snapshot()
             .with_sequence_cursors(controls)?;
@@ -311,7 +324,7 @@ impl Cassie {
                 .publish_transaction_snapshot(snapshot);
         }
         self.cleanup_committed_role_grants(removed_role_grant_targets);
-        session.commit_transaction();
+        commit_seal.retire_committed();
         if let Some(publication) = catalog_publication {
             publication.retire();
         }

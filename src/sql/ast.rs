@@ -35,6 +35,13 @@ pub use ast_property_graph::{
     CreatePropertyGraph, GraphEdgeMapping, GraphEndpoint, GraphLabel, GraphProperty,
     GraphVertexMapping, PropertyGraphAction, PropertyGraphStatement,
 };
+#[path = "ast_graph_table.rs"]
+mod ast_graph_table;
+pub use ast_graph_table::{
+    GraphColumn, GraphEdgeDirection, GraphEdgePattern, GraphPathMode, GraphPathPattern,
+    GraphPathStep, GraphQuantifier, GraphSelector, GraphSelectorKind, GraphTable,
+    GraphVertexPattern,
+};
 #[path = "ast_object_comment.rs"]
 mod ast_object_comment;
 pub use ast_object_comment::{CommentOnObjectKind, CommentOnStatement};

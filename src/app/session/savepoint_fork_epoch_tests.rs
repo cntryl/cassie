@@ -121,3 +121,124 @@ fn should_leave_savepoint_unchanged_when_rollback_epoch_is_exhausted() {
     assert!(publication.is_ok());
     assert!(session.document_change("epoch_rows", "fork").is_some());
 }
+
+fn transaction_with_private_sequence() -> (
+    crate::midge::Midge,
+    CassieSession,
+    crate::runtime::QueryExecutionControls,
+) {
+    let midge = crate::midge::Midge::new_in_memory("postgres").expect("memory Midge");
+    midge.bootstrap_families().expect("bootstrap");
+    let session = CassieSession::new("root".to_owned(), Some("postgres".to_owned()));
+    session.begin_transaction(None).expect("begin");
+    let controls = crate::runtime::QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let control_scope = crate::midge::adapter::PublicationControlScope::enter(Some(&controls));
+    let ddl_scope = midge
+        .enter_transactional_ddl_scope("postgres", session.transaction_storage_overlay(), true)
+        .expect("private sequence scope");
+    let mut sequence =
+        crate::catalog::SequenceMeta::new("epoch_private_seq", crate::types::DataType::BigInt);
+    sequence.object_id = 481;
+    midge.put_sequence(&sequence).expect("stage sequence");
+    midge
+        .update_sequence_retrying("epoch_private_seq", |metadata| {
+            metadata.advance().map_err(Into::into)
+        })
+        .expect("advance private cursor");
+    drop(ddl_scope);
+    session.create_savepoint("before_fork").expect("savepoint");
+    drop(control_scope);
+    assert!(session.transaction.lock().savepoints[0]
+        .storage_overlay
+        .has_sequence_cursors());
+    (midge, session, controls)
+}
+
+#[test]
+fn should_preserve_fork_when_savepoint_cursor_pruning_is_canceled() {
+    // Arrange
+    let (_midge, session, normal) = transaction_with_private_sequence();
+    let normal_scope = crate::midge::adapter::PublicationControlScope::enter(Some(&normal));
+    let batch = stage_fork(&session, "kept");
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let canceled = crate::runtime::QueryExecutionControls::with_cancellation(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+
+    // Act
+    let restore = {
+        let _canceled_scope =
+            crate::midge::adapter::PublicationControlScope::enter(Some(&canceled));
+        session.rollback_to_savepoint("before_fork")
+    };
+    let publication = session.publish_statement_batch(&batch);
+    drop(normal_scope);
+
+    // Assert
+    assert!(matches!(restore, Err(CassieError::QueryCanceled)));
+    assert!(publication.is_ok());
+    assert!(session.document_change("epoch_rows", "kept").is_some());
+}
+
+#[test]
+fn should_reject_old_fork_when_owner_key_restore_fails_after_savepoint_restore() {
+    // Arrange
+    let cassie = crate::app::Cassie::new_in_memory_with_config(
+        crate::config::CassieRuntimeConfig::default(),
+    )
+    .expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE epoch_unique (id INT UNIQUE)",
+            vec![],
+        )
+        .expect("unique table");
+    session.begin_transaction(None).expect("begin");
+    let waits = std::sync::Arc::new(crate::app::TransactionUniqueWaits::default());
+    session.attach_transaction_unique_waits(std::sync::Arc::clone(&waits));
+    let collection = cassie.midge.canonical_collection_name("epoch_unique");
+    let keys = crate::app::collect_upsert_unique_keys(
+        &cassie.catalog,
+        &cassie.midge,
+        &collection,
+        "id",
+        &[json!({"id": 7})],
+    );
+    assert!(!keys.is_empty());
+    let owner = session.transaction_unique_owner_id();
+    assert!(matches!(
+        waits.claim_keys(owner, &keys),
+        Ok(crate::app::UniqueKeyClaim::Claimed)
+    ));
+    session.create_savepoint("before_fork").expect("savepoint");
+    let batch = stage_fork(&session, "old");
+    waits.release_owner(owner);
+    assert!(matches!(
+        waits.claim_keys(uuid::Uuid::new_v4(), &keys),
+        Ok(crate::app::UniqueKeyClaim::Claimed)
+    ));
+
+    // Act
+    let restore = session.rollback_to_savepoint("before_fork");
+    let publication = session.publish_statement_batch(&batch);
+
+    // Assert
+    assert!(matches!(
+        restore,
+        Err(CassieError::Transaction {
+            kind: crate::app::TransactionErrorKind::DeadlockDetected,
+            ..
+        })
+    ));
+    assert!(is_stale_fork(&publication));
+    assert!(session.document_change("epoch_rows", "old").is_none());
+}

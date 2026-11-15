@@ -27,10 +27,11 @@ and cancellation errors encountered before this comparison retain precedence.
 
 Payload decoding and header validation precede the entry owner check, and their
 errors retain precedence. Cancellation/deadline checks retain their existing
-positions. At entry and target binding, a stale owner takes precedence over a
-failed transaction, while a current owner in a failed transaction returns 25P02.
-The existing guarded fork checks failed status before owner validation, and so
-returns 25P02 first when both apply. Stale checks return the existing 40001
+positions. At entry, a stale owner takes precedence over a failed transaction, while a
+current owner in a failed transaction returns 25P02. The existing target-binding
+check returns the stale-owner error for a failed transaction even when the owner
+is current. The existing guarded fork checks failed status before owner
+validation, and so returns 25P02 first when both apply. Stale checks return the existing 40001
 serialization failure. Unowned autocommit COPY retains its existing behavior.
 
 This is a stale-at-check guarantee. It does not fence a rollback after the last

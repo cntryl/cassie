@@ -849,3 +849,25 @@ fn should_reject_copy_target_binding_after_savepoint_restore() {
         message,
     }) if message == "COPY owner no longer matches the active transaction"));
 }
+
+#[test]
+fn should_report_stale_copy_target_binding_for_current_failed_owner() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let controls = controls();
+    let mut owner = cassie
+        .capture_copy_command_view(&session, &controls)
+        .expect("owner");
+    session.mark_transaction_failed();
+    let publication = Arc::clone(&owner.publication_guard);
+    let _publication = publication.read();
+
+    // Act
+    let result = owner.bind_target_guarded(&session, "postgres.public.copy_owner_fence", &controls);
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::Transaction {
+        kind: crate::app::TransactionErrorKind::SerializationFailure,
+        message,
+    }) if message == "COPY owner no longer matches the active transaction"));
+}

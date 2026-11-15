@@ -5,10 +5,11 @@
 mod tests;
 
 use super::{CassieError, CassieSession};
+use crate::sql::ast::TransactionModes;
 
 impl CassieSession {
     pub(crate) fn begin_implicit_transaction(&self) -> Result<(), CassieError> {
-        self.begin_transaction_with_origin(None, Default::default(), true)?;
+        self.begin_transaction_with_origin(None, TransactionModes::default(), true)?;
         #[cfg(test)]
         tests::pause_after_implicit_origin_publication();
         Ok(())

@@ -21,6 +21,39 @@ fn parameter(name: &str, default: usize) -> usize {
     value
 }
 
+fn prepare_batches(
+    projection: &str,
+    batches: usize,
+    batch_size: usize,
+) -> Vec<ProjectionReplayBatch> {
+    (0..batches)
+        .map(|batch| {
+            let events = (0..batch_size)
+                .map(|index| {
+                    let number = batch
+                        .checked_mul(batch_size)
+                        .and_then(|n| n.checked_add(index + 1))
+                        .expect("batch event count overflow");
+                    ProjectionReplayEvent {
+                        event_id: format!("event-{number}"),
+                        checkpoint: format!("checkpoint-{number}"),
+                        position: Some(u64::try_from(number).expect("event position fits u64")),
+                        document_id: format!("doc-{number}"),
+                        payload: Some(json!({"title": format!("title-{}", number % 16)})),
+                    }
+                })
+                .collect();
+            ProjectionReplayBatch {
+                projection: projection.to_owned(),
+                source_identity: "replay-benchmark".to_owned(),
+                batch_id: format!("batch-{batch}"),
+                lag: 0,
+                events,
+            }
+        })
+        .collect()
+}
+
 fn main() {
     let mode = ReplayMode::parse(std::env::var_os("CASSIE_REPLAY_BENCH_MODE").as_deref())
         .unwrap_or_else(|error| panic!("{error}"));
@@ -47,32 +80,7 @@ fn main() {
             .expect("fixture DDL");
     }
     let projection = cassie.midge.canonical_collection_name("replay_bench");
-    let inputs: Vec<_> = (0..batches)
-        .map(|batch| {
-            let events = (0..batch_size)
-                .map(|index| {
-                    let number = batch
-                        .checked_mul(batch_size)
-                        .and_then(|n| n.checked_add(index + 1))
-                        .expect("batch event count overflow");
-                    ProjectionReplayEvent {
-                        event_id: format!("event-{number}"),
-                        checkpoint: format!("checkpoint-{number}"),
-                        position: Some(u64::try_from(number).expect("event position fits u64")),
-                        document_id: format!("doc-{number}"),
-                        payload: Some(json!({"title": format!("title-{}", number % 16)})),
-                    }
-                })
-                .collect();
-            ProjectionReplayBatch {
-                projection: projection.clone(),
-                source_identity: "replay-benchmark".to_owned(),
-                batch_id: format!("batch-{batch}"),
-                lag: 0,
-                events,
-            }
-        })
-        .collect();
+    let inputs = prepare_batches(&projection, batches, batch_size);
     let setup_ns = setup_start.elapsed().as_nanos();
     let before = cassie
         .midge

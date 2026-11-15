@@ -144,11 +144,11 @@ fn should_use_strict_policy_for_metadata_only_batches() {
 
 fn delete_missing(projection: &str) -> ProjectionReplayBatch {
     let mut batch = batch(projection);
-    batch.batch_id = "batch-2".to_owned();
-    batch.events[0].event_id = "event-2".to_owned();
-    batch.events[0].checkpoint = "checkpoint-2".to_owned();
+    "batch-2".clone_into(&mut batch.batch_id);
+    "event-2".clone_into(&mut batch.events[0].event_id);
+    "checkpoint-2".clone_into(&mut batch.events[0].checkpoint);
     batch.events[0].position = Some(2);
-    batch.events[0].document_id = "missing".to_owned();
+    "missing".clone_into(&mut batch.events[0].document_id);
     batch.events[0].payload = None;
     batch
 }

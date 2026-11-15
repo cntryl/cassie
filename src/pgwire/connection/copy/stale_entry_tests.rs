@@ -401,7 +401,7 @@ fn should_reject_copy_predicate_after_savepoint_restoration() {
         })) if message == "COPY owner no longer matches the active transaction"
     ));
     assert_eq!(next.rows(), &[vec![Value::Int64(1)]]);
-    assert_eq!(rows.rows(), []);
+    assert_eq!(rows.rows(), &[] as &[Vec<Value>]);
 }
 
 #[test]
@@ -586,7 +586,7 @@ fn should_reject_copy_binding_across_savepoint_restore() {
         message,
     }) if message == "COPY owner no longer matches the active transaction"));
     assert_eq!(first.rows(), &[vec![Value::Int64(1)]]);
-    assert_eq!(before.rows(), []);
+    assert_eq!(before.rows(), &[] as &[Vec<Value>]);
     assert!(matches!(fresh, Ok(ref completion) if completion.command == "COPY 1"));
     assert_eq!(current.rows(), &[vec![Value::Int64(2)]]);
     assert_eq!(rows.rows(), &[vec![Value::Int64(41)]]);

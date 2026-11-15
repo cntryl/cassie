@@ -199,6 +199,8 @@ fn reject_duplicate_alias<'a>(
 pub(super) struct Source {
     table: String,
     columns: Vec<(String, DataType)>,
+    /// Columns declared with a domain; a domain is not an eligible key type.
+    domain_columns: Vec<String>,
     constraints: Vec<crate::catalog::FieldConstraint>,
     indexes: Vec<crate::catalog::IndexMeta>,
 }
@@ -208,6 +210,12 @@ impl Source {
     pub(super) fn of_table(cassie: &Cassie, canonical: &str) -> Option<Self> {
         let schema = cassie.catalog.get_schema(canonical)?;
         Some(Self {
+            domain_columns: schema
+                .fields
+                .iter()
+                .filter(|field| field.domain.is_some())
+                .map(|field| field.name.clone())
+                .collect(),
             columns: schema
                 .fields
                 .iter()
@@ -250,6 +258,28 @@ impl Source {
                 ),
             ));
         }
+        // A derived relation is dropped and rebuilt by its owner, outside the
+        // table lifecycle a graph can guard.
+        let materialized = cassie
+            .catalog
+            .get_projection_metadata(&canonical)
+            .is_some_and(|projection| {
+                projection.kind == crate::catalog::ProjectionKind::Materialized
+            });
+        let rollup_output = cassie
+            .catalog
+            .list_rollups()
+            .iter()
+            .any(|rollup| rollup.output_collection.eq_ignore_ascii_case(&canonical));
+        if materialized || rollup_output {
+            return Err(diagnostic(
+                UNSUPPORTED,
+                format!(
+                    "property graphs can map only tables; \"{}\" is a derived relation",
+                    table.as_str()
+                ),
+            ));
+        }
         Self::of_table(cassie, &canonical).ok_or_else(|| {
             QueryError::Cassie(crate::app::CassieError::CatalogObjectNotFound {
                 kind: crate::app::CatalogObjectKind::Relation,
@@ -277,14 +307,15 @@ impl Source {
         let mut key = Vec::with_capacity(names.len());
         for name in names {
             let (name, data_type) = self.column(alias, name)?;
-            if !matches!(
+            let eligible = matches!(
                 data_type,
                 DataType::SmallInt
                     | DataType::Int
                     | DataType::BigInt
                     | DataType::Text
                     | DataType::Uuid
-            ) {
+            ) && !self.domain_columns.contains(&name);
+            if !eligible {
                 return Err(diagnostic(
                     UNSUPPORTED,
                     format!(
@@ -315,10 +346,10 @@ impl Source {
         Ok(key)
     }
 
-    fn is_not_null(&self, column: &str) -> bool {
+    pub(super) fn is_not_null(&self, column: &str) -> bool {
         self.constraints.iter().any(|constraint| {
             constraint.field.eq_ignore_ascii_case(column)
-                && (constraint.not_null || constraint.primary_key_ordinal.is_some())
+                && (constraint.not_null || constraint.primary_key)
         })
     }
 
@@ -351,7 +382,9 @@ impl Source {
                     .map(|(_, field)| field)
                     .collect::<Vec<_>>()
             };
-        let primary = ordered(|constraint| constraint.primary_key_ordinal, &|_| true);
+        let primary = ordered(|constraint| constraint.primary_key_ordinal, &|constraint| {
+            constraint.primary_key
+        });
         if !primary.is_empty() && same(&primary) {
             return true;
         }
@@ -365,7 +398,7 @@ impl Source {
         if unique_names.into_iter().any(|name| {
             same(&ordered(
                 |constraint| constraint.unique_ordinal,
-                &|constraint| constraint.unique_name.as_deref() == Some(name),
+                &|constraint| constraint.unique && constraint.unique_name.as_deref() == Some(name),
             ))
         }) {
             return true;
@@ -386,6 +419,7 @@ impl Source {
                 index.fields.iter().map(String::as_str).collect()
             };
             index.unique
+                && index.kind == crate::catalog::IndexKind::Scalar
                 && index.predicate.is_none()
                 && index.expressions.is_empty()
                 && same(&fields)

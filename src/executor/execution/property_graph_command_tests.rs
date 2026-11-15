@@ -272,12 +272,26 @@ fn should_reject_unsupported_key_types_or_view_sources() {
     .expect("view");
 
     // Act
+    for sql in [
+        "CREATE MATERIALIZED VIEW people_copy AS SELECT id, name FROM people",
+        "CREATE DOMAIN person_id AS BIGINT",
+        "CREATE TABLE by_domain (id person_id PRIMARY KEY)",
+        "CREATE TABLE by_float (id DOUBLE PRECISION PRIMARY KEY)",
+    ] {
+        run(&cassie, &session, sql).expect("setup");
+    }
     let key_type = state(&cassie, &session, &vertex_graph("flags", "id", ""));
     let view = state(&cassie, &session, &vertex_graph("people_view", "id", ""));
+    let materialized = state(&cassie, &session, &vertex_graph("people_copy", "id", ""));
+    let domain = state(&cassie, &session, &vertex_graph("by_domain", "id", ""));
+    let float = state(&cassie, &session, &vertex_graph("by_float", "id", ""));
 
     // Assert
     assert_eq!(key_type, "0A000");
     assert_eq!(view, "0A000");
+    assert_eq!(materialized, "0A000");
+    assert_eq!(domain, "0A000");
+    assert_eq!(float, "0A000");
 }
 
 #[test]

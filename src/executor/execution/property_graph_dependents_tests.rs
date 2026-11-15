@@ -409,3 +409,25 @@ fn should_reject_a_schema_cascade_that_would_orphan_an_outside_graph() {
     assert!(graph(&cassie, "net.inner_graph").is_some());
     assert!(graph(&cassie, "outside").is_some());
 }
+
+#[test]
+fn should_reject_dropping_a_primary_key_that_keeps_a_mapped_key_not_null() {
+    // Arrange
+    let (cassie, session) = keyed(
+        "CREATE TABLE codes (code TEXT, CONSTRAINT codes_pk PRIMARY KEY (code))",
+        &[
+            "CREATE UNIQUE INDEX codes_code_spare ON codes (code)",
+            LINKS,
+        ],
+    );
+
+    // Act
+    let nullable = state(
+        &cassie,
+        &session,
+        "ALTER TABLE codes DROP CONSTRAINT codes_pk",
+    );
+
+    // Assert
+    assert_eq!(nullable, "2BP01");
+}

@@ -143,8 +143,8 @@ pub(super) fn reject_key_nullable(
     Err(dependency_error(&subject, &graphs, false))
 }
 
-/// Rejects a constraint or index removal that would leave a mapped key without
-/// a non-partial unique key on exactly its columns. `constraints` is the
+/// Rejects a constraint or index removal that would leave a mapped key nullable
+/// or without a non-partial unique key on exactly its columns. `constraints` is the
 /// table's constraint set after the removal; `dropped_indexes` no longer count.
 pub(super) fn reject_unbacked_keys(
     cassie: &Cassie,
@@ -162,15 +162,15 @@ pub(super) fn reject_unbacked_keys(
     source.replace_constraints(constraints.to_vec());
     source.forget_indexes(dropped_indexes);
     graphs.retain(|graph| {
-        mapped_keys(graph, &canonical)
-            .iter()
-            .any(|key| !source.has_unique_key(key))
+        mapped_keys(graph, &canonical).iter().any(|key| {
+            !source.has_unique_key(key) || key.iter().any(|part| !source.is_not_null(&part.name))
+        })
     });
     if graphs.is_empty() {
         return Ok(());
     }
     let subject = format!(
-        "the unique key of table {}",
+        "the key of table {}",
         crate::catalog::local_name(&canonical)
     );
     Err(dependency_error(&subject, &graphs, false))

@@ -215,7 +215,19 @@ fn should_hide_a_graph_from_a_role_that_cannot_read_every_mapped_table() {
             .collect::<Vec<_>>()
     };
 
+    for sql in [
+        "CREATE ROLE outsider LOGIN PASSWORD 'outsider-secret'",
+        "GRANT SELECT ON TABLE public.people TO outsider",
+        "GRANT SELECT ON TABLE public.follows TO outsider",
+    ] {
+        cassie.execute_sql(&root, sql, vec![]).expect("grant");
+    }
+    let outsider = cassie
+        .authenticate_role("outsider", Some("outsider-secret"), None)
+        .expect("outsider login");
+
     // Act
+    let without_schema_usage = count(&outsider);
     let partial = count(&reader);
     cassie
         .execute_sql(
@@ -228,6 +240,7 @@ fn should_hide_a_graph_from_a_role_that_cannot_read_every_mapped_table() {
     let admin = count(&root);
 
     // Assert
+    assert_eq!(without_schema_usage, vec![0; 8]);
     assert_eq!(partial, vec![0; 8]);
     assert_eq!(full, admin);
     assert_eq!(admin, vec![1, 2, 3, 2, 3, 3, 4, 2]);

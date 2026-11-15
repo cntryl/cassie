@@ -97,8 +97,11 @@ impl CassieSession {
                 "DEFERRABLE REPEATABLE READ is unsupported".to_owned(),
             ));
         }
-        let session_state = self.session_state_snapshot();
         let mut transaction = self.transaction.lock();
+        // Snapshot under the transaction mutex. Retirement restores session
+        // state under the same mutex, so a new transaction never captures the
+        // previous transaction's `SET LOCAL` values.
+        let session_state = self.session_state_snapshot();
         if transaction.status == SessionTransactionStatus::Failed
             || (transaction.status != SessionTransactionStatus::Idle && !transaction.implicit)
         {
@@ -366,7 +369,11 @@ impl CassieSession {
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
         transaction.projection_write = Arc::default();
-        drop(transaction);
+        // Retire everything the transaction owned before releasing the mutex.
+        // BEGIN needs this mutex, so no later transaction can start, attach a
+        // schema context, declare a cursor or snapshot settings until the old
+        // transaction's cleanup is complete (#1290). These are in-memory
+        // operations; no storage work runs under the mutex.
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
             waits.release_owner(unique_owner_id);
@@ -378,6 +385,9 @@ impl CassieSession {
                 settings.restore_from(&name, &state.settings);
             }
         }
+        #[cfg(test)]
+        retirement_tests::observe_retirement(self);
+        drop(transaction);
     }
 
     /// `SET LOCAL`: applies a setting until the transaction ends. Outside a
@@ -419,7 +429,7 @@ impl CassieSession {
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.local_settings.clear();
         transaction.projection_write = Arc::default();
-        drop(transaction);
+        // See `commit_transaction`: cleanup completes before the mutex is released.
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
             waits.release_owner(unique_owner_id);
@@ -428,8 +438,15 @@ impl CassieSession {
             self.restore_session_state(session_state);
         }
         self.end_transaction_objects(false);
+        #[cfg(test)]
+        retirement_tests::observe_retirement(self);
+        drop(transaction);
     }
 }
+
+#[cfg(test)]
+#[path = "retirement_tests.rs"]
+mod retirement_tests;
 
 #[cfg(test)]
 mod tests {

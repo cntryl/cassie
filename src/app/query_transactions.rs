@@ -222,6 +222,9 @@ impl Cassie {
         let _publication_controls =
             crate::midge::adapter::PublicationControlScope::enter(Some(controls));
         self.ensure_commit_admissible(session)?;
+        // Freeze the writes and declared mode COMMIT is about to capture. A
+        // statement fork that finishes later is rejected, not waited for.
+        let _commit_seal = session.seal_transaction_for_commit();
         let (storage_overlay, _sequence_buffers, _sequence_directory) = session
             .transaction_storage_overlay_snapshot()
             .with_sequence_cursors(controls)?;

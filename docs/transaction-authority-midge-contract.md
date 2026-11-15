@@ -1,6 +1,6 @@
 # Transaction authority within Midge as published
 
-Status: **selected design; section 1 and the first increment of section 2 implemented, the rest not**. This document selects how the
+Status: **selected design; sections 1 and 3 and the first increment of section 2 implemented; the per-transaction cell, outcome handling and reserved-key documentation are not**. This document selects how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
 [#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
@@ -132,10 +132,15 @@ effects are staged, nothing a late fork does is durable, so there is nothing to
 drain. This removes the self-wait, lock-order and async-reactor-stall hazards
 that #1279 lists for a draining COMMIT.
 
+**Implemented for #1279.** COMMIT seals the transaction before capturing its
+writes; a later fork publication and a later mode declaration are rejected, and
+a failed COMMIT that leaves the transaction open releases the seal.
+Transactional `COPY ... FROM` no longer promotes a declared transaction.
+
 Replayable transactional COPY becomes a consequence of this: COPY rows are
 staged like any other rows, so a declared transaction that stages only rows and
 its checkpoint can keep the replayable policy once COPY's fork is bound to the
-cell. Until that binding exists COPY keeps promoting to strict.
+cell. 
 
 ### 4. Outcomes and cancellation
 

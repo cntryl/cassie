@@ -156,6 +156,7 @@ impl CassieSession {
         transaction.session_state = Some(session_state);
         transaction.local_settings.clear();
         transaction.projection_write = Arc::default();
+        transaction.sealed_for_commit = false;
         if let Some(authority) = authority {
             authority.adopt_start(self, &transaction);
         }
@@ -369,6 +370,7 @@ impl CassieSession {
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
         transaction.projection_write = Arc::default();
+        transaction.sealed_for_commit = false;
         // Retire everything the transaction owned before releasing the mutex.
         // BEGIN needs this mutex, so no later transaction can start, attach a
         // schema context, declare a cursor or snapshot settings until the old
@@ -388,6 +390,24 @@ impl CassieSession {
         #[cfg(test)]
         retirement_tests::observe_retirement(self);
         drop(transaction);
+    }
+
+    /// Seals the active transaction for COMMIT. From here its captured writes
+    /// and declared projection write mode cannot change through a statement
+    /// fork or a new declaration. The seal is released when the returned guard
+    /// drops, which matters only if COMMIT fails and leaves the transaction open.
+    pub(crate) fn seal_transaction_for_commit(&self) -> CommitSeal<'_> {
+        let mut transaction = self.transaction.lock();
+        let sealed = transaction.status == SessionTransactionStatus::InTransaction
+            && !transaction.sealed_for_commit;
+        if sealed {
+            transaction.sealed_for_commit = true;
+        }
+        CommitSeal {
+            session: self,
+            generation: transaction.generation,
+            sealed,
+        }
     }
 
     /// `SET LOCAL`: applies a setting until the transaction ends. Outside a
@@ -429,6 +449,7 @@ impl CassieSession {
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.local_settings.clear();
         transaction.projection_write = Arc::default();
+        transaction.sealed_for_commit = false;
         // See `commit_transaction`: cleanup completes before the mutex is released.
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
@@ -444,9 +465,34 @@ impl CassieSession {
     }
 }
 
+/// Releases a commit seal when COMMIT ends without retiring the transaction.
+pub(crate) struct CommitSeal<'a> {
+    session: &'a CassieSession,
+    generation: u64,
+    sealed: bool,
+}
+
+impl Drop for CommitSeal<'_> {
+    fn drop(&mut self) {
+        if !self.sealed {
+            return;
+        }
+        let mut transaction = self.session.transaction.lock();
+        // A successful COMMIT already reset the state, and a later transaction
+        // has a new generation; only the still-open sealed one is unsealed.
+        if transaction.generation == self.generation {
+            transaction.sealed_for_commit = false;
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "retirement_tests.rs"]
 mod retirement_tests;
+
+#[cfg(test)]
+#[path = "commit_seal_tests.rs"]
+mod commit_seal_tests;
 
 #[cfg(test)]
 mod tests {

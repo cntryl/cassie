@@ -117,6 +117,9 @@ struct SessionTransactionState {
     /// Declared projection write mode and sticky effect history, shared with
     /// every statement fork of this transaction.
     projection_write: Arc<projection_write::ProjectionWriteAuthority>,
+    /// Set while COMMIT owns the transaction: its writes and declared mode are
+    /// frozen, and a statement fork can no longer publish into it (#1279).
+    sealed_for_commit: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -286,6 +289,7 @@ impl CassieSession {
                 session_state: None,
                 local_settings: Vec::new(),
                 projection_write: Arc::default(),
+                sealed_for_commit: false,
             })),
             transaction_unique_waits: Arc::default(),
             owns_transaction_lifecycle: true,

@@ -76,7 +76,8 @@ fn main() {
     let measured_start = Instant::now();
     for batch in inputs {
         let start = Instant::now();
-        let (report, commits) = observe_native_commits(|| cassie.replay_projection_batch(batch));
+        let (report, commits) =
+            observe_native_commits(|| cassie.replay_projection_batch_strict(batch));
         let elapsed_ns = start.elapsed().as_nanos();
         let report = report.expect("replay batch");
         assert_eq!(

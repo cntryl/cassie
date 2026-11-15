@@ -44,8 +44,8 @@ fn should_use_buffered_wal_for_default_replay() {
 
     // Assert
     assert_eq!(result.unwrap().applied_event_count, 1);
-    assert!(writes.local_buffered > 0);
-    assert_eq!(writes.best_effort, 0);
+    assert!(writes.local_buffered_attempts > 0);
+    assert_eq!(writes.best_effort_attempts, 0);
     assert_eq!(
         cassie
             .midge
@@ -69,9 +69,9 @@ fn should_use_synchronous_wal_for_strict_replay() {
 
     // Assert
     assert_eq!(result.unwrap().applied_event_count, 1);
-    assert!(writes.local_sync > 0);
-    assert_eq!(writes.local_buffered, 0);
-    assert_eq!(writes.best_effort, 0);
+    assert!(writes.local_sync_attempts > 0);
+    assert_eq!(writes.local_buffered_attempts, 0);
+    assert_eq!(writes.best_effort_attempts, 0);
     assert_eq!(
         cassie
             .midge
@@ -104,10 +104,10 @@ fn should_use_replayable_policy_for_metadata_only_batches() {
     // Assert
     assert_eq!(empty_result.unwrap().applied_event_count, 0);
     assert_eq!(duplicate_result.unwrap().skipped_duplicate_count, 1);
-    assert!(empty_writes.local_buffered > 0);
-    assert!(duplicate_writes.local_buffered > 0);
-    assert_eq!(empty_writes.best_effort, 0);
-    assert_eq!(duplicate_writes.best_effort, 0);
+    assert!(empty_writes.local_buffered_attempts > 0);
+    assert!(duplicate_writes.local_buffered_attempts > 0);
+    assert_eq!(empty_writes.best_effort_attempts, 0);
+    assert_eq!(duplicate_writes.best_effort_attempts, 0);
 }
 
 #[test]
@@ -130,8 +130,8 @@ fn should_use_strict_policy_for_metadata_only_batches() {
     // Assert
     assert_eq!(empty_result.unwrap().applied_event_count, 0);
     assert_eq!(duplicate_result.unwrap().skipped_duplicate_count, 1);
-    assert!(empty_writes.local_sync > 0);
-    assert!(duplicate_writes.local_sync > 0);
-    assert_eq!(empty_writes.local_buffered, 0);
-    assert_eq!(duplicate_writes.local_buffered, 0);
+    assert!(empty_writes.local_sync_attempts > 0);
+    assert!(duplicate_writes.local_sync_attempts > 0);
+    assert_eq!(empty_writes.local_buffered_attempts, 0);
+    assert_eq!(duplicate_writes.local_buffered_attempts, 0);
 }

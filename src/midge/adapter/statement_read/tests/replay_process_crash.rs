@@ -24,11 +24,15 @@ const RECOVERY_DEADLINE: Duration = Duration::from_secs(90);
 const LEASE_RECHECK_INTERVAL: Duration = Duration::from_millis(250);
 const BEFORE_TEST: &str = "midge::adapter::statement_read::tests::replay_process_crash::should_recover_previous_replay_after_process_death_before_commit";
 const AFTER_TEST: &str = "midge::adapter::statement_read::tests::replay_process_crash::should_recover_acknowledged_replay_after_process_death";
+const BUFFERED_BEFORE_TEST: &str = "midge::adapter::statement_read::tests::replay_process_crash::should_recover_prior_state_after_buffered_replay_process_death_before_commit";
+const BUFFERED_AFTER_TEST: &str = "midge::adapter::statement_read::tests::replay_process_crash::should_reconcile_buffered_replay_after_acknowledged_process_death";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Boundary {
     BeforeCommit,
     AfterAcknowledgment,
+    BufferedBeforeCommit,
+    BufferedAfterAcknowledgment,
 }
 
 impl Boundary {
@@ -36,13 +40,24 @@ impl Boundary {
         match self {
             Self::BeforeCommit => "before_commit",
             Self::AfterAcknowledgment => "after_acknowledgment",
+            Self::BufferedBeforeCommit => "buffered_before_commit",
+            Self::BufferedAfterAcknowledgment => "buffered_after_acknowledgment",
         }
+    }
+
+    const fn replayable(self) -> bool {
+        matches!(
+            self,
+            Self::BufferedBeforeCommit | Self::BufferedAfterAcknowledgment
+        )
     }
 
     const fn test_name(self) -> &'static str {
         match self {
             Self::BeforeCommit => BEFORE_TEST,
             Self::AfterAcknowledgment => AFTER_TEST,
+            Self::BufferedBeforeCommit => BUFFERED_BEFORE_TEST,
+            Self::BufferedAfterAcknowledgment => BUFFERED_AFTER_TEST,
         }
     }
 }
@@ -158,7 +173,7 @@ fn create_baseline(path: &Path) -> String {
         .midge
         .canonical_collection_name("replay_process_death");
     let first = cassie
-        .replay_projection_batch(replay_batch(&projection, 1, "before"))
+        .replay_projection_batch_strict(replay_batch(&projection, 1, "before"))
         .expect("commit initial projection");
     assert_eq!(first.applied_event_count, 1);
     cassie.shutdown();
@@ -257,6 +272,18 @@ fn emit_marker_and_wait(boundary: Boundary) -> ! {
     panic!("parent unexpectedly resumed the replay child");
 }
 
+fn run_replay(
+    cassie: &Cassie,
+    batch: ProjectionReplayBatch,
+    replayable: bool,
+) -> Result<crate::app::ProjectionReplayReport, CassieError> {
+    if replayable {
+        cassie.replay_projection_batch(batch)
+    } else {
+        cassie.replay_projection_batch_strict(batch)
+    }
+}
+
 fn child_main(boundary: Boundary) -> ! {
     assert_eq!(std::env::var(CHILD_CASE).as_deref(), Ok(boundary.label()));
     let path = PathBuf::from(std::env::var_os(CHILD_PATH).expect("child storage path"));
@@ -266,7 +293,7 @@ fn child_main(boundary: Boundary) -> ! {
         .canonical_collection_name("replay_process_death");
     let batch = replay_batch(&projection, 2, "after");
     match boundary {
-        Boundary::BeforeCommit => {
+        Boundary::BeforeCommit | Boundary::BufferedBeforeCommit => {
             let _guard = schema_write_conflict_test_guard();
             let ready = Arc::new(Barrier::new(2));
             let resume = Arc::new(Barrier::new(2));
@@ -278,17 +305,15 @@ fn child_main(boundary: Boundary) -> ! {
             let writer = Arc::clone(&cassie);
             let _writer = std::thread::spawn(move || {
                 let _worker = schema_write_conflict_worker_guard();
-                writer
-                    .replay_projection_batch(batch)
+                run_replay(&writer, batch, boundary.replayable())
                     .expect("replay should remain paused before commit");
             });
             ready.wait();
             emit_marker_and_wait(boundary);
         }
-        Boundary::AfterAcknowledgment => {
-            let report = cassie
-                .replay_projection_batch(batch)
-                .expect("acknowledge replay");
+        Boundary::AfterAcknowledgment | Boundary::BufferedAfterAcknowledgment => {
+            let report =
+                run_replay(&cassie, batch, boundary.replayable()).expect("acknowledge replay");
             assert_eq!(report.applied_event_count, 1);
             emit_marker_and_wait(boundary);
         }
@@ -353,21 +378,23 @@ fn prepare_process_death(boundary: Boundary) -> (OwnedDataDir, String) {
     (directory, projection)
 }
 
-fn assert_retry_reconciles(recovered: Cassie, projection: &str, expected_position: u64) {
+fn assert_retry_reconciles(
+    recovered: Cassie,
+    projection: &str,
+    expected_position: u64,
+    replayable: bool,
+) {
     assert_recovered_state(&recovered, projection, expected_position);
     let second = replay_batch(projection, 2, "after");
-    let retry = recovered
-        .replay_projection_batch(second.clone())
-        .expect("reconcile recovered checkpoint");
+    let retry =
+        run_replay(&recovered, second.clone(), replayable).expect("reconcile recovered checkpoint");
     assert_eq!(retry.applied_event_count, u64::from(expected_position == 1));
     assert_eq!(
         retry.skipped_duplicate_count,
         u64::from(expected_position == 2)
     );
     assert_recovered_state(&recovered, projection, 2);
-    let duplicate = recovered
-        .replay_projection_batch(second)
-        .expect("retry same batch again");
+    let duplicate = run_replay(&recovered, second, replayable).expect("retry same batch again");
     assert_eq!(duplicate.applied_event_count, 0);
     assert_eq!(duplicate.skipped_duplicate_count, 1);
     assert_recovered_state(&recovered, projection, 2);
@@ -385,7 +412,7 @@ fn should_recover_previous_replay_after_process_death_before_commit() {
     let recovered = recover_after_writer_lease(&directory.0);
 
     // Assert
-    assert_retry_reconciles(recovered, &projection, 1);
+    assert_retry_reconciles(recovered, &projection, 1, false);
 }
 
 #[test]
@@ -398,7 +425,7 @@ fn should_recover_acknowledged_replay_after_process_death() {
     let recovered = recover_after_writer_lease(&directory.0);
 
     // Assert
-    assert_retry_reconciles(recovered, &projection, 2);
+    assert_retry_reconciles(recovered, &projection, 2, false);
 }
 
 #[test]
@@ -418,4 +445,41 @@ fn should_retry_only_the_writer_lease_held_error_during_recovery() {
 
     // Assert
     assert_eq!(retry, [true, false, false, false]);
+}
+
+#[test]
+fn should_recover_prior_state_after_buffered_replay_process_death_before_commit() {
+    // Arrange
+    let (directory, projection) = prepare_process_death(Boundary::BufferedBeforeCommit);
+
+    // Act
+    kill_at_boundary(&directory.0, Boundary::BufferedBeforeCommit);
+    let recovered = recover_after_writer_lease(&directory.0);
+
+    // Assert
+    assert_retry_reconciles(recovered, &projection, 1, true);
+}
+
+#[test]
+fn should_reconcile_buffered_replay_after_acknowledged_process_death() {
+    // Arrange
+    let (directory, projection) = prepare_process_death(Boundary::BufferedAfterAcknowledgment);
+
+    // Act
+    kill_at_boundary(&directory.0, Boundary::BufferedAfterAcknowledgment);
+    let recovered = recover_after_writer_lease(&directory.0);
+    let position = recovered
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap()
+        .source_position
+        .unwrap();
+
+    // Assert
+    assert!(
+        position == 1 || position == 2,
+        "unexpected recovered position {position}"
+    );
+    assert_retry_reconciles(recovered, &projection, position, true);
 }

@@ -47,18 +47,19 @@ impl Midge {
 }
 
 #[cfg(feature = "replay-benchmark-observation")]
-/// Calls to Midge's native commit on the observing thread only.
+/// Native commit calls on the observing thread. Per-policy counters count
+/// attempts, including failed or outcome-unknown calls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub struct NativeCommitObservation {
     pub attempted: u64,
     pub succeeded: u64,
     pub failed: u64,
     pub outcome_unknown: u64,
-    pub local_sync: u64,
-    pub local_buffered: u64,
-    pub cloud_async: u64,
-    pub cloud_strict: u64,
-    pub best_effort: u64,
+    pub local_sync_attempts: u64,
+    pub local_buffered_attempts: u64,
+    pub cloud_async_attempts: u64,
+    pub cloud_strict_attempts: u64,
+    pub best_effort_attempts: u64,
 }
 
 #[cfg(feature = "replay-benchmark-observation")]
@@ -108,11 +109,11 @@ pub(super) fn observe_native_commit<T>(
         if let Some(mut observed) = commits.get() {
             observed.attempted = observed.attempted.saturating_add(1);
             let count = match options.policy() {
-                cntryl_midge::DurabilityPolicy::Sync => &mut observed.local_sync,
-                cntryl_midge::DurabilityPolicy::Buffered => &mut observed.local_buffered,
-                cntryl_midge::DurabilityPolicy::CloudAsync => &mut observed.cloud_async,
-                cntryl_midge::DurabilityPolicy::CloudStrict => &mut observed.cloud_strict,
-                cntryl_midge::DurabilityPolicy::BestEffort => &mut observed.best_effort,
+                cntryl_midge::DurabilityPolicy::Sync => &mut observed.local_sync_attempts,
+                cntryl_midge::DurabilityPolicy::Buffered => &mut observed.local_buffered_attempts,
+                cntryl_midge::DurabilityPolicy::CloudAsync => &mut observed.cloud_async_attempts,
+                cntryl_midge::DurabilityPolicy::CloudStrict => &mut observed.cloud_strict_attempts,
+                cntryl_midge::DurabilityPolicy::BestEffort => &mut observed.best_effort_attempts,
             };
             *count = count.saturating_add(1);
             commits.set(Some(observed));

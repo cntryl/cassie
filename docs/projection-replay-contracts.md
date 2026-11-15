@@ -135,5 +135,7 @@ Do not swap an active projection version after a failed replay solely because a 
   acknowledged replay, including recovered row, scalar index, ledger,
   checkpoint and same-batch retry assertions. These probes are unexecuted; even
   if they pass, process death is not power-loss, buffered-WAL or cloud-durability
-  evidence.
+  evidence. The synchronous cases explicitly call `replay_projection_batch_strict`.
+  Separate buffered precommit and post-acknowledgement process-death cases are
+  authored but unexecuted; a process kill does not model power or cloud-cache loss.
 - `docs/production-readiness.md` records the Stable local projection lifecycle promotion and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that promotion.

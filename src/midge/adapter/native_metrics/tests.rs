@@ -138,9 +138,9 @@ fn should_report_native_commit_attempts_by_selected_policy() {
     // Assert
     assert_eq!(observation.attempted, 5);
     assert_eq!(observation.succeeded, 5);
-    assert_eq!(observation.local_sync, 1);
-    assert_eq!(observation.local_buffered, 1);
-    assert_eq!(observation.cloud_async, 1);
-    assert_eq!(observation.cloud_strict, 1);
-    assert_eq!(observation.best_effort, 1);
+    assert_eq!(observation.local_sync_attempts, 1);
+    assert_eq!(observation.local_buffered_attempts, 1);
+    assert_eq!(observation.cloud_async_attempts, 1);
+    assert_eq!(observation.cloud_strict_attempts, 1);
+    assert_eq!(observation.best_effort_attempts, 1);
 }

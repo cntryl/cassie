@@ -101,14 +101,14 @@ fn should_preserve_atomic_replay_in_durable_snapshots_after_restart() {
     let fixture = ReplayFixture::new(cassie);
     fixture
         .cassie
-        .replay_projection_batch(replay_snapshot_batch(&fixture.projection, 1, 1))
+        .replay_projection_batch_strict(replay_snapshot_batch(&fixture.projection, 1, 1))
         .unwrap();
     let retained = fixture.capture();
     let next = replay_snapshot_batch(&fixture.projection, 2, 2);
     let writer = Arc::clone(&fixture.cassie);
 
     // Act
-    std::thread::spawn(move || writer.replay_projection_batch(next))
+    std::thread::spawn(move || writer.replay_projection_batch_strict(next))
         .join()
         .unwrap()
         .unwrap();
@@ -131,7 +131,7 @@ fn should_preserve_atomic_replay_in_durable_snapshots_after_restart() {
     drop(recovered_snapshot);
     let retry = fixture
         .cassie
-        .replay_projection_batch(replay_snapshot_batch(&fixture.projection, 2, 2))
+        .replay_projection_batch_strict(replay_snapshot_batch(&fixture.projection, 2, 2))
         .unwrap();
     assert_eq!(retry.applied_event_count, 0);
     assert_eq!(retry.skipped_duplicate_count, 1);

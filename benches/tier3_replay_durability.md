@@ -1,7 +1,9 @@
 # Local replay durability evidence
 
-This driver compares a fixed number of newly applied replay batches on fresh,
-independent local stores. It creates the same row table and scalar index in each
+This driver measures a fixed number of newly applied strict replay batches on
+fresh, independent local stores. On source versions before the explicit strict
+replay method existed, the equivalent historical driver calls the then-strict
+`replay_projection_batch` API; record that source change when comparing runs. It creates the same row table and scalar index in each
 run, prepares all inputs before measurement, and uses the replay API's local
 synchronous write policy. Postcommit maintenance remains enabled. Run the
 original two-transaction source and the atomic source with the same benchmark

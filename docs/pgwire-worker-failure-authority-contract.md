@@ -21,6 +21,10 @@ including bound statements, nested execution and implicit standalone DDL. An
 operation adopts its own new transaction and successful savepoint mutation only
 at the existing operation-aware state transition; promotion of an independently
 started implicit transaction and stale epoch changes do not grant authority.
+The nested CALL witness covers the supported idle-session path and verifies a
+present operation authority with no transaction owner. Existing transaction
+semantics reject CALL inside an active block, so that witness does not establish
+nested CALL propagation for an active owner.
 
 When the existing pre-admission recovery checks select the quarantine path,
 its legacy execution and completion remain unchanged. Recovery can also latch

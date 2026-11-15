@@ -381,7 +381,7 @@ fn should_reject_copy_query_target_before_waiting_for_transaction_lock() {
     let holder_flag = std::sync::Arc::clone(&held);
     let holding_session = session.clone();
     let holder = std::thread::spawn(move || {
-        holding_session.hold_transaction_for_test(held_tx, release_rx, holder_flag);
+        holding_session.hold_transaction_for_test(&held_tx, &release_rx, holder_flag);
     });
     held_rx
         .recv_timeout(Duration::from_secs(5))

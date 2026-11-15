@@ -98,10 +98,7 @@ pub(super) fn execute_copy_payload_for_operation(
             (rows, Some(memory))
         }
     };
-    validate_copy_header(cassie, request, statement, &rows)?;
-    if request.header != CopyHeader::None && !rows.is_empty() {
-        rows.remove(0);
-    }
+    validate_and_strip_copy_header(cassie, request, statement, &mut rows)?;
     if let Some(owner) = owner {
         owner.ensure_current_transaction(session, &controls)?;
         #[cfg(test)]
@@ -148,6 +145,19 @@ pub(super) fn execute_copy_payload_for_operation(
         command: format!("COPY {}", result.count),
         notices,
     })
+}
+
+fn validate_and_strip_copy_header(
+    cassie: &Cassie,
+    request: &CopyRequest,
+    statement: &CopyStatement,
+    rows: &mut Vec<Vec<Option<String>>>,
+) -> Result<(), filter::CopyWhereError> {
+    validate_copy_header(cassie, request, statement, rows)?;
+    if request.header != CopyHeader::None && !rows.is_empty() {
+        rows.remove(0);
+    }
+    Ok(())
 }
 
 fn validate_copy_header(

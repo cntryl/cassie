@@ -37,12 +37,11 @@ impl FailureAuthority {
         session: &CassieSession,
         on_contention: impl FnOnce(),
     ) -> Self {
-        let transaction = match session.transaction.try_lock() {
-            Some(transaction) => transaction,
-            None => {
-                on_contention();
-                session.transaction.lock()
-            }
+        let transaction = if let Some(transaction) = session.transaction.try_lock() {
+            transaction
+        } else {
+            on_contention();
+            session.transaction.lock()
         };
         let owner = match transaction.status {
             SessionTransactionStatus::Idle => None,
@@ -117,8 +116,8 @@ impl FailureAuthority {
 impl CassieSession {
     pub(crate) fn hold_transaction_for_test(
         &self,
-        entered: std::sync::mpsc::SyncSender<()>,
-        release: std::sync::mpsc::Receiver<()>,
+        entered: &std::sync::mpsc::SyncSender<()>,
+        release: &std::sync::mpsc::Receiver<()>,
         held: Arc<std::sync::atomic::AtomicBool>,
     ) {
         struct Held(Arc<std::sync::atomic::AtomicBool>);

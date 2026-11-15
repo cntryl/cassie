@@ -30,7 +30,7 @@ fn assert_saturated_request_finishes_before_transaction_unlock(active: bool, can
         // Future test-only seam takes the actual transaction mutex, signals
         // only once held, and waits for release/disconnect without a timeout.
         // The independent process watchdog bounds a faulty implementation.
-        holding_session.hold_transaction_for_test(held_tx, release_rx, holder_flag);
+        holding_session.hold_transaction_for_test(&held_tx, &release_rx, holder_flag);
     });
     held_rx
         .recv_timeout(Duration::from_secs(5))
@@ -136,7 +136,7 @@ fn assert_contended_capture_fails_its_current_owner(case: CaptureCase) {
     let holder_flag = Arc::clone(&held);
     let holding_session = session.clone();
     let holder = std::thread::spawn(move || {
-        holding_session.hold_transaction_for_test(held_tx, release_rx, holder_flag);
+        holding_session.hold_transaction_for_test(&held_tx, &release_rx, holder_flag);
     });
     held_rx
         .recv_timeout(Duration::from_secs(5))
@@ -197,7 +197,7 @@ fn assert_contended_capture_fails_its_current_owner(case: CaptureCase) {
     assert!(held_during_contention);
     match case {
         CaptureCase::Cancellation | CaptureCase::CancellationBeforeDeadline => {
-            assert!(matches!(result, Err(CassieError::QueryCanceled)))
+            assert!(matches!(result, Err(CassieError::QueryCanceled)));
         }
         CaptureCase::Deadline => assert!(matches!(result, Err(CassieError::DeadlineExceeded))),
         CaptureCase::Unsupported => assert!(
@@ -389,7 +389,7 @@ fn assert_explain_timeout_snapshot(initial: &str, changed: &str, expected_deadli
     let holder_flag = Arc::clone(&held);
     let holding_session = session.clone();
     let holder = std::thread::spawn(move || {
-        holding_session.hold_transaction_for_test(held_tx, release_rx, holder_flag);
+        holding_session.hold_transaction_for_test(&held_tx, &release_rx, holder_flag);
     });
     held_rx
         .recv_timeout(Duration::from_secs(5))

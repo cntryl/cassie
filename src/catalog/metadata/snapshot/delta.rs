@@ -23,6 +23,7 @@ pub(super) fn is_transaction_map(name: &str) -> bool {
             | "constraints"
             | "indexes"
             | "graphs"
+            | "property_graphs"
             | "views"
             | "extensions"
             | "composite_types"

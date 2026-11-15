@@ -1,5 +1,8 @@
 use super::super::graphs::GraphEdgeRecord;
-use super::{encoded_u64_component, key, prefix, scoped_key, FAMILY_GRAPH, FAMILY_GRAPH_ADJACENCY};
+use super::{
+    encoded_u64_component, key, prefix, scoped_key, FAMILY_DATABASE_IDENTITY, FAMILY_GRAPH,
+    FAMILY_GRAPH_ADJACENCY, FAMILY_PROPERTY_GRAPH,
+};
 
 const OUTBOUND_EDGE_TYPE: &[u8] = b"OE";
 const INBOUND_EDGE_TYPE: &[u8] = b"IE";
@@ -14,6 +17,21 @@ pub(crate) fn graph_prefix() -> Vec<u8> {
 pub(crate) fn graph_key(name: &str) -> Vec<u8> {
     let normalized = name.trim().to_ascii_lowercase();
     scoped_key(FAMILY_GRAPH, &normalized, &[])
+}
+
+/// Every mapped property graph definition in one database family.
+pub(crate) fn property_graph_prefix() -> Vec<u8> {
+    prefix(FAMILY_PROPERTY_GRAPH, &[])
+}
+
+pub(crate) fn property_graph_key(canonical_name: &str) -> Vec<u8> {
+    let normalized = canonical_name.trim().to_ascii_lowercase();
+    scoped_key(FAMILY_PROPERTY_GRAPH, &normalized, &[])
+}
+
+/// The durable identity of the database that owns a Data family.
+pub(crate) fn database_identity_key() -> Vec<u8> {
+    key(FAMILY_DATABASE_IDENTITY, &[])
 }
 
 pub(crate) fn graph_adjacency_prefix(graph_id: u64) -> Vec<u8> {

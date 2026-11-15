@@ -214,6 +214,15 @@ impl Cassie {
             self.catalog.register_graph(graph);
         }
 
+        let property_graphs = self.midge.list_property_graphs().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list property graphs: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for graph in property_graphs {
+            self.catalog.register_property_graph(graph);
+        }
+
         let sequences = self.midge.list_sequences().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list sequences: {error}"))

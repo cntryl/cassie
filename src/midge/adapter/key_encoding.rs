@@ -35,6 +35,7 @@ pub(super) use graph::{
     graph_outbound_edge_key, graph_outbound_edge_type_key, graph_outbound_edge_type_prefix,
     graph_outbound_prefix, graph_prefix,
 };
+pub(super) use graph::{database_identity_key, property_graph_key, property_graph_prefix};
 pub(super) use hot_indexes::{
     column_batch_collection_prefix, column_batch_field_key, column_batch_index_prefix,
     column_batch_metadata_key, column_batch_row_ids_key, generated_unique_index_reservation_prefix,
@@ -130,6 +131,8 @@ const FAMILY_COLUMN_STORE: &[u8] = b"\x18";
 const FAMILY_ROLLUP: &[u8] = b"rollup";
 const FAMILY_RETENTION: &[u8] = b"retention";
 const FAMILY_GRAPH: &[u8] = b"graph";
+const FAMILY_PROPERTY_GRAPH: &[u8] = b"property-graph";
+const FAMILY_DATABASE_IDENTITY: &[u8] = b"database-identity";
 const FAMILY_GRAPH_ADJACENCY: &[u8] = b"\x16";
 const FAMILY_DATA_EPOCH: &[u8] = b"data-epoch";
 const FAMILY_COLLECTION_GENERATION: &[u8] = b"collection-generation";

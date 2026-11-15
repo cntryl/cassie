@@ -18,6 +18,7 @@ pub(crate) use controlled_name::name_matches_controlled;
 pub(crate) use controlled_name::trim_checked as trim_catalog_name_controlled;
 pub mod function_resolution;
 pub mod graphs;
+pub mod property_graphs;
 pub mod indexes;
 pub mod maintenance;
 pub mod metadata;
@@ -76,6 +77,10 @@ pub use constraints::{
 pub use domain_types::{same_stored_relation, DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
 pub use enum_types::{EnumTypeMeta, ENUM_TYPE_FORMAT_VERSION};
 pub use graphs::GraphMeta;
+pub use property_graphs::{
+    GraphEdgeMeta, GraphEndpointMeta, GraphKeyColumn, GraphLabelMeta, GraphPropertyMeta,
+    GraphVertexMeta, PropertyGraphMeta,
+};
 pub use indexes::{
     ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,
     ColumnBatchRow, ColumnBatchSegmentMeta, IndexKind, IndexMeta,

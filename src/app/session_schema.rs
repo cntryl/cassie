@@ -108,15 +108,17 @@ impl CassieSession {
     pub(crate) fn object_lookup_context(
         &self,
     ) -> Option<(Catalog, crate::sql::binder::BindingContext)> {
+        // Read the transaction's overlay before taking the schema context:
+        // transaction retirement holds the transaction mutex while it retires
+        // the schema context, so the order is always transaction, then context.
+        let overlay = self.transaction_catalog_overlay();
         let context = self.schema_context.lock();
         let scope = context.as_ref()?;
         let database = self
             .current_database()
             .unwrap_or(&scope.default_database)
             .to_string();
-        let catalog = self
-            .transaction_catalog_overlay()
-            .unwrap_or_else(|| scope.catalog.clone());
+        let catalog = overlay.unwrap_or_else(|| scope.catalog.clone());
         let search_path = resolved_search_path(&catalog, &database, self);
         Some((
             catalog,

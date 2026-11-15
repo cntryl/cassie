@@ -1,6 +1,6 @@
 # Transaction authority within Midge as published
 
-Status: **selected design; section 1 implemented, sections 2 to 5 not**. This document selects how the
+Status: **selected design; section 1 and the first increment of section 2 implemented, the rest not**. This document selects how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
 [#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
@@ -102,6 +102,19 @@ discarded, so it cannot fail, reset or clean a newer transaction. Nothing waits
 and no lock is held across native I/O. This generalises the operation-scoped
 failure authority already merged in #1296 and #1299 and the Arc-owned
 projection write authority merged in #1305.
+
+**First increment implemented: atomic retirement.** COMMIT and ROLLBACK now
+complete all cleanup of what the transaction owned (schema context, unique-key
+owner, cursors and `SET LOCAL` or session-state restoration) before releasing
+the session transaction mutex, and BEGIN snapshots session settings under that
+mutex. A later transaction cannot start, attach a schema context, declare a
+cursor or capture the previous transaction's `SET LOCAL` values until the
+previous one is fully retired. The cleanup is in-memory; no storage work runs
+under the mutex. `object_lookup_context` was reordered so the lock order is
+always transaction mutex, then schema context. Jev rated landing this as an
+increment at 0.96 and a remaining hazard at 0.16. It does not replace the cell:
+an operation that outlives its transaction is still stopped by generation,
+epoch and failure-authority checks rather than by ownership of a cell.
 
 Jev's adversarial probability that a hazard remains through state that cannot
 live in the cell is 0.59, so this is the main proof obligation. Session-level

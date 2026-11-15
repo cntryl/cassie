@@ -89,7 +89,7 @@ impl Midge {
     /// Like [`Self::update_sequence`], but retries when a concurrent update to
     /// the same sequence wins the commit, so SQL callers never observe the
     /// storage write conflict that PostgreSQL's `nextval` cannot raise. A
-    /// fenced writer returns its error immediately and must recover its lease.
+    /// fenced writer returns its error immediately without another attempt.
     ///
     /// # Errors
     ///

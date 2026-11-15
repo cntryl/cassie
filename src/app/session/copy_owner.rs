@@ -40,6 +40,34 @@ impl CopyBindingContext {
 }
 
 impl CopyCommandOwner {
+    /// Reject an owner already retired before COPY starts effectful evaluation.
+    /// This check does not fence a concurrent transaction transition afterward.
+    pub(crate) fn ensure_current_transaction(
+        &self,
+        session: &CassieSession,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        loop {
+            controls.check_interruption()?;
+            let Some(transaction) = session.transaction.try_lock_for(Duration::from_millis(2))
+            else {
+                continue;
+            };
+            controls.check_interruption()?;
+            if !std::ptr::eq(self.identity.as_ptr(), Arc::as_ptr(&session.transaction))
+                || transaction.generation != self.generation
+                || session.current_database().unwrap_or(&self.default_database) != self.database
+            {
+                return Err(stale_copy());
+            }
+            return match transaction.status {
+                SessionTransactionStatus::InTransaction => Ok(()),
+                SessionTransactionStatus::Failed => Err(CassieError::failed_transaction()),
+                SessionTransactionStatus::Idle => Err(stale_copy()),
+            };
+        }
+    }
+
     pub(crate) fn lock_catalog<'a>(
         &'a self,
         controls: &QueryExecutionControls,

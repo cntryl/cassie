@@ -1,6 +1,6 @@
 # Atomic implicit transaction origin
 
-This #1279 prerequisite makes the origin of a newly started implicit session
+Issue [#1280](https://github.com/cntryl/cassie/issues/1280) makes the origin of a newly started implicit session
 transaction visible atomically with its status and generation. Another clone of
 the same session must not observe an active transaction as explicit merely
 because implicit initialization has not finished. This fixes the origin

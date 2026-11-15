@@ -369,6 +369,188 @@ impl CassieSession {
 mod tests {
     use super::*;
 
+    fn begin_with_read_only(session: &CassieSession, read_only: bool) {
+        session
+            .begin_transaction_with_modes(
+                None,
+                TransactionModes {
+                    read_only: Some(read_only),
+                    deferrable: None,
+                },
+            )
+            .expect("begin transaction");
+    }
+
+    fn observed_replacement(
+        session: &CassieSession,
+        retire_old: bool,
+    ) -> (Result<(), CassieError>, Option<(bool, bool)>) {
+        let concurrent = session.clone();
+        let (sent, received) = std::sync::mpsc::sync_channel(1);
+        let mut worker = None;
+        let mut transition = None;
+        let result = session.ensure_transaction_writable_observed(|| {
+            worker = Some(std::thread::spawn(move || {
+                let old_failed = concurrent.is_transaction_failed();
+                if retire_old {
+                    concurrent.rollback_transaction();
+                }
+                let started = concurrent
+                    .begin_transaction_with_modes(
+                        None,
+                        TransactionModes {
+                            read_only: Some(false),
+                            deferrable: None,
+                        },
+                    )
+                    .is_ok();
+                sent.send((old_failed, started))
+                    .expect("replacement observed");
+            }));
+            transition = received
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .ok();
+        });
+        worker.expect("replacement worker").join().expect("worker");
+        (result, transition)
+    }
+
+    fn is_read_only_error(result: &Result<(), CassieError>) -> bool {
+        matches!(result, Err(CassieError::Transaction {
+            kind: TransactionErrorKind::ReadOnlyTransaction,
+            message,
+        }) if message == "cannot execute a write in a read-only transaction")
+    }
+
+    #[test]
+    fn should_preserve_replacement_after_read_only_write_check() {
+        // Arrange
+        let session = CassieSession::new("root".to_owned(), None);
+        begin_with_read_only(&session, true);
+
+        // Act
+        let (result, transition) = observed_replacement(&session, true);
+
+        // Assert
+        assert!(is_read_only_error(&result));
+        assert_eq!(transition, Some((true, true)));
+        assert!(session.is_transaction_active());
+        assert!(!session.is_transaction_read_only());
+    }
+
+    #[test]
+    fn should_preserve_new_transaction_after_idle_default_check() {
+        // Arrange
+        let session = CassieSession::new("root".to_owned(), None);
+        session
+            .set_setting("default_transaction_read_only", "on")
+            .expect("read-only default");
+
+        // Act
+        let (result, transition) = observed_replacement(&session, false);
+
+        // Assert
+        assert!(is_read_only_error(&result));
+        assert_eq!(transition, Some((false, true)));
+        assert!(session.is_transaction_active());
+        assert!(!session.is_transaction_read_only());
+    }
+
+    #[test]
+    fn should_fail_current_read_only_transaction_on_write_check() {
+        // Arrange
+        let session = CassieSession::new("root".to_owned(), None);
+        begin_with_read_only(&session, true);
+
+        // Act
+        let result = session.ensure_transaction_writable();
+
+        // Assert
+        assert!(is_read_only_error(&result));
+        assert!(session.is_transaction_failed());
+    }
+
+    #[test]
+    fn should_allow_current_read_write_transaction_on_write_check() {
+        // Arrange
+        let session = CassieSession::new("root".to_owned(), None);
+        begin_with_read_only(&session, false);
+
+        // Act
+        let result = session.ensure_transaction_writable();
+
+        // Assert
+        assert!(result.is_ok());
+        assert!(session.is_transaction_active());
+    }
+
+    #[test]
+    fn should_preserve_failed_read_only_write_check_result() {
+        // Arrange
+        let session = CassieSession::new("root".to_owned(), None);
+        begin_with_read_only(&session, true);
+        session.mark_transaction_failed();
+
+        // Act
+        let result = session.ensure_transaction_writable();
+
+        // Assert
+        assert!(is_read_only_error(&result));
+        assert!(session.is_transaction_failed());
+    }
+
+    #[test]
+    fn should_preserve_failed_read_write_check_result() {
+        // Arrange
+        let session = CassieSession::new("root".to_owned(), None);
+        begin_with_read_only(&session, false);
+        session.mark_transaction_failed();
+
+        // Act
+        let result = session.ensure_transaction_writable();
+
+        // Assert
+        assert!(result.is_ok());
+        assert!(session.is_transaction_failed());
+    }
+
+    #[test]
+    fn should_fail_implicit_read_only_transaction_on_write_check() {
+        // Arrange
+        let session = CassieSession::new("root".to_owned(), None);
+        session
+            .set_setting("default_transaction_read_only", "on")
+            .expect("read-only default");
+        session
+            .begin_implicit_transaction()
+            .expect("implicit begin");
+
+        // Act
+        let result = session.ensure_transaction_writable();
+
+        // Assert
+        assert!(is_read_only_error(&result));
+        assert!(session.is_transaction_failed());
+    }
+
+    #[test]
+    fn should_apply_idle_default_to_write_check() {
+        // Arrange
+        let session = CassieSession::new("root".to_owned(), None);
+        let writable = session.ensure_transaction_writable();
+        session
+            .set_setting("default_transaction_read_only", "on")
+            .expect("read-only default");
+
+        // Act
+        let rejected = session.ensure_transaction_writable();
+
+        // Assert
+        assert!(writable.is_ok());
+        assert!(is_read_only_error(&rejected));
+        assert_eq!(session.transaction_status(), "idle");
+    }
+
     #[test]
     fn should_preserve_read_only_mode_given_statement_fork_when_staged_write_is_attempted() {
         // Arrange

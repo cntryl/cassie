@@ -4,6 +4,8 @@ pub(super) mod enum_value;
 mod jsonb;
 #[path = "codecs/record.rs"]
 pub(super) mod record;
+#[path = "codecs/record_array.rs"]
+pub(super) mod record_array;
 #[path = "codecs/temporal_error.rs"]
 mod temporal_error;
 #[path = "codecs/timetz_error.rs"]

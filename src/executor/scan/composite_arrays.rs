@@ -47,16 +47,45 @@ pub(super) fn from_storage(
         SqlArray::from_nested_json_typed(document, &element_type)
             .map_err(|detail| corrupt(&detail))?
     };
-    let elements = stored
+    typed_records(&stored, descriptor)
+}
+
+/// `array` with every element as a typed `descriptor` record. A stored record
+/// document and record text are both converted; SQL NULL stays NULL.
+///
+/// # Errors
+/// Returns `XX001` for a malformed document and the input error for text that
+/// is not a record of this type.
+pub(crate) fn typed_records(
+    array: &SqlArray,
+    descriptor: &CompositeRef,
+) -> Result<Value, CassieError> {
+    let element_type = DataType::Composite(descriptor.clone());
+    let elements = array
         .elements()
         .iter()
         .map(|element| match element {
             Value::Json(record) => super::try_json_to_typed_value(record, &element_type),
-            Value::String(_) => Err(corrupt("a composite array element is not a record")),
+            Value::String(text) => crate::executor::filter::record_from_text(text, descriptor)
+                .map_err(|error| corrupt(&error.to_string())),
             other => Ok(other.clone()),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    SqlArray::new(stored.dimensions().to_vec(), elements)
+    SqlArray::new(array.dimensions().to_vec(), elements)
         .map(Value::Array)
         .map_err(|detail| corrupt(&detail))
+}
+
+/// Parses PostgreSQL array text whose elements are `descriptor` records.
+///
+/// # Errors
+/// Returns an error when the text is not an array of such records.
+pub(crate) fn from_text(text: &str, descriptor: &CompositeRef) -> Result<Value, CassieError> {
+    let element_type = DataType::Composite(descriptor.clone());
+    let parsed = crate::types::array::parse_sql_text_array(text, &element_type)
+        .map_err(|error| CassieError::ArrayInput(error.to_string()))?;
+    let array = parsed
+        .into_sql_array(&element_type)
+        .map_err(CassieError::ArrayInput)?;
+    typed_records(&array, descriptor)
 }

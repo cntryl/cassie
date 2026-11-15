@@ -124,7 +124,11 @@ cannot cancel an admitted commit. Only the thread running that COMMIT can mark
 the sealed transaction failed, so a refused statement does not change the
 outcome the COMMIT reports. COMMIT's final cleanup retires only the transaction
 it sealed: if another path already ended it, or a later transaction has begun,
-nothing is reset. Rollbacks issued directly by pgwire error handling do not go
+nothing is reset. The committing thread is never refused
+its own transaction control. A failure mark from another thread's statement is
+dropped while the COMMIT is sealed; if that COMMIT then fails and leaves the
+transaction open, the other statement's failure is not recorded on it.
+Rollbacks issued directly by pgwire error handling do not go
 through the SQL statement path and are not refused; the owner check is what
 keeps a later transaction safe in that case.
 

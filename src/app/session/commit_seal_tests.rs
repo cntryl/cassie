@@ -251,3 +251,24 @@ fn should_retire_the_committed_transaction_through_its_seal() {
     assert!(!session.is_transaction_active());
     assert!(!session.is_sealed_for_commit());
 }
+
+#[test]
+fn should_not_refuse_transaction_control_on_the_committing_thread() {
+    // Arrange
+    let (cassie, session) = fixture();
+    run(&cassie, &session, "BEGIN");
+    let seal = session.seal_transaction_for_commit();
+
+    // Act
+    let own_thread = session.is_committing_on_another_thread();
+    let clone = session.clone();
+    let other_thread = std::thread::spawn(move || clone.is_committing_on_another_thread())
+        .join()
+        .unwrap();
+    drop(seal);
+
+    // Assert
+    assert!(!own_thread);
+    assert!(other_thread);
+    run(&cassie, &session, "ROLLBACK");
+}

@@ -73,7 +73,7 @@ impl Cassie {
         // A COMMIT in progress owns the transaction until its native outcome is
         // known. Midge cannot cancel an admitted commit, so competing
         // transaction control is refused immediately instead of waiting.
-        if session.is_sealed_for_commit() {
+        if session.is_committing_on_another_thread() {
             return Err(CassieError::Transaction {
                 kind: TransactionErrorKind::InvalidState,
                 message: "a COMMIT is in progress on this session; retry after it completes"

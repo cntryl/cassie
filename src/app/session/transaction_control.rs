@@ -360,6 +360,14 @@ impl CassieSession {
         self.transaction.lock().sealed_for_commit
     }
 
+    /// Whether a COMMIT running on another thread owns the transaction. The
+    /// committing thread itself is never refused its own transaction control.
+    pub(crate) fn is_committing_on_another_thread(&self) -> bool {
+        let transaction = self.transaction.lock();
+        transaction.sealed_for_commit
+            && transaction.commit_thread != Some(std::thread::current().id())
+    }
+
     fn retire_committed_locked(
         &self,
         mut transaction: parking_lot::MutexGuard<'_, super::SessionTransactionState>,

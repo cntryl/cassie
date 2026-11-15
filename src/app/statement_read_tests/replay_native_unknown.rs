@@ -3,7 +3,7 @@ use crate::app::{ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
 
 #[test]
-fn should_fence_after_native_replay_outcome_unknown_and_reconcile_after_restart() {
+fn should_reconcile_committed_native_unknown_after_restart() {
     // Arrange
     let path = std::env::temp_dir().join(format!(
         "cassie-replay-native-unknown-{}",
@@ -178,7 +178,7 @@ fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
 }
 
 #[test]
-fn should_reconcile_aborted_native_unknown_and_apply_event_once_after_restart() {
+fn should_reconcile_aborted_native_unknown_after_restart() {
     // Arrange
     let path = std::env::temp_dir().join(format!(
         "cassie-replay-aborted-unknown-{}",

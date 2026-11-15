@@ -856,7 +856,9 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Json => "json".to_string(),
         DataType::Jsonb => "jsonb".to_string(),
         DataType::JsonPath => "jsonpath".to_string(),
-        DataType::Array(inner) if matches!(inner.as_ref(), DataType::Enum(_)) => {
+        DataType::Array(inner)
+            if matches!(inner.as_ref(), DataType::Enum(_) | DataType::Composite(_)) =>
+        {
             "ARRAY".to_string()
         }
         DataType::Array(inner) => format!("{}[]", inner.type_name()),

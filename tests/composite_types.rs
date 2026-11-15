@@ -18,6 +18,9 @@ mod row_types;
 #[path = "composite_types/values.rs"]
 mod values;
 
+#[path = "composite_types/arrays.rs"]
+mod arrays;
+
 #[path = "composite_types/records.rs"]
 mod records;
 

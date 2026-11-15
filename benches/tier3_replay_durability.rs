@@ -22,7 +22,8 @@ fn parameter(name: &str, default: usize) -> usize {
 }
 
 fn main() {
-    let mode = ReplayMode::from_environment();
+    let mode = ReplayMode::parse(std::env::var_os("CASSIE_REPLAY_BENCH_MODE").as_deref())
+        .unwrap_or_else(|error| panic!("{error}"));
     let batch_size = parameter("CASSIE_REPLAY_BENCH_BATCH_SIZE", 64);
     let batches = parameter("CASSIE_REPLAY_BENCH_BATCHES", 32);
     let total_events = batches

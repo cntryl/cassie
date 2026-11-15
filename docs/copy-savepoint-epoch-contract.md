@@ -1,7 +1,7 @@
 # COPY bindings across savepoint rollback
 
 Status: #1288 depends on #1286 / PR #1287. The selected contract below is
-unimplemented and unqualified. The child may be prepared from #1287's reviewed
+implemented in the local candidate but unqualified; its regressions have not run. The child may be prepared from #1287's reviewed
 head while its checks run, but must be rebased and reviewed after its prerequisite
 merges. See [the COPY stale-entry contract](copy-stale-entry-contract.md) and
 #1279 for the broader effect-admission work.

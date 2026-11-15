@@ -2,10 +2,10 @@
 
 This child of #1295 / PR #1296 covers only failure completion inside
 `execute_pgwire_query`. The parent merged as
-`42a819108c8fcd6d7e4447ec3ef4e088fb283abe`; this child requires review and
-qualification against that final base before integration.
-The behavior below is selected for implementation; it is not qualified until
-the authored tests and the complete assembly gate execute.
+`42a819108c8fcd6d7e4447ec3ef4e088fb283abe`. The full locked suite passed at
+`11da367a`; affected worker tests, strict Clippy, formatting, touched-test policy
+and inventory passed at `01c39ea5` after test-only semicolon corrections.
+Final-head hosted qualification is pending.
 
 A healthy request retains the existing nonblocking running-query admission,
 including its recovery recheck when the slot is unavailable. The operation
@@ -38,4 +38,5 @@ Synchronized probes must cover an old worker error after replacement, matching
 owner errors and cancellation, own start/promotion and savepoint transitions,
 saturation, timeout and recovery recheck ordering. A test seam must observe
 the actual capture or completion boundary and release any session lock before
-waiting. An authored probe is not observed baseline RED.
+waiting. The bounded probes passed locally; no instrumented baseline RED was
+observed.

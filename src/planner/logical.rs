@@ -112,6 +112,7 @@ pub enum LogicalCommand {
     CallProcedure(crate::sql::ast::CallProcedureStatement),
     Extension(ExtensionStatement),
     Type(TypeStatement),
+    PropertyGraph(crate::sql::ast::PropertyGraphStatement),
     Show(ShowStatement),
     Set(SetStatement),
     Copy(crate::sql::ast::CopyStatement),
@@ -269,7 +270,8 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
         | CatalogStatementRef::DropProcedure(_)
         | CatalogStatementRef::CallProcedure(_)
         | CatalogStatementRef::Extension(_)
-        | CatalogStatementRef::Type(_) => plan_procedure_statement(statement),
+        | CatalogStatementRef::Type(_)
+        | CatalogStatementRef::PropertyGraph(_) => plan_procedure_statement(statement),
         CatalogStatementRef::CreateIndex(_)
         | CatalogStatementRef::DropIndex(_)
         | CatalogStatementRef::AlterIndex(_)
@@ -310,6 +312,11 @@ fn plan_procedure_statement(
             statement.name(),
             "TYPE requires a name",
             LogicalCommand::Type(statement.clone()),
+        ),
+        CatalogStatementRef::PropertyGraph(statement) => plan_named_command(
+            statement.name(),
+            "PROPERTY GRAPH requires a name",
+            LogicalCommand::PropertyGraph(statement.clone()),
         ),
         CatalogStatementRef::CreateProcedure(statement) => plan_named_command(
             &statement.name,

@@ -184,6 +184,8 @@ mod identifiers;
 mod lexical;
 #[path = "parser/merge.rs"]
 mod merge;
+#[path = "parser/property_graph.rs"]
+mod property_graph;
 #[path = "parser/truncate.rs"]
 mod truncate;
 #[path = "parser/type_scope.rs"]
@@ -425,6 +427,9 @@ fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedSta
         || starts_statement(lower, "drop extension")
     {
         return Ok(Some(extensions::parse_extension_statement(trimmed)?));
+    }
+    if let Some(parsed) = property_graph::parse_property_graph_statement(trimmed, lower)? {
+        return Ok(Some(parsed));
     }
     if starts_statement(lower, "create type") {
         return Ok(Some(types::parse_create_type_statement(trimmed)?));

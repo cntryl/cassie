@@ -554,6 +554,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::CallProcedure(_) => "CALL",
         QueryStatement::DropSchema(_) => "DROP SCHEMA",
         QueryStatement::AlterSchema(_) => "ALTER SCHEMA",
+        QueryStatement::PropertyGraph(statement) => statement.action.command_tag(),
         QueryStatement::Type(statement) => match &statement.action {
             TypeAction::Create { .. } | TypeAction::CreateEnum { .. } => "CREATE TYPE",
             TypeAction::Drop { .. } => "DROP TYPE",

@@ -589,6 +589,12 @@ fn bind_catalog_route(
         CatalogStatement::Type(statement) => {
             Ok(parsed_statement(raw_sql, QueryStatement::Type(statement)))
         }
+        // Names, keys and endpoint types are validated against the catalog
+        // when the definition executes, so it stays atomic with publication.
+        CatalogStatement::PropertyGraph(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::PropertyGraph(statement),
+        )),
         statement => bind_catalog_definition_route(statement, catalog, raw_sql, context),
     }
 }
@@ -693,6 +699,7 @@ fn bind_catalog_definition_route(
         | CatalogStatement::AlterIndex(_)
         | CatalogStatement::Extension(_)
         | CatalogStatement::Type(_)
+        | CatalogStatement::PropertyGraph(_)
         | CatalogStatement::Reindex(_) => unreachable!("routine and index routes are extracted"),
     }
 }

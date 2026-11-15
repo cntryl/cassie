@@ -350,7 +350,8 @@ fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
         | QueryStatement::DropSchema(_)
         | QueryStatement::AlterSchema(_)
         | QueryStatement::Extension(_)
-        | QueryStatement::Type(_) => None,
+        | QueryStatement::Type(_)
+        | QueryStatement::PropertyGraph(_) => None,
     }
 }
 

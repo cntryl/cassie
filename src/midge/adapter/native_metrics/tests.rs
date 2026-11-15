@@ -37,6 +37,7 @@ fn should_count_native_commits_only_within_observation_scope() {
 fn should_restore_commit_observer_after_unwind() {
     // Arrange
     let midge = Midge::new_in_memory("postgres").expect("memory engine");
+    midge.ensure_families_ready().expect("bootstrap families");
 
     // Act
     let panic = std::panic::catch_unwind(|| observe_native_commits(|| panic!("injected panic")));
@@ -55,6 +56,7 @@ fn should_restore_commit_observer_after_unwind() {
 fn should_preserve_outer_commit_observer_when_nested_scope_is_rejected() {
     // Arrange
     let midge = Midge::new_in_memory("postgres").expect("memory engine");
+    midge.ensure_families_ready().expect("bootstrap families");
 
     // Act
     let (nested, observation) = observe_native_commits(|| {

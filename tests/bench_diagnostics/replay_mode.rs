@@ -107,7 +107,11 @@ fn should_select_sql_projector_replay_modes() {
 #[test]
 fn should_select_indexed_shape_unless_unindexed_is_requested() {
     // Arrange
-    let inputs = [None, Some(OsStr::new("indexed")), Some(OsStr::new("unindexed"))];
+    let inputs = [
+        None,
+        Some(OsStr::new("indexed")),
+        Some(OsStr::new("unindexed")),
+    ];
 
     // Act
     let actual = inputs.map(|input| Shape::parse(input).map(Shape::label));

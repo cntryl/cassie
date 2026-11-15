@@ -1,6 +1,6 @@
 # Savepoint rollback and detached fork publication
 
-Status: selected narrow #1279 prerequisite; tests and implementation require
+Status: selected #1286 / #1279 prerequisite; tests and implementation require
 review and executable qualification. This is not the transaction admission,
 replayable SQL mode, or full rollback-isolation contract.
 
@@ -20,14 +20,15 @@ The epoch is a checked monotonic in-memory counter, separate from every
 savepoint payload. It is never restored from a savepoint or silently wrapped;
 exhaustion must return an error before cursor pruning or restoration. Missing
 savepoints and ordinary fallible pre-restore cursor-pruning errors must not
-invalidate otherwise valid forks. The source's cursor-pruning routine performs
-its fallible checks before its `retain` mutation, and the parent transaction
-mutex remains held through pruning and epoch advancement. The exact panic/unwind
-ordering still requires review before implementation. Once restoration has begun,
-the epoch remains advanced even if subsequent unique-owner restoration fails
-outside the mutex: the previous fork must not publish into partially restored
-state. This preserves the existing post-restore failure behavior; it does not
-claim that all savepoint restoration is atomic.
+invalidate otherwise valid forks. After target validation and checked addition,
+advance the epoch under the parent mutex before pruning. The source's pruning
+routine performs its ordinary fallible checks before its `retain` mutation;
+restore the prior epoch under that same mutex on those ordinary errors. If
+pruning instead unwinds after mutation, the advanced epoch remains, preventing
+a prior fork from publishing. Once restoration has begun, the epoch also remains
+advanced even if subsequent unique-owner restoration fails outside the mutex:
+the previous fork must not publish into partially restored state. This does not
+claim broader panic recovery or atomic restoration of every session component.
 
 Invalidation is deliberately conservative: every in-flight older fork is
 rejected after rollback-to, including an independent fork begun before an

@@ -15,24 +15,26 @@ pub(in crate::sql::parser) fn parse_data_type(raw: &str) -> Result<DataType, Sql
     }
     let parsed = DataType::parse_sql(raw);
     if parsed.is_err() {
-        // `name[]` of a composite type: the array type row exists, so the
-        // array is an unsupported feature rather than an undefined type.
+        // `name[]` of a composite type. PostgreSQL does not enforce declared
+        // dimensions, so `name[][]` is the same type.
         if let Some(element) = raw.strip_suffix("[]") {
-            if super::super::type_scope::resolve_named_type(element.trim()).is_some() {
-                return Err(SqlError::unsupported(
-                    "arrays of composite types are not supported".into(),
-                ));
+            let mut element = element.trim_end();
+            while let Some(inner) = element.strip_suffix("[]") {
+                element = inner.trim_end();
+            }
+            if let Some(composite) = super::super::type_scope::resolve_named_type(element) {
+                return Ok(DataType::Array(Box::new(DataType::Composite(composite))));
             }
         }
     }
     if let (Err(_), Some(composite)) = (&parsed, super::super::type_scope::resolve_named_type(raw))
     {
-        if is_sql_standard_array {
-            return Err(SqlError::unsupported(
-                "arrays of composite types are not supported".into(),
-            ));
-        }
-        return Ok(DataType::Composite(composite));
+        let composite = DataType::Composite(composite);
+        return Ok(if is_sql_standard_array {
+            DataType::Array(Box::new(composite))
+        } else {
+            composite
+        });
     }
     let data_type = parsed.map_err(|message| {
         if message.starts_with("NUMERIC precision")

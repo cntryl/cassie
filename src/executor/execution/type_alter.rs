@@ -9,7 +9,7 @@
 use super::command_output::empty as empty_command;
 use super::composite_view_rewrite::{rename_field_selections, renamed_type_views};
 use super::type_command::{
-    diagnostic, reject_composite_array, relation_name_occupied, rename_collision,
+    diagnostic, relation_name_occupied, rename_collision,
     set_schema_collision, ROOT_OID,
 };
 use super::type_publish::{publish_change, Altered};
@@ -154,7 +154,6 @@ pub(super) fn alter(
             publish_with_views(cassie, &current, &next, views)?;
         }
         TypeAlteration::AddAttribute { attribute } => {
-            reject_composite_array(&attribute.data_type)?;
             let next = current
                 .with_added_attribute(&attribute.name, attribute.data_type.clone())
                 .map_err(alter_error)?;
@@ -171,7 +170,6 @@ pub(super) fn alter(
             }
         }
         TypeAlteration::AlterAttributeType { name, data_type } => {
-            reject_composite_array(data_type)?;
             let next = current
                 .with_retyped_attribute(name, data_type.clone())
                 .map_err(alter_error)?;

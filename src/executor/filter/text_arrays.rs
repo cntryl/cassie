@@ -35,10 +35,14 @@ pub(super) fn cast(
             }
         },
     )?;
-    parsed
+    let array = parsed
         .into_sql_array(element_type)
-        .map(ScalarValue::Array)
-        .map_err(|message| CassieError::ArrayInput(message).into())
+        .map_err(|message| QueryError::from(CassieError::ArrayInput(message)))?;
+    if matches!(element_type, DataType::Composite(_)) {
+        // Each element is still record text; the composite cast converts it.
+        return cast_elements(&array, element_type);
+    }
+    Ok(ScalarValue::Array(array))
 }
 
 /// Converts every element of an existing array to the target element type,

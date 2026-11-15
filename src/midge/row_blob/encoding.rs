@@ -252,7 +252,8 @@ fn encode_array_value(
         match value_type {
             TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID => out.extend_from_slice(&value_data),
             TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME
-            | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA | TYPE_EXTENDED | TYPE_ENUM => {
+            | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA | TYPE_EXTENDED | TYPE_ENUM
+            | TYPE_COMPOSITE => {
                 write_varint(
                     u64::try_from(value_data.len()).unwrap_or(u64::MAX),
                     &mut out,

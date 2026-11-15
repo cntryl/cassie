@@ -258,3 +258,74 @@ fn should_restore_composite_array_values_after_restart() {
     assert_eq!(plan.as_deref(), Some(r#"(north,"{""(c,2)""}")"#));
     assert_eq!(street.as_deref(), Some("a b"));
 }
+
+#[test]
+fn should_expand_a_composite_array_into_typed_rows() {
+    // Arrange
+    let fixture = fixture("composite_array_unnest");
+    fixture
+        .execute(
+            "INSERT INTO trips (id, stops) VALUES \
+             (1, ARRAY[ROW('a', 1)::address, ROW('b', 2)::address])",
+        )
+        .unwrap();
+
+    // Act
+    let streets = first_column_text(
+        &fixture.rows("SELECT (stop).street FROM trips, unnest(stops) AS stop ORDER BY (stop).zip"),
+    );
+    let literal = first_column_text(&fixture.rows(
+        "SELECT (stop).zip::text FROM unnest('{\"(x,9)\",\"(y,8)\"}'::address[]) AS stop \
+         ORDER BY 1",
+    ));
+
+    // Assert
+    assert_eq!(streets, vec![Some("a".to_owned()), Some("b".to_owned())]);
+    assert_eq!(literal, vec![Some("8".to_owned()), Some("9".to_owned())]);
+}
+
+#[test]
+fn should_search_a_composite_array_with_any() {
+    // Arrange
+    let fixture = fixture("composite_array_any");
+    fixture
+        .execute(
+            "INSERT INTO trips (id, stops) VALUES \
+             (1, ARRAY[ROW('a', 1)::address, ROW('b', 2)::address]), \
+             (2, ARRAY[ROW('c', 3)::address])",
+        )
+        .unwrap();
+
+    // Act
+    let matching = first_column_text(
+        &fixture
+            .rows("SELECT id::text FROM trips WHERE ROW('b', 2)::address = ANY(stops) ORDER BY id"),
+    );
+    let appended = text(
+        &fixture,
+        "SELECT array_length(stops || ARRAY[ROW('z', 9)::address], 1)::text \
+         FROM trips WHERE id = 2",
+    );
+
+    // Assert
+    assert_eq!(matching, vec![Some("1".to_owned())]);
+    assert_eq!(appended.as_deref(), Some("2"));
+}
+
+#[test]
+fn should_convert_a_composite_array_to_json_by_field_name() {
+    // Arrange
+    let fixture = fixture("composite_array_json");
+
+    // Act
+    let json = text(
+        &fixture,
+        "SELECT to_jsonb(ARRAY[ROW('a', 1)::address, NULL])::text",
+    );
+
+    // Assert
+    assert_eq!(
+        json.as_deref(),
+        Some(r#"[{"zip": 1, "street": "a"}, null]"#)
+    );
+}

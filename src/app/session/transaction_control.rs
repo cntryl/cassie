@@ -233,16 +233,6 @@ impl CassieSession {
         Ok(())
     }
 
-    pub(crate) fn is_transaction_read_only(&self) -> bool {
-        let transaction = self.transaction.lock();
-        if transaction.status == SessionTransactionStatus::Idle {
-            drop(transaction);
-            self.default_transaction_read_only()
-        } else {
-            transaction.modes.read_only.unwrap_or(false)
-        }
-    }
-
     pub(super) fn default_transaction_read_only(&self) -> bool {
         self.settings
             .lock()
@@ -466,7 +456,10 @@ mod tests {
         assert!(is_read_only_error(&result));
         assert_eq!(transition, Some((true, true)));
         assert!(session.is_transaction_active());
-        assert!(!session.is_transaction_read_only());
+        assert_eq!(
+            session.transaction_setting("transaction_read_only"),
+            Some("off")
+        );
     }
 
     #[test]
@@ -484,7 +477,10 @@ mod tests {
         assert!(is_read_only_error(&result));
         assert_eq!(transition, Some((false, true)));
         assert!(session.is_transaction_active());
-        assert!(!session.is_transaction_read_only());
+        assert_eq!(
+            session.transaction_setting("transaction_read_only"),
+            Some("off")
+        );
     }
 
     #[test]

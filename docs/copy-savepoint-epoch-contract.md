@@ -1,10 +1,9 @@
 # COPY bindings across savepoint rollback
 
-Status: #1288 depends on #1286 / PR #1287. The selected contract below is
-implemented in the local candidate but unqualified; its regressions have not run. The child may be prepared from #1287's reviewed
-head while its checks run, but must be rebased and reviewed after its prerequisite
-merges. See [the COPY stale-entry contract](copy-stale-entry-contract.md) and
-#1279 for the broader effect-admission work.
+Status: #1286 / PR #1287 merged at `78c6ed77bb600189fa5797d0c58ee28b27e453a7`.
+The #1288 contract below is implemented in the local candidate but unqualified;
+its regressions have not run. See [the COPY stale-entry contract](copy-stale-entry-contract.md)
+and #1279 for the broader effect-admission work.
 
 An active transaction's COPY owner captures the rollback epoch, session identity
 and transaction generation under the same session mutex as its descriptor and

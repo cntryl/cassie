@@ -10,6 +10,9 @@ pub struct BindingContext {
     pub database: String,
     pub search_path: Vec<String>,
     pub enforce_database_scope: bool,
+    /// The database a stored name without a database part resolves to: the
+    /// instance default. `None` when the caller does not know it.
+    pub unqualified_database: Option<String>,
 }
 
 impl Default for BindingContext {
@@ -30,6 +33,7 @@ impl BindingContext {
             database: database.into(),
             search_path: normalize_search_path(search_path),
             enforce_database_scope: true,
+            unqualified_database: None,
         }
     }
 
@@ -39,6 +43,29 @@ impl BindingContext {
             database: database.into(),
             search_path: normalize_search_path(search_path),
             enforce_database_scope: false,
+            unqualified_database: None,
+        }
+    }
+
+    /// Records the instance default database, which bare stored names use.
+    #[must_use]
+    pub fn with_unqualified_database(mut self, database: impl Into<String>) -> Self {
+        self.unqualified_database = Some(database.into());
+        self
+    }
+
+    /// Whether an owned sequence of `bound_table` may keep its legacy bare
+    /// name. A bare name is stored in the instance default database, so it is
+    /// only correct for a table in that database; a table in any other database
+    /// needs a sequence name qualified with its own database.
+    #[must_use]
+    pub fn keeps_bare_sequence_name(&self, bound_table: &str) -> bool {
+        match (
+            self.unqualified_database.as_deref(),
+            crate::catalog::relation_database_name(bound_table),
+        ) {
+            (Some(default), Some(database)) => default.eq_ignore_ascii_case(&database),
+            _ => true,
         }
     }
 

@@ -847,7 +847,8 @@ fn requalify_alter_add_column_sequences(
         crate::catalog::parse_name(source_table.trim()).map_err(CassieError::Planner)?,
         crate::catalog::ParsedName::Unqualified(_)
     ) && crate::catalog::relation_schema_name(bound_table)
-        .eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA);
+        .eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA)
+        && context.keeps_bare_sequence_name(bound_table);
     for constraint in constraints {
         let Some(sequence) = constraint.default_sequence.as_deref() else {
             continue;

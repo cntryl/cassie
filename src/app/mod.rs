@@ -101,8 +101,7 @@ pub use session::CassieSession;
 pub(crate) use session::{
     BoundReadScope, BoundReadView, CommandCatalogScope, CopyBindingContext, CopyCommandOwner,
     SessionRandom, SessionReadScope, SessionTransactionStatus, StagedWriteSnapshot,
-    StatementMutationBatch, StatementOverlay,
-    TransactionConflictIntent, TransactionRowChange,
+    StatementMutationBatch, StatementOverlay, TransactionConflictIntent, TransactionRowChange,
 };
 pub(crate) use session::{
     CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,

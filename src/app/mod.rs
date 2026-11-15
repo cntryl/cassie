@@ -195,17 +195,17 @@ pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayR
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
 
 #[cfg(test)]
-pub(crate) mod query_failure_watchdog;
-#[cfg(test)]
 mod query_failure_admission_tests;
-#[cfg(test)]
-mod query_failure_quarantine_tests;
 #[cfg(test)]
 mod query_failure_basic_tests;
 #[cfg(test)]
 mod query_failure_converted_tests;
 #[cfg(test)]
+mod query_failure_quarantine_tests;
+#[cfg(test)]
 mod query_failure_savepoint_tests;
+#[cfg(test)]
+pub(crate) mod query_failure_watchdog;
 #[cfg(test)]
 mod query_result_cache_key_tests;
 #[cfg(all(test, feature = "replay-benchmark-observation"))]

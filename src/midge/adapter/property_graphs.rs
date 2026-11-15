@@ -53,8 +53,12 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
-        tx.put(key_encoding::property_graph_key(&metadata.name), value, None)
-            .map_err(CassieError::from)
+        tx.put(
+            key_encoding::property_graph_key(&metadata.name),
+            value,
+            None,
+        )
+        .map_err(CassieError::from)
     }
 
     /// Every stored definition, across all databases.

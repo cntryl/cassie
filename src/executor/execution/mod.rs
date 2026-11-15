@@ -167,6 +167,7 @@ mod enum_schema_scope;
 mod enum_view_text;
 mod enum_views;
 mod extension_command;
+mod property_graph_command;
 mod retention;
 mod role_command;
 mod rollups;

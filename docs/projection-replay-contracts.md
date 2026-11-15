@@ -128,19 +128,9 @@ Do not swap an active projection version after a failed replay solely because a 
 
 ## Evidence
 
-- `tests/analytics.rs` module `projection_lifecycle` owns idempotent duplicate skip, out-of-order failed freshness, duplicate event ids inside one batch, restart hydration, atomic rollback of rows with replay metadata, no-op checkpoint advancement, and retry after an uncertain commit. Newly authored atomic replay assertions require execution on the qualified bundle.
-- `src/midge/adapter/statement_read/tests.rs` authors a pinned Data-family snapshot regression for replay rows, scalar index entries, ledger, and stored checkpoint across a concurrent commit. `src/app/statement_read_tests/replay_native_unknown.rs` authors two narrow adapter-seam simulations of `OutcomeUnknown`: one after an actual successful native commit and one after dropping an uncommitted native transaction. They require publication fencing, restart and safe same-batch reconciliation; neither simulates an actual process crash or every native failure mode. The same module also authors a post-commit metadata-read failure and same-batch reconciliation probe. These tests have not been executed.
-- `src/midge/adapter/statement_read/tests/replay_process_crash.rs` authors local
-  child-process kill-and-reopen probes at a precommit boundary and after an
-  acknowledged replay, including recovered row, scalar index, ledger,
-  checkpoint and same-batch retry assertions. These probes are unexecuted; even
-  if they pass, process death is not power-loss, buffered-WAL or cloud-durability
-  evidence. The synchronous cases explicitly call `replay_projection_batch_strict`.
-  Separate buffered precommit and post-acknowledgement process-death cases are
-  authored but unexecuted; a process kill does not model power or cloud-cache loss.
-- Feature-gated replay policy tests observe the first native commit policy and
-  per-policy attempt counts, including cloud-simulated background and strict
-  configuration. These tests are authored but unexecuted; simulated provider
-  policy selection does not qualify real provider acknowledgement or cloud-cache
-  loss recovery.
+- `tests/analytics.rs` module `projection_lifecycle` covers idempotent duplicate skip, out-of-order failed freshness, duplicate event ids inside one batch, restart hydration, atomic rollback of rows with replay metadata, no-op checkpoint advancement, and retry after an uncertain commit. The full locked suite passed on `525e9a96c80dc2ad31e39e0665efbdcc6a44fbae`.
+- `src/midge/adapter/statement_read/tests.rs` covers a pinned Data-family snapshot for replay rows, scalar index entries, ledger, and stored checkpoint across a concurrent commit. The local-storage counterpart in `tests/replay_durable_snapshot.rs` also checks restart and retry. `src/app/statement_read_tests/replay_native_unknown.rs` covers two narrow adapter-seam simulations of `OutcomeUnknown`, before and after native commit, plus a post-commit metadata-read failure. These tests passed on the same head. They do not simulate every native failure mode.
+- `src/midge/adapter/statement_read/tests/replay_process_crash.rs` covers strict and buffered local child-process kill-and-reopen at a precommit boundary and after acknowledgement, including recovered row, scalar index, ledger, checkpoint and same-batch retry assertions. These cases passed on the same head. Process death does not establish power-loss or cloud-cache-loss recovery.
+- Feature-gated replay policy tests passed on the same head and observe the first native commit policy and per-policy attempts, including simulated background and strict cloud configuration. Simulated provider policy selection does not qualify real provider acknowledgement or cloud-cache loss recovery.
+- The local strict-versus-buffered diagnostic benchmark on the same head observed additional strict foreground commit attempts in every buffered run. Replay's selected commit is followed before return by column-batch and projection-hash maintenance and time-series index rebuilds; debt cleanup uses strict write options. Engine-wide WAL and ledger counters may include background work and omit some filesystem syncs, so they cannot attribute every physical sync to replay. Broader workload measurements and maintenance-barrier work remain under [#1271](https://github.com/cntryl/cassie/issues/1271).
 - `docs/production-readiness.md` records the Stable local projection lifecycle promotion and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that promotion.

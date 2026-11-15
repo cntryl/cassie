@@ -510,6 +510,31 @@ mod checkpoint_snapshot_tests {
     }
 
     #[test]
+    fn should_fail_closed_when_checkpoint_key_and_identity_disagree() {
+        // Arrange
+        let midge = fixture();
+        let collection = midge.canonical_collection_name("checkpoint_fixture");
+        let other = "postgres.public.\"other\"".to_string();
+        let mismatched =
+            serde_json::to_vec(&crate::catalog::ProjectionMeta::new(&other, 1)).unwrap();
+        let mut tx = midge.begin_data_rw_tx_for(&collection).unwrap();
+        tx.put(Midge::projection_key(&collection), mismatched, None)
+            .unwrap();
+        tx.commit(midge.write_options_sync()).unwrap();
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+
+        // Act
+        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
+
+        // Assert
+        assert!(
+            matches!(result, Err(CassieError::Storage(ref message)) if message.contains("disagree"))
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
     fn should_enforce_checkpoint_scan_memory_budget() {
         // Arrange
         let midge = fixture();

@@ -122,8 +122,8 @@ with missing markers need an explicit repair/rebuild before this view can be
 used. The directory, metadata scans, overlay capture and materialized output
 must check cancellation, reserve memory before allocation, retain reservations
 with results, and release them on failure/drop. Materialized projection
-metadata is drawn from the same merged snapshot. This is a selected target;
-the command-publication fence, implementation and validation remain pending.
+metadata is drawn from the same merged snapshot. This is implemented; see the
+implementation status below for what is and is not yet proven.
 
 The selected fence is per session and protects DDL storage staging together with
 its corresponding catalog publication, and protects capture of each matching
@@ -141,7 +141,8 @@ owner must observe one protected revision. No overlay mutex may be retained whil
 opening a scoped Midge transaction, which acquires that mutex internally. The
 relative order of the database publication gate and session fence, nested SQL,
 and reentrancy must be proven before implementation; this paragraph records the
-selected target, not an implemented synchronization guarantee.
+selected design; its implemented form is described under implementation
+status below.
 
 A candidate for reconciling this fence with conditional Data capture is to
 capture immutable catalog/descriptor authorities and a session publication
@@ -187,6 +188,32 @@ command-publication fence over stamp-and-retry (0.98). Source probes refined it:
   findings above (mutator coverage and re-entrancy) are the confirmed leads.
   Retained REPEATABLE READ Bind owners keep their captured overlay and
   `rebind_statement_read` reuses it, so they do not mix revisions.
+
+**Implementation status (#1272).** `pg_catalog.pg_projection_checkpoints` is
+materialized from the statement's Data-family snapshot merged with the command's
+own staged checkpoint-visible changes, with query-memory reservations retained
+by the result and cancellation checks at the directory, scan and overlay
+boundaries. A missing marker, a key and identity that disagree, an orphan
+collection record or a duplicate directory entry fails closed with a repair or
+rebuild diagnostic. The per-session re-entrant fence is acquired in
+`execute_bound_catalog_scoped` after the global publication guard; catalog,
+projection and retention statements hold it through execution and readers
+release it after Data capture. Executable evidence: a synchronized
+DDL-staged-before-publication regression (observed failing with
+`CatalogObjectNotFound` before the fence), same-snapshot old-row regression,
+staged CREATE/DROP with savepoints and rollback at READ COMMITTED and REPEATABLE
+READ, post-commit metadata reread failure, nested CTAS over the view, missing
+and mismatched markers, quoted identities, budget and cancellation.
+
+Not yet covered by a dedicated test and therefore not claimed: authorization
+and database isolation of this view specifically (existing database-scope
+suites run in the gate but do not target it), materialized-projection rows,
+restart on local storage, and retained REPEATABLE READ Bind portals.
+Transaction-control statements (COMMIT, ROLLBACK, SAVEPOINT) do not take the
+fence, so a concurrent same-session reader during ROLLBACK TO SAVEPOINT is not
+protected against observing the storage restoration before the catalog
+restoration. Autocommit CREATE TABLE publishes under the global write guard
+without a separate staged overlay and is unaffected.
 
 Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. The selected #1271 policy above remains unimplemented and does not establish crash atomicity for a new durability policy.
 

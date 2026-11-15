@@ -174,3 +174,38 @@ fn should_capture_consistent_checkpoint_view_after_staged_ddl_publication() {
     assert_eq!(rows, vec![vec![Value::Int64(0)]]);
     execute(&cassie, &session, "ROLLBACK");
 }
+
+#[test]
+fn should_complete_nested_ctas_over_checkpoint_view_under_publication_fence() {
+    // Arrange
+    use std::sync::mpsc;
+    use std::time::Duration;
+    let cassie =
+        Arc::new(Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap());
+    cassie.startup().unwrap();
+    let session = cassie.create_session("reader", None);
+    execute(&cassie, &session, "BEGIN");
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE checkpoint_nested (title TEXT)",
+    );
+    let (done_tx, done_rx) = mpsc::channel();
+    let worker_cassie = Arc::clone(&cassie);
+    let worker_session = session.clone();
+
+    // Act
+    std::thread::spawn(move || {
+        let rows = execute(
+            &worker_cassie,
+            &worker_session,
+            "CREATE TABLE checkpoint_copy AS SELECT collection FROM pg_catalog.pg_projection_checkpoints",
+        );
+        done_tx.send(rows).unwrap();
+    });
+    let completed = done_rx.recv_timeout(Duration::from_secs(30));
+
+    // Assert
+    assert!(completed.is_ok());
+    execute(&cassie, &session, "ROLLBACK");
+}

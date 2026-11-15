@@ -379,3 +379,61 @@ fn should_retire_fork_when_failed_ctas_restores_its_internal_savepoint() {
     assert!(is_stale_fork(&publication));
     assert!(session.document_change("epoch_rows", "old").is_none());
 }
+
+#[test]
+fn should_recover_savepoint_epoch_after_full_transaction_rollback() {
+    // Arrange
+    let session = transaction_with_savepoint();
+    session.transaction.lock().rollback_epoch = u64::MAX;
+    let old_generation = session.transaction_generation();
+    let old = stage_fork(&session, "old_generation");
+    let exhausted = session.rollback_to_savepoint("before_fork");
+
+    // Act
+    session.rollback_transaction();
+    session.begin_transaction(None).expect("new transaction");
+    let new_generation = session.transaction_generation();
+    let initial_epoch = session.transaction.lock().rollback_epoch;
+    session.create_savepoint("fresh").expect("fresh savepoint");
+    let restore = session.rollback_to_savepoint("fresh");
+    let current = stage_fork(&session, "new_generation");
+    let old_result = session.publish_statement_batch(&old);
+    let current_result = session.publish_statement_batch(&current);
+
+    // Assert
+    assert!(matches!(exhausted, Err(CassieError::ResourceLimit(_))));
+    assert_ne!(old_generation, new_generation);
+    assert_eq!(initial_epoch, 0);
+    assert!(restore.is_ok());
+    assert!(is_stale_fork(&old_result));
+    assert!(current_result.is_ok());
+    assert!(session
+        .document_change("epoch_rows", "old_generation")
+        .is_none());
+    assert!(session
+        .document_change("epoch_rows", "new_generation")
+        .is_some());
+}
+
+#[test]
+fn should_preserve_savepoint_epoch_on_implicit_transaction_promotion() {
+    // Arrange
+    let session = CassieSession::new("root".to_owned(), None);
+    session
+        .begin_implicit_transaction()
+        .expect("implicit begin");
+    session.transaction.lock().rollback_epoch = 7;
+    let generation = session.transaction_generation();
+    let batch = stage_fork(&session, "promoted");
+
+    // Act
+    let promotion = session.begin_transaction(None);
+    let publication = session.publish_statement_batch(&batch);
+
+    // Assert
+    assert!(promotion.is_ok());
+    assert_eq!(session.transaction_generation(), generation);
+    assert_eq!(session.transaction.lock().rollback_epoch, 7);
+    assert!(publication.is_ok());
+    assert!(session.document_change("epoch_rows", "promoted").is_some());
+}

@@ -29,6 +29,15 @@ impl CassieSession {
         isolation: Option<TransactionIsolation>,
         modes: TransactionModes,
     ) -> Result<(), CassieError> {
+        self.begin_transaction_with_origin(isolation, modes, false)
+    }
+
+    pub(super) fn begin_transaction_with_origin(
+        &self,
+        isolation: Option<TransactionIsolation>,
+        modes: TransactionModes,
+        implicit: bool,
+    ) -> Result<(), CassieError> {
         if isolation == Some(TransactionIsolation::Serializable) {
             return Err(CassieError::Unsupported(
                 "SERIALIZABLE transaction isolation is unsupported".to_string(),
@@ -82,7 +91,7 @@ impl CassieSession {
                     });
                 }
             }
-            transaction.implicit = false;
+            transaction.implicit = implicit;
             transaction.isolation = isolation.or(transaction.isolation);
             transaction.modes.read_only = requested_modes.read_only.or(transaction.modes.read_only);
             transaction.modes.deferrable =
@@ -90,7 +99,7 @@ impl CassieSession {
             return Ok(());
         }
         transaction.status = SessionTransactionStatus::InTransaction;
-        transaction.implicit = false;
+        transaction.implicit = implicit;
         transaction.isolation = isolation;
         transaction.modes = modes;
         transaction.has_query = false;

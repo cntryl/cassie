@@ -12,15 +12,16 @@ use crate::sql::ast::{
 const CTAS_SAVEPOINT_NAME: &str = "cassie_ctas_statement";
 
 impl Cassie {
-    pub(super) fn execute_create_table_as(
+    pub(super) fn execute_create_table_as_for_operation(
         &self,
         session: &CassieSession,
         statement: &CreateTableStatement,
         raw_sql: &str,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         let Some(as_query) = statement.as_query.as_ref() else {
             return Err(CassieError::Execution(
                 "CREATE TABLE AS query is missing".to_string(),
@@ -61,13 +62,22 @@ impl Cassie {
         let owns_transaction = !transaction_active;
         let savepoint = transaction_active && !session.is_implicit_transaction();
         if owns_transaction {
-            session.begin_transaction(None)?;
+            session.begin_transaction_with_modes_for_operation(
+                None,
+                crate::sql::ast::TransactionModes::default(),
+                authority,
+            )?;
         } else if savepoint {
             session.create_savepoint(CTAS_SAVEPOINT_NAME)?;
         }
 
         let result = scoped.execute_create_table_as_in_transaction(
-            session, statement, as_query, parameters, mode, controls,
+            session,
+            statement,
+            as_query,
+            parameters,
+            mode,
+            (controls, authority),
         );
         match result {
             Ok(result) => {
@@ -85,7 +95,7 @@ impl Cassie {
                 if owns_transaction {
                     session.rollback_transaction();
                 } else if savepoint {
-                    session.rollback_to_savepoint(CTAS_SAVEPOINT_NAME)?;
+                    session.rollback_to_savepoint_for_operation(CTAS_SAVEPOINT_NAME, authority)?;
                     session.release_savepoint(CTAS_SAVEPOINT_NAME)?;
                 }
                 Err(error)
@@ -100,8 +110,9 @@ impl Cassie {
         as_query: &CreateTableAsClause,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         let (source_parameters, declared_oids, wire_output) = parameters;
         let source_fingerprint = crate::runtime::sql_fingerprint(&as_query.query);
         let columns = self.describe_parsed_statement_for_session(
@@ -168,7 +179,7 @@ impl Cassie {
             crate::runtime::sql_fingerprint(&create_table),
             (Vec::new(), &[], wire_output),
             mode,
-            controls,
+            (controls, authority),
         )?;
         let row_count = if as_query.with_data {
             if matches!(
@@ -181,18 +192,18 @@ impl Cassie {
                     as_query,
                     (source_parameters, declared_oids, wire_output),
                     mode,
-                    controls,
+                    (controls, authority),
                 )?
             } else {
                 let insert_sql = format!("INSERT INTO {} {}", target.table, as_query.query.raw_sql);
                 let insert = self.parse_statement_for_session(Some(session), &insert_sql)?;
-                let inserted = self.execute_bound_statement(
+                let inserted = self.execute_bound_statement_for_operation(
                     session,
                     insert.clone(),
                     crate::runtime::sql_fingerprint(&insert),
                     (source_parameters, declared_oids, wire_output),
                     mode,
-                    controls,
+                    (controls, authority),
                 )?;
                 affected_rows(&inserted)
             }
@@ -213,17 +224,18 @@ impl Cassie {
         fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
         self.prepare_transaction_read_view(session, &create_table, controls)?;
         let _publication_read = self.catalog_publication.read();
-        self.execute_bound_catalog_scoped(
+        self.execute_bound_catalog_scoped_for_operation(
             session,
             create_table,
             fingerprint,
             parameters,
             mode,
-            controls,
+            (controls, authority),
         )
     }
 
@@ -234,17 +246,18 @@ impl Cassie {
         as_query: &CreateTableAsClause,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
-        controls: &QueryExecutionControls,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<u64, CassieError> {
+        let (controls, authority) = scope;
         let (source_parameters, declared_oids, wire_output) = parameters;
         let query = as_query.query.as_ref().clone();
-        let rows = self.execute_bound_statement(
+        let rows = self.execute_bound_statement_for_operation(
             session,
             query.clone(),
             crate::runtime::sql_fingerprint(&query),
             (source_parameters, declared_oids, wire_output),
             mode,
-            controls,
+            (controls, authority),
         )?;
         if rows.columns().is_empty() {
             return Err(CassieError::Execution(
@@ -268,13 +281,13 @@ impl Cassie {
             }
             let bytes = row_memory_bytes(row)?;
             let _row_memory = controls.reserve_query_memory(bytes)?;
-            self.execute_bound_statement(
+            self.execute_bound_statement_for_operation(
                 session,
                 insert.clone(),
                 fingerprint,
                 (row.clone(), &[], false),
                 mode,
-                controls,
+                (controls, authority),
             )?;
             inserted = inserted
                 .checked_add(1)

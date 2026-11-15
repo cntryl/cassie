@@ -11,8 +11,37 @@ pub(super) fn execute_command(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    execute_command_for_operation(
+        cassie,
+        session,
+        command,
+        params,
+        user_functions,
+        (controls, None),
+    )
+}
+
+pub(super) fn execute_command_for_operation(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    command: &LogicalCommand,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    scope: (
+        &QueryExecutionControls,
+        Option<&crate::app::FailureAuthority>,
+    ),
+) -> Result<QueryResult, QueryError> {
+    let (controls, authority) = scope;
     check_timeout(controls)?;
-    let outcome = command_outcome(cassie, session, command, params, user_functions, controls);
+    let outcome = command_outcome(
+        cassie,
+        session,
+        command,
+        params,
+        user_functions,
+        (controls, authority),
+    );
 
     if outcome.invalidate_plan_cache {
         let bumped = cassie.bump_schema_epoch_and_invalidate_query_cache();
@@ -32,8 +61,12 @@ fn command_outcome(
     command: &LogicalCommand,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
-    controls: &QueryExecutionControls,
+    scope: (
+        &QueryExecutionControls,
+        Option<&crate::app::FailureAuthority>,
+    ),
 ) -> CommandExecution {
+    let (controls, authority) = scope;
     execute_session_or_dml_command(cassie, session, command, params, user_functions, controls)
         .or_else(|| {
             execute_projection_command_group(cassie, session, command, user_functions, controls)
@@ -41,7 +74,14 @@ fn command_outcome(
         .or_else(|| execute_retention_sequence_group(cassie, command, user_functions, controls))
         .or_else(|| execute_schema_object_group(cassie, session, command, controls))
         .or_else(|| {
-            execute_routine_group(cassie, session, command, params, user_functions, controls)
+            execute_routine_group(
+                cassie,
+                session,
+                command,
+                params,
+                user_functions,
+                (controls, authority),
+            )
         })
         .expect("all logical commands should be handled")
 }
@@ -360,8 +400,12 @@ fn execute_routine_group(
     command: &LogicalCommand,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
-    controls: &QueryExecutionControls,
+    scope: (
+        &QueryExecutionControls,
+        Option<&crate::app::FailureAuthority>,
+    ),
 ) -> Option<CommandExecution> {
+    let (controls, authority) = scope;
     match command {
         LogicalCommand::CreateFunction(statement) => {
             Some(execute_create_function_command(cassie, statement, controls))
@@ -381,7 +425,7 @@ fn execute_routine_group(
             statement,
             params,
             user_functions,
-            controls,
+            (controls, authority),
         )),
         _ => None,
     }
@@ -559,8 +603,12 @@ fn execute_call_procedure_command(
     statement: &crate::sql::ast::CallProcedureStatement,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
-    controls: &QueryExecutionControls,
+    scope: (
+        &QueryExecutionControls,
+        Option<&crate::app::FailureAuthority>,
+    ),
 ) -> CommandExecution {
+    let (controls, authority) = scope;
     CommandExecution::new((|| {
         let Some(metadata) = cassie.catalog.get_procedure(&statement.name) else {
             return Err(QueryError::General(format!(
@@ -593,12 +641,12 @@ fn execute_call_procedure_command(
         call_session
             .enter_procedure_call(&statement.name)
             .map_err(|error| QueryError::General(error.to_string()))?;
-        let body_result = cassie.execute_sql_with_controls(
+        let body_result = cassie.execute_sql_with_controls_for_operation(
             &call_session,
             &metadata.body,
             evaluated_args,
             crate::runtime::ExecutionMode::SimpleQuery,
-            controls,
+            (controls, authority),
         );
         call_session.leave_procedure_call();
         body_result.map_err(|error| QueryError::General(error.to_string()))?;

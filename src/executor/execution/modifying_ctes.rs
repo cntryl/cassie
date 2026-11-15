@@ -23,6 +23,7 @@ pub(super) struct StatementInputs<'a> {
     pub(super) params: &'a [Value],
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) controls: &'a QueryExecutionControls,
+    pub(super) authority: Option<&'a crate::app::FailureAuthority>,
 }
 
 /// Runs `plan` when it owns a data-modifying CTE; otherwise returns `None`.
@@ -42,7 +43,7 @@ pub(super) fn run(
         .session
         .is_some_and(|session| !session.is_transaction_active());
     if let Some(session) = inputs.session.filter(|_| owns_transaction) {
-        session.begin_implicit_transaction()?;
+        session.begin_implicit_transaction_for_operation(inputs.authority)?;
     }
     let result = execute(inputs, plan, &modifying);
     let Some(session) = inputs.session.filter(|_| owns_transaction) else {
@@ -120,13 +121,13 @@ fn execute(
         Some(command) => {
             let mut command = command.clone();
             inherit(&mut command, &relations);
-            dml_command::execute_command(
+            dml_command::execute_command_for_operation(
                 inputs.cassie,
                 inputs.session,
                 &command,
                 &params,
                 inputs.user_functions,
-                &snapshot,
+                (&snapshot, inputs.authority),
             )
         }
     }
@@ -148,13 +149,13 @@ fn run_body(
             "data-modifying WITH query did not plan a command".into(),
         ));
     };
-    dml_command::execute_command(
+    dml_command::execute_command_for_operation(
         inputs.cassie,
         inputs.session,
         command,
         params,
         inputs.user_functions,
-        snapshot,
+        (snapshot, inputs.authority),
     )
 }
 

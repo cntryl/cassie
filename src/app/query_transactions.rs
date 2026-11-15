@@ -60,6 +60,16 @@ impl Cassie {
         statement: &TransactionStatement,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_transaction_statement_for_operation(session, statement, controls, None)
+    }
+
+    pub(super) fn execute_transaction_statement_for_operation(
+        &self,
+        session: &CassieSession,
+        statement: &TransactionStatement,
+        controls: &crate::runtime::QueryExecutionControls,
+        authority: Option<&super::FailureAuthority>,
+    ) -> Result<QueryResult, CassieError> {
         let savepoint_control = match statement.action {
             TransactionAction::Savepoint { .. } => Some("SAVEPOINT"),
             TransactionAction::RollbackTo { .. } => Some("ROLLBACK TO SAVEPOINT"),
@@ -112,7 +122,11 @@ impl Cassie {
 
         match &statement.action {
             TransactionAction::Begin => {
-                session.begin_transaction_with_modes(statement.isolation, statement.modes)?;
+                session.begin_transaction_with_modes_for_operation(
+                    statement.isolation,
+                    statement.modes,
+                    authority,
+                )?;
             }
             TransactionAction::Commit if failed_commit => session.rollback_transaction(),
             TransactionAction::Commit => {
@@ -120,11 +134,13 @@ impl Cassie {
             }
             TransactionAction::Rollback => session.rollback_transaction(),
             TransactionAction::Savepoint { name } => session.create_savepoint(name)?,
-            TransactionAction::RollbackTo { name } => session.rollback_to_savepoint(name)?,
+            TransactionAction::RollbackTo { name } => {
+                session.rollback_to_savepoint_for_operation(name, authority)?;
+            }
             TransactionAction::Release { name } => session.release_savepoint(name)?,
         }
         if let Some((isolation, modes)) = characteristics {
-            session.begin_transaction_with_modes(isolation, modes)?;
+            session.begin_transaction_with_modes_for_operation(isolation, modes, authority)?;
         }
         Ok(output)
     }

@@ -7,6 +7,8 @@ pub(crate) use copy_owner::{CopyBindingContext, CopyCommandOwner};
 pub(crate) use publication_fence::PublicationFenceScope;
 mod command_catalog;
 pub(crate) use command_catalog::CommandCatalogScope;
+mod failure_authority;
+pub(crate) use failure_authority::FailureAuthority;
 mod savepoints;
 mod transaction_snapshot;
 use transaction_snapshot::TransactionReadSnapshot;

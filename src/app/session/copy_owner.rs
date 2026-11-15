@@ -41,6 +41,14 @@ impl CopyBindingContext {
 }
 
 impl CopyCommandOwner {
+    #[cfg(test)]
+    pub(crate) fn reservation_matches_for_test(&self, controls: &QueryExecutionControls) -> bool {
+        let Self {
+            _memory: memory, ..
+        } = self;
+        memory.belongs_to(controls)
+    }
+
     /// Reject an owner already retired before COPY starts effectful evaluation.
     /// This check does not fence a concurrent transaction transition afterward.
     pub(crate) fn ensure_current_transaction(

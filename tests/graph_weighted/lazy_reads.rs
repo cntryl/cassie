@@ -2,7 +2,7 @@
 //! streams every selected edge row once, and the search reads only the neighbourhoods of
 //! the vertices it visits (#1258, #1268). Reads are counted, never timed.
 
-use crate::world::{fast, vertex, Link, Variant, VariantGuard, Wg};
+use crate::world::{fast, slow, vertex, Link, Variant, VariantGuard, Wg};
 
 const INDEXED: Variant = Variant {
     exact: false,
@@ -101,38 +101,65 @@ fn should_read_further_neighbourhoods_only_when_the_hop_limit_allows() {
     assert_eq!(one_hop.validation_rows, four_hops.validation_rows);
 }
 
-#[test]
-fn should_keep_the_peak_query_memory_independent_of_unrelated_edges() {
-    // Arrange
-    let peak = |ring: i64| {
-        let world = ringed(3);
-        for step in 0..ring {
-            world.run(&format!(
-                "INSERT INTO fast VALUES ({}, {}, {}, 1, 'x', 1.5)",
-                100 + step,
-                10 + step % 3,
-                10 + (step + 1) % 3
-            ));
-        }
-        assert!(world.call(1, 3, "'weight', 2").is_ok());
-        let metrics = world.fixture.cassie.metrics();
+/// Vertices `1..=3` joined by a chain, with `unrelated` further edges among vertices 10..=12
+/// that no search from vertex 1 reaches, under the query-memory `budget` and `variant`.
+fn budgeted(unrelated: i64, budget: usize, variant: Variant) -> Wg {
+    let _guard = VariantGuard::set(variant);
+    let mut links = vec![fast(1, 1, 2, 1), fast(2, 2, 3, 1)];
+    for step in 0..unrelated {
+        links.push(fast(3 + step, 10 + step % 3, 10 + (step + 1) % 3, 1));
+    }
+    let mut config = crate::support_sql::with_test_root_password(
+        cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
+    config.limits.query_memory_budget_bytes = budget;
+    Wg::with_config(12, &links, config)
+}
+
+fn peak(world: &Wg) -> usize {
+    let metrics = world.fixture.cassie.metrics();
+    usize::try_from(
         metrics["query"]["peak_accounted_memory_bytes"]
             .as_u64()
-            .expect("peak")
+            .expect("peak"),
+    )
+    .expect("peak fits")
+}
+
+/// authored/not run: the budget that the lazy streaming call just fits is below what the
+/// forced exact read of the same 1500 unrelated edges needs, so the lazy call's memory does
+/// not grow with edges it never reaches.
+#[test]
+fn should_fit_the_lazy_search_in_a_budget_the_exact_read_of_unrelated_edges_exceeds() {
+    // Arrange
+    let unlimited = 64 * 1024 * 1024;
+    let measured = budgeted(1500, unlimited, INDEXED);
+    assert!(measured.call(1, 3, "'weight', 2").is_ok());
+    let needed = peak(&measured);
+    let exact = Variant {
+        exact: true,
+        endpoint_indexes: true,
     };
 
     // Act
-    let small = peak(10);
-    let large = peak(1500);
+    let lazy = budgeted(1500, needed, INDEXED).call(1, 3, "'weight', 2");
+    let forced = budgeted(1500, needed, exact).call(1, 3, "'weight', 2");
 
     // Assert
-    assert!(large < 2 * small);
+    assert!(lazy.is_ok());
+    assert_eq!(forced.err().as_deref(), Some("54000"));
 }
 
 #[test]
 fn should_count_the_edge_rows_of_only_the_selected_labels_in_the_validation_scan() {
     // Arrange
-    let world = ringed(5);
+    let _guard = VariantGuard::set(INDEXED);
+    let mut links = vec![fast(1, 1, 2, 1)];
+    for step in 0..5 {
+        links.push(fast(2 + step, 10 + step, 10 + (step + 1) % 5, 1));
+    }
+    links.extend((0..4).map(|step| slow(100 + step, 20 + step, 21 + step, 1)));
+    let world = Wg::new(30, &links);
     let statement = Wg::select(&format!(
         "'wg', {}, {}, 'weight', 1, 'out', ARRAY['fast'], NULL, 1",
         vertex(1),
@@ -145,5 +172,5 @@ fn should_count_the_edge_rows_of_only_the_selected_labels_in_the_validation_scan
 
     // Assert
     assert!(outcome.is_ok());
-    assert_eq!(counts(&world).validation_rows - before, 7);
+    assert_eq!(counts(&world).validation_rows - before, 6);
 }

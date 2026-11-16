@@ -17,18 +17,20 @@ class GraphClientQualification(unittest.TestCase):
         )
         cls.infos = {}
         # Register dependencies before their parents, using the actual catalog
-        # OIDs and ordered attribute types. No codec or wire frame is supplied.
+        # OIDs and ordered attribute types. Catalog name parameters explicitly use
+        # text, matching the selected finite prepared-statement contract.
+        # No codec or wire frame is supplied.
         for name in ("graph_key_part", "graph_element_ref", "graph_path"):
             row = cls.conn.execute(
                 "SELECT t.oid, t.typarray FROM pg_type t JOIN pg_namespace n "
                 "ON n.oid = t.typnamespace WHERE n.nspname = 'cassie_graph' "
-                "AND t.typname = %s", (name,),
+                "AND t.typname = %s::text", (name,),
             ).fetchone()
             fields = cls.conn.execute(
                 "SELECT a.attname, a.atttypid FROM pg_attribute a JOIN pg_type t "
                 "ON a.attrelid_oid = t.typrelid JOIN pg_namespace n "
                 "ON n.oid = t.typnamespace WHERE n.nspname = 'cassie_graph' "
-                "AND t.typname = %s AND a.attnum > 0 ORDER BY a.attnum", (name,),
+                "AND t.typname = %s::text AND a.attnum > 0 ORDER BY a.attnum", (name,),
             ).fetchall()
             if row is None or not fields:
                 raise AssertionError(f"missing catalog metadata for {name}")

@@ -41,8 +41,11 @@ mappings, nested punctuation/backslashes/Unicode, exact bigint extrema and UUID
 keys, Describe result OIDs from the live catalog, typed key access and ordered
 steps. Invalid path shape must return `22023`, and a later query on the same
 connection must succeed. The path parameters are real driver composite objects.
-The probe constructs references through the selected graph constructors; it
-does not claim a full graph query or storage image qualification.
+The fixture inserts both bigint endpoint rows, the UUID target and matching
+UUID edges before using the existence-checking graph constructors. A graph
+query checks both heterogeneous connections, in addition to exact row/key
+checks. The whole-path round trips transport paths constructed from those
+references; they do not qualify storage image recovery.
 
 Source identity, actual command outcome and Python/Psycopg versions must be
 recorded by the assembler after execution. The new probe is authored/not run

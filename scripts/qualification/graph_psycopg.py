@@ -49,6 +49,19 @@ class GraphClientQualification(unittest.TestCase):
         ]
         for sql in setup:
             cls.conn.execute(sql)
+        cls.place_id = UUID("11111111-2222-3333-4444-555555555555")
+        cls.door_id = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        cls.high_door_id = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeef")
+        # Constructors check mapped-row existence. Seed both exact bigint keys
+        # and matching edges before constructing any reference.
+        for value in (-(2**63), 2**63 - 1):
+            cls.conn.execute("INSERT INTO room VALUES (%s::text, %s::bigint)", (cls.text, value))
+        cls.conn.execute("INSERT INTO place VALUES (%s::uuid)", (cls.place_id,))
+        for door_id, value in ((cls.door_id, -(2**63)), (cls.high_door_id, 2**63 - 1)):
+            cls.conn.execute(
+                "INSERT INTO door VALUES (%s::uuid, %s::text, %s::bigint, %s::uuid)",
+                (door_id, cls.text, value, cls.place_id),
+            )
         cls.vertex = cls.conn.execute(
             "SELECT cassie_graph.vertex_ref('rooms', 'r', "
             "ARRAY[cassie_graph.key_part(%s::text), cassie_graph.key_part(%s::bigint)])",
@@ -56,27 +69,45 @@ class GraphClientQualification(unittest.TestCase):
         ).fetchone()[0]
         cls.target = cls.conn.execute(
             "SELECT cassie_graph.vertex_ref('rooms', 'p', ARRAY[cassie_graph.key_part(%s::uuid)])",
-            (UUID("11111111-2222-3333-4444-555555555555"),),
+            (cls.place_id,),
         ).fetchone()[0]
         cls.edge = cls.conn.execute(
             "SELECT cassie_graph.edge_ref('rooms', 'd', ARRAY[cassie_graph.key_part(%s::uuid)])",
-            (UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),),
+            (cls.door_id,),
+        ).fetchone()[0]
+        cls.high = cls.conn.execute(
+            "SELECT cassie_graph.vertex_ref('rooms', 'r', "
+            "ARRAY[cassie_graph.key_part(%s::text), cassie_graph.key_part(%s::bigint)])",
+            (cls.text, 2**63 - 1),
+        ).fetchone()[0]
+        cls.high_edge = cls.conn.execute(
+            "SELECT cassie_graph.edge_ref('rooms', 'd', ARRAY[cassie_graph.key_part(%s::uuid)])",
+            (cls.high_door_id,),
         ).fetchone()[0]
 
     @classmethod
     def tearDownClass(cls):
         cls.conn.close()
 
+    def should_read_the_seeded_rows_and_connected_heterogeneous_edges(self):
+        # Arrange: all endpoint references were constructed from existing rows.
+        expected_keys = [(self.text, -(2**63)), (self.text, 2**63 - 1)]
+        # Act
+        keys = self.conn.execute("SELECT tenant, seq FROM room ORDER BY seq").fetchall()
+        edges = self.conn.execute(
+            "SELECT * FROM GRAPH_TABLE (rooms MATCH (a IS room) -[IS door]-> (b IS place) "
+            "COLUMNS (a.seq AS seq, b.id AS target)) AS t ORDER BY seq"
+        ).fetchall()
+        # Assert: the transported paths have actual mapped connected endpoints.
+        self.assertEqual(keys, expected_keys)
+        self.assertEqual(edges, [(-(2**63), self.place_id), (2**63 - 1, self.place_id)])
+        self.assertNotEqual(self.vertex.mapping_id, self.target.mapping_id)
+
     def should_roundtrip_paths_and_arrays_in_prepared_text_and_binary(self):
         # Arrange: zero-hop, heterogeneous one-hop and an extreme bigint key.
         path_type = self.infos["graph_path"].python_type
-        key_type = self.infos["graph_key_part"].python_type
-        ref_type = self.infos["graph_element_ref"].python_type
-        high = ref_type(self.vertex.database_id, self.vertex.graph_id,
-                        self.vertex.mapping_id, self.vertex.element_kind,
-                        [key_type(4, None, self.text, None), key_type(3, 2**63 - 1, None, None)])
         paths = [path_type([self.vertex], [], []),
-                 path_type([high, self.target], [self.edge], [1])]
+                 path_type([self.high, self.target], [self.high_edge], [1])]
         for parameter_format in ("t", "b"):
             for binary_result in (False, True):
                 with self.subTest(parameter_format=parameter_format, binary_result=binary_result):

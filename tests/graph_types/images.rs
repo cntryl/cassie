@@ -1,6 +1,7 @@
 //! Database images and graph reference identity (#1268): restore into a distinct database.
 
-use crate::fixture::{started, GraphFixture, SOCIAL_SETUP};
+use crate::fixture::{person, started, GraphFixture, SOCIAL_SETUP};
+use crate::refs::reference_of;
 
 fn social(label: &str) -> GraphFixture {
     started(label, &SOCIAL_SETUP)
@@ -82,6 +83,37 @@ fn should_give_a_distinct_clone_fresh_identities() {
     assert_ne!(source[0][0], cloned[0][0]);
     assert_ne!(source[0][1], cloned[0][1]);
     assert_ne!(source[0][2], cloned[0][2]);
+}
+
+#[test]
+fn should_reject_a_copied_source_reference_after_recreating_the_graph_in_a_clone() {
+    // Arrange
+    let fixture = social("graph_images_copied_reference");
+    let source_reference = reference_of(&fixture, &person(2), 2);
+    let clone = clone_of(&fixture, "clone_copied_reference");
+    run_in(&fixture, &clone, SOCIAL_SETUP[4]);
+
+    // Act
+    let clone_resolution = fixture
+        .cassie
+        .catalog
+        .resolve_element_ref(&source_reference, "clone_copied_reference");
+    let source_resolution = fixture
+        .cassie
+        .catalog
+        .resolve_element_ref(&source_reference, "postgres");
+    let fresh_clone_reference = fixture.cassie.execute_sql(&clone, REF_DB, vec![]);
+
+    // Assert
+    assert_eq!(
+        clone_resolution
+            .expect_err("a copied reference must not retarget to the clone")
+            .sql_state(),
+        "42704"
+    );
+    assert!(source_resolution.is_ok());
+    assert!(fresh_clone_reference.is_ok());
+    assert_eq!(reference_of(&fixture, &person(2), 2), source_reference);
 }
 
 #[test]

@@ -11,7 +11,11 @@ fn social(label: &str) -> crate::fixture::GraphFixture {
 
 /// The reference `expression` yields, rebuilt from its fields: a result row
 /// carries the record's text form.
-fn reference_of(fixture: &crate::fixture::GraphFixture, expression: &str, key: i64) -> ElementRef {
+pub(super) fn reference_of(
+    fixture: &crate::fixture::GraphFixture,
+    expression: &str,
+    key: i64,
+) -> ElementRef {
     let rows = fixture.rows(&format!(
         "SELECT (r).database_id, (r).graph_id, (r).mapping_id, (r).element_kind \
          FROM (SELECT {expression} AS r) AS t"
@@ -241,6 +245,31 @@ fn should_keep_a_reference_resolvable_after_the_graph_is_renamed() {
     // Assert
     assert!(resolved.is_ok());
     assert_eq!(before, after);
+}
+
+#[test]
+fn should_resolve_an_old_reference_to_the_replacement_after_reinserting_its_key() {
+    // Arrange
+    let fixture = social("graph_refs_reinsert");
+    let before = reference_of(&fixture, &person(2), 2);
+
+    // Act
+    fixture.run("DELETE FROM people WHERE id = 2");
+    fixture.run("INSERT INTO people VALUES (2, 'replacement')");
+    let after = reference_of(&fixture, &person(2), 2);
+    let resolved = fixture
+        .cassie
+        .catalog
+        .resolve_element_ref(&before, "postgres");
+    let rows = fixture.rows(
+        "SELECT g.name FROM GRAPH_TABLE (social MATCH (p IS person WHERE p.id = 2) \
+         COLUMNS (p.name AS name)) AS g",
+    );
+
+    // Assert
+    assert_eq!(before, after);
+    assert!(resolved.is_ok());
+    assert_eq!(rows, vec![vec![Value::String("replacement".to_owned())]]);
 }
 
 #[test]

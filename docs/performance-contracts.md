@@ -386,8 +386,10 @@ Mapped property graphs have benchmarks at tiers 1 to 3. Each fixture maps ordina
 are loaded with `INSERT ... SELECT`, and every query result is checked against an independent
 Rust computation of the expected cardinality. The graph workload family `graph` is a required
 workload family again. These benchmarks establish that the workloads run and that their
-results are correct. This document records no timing figure for them: gate-quality
-numbers need the release profile with at least five measured samples and have not been recorded.
+results are correct. Five-sample local release-profile observations and raw
+artifacts are recorded in [graph qualification](graph-v060-qualification.md).
+Several timing rows failed quality; command success or correctness must not be
+read as a gate-quality latency or capacity claim.
 
 | Scenario | Owner | Workload | Fixture |
 | --- | --- | --- | --- |
@@ -422,8 +424,11 @@ social graph of the friends-of-friends scenario at 100,000 mapped rows and the 6
 and no separate smaller instance remains. The function has no graph plan node, so the owner
 classifies its read path from one counted preflight execution (`graph_access_path_source=counted`):
 the path is `indexed` when the call moved `graph_index_entries` and left `graph_full_rows`
-unchanged, which the fixture's endpoint indexes should produce (the counted-read tests passed in the assembler run; the benchmark itself has not been run). Whether the route query fits the 64 MiB budget at this size has not been
-measured: the benchmark compiles but has not been run at this size, and this document records no timing figure.
+unchanged. The actual five-sample 100k run passed route cardinality and
+resource checks with indexed search and no fallback under the 64 MiB query
+budget. Its timing was noisy and the owner failed timing quality; the
+[qualification record](graph-v060-qualification.md#benchmarks-and-measured-limits-1260)
+retains exact observations without promoting them to a trustworthy baseline.
 
 Run one owner with, for example,
 `cargo bench --locked --bench tier2_subsystem_graph -- --profile smoke`; a smoke run is
@@ -927,3 +932,8 @@ Its storage field is the registered profile's declared storage label; physical
 memory mode is established by the benchmark's explicit constructor, not by that
 label. This diagnostic helper does not relax the separate release-artifact
 validator or promote local samples to release evidence.
+
+The repaired nine-point topology smoke and the shared all-nine artifact
+summary passed on `051af760`; exact raw samples, profile metadata and outcome
+are retained in [graph qualification](graph-v060-qualification.md). One sample
+per topology point is diagnostic correctness evidence, not a scaling curve.

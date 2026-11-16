@@ -1,0 +1,2102 @@
+{
+  "schema_version": "cntryl-stress.v2",
+  "tool_version": "0.5.1",
+  "suite": "tier1_hotpath_graph_paths",
+  "run_profile": "release",
+  "environment": {
+    "cpu_model": "Apple M5",
+    "core_count": 10,
+    "os": "macos aarch64",
+    "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+    "allocator": "cntryl-stress allocator not installed",
+    "build_profile": "release",
+    "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+    "tool_version": "0.5.1",
+    "command_line": [
+      "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+      "--profile",
+      "release",
+      "--samples",
+      "5",
+      "--output-dir",
+      "target/assembly-line/graph-qualification/artifacts/tier1",
+      "--bench"
+    ],
+    "profile_config": {
+      "profile": "release",
+      "measured_samples": 5,
+      "warmup_samples": 1,
+      "cooldown_samples": 0,
+      "min_quality": "acceptable",
+      "fail_on_quality": false,
+      "fail_on_regression": true,
+      "regression_threshold": 0.05,
+      "sample_duration": 1000000000,
+      "operations_per_sample": 1,
+      "micro_sample_duration": 100000000,
+      "report_depth": "gated",
+      "console_names": "compact",
+      "progress": true
+    },
+    "timer_resolution_ns": 41,
+    "observations": [
+      {
+        "key": "power_source",
+        "value": "ac",
+        "adverse": false
+      }
+    ]
+  },
+  "benchmark_specs": [
+    {
+      "id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "name": "graph_path_value/micro",
+      "tier": 1,
+      "mode": {
+        "type": "micro",
+        "target_sample_duration": 100000000
+      },
+      "intent": "batch",
+      "budgets": {},
+      "parameters": {
+        "logical_operations_per_iteration": "16",
+        "logical_unit": "operation",
+        "measurement_mode": "micro"
+      },
+      "metadata": {
+        "access_family": "graph_path",
+        "access_path_evidence_source": "not_applicable",
+        "benchmark": "tier1_hotpath_graph_paths",
+        "candidate_count": "0",
+        "configured_worker_count": "0",
+        "execution_result_cache_hits": "0",
+        "failed_operations": "0",
+        "fallback_evidence_source": "not_applicable",
+        "fallback_reason": "not_applicable",
+        "family": "graph",
+        "fixture_class": "kernel",
+        "fixture_identity": "tier1_hotpath_graph_paths/micro",
+        "fixture_rows": "0",
+        "fixture_scale": "micro",
+        "leaked_active_operator_workers": "0",
+        "logical_operations_per_iteration": "16",
+        "measurement_shape": "fixed_workload",
+        "ns_per_op_basis": "logical_completed_operation",
+        "operation_unit": "operation",
+        "peak_query_memory_bytes": "0",
+        "result_cardinality": "16",
+        "scenario_id": "perf.kernel.graph_path_value",
+        "selected_access_path": "not_applicable",
+        "setup_time_ns": "1853542",
+        "signal_role": "optimization",
+        "storage_read_unit": "not_applicable",
+        "storage_reads": "0",
+        "worker_count": "0",
+        "worker_leak_evidence_source": "not_applicable",
+        "workload": "graph_path_value"
+      }
+    },
+    {
+      "id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "name": "graph_path_order/micro",
+      "tier": 1,
+      "mode": {
+        "type": "micro",
+        "target_sample_duration": 100000000
+      },
+      "intent": "batch",
+      "budgets": {},
+      "parameters": {
+        "logical_operations_per_iteration": "15",
+        "logical_unit": "comparison",
+        "measurement_mode": "micro"
+      },
+      "metadata": {
+        "access_family": "graph_path_order",
+        "access_path_evidence_source": "not_applicable",
+        "benchmark": "tier1_hotpath_graph_paths",
+        "candidate_count": "0",
+        "configured_worker_count": "0",
+        "execution_result_cache_hits": "0",
+        "failed_operations": "0",
+        "fallback_evidence_source": "not_applicable",
+        "fallback_reason": "not_applicable",
+        "family": "graph",
+        "fixture_class": "kernel",
+        "fixture_identity": "tier1_hotpath_graph_paths/micro",
+        "fixture_rows": "0",
+        "fixture_scale": "micro",
+        "leaked_active_operator_workers": "0",
+        "logical_operations_per_iteration": "15",
+        "measurement_shape": "fixed_workload",
+        "ns_per_op_basis": "logical_completed_operation",
+        "operation_unit": "comparison",
+        "peak_query_memory_bytes": "0",
+        "result_cardinality": "15",
+        "scenario_id": "perf.kernel.graph_path_order",
+        "selected_access_path": "not_applicable",
+        "setup_time_ns": "1853542",
+        "signal_role": "optimization",
+        "storage_read_unit": "not_applicable",
+        "storage_reads": "0",
+        "worker_count": "0",
+        "worker_leak_evidence_source": "not_applicable",
+        "workload": "graph_path_order"
+      }
+    },
+    {
+      "id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "name": "graph_key_normalization/micro",
+      "tier": 1,
+      "mode": {
+        "type": "micro",
+        "target_sample_duration": 100000000
+      },
+      "intent": "batch",
+      "budgets": {},
+      "parameters": {
+        "logical_operations_per_iteration": "5",
+        "logical_unit": "key",
+        "measurement_mode": "micro"
+      },
+      "metadata": {
+        "access_family": "graph_key",
+        "access_path_evidence_source": "not_applicable",
+        "benchmark": "tier1_hotpath_graph_paths",
+        "candidate_count": "0",
+        "configured_worker_count": "0",
+        "execution_result_cache_hits": "0",
+        "failed_operations": "0",
+        "fallback_evidence_source": "not_applicable",
+        "fallback_reason": "not_applicable",
+        "family": "graph",
+        "fixture_class": "kernel",
+        "fixture_identity": "tier1_hotpath_graph_paths/micro",
+        "fixture_rows": "0",
+        "fixture_scale": "micro",
+        "leaked_active_operator_workers": "0",
+        "logical_operations_per_iteration": "5",
+        "measurement_shape": "fixed_workload",
+        "ns_per_op_basis": "logical_completed_operation",
+        "operation_unit": "key",
+        "peak_query_memory_bytes": "0",
+        "result_cardinality": "5",
+        "scenario_id": "perf.kernel.graph_key_normalization",
+        "selected_access_path": "not_applicable",
+        "setup_time_ns": "1853542",
+        "signal_role": "optimization",
+        "storage_read_unit": "not_applicable",
+        "storage_reads": "0",
+        "worker_count": "0",
+        "worker_leak_evidence_source": "not_applicable",
+        "workload": "graph_key_normalization"
+      }
+    }
+  ],
+  "samples": [
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "intent": "batch",
+      "sample_number": 0,
+      "phase": "warmup",
+      "elapsed_ns": 285137333,
+      "wall_clock_ns": 505666500,
+      "operations_attempted": 5120,
+      "operations_completed": 5120,
+      "throughput": 17956.259694692453,
+      "calibrated_iterations": 320,
+      "gross_elapsed_ns": 285137458,
+      "overhead_ns": 125,
+      "net_elapsed_ns": 285137333,
+      "gross_ns_per_op": 55690.909765625,
+      "overhead_ns_per_op": 0.0244140625,
+      "net_ns_per_op": 55690.8853515625,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 5120,
+        "completed": 5120,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "intent": "batch",
+      "sample_number": 1,
+      "phase": "measured",
+      "elapsed_ns": 127011875,
+      "wall_clock_ns": 483651459,
+      "operations_attempted": 3072,
+      "operations_completed": 3072,
+      "throughput": 24186.71482489334,
+      "calibrated_iterations": 192,
+      "gross_elapsed_ns": 127011958,
+      "overhead_ns": 83,
+      "net_elapsed_ns": 127011875,
+      "gross_ns_per_op": 41345.038411458336,
+      "overhead_ns_per_op": 0.027018229166666668,
+      "net_ns_per_op": 41345.011393229164,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 3072,
+        "completed": 3072,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "intent": "batch",
+      "sample_number": 2,
+      "phase": "measured",
+      "elapsed_ns": 226892166,
+      "wall_clock_ns": 472927084,
+      "operations_attempted": 4096,
+      "operations_completed": 4096,
+      "throughput": 18052.628577753538,
+      "calibrated_iterations": 256,
+      "gross_elapsed_ns": 226892250,
+      "overhead_ns": 84,
+      "net_elapsed_ns": 226892166,
+      "gross_ns_per_op": 55393.61572265625,
+      "overhead_ns_per_op": 0.0205078125,
+      "net_ns_per_op": 55393.59521484375,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 4096,
+        "completed": 4096,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "intent": "batch",
+      "sample_number": 3,
+      "phase": "measured",
+      "elapsed_ns": 218251500,
+      "wall_clock_ns": 412295208,
+      "operations_attempted": 4096,
+      "operations_completed": 4096,
+      "throughput": 18767.339514275962,
+      "calibrated_iterations": 256,
+      "gross_elapsed_ns": 218251625,
+      "overhead_ns": 125,
+      "net_elapsed_ns": 218251500,
+      "gross_ns_per_op": 53284.088134765625,
+      "overhead_ns_per_op": 0.030517578125,
+      "net_ns_per_op": 53284.0576171875,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 4096,
+        "completed": 4096,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "intent": "batch",
+      "sample_number": 4,
+      "phase": "measured",
+      "elapsed_ns": 361793584,
+      "wall_clock_ns": 592769584,
+      "operations_attempted": 4096,
+      "operations_completed": 4096,
+      "throughput": 11321.372686365825,
+      "calibrated_iterations": 256,
+      "gross_elapsed_ns": 361793750,
+      "overhead_ns": 166,
+      "net_elapsed_ns": 361793584,
+      "gross_ns_per_op": 88328.55224609375,
+      "overhead_ns_per_op": 0.04052734375,
+      "net_ns_per_op": 88328.51171875,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 4096,
+        "completed": 4096,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "intent": "batch",
+      "sample_number": 5,
+      "phase": "measured",
+      "elapsed_ns": 6975625,
+      "wall_clock_ns": 171960333,
+      "operations_attempted": 512,
+      "operations_completed": 512,
+      "throughput": 73398.4409999104,
+      "calibrated_iterations": 32,
+      "gross_elapsed_ns": 6975667,
+      "overhead_ns": 42,
+      "net_elapsed_ns": 6975625,
+      "gross_ns_per_op": 13624.349609375,
+      "overhead_ns_per_op": 0.08203125,
+      "net_ns_per_op": 13624.267578125,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 512,
+        "completed": 512,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "intent": "batch",
+      "sample_number": 0,
+      "phase": "warmup",
+      "elapsed_ns": 481116750,
+      "wall_clock_ns": 907331958,
+      "operations_attempted": 983040,
+      "operations_completed": 983040,
+      "throughput": 2043246.2598735131,
+      "calibrated_iterations": 65536,
+      "gross_elapsed_ns": 481132250,
+      "overhead_ns": 15500,
+      "net_elapsed_ns": 481116750,
+      "gross_ns_per_op": 489.4330342610677,
+      "overhead_ns_per_op": 0.015767415364583332,
+      "net_ns_per_op": 489.4172668457031,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 983040,
+        "completed": 983040,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "intent": "batch",
+      "sample_number": 1,
+      "phase": "measured",
+      "elapsed_ns": 268569167,
+      "wall_clock_ns": 609116125,
+      "operations_attempted": 983040,
+      "operations_completed": 983040,
+      "throughput": 3660286.1414839923,
+      "calibrated_iterations": 65536,
+      "gross_elapsed_ns": 268585542,
+      "overhead_ns": 16375,
+      "net_elapsed_ns": 268569167,
+      "gross_ns_per_op": 273.21934204101564,
+      "overhead_ns_per_op": 0.016657511393229168,
+      "net_ns_per_op": 273.2026845296224,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 983040,
+        "completed": 983040,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "intent": "batch",
+      "sample_number": 2,
+      "phase": "measured",
+      "elapsed_ns": 98322500,
+      "wall_clock_ns": 331305208,
+      "operations_attempted": 614400,
+      "operations_completed": 614400,
+      "throughput": 6248824.022985583,
+      "calibrated_iterations": 40960,
+      "gross_elapsed_ns": 98332708,
+      "overhead_ns": 10208,
+      "net_elapsed_ns": 98322500,
+      "gross_ns_per_op": 160.04672526041668,
+      "overhead_ns_per_op": 0.016614583333333332,
+      "net_ns_per_op": 160.03011067708334,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 614400,
+        "completed": 614400,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "intent": "batch",
+      "sample_number": 3,
+      "phase": "measured",
+      "elapsed_ns": 206887792,
+      "wall_clock_ns": 567782750,
+      "operations_attempted": 983040,
+      "operations_completed": 983040,
+      "throughput": 4751561.174764725,
+      "calibrated_iterations": 65536,
+      "gross_elapsed_ns": 206903208,
+      "overhead_ns": 15416,
+      "net_elapsed_ns": 206887792,
+      "gross_ns_per_op": 210.4728271484375,
+      "overhead_ns_per_op": 0.015681966145833334,
+      "net_ns_per_op": 210.45714518229167,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 983040,
+        "completed": 983040,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "intent": "batch",
+      "sample_number": 4,
+      "phase": "measured",
+      "elapsed_ns": 246180667,
+      "wall_clock_ns": 572670791,
+      "operations_attempted": 983040,
+      "operations_completed": 983040,
+      "throughput": 3993164.9059997066,
+      "calibrated_iterations": 65536,
+      "gross_elapsed_ns": 246196125,
+      "overhead_ns": 15458,
+      "net_elapsed_ns": 246180667,
+      "gross_ns_per_op": 250.4436492919922,
+      "overhead_ns_per_op": 0.015724690755208333,
+      "net_ns_per_op": 250.42792460123698,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 983040,
+        "completed": 983040,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "intent": "batch",
+      "sample_number": 5,
+      "phase": "measured",
+      "elapsed_ns": 290979959,
+      "wall_clock_ns": 498133084,
+      "operations_attempted": 983040,
+      "operations_completed": 983040,
+      "throughput": 3378376.996747051,
+      "calibrated_iterations": 65536,
+      "gross_elapsed_ns": 291002625,
+      "overhead_ns": 22666,
+      "net_elapsed_ns": 290979959,
+      "gross_ns_per_op": 296.02317810058594,
+      "overhead_ns_per_op": 0.023057047526041666,
+      "net_ns_per_op": 296.0001210530599,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 983040,
+        "completed": 983040,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "intent": "batch",
+      "sample_number": 0,
+      "phase": "warmup",
+      "elapsed_ns": 366777709,
+      "wall_clock_ns": 948570875,
+      "operations_attempted": 266240,
+      "operations_completed": 266240,
+      "throughput": 725889.260625705,
+      "calibrated_iterations": 53248,
+      "gross_elapsed_ns": 366795834,
+      "overhead_ns": 18125,
+      "net_elapsed_ns": 366777709,
+      "gross_ns_per_op": 1377.6886793870192,
+      "overhead_ns_per_op": 0.06807767427884616,
+      "net_ns_per_op": 1377.6206017127404,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 266240,
+        "completed": 266240,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "intent": "batch",
+      "sample_number": 1,
+      "phase": "measured",
+      "elapsed_ns": 287220041,
+      "wall_clock_ns": 543734541,
+      "operations_attempted": 286720,
+      "operations_completed": 286720,
+      "throughput": 998259.0316530176,
+      "calibrated_iterations": 57344,
+      "gross_elapsed_ns": 287234500,
+      "overhead_ns": 14459,
+      "net_elapsed_ns": 287220041,
+      "gross_ns_per_op": 1001.79443359375,
+      "overhead_ns_per_op": 0.05042898995535714,
+      "net_ns_per_op": 1001.7440046037947,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 286720,
+        "completed": 286720,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "intent": "batch",
+      "sample_number": 2,
+      "phase": "measured",
+      "elapsed_ns": 127643083,
+      "wall_clock_ns": 413377459,
+      "operations_attempted": 245760,
+      "operations_completed": 245760,
+      "throughput": 1925368.7252289262,
+      "calibrated_iterations": 49152,
+      "gross_elapsed_ns": 127655833,
+      "overhead_ns": 12750,
+      "net_elapsed_ns": 127643083,
+      "gross_ns_per_op": 519.4329142252604,
+      "overhead_ns_per_op": 0.0518798828125,
+      "net_ns_per_op": 519.381034342448,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 245760,
+        "completed": 245760,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "intent": "batch",
+      "sample_number": 3,
+      "phase": "measured",
+      "elapsed_ns": 495442875,
+      "wall_clock_ns": 1060273125,
+      "operations_attempted": 225280,
+      "operations_completed": 225280,
+      "throughput": 454704.28856202646,
+      "calibrated_iterations": 45056,
+      "gross_elapsed_ns": 495458250,
+      "overhead_ns": 15375,
+      "net_elapsed_ns": 495442875,
+      "gross_ns_per_op": 2199.2997602982955,
+      "overhead_ns_per_op": 0.06824840198863637,
+      "net_ns_per_op": 2199.231511896307,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 225280,
+        "completed": 225280,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "intent": "batch",
+      "sample_number": 4,
+      "phase": "measured",
+      "elapsed_ns": 148492500,
+      "wall_clock_ns": 510267083,
+      "operations_attempted": 40960,
+      "operations_completed": 40960,
+      "throughput": 275838.84707981884,
+      "calibrated_iterations": 8192,
+      "gross_elapsed_ns": 148495458,
+      "overhead_ns": 2958,
+      "net_elapsed_ns": 148492500,
+      "gross_ns_per_op": 3625.377392578125,
+      "overhead_ns_per_op": 0.072216796875,
+      "net_ns_per_op": 3625.30517578125,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 40960,
+        "completed": 40960,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "intent": "batch",
+      "sample_number": 5,
+      "phase": "measured",
+      "elapsed_ns": 140508625,
+      "wall_clock_ns": 343208042,
+      "operations_attempted": 122880,
+      "operations_completed": 122880,
+      "throughput": 874537.061336982,
+      "calibrated_iterations": 24576,
+      "gross_elapsed_ns": 140514500,
+      "overhead_ns": 5875,
+      "net_elapsed_ns": 140508625,
+      "gross_ns_per_op": 1143.5099283854167,
+      "overhead_ns_per_op": 0.047810872395833336,
+      "net_ns_per_op": 1143.4621175130208,
+      "latency_ns": [],
+      "parameters": {},
+      "counters": {
+        "attempted": 122880,
+        "completed": 122880,
+        "failures": 0,
+        "timeouts": 0,
+        "duplicates": 0,
+        "dropped": 0,
+        "validation_errors": 0
+      },
+      "environment": {
+        "cpu_model": "Apple M5",
+        "core_count": 10,
+        "os": "macos aarch64",
+        "rustc_version": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+        "allocator": "cntryl-stress allocator not installed",
+        "build_profile": "release",
+        "git_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+        "tool_version": "0.5.1",
+        "command_line": [
+          "/private/tmp/cassie-graph-qualification/target/release/build/cassie/ae53a8b7eed4fc88/out/tier1_hotpath_graph_paths-ae53a8b7eed4fc88",
+          "--profile",
+          "release",
+          "--samples",
+          "5",
+          "--output-dir",
+          "target/assembly-line/graph-qualification/artifacts/tier1",
+          "--bench"
+        ],
+        "profile_config": {
+          "profile": "release",
+          "measured_samples": 5,
+          "warmup_samples": 1,
+          "cooldown_samples": 0,
+          "min_quality": "acceptable",
+          "fail_on_quality": false,
+          "fail_on_regression": true,
+          "regression_threshold": 0.05,
+          "sample_duration": 1000000000,
+          "operations_per_sample": 1,
+          "micro_sample_duration": 100000000,
+          "report_depth": "gated",
+          "console_names": "compact",
+          "progress": true
+        },
+        "timer_resolution_ns": 41,
+        "observations": [
+          {
+            "key": "power_source",
+            "value": "ac",
+            "adverse": false
+          }
+        ]
+      }
+    }
+  ],
+  "summaries": [
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "name": "graph_path_value/micro",
+      "tier": 1,
+      "intent": "batch",
+      "primary_metric": "ns_per_op",
+      "measured_samples": 5,
+      "warmup_samples": 1,
+      "cooldown_samples": 0,
+      "stats": {
+        "mean": 50395.08870442708,
+        "median": 53284.0576171875,
+        "min": 13624.267578125,
+        "max": 88328.51171875,
+        "std_dev": 26954.92986421176,
+        "relative_std_dev": 0.5348721583229169,
+        "confidence_interval_95": {
+          "lower": 26768.050946421343,
+          "upper": 74022.12646243282
+        },
+        "p50": 53284.0576171875,
+        "p95": 81741.52841796874,
+        "p99": 87011.11505859374
+      },
+      "wall_clock": {
+        "mean": 426720733.6,
+        "median": 472927084.0,
+        "min": 171960333.0,
+        "max": 592769584.0,
+        "std_dev": 156572117.99497387,
+        "relative_std_dev": 0.3669194057529476,
+        "confidence_interval_95": {
+          "lower": 289479221.1065912,
+          "upper": 563962246.0934088
+        },
+        "p50": 472927084.0,
+        "p95": 570945959.0,
+        "p99": 588404859.0
+      },
+      "total_wall_clock_ns": 2639270168,
+      "ns_per_op": {
+        "mean": 50395.08870442708,
+        "median": 53284.0576171875,
+        "min": 13624.267578125,
+        "max": 88328.51171875,
+        "std_dev": 26954.92986421176,
+        "relative_std_dev": 0.5348721583229169,
+        "confidence_interval_95": {
+          "lower": 26768.050946421343,
+          "upper": 74022.12646243282
+        },
+        "p50": 53284.0576171875,
+        "p95": 81741.52841796874,
+        "p99": 87011.11505859374
+      },
+      "gross_ns_per_op": {
+        "mean": 50395.1288248698,
+        "median": 53284.088134765625,
+        "min": 13624.349609375,
+        "max": 88328.55224609375,
+        "std_dev": 26954.915647340767,
+        "relative_std_dev": 0.5348714503938052,
+        "confidence_interval_95": {
+          "lower": 26768.10352850093,
+          "upper": 74022.15412123867
+        },
+        "p50": 53284.088134765625,
+        "p95": 81741.56494140625,
+        "p99": 87011.15478515625
+      },
+      "overhead_ns_per_op": {
+        "mean": 0.040120442708333336,
+        "median": 0.030517578125,
+        "min": 0.0205078125,
+        "max": 0.08203125,
+        "std_dev": 0.02452151916115226,
+        "relative_std_dev": 0.6111976216069755,
+        "confidence_interval_95": {
+          "lower": 0.018626383476020508,
+          "upper": 0.06161450194064616
+        },
+        "p50": 0.030517578125,
+        "p95": 0.07373046875,
+        "p99": 0.08037109375
+      },
+      "quality": "noisy",
+      "trust_class": "diagnostic",
+      "budgets": {},
+      "diagnostics": [
+        {
+          "code": "high_variance",
+          "severity": "warning",
+          "reason": "Measured samples varied enough that this row needs attention.",
+          "evidence": {
+            "completed_operations_rsd": "0.48921777058397103",
+            "max_to_median": "1.6577",
+            "median_elapsed_ns": "218251500",
+            "min_to_median": "0.2557",
+            "relative_std_dev": "0.5348721583229169",
+            "scheduler_sensitive": "true",
+            "wall_clock_rsd": "0.3669194057529476"
+          },
+          "suggestions": [
+            "Inspect one-off setup, cache, I/O, or background interference before updating a baseline.",
+            "Isolate CPU scheduling or pin and limit worker concurrency before using this row as a regression gate."
+          ]
+        }
+      ],
+      "correctness": {
+        "passed": true,
+        "counters": {
+          "attempted": 15872,
+          "completed": 15872,
+          "failures": 0,
+          "timeouts": 0,
+          "duplicates": 0,
+          "dropped": 0,
+          "validation_errors": 0
+        },
+        "errors": []
+      },
+      "parameters": {
+        "logical_operations_per_iteration": "16",
+        "logical_unit": "operation",
+        "measurement_mode": "micro"
+      },
+      "metadata": {
+        "access_family": "graph_path",
+        "access_path_evidence_source": "not_applicable",
+        "benchmark": "tier1_hotpath_graph_paths",
+        "candidate_count": "0",
+        "configured_worker_count": "0",
+        "execution_result_cache_hits": "0",
+        "failed_operations": "0",
+        "fallback_evidence_source": "not_applicable",
+        "fallback_reason": "not_applicable",
+        "family": "graph",
+        "fixture_class": "kernel",
+        "fixture_identity": "tier1_hotpath_graph_paths/micro",
+        "fixture_rows": "0",
+        "fixture_scale": "micro",
+        "leaked_active_operator_workers": "0",
+        "logical_operations_per_iteration": "16",
+        "measurement_shape": "fixed_workload",
+        "ns_per_op_basis": "logical_completed_operation",
+        "operation_unit": "operation",
+        "peak_query_memory_bytes": "0",
+        "result_cardinality": "16",
+        "scenario_id": "perf.kernel.graph_path_value",
+        "selected_access_path": "not_applicable",
+        "setup_time_ns": "1853542",
+        "signal_role": "optimization",
+        "storage_read_unit": "not_applicable",
+        "storage_reads": "0",
+        "worker_count": "0",
+        "worker_leak_evidence_source": "not_applicable",
+        "workload": "graph_path_value"
+      },
+      "source": {
+        "file": "benches/support/stress.rs",
+        "line": 473
+      },
+      "peak_rss_bytes": 7733248
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "name": "graph_path_order/micro",
+      "tier": 1,
+      "intent": "batch",
+      "primary_metric": "ns_per_op",
+      "measured_samples": 5,
+      "warmup_samples": 1,
+      "cooldown_samples": 0,
+      "stats": {
+        "mean": 238.02359720865883,
+        "median": 250.42792460123698,
+        "min": 160.03011067708334,
+        "max": 296.0001210530599,
+        "std_dev": 53.84144792479048,
+        "relative_std_dev": 0.2262021436370084,
+        "confidence_interval_95": {
+          "lower": 190.829487282455,
+          "upper": 285.2177071348626
+        },
+        "p50": 250.42792460123698,
+        "p95": 291.4406337483724,
+        "p99": 295.0882235921224
+      },
+      "wall_clock": {
+        "mean": 515801591.6,
+        "median": 567782750.0,
+        "min": 331305208.0,
+        "max": 609116125.0,
+        "std_dev": 110673890.93068899,
+        "relative_std_dev": 0.2145667883408078,
+        "confidence_interval_95": {
+          "lower": 418791648.96547616,
+          "upper": 612811534.2345239
+        },
+        "p50": 567782750.0,
+        "p95": 601827058.2,
+        "p99": 607658311.64
+      },
+      "total_wall_clock_ns": 3486339916,
+      "ns_per_op": {
+        "mean": 238.02359720865883,
+        "median": 250.42792460123698,
+        "min": 160.03011067708334,
+        "max": 296.0001210530599,
+        "std_dev": 53.84144792479048,
+        "relative_std_dev": 0.2262021436370084,
+        "confidence_interval_95": {
+          "lower": 190.829487282455,
+          "upper": 285.2177071348626
+        },
+        "p50": 250.42792460123698,
+        "p95": 291.4406337483724,
+        "p99": 295.0882235921224
+      },
+      "gross_ns_per_op": {
+        "mean": 238.0411443684896,
+        "median": 250.4436492919922,
+        "min": 160.04672526041668,
+        "max": 296.02317810058594,
+        "std_dev": 53.843257428219204,
+        "relative_std_dev": 0.226193070828417,
+        "confidence_interval_95": {
+          "lower": 190.84544834259827,
+          "upper": 285.2368403943809
+        },
+        "p50": 250.4436492919922,
+        "p95": 291.46241088867185,
+        "p99": 295.1110246582031
+      },
+      "overhead_ns_per_op": {
+        "mean": 0.017547159830729166,
+        "median": 0.016614583333333332,
+        "min": 0.015681966145833334,
+        "max": 0.023057047526041666,
+        "std_dev": 0.00311530001340972,
+        "relative_std_dev": 0.17753870389634815,
+        "confidence_interval_95": {
+          "lower": 0.014816478971415432,
+          "upper": 0.0202778406900429
+        },
+        "p50": 0.016614583333333332,
+        "p95": 0.021777140299479164,
+        "p99": 0.022801066080729165
+      },
+      "quality": "noisy",
+      "trust_class": "diagnostic",
+      "budgets": {},
+      "diagnostics": [
+        {
+          "code": "high_variance",
+          "severity": "warning",
+          "reason": "Measured samples varied enough that this row needs attention.",
+          "evidence": {
+            "completed_operations_rsd": "0.18130280898646944",
+            "max_to_median": "1.1820",
+            "median_elapsed_ns": "246180667",
+            "min_to_median": "0.6390",
+            "relative_std_dev": "0.2262021436370084",
+            "scheduler_sensitive": "true",
+            "wall_clock_rsd": "0.2145667883408078"
+          },
+          "suggestions": [
+            "Isolate CPU scheduling or pin and limit worker concurrency before using this row as a regression gate."
+          ]
+        }
+      ],
+      "correctness": {
+        "passed": true,
+        "counters": {
+          "attempted": 4546560,
+          "completed": 4546560,
+          "failures": 0,
+          "timeouts": 0,
+          "duplicates": 0,
+          "dropped": 0,
+          "validation_errors": 0
+        },
+        "errors": []
+      },
+      "parameters": {
+        "logical_operations_per_iteration": "15",
+        "logical_unit": "comparison",
+        "measurement_mode": "micro"
+      },
+      "metadata": {
+        "access_family": "graph_path_order",
+        "access_path_evidence_source": "not_applicable",
+        "benchmark": "tier1_hotpath_graph_paths",
+        "candidate_count": "0",
+        "configured_worker_count": "0",
+        "execution_result_cache_hits": "0",
+        "failed_operations": "0",
+        "fallback_evidence_source": "not_applicable",
+        "fallback_reason": "not_applicable",
+        "family": "graph",
+        "fixture_class": "kernel",
+        "fixture_identity": "tier1_hotpath_graph_paths/micro",
+        "fixture_rows": "0",
+        "fixture_scale": "micro",
+        "leaked_active_operator_workers": "0",
+        "logical_operations_per_iteration": "15",
+        "measurement_shape": "fixed_workload",
+        "ns_per_op_basis": "logical_completed_operation",
+        "operation_unit": "comparison",
+        "peak_query_memory_bytes": "0",
+        "result_cardinality": "15",
+        "scenario_id": "perf.kernel.graph_path_order",
+        "selected_access_path": "not_applicable",
+        "setup_time_ns": "1853542",
+        "signal_role": "optimization",
+        "storage_read_unit": "not_applicable",
+        "storage_reads": "0",
+        "worker_count": "0",
+        "worker_leak_evidence_source": "not_applicable",
+        "workload": "graph_path_order"
+      },
+      "source": {
+        "file": "benches/support/stress.rs",
+        "line": 473
+      },
+      "peak_rss_bytes": 7733248
+    },
+    {
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "name": "graph_key_normalization/micro",
+      "tier": 1,
+      "intent": "batch",
+      "primary_metric": "ns_per_op",
+      "measured_samples": 5,
+      "warmup_samples": 1,
+      "cooldown_samples": 0,
+      "stats": {
+        "mean": 1697.824768827364,
+        "median": 1143.4621175130208,
+        "min": 519.381034342448,
+        "max": 3625.30517578125,
+        "std_dev": 1239.673894218477,
+        "relative_std_dev": 0.7301542049446493,
+        "confidence_interval_95": {
+          "lower": 611.2026906448402,
+          "upper": 2784.446847009888
+        },
+        "p50": 1143.4621175130208,
+        "p95": 3340.090443004261,
+        "p99": 3568.262229225852
+      },
+      "wall_clock": {
+        "mean": 574172050.0,
+        "median": 510267083.0,
+        "min": 343208042.0,
+        "max": 1060273125.0,
+        "std_dev": 283065281.942096,
+        "relative_std_dev": 0.4929973201274705,
+        "confidence_interval_95": {
+          "lower": 326054390.70287323,
+          "upper": 822289709.2971268
+        },
+        "p50": 510267083.0,
+        "p95": 956965408.1999999,
+        "p99": 1039611581.64
+      },
+      "total_wall_clock_ns": 3819431125,
+      "ns_per_op": {
+        "mean": 1697.824768827364,
+        "median": 1143.4621175130208,
+        "min": 519.381034342448,
+        "max": 3625.30517578125,
+        "std_dev": 1239.673894218477,
+        "relative_std_dev": 0.7301542049446493,
+        "confidence_interval_95": {
+          "lower": 611.2026906448402,
+          "upper": 2784.446847009888
+        },
+        "p50": 1143.4621175130208,
+        "p95": 3340.090443004261,
+        "p99": 3568.262229225852
+      },
+      "gross_ns_per_op": {
+        "mean": 1697.8828858161694,
+        "median": 1143.5099283854167,
+        "min": 519.4329142252604,
+        "max": 3625.377392578125,
+        "std_dev": 1239.6841130307628,
+        "relative_std_dev": 0.7301352309908282,
+        "confidence_interval_95": {
+          "lower": 611.2518504497486,
+          "upper": 2784.51392118259
+        },
+        "p50": 1143.5099283854167,
+        "p95": 3340.161866122159,
+        "p99": 3568.3342872869316
+      },
+      "overhead_ns_per_op": {
+        "mean": 0.05811698880546536,
+        "median": 0.0518798828125,
+        "min": 0.047810872395833336,
+        "max": 0.072216796875,
+        "std_dev": 0.011243586767814371,
+        "relative_std_dev": 0.19346471658141062,
+        "confidence_interval_95": {
+          "lower": 0.04826155047055533,
+          "upper": 0.0679724271403754
+        },
+        "p50": 0.0518798828125,
+        "p95": 0.07142311789772728,
+        "p99": 0.07205806107954546
+      },
+      "quality": "noisy",
+      "trust_class": "diagnostic",
+      "budgets": {},
+      "diagnostics": [
+        {
+          "code": "high_variance",
+          "severity": "warning",
+          "reason": "Measured samples varied enough that this row needs attention.",
+          "evidence": {
+            "completed_operations_rsd": "0.5443310539518174",
+            "max_to_median": "3.1705",
+            "median_elapsed_ns": "148492500",
+            "min_to_median": "0.4542",
+            "relative_std_dev": "0.7301542049446493",
+            "scheduler_sensitive": "true",
+            "wall_clock_rsd": "0.4929973201274705"
+          },
+          "suggestions": [
+            "Inspect one-off setup, cache, I/O, or background interference before updating a baseline.",
+            "Isolate CPU scheduling or pin and limit worker concurrency before using this row as a regression gate."
+          ]
+        }
+      ],
+      "correctness": {
+        "passed": true,
+        "counters": {
+          "attempted": 921600,
+          "completed": 921600,
+          "failures": 0,
+          "timeouts": 0,
+          "duplicates": 0,
+          "dropped": 0,
+          "validation_errors": 0
+        },
+        "errors": []
+      },
+      "parameters": {
+        "logical_operations_per_iteration": "5",
+        "logical_unit": "key",
+        "measurement_mode": "micro"
+      },
+      "metadata": {
+        "access_family": "graph_key",
+        "access_path_evidence_source": "not_applicable",
+        "benchmark": "tier1_hotpath_graph_paths",
+        "candidate_count": "0",
+        "configured_worker_count": "0",
+        "execution_result_cache_hits": "0",
+        "failed_operations": "0",
+        "fallback_evidence_source": "not_applicable",
+        "fallback_reason": "not_applicable",
+        "family": "graph",
+        "fixture_class": "kernel",
+        "fixture_identity": "tier1_hotpath_graph_paths/micro",
+        "fixture_rows": "0",
+        "fixture_scale": "micro",
+        "leaked_active_operator_workers": "0",
+        "logical_operations_per_iteration": "5",
+        "measurement_shape": "fixed_workload",
+        "ns_per_op_basis": "logical_completed_operation",
+        "operation_unit": "key",
+        "peak_query_memory_bytes": "0",
+        "result_cardinality": "5",
+        "scenario_id": "perf.kernel.graph_key_normalization",
+        "selected_access_path": "not_applicable",
+        "setup_time_ns": "1853542",
+        "signal_role": "optimization",
+        "storage_read_unit": "not_applicable",
+        "storage_reads": "0",
+        "worker_count": "0",
+        "worker_leak_evidence_source": "not_applicable",
+        "workload": "graph_key_normalization"
+      },
+      "source": {
+        "file": "benches/support/stress.rs",
+        "line": 473
+      },
+      "peak_rss_bytes": 7733248
+    }
+  ],
+  "comparisons": [],
+  "diagnostics_summary": [
+    {
+      "suite": "tier1_hotpath_graph_paths",
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_value/micro/graph_path_value/micro",
+      "name": "graph_path_value/micro",
+      "tier": 1,
+      "code": "high_variance",
+      "severity": "warning",
+      "reason": "Measured samples varied enough that this row needs attention.",
+      "evidence": {
+        "completed_operations_rsd": "0.48921777058397103",
+        "max_to_median": "1.6577",
+        "median_elapsed_ns": "218251500",
+        "min_to_median": "0.2557",
+        "relative_std_dev": "0.5348721583229169",
+        "scheduler_sensitive": "true",
+        "wall_clock_rsd": "0.3669194057529476"
+      },
+      "suggestions": [
+        "Inspect one-off setup, cache, I/O, or background interference before updating a baseline.",
+        "Isolate CPU scheduling or pin and limit worker concurrency before using this row as a regression gate."
+      ],
+      "quality": "noisy",
+      "trust_class": "diagnostic",
+      "parameters": {
+        "logical_operations_per_iteration": "16",
+        "logical_unit": "operation",
+        "measurement_mode": "micro"
+      }
+    },
+    {
+      "suite": "tier1_hotpath_graph_paths",
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_path_order/micro/graph_path_order/micro",
+      "name": "graph_path_order/micro",
+      "tier": 1,
+      "code": "high_variance",
+      "severity": "warning",
+      "reason": "Measured samples varied enough that this row needs attention.",
+      "evidence": {
+        "completed_operations_rsd": "0.18130280898646944",
+        "max_to_median": "1.1820",
+        "median_elapsed_ns": "246180667",
+        "min_to_median": "0.6390",
+        "relative_std_dev": "0.2262021436370084",
+        "scheduler_sensitive": "true",
+        "wall_clock_rsd": "0.2145667883408078"
+      },
+      "suggestions": [
+        "Isolate CPU scheduling or pin and limit worker concurrency before using this row as a regression gate."
+      ],
+      "quality": "noisy",
+      "trust_class": "diagnostic",
+      "parameters": {
+        "logical_operations_per_iteration": "15",
+        "logical_unit": "comparison",
+        "measurement_mode": "micro"
+      }
+    },
+    {
+      "suite": "tier1_hotpath_graph_paths",
+      "benchmark_id": "tier1_hotpath_graph_paths/graph_key_normalization/micro/graph_key_normalization/micro",
+      "name": "graph_key_normalization/micro",
+      "tier": 1,
+      "code": "high_variance",
+      "severity": "warning",
+      "reason": "Measured samples varied enough that this row needs attention.",
+      "evidence": {
+        "completed_operations_rsd": "0.5443310539518174",
+        "max_to_median": "3.1705",
+        "median_elapsed_ns": "148492500",
+        "min_to_median": "0.4542",
+        "relative_std_dev": "0.7301542049446493",
+        "scheduler_sensitive": "true",
+        "wall_clock_rsd": "0.4929973201274705"
+      },
+      "suggestions": [
+        "Inspect one-off setup, cache, I/O, or background interference before updating a baseline.",
+        "Isolate CPU scheduling or pin and limit worker concurrency before using this row as a regression gate."
+      ],
+      "quality": "noisy",
+      "trust_class": "diagnostic",
+      "parameters": {
+        "logical_operations_per_iteration": "5",
+        "logical_unit": "key",
+        "measurement_mode": "micro"
+      }
+    }
+  ],
+  "started_at": "01794860968329030000-0000007136-00000000000000000000",
+  "total_elapsed_ns": 9954990708,
+  "metadata": {
+    "cntryl_stress_summary_semantics": "interpolated_percentiles_p95_ci_v1",
+    "declared_tier": "1",
+    "filtered_run": "false",
+    "owner_suite_complete": "true"
+  }
+}

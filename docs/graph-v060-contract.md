@@ -1,11 +1,11 @@
 # v0.6 graph contract and delivery plan
 
-Status: **selected planning direction with owner decisions of 2026-11-15; not
-implemented or qualified**. This
-document does not claim SQL:2023 conformance. Reconcile live issue wording with
-these decisions before implementation. Normative verification, implementation
-feasibility and the storage proof remain gates. Existing graph traversal remains
-Experimental.
+Status: **implemented finite Cassie contract; graph traversal remains
+Experimental**. Owner decisions of 2026-11-15 define the selected surface; the
+[qualification record](graph-v060-qualification.md) records executed correctness,
+client, read-bound and benchmark evidence and remaining promotion limits. This
+document does not claim SQL:2023 conformance. The source tables and ordinary
+transactional indexes are authoritative; no derived adjacency proof is claimed.
 
 ## Outcome
 
@@ -23,7 +23,7 @@ or a general graph analytics platform.
 
 ## Graph definition and identity
 
-The proposed `CREATE PROPERTY GRAPH` maps **existing** tables; creating or
+`CREATE PROPERTY GRAPH` maps **existing** tables; creating or
 dropping a graph does not create or delete source rows or tables. A definition
 names vertex table aliases, unique vertex keys, edge table aliases, unique edge
 keys, source and destination key mappings, labels and exposed properties.
@@ -195,8 +195,7 @@ Numbers `m`, `n`, and `k` are unsigned integer literals; `m <= n` and `k > 0`.
 or more. An absent quantifier means exactly one edge. An omitted selector means
 `ALL WALK PATHS`; an omitted mode means `WALK`. Parenthesized multi-edge
 repetition, nested quantifiers, selector parameters, and other quantifier forms
-are outside this initial grammar. The query examples describe intended behavior,
-not an implementation currently available:
+are outside this initial grammar. The query examples describe the implemented finite surface:
 
 ```sql
 SELECT g.person_id, g.friend_id

@@ -1,0 +1,95 @@
+{
+  "evidence": "local diagnostic; no release or Stable promotion claim",
+  "summaries": [
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 18182,
+      "p95_us": 18182,
+      "p99_us": 18182,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "degree-16",
+      "scenario": "perf.scale.graph.degree.16",
+      "throughput_ops_per_sec": 55.00209695494641
+    },
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 3636,
+      "p95_us": 3636,
+      "p99_us": 3636,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "degree-64",
+      "scenario": "perf.scale.graph.degree.64",
+      "throughput_ops_per_sec": 275.04011001604397
+    },
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 94226,
+      "p95_us": 94226,
+      "p99_us": 94226,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "degree-256",
+      "scenario": "perf.scale.graph.degree.256",
+      "throughput_ops_per_sec": 10.612885318445407
+    },
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 11265,
+      "p95_us": 11265,
+      "p99_us": 11265,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "depth-2",
+      "scenario": "perf.scale.graph.depth.2",
+      "throughput_ops_per_sec": 88.77643873316022
+    },
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 18228,
+      "p95_us": 18228,
+      "p99_us": 18228,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "depth-4",
+      "scenario": "perf.scale.graph.depth.4",
+      "throughput_ops_per_sec": 54.86328754534794
+    },
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 14680,
+      "p95_us": 14680,
+      "p99_us": 14680,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "depth-8",
+      "scenario": "perf.scale.graph.depth.8",
+      "throughput_ops_per_sec": 68.1220163408368
+    },
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 20896,
+      "p95_us": 20896,
+      "p99_us": 20896,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "fanout-2",
+      "scenario": "perf.scale.graph.fanout.2",
+      "throughput_ops_per_sec": 47.8573842292786
+    },
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 13756,
+      "p95_us": 13756,
+      "p99_us": 13756,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "fanout-4",
+      "scenario": "perf.scale.graph.fanout.4",
+      "throughput_ops_per_sec": 72.69709418083023
+    },
+    {
+      "declared_profile_storage": "in_memory_midge_fallback",
+      "p50_us": 260212,
+      "p95_us": 260212,
+      "p99_us": 260212,
+      "profile": "local-dev-graph-topology-memory-64m",
+      "scale": "fanout-8",
+      "scenario": "perf.scale.graph.fanout.8",
+      "throughput_ops_per_sec": 3.843028311228324
+    }
+  ]
+}

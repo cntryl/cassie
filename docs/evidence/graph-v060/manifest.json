@@ -1,0 +1,135 @@
+{
+  "evidence_class": "local diagnostics; not a complete release suite, regression baseline, SLA or Stable promotion",
+  "host": {
+    "captured_utc": "2026-11-16T20:03:08.928965+00:00",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "cpu": "Apple M5",
+    "memory_bytes": 25769803776,
+    "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+    "cargo": "cargo 1.100.0 (3acc79c0c 2026-11-05)",
+    "python": "Python 3.12.13",
+    "psycopg": "3.2.13"
+  },
+  "artifacts": [
+    {
+      "file": "tier1-release.json",
+      "bytes": 70165,
+      "sha256": "2fda4bf872fb07c7b1509cc3176278c67bcaad2f76acd5572c8edd951f02cb91",
+      "source_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+      "original": "target/assembly-line/graph-qualification/artifacts/tier1/tier1_hotpath_graph_paths/latest.json",
+      "command": [
+        "cargo",
+        "bench",
+        "--locked",
+        "--bench",
+        "tier1_hotpath_graph_paths",
+        "--",
+        "--profile",
+        "release",
+        "--samples",
+        "5",
+        "--output-dir",
+        "target/assembly-line/graph-qualification/artifacts/tier1"
+      ],
+      "exit": 0,
+      "status": "failed timing quality; correctness passed",
+      "rows": 3
+    },
+    {
+      "file": "tier2-release.json",
+      "bytes": 74367,
+      "sha256": "e8d9d42bc1517f27329b3cfe5afc5b7db70ae14346c9fe554f7a8ec2593b551c",
+      "source_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+      "original": "target/assembly-line/graph-qualification/artifacts/tier2/tier2_subsystem_graph/latest.json",
+      "command": [
+        "cargo",
+        "bench",
+        "--locked",
+        "--bench",
+        "tier2_subsystem_graph",
+        "--",
+        "--profile",
+        "release",
+        "--samples",
+        "5",
+        "--output-dir",
+        "target/assembly-line/graph-qualification/artifacts/tier2"
+      ],
+      "exit": 101,
+      "status": "failed timing quality; correctness passed",
+      "rows": 4
+    },
+    {
+      "file": "tier3-release.json",
+      "bytes": 114583,
+      "sha256": "0f3c2cde4bacbdd6df38c6538b8fff7a5748ac41b2b528ea690915c2fda16b5e",
+      "source_commit": "68179fdcbd0762f42d06c555ec9469cc124235ee",
+      "original": "target/assembly-line/graph-qualification/artifacts/tier3/tier3_system_graph/latest.json",
+      "command": [
+        "env",
+        "CASSIE_BENCH_DEPLOYMENT_PROFILE_ID=local-dev-fallback-100k",
+        "cargo",
+        "bench",
+        "--locked",
+        "--bench",
+        "tier3_system_graph",
+        "--",
+        "--profile",
+        "release",
+        "--samples",
+        "5",
+        "--output-dir",
+        "target/assembly-line/graph-qualification/artifacts/tier3"
+      ],
+      "exit": 101,
+      "status": "failed timing quality; correctness passed",
+      "rows": 4
+    },
+    {
+      "file": "topology-smoke.json",
+      "bytes": 177609,
+      "sha256": "d240243c69afe4e7321fb8e732dcf360503c53eed330b3e3e5d4c1076bcb4241",
+      "source_commit": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "original": "target/assembly-line/graph-qualification/artifacts/topology-repaired/diagnostic/tier5_scaling_graph/latest.json",
+      "command": [
+        "env",
+        "CASSIE_BENCH_DEPLOYMENT_PROFILE_ID=local-dev-graph-topology-memory-64m",
+        "cargo",
+        "bench",
+        "--locked",
+        "--bench",
+        "tier5_scaling_graph",
+        "--",
+        "--profile",
+        "smoke",
+        "--output-dir",
+        "target/assembly-line/graph-qualification/artifacts/topology-repaired"
+      ],
+      "exit": 0,
+      "status": "passed smoke; diagnostic only",
+      "rows": 9
+    }
+  ],
+  "topology_summary_exit": 0,
+  "runtime_src_tree": "7e312de02bbf2cd44e3796712713819d22aab4be",
+  "client": {
+    "file": "psycopg.json",
+    "source_commit": "9b3aabaed71f1913f7de21a93d8ba689b4396318",
+    "tests_passed": 5,
+    "exit": 0
+  },
+  "derived_files": {
+    "psycopg.json": {
+      "bytes": 1708,
+      "sha256": "e3e37f2d94001d6b1c2b9b6c27a0184c9cc2063a1dcb70d41363806f9bcf40e9"
+    },
+    "local-checks.json": {
+      "bytes": 12849,
+      "sha256": "999b517e26b231b4a1f8f271f61bbcb4956689dc6872fbac35590b4921cd981f"
+    },
+    "topology-summary.json": {
+      "bytes": 3014,
+      "sha256": "6139dc4d8e29b43125b57f21063260d4a4292ab0870676c6bf38899ceeea4ff4"
+    }
+  }
+}

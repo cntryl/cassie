@@ -86,23 +86,26 @@ for graph paths, release publication, or exact-head qualification.
 
 ## v0.6.0 Fast, Idiomatic Graphs
 
-The [graph milestone](https://github.com/cntryl/cassie/milestone/13) targets
+The [graph milestone](https://github.com/cntryl/cassie/milestone/13) delivers
 property graph queries over projector-maintained tables through PostgreSQL
-clients. Its [contract](graph-v060-contract.md) owns the semantics,
-building blocks, dependencies and qualification criteria, and the
-[graph guide](graph-guide.md) describes the delivered surface. Mapped property graphs,
-`GRAPH_TABLE`, the `cassie_graph` path types and `graph_weighted_paths` are implemented on
-exact reads, and the legacy graph feature is removed. Implemented behavior is not
-qualification: the [promotion evidence](graph-v060-gap-analysis.md#promotion-evidence)
-lists what is proven and what remains open, and graph support stays Experimental until it
-is decided from that evidence. Earlier documented release dependencies remain in force.
+clients. The [contract](graph-v060-contract.md) and [guide](graph-guide.md)
+define its finite surface. Mapped graphs, `GRAPH_TABLE`, native paths and
+weighted paths use ordinary transactional indexes with exact fallback; the
+legacy graph feature was removed without conversion.
+
+The [qualification record](graph-v060-qualification.md) retains the complete
+locked suite and affected checks, two native-client workflows, read-bound and
+EXPLAIN owners, 100k weighted routes and nine topology points. Graph traversal
+remains Experimental after the conditional promotion review: all scenario
+correctness checks passed, but several local timing rows failed quality. A
+feature-milestone closeout is distinct from publication or production capacity.
 
 Delivery order, by owner decision of 2026-11-15: mapped graphs (#1255), native
 path types (#1268), the `GRAPH_TABLE` surface (#1256), exact execution (#1257
 and the transaction-view part of #1254), weighted paths and removal of the
 legacy graph feature without conversion (#1258), fast reads (#1253, the
 read-bound part of #1254, and #1259), then qualification (#1260). Query
-execution uses exact reads of the mapped tables until the fast-reads step.
+execution now uses the delivered indexed read paths and controlled exact fallback.
 
 ## Replay durability and throughput
 

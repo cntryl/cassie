@@ -2,8 +2,9 @@
 
 This is an explicit client qualification workflow for the selected graph type
 contract (#1268), using Psycopg 3's public `CompositeInfo` and
-`register_composite` APIs. Graph support remains Experimental; a checked-in
-probe is not an executed qualification result. The source-backed Jev decision
+`register_composite` APIs. Graph support remains Experimental. The five-invariant workflow passed on
+2026-11-16; exact source, command, versions and output are in the
+[qualification record](graph-v060-qualification.md#native-paths-and-real-clients-1268). The source-backed Jev decision
 selected this workflow over expanding SQLx's catalog resolver. SQLx's native
 graph composite discovery remains unsupported; builtin scalar graph results
 have their separate existing tests.
@@ -54,8 +55,9 @@ prepared text and binary parameters. These probes do not qualify storage image
 recovery.
 
 Source identity, actual command outcome and Python/Psycopg versions must be
-recorded by the assembler after execution. The new probe is authored/not run
-until that receipt exists. Existing clone restore semantics remain unchanged:
+recorded by the assembler after execution. The executed receipt uses Python 3.12.13, Psycopg 3.2.13 and libpq 17.6.
+Catalog name parameters are explicitly cast to TEXT; generic unknown-parameter
+inference over these virtual catalog joins is not qualified. Existing clone restore semantics remain unchanged:
 restored databases have fresh identities, graph definitions are recreated, and
 source references fail `42704`; identity-preserving restore/remapping is not an
 offered workflow (#1327).

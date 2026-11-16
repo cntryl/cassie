@@ -1,0 +1,35 @@
+{
+  "command": [
+    "env",
+    "CASSIE_GRAPH_PYTHON=/private/tmp/cassie-graph-qualification/target/qualification-venv/bin/python",
+    "cargo",
+    "bench",
+    "--locked",
+    "--features",
+    "graph-client-qualification",
+    "--bench",
+    "qualification_graph_psycopg"
+  ],
+  "head": "9b3aabaed71f1913f7de21a93d8ba689b4396318",
+  "tree": "aa7fde47c602c47ec7bd551a4d2ba992cf7ce144",
+  "start": "2026-11-16T20:54:32.053537+00:00",
+  "status": "passed",
+  "end": "2026-11-16T20:54:33.170417+00:00",
+  "exit": 0,
+  "python": "3.12.13",
+  "psycopg": "3.2.13",
+  "libpq_version": 170006,
+  "tests_passed": 5,
+  "tests_failed": 0,
+  "client_test_seconds": 0.323,
+  "workflow": "public CompositeInfo catalog metadata with explicitly typed text parameters; native record/array adapters",
+  "test_output": [
+    "should_read_the_seeded_rows_and_connected_heterogeneous_edges (__main__.GraphClientQualification.should_read_the_seeded_rows_and_connected_heterogeneous_edges) ... ok",
+    "should_read_typed_keys_and_ordered_steps_from_a_bound_path (__main__.GraphClientQualification.should_read_typed_keys_and_ordered_steps_from_a_bound_path) ... ok",
+    "should_reject_a_malformed_bound_path_without_partial_results (__main__.GraphClientQualification.should_reject_a_malformed_bound_path_without_partial_results) ... ok",
+    "should_roundtrip_native_graph_table_paths_in_text_and_binary (__main__.GraphClientQualification.should_roundtrip_native_graph_table_paths_in_text_and_binary) ... ok",
+    "should_roundtrip_paths_and_arrays_in_prepared_text_and_binary (__main__.GraphClientQualification.should_roundtrip_paths_and_arrays_in_prepared_text_and_binary) ... ok",
+    "Ran 5 tests in 0.323s",
+    "OK"
+  ]
+}

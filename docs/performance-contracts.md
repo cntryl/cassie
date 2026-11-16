@@ -219,6 +219,50 @@ Remote embedding providers expose controlled document and query methods. Each re
 
 Time-series index records and column metadata and summaries are latest-only derived sidecars. Startup audits their version, generation, counts, checksums, and source membership as applicable and rebuilds the complete sidecar when state is missing, malformed, old, or inconsistent. Cassie does not read incompatible derived formats through a compatibility branch; authoritative Midge row records remain the recovery source.
 
+## Graph benchmarks
+
+Mapped property graphs have benchmarks at tiers 1 to 3. Each fixture maps ordinary tables that
+are loaded with `INSERT ... SELECT`, and every query result is checked against an independent
+Rust computation of the expected cardinality. The graph workload family `graph` is a required
+workload family again. These benchmarks establish that the workloads run and that their
+results are correct. This document records no timing figure for them: gate-quality
+numbers need the release profile with at least five measured samples and have not been recorded.
+
+| Scenario | Owner | Workload | Fixture |
+| --- | --- | --- | --- |
+| `perf.kernel.graph_path_value` | `tier1_hotpath_graph_paths` | Build the `graph_path` record of 16 three-edge paths and validate it. | Kernel, no storage |
+| `perf.kernel.graph_path_order` | `tier1_hotpath_graph_paths` | Compare neighbouring paths in the total path order. | Kernel, no storage |
+| `perf.kernel.graph_key_normalization` | `tier1_hotpath_graph_paths` | Encode a five-type key tuple as `graph_key_part` records and decode it back. | Kernel, no storage |
+| `perf.graph.binding.64` | `tier2_subsystem_graph` | Bind four representative `GRAPH_TABLE` patterns (one hop, bounded, unbounded `ACYCLIC`, path projection). | 64 vertices, 128 edges, memory storage |
+| `perf.graph.one_hop.64` | `tier2_subsystem_graph` | One-hop expansion from one vertex. | same |
+| `perf.graph.bounded_expansion.64` | `tier2_subsystem_graph` | `{1,3}` expansion from one vertex. | same |
+| `perf.graph.weighted_paths.64` | `tier2_subsystem_graph` | `graph_weighted_paths` for three paths with named arguments. | same |
+| `perf.graph.authorization_reachability.100k` | `tier3_system_graph` | Documents reachable by a user through at most one membership edge and one grant. | 4,000 principals, 8,000 resources, 8,000 memberships, 8,000 grants (28,000 mapped rows) |
+| `perf.graph.hierarchy_ancestry.100k` | `tier3_system_graph` | All ancestors of the deepest node with `+` and `ACYCLIC`. | 10,000 nodes, 9,999 edges (19,999 mapped rows) |
+| `perf.graph.friends_of_friends.100k` | `tier3_system_graph` | `{2,2}` expansion from one person. | 5,000 people, 10,000 edges (15,000 mapped rows) |
+| `perf.graph.weighted_routes.100k` | `tier3_system_graph` | Three cheapest simple routes within four hops. | same |
+
+The tier 3 fixtures use memory storage, a 2 GiB native storage budget with a 512 MiB memtable
+(separate from the query budget), and the 64 MiB analytical query-memory profile described
+above. Rows are written through the document write path in batches of 1,000.
+
+**Open finding: the 100k class does not fit.** The scenario contract fixes the Tier 3 fixture
+class at 100,000 rows, and these scenarios keep that class and the `.100k` ids. A mapped graph
+is read exactly, so a query materializes the rows of the tables it maps. Under the 64 MiB
+profile, graph queries failed with `54000` from about 30,000 mapped rows (during development a 100,000-node hierarchy,
+a 32,000-row hierarchy and a 30,000-row social graph failed, and a 28,000-row access graph passed), so the fixtures map the
+smaller sizes in the table above and record the real count as the result metadata
+`graph_mapped_rows`. The ids therefore name the contract class, not the mapped size. Whether
+to give graph a larger benchmark profile, as the removed legacy graph had, or to wait for
+bounded adjacency reads is a decision for the owner and is not made here. `graph_weighted_paths` validates every edge weight
+of the mapped edge tables on each call, so its tier 3 workload reads all 10,000 edges
+by design. Until the `EXPLAIN` plan reports a graph access path, the tier 3 owner declares the
+access path `graph_table_exact_read` and records `graph_access_path_source=declared` in the
+result metadata; when the plan reports an `access_path`, the owner records it with source
+`reported`. Run one owner with, for example,
+`cargo bench --locked --bench tier2_subsystem_graph -- --profile smoke`; a smoke run is
+a diagnostic and not a gate.
+
 ## Storage Layout and Amplification
 
 Query-hot Cassie records use the `cassie-midge-layout-v1-0.1.0` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
@@ -423,7 +467,7 @@ Execution-result caching is disabled for every benchmark owner except the dedica
 
 Dynamic SQL values always use bound parameters in benchmarks and their fixtures. SQL formatting is limited to identifiers chosen by a closed, validated helper. Parameterization tests prove that boundary without adding hostile-input examples to benchmark fixtures.
 
-Successful 100k analytical cases use and record the explicit 64 MiB benchmark-only query-memory profile. The legacy graph representative and its 128 MiB profile were removed in v0.6.0 with the legacy graph feature; a mapped-graph benchmark is delivered separately. This replaces proportional column-batch memory overrides and does not change the 10 MiB runtime default.
+Successful 100k analytical cases use and record the explicit 64 MiB benchmark-only query-memory profile. The legacy graph representative and its 128 MiB profile were removed in v0.6.0 with the legacy graph feature. The mapped-graph representatives described under [Graph benchmarks](#graph-benchmarks) use the same 64 MiB profile; no dedicated larger graph profile exists. This replaces proportional column-batch memory overrides and does not change the 10 MiB runtime default.
 The Tier 5 250k analytical curve records a separate 100 MiB benchmark-only profile; it remains a
 hard bound and uses a 120-second per-query timeout so the curve measures completion rather than the
 30-second runtime default. Neither setting widens runtime defaults or the 100k representative

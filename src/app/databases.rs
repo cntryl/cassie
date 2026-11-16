@@ -35,6 +35,7 @@ impl Cassie {
         self.catalog.register_database_metadata(database.clone());
         self.catalog.register_namespace_meta(public_namespace);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
+        self.ensure_graph_schema(&database.name)?;
 
         Ok(database)
     }

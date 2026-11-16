@@ -7,6 +7,9 @@ pub(super) fn lower(
     function: &mut FunctionCall,
     types: &ResultTypes,
 ) -> Result<Option<Expr>, CassieError> {
+    if let Some(typed) = super::graph_key_part::lower(function, types)? {
+        return Ok(Some(typed));
+    }
     if let Some(type_of) = lower_type_of(function, types) {
         return Ok(Some(type_of));
     }

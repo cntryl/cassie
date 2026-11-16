@@ -351,6 +351,7 @@ metadata_heap!(crate::catalog::collections::NamespaceMeta {
     name,
     description,
     object_id,
+    system_owner,
 });
 
 unit_enum_heap!(crate::catalog::constraints::NotNullOwnership {

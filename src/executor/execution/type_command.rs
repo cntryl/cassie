@@ -119,6 +119,9 @@ fn create(
             format!("permission denied to create type in schema \"{schema}\""),
         ));
     }
+    if cassie.catalog.is_reserved_graph_schema(database, &schema) {
+        return Err(crate::catalog::graph_schema::reserved_schema_error("create a type").into());
+    }
     let canonical_schema = canonical_schema_name(database, &schema);
     if !(schema.eq_ignore_ascii_case(DEFAULT_SCHEMA)
         || cassie.catalog.namespace_exists(&canonical_schema))
@@ -246,6 +249,17 @@ fn row_type_requires_table(name: &str) -> QueryError {
     .into()
 }
 
+/// The reserved `cassie_graph` types are never dropped, even by `CASCADE`.
+fn forbid_reserved_drop(cassie: &Cassie, metadata: &CompositeTypeMeta) -> Result<(), QueryError> {
+    if cassie
+        .catalog
+        .is_reserved_graph_schema(&metadata.database, &metadata.schema_name())
+    {
+        return Err(crate::catalog::graph_schema::reserved_schema_error("drop a type").into());
+    }
+    Ok(())
+}
+
 fn drop_types(
     cassie: &Cassie,
     database: &str,
@@ -303,6 +317,7 @@ fn drop_types(
                 format!("type \"{raw}\" does not exist"),
             ));
         };
+        forbid_reserved_drop(cassie, &metadata)?;
         let oid = metadata.type_oid();
         let dependents = cassie.catalog.composite_type_dependents(oid);
         if !dependents.is_empty() {

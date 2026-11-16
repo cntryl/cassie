@@ -12,6 +12,7 @@ pub(super) struct ResultTypes {
     contextual_parameters: bool,
     resolved_coalesce_domains: bool,
     functions: std::collections::HashMap<String, crate::catalog::FunctionMeta>,
+    graph: Option<crate::types::graph::GraphDescriptors>,
 }
 
 impl ResultTypes {
@@ -22,6 +23,11 @@ impl ResultTypes {
         self.controls = controls.cloned();
         self
     }
+    /// The reserved graph types of the bound database, once bootstrapped.
+    pub(super) fn graph_types(&self) -> Option<&crate::types::graph::GraphDescriptors> {
+        self.graph.as_ref()
+    }
+
     pub(super) fn controls(&self) -> Option<&crate::runtime::QueryExecutionControls> {
         self.controls.as_ref()
     }
@@ -318,6 +324,7 @@ impl ResultTypes {
             parameter_types: parameter_types.to_vec(),
             contextual_parameters: false,
             resolved_coalesce_domains: false,
+            graph: catalog.graph_descriptors(&context.database),
         })
     }
 

@@ -10,6 +10,7 @@ pub mod enum_type;
 pub mod extended;
 pub(crate) mod float_input;
 pub(crate) mod float_text;
+pub mod graph;
 pub(crate) mod integer;
 pub(crate) mod integer_bytea;
 pub(crate) mod json;

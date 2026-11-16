@@ -205,6 +205,7 @@ impl Cassie {
 
         self.hydrate_catalog()
             .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;
+        self.bootstrap_graph_schemas()?;
         self.retry_materialized_projection_maintenance_debt()?;
         self.retry_rollup_maintenance_debt()?;
         self.hydrate_runtime_feedback()?;

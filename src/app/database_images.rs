@@ -71,6 +71,9 @@ pub struct DatabaseBackupStream {
     data_epoch: u64,
     storage_layout_version: &'static str,
     catalog_entries: Vec<(Vec<u8>, Vec<u8>)>,
+    /// The system-owned `cassie_graph` objects are rebuilt by the target
+    /// database's own bootstrap, never carried in an image.
+    skip_reserved: bool,
     catalog_index: usize,
     data_cursor: Option<Vec<u8>>,
     data_page: VecDeque<(Vec<u8>, Vec<u8>)>,
@@ -128,8 +131,13 @@ impl DatabaseBackupStream {
                             self.data_exhausted = true;
                         } else {
                             self.data_cursor = page.last().map(|(key, _)| key.clone());
-                            self.data_page.extend(page.into_iter().filter(|(key, _)| {
-                                !crate::midge::adapter::is_database_catalog_entry(key)
+                            let skip_reserved = self.skip_reserved;
+                            self.data_page.extend(page.into_iter().filter(|(key, value)| {
+                                let reserved = skip_reserved
+                                    && crate::midge::adapter::graph_catalog_entries::is_reserved_entry(
+                                        key, value,
+                                    );
+                                !reserved && !crate::midge::adapter::is_database_catalog_entry(key)
                             }));
                         }
                     }
@@ -360,6 +368,7 @@ impl DatabaseRestoreSession {
         let staged = self.staged.take().ok_or_else(|| {
             CassieError::Execution("database restore staging is unavailable".to_string())
         })?;
+        let target = staged.metadata.name.clone();
         let result = self
             .cassie
             .midge
@@ -370,6 +379,9 @@ impl DatabaseRestoreSession {
             )
             .and_then(|()| {
                 self.cassie.hydrate_catalog()?;
+                // The image carries no reserved objects: the restored database
+                // gets its own identities, as a new database does.
+                self.cassie.ensure_graph_schema_if_free(&target)?;
                 self.cassie.bump_schema_epoch_and_invalidate_query_cache()
             });
         self.phase = RestorePhase::Closed;
@@ -514,6 +526,9 @@ impl Cassie {
         let metadata = self.midge.get_database(database)?.ok_or_else(|| {
             CassieError::NotFound(format!("database '{database}' does not exist"))
         })?;
+        let raw_entries = self.midge.database_catalog_entries(database)?;
+        let skip_reserved =
+            crate::midge::adapter::graph_catalog_entries::owns_reserved_schema(&raw_entries);
         let mut stream = DatabaseBackupStream {
             cassie: self.clone(),
             source_database: metadata.name.clone(),
@@ -521,7 +536,10 @@ impl Cassie {
             schema_epoch: self.midge.schema_epoch()?,
             data_epoch: self.midge.data_epoch_for_database(database)?,
             storage_layout_version: self.midge.storage_layout_version()?,
-            catalog_entries: self.midge.database_catalog_entries(database)?,
+            catalog_entries: crate::midge::adapter::graph_catalog_entries::without_reserved_objects(
+                raw_entries,
+            ),
+            skip_reserved,
             catalog_index: 0,
             data_cursor: None,
             data_page: VecDeque::new(),

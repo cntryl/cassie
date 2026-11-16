@@ -327236,8 +327236,8 @@
       "current_file": "tests/Cargo.toml",
       "role": "fixture_data",
       "action": "keep",
-      "lines": 225,
-      "sha256": "a143e105e0206375c189f45a7020ff646821bb2fd6897b7a45800c8d9c2ab610",
+      "lines": 233,
+      "sha256": "4c6361070d6490f18ecce7f7108303dd810ababf5dd00b7fd3fa29c61e433a5d",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [

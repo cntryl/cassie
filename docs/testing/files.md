@@ -4,7 +4,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 
 | Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| `tests/Cargo.toml` | fixture_data | 225 | 0 | — | keep | `tests/Cargo.toml` |
+| `tests/Cargo.toml` | fixture_data | 233 | 0 | — | keep | `tests/Cargo.toml` |
 | `tests/analytics/aggregates/aggregate_acceleration.rs` | test_module | 522 | 7 | analytics | keep | `tests/analytics/aggregates/aggregate_acceleration.rs` |
 | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 228 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
 | `tests/analytics/column_store/column_batch_encoded_scans.rs` | test_module | 397 | 4 | analytics | keep | `tests/analytics/column_store/column_batch_encoded_scans.rs` |

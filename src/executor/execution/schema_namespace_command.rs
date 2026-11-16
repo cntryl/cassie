@@ -8,12 +8,19 @@ use crate::sql::ast::{
     DropDatabaseStatement, DropSchemaStatement,
 };
 
+/// Whether `schema` names the system-owned reserved schema.
+fn reserved(cassie: &Cassie, schema: &str) -> bool {
+    cassie
+        .catalog
+        .is_reserved_graph_schema(&cassie.default_database, schema)
+}
+
 pub(crate) fn create_schema(
     cassie: &Cassie,
     statement: &CreateSchemaStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    if crate::catalog::graph_schema::is_graph_schema(&statement.schema) {
+    if reserved(cassie, &statement.schema) {
         if statement.if_not_exists {
             return empty_command("CREATE SCHEMA", controls);
         }
@@ -128,7 +135,7 @@ pub(crate) fn drop_schema(
     statement: &DropSchemaStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    if crate::catalog::graph_schema::is_graph_schema(&statement.schema) {
+    if reserved(cassie, &statement.schema) {
         return Err(crate::catalog::graph_schema::reserved_schema_error("drop a schema").into());
     }
     if statement.if_exists && !cassie.catalog.namespace_exists(&statement.schema) {
@@ -372,9 +379,7 @@ pub(crate) fn alter_schema(
         AlterSchemaOperation::RenameTo { schema } => schema.clone(),
     };
     let target_schema = statement.schema.clone();
-    if crate::catalog::graph_schema::is_graph_schema(&target_schema)
-        || crate::catalog::graph_schema::is_graph_schema(&next_schema)
-    {
+    if reserved(cassie, &target_schema) || reserved(cassie, &next_schema) {
         return Err(crate::catalog::graph_schema::reserved_schema_error("rename a schema").into());
     }
 

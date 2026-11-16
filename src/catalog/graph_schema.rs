@@ -122,6 +122,22 @@ pub fn build_graph_types(
 }
 
 impl Catalog {
+    /// Whether `schema` (local or qualified) of `database` is the system-owned
+    /// reserved schema. A user-owned schema of the same name is not reserved:
+    /// it is the operator's to rename or drop.
+    #[must_use]
+    pub fn is_reserved_graph_schema(&self, database: &str, schema: &str) -> bool {
+        let (database, name) = match super::parse_name(schema) {
+            Ok(super::ParsedName::Unqualified(name)) => (database.to_owned(), name),
+            Ok(super::ParsedName::SchemaQualified { schema, name }) => (schema, name),
+            Ok(super::ParsedName::DatabaseQualified {
+                database, schema, ..
+            }) => (database, schema),
+            Err(_) => return false,
+        };
+        is_graph_schema(&name) && self.graph_schema_state(&database) == GraphSchemaState::SystemOwned
+    }
+
     /// Who owns the reserved schema name in `database`.
     #[must_use]
     pub fn graph_schema_state(&self, database: &str) -> GraphSchemaState {

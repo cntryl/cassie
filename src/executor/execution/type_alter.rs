@@ -43,7 +43,7 @@ fn resolve_target(
             .catalog
             .resolve_composite_type(scope.database, scope.search_order, raw)
     {
-        if crate::catalog::graph_schema::is_graph_schema(&metadata.schema_name()) {
+        if cassie.catalog.is_reserved_graph_schema(&metadata.database, &metadata.schema_name()) {
             return Err(crate::catalog::graph_schema::reserved_schema_error("alter a type").into());
         }
         return Ok(metadata);
@@ -279,7 +279,7 @@ fn set_schema(
             format!("permission denied to move type into schema \"{schema}\""),
         ));
     }
-    if crate::catalog::graph_schema::is_graph_schema(schema) {
+    if cassie.catalog.is_reserved_graph_schema(scope.database, schema) {
         return Err(crate::catalog::graph_schema::reserved_schema_error("move a type into it").into());
     }
     if !(schema.eq_ignore_ascii_case(DEFAULT_SCHEMA)

@@ -207,9 +207,18 @@ pub fn normalize_new_relation_path(
     if target_schema.is_some_and(|schema| is_system_schema(&schema)) {
         return Err(CassieError::InsufficientPrivilege);
     }
-    if matches!(&parsed, ParsedName::DatabaseQualified { schema, .. } | ParsedName::SchemaQualified { schema, .. } if crate::catalog::graph_schema::is_graph_schema(schema))
-        || matches!(&parsed, ParsedName::Unqualified(_) if crate::catalog::graph_schema::is_graph_schema(context.current_schema()))
-    {
+    let reserved = match &parsed {
+        ParsedName::Unqualified(_) => {
+            catalog.is_reserved_graph_schema(&context.database, context.current_schema())
+        }
+        ParsedName::SchemaQualified { schema, .. } => {
+            catalog.is_reserved_graph_schema(&context.database, schema)
+        }
+        ParsedName::DatabaseQualified {
+            database, schema, ..
+        } => catalog.is_reserved_graph_schema(database, schema),
+    };
+    if reserved {
         return Err(crate::catalog::graph_schema::reserved_schema_error(
             "create an object",
         ));

@@ -138,13 +138,17 @@ Out of milestone (gap kept here only): C2 `WITH RECURSIVE` acceleration and C4 g
 
 ## Promotion evidence
 
-**Decision (2026-11-16): graph traversal stays Experimental.** The evidence below supports
-correctness of the delivered surface, but items a Stable claim needs are open: recorded
-benchmark numbers from gate-quality runs, use outside the test suite, and the executed
-results of two pieces of evidence: round trips through a second real PostgreSQL driver
-(`sqlx`, blocked on catalog scope #905) and `graph_weighted_paths` at the 100,000-row
-representative under the standard memory profile. Promotion is reconsidered when
-those are closed. The status in [Feature support](feature-support.md) is unchanged.
+**Decision (2026-11-16): graph traversal stays Experimental.** The
+[executed closeout record](graph-v060-qualification.md) retains two native-driver
+workflows, whole-path and clone/reference evidence, weighted routes at 100,000
+mapped rows under the 64 MiB query budget, the nine topology points and their
+shared artifact summary. All scenario correctness checks passed. Several local
+five-sample release-profile timing rows failed quality; these observations do
+not establish a trustworthy regression baseline or production capacity.
+The second-driver and weighted-size correctness blockers below are resolved;
+SQLx native composite discovery remains a named unsupported workflow. Future
+promotion must evaluate the remaining timing/deployment evidence without
+inventing an external-adoption requirement.
 
 This section collects the evidence for that decision
 ([promotion criteria](experimental-promotion-criteria.md)). Each entry below is a source
@@ -156,7 +160,7 @@ claim backed by a test or a document; none is a performance claim.
 | --- | --- |
 | Mapped graph DDL: definition, key and endpoint validation, drop, rename, durable identities, discovery | [`property_graph_command_tests.rs`](../src/executor/execution/property_graph_command_tests.rs), [`property_graph_durability_tests.rs`](../src/executor/execution/property_graph_durability_tests.rs), [`property_graph_dependents_tests.rs`](../src/executor/execution/property_graph_dependents_tests.rs), [`virtual_views_property_graphs_tests.rs`](../src/catalog/virtual_views_property_graphs_tests.rs), [`persistence.rs`](../tests/graph_table/persistence.rs), [`database_scope.rs`](../tests/graph_table/database_scope.rs) |
 | Lifecycle guards (`2BP01`, `0A000` for `CASCADE`), including renames and schema moves | [`property_graph_dependents_tests.rs`](../src/executor/execution/property_graph_dependents_tests.rs); guide section 10 run by [`graph_guide`](../tests/graph_guide/examples.rs) |
-| `GRAPH_TABLE` semantics against an independent exhaustive oracle: directions, quantifiers, modes, selectors, tie order, key shapes, row and column storage | [`semantics.rs`](../tests/graph_table/semantics.rs), [`matrix.rs`](../tests/graph_table/matrix.rs), [`exact_reads.rs`](../tests/graph_table/exact_reads.rs), oracle in [`graph_oracle`](../tests/support/graph_oracle) |
+| `GRAPH_TABLE` semantics against an independent exhaustive oracle: directions, quantifiers, modes, selectors, tie order, key shapes, row and column storage | [`semantics.rs`](../tests/graph_table/semantics.rs), [`matrix.rs`](../tests/graph_table/matrix.rs), [`exact_reads.rs`](../tests/graph_table/exact_reads.rs), oracle in [`graph_oracle`](../tests/support/graph_oracle/mod.rs) |
 | Own writes, savepoints, other-session isolation and snapshot reads | [`transactions.rs`](../tests/graph_table/transactions.rs) |
 | Resource controls: memory budget `54000` and cancellation `57014` | [`resources.rs`](../tests/graph_table/resources.rs) |
 | Path types, constructors, validation, JSON export, catalog discovery, restart | [`graph_types`](../tests/graph_types.rs) |
@@ -168,15 +172,15 @@ claim backed by a test or a document; none is a performance claim.
 | Benchmarks exist at tiers 1 to 3, are registered with the `graph` workload family, compile and run to completion once in smoke mode with results checked against Rust oracles | [performance contracts](performance-contracts.md#graph-benchmarks) |
 | Legacy feature removed without conversion | [contract](graph-v060-contract.md), `f54952d08` |
 
-### Still open
+### Qualification disposition and remaining limits
 
 | Item | State |
 | --- | --- |
 | Read bounds | The documented read bounds and their counters are in [performance contracts](performance-contracts.md#graph-reads-v060-fast-reads-1253-1254-1259). `graph_weighted_paths` reads every selected edge row once for validation by contract (counted as `graph_validation_rows`, cost O(selected edges)) and its search reads only the neighbourhoods of the vertices it visits. No timing figure is recorded. |
-| Real-driver qualification | Text and binary round trips of the three path types and their arrays run through `tokio-postgres` ([`driver.rs`](../tests/graph_types/driver.rs), executed in earlier gates). A second real driver is a recorded blocker, not evidence. `sqlx` 0.9 was run against the harness and every prepare of a composite or array of graph types failed at its type-resolver statement (`connection/resolve.rs`) with SQLSTATE `42601` (`unexpected text after function call`: the aggregate-call parser reads the alias-without-`AS` after `NULLIF(typelem, 0::oid) typelem` as a trailing clause). Past that, the statement also needs `pg_catalog.pg_range` (a join against it fails with `42P01`, pinned by `should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist`), an oid-typed `pg_attribute.attrelid` (text here), `regtype` casts and a row value inside `array_agg`. These are catalog and parser scope owned by [#905](https://github.com/cntryl/cassie/issues/905). Decision (Jev `sqlx_disposition`, 0.99, receipt `target/jev/sqlx_decision_resp.json`): the eleven failing `sqlx` round-trip tests and their framing helper were removed from this change rather than ignored; the pin test and the dev-dependency stay. The #1268 criterion of a second real client therefore stays open with #905 as its dependency. `sqlx` does qualify the builtin-typed surface that needs no type resolution (`driver_sqlx.rs`): ordered `path_steps` scalars, `key_parts` typed key access, the versioned `path_to_jsonb` document, a bound `bigint` key kept exact, and the composite text form with nested escaping. The resolver additionally needs a row value inside `array_agg` (anonymous `record[]`), `COALESCE(array, '{}')`, `NULLIF` over `oid`, an `oid`-typed `pg_attribute.attrelid` and `pg_catalog.pg_range`; none exists and #905 is closed as deferred, so the whole-path binary round trip through a second driver remains the open part of the criterion. |
-| Weighted routes at scale | The three `GRAPH_TABLE` Tier 3 scenarios run at about 100,000 mapped rows under the 64 MiB profile on the indexed read path. `graph_weighted_paths` now validates weights with one streaming scan and searches the lazy indexed store ([performance contracts](performance-contracts.md#graph-reads-v060-fast-reads-1253-1254-1259)); its Tier 3 route scenario is restored to the shared 100,000-row social graph. Counted-read, own-write and oracle-equivalence tests under the lazy indexed and forced exact paths pass in the assembler run of the `graph_weighted` suite on the integrated head (`lazy_reads.rs`, `transactions.rs`, `variants.rs`); the benchmark compiles but has not been run at this size. |
-| Benchmark numbers | No timing or scaling number is recorded. Gate-quality results need the release profile with at least five samples, host identity and a baseline. |
-| Exact-head gates | The ordered local gate and the hosted checks run on the integrated head are owned by the assembler and are not recorded here. |
+| Real-driver qualification | Native path and array text/binary round trips, prepared parameters, live metadata, zero-hop/heterogeneous paths, exact keys and escaping passed through `tokio-postgres` and the public [Psycopg workflow](graph-psycopg-qualification.md). Psycopg uses explicit catalog metadata and TEXT casts; broader `CompositeInfo.fetch()` and SQLx native composite resolution are not claimed. SQLx builtin step/key/JSON/text results remain qualified. The prior second-client blocker is resolved; see the [actual receipt](evidence/graph-v060/psycopg.json). |
+| Weighted routes at scale | All four 100k Tier 3 representatives passed correctness and resources with 64 MiB query memory, including three weighted routes over 100,000 mapped rows using indexed search and no fallback. Five measured samples were executed; weighted timing was noisy and the owner exited 101 on quality, not correctness. Exact observations and the separate 2 GiB native-storage budget are recorded in [qualification](graph-v060-qualification.md#benchmarks-and-measured-limits-1260). |
+| Benchmark numbers | Exact local five-sample release-profile raw artifacts and nine one-sample topology smoke rows are committed under [evidence](evidence/graph-v060/manifest.json). Timing-quality failures remain failed; these separate owner runs do not form a complete single-head release suite or trustworthy baseline. Native deployment/capacity evidence remains separate. |
+| Exact-head gates | The [qualification record](graph-v060-qualification.md#source-and-local-checks) separates the complete locked run from later affected suites and full strict Clippy/format/validators by source identity. Final-head hosted checks are recorded in the closing PR. |
 | Guide scope | The guide documents the current dialect. Standard SQL/PGQ conformance is not claimed and no normative grammar comparison has been done. |
 
 ### Decisions recorded for batch A (2026-11-16, delegated Jev process)
@@ -197,3 +201,28 @@ claim backed by a test or a document; none is a performance claim.
   declared argument type, as it does for `graph_weighted_paths`; the earlier blocker (the
   legacy inference had no database in scope) does not apply to the fold in
   `src/sql/parameters/fold_graph_functions.rs`.
+
+## Executed client and topology probes
+
+The explicit [Psycopg qualification](graph-psycopg-qualification.md) supplies a
+second client workflow with ordinary registered composite and array adapters.
+Its entrypoint is `qualification_graph_psycopg`; it is separate from the Cargo
+correctness suite and requires its pinned Python environment. The five invariants passed through public Psycopg adapters; the
+[qualification record](graph-v060-qualification.md) retains exact execution
+evidence without expanding SQLx discovery.
+
+`tier5_scaling_graph` adds three independent three-point rooted-tree curves:
+out-degree 16/64/256 at one hop, depth 2/4/8 at fanout one, and fanout 2/4/8 at
+three hops. Every fixture uses memory storage and the same 64 MiB query budget.
+Results record actual mapped rows, fanout, depth, expected leaf cardinality,
+setup duration, an indexed plain `EXPLAIN` preflight and runtime read counters.
+The correctness oracle is the number of leaves of the generated rooted tree;
+there are no performance timing assertions. These bounded curves complement,
+and do not replace, the 100k-row Tier 3 representatives or five-sample release
+measurements. The new analyzed fallback regression checks that a graph without
+endpoint indexes reports full-row reads and retains its query results.
+
+The repaired nine-point smoke and all-nine shared artifact summary passed on
+`051af760`; public Psycopg passed all five invariants on `9b3aabae`. The
+qualification record preserves earlier failures and the later green results.
+Graph traversal remains Experimental under the recorded timing-quality limits.

@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1768 |
-| Rust files | 1731 |
-| Rust test declarations | 10505 |
+| Files under `tests/` | 1771 |
+| Rust files | 1734 |
+| Rust test declarations | 10525 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10530 |
+| Static Rust registration instances | 10550 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -28,7 +28,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | Owner | Source declarations | Review required |
 | --- | ---: | ---: |
 | [analytics](inventory/analytics.md) | 190 | 0 |
-| [bench_diagnostics](inventory/bench_diagnostics.md) | 9 | 0 |
+| [bench_diagnostics](inventory/bench_diagnostics.md) | 15 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 538 | 0 |
 | [columnar_surface](inventory/columnar_surface.md) | 30 | 0 |
@@ -42,8 +42,8 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [graph_guide](inventory/graph_guide.md) | 11 | 0 |
-| [graph_table](inventory/graph_table.md) | 129 | 0 |
-| [graph_types](inventory/graph_types.md) | 96 | 0 |
+| [graph_table](inventory/graph_table.md) | 130 | 0 |
+| [graph_types](inventory/graph_types.md) | 106 | 0 |
 | [graph_weighted](inventory/graph_weighted.md) | 97 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
 | [metrics](inventory/metrics.md) | 58 | 0 |
@@ -52,7 +52,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_catalogs](inventory/pgwire_catalogs.md) | 605 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 978 | 0 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 981 | 0 |
 | [pgwire_grammar](inventory/pgwire_grammar.md) | 1233 | 8 |
 | [pgwire_types](inventory/pgwire_types.md) | 1220 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 124 | 0 |

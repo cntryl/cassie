@@ -15,8 +15,8 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 
 The [Product Roadmap](product-roadmap.md) defines v0.1.0 Projection Store,
 v0.2.0 Query and Retrieval, v0.3.0 Composite Types and JSON Recordsets,
-v0.4.0 Named Enum Types and v0.5.0 Authoritative Columnar Tables as the
-feature releases. Production readiness is a separate qualification gate;
+v0.4.0 Named Enum Types, v0.5.0 Authoritative Columnar Tables and
+v0.6.0 Fast, Idiomatic Graphs as the feature releases. Production readiness is a separate qualification gate;
 this document defines its evidence without creating another feature milestone
 or expanding SQL and server compatibility scope.
 
@@ -25,10 +25,23 @@ roadmap milestones and issue criteria. The former complete-core-SQL/full-PLpgSQL
 program (#791–#793) was closed as superseded. Neither that program nor the size
 of its retained test corpus is a production-readiness gate. Qualification is
 owned by the [release checklist](release-checklist.md) and the production
-evidence below; GitHub feature milestones remain limited to the three releases
+evidence below; GitHub feature milestones remain limited to the finite releases
 in the roadmap.
 
 The [v0.5.0 release qualification record](v0.5-release-qualification.md) tracks the authoritative-columnar feature gate separately from this production-readiness classification. Its pending checks are not production evidence.
+
+## Graph qualification snapshot — 2026-11-16
+
+The [v0.6 graph qualification record](graph-v060-qualification.md) retains the
+complete locked-suite result, later affected tests, strict workspace Clippy,
+format and touched-test checks by exact source identity. Native typed paths and
+arrays passed through `tokio-postgres` and the explicit public Psycopg workflow.
+All 20 graph benchmark scenario rows passed correctness, including 100k weighted
+routes under a 64 MiB query budget and the nine topology points; several
+release-profile timing rows failed quality. The committed raw artifacts retain
+those failures. Graph traversal remains Experimental, and this finite milestone
+evidence does not change the overall Production Candidate classification or
+supply native production capacity or release-publication evidence.
 
 ## Prior Local Check Snapshot — 2026-10-29
 

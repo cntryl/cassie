@@ -1,0 +1,450 @@
+{
+  "gates": [
+    {
+      "head": "0fffb6d0de32669227f2e56a927d769e3db907e0",
+      "tree": "7bd373924d001eb43726b0fd046b809e18dbd937",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "start": "2026-11-16T20:00:50.321148+00:00",
+      "end": "2026-11-16T20:00:50.893550+00:00",
+      "exit": 0
+    },
+    {
+      "head": "0fffb6d0de32669227f2e56a927d769e3db907e0",
+      "tree": "7bd373924d001eb43726b0fd046b809e18dbd937",
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "start": "2026-11-16T20:00:50.894216+00:00",
+      "end": "2026-11-16T20:18:12.363093+00:00",
+      "exit": 0
+    },
+    {
+      "head": "0fffb6d0de32669227f2e56a927d769e3db907e0",
+      "tree": "7bd373924d001eb43726b0fd046b809e18dbd937",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "start": "2026-11-16T20:18:12.365811+00:00",
+      "end": "2026-11-16T20:18:13.434488+00:00",
+      "exit": 101
+    }
+  ],
+  "final-gates": [
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "start": "2026-11-16T20:20:22.662741+00:00",
+      "end": "2026-11-16T20:20:23.221233+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--test",
+        "graph_types"
+      ],
+      "start": "2026-11-16T20:20:23.221987+00:00",
+      "end": "2026-11-16T20:20:28.237681+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "start": "2026-11-16T20:20:28.238118+00:00",
+      "end": "2026-11-16T20:20:29.716515+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "start": "2026-11-16T20:20:29.716800+00:00",
+      "end": "2026-11-16T20:20:39.266452+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/bench_diagnostics.rs"
+      ],
+      "start": "2026-11-16T20:20:39.266856+00:00",
+      "end": "2026-11-16T20:20:39.279256+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/bench_diagnostics/graph_topology.rs"
+      ],
+      "start": "2026-11-16T20:20:39.279552+00:00",
+      "end": "2026-11-16T20:20:39.288500+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/graph_table/fast_reads.rs"
+      ],
+      "start": "2026-11-16T20:20:39.288810+00:00",
+      "end": "2026-11-16T20:20:39.297401+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/graph_types/images.rs"
+      ],
+      "start": "2026-11-16T20:20:39.297975+00:00",
+      "end": "2026-11-16T20:20:39.307836+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/graph_types/refs.rs"
+      ],
+      "start": "2026-11-16T20:20:39.308328+00:00",
+      "end": "2026-11-16T20:20:39.316949+00:00",
+      "exit": 0
+    },
+    {
+      "head": "838095f3abb6128836129a1d86c5927e82651a1e",
+      "tree": "0bc81602bf4f516e446c1a35384205b2b2cc2dca",
+      "command": [
+        "target/qualification-venv/bin/python",
+        "tools/test_inventory.py",
+        "--check"
+      ],
+      "start": "2026-11-16T20:20:39.317240+00:00",
+      "end": "2026-11-16T20:20:41.894990+00:00",
+      "exit": 0
+    }
+  ],
+  "topology-gates": [
+    {
+      "head": "d2b3f477f407d2fa271097ef691391941c437822",
+      "tree": "9dbbf79b13f01e4b2526257aaebf450f0a7fda32",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "start": "2026-11-16T20:33:51.030414+00:00",
+      "end": "2026-11-16T20:35:20.375149+00:00",
+      "exit": 0
+    },
+    {
+      "head": "d2b3f477f407d2fa271097ef691391941c437822",
+      "tree": "9dbbf79b13f01e4b2526257aaebf450f0a7fda32",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--test",
+        "bench_diagnostics"
+      ],
+      "start": "2026-11-16T20:35:20.376236+00:00",
+      "end": "2026-11-16T20:35:40.903996+00:00",
+      "exit": 0
+    },
+    {
+      "head": "d2b3f477f407d2fa271097ef691391941c437822",
+      "tree": "9dbbf79b13f01e4b2526257aaebf450f0a7fda32",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "start": "2026-11-16T20:35:40.904969+00:00",
+      "end": "2026-11-16T20:38:25.934514+00:00",
+      "exit": 101
+    }
+  ],
+  "repaired-topology-gates": [
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "start": "2026-11-16T20:40:04.828687+00:00",
+      "end": "2026-11-16T20:40:05.275088+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--test",
+        "bench_diagnostics"
+      ],
+      "start": "2026-11-16T20:40:05.275489+00:00",
+      "end": "2026-11-16T20:40:07.519657+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "start": "2026-11-16T20:40:07.520109+00:00",
+      "end": "2026-11-16T20:41:07.321687+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "start": "2026-11-16T20:41:07.322377+00:00",
+      "end": "2026-11-16T20:42:31.905293+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/bench_diagnostics.rs"
+      ],
+      "start": "2026-11-16T20:42:31.911748+00:00",
+      "end": "2026-11-16T20:42:31.932940+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/bench_diagnostics/graph_topology.rs"
+      ],
+      "start": "2026-11-16T20:42:31.934019+00:00",
+      "end": "2026-11-16T20:42:31.949532+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/graph_table/fast_reads.rs"
+      ],
+      "start": "2026-11-16T20:42:31.950194+00:00",
+      "end": "2026-11-16T20:42:31.975135+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/graph_types/images.rs"
+      ],
+      "start": "2026-11-16T20:42:31.975563+00:00",
+      "end": "2026-11-16T20:42:31.985055+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/graph_types/refs.rs"
+      ],
+      "start": "2026-11-16T20:42:31.985495+00:00",
+      "end": "2026-11-16T20:42:31.999063+00:00",
+      "exit": 0
+    },
+    {
+      "head": "051af7603dbbee29f77b3357d3771c02a0d29f60",
+      "tree": "3621b5ba146802c228ca97c7f48d79cc05353405",
+      "command": [
+        "target/qualification-venv/bin/python",
+        "tools/test_inventory.py",
+        "--check"
+      ],
+      "start": "2026-11-16T20:42:31.999550+00:00",
+      "end": "2026-11-16T20:42:42.943462+00:00",
+      "exit": 0
+    }
+  ],
+  "notes": {
+    "full_suite": {
+      "head": "0fffb6d0de32669227f2e56a927d769e3db907e0",
+      "passed": 14358,
+      "failed": 0,
+      "existing_ignored": 9
+    },
+    "later_affected_suites": {
+      "graph_types": 106,
+      "bench_diagnostics": 15
+    },
+    "runtime_src_tree": "7e312de02bbf2cd44e3796712713819d22aab4be",
+    "historical_failures": [
+      "field_reassign_with_default in qualification fixture; fixed",
+      "numeric topology scales collide across depth/fanout; fixed with axis-qualified scales",
+      "duplicate_mod and dead-code imports in actual tracker probe; fixed without suppression",
+      "untyped Psycopg catalog name parameter rejected before tests; fixed with explicit text casts"
+    ],
+    "hosted_checks": "Final-head evidence belongs to closing PR; this record contains observed local checks only."
+  },
+  "optional_docs_audit": {
+    "command": [
+      "cntryl-tools",
+      "validate-docs",
+      "--root",
+      "docs"
+    ],
+    "exit": 1,
+    "source": "closeout documentation working tree based on9b3aabae; no new-document findings",
+    "inherited_findings": [
+      {
+        "file": "feature-support.md",
+        "target": "pgwire-transaction-contract.md#qualified-alter-column--type--using-conversions",
+        "present_in_baseline": true
+      },
+      {
+        "file": "type-contract.md",
+        "target": "postgresql18-type-families.md#named-enums--827",
+        "present_in_baseline": true
+      },
+      {
+        "file": "array-aggregate-contract-2026-11-11.md",
+        "target": "../target/v020-evidence/811-array-aggregate/distinct-bypass-focused-request.json",
+        "present_in_baseline": true
+      },
+      {
+        "file": "array-aggregate-contract-2026-11-11.md",
+        "target": "../target/v020-evidence/811-array-aggregate/distinct-bypass-focused-response.json",
+        "present_in_baseline": true
+      },
+      {
+        "file": "array-aggregate-contract-2026-11-11.md",
+        "target": "../target/v020-evidence/811-array-aggregate/validation-gap-path-probes-response.json",
+        "present_in_baseline": true
+      },
+      {
+        "file": "array-aggregate-contract-2026-11-11.md",
+        "target": "../target/v020-evidence/811-array-aggregate/validation-gap-focused-followup-response.json",
+        "present_in_baseline": true
+      },
+      {
+        "file": "array-aggregate-contract-2026-11-11.md",
+        "target": "../target/v020-evidence/811-array-aggregate/dml-oid-scope-request.json",
+        "present_in_baseline": true
+      },
+      {
+        "file": "array-aggregate-contract-2026-11-11.md",
+        "target": "../target/v020-evidence/811-array-aggregate/dml-oid-scope-response.json",
+        "present_in_baseline": true
+      }
+    ]
+  }
+}

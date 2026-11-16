@@ -6,6 +6,8 @@ mod performance_benchmark_samples;
 mod performance_benchmark_scenarios;
 #[path = "performance_benchmark_types.rs"]
 mod performance_benchmark_types;
+#[path = "performance_graph_topology.rs"]
+pub(crate) mod performance_graph_topology;
 
 pub type BenchmarkSampleSummary = performance_benchmark_types::BenchmarkSampleSummary;
 pub type BenchmarkOwnerManifest = performance_benchmark_samples::BenchmarkOwnerManifest;
@@ -83,8 +85,15 @@ pub fn validate_scenario_contract(scenario: &PerformanceBenchmarkScenario) -> Re
             scenario.fixture_class == FixtureClass::Integration && scenario.fixture_rows == 10_000
         }
         BenchmarkTier::Tier5 => {
-            scenario.fixture_class == FixtureClass::Scaling
-                && matches!(scenario.fixture_rows, 10_000 | 100_000 | 250_000)
+            (scenario.fixture_class == FixtureClass::Scaling
+                && matches!(scenario.fixture_rows, 10_000 | 100_000 | 250_000))
+                || performance_graph_topology::is_graph_topology_fixture(
+                    scenario.benchmark,
+                    scenario.workload,
+                    scenario.fixture_scale,
+                    scenario.fixture_rows,
+                    scenario.fixture_class == FixtureClass::Scaling,
+                )
         }
         BenchmarkTier::Tier6 => {
             scenario.fixture_class == FixtureClass::Soak

@@ -666,3 +666,24 @@ fn should_use_a_reordered_endpoint_index_given_a_two_column_key() {
     assert_eq!(lazy.len(), 3);
     assert_eq!(reads, 0);
 }
+
+#[test]
+fn should_report_full_row_reads_given_an_explain_analyze_without_endpoint_indexes() {
+    // Arrange
+    let world = star_world(PLAIN, 3, 20);
+    let before = counts(&world);
+
+    // Act
+    let plan = explain(&world, &format!("EXPLAIN ANALYZE {OUTWARD_FROM_ONE}"));
+    let observed = counts(&world).minus(before);
+
+    // Assert
+    assert!(plan.contains("edge[l]=exact(reason=no_endpoint_index)"));
+    assert!(observed.full_rows > 0);
+    assert!(plan.contains(&format!(",full_rows:{},", observed.full_rows)));
+    assert!(plan.contains("graph_reads="));
+    assert_eq!(
+        run(&world, &world.fixture.session, OUTWARD_FROM_ONE),
+        vec![vec![2], vec![3], vec![4]]
+    );
+}

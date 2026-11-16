@@ -386,8 +386,10 @@ Mapped property graphs have benchmarks at tiers 1 to 3. Each fixture maps ordina
 are loaded with `INSERT ... SELECT`, and every query result is checked against an independent
 Rust computation of the expected cardinality. The graph workload family `graph` is a required
 workload family again. These benchmarks establish that the workloads run and that their
-results are correct. This document records no timing figure for them: gate-quality
-numbers need the release profile with at least five measured samples and have not been recorded.
+results are correct. Five-sample local release-profile observations and raw
+artifacts are recorded in [graph qualification](graph-v060-qualification.md).
+Several timing rows failed quality; command success or correctness must not be
+read as a gate-quality latency or capacity claim.
 
 | Scenario | Owner | Workload | Fixture |
 | --- | --- | --- | --- |
@@ -422,8 +424,11 @@ social graph of the friends-of-friends scenario at 100,000 mapped rows and the 6
 and no separate smaller instance remains. The function has no graph plan node, so the owner
 classifies its read path from one counted preflight execution (`graph_access_path_source=counted`):
 the path is `indexed` when the call moved `graph_index_entries` and left `graph_full_rows`
-unchanged, which the fixture's endpoint indexes should produce (the counted-read tests passed in the assembler run; the benchmark itself has not been run). Whether the route query fits the 64 MiB budget at this size has not been
-measured: the benchmark compiles but has not been run at this size, and this document records no timing figure.
+unchanged. The actual five-sample 100k run passed route cardinality and
+resource checks with indexed search and no fallback under the 64 MiB query
+budget. Its timing was noisy and the owner failed timing quality; the
+[qualification record](graph-v060-qualification.md#benchmarks-and-measured-limits-1260)
+retains exact observations without promoting them to a trustworthy baseline.
 
 Run one owner with, for example,
 `cargo bench --locked --bench tier2_subsystem_graph -- --profile smoke`; a smoke run is
@@ -862,3 +867,73 @@ work. Current codec tags, latest-only layouts, generation fences, authoritative
 fallback, query-accounting scope and measured benchmark objectives remain
 unchanged. No disk-spill implementation, public batch ABI, durable encoding or
 native capacity/SLO is introduced by this foundation.
+
+### Graph topology-axis scaling fixtures
+
+The selected Tier 5 graph curves vary a topology parameter rather than the
+standard dataset row count. The narrow exception applies only to these exact
+`tier5_scaling_graph` workload/scale/actual-mapped-row tuples, with Tier 5,
+`Batch` timing and the `Scaling` fixture class:
+
+| Workload | Scale | Actual mapped rows |
+| --- | --- | --- |
+| `graph_degree_scaling_query` | `degree-16` | 33 |
+| `graph_degree_scaling_query` | `degree-64` | 129 |
+| `graph_degree_scaling_query` | `degree-256` | 513 |
+| `graph_depth_scaling_query` | `depth-2` | 5 |
+| `graph_depth_scaling_query` | `depth-4` | 9 |
+| `graph_depth_scaling_query` | `depth-8` | 17 |
+| `graph_fanout_scaling_query` | `fanout-2` | 29 |
+| `graph_fanout_scaling_query` | `fanout-4` | 169 |
+| `graph_fanout_scaling_query` | `fanout-8` | 1,169 |
+
+Scale IDs include their topology axis because the runtime fixture tracker
+requires one fixture identity per benchmark owner and scale. A depth-two chain
+and a fanout-two tree are distinct fixtures, so they must not share scale `2`.
+The bare numeric graph scales are rejected. This keeps the global identity
+guard unchanged; the source-backed Jev decision selected axis-qualified scales
+(probability 0.97), rather than widening or exempting that guard. Scenario IDs
+and the measured topology points are unchanged.
+
+Mapped rows count vertices plus edges. Degree uses one hop, depth uses fanout
+one, and fanout uses three hops. Each rooted tree is measured under the same
+64 MiB query budget. These small topology fixtures complement the Tier 3 100k
+representatives; they make no representative-throughput claim. All other Tier 5
+fixtures retain the existing 10k/100k/250k row-count requirement. Other owners,
+workloads, scale strings, row counts or fixture classes cannot use this
+exception. Source-backed Jev selected the exact topology-axis exception over
+expanding the generic allowed row sizes (probability 1.00).
+
+Scaling preflight uses plain `EXPLAIN` to validate the indexed access path.
+It must not execute or warm the timed query. Measured executions supply graph
+read counters through `runtime_evidence`; `EXPLAIN ANALYZE` remains appropriate
+for separate correctness/diagnostic evidence, not this timing preflight.
+
+The registered `local-dev-graph-topology-memory-64m` deployment profile names
+these topology-axis fixtures explicitly, uses in-memory Midge, and records the
+fixed 64 MiB query budget. Its fixture scale is `graph-topology-axes`, not a
+synthetic 10k/100k row label. Default scenario-to-profile selection uses this
+profile only for a valid Tier 5/Batch/Scaling scenario matching one of the nine
+exact owner/workload/scale/mapped-row tuples above; existing generic profile
+selection stays unchanged. The graph owner rejects any explicit deployment
+profile other than this one, so a forced-memory run cannot emit disk-profile
+metadata. The assembler must summarize all nine emitted scenario artifacts as
+well as running them before claiming the artifact contract passed.
+
+For a local diagnostic run, pass its complete graph-owner JSON artifact to:
+
+```sh
+cargo run --locked --example summarize_graph_scaling -- <graph-artifact.json>
+```
+
+This helper requires nine scenario summaries and the explicit topology profile
+metadata, then calls the shared summarizer for every registered topology point.
+Its storage field is the registered profile's declared storage label; physical
+memory mode is established by the benchmark's explicit constructor, not by that
+label. This diagnostic helper does not relax the separate release-artifact
+validator or promote local samples to release evidence.
+
+The repaired nine-point topology smoke and the shared all-nine artifact
+summary passed on `051af760`; exact raw samples, profile metadata and outcome
+are retained in [graph qualification](graph-v060-qualification.md). One sample
+per topology point is diagnostic correctness evidence, not a scaling curve.

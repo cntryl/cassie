@@ -163,6 +163,29 @@ fn should_retain_sequence_effect_classification_after_savepoint_rollback() {
     assert_eq!(writes.best_effort_attempts, 0);
 }
 
+#[test]
+fn should_keep_the_buffered_policy_for_a_data_modifying_cte_row_write() {
+    // Arrange
+    let (cassie, session) = sql_fixture();
+    for sql in [
+        "BEGIN",
+        "SET LOCAL cassie.projection_write_mode = 'replayable'",
+        "WITH inserted AS (INSERT INTO replay_sql_data (value) VALUES (7) RETURNING value) \
+         INSERT INTO replay_sql_checkpoint (position) SELECT value FROM inserted",
+    ] {
+        execute(&cassie, &session, sql);
+    }
+
+    // Act
+    let (result, writes) =
+        observe_native_commits(|| cassie.execute_sql(&session, "COMMIT", vec![]));
+
+    // Assert
+    result.unwrap();
+    assert_eq!(writes.first_policy, Some("local_buffered"));
+    assert!(writes.primary_buffered_attempts >= 1);
+}
+
 /// Commits a declared SQL projector transaction against simulated cloud
 /// storage and returns the first native policy it used.
 fn first_cloud_policy(configured_strict: bool, mixed: bool) -> Option<&'static str> {

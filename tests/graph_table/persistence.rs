@@ -3,7 +3,7 @@
 use crate::support_sql::{data_dir, use_local_storage};
 use crate::support_sql_fixture::sql_fixture;
 use crate::world::{link, node, World};
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
 const ROUTES: &str = "SELECT * FROM GRAPH_TABLE (g MATCH (s IS place WHERE s.kind = 'root') \
@@ -22,6 +22,13 @@ const SEPARATOR_SETUP: [&str; 5] = [
      SOURCE KEY (sk, sc) REFERENCES p (kind, code) \
      DESTINATION KEY (tk, tc) REFERENCES p (kind, code) LABEL road PROPERTIES (id))",
 ];
+
+fn read(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
+    match cassie.execute_sql(session, sql, vec![]) {
+        Ok(result) => result.rows().to_vec(),
+        Err(error) => panic!("read failed with SQLSTATE {}", error.sql_state()),
+    }
+}
 
 fn text(value: &str) -> Value {
     Value::String(value.to_owned())
@@ -63,7 +70,7 @@ fn should_return_the_same_matches_whatever_the_insertion_order() {
     let from_reverse = reverse.query(pattern, columns);
 
     // Assert
-    assert!(!from_forward.is_empty());
+    assert_ne!(from_forward.len(), 0);
     assert_eq!(from_forward, from_reverse);
 }
 
@@ -84,20 +91,14 @@ fn should_return_the_same_rows_after_a_restart() {
                 panic!("setup failed with SQLSTATE {}", error.sql_state());
             }
         }
-        cassie
-            .execute_sql(&session, query, vec![])
-            .map(|result| result.rows().to_vec())
-            .unwrap_or_else(|error| panic!("read failed with SQLSTATE {}", error.sql_state()))
+        read(&cassie, &session, query)
     };
 
     // Act
     let reopened = Cassie::new_with_data_dir(&path).expect("reopen storage");
     reopened.startup().expect("start up again");
     let session = reopened.create_session("tester", None);
-    let after = reopened
-        .execute_sql(&session, query, vec![])
-        .map(|result| result.rows().to_vec())
-        .unwrap_or_else(|error| panic!("read failed with SQLSTATE {}", error.sql_state()));
+    let after = read(&reopened, &session, query);
 
     // Assert
     drop(session);

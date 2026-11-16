@@ -49,6 +49,8 @@ sql-json-path = "0.2.0"
 cntryl-stress = "0.5.1"
 rcgen = "0.14"
 tokio-postgres = "0.7"
+# A second real PostgreSQL driver for the graph type round trips (plaintext local connection).
+sqlx = { version = "0.9", default-features = false, features = ["postgres", "runtime-tokio"] }
 
 [[test]]
 name = "analytics"

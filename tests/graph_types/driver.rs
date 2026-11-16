@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio_postgres::types::Kind;
 use tokio_postgres::{Client, NoTls, SimpleQueryMessage};
 
-const SETUP: [&str; 5] = [
+pub(crate) const SETUP: [&str; 5] = [
     "CREATE TABLE room (tenant TEXT NOT NULL, seq INT NOT NULL, PRIMARY KEY (tenant, seq))",
     "CREATE TABLE door (id UUID PRIMARY KEY, a_tenant TEXT NOT NULL, a_seq INT NOT NULL, \
      b_tenant TEXT NOT NULL, b_seq INT NOT NULL, weight NUMERIC)",
@@ -23,11 +23,11 @@ const SETUP: [&str; 5] = [
      DESTINATION KEY (b_tenant, b_seq) REFERENCES r (tenant, seq) LABEL door PROPERTIES (weight))",
 ];
 
-const ROOM_1: &str = "cassie_graph.vertex_ref('rooms', 'r', \
+pub(crate) const ROOM_1: &str = "cassie_graph.vertex_ref('rooms', 'r', \
     ARRAY[cassie_graph.key_part('t1'::text), cassie_graph.key_part(1::integer)])";
-const ROOM_2: &str = "cassie_graph.vertex_ref('rooms', 'r', \
+pub(crate) const ROOM_2: &str = "cassie_graph.vertex_ref('rooms', 'r', \
     ARRAY[cassie_graph.key_part('t1'::text), cassie_graph.key_part(2::integer)])";
-const DOOR: &str = "cassie_graph.edge_ref('rooms', 'd', \
+pub(crate) const DOOR: &str = "cassie_graph.edge_ref('rooms', 'd', \
     ARRAY[cassie_graph.key_part('00000000-0000-0000-0000-0000000000aa'::uuid)])";
 
 struct Server {
@@ -36,7 +36,15 @@ struct Server {
     accept_loop: tokio::task::JoinHandle<()>,
 }
 
-async fn start() -> Server {
+/// A running in-memory instance with the setup graph, listening on `port`.
+pub(crate) struct Served {
+    pub(crate) port: u16,
+    pub(crate) accept_loop: tokio::task::JoinHandle<()>,
+}
+
+/// Starts an in-memory instance, defines the setup graph and serves PostgreSQL wire
+/// connections from an owned, bound listener.
+pub(crate) async fn serve() -> Served {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     crate::support_sql::test_root_password().clone_into(&mut config.password);
     let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("create Cassie");
@@ -55,6 +63,11 @@ async fn start() -> Server {
     let accept_loop = tokio::spawn(async move {
         let _ = cassie::pgwire::server::run_with_listener(listener, shared, config).await;
     });
+    Served { port, accept_loop }
+}
+
+async fn start() -> Server {
+    let Served { port, accept_loop } = serve().await;
     let mut client_config = tokio_postgres::Config::new();
     client_config.host("127.0.0.1");
     client_config.port(port);
@@ -91,7 +104,7 @@ fn state(error: &tokio_postgres::Error) -> String {
         .map_or_else(|| "none".to_owned(), |code| code.code().to_owned())
 }
 
-fn run<T>(work: impl std::future::Future<Output = T>) -> T {
+pub(crate) fn run<T>(work: impl std::future::Future<Output = T>) -> T {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

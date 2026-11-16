@@ -6,15 +6,15 @@ use super::performance_benchmarks::performance_graph_topology as topology;
 fn should_admit_only_the_declared_graph_topology_points() {
     // Arrange
     let points = [
-        ("graph_degree_scaling_query", "16", 33),
-        ("graph_degree_scaling_query", "64", 129),
-        ("graph_degree_scaling_query", "256", 513),
-        ("graph_depth_scaling_query", "2", 5),
-        ("graph_depth_scaling_query", "4", 9),
-        ("graph_depth_scaling_query", "8", 17),
-        ("graph_fanout_scaling_query", "2", 29),
-        ("graph_fanout_scaling_query", "4", 169),
-        ("graph_fanout_scaling_query", "8", 1169),
+        ("graph_degree_scaling_query", "degree-16", 33),
+        ("graph_degree_scaling_query", "degree-64", 129),
+        ("graph_degree_scaling_query", "degree-256", 513),
+        ("graph_depth_scaling_query", "depth-2", 5),
+        ("graph_depth_scaling_query", "depth-4", 9),
+        ("graph_depth_scaling_query", "depth-8", 17),
+        ("graph_fanout_scaling_query", "fanout-2", 29),
+        ("graph_fanout_scaling_query", "fanout-4", 169),
+        ("graph_fanout_scaling_query", "fanout-8", 1169),
     ];
     // Act
     let actual = points.map(|(workload, scale, rows)| {
@@ -47,29 +47,29 @@ fn should_reject_changes_to_the_topology_owner_workload_scale_or_class() {
         (
             "tier5_scaling_query",
             "graph_depth_scaling_query",
-            "4",
+            "depth-4",
             9,
             true,
         ),
-        ("tier5_scaling_graph", "unknown", "4", 9, true),
+        ("tier5_scaling_graph", "unknown", "depth-4", 9, true),
         (
             "tier5_scaling_graph",
             "graph_depth_scaling_query",
-            "04",
+            "depth-04",
             9,
             true,
         ),
         (
             "tier5_scaling_graph",
             "graph_depth_scaling_query",
-            "4",
+            "depth-4",
             9,
             false,
         ),
         (
             "tier5_scaling_graph",
             "graph_depth_scaling_query",
-            "4",
+            "depth-4",
             10_000,
             true,
         ),
@@ -112,7 +112,7 @@ fn should_reject_invalid_topology_catalog_contracts_without_relabeling_other_sca
     let baseline = *crate::performance_benchmarks::benchmark_for_benchmark(
         "tier5_scaling_graph",
         "graph_depth_scaling_query",
-        "4",
+        "depth-4",
     )
     .unwrap();
     let invalid = [
@@ -157,5 +157,41 @@ fn should_reject_invalid_topology_catalog_contracts_without_relabeling_other_sca
                 .profile_id,
             "local-dev-graph-topology-memory-64m"
         );
+    }
+}
+
+#[test]
+fn should_keep_nine_topology_fixtures_distinct_under_the_owner_scale_identity_guard() {
+    // Arrange
+    let scenarios = crate::performance_benchmarks::benchmark_scenarios()
+        .filter(|scenario| scenario.benchmark == "tier5_scaling_graph")
+        .collect::<Vec<_>>();
+    let mut tracker = crate::stress_runtime_contract::FixtureIdentityTracker::default();
+    // Act
+    let registered = scenarios
+        .iter()
+        .map(|scenario| {
+            tracker
+                .register(
+                    scenario.benchmark,
+                    scenario.fixture_scale,
+                    &format!(
+                        "{}/{}/{}",
+                        scenario.benchmark, scenario.workload, scenario.fixture_scale
+                    ),
+                )
+                .is_ok()
+        })
+        .collect::<Vec<_>>();
+    // Assert
+    assert_eq!(registered, vec![true; 9]);
+    for scenario in scenarios {
+        assert!(tracker
+            .register(
+                scenario.benchmark,
+                scenario.fixture_scale,
+                "different-fixture"
+            )
+            .is_err());
     }
 }

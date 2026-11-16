@@ -872,15 +872,15 @@ standard dataset row count. The narrow exception applies only to these exact
 
 | Workload | Scale | Actual mapped rows |
 | --- | --- | --- |
-| `graph_degree_scaling_query` | `16` | 33 |
-| `graph_degree_scaling_query` | `64` | 129 |
-| `graph_degree_scaling_query` | `256` | 513 |
-| `graph_depth_scaling_query` | `2` | 5 |
-| `graph_depth_scaling_query` | `4` | 9 |
-| `graph_depth_scaling_query` | `8` | 17 |
-| `graph_fanout_scaling_query` | `2` | 29 |
-| `graph_fanout_scaling_query` | `4` | 169 |
-| `graph_fanout_scaling_query` | `8` | 1,169 |
+| `graph_degree_scaling_query` | `degree-16` | 33 |
+| `graph_degree_scaling_query` | `degree-64` | 129 |
+| `graph_degree_scaling_query` | `degree-256` | 513 |
+| `graph_depth_scaling_query` | `depth-2` | 5 |
+| `graph_depth_scaling_query` | `depth-4` | 9 |
+| `graph_depth_scaling_query` | `depth-8` | 17 |
+| `graph_fanout_scaling_query` | `fanout-2` | 29 |
+| `graph_fanout_scaling_query` | `fanout-4` | 169 |
+| `graph_fanout_scaling_query` | `fanout-8` | 1,169 |
 
 Mapped rows count vertices plus edges. Degree uses one hop, depth uses fanout
 one, and fanout uses three hops. Each rooted tree is measured under the same
@@ -919,3 +919,14 @@ Its storage field is the registered profile's declared storage label; physical
 memory mode is established by the benchmark's explicit constructor, not by that
 label. This diagnostic helper does not relax the separate release-artifact
 validator or promote local samples to release evidence.
+
+
+Topology fixture-scale identifiers include their axis: `degree-16`,
+`degree-64`, `degree-256`, `depth-2`, `depth-4`, `depth-8`, `fanout-2`,
+`fanout-4` and `fanout-8`. The stress identity guard keys fixtures by owner and
+scale. The earlier raw `2`/`4`/`8` scale identifiers collided between the depth
+and fanout axes, which own independent fixtures; the actual first run stopped
+after six cases at that guard. Axis prefixes preserve the guard and the actual
+independent fixture identities. Cardinalities, scenario IDs, the 64 MiB memory
+profile and measurement boundaries remain the same. Completion requires all
+nine corrected-scale runs and successful artifact summary validation.

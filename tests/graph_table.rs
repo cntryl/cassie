@@ -32,3 +32,9 @@ mod matrix;
 
 #[path = "graph_table/wire.rs"]
 mod wire;
+
+#[path = "graph_table/database_scope.rs"]
+mod database_scope;
+
+#[path = "graph_table/persistence.rs"]
+mod persistence;

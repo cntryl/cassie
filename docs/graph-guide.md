@@ -1836,4 +1836,3 @@ The removal drops three behaviours that the mapped model does not carry. Edges w
 rows do not exist are not traversed: add the missing vertex rows. `FLOAT` edge weights are not
 accepted: use an exact numeric or integer weight column. A per-row node or edge type value is
 replaced by labels on mappings: declare one mapping per type, or one label per mapping.
-

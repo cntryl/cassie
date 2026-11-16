@@ -178,3 +178,75 @@ fn should_pass_a_binary_reference_parameter_to_key_parts() {
     // Assert
     assert_eq!(first_cell(&frames), "9007199254740993");
 }
+
+#[test]
+fn should_infer_the_path_type_of_an_undeclared_parameter_given_path_to_jsonb() {
+    // Arrange
+    let body = body_of(&path_expression(), 0);
+
+    // Act
+    let frames = run_bound(
+        "param-fn-infer-jsonb",
+        "SELECT cassie_graph.path_to_jsonb($1)::text",
+        0,
+        0,
+        &body,
+    );
+
+    // Assert
+    assert!(first_cell(&frames).contains("9007199254740993"));
+}
+
+#[test]
+fn should_infer_the_path_type_of_an_undeclared_binary_parameter_given_path_to_jsonb() {
+    // Arrange
+    let body = body_of(&path_expression(), 1);
+
+    // Act
+    let frames = run_bound(
+        "param-fn-infer-jsonb-binary",
+        "SELECT cassie_graph.path_to_jsonb($1)::text",
+        0,
+        1,
+        &body,
+    );
+
+    // Assert
+    assert!(first_cell(&frames).contains("9007199254740993"));
+}
+
+#[test]
+fn should_infer_the_path_type_of_an_undeclared_parameter_given_path_steps() {
+    // Arrange
+    let body = body_of(&path_expression(), 0);
+
+    // Act
+    let frames = run_bound(
+        "param-fn-infer-steps",
+        "SELECT count(*)::text FROM cassie_graph.path_steps($1)",
+        0,
+        0,
+        &body,
+    );
+
+    // Assert
+    assert_eq!(first_cell(&frames), "2");
+}
+
+#[test]
+fn should_infer_the_reference_type_of_an_undeclared_parameter_given_key_parts() {
+    // Arrange
+    let body = body_of(&crate::fixture::person(9_007_199_254_740_993), 0);
+
+    // Act
+    let frames = run_bound(
+        "param-fn-infer-key-parts",
+        "SELECT k.integer_value::text FROM cassie_graph.key_parts($1) AS k",
+        0,
+        0,
+        &body,
+    );
+
+    // Assert
+    assert_eq!(first_cell(&frames), "9007199254740993");
+}

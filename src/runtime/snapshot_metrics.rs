@@ -53,7 +53,6 @@ impl RuntimeState {
             projections: metrics.projections.clone(),
             retention: metrics.retention.clone(),
             read_paths: metrics.read_paths.clone(),
-            graph: metrics.graph.clone(),
         };
         snapshot.query.current_accounted_memory_bytes = current_query_bytes as u64;
         snapshot.runtime.uptime_seconds = uptime_seconds;

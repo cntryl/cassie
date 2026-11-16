@@ -112,7 +112,6 @@ fn is_database_scoped_catalog_family(family: &str) -> bool {
             | "rollup"
             | "retention"
             | "maintenance-debt"
-            | "graph"
     )
 }
 
@@ -243,12 +242,6 @@ pub(super) fn rewrite_catalog_value(
             target,
         ),
         "retention" => rewrite_fields(&mut value, &["name", "collection"], source, target),
-        "graph" => rewrite_fields(
-            &mut value,
-            &["name", "node_collection", "edge_collection"],
-            source,
-            target,
-        ),
         "schema" | "row-schema" | "cardinality" | "collection-generation" => {}
         _ => {
             return Err(CassieError::Unsupported(format!(

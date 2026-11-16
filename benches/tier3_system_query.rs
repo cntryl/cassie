@@ -34,9 +34,6 @@ const IVFFLAT_TRAINING_SAMPLE_SIZE: usize = 4_096;
 const IVFFLAT_TRAINING_SEED: u64 = 42;
 const ANN_RECALL_FLOOR: f64 = 0.90;
 
-#[path = "tier3_system_query/graph.rs"]
-mod graph;
-
 #[path = "support/column_diagnostics.rs"]
 mod column_diagnostics;
 #[path = "support/fixture_dir.rs"]
@@ -52,13 +49,8 @@ fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier3, BENCHMARK);
     let core_cases = CoreCases::select(&runner);
     let join_case = selected_case(&runner, "vectorized_join_query");
-    let graph_case = selected_case(&runner, "graph_expand_query");
     let time_series_cases = TimeSeriesCases::select(&runner);
-    if !core_cases.any_enabled()
-        && join_case.is_none()
-        && graph_case.is_none()
-        && !time_series_cases.any_enabled()
-    {
+    if !core_cases.any_enabled() && join_case.is_none() && !time_series_cases.any_enabled() {
         runner.finish();
         return;
     }
@@ -87,7 +79,6 @@ fn main() {
         FIXTURE_ROWS,
         workloads::Tier3QueryDomains {
             join: join_case.is_some(),
-            graph: false,
             time_series: false,
         },
     )
@@ -97,7 +88,6 @@ fn main() {
 
     bench_core_representatives(&mut runner, &context, fixture_setup, core_cases);
     bench_join_representative(&mut runner, &context, fixture_setup, join_case);
-    graph::bench_authoritative_graph_representative(&mut runner, &runtime, graph_case);
     bench_time_series_representatives(&mut runner, &runtime, time_series_cases);
     workloads::assert_result_cache_disabled(&context);
 

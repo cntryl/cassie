@@ -12,10 +12,6 @@ use crate::catalog::DefaultSequenceOwnership;
 #[path = "schema_field_nullability_tests.rs"]
 mod nullability_tests;
 
-pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
-    parse_field_definition_for_table(raw, None)
-}
-
 pub(super) fn parse_field_definition_for_table(
     raw: &str,
     table: Option<&str>,
@@ -503,7 +499,7 @@ mod tests {
 
         // Act
         let parsed = declarations.map(|declaration| {
-            super::parse_field_definition(declaration)
+            super::parse_field_definition_for_table(declaration, None)
                 .expect("parse SQL-standard array declaration")
                 .data_type
         });

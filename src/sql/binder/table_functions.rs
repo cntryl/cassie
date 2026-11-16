@@ -17,7 +17,7 @@ fn validate_series(
     Ok(())
 }
 
-fn validate_graph_table_function(
+fn validate_table_function(
     function: &FunctionCall,
     form: Option<&TableFunctionForm>,
     lateral_fields: &HashSet<String>,
@@ -92,9 +92,6 @@ fn validate_graph_table_function(
             name if crate::sql::functions::graph_types::is_table_function(name) => {
                 crate::sql::functions::graph_types::table_arity(name)
             }
-            "graph_neighbors" => 6,
-            "graph_expand" => 7,
-            "graph_shortest_path" => 9,
             other => {
                 return Err(CassieError::Planner(format!(
                     "unsupported table function '{other}'"
@@ -135,31 +132,6 @@ fn validate_json_element_function(
     validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
     // The json/jsonb family check needs column types and runs at the typed bind stage.
     Ok(())
-}
-
-fn literal_string_arg(function: &FunctionCall, index: usize) -> Option<String> {
-    match function.args.get(index)? {
-        Expr::StringLiteral(value) => Some(value.clone()),
-        _ => None,
-    }
-}
-
-pub(super) fn graph_table_function_columns() -> Vec<(String, DataType)> {
-    vec![
-        ("depth".to_string(), DataType::BigInt),
-        ("path_rank".to_string(), DataType::BigInt),
-        ("cost".to_string(), DataType::Float),
-        ("node_type".to_string(), DataType::Text),
-        ("node_id".to_string(), DataType::Text),
-        ("edge_id".to_string(), DataType::Text),
-        ("edge_type".to_string(), DataType::Text),
-        ("source_type".to_string(), DataType::Text),
-        ("source_id".to_string(), DataType::Text),
-        ("target_type".to_string(), DataType::Text),
-        ("target_id".to_string(), DataType::Text),
-        ("path_nodes".to_string(), DataType::Json),
-        ("path_edges".to_string(), DataType::Json),
-    ]
 }
 
 pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
@@ -236,7 +208,7 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
             ("pending_restart".to_string(), DataType::Boolean),
         ];
     }
-    graph_table_function_columns()
+    Vec::new()
 }
 
 pub(super) fn typed_columns(
@@ -312,7 +284,7 @@ pub(super) fn bind(
     else {
         unreachable!("table function binding requires a table function");
     };
-    validate_graph_table_function(&function, form.as_deref(), lateral_fields)?;
+    validate_table_function(&function, form.as_deref(), lateral_fields)?;
     if crate::sql::table_sources::is_generated(&function.name) {
         return Ok(QuerySource::TableFunction {
             name,
@@ -337,17 +309,6 @@ pub(super) fn bind(
             return Err(CassieError::Execution(format!(
                 "{modifier} specified, but {} is not an aggregate function",
                 function.name
-            )));
-        }
-    }
-    if let Some(graph_name) = (!crate::sql::functions::is_catalog_table(&function.name))
-        .then(|| literal_string_arg(&function, 0))
-        .flatten()
-    {
-        let graph_name = super::normalize_relation_name(&graph_name, context)?;
-        if !catalog.graph_exists_exact(&graph_name) {
-            return Err(CassieError::Planner(format!(
-                "graph '{graph_name}' does not exist"
             )));
         }
     }

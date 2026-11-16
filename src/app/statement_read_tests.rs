@@ -912,8 +912,6 @@ mod resources;
 
 mod workers;
 
-mod graphs;
-
 mod ancestor_scope;
 
 mod phase_visibility;

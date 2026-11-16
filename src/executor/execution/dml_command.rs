@@ -327,9 +327,6 @@ fn execute_schema_object_group(
         LogicalCommand::CreateTable(statement) => Some(CommandExecution::creation(
             super::schema_creation::create_table(cassie, statement, controls),
         )),
-        LogicalCommand::CreateGraph(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::create_graph(cassie, statement, controls),
-        )),
         LogicalCommand::CreateDatabase(statement) => Some(CommandExecution::new(
             super::schema_command::create_database(cassie, statement, controls),
         )),

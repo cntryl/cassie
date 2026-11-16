@@ -1,7 +1,7 @@
 //! Existing catalog/graph table-function dispatch and selected generated sources.
 use super::{
-    batch, filter, finalize_source_batches, graph, jsonpath_table, source_graph_types,
-    source_options, BatchRow, QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
+    batch, filter, finalize_source_batches, jsonpath_table, source_graph_types, source_options,
+    BatchRow, QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
 };
 
 pub(super) fn execute(
@@ -86,13 +86,15 @@ pub(super) fn execute(
     ) {
         return execute_settings(env, name, qualify);
     }
-    let (rows, _table_memory) = if function.name.eq_ignore_ascii_case("jsonb_path_query")
-        || function.name.eq_ignore_ascii_case("jsonb_path_query_tz")
+    if !(function.name.eq_ignore_ascii_case("jsonb_path_query")
+        || function.name.eq_ignore_ascii_case("jsonb_path_query_tz"))
     {
-        jsonpath_table::execute(env, function, outer)?
-    } else {
-        graph::execute_table_function(env, function, outer)?.into_parts()
-    };
+        return Err(QueryError::General(format!(
+            "function {} does not exist",
+            function.name
+        )));
+    }
+    let (rows, _table_memory) = jsonpath_table::execute(env, function, outer)?;
     finalize_source_batches(
         env,
         batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
@@ -175,7 +177,7 @@ fn execute_pg_input_error_info(
     outer_row: Option<&BatchRow>,
     qualify: bool,
 ) -> SourceExecution {
-    let args = graph::evaluate_args(env, function, outer_row)?;
+    let args = evaluate_args(env, function, outer_row)?;
     let input = args
         .first()
         .ok_or_else(|| QueryError::General("pg_input_error_info requires 2 arguments".into()))?;
@@ -228,4 +230,28 @@ fn execute_pg_input_error_info(
         qualify,
         name,
     )
+}
+
+pub(super) fn evaluate_args(
+    env: &SourceExecutionEnv<'_>,
+    function: &crate::sql::ast::FunctionCall,
+    outer_row: Option<&BatchRow>,
+) -> Result<Vec<Value>, QueryError> {
+    let empty = BatchRow::new(Vec::new());
+    let row = outer_row.unwrap_or(&empty);
+    function
+        .args
+        .iter()
+        .map(|arg| {
+            filter::evaluate_expr_value(
+                row,
+                arg,
+                env.params,
+                None,
+                env.user_functions,
+                env.session,
+                None,
+            )
+        })
+        .collect()
 }

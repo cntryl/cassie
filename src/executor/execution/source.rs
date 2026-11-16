@@ -43,7 +43,7 @@ use super::reserve_projection_output_before_building;
 use super::{
     aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog,
     check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan_with_outer_row,
-    execute_plan_with_parameter_oids, filter, graph, load_fulltext_index_options,
+    execute_plan_with_parameter_oids, filter, load_fulltext_index_options,
     plan_execution_env_with_parameter_oids, projection, resolve_exists_expr, row_signature, scan,
     sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession,
     CteContext, ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind,

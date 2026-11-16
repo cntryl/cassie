@@ -134,22 +134,6 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None
     ),
     scenario!(
-        "perf.graph.expand.100k",
-        "graph",
-        "graph",
-        "tier3_system_query",
-        "graph_expand_query",
-        "100k",
-        100_000,
-        Tier3,
-        Batch,
-        Representative,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
         "perf.time_series.window_scan_15m.100k",
         "time_series",
         "time_series",

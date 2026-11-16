@@ -158,7 +158,6 @@ struct RuntimeMetricsState {
     projections: ProjectionSnapshot,
     retention: RetentionSnapshot,
     read_paths: ReadPathSnapshot,
-    graph: GraphSnapshot,
 }
 
 #[derive(Debug, Clone)]

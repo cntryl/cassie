@@ -231,22 +231,6 @@ metadata_heap!(crate::catalog::programs::VectorAnnCatalogIdentityIds {
     cosine_operator_class,
 });
 
-metadata_heap!(crate::catalog::graphs::GraphMeta {
-    name,
-    storage_id,
-    node_collection,
-    edge_collection,
-    node_type_field,
-    node_id_field,
-    edge_id_field,
-    source_type_field,
-    source_id_field,
-    target_type_field,
-    target_id_field,
-    edge_type_field,
-    weight_field,
-});
-
 metadata_heap!(crate::catalog::property_graphs::PropertyGraphMeta {
     name,
     object_id,

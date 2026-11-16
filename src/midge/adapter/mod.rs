@@ -380,11 +380,10 @@ pub use failure_points::{
     set_document_write_storage_failures, DocumentWriteFailurePoint, DocumentWriteStorageFailure,
 };
 mod fresh_documents;
-mod graphs;
-mod property_graphs;
-pub(crate) use graphs::graph_edge_record_from_payload;
 mod key_encoding;
 mod layout;
+mod legacy_graph_state;
+mod property_graphs;
 use layout::{
     FamilyScope, RawStorageEntry, DEFAULT_FAMILY_NAME, SCHEMA_FAMILY_NAME, TEMP_FAMILY_NAME,
 };
@@ -458,7 +457,6 @@ pub(crate) use column_batches::{
 pub(crate) use documents::{
     DocumentWriteBatchOptions, DocumentWriteBatchReport, DocumentWriteOp, OrderedRowScanRequest,
 };
-pub(crate) use graphs::{GraphEdgeRecord, GraphEdgeScanOutcome, GraphEdgeScanRequest};
 pub(crate) use scan_types::OrderedRowBound;
 pub use scan_types::{
     ColumnBatchAggregateDecision, ColumnBatchAggregateOutcome, ColumnBatchAggregateSpec,
@@ -634,26 +632,6 @@ impl Midge {
 
     fn retention_key(name: &str) -> Vec<u8> {
         key_encoding::retention_key(name)
-    }
-
-    fn graph_prefix() -> Vec<u8> {
-        key_encoding::graph_prefix()
-    }
-
-    fn graph_key(name: &str) -> Vec<u8> {
-        key_encoding::graph_key(name)
-    }
-
-    fn graph_adjacency_prefix(graph_id: u64) -> Vec<u8> {
-        key_encoding::graph_adjacency_prefix(graph_id)
-    }
-
-    fn graph_outbound_edge_key(record: &graphs::GraphEdgeRecord) -> Vec<u8> {
-        key_encoding::graph_outbound_edge_key(record)
-    }
-
-    fn graph_inbound_edge_key(record: &graphs::GraphEdgeRecord) -> Vec<u8> {
-        key_encoding::graph_inbound_edge_key(record)
     }
 
     fn index_prefix() -> Vec<u8> {

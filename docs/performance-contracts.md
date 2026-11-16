@@ -872,15 +872,23 @@ standard dataset row count. The narrow exception applies only to these exact
 
 | Workload | Scale | Actual mapped rows |
 | --- | --- | --- |
-| `graph_degree_scaling_query` | `16` | 33 |
-| `graph_degree_scaling_query` | `64` | 129 |
-| `graph_degree_scaling_query` | `256` | 513 |
-| `graph_depth_scaling_query` | `2` | 5 |
-| `graph_depth_scaling_query` | `4` | 9 |
-| `graph_depth_scaling_query` | `8` | 17 |
-| `graph_fanout_scaling_query` | `2` | 29 |
-| `graph_fanout_scaling_query` | `4` | 169 |
-| `graph_fanout_scaling_query` | `8` | 1,169 |
+| `graph_degree_scaling_query` | `degree-16` | 33 |
+| `graph_degree_scaling_query` | `degree-64` | 129 |
+| `graph_degree_scaling_query` | `degree-256` | 513 |
+| `graph_depth_scaling_query` | `depth-2` | 5 |
+| `graph_depth_scaling_query` | `depth-4` | 9 |
+| `graph_depth_scaling_query` | `depth-8` | 17 |
+| `graph_fanout_scaling_query` | `fanout-2` | 29 |
+| `graph_fanout_scaling_query` | `fanout-4` | 169 |
+| `graph_fanout_scaling_query` | `fanout-8` | 1,169 |
+
+Scale IDs include their topology axis because the runtime fixture tracker
+requires one fixture identity per benchmark owner and scale. A depth-two chain
+and a fanout-two tree are distinct fixtures, so they must not share scale `2`.
+The bare numeric graph scales are rejected. This keeps the global identity
+guard unchanged; the source-backed Jev decision selected axis-qualified scales
+(probability 0.97), rather than widening or exempting that guard. Scenario IDs
+and the measured topology points are unchanged.
 
 Mapped rows count vertices plus edges. Degree uses one hop, depth uses fanout
 one, and fanout uses three hops. Each rooted tree is measured under the same

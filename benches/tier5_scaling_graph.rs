@@ -30,15 +30,19 @@ fn main() {
     for (workload, points) in [
         (
             "graph_degree_scaling_query",
-            [("16", 16, 1), ("64", 64, 1), ("256", 256, 1)],
+            [
+                ("degree-16", 16, 1),
+                ("degree-64", 64, 1),
+                ("degree-256", 256, 1),
+            ],
         ),
         (
             "graph_depth_scaling_query",
-            [("2", 1, 2), ("4", 1, 4), ("8", 1, 8)],
+            [("depth-2", 1, 2), ("depth-4", 1, 4), ("depth-8", 1, 8)],
         ),
         (
             "graph_fanout_scaling_query",
-            [("2", 2, 3), ("4", 4, 3), ("8", 8, 3)],
+            [("fanout-2", 2, 3), ("fanout-4", 4, 3), ("fanout-8", 8, 3)],
         ),
     ] {
         for (scale, fanout, depth) in points {

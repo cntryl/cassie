@@ -280,7 +280,10 @@ fn should_reject_a_non_finite_or_negative_max_cost_with_22023() {
     ];
 
     // Assert
-    assert_eq!(states, ["22023", "22023", "22023", "22023"].map(|state| Err(state.to_owned())));
+    assert_eq!(
+        states,
+        ["22023", "22023", "22023", "22023"].map(|state| Err(state.to_owned()))
+    );
 }
 
 #[test]

@@ -96,11 +96,7 @@ fn decode(ty: &Type, raw: &[u8]) -> Result<Node, CodecError> {
     }
 }
 
-fn put_length_prefixed(
-    out: &mut BytesMut,
-    node: &Node,
-    ty: &Type,
-) -> Result<(), CodecError> {
+fn put_length_prefixed(out: &mut BytesMut, node: &Node, ty: &Type) -> Result<(), CodecError> {
     if *node == Node::Null {
         out.put_i32(-1);
         return Ok(());
@@ -121,7 +117,6 @@ fn encode(node: &Node, ty: &Type, out: &mut BytesMut) -> Result<(), CodecError> 
                 out.put_u32(field.type_().oid());
                 put_length_prefixed(out, node, field.type_())?;
             }
-            Ok(())
         }
         (Node::Array(nodes), Kind::Array(inner)) => {
             out.put_i32(i32::from(!nodes.is_empty()));
@@ -134,15 +129,15 @@ fn encode(node: &Node, ty: &Type, out: &mut BytesMut) -> Result<(), CodecError> 
                     put_length_prefixed(out, node, inner)?;
                 }
             }
-            Ok(())
         }
-        (Node::Int2(value), _) => Ok(out.put_i16(*value)),
-        (Node::Int4(value), _) => Ok(out.put_i32(*value)),
-        (Node::Int8(value), _) => Ok(out.put_i64(*value)),
-        (Node::Text(value), _) => Ok(out.put_slice(value.as_bytes())),
-        (Node::Uuid(value), _) => Ok(out.put_slice(value)),
-        _ => Err(fail("a node does not match its declared type")),
+        (Node::Int2(value), _) => out.put_i16(*value),
+        (Node::Int4(value), _) => out.put_i32(*value),
+        (Node::Int8(value), _) => out.put_i64(*value),
+        (Node::Text(value), _) => out.put_slice(value.as_bytes()),
+        (Node::Uuid(value), _) => out.put_slice(value),
+        _ => return Err(fail("a node does not match its declared type")),
     }
+    Ok(())
 }
 
 impl ToSql for Node {

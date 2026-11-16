@@ -16,7 +16,8 @@ const SETUP: [&str; 5] = [
      DESTINATION KEY (b) REFERENCES n (id) LABEL fast PROPERTIES (weight))",
 ];
 
-const ELEMENT_REF_OID_QUERY: &str = "SELECT oid::text FROM pg_type WHERE typname = 'graph_element_ref'";
+const ELEMENT_REF_OID_QUERY: &str =
+    "SELECT oid::text FROM pg_type WHERE typname = 'graph_element_ref'";
 
 fn vertex(id: i64) -> String {
     format!("cassie_graph.vertex_ref('wg', 'n', ARRAY[cassie_graph.key_part({id}::bigint)])")
@@ -164,7 +165,10 @@ fn should_describe_the_weighted_call_parameters_with_the_declared_types() {
         .find(|(tag, _)| *tag == b't')
         .map(|(_, body)| wire::parse_parameter_description(body))
         .expect("parameter description");
-    assert_eq!(described, vec![reference, reference, 25, 23, 25, 1009, 1700, 23]);
+    assert_eq!(
+        described,
+        vec![reference, reference, 25, 23, 25, 1009, 1700, 23]
+    );
 }
 
 #[test]

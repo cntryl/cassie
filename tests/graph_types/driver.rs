@@ -33,7 +33,7 @@ const DOOR: &str = "cassie_graph.edge_ref('rooms', 'd', \
 struct Server {
     client: Client,
     connection: tokio::task::JoinHandle<()>,
-    server: tokio::task::JoinHandle<()>,
+    accept_loop: tokio::task::JoinHandle<()>,
 }
 
 async fn start() -> Server {
@@ -52,7 +52,7 @@ async fn start() -> Server {
         .expect("bind listener");
     let port = listener.local_addr().expect("listener address").port();
     let shared = Arc::new(cassie);
-    let server = tokio::spawn(async move {
+    let accept_loop = tokio::spawn(async move {
         let _ = cassie::pgwire::server::run_with_listener(listener, shared, config).await;
     });
     let mut client_config = tokio_postgres::Config::new();
@@ -71,7 +71,7 @@ async fn start() -> Server {
     Server {
         client,
         connection,
-        server,
+        accept_loop,
     }
 }
 
@@ -79,9 +79,9 @@ impl Server {
     async fn stop(self) {
         drop(self.client);
         self.connection.abort();
-        self.server.abort();
+        self.accept_loop.abort();
         let _ = self.connection.await;
-        let _ = self.server.await;
+        let _ = self.accept_loop.await;
     }
 }
 
@@ -159,11 +159,11 @@ fn should_describe_the_graph_types_as_composites_through_the_driver() {
     // Arrange
     let work = async {
         let server = start().await;
-
-        // Act
         let statement = server
             .client
-            .prepare("SELECT cassie_graph.key_part(7::bigint), ARRAY[cassie_graph.key_part(7::bigint)]")
+            .prepare(
+                "SELECT cassie_graph.key_part(7::bigint), ARRAY[cassie_graph.key_part(7::bigint)]",
+            )
             .await
             .expect("prepare");
         let types = statement
@@ -199,7 +199,14 @@ fn should_round_trip_key_parts_of_every_shape_through_the_driver() {
         let server = start().await;
         let mut nodes = Vec::new();
         for expression in expressions {
-            nodes.push(round_trip(&server.client, &format!("SELECT {expression}"), "graph_key_part").await);
+            nodes.push(
+                round_trip(
+                    &server.client,
+                    &format!("SELECT {expression}"),
+                    "graph_key_part",
+                )
+                .await,
+            );
         }
         server.stop().await;
         nodes
@@ -219,13 +226,19 @@ fn should_round_trip_key_parts_of_every_shape_through_the_driver() {
 #[test]
 fn should_round_trip_a_key_part_array_with_a_null_element_through_the_driver() {
     // Arrange
-    let expression = "ARRAY[cassie_graph.key_part(1::bigint), NULL, cassie_graph.key_part(2::bigint)]\
+    let expression =
+        "ARRAY[cassie_graph.key_part(1::bigint), NULL, cassie_graph.key_part(2::bigint)]\
                       ::cassie_graph.graph_key_part[]";
 
     // Act
     let node = run(async {
         let server = start().await;
-        let node = round_trip(&server.client, &format!("SELECT {expression}"), "graph_key_part[]").await;
+        let node = round_trip(
+            &server.client,
+            &format!("SELECT {expression}"),
+            "graph_key_part[]",
+        )
+        .await;
         server.stop().await;
         node
     });
@@ -246,8 +259,18 @@ fn should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver(
     // Act
     let (vertex, edge) = run(async {
         let server = start().await;
-        let vertex = round_trip(&server.client, &format!("SELECT {ROOM_1}"), "graph_element_ref").await;
-        let edge = round_trip(&server.client, &format!("SELECT {uuid_edge}"), "graph_element_ref").await;
+        let vertex = round_trip(
+            &server.client,
+            &format!("SELECT {ROOM_1}"),
+            "graph_element_ref",
+        )
+        .await;
+        let edge = round_trip(
+            &server.client,
+            &format!("SELECT {uuid_edge}"),
+            "graph_element_ref",
+        )
+        .await;
         server.stop().await;
         (vertex, edge)
     });
@@ -269,44 +292,61 @@ fn should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver(
     assert_eq!(edge_parts.len(), 1);
 }
 
-#[test]
-fn should_round_trip_a_zero_hop_and_a_one_hop_path_through_the_driver() {
-    // Arrange
-    let zero = format!(
-        "ROW(ARRAY[{ROOM_1}], ARRAY[]::cassie_graph.graph_element_ref[], \
-         ARRAY[]::smallint[])::cassie_graph.graph_path"
-    );
-    let one = format!(
-        "ROW(ARRAY[{ROOM_1}, {ROOM_2}], ARRAY[{DOOR}], ARRAY[1::smallint])\
-         ::cassie_graph.graph_path"
-    );
-
-    // Act
-    let (zero_hop, one_hop) = run(async {
-        let server = start().await;
-        let zero_hop = round_trip(&server.client, &format!("SELECT {zero}"), "graph_path").await;
-        let one_hop = round_trip(&server.client, &format!("SELECT {one}"), "graph_path").await;
-        server.stop().await;
-        (zero_hop, one_hop)
-    });
-
-    // Assert
-    let sizes = |node: Node| match node {
+fn element_counts(node: Node) -> Vec<usize> {
+    match node {
         Node::Record(fields) => fields
             .iter()
             .map(|field| match field {
                 Node::Array(items) => items.len(),
                 _ => usize::MAX,
             })
-            .collect::<Vec<_>>(),
+            .collect(),
         _ => Vec::new(),
-    };
-    assert_eq!(sizes(zero_hop), vec![1, 0, 0]);
-    assert_eq!(sizes(one_hop), vec![2, 1, 1]);
+    }
 }
 
 #[test]
-fn should_round_trip_projected_and_weighted_paths_through_the_driver() {
+fn should_round_trip_a_zero_hop_path_through_the_driver() {
+    // Arrange
+    let zero = format!(
+        "SELECT ROW(ARRAY[{ROOM_1}], ARRAY[]::cassie_graph.graph_element_ref[], \
+         ARRAY[]::smallint[])::cassie_graph.graph_path"
+    );
+
+    // Act
+    let node = run(async {
+        let server = start().await;
+        let node = round_trip(&server.client, &zero, "graph_path").await;
+        server.stop().await;
+        node
+    });
+
+    // Assert
+    assert_eq!(element_counts(node), vec![1, 0, 0]);
+}
+
+#[test]
+fn should_round_trip_a_one_hop_path_through_the_driver() {
+    // Arrange
+    let one = format!(
+        "SELECT ROW(ARRAY[{ROOM_1}, {ROOM_2}], ARRAY[{DOOR}], ARRAY[1::smallint])\
+         ::cassie_graph.graph_path"
+    );
+
+    // Act
+    let node = run(async {
+        let server = start().await;
+        let node = round_trip(&server.client, &one, "graph_path").await;
+        server.stop().await;
+        node
+    });
+
+    // Assert
+    assert_eq!(element_counts(node), vec![2, 1, 1]);
+}
+
+#[test]
+fn should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_the_driver() {
     // Arrange
     let projected = "SELECT g.path FROM GRAPH_TABLE (rooms MATCH \
         p = (a IS room WHERE a.seq = 1) -[e IS door]-> (b IS room) COLUMNS (p AS path)) AS g";
@@ -332,8 +372,6 @@ fn should_report_the_driver_parameter_type_of_a_path_function_argument() {
     // Arrange
     let work = async {
         let server = start().await;
-
-        // Act
         let statement = server
             .client
             .prepare("SELECT cassie_graph.path_to_jsonb($1::cassie_graph.graph_path)::text")

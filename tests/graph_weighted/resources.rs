@@ -187,11 +187,7 @@ fn should_release_query_memory_after_a_pre_search_cancellation() {
 
 fn validated(world: &Wg, rest: &str) -> usize {
     let cancellation = QueryCancellationHandle::new();
-    let statement = Wg::select(&format!(
-        "'wg', {}, {}, {rest}",
-        vertex(1),
-        vertex(2)
-    ));
+    let statement = Wg::select(&format!("'wg', {}, {}, {rest}", vertex(1), vertex(2)));
     let outcome = world.fixture.cassie.execute_sql_with_cancellation(
         &world.fixture.session,
         &statement,

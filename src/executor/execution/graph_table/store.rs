@@ -280,13 +280,13 @@ impl Store {
         Ok(())
     }
 
-    fn vertex_key(&self, id: usize) -> (&String, &Vec<KeyPart>) {
+    pub(super) fn vertex_key(&self, id: usize) -> (&String, &Vec<KeyPart>) {
         let (mapping, row) = self.vertices[id];
         let loaded = self.vertex_maps[mapping].as_ref().expect("loaded");
         (&loaded.id, &loaded.keys[row])
     }
 
-    fn edge_key(&self, id: usize) -> (&String, &Vec<KeyPart>) {
+    pub(super) fn edge_key(&self, id: usize) -> (&String, &Vec<KeyPart>) {
         let record = self.edges[id];
         let loaded = self.edge_maps[record.mapping].as_ref().expect("loaded");
         (&loaded.id, &loaded.keys[record.row])

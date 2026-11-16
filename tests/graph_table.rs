@@ -32,3 +32,6 @@ mod matrix;
 
 #[path = "graph_table/wire.rs"]
 mod wire;
+
+#[path = "graph_table/paths.rs"]
+mod paths;

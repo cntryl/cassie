@@ -148,6 +148,7 @@ fn check_expressions(
     table: &GraphTable,
     variables: &[Variable<'_>],
     outer_fields: &HashSet<String>,
+    path_type: Option<&DataType>,
 ) -> Result<Vec<DataType>, CassieError> {
     let scope = Scope {
         variables,
@@ -181,6 +182,16 @@ fn check_expressions(
                 DUPLICATE_COLUMN,
                 format!("column name \"{name}\" appears more than once in GRAPH_TABLE COLUMNS"),
             ));
+        }
+        if expr::is_path_projection(&column.expr, &scope) {
+            output.push(path_type.cloned().ok_or_else(|| {
+                diagnostic(
+                    UNDEFINED_OBJECT,
+                    "type cassie_graph.graph_path does not exist: the reserved schema is not \
+                     bootstrapped",
+                )
+            })?);
+            continue;
         }
         expr::check(&column.expr, &scope, None)?;
         output.push(expr::column_type(&column.expr, &scope)?);
@@ -225,7 +236,10 @@ pub(super) fn bind(
     let graph = resolve_graph(catalog, context, &table.graph)?;
     validate_pattern(&table)?;
     let (variables, elements) = scope::collect(&graph, &table)?;
-    let output = check_expressions(&table, &variables, lateral_fields)?;
+    let path_type = catalog
+        .graph_descriptors(&context.database)
+        .map(|descriptors| DataType::Composite(descriptors.path));
+    let output = check_expressions(&table, &variables, lateral_fields, path_type.as_ref())?;
     table.binding = Some(GraphTableBinding {
         graph: graph.name.clone(),
         tables: read_tables(&graph, &elements),

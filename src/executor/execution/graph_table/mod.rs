@@ -10,6 +10,7 @@
 mod bindings;
 mod eval;
 mod keys;
+mod path_value;
 mod plan;
 mod project;
 mod select;

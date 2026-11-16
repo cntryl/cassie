@@ -15,6 +15,18 @@ pub(super) enum KeyPart {
 }
 
 impl KeyPart {
+    /// The same component in the typed model of the reserved graph types.
+    pub(super) fn to_model(&self) -> crate::types::graph::KeyPart {
+        use crate::types::graph::KeyPart as Model;
+        match self {
+            Self::SmallInt(value) => Model::SmallInt(*value),
+            Self::Integer(value) => Model::Int(*value),
+            Self::BigInt(value) => Model::BigInt(*value),
+            Self::Text(value) => Model::Text(value.clone()),
+            Self::Uuid(bytes) => Model::Uuid(uuid::Uuid::from_bytes(*bytes)),
+        }
+    }
+
     /// Heap bytes this component retains beyond its inline size.
     pub(super) fn heap_bytes(&self) -> usize {
         match self {

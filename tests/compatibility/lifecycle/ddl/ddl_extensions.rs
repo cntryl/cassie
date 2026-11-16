@@ -17,6 +17,8 @@ mod sequence_identity_wave7;
 mod extension_catalog_coverage;
 #[path = "../extensions/catalog_descriptors.rs"]
 mod extension_catalog_descriptors;
+#[path = "../extensions/extension_membership.rs"]
+mod extension_membership;
 #[path = "../extensions/dependency_targets.rs"]
 mod extension_profile_rejections;
 #[path = "../indexes/index.rs"]

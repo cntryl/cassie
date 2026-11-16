@@ -1,9 +1,12 @@
-//! Selected `pg_depend` rows backed by sequence ownership metadata.
+//! Selected `pg_depend` rows: sequence ownership and extension membership.
 
 use crate::catalog::{relation_belongs_to_database, Catalog, SequenceMeta};
 use crate::types::{DataType, ObjectIdKind, Value};
 
 use super::VirtualRow;
+
+#[path = "virtual_views_extension_dependencies.rs"]
+mod extension_members;
 
 const PG_CLASS_OID: i64 = 1259;
 
@@ -20,6 +23,12 @@ pub(super) fn schema() -> Vec<(String, DataType)> {
 }
 
 pub(super) fn rows(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
+    let mut rows = sequence_rows(catalog, current_database);
+    rows.extend(extension_members::rows(catalog, current_database));
+    rows
+}
+
+fn sequence_rows(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     catalog
         .list_sequences()
         .into_iter()

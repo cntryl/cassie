@@ -125,3 +125,22 @@ fn should_return_the_matching_row_after_describing() {
     assert_eq!(wire::error_code(&batches[0]), None);
     assert_eq!(fixture::data_row_payloads(&batches[0]).len(), 1);
 }
+
+#[test]
+fn should_execute_with_a_bound_parameter_over_the_wire() {
+    // Arrange
+    let sql = "SELECT g.pid FROM GRAPH_TABLE (social MATCH (a IS person WHERE a.id = $1) \
+               COLUMNS (a.id AS pid)) AS g";
+    let cycles = vec![
+        fixture::execute_cycle(sql, Some((BIGINT_OID, 0, Some(b"7"))), 0, true),
+        fixture::execute_cycle(sql, Some((BIGINT_OID, 0, Some(b"8"))), 0, true),
+    ];
+
+    // Act
+    let batches = fixture::run_cycles("graph-table-wire-bound", &setup(), cycles);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(fixture::data_row_payloads(&batches[0]).len(), 1);
+    assert_eq!(fixture::data_row_payloads(&batches[1]).len(), 0);
+}

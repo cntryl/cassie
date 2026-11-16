@@ -1,12 +1,10 @@
 //! Builds a tiny mapped graph in SQL and the equivalent oracle graph, so a `GRAPH_TABLE`
 //! query and the independent oracle can be compared as multisets.
 
-use crate::graph_oracle::model::{
-    edge_ref, vertex_ref, Direction, Edge, ElementRef, Graph, KeyPart, Path, Scalar, Vertex,
-};
+use crate::graph_oracle::model::{vertex_ref, Edge, ElementRef, Graph, KeyPart, Path, Scalar, Vertex};
 use crate::graph_oracle::pattern::Pattern;
 use crate::graph_oracle::select::match_paths;
-use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
 use cassie::types::Value;
 
 /// Key shape of the vertex table.
@@ -61,7 +59,6 @@ pub fn link(num: i64, from: i64, to: i64) -> Link {
 pub struct World {
     pub fixture: SqlFixture,
     pub graph: Graph,
-    keys: Keys,
 }
 
 fn uuid_text(num: i64) -> String {
@@ -150,6 +147,25 @@ impl World {
     ///
     /// Panics when a setup statement fails.
     pub fn new(keys: Keys, storage: Storage, nodes: &[Node], links: &[Link]) -> Self {
+        Self::build(keys, storage, nodes, links, None)
+    }
+
+    /// A bigint-keyed row-store world under explicit runtime limits.
+    pub fn limited(
+        config: cassie::config::CassieRuntimeConfig,
+        nodes: &[Node],
+        links: &[Link],
+    ) -> Self {
+        Self::build(Keys::BigInt, Storage::Row, nodes, links, Some(config))
+    }
+
+    fn build(
+        keys: Keys,
+        storage: Storage,
+        nodes: &[Node],
+        links: &[Link],
+        config: Option<cassie::config::CassieRuntimeConfig>,
+    ) -> Self {
         let using = match storage {
             Storage::Row => "",
             Storage::Columnar => "USING columnar",
@@ -188,13 +204,12 @@ impl World {
             dst = keys.endpoint(false),
         ));
         let statements = setup.iter().map(String::as_str).collect::<Vec<_>>();
-        let fixture = sql_fixture("graph-world", &statements);
+        let fixture = match config {
+            Some(config) => sql_fixture_with_config("graph-world", &statements, config),
+            None => sql_fixture("graph-world", &statements),
+        };
         let graph = Self::oracle_graph(keys, nodes, links);
-        Self {
-            fixture,
-            graph,
-            keys,
-        }
+        Self { fixture, graph }
     }
 
     /// A bigint-keyed row-store world.
@@ -290,22 +305,6 @@ impl World {
         rows.sort();
         rows
     }
-
-    /// Asserts that the executor and the oracle return the same multiset of rows.
-    pub fn assert_agrees(
-        &self,
-        (pattern, columns): (&str, &str),
-        oracle: &Pattern,
-        shape: impl Fn(&Self, &Path) -> Vec<i64>,
-    ) {
-        let expected = self.oracle(oracle, shape);
-        let actual = self.query(pattern, columns);
-        assert_eq!(actual, expected, "executor and oracle disagree");
-    }
-
-    pub fn keys(&self) -> Keys {
-        self.keys
-    }
 }
 
 /// Converts integer result rows.
@@ -341,13 +340,4 @@ pub fn vertices_and_edges(world: &World, path: &Path) -> Vec<i64> {
     let mut row = vertices(world, path);
     row.extend(path.edges.iter().map(|e| world.num(e)));
     row
-}
-
-pub fn forward() -> Direction {
-    Direction::Forward
-}
-
-/// Reference helper for hand-built oracle checks.
-pub fn edge_key(num: i64) -> ElementRef {
-    edge_ref(LINK_MAPPING, vec![KeyPart::BigInt(num)])
 }

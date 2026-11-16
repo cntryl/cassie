@@ -15,6 +15,14 @@ pub(crate) const KEY_PART: &str = "cassie_graph.key_part";
 /// of the documented API.
 pub(crate) const KEY_PART_TAGGED: &str = "cassie_graph.__key_part_tagged";
 
+/// The user-visible reference constructors and their lowered forms, which the
+/// binder wraps in a cast to the reserved type (the double underscore keeps
+/// them out of the documented API and makes the lowering idempotent).
+pub(crate) const VERTEX_REF: &str = "cassie_graph.vertex_ref";
+pub(crate) const EDGE_REF: &str = "cassie_graph.edge_ref";
+pub(crate) const VERTEX_REF_TYPED: &str = "cassie_graph.__vertex_ref";
+pub(crate) const EDGE_REF_TYPED: &str = "cassie_graph.__edge_ref";
+
 pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
         id: FunctionId::GraphKeyPart,
@@ -34,7 +42,7 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     },
     ScalarFunction {
         id: FunctionId::GraphVertexRef,
-        name: "cassie_graph.vertex_ref",
+        name: VERTEX_REF,
         arity: FunctionArity::Exact(3),
         return_type: FunctionReturnType::Unknown,
         is_aggregate: false,
@@ -42,7 +50,23 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     },
     ScalarFunction {
         id: FunctionId::GraphEdgeRef,
-        name: "cassie_graph.edge_ref",
+        name: EDGE_REF,
+        arity: FunctionArity::Exact(3),
+        return_type: FunctionReturnType::Unknown,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::GraphVertexRef,
+        name: VERTEX_REF_TYPED,
+        arity: FunctionArity::Exact(3),
+        return_type: FunctionReturnType::Unknown,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::GraphEdgeRef,
+        name: EDGE_REF_TYPED,
         arity: FunctionArity::Exact(3),
         return_type: FunctionReturnType::Unknown,
         is_aggregate: false,

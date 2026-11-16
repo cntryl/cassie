@@ -99,7 +99,29 @@ pub(super) fn decode(
             .map_err(|detail| malformed(index, &detail))?;
         record_text(&value)
     };
+    validate_reserved(&text, record)?;
     Ok(DecodedTextParameter::unaccounted(Value::String(text)))
+}
+
+/// The reserved `cassie_graph` types carry invariants beyond their field
+/// types, so a parameter of one is parsed and validated at `Bind`: malformed
+/// text is `22P02` and a well-formed but invalid value is `22023`, in either
+/// wire format. Any other composite stays a literal until it is cast.
+fn validate_reserved(text: &str, record: &RecordParameter) -> Result<(), ExtendedQueryError> {
+    if crate::types::graph::GraphTypeKind::of(&record.descriptor).is_none() {
+        return Ok(());
+    }
+    let outcome = if record.is_array {
+        crate::executor::scan::composite_arrays::from_text(text, &record.descriptor).map(drop)
+    } else {
+        crate::executor::filter::assign_record(
+            &Value::String(text.to_owned()),
+            &record.descriptor,
+        )
+        .map(drop)
+        .map_err(crate::app::CassieError::from)
+    };
+    outcome.map_err(|error| ExtendedQueryError::cassie(&error))
 }
 
 /// The element descriptor of an array-of-composite field type.

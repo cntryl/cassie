@@ -720,6 +720,18 @@ pub(crate) fn table_privilege(
     privilege: RoleObjectPrivilege,
 ) -> Result<(), CassieError> {
     let resolved = crate::sql::binder::resolve_relation_name(relation, catalog, context)?;
+    resolved_table_privilege(catalog, default_database, session, &resolved, privilege)
+}
+
+/// [`table_privilege`] for a relation already resolved to its canonical name.
+fn resolved_table_privilege(
+    catalog: &crate::catalog::Catalog,
+    default_database: &str,
+    session: &CassieSession,
+    resolved: &str,
+    privilege: RoleObjectPrivilege,
+) -> Result<(), CassieError> {
+    let resolved = resolved.to_owned();
     let schema_name = crate::catalog::relation_schema_name(&resolved);
     // System relations are stored as `schema.name`, not database-qualified.
     let system_qualified = matches!(
@@ -792,11 +804,10 @@ pub(crate) fn require_table_read(
     if administrator {
         return Ok(());
     }
-    table_privilege(
+    resolved_table_privilege(
         catalog,
         &context.database,
         session,
-        context,
         table,
         RoleObjectPrivilege::Select,
     )

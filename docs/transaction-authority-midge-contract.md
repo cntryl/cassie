@@ -134,9 +134,11 @@ issue directly cannot end a transaction whose native commit is in flight; the
 committing thread retires it once the outcome is known. ReadyForQuery reports
 `E` to any other thread while a COMMIT owns the transaction, so a client never
 sees a usable `T` or `I` for a transaction that is not. A failure mark from
-another thread is dropped while the COMMIT is sealed. That loses nothing: a
-COMMIT that fails always ends its transaction, so there is no open transaction
-left to carry the mark. Portal cleanup runs only when the status is idle, so a
+another thread does not change the sealed transaction while the COMMIT runs. It
+is remembered instead: if the COMMIT then fails before submission and releases
+its seal with the transaction still open, the transaction becomes failed; if
+the COMMIT retires the transaction, the remembered mark is discarded and never
+reaches a later transaction. Portal cleanup runs only when the status is idle, so a
 refused rollback also leaves portals in place until the COMMIT retires.
 
 Cancellation while COMMIT waits does not arise: COMMIT never waits. It seals,

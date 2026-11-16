@@ -1,7 +1,7 @@
 //! Isolated statement mutation forks and atomic publication into the session.
 
 use super::{
-    Arc, CassieError, CassieSession, Catalog, Mutex, SessionTransactionState,
+    Arc, CassieError, CassieSession, Catalog, DeferredFailure, Mutex, SessionTransactionState,
     SessionTransactionStatus, SharedTransactionWrites, StatementMutationBatch,
     StatementMutationDelta, StatementRowMutation, StorageOverlay,
 };
@@ -137,6 +137,7 @@ impl CassieSession {
             projection_write: Arc::clone(&current.projection_write),
             sealed_for_commit: false,
             commit_thread: None,
+            deferred_failure: DeferredFailure::None,
         })
     }
 

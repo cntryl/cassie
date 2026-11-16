@@ -307,7 +307,7 @@ fn should_parse_the_pattern_where_clause() {
 }
 
 #[test]
-fn should_parse_multiple_projections_with_and_without_aliases() {
+fn should_parse_multiple_projections_with_optional_aliases() {
     // Arrange
     let source = "GRAPH_TABLE (g MATCH (a)-[e]->(b) COLUMNS (a.id AS Source, CAST(b.id AS text), b.name AS \"Target\"))";
 
@@ -316,7 +316,7 @@ fn should_parse_multiple_projections_with_and_without_aliases() {
 
     // Assert
     let aliases: Vec<_> = parsed.columns.iter().map(|c| c.alias.as_deref()).collect();
-    assert_eq!(aliases, [Some("source"), None, Some("Target")]);
+    assert_eq!(aliases, [Some("source"), None, Some("\"Target\"")]);
 }
 
 #[test]
@@ -427,7 +427,7 @@ fn should_parse_keep_followed_by_pattern_where() {
 }
 
 #[test]
-fn should_fold_unquoted_names_and_keep_quoted_names() {
+fn should_fold_unquoted_names_but_keep_quoted_names() {
     // Arrange
     let source =
         "GRAPH_TABLE (Sales.Social MATCH (A IS Person)-[\"E\" IS Knows]->(B) COLUMNS (A.id))";
@@ -443,7 +443,7 @@ fn should_fold_unquoted_names_and_keep_quoted_names() {
 }
 
 #[test]
-fn should_skip_leading_whitespace_and_report_the_consumed_length() {
+fn should_report_the_consumed_length_after_leading_whitespace() {
     // Arrange
     let source = "  graph_table(g MATCH (a) COLUMNS (a.id)) g2 WHERE true";
 

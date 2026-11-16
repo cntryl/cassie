@@ -88,10 +88,14 @@ for graph paths, release publication, or exact-head qualification.
 
 The [graph milestone](https://github.com/cntryl/cassie/milestone/13) targets
 property graph queries over projector-maintained tables through PostgreSQL
-clients. Its [contract](graph-v060-contract.md) owns the proposed semantics,
-building blocks, dependencies and qualification criteria. The existing
-experimental implementation is not evidence that those criteria are met.
-Earlier documented release dependencies remain in force.
+clients. Its [contract](graph-v060-contract.md) owns the semantics,
+building blocks, dependencies and qualification criteria, and the
+[graph guide](graph-guide.md) describes the delivered surface. Mapped property graphs,
+`GRAPH_TABLE`, the `cassie_graph` path types and `graph_weighted_paths` are implemented on
+exact reads, and the legacy graph feature is removed. Implemented behavior is not
+qualification: the [promotion evidence](graph-v060-gap-analysis.md#promotion-evidence)
+lists what is proven and what remains open, and graph support stays Experimental until it
+is decided from that evidence. Earlier documented release dependencies remain in force.
 
 Delivery order, by owner decision of 2026-11-15: mapped graphs (#1255), native
 path types (#1268), the `GRAPH_TABLE` surface (#1256), exact execution (#1257

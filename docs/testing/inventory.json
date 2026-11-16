@@ -64,6 +64,10 @@
         "file": "tests/expression_index_upsert.rs"
       },
       {
+        "name": "graph_guide",
+        "file": "tests/graph_guide.rs"
+      },
+      {
         "name": "graph_table",
         "file": "tests/graph_table.rs"
       },
@@ -176,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1746,
-    "rust_files": 1709,
-    "rust_test_declarations": 10375,
+    "files": 1753,
+    "rust_files": 1716,
+    "rust_test_declarations": 10425,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10400,
+    "registered_rust_instances": 10450,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -64536,6 +64540,347 @@
       }
     },
     {
+      "id": "tests/graph_guide/coverage.rs::should_tag_every_sql_block_as_an_example",
+      "name": "should_tag_every_sql_block_as_an_example",
+      "current_file": "tests/graph_guide/coverage.rs",
+      "line": 20,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "coverage::should_tag_every_sql_block_as_an_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/coverage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/coverage.rs::should_give_every_example_a_unique_id",
+      "name": "should_give_every_example_a_unique_id",
+      "current_file": "tests/graph_guide/coverage.rs",
+      "line": 32,
+      "end_line": 45,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "coverage::should_give_every_example_a_unique_id"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/coverage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/coverage.rs::should_place_every_example_in_a_world_with_a_test",
+      "name": "should_place_every_example_in_a_world_with_a_test",
+      "current_file": "tests/graph_guide/coverage.rs",
+      "line": 48,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "coverage::should_place_every_example_in_a_world_with_a_test"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/coverage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_definition_example",
+      "name": "should_run_every_definition_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 11,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_definition_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_social_example",
+      "name": "should_run_every_social_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 23,
+      "end_line": 32,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_social_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_authorization_example",
+      "name": "should_run_every_authorization_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 35,
+      "end_line": 44,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_authorization_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_hierarchy_example",
+      "name": "should_run_every_hierarchy_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 47,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_hierarchy_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_weighted_route_example",
+      "name": "should_run_every_weighted_route_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 59,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_weighted_route_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_lifecycle_example",
+      "name": "should_run_every_lifecycle_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 71,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_lifecycle_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_permission_example",
+      "name": "should_run_every_permission_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 83,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_permission_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_legacy_removal_example",
+      "name": "should_run_every_legacy_removal_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 95,
+      "end_line": 104,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_legacy_removal_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/composition.rs::should_filter_a_graph_table_with_an_outer_where",
       "name": "should_filter_a_graph_table_with_an_outer_where",
       "current_file": "tests/graph_table/composition.rs",
@@ -65119,6 +65464,626 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/exact_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_read_only_the_neighborhood_given_an_endpoint_index_when_the_graph_grows",
+      "name": "should_read_only_the_neighborhood_given_an_endpoint_index_when_the_graph_grows",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 123,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_read_only_the_neighborhood_given_an_endpoint_index_when_the_graph_grows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_read_the_neighborhoods_of_visited_vertices_given_two_hops_when_the_graph_grows",
+      "name": "should_read_the_neighborhoods_of_visited_vertices_given_two_hops_when_the_graph_grows",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 143,
+      "end_line": 172,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_read_the_neighborhoods_of_visited_vertices_given_two_hops_when_the_graph_grows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_read_every_edge_given_no_endpoint_index_when_the_graph_grows",
+      "name": "should_read_every_edge_given_no_endpoint_index_when_the_graph_grows",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 175,
+      "end_line": 189,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_read_every_edge_given_no_endpoint_index_when_the_graph_grows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_return_the_same_rows_given_anchored_and_unanchored_starts_under_both_reads",
+      "name": "should_return_the_same_rows_given_anchored_and_unanchored_starts_under_both_reads",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 192,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_return_the_same_rows_given_anchored_and_unanchored_starts_under_both_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_return_the_same_rows_given_a_parameter_start_under_both_reads",
+      "name": "should_return_the_same_rows_given_a_parameter_start_under_both_reads",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 227,
+      "end_line": 257,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_return_the_same_rows_given_a_parameter_start_under_both_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_use_a_point_lookup_for_a_parameter_start_given_a_key_equality",
+      "name": "should_use_a_point_lookup_for_a_parameter_start_given_a_key_equality",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 260,
+      "end_line": 280,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_use_a_point_lookup_for_a_parameter_start_given_a_key_equality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_merge_pending_edge_writes_with_a_bounded_read_given_an_open_transaction",
+      "name": "should_merge_pending_edge_writes_with_a_bounded_read_given_an_open_transaction",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 283,
+      "end_line": 313,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_merge_pending_edge_writes_with_a_bounded_read_given_an_open_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_keep_a_savepoint_rollback_exact_given_pending_edge_writes",
+      "name": "should_keep_a_savepoint_rollback_exact_given_pending_edge_writes",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 316,
+      "end_line": 339,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_keep_a_savepoint_rollback_exact_given_pending_edge_writes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_hide_pending_edges_from_another_session_given_an_endpoint_index",
+      "name": "should_hide_pending_edges_from_another_session_given_an_endpoint_index",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 342,
+      "end_line": 366,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_hide_pending_edges_from_another_session_given_an_endpoint_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_keep_a_repeatable_read_view_given_a_concurrent_writer_and_an_endpoint_index",
+      "name": "should_keep_a_repeatable_read_view_given_a_concurrent_writer_and_an_endpoint_index",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 369,
+      "end_line": 394,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_keep_a_repeatable_read_view_given_a_concurrent_writer_and_an_endpoint_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_reuse_neighborhoods_across_lateral_rows_given_a_shared_start",
+      "name": "should_reuse_neighborhoods_across_lateral_rows_given_a_shared_start",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 404,
+      "end_line": 421,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_reuse_neighborhoods_across_lateral_rows_given_a_shared_start"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_return_the_rows_of_independent_traversals_given_lateral_reuse",
+      "name": "should_return_the_rows_of_independent_traversals_given_lateral_reuse",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 424,
+      "end_line": 444,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_return_the_rows_of_independent_traversals_given_lateral_reuse"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_name_the_indexed_access_paths_given_an_explain_with_endpoint_indexes",
+      "name": "should_name_the_indexed_access_paths_given_an_explain_with_endpoint_indexes",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 455,
+      "end_line": 468,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_name_the_indexed_access_paths_given_an_explain_with_endpoint_indexes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_name_the_fallback_reason_given_an_explain_without_endpoint_indexes",
+      "name": "should_name_the_fallback_reason_given_an_explain_without_endpoint_indexes",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 471,
+      "end_line": 486,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_name_the_fallback_reason_given_an_explain_without_endpoint_indexes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_report_counted_reads_given_an_explain_analyze",
+      "name": "should_report_counted_reads_given_an_explain_analyze",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 489,
+      "end_line": 502,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_report_counted_reads_given_an_explain_analyze"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_report_cache_reuse_given_an_explain_analyze_of_a_lateral_source",
+      "name": "should_report_cache_reuse_given_an_explain_analyze_of_a_lateral_source",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 505,
+      "end_line": 515,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_report_cache_reuse_given_an_explain_analyze_of_a_lateral_source"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_enforce_the_measured_peak_as_the_budget_boundary_given_indexed_reads",
+      "name": "should_enforce_the_measured_peak_as_the_budget_boundary_given_indexed_reads",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 527,
+      "end_line": 543,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_enforce_the_measured_peak_as_the_budget_boundary_given_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_cancel_an_indexed_traversal_at_an_inline_predicate_boundary",
+      "name": "should_cancel_an_indexed_traversal_at_an_inline_predicate_boundary",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 546,
+      "end_line": 582,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_cancel_an_indexed_traversal_at_an_inline_predicate_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_not_reuse_cached_reads_given_a_later_statement",
+      "name": "should_not_reuse_cached_reads_given_a_later_statement",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 585,
+      "end_line": 604,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_not_reuse_cached_reads_given_a_later_statement"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/fast_reads.rs::should_use_a_reordered_endpoint_index_given_a_two_column_key",
+      "name": "should_use_a_reordered_endpoint_index_given_a_two_column_key",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 607,
+      "end_line": 668,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_use_a_reordered_endpoint_index_given_a_two_column_key"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -66824,6 +67789,564 @@
         "category": "transactions",
         "directory": "tests/graph_table/transactions",
         "file": "tests/graph_table/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_matrix_suite_given_lazy_indexed_reads",
+      "name": "should_pass_the_matrix_suite_given_lazy_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 329,
+      "end_line": 336,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_matrix_suite_given_lazy_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_matrix_suite_given_exact_plain_reads",
+      "name": "should_pass_the_matrix_suite_given_exact_plain_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 339,
+      "end_line": 346,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_matrix_suite_given_exact_plain_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_matrix_suite_given_exact_indexed_reads",
+      "name": "should_pass_the_matrix_suite_given_exact_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 349,
+      "end_line": 356,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_matrix_suite_given_exact_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_semantics_suite_given_lazy_indexed_reads",
+      "name": "should_pass_the_semantics_suite_given_lazy_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 359,
+      "end_line": 366,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_semantics_suite_given_lazy_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_semantics_suite_given_exact_plain_reads",
+      "name": "should_pass_the_semantics_suite_given_exact_plain_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 369,
+      "end_line": 376,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_semantics_suite_given_exact_plain_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_semantics_suite_given_exact_indexed_reads",
+      "name": "should_pass_the_semantics_suite_given_exact_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 379,
+      "end_line": 386,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_semantics_suite_given_exact_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_paths_suite_given_lazy_indexed_reads",
+      "name": "should_pass_the_paths_suite_given_lazy_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 389,
+      "end_line": 396,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_paths_suite_given_lazy_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_paths_suite_given_exact_plain_reads",
+      "name": "should_pass_the_paths_suite_given_exact_plain_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 399,
+      "end_line": 406,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_paths_suite_given_exact_plain_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_paths_suite_given_exact_indexed_reads",
+      "name": "should_pass_the_paths_suite_given_exact_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 409,
+      "end_line": 416,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_paths_suite_given_exact_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_exact_reads_suite_given_lazy_indexed_reads",
+      "name": "should_pass_the_exact_reads_suite_given_lazy_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 419,
+      "end_line": 426,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_exact_reads_suite_given_lazy_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_exact_reads_suite_given_exact_plain_reads",
+      "name": "should_pass_the_exact_reads_suite_given_exact_plain_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 429,
+      "end_line": 436,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_exact_reads_suite_given_exact_plain_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_exact_reads_suite_given_exact_indexed_reads",
+      "name": "should_pass_the_exact_reads_suite_given_exact_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 439,
+      "end_line": 446,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_exact_reads_suite_given_exact_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_transactions_suite_given_lazy_indexed_reads",
+      "name": "should_pass_the_transactions_suite_given_lazy_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 449,
+      "end_line": 456,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_transactions_suite_given_lazy_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_transactions_suite_given_exact_plain_reads",
+      "name": "should_pass_the_transactions_suite_given_exact_plain_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 459,
+      "end_line": 466,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_transactions_suite_given_exact_plain_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_transactions_suite_given_exact_indexed_reads",
+      "name": "should_pass_the_transactions_suite_given_exact_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 469,
+      "end_line": 476,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_transactions_suite_given_exact_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_composition_suite_given_lazy_indexed_reads",
+      "name": "should_pass_the_composition_suite_given_lazy_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 479,
+      "end_line": 486,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_composition_suite_given_lazy_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_composition_suite_given_exact_plain_reads",
+      "name": "should_pass_the_composition_suite_given_exact_plain_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 489,
+      "end_line": 496,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_composition_suite_given_exact_plain_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/variants.rs::should_pass_the_composition_suite_given_exact_indexed_reads",
+      "name": "should_pass_the_composition_suite_given_exact_indexed_reads",
+      "current_file": "tests/graph_table/variants.rs",
+      "line": 499,
+      "end_line": 506,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "variants::should_pass_the_composition_suite_given_exact_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/variants.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -70687,6 +72210,37 @@
         {
           "suite": "graph_weighted",
           "name": "oracle::should_ignore_the_weight_of_an_edge_whose_endpoint_does_not_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/oracle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/oracle.rs::should_count_the_validation_scan_apart_from_traversal_reads",
+      "name": "should_count_the_validation_scan_apart_from_traversal_reads",
+      "current_file": "tests/graph_weighted/oracle.rs",
+      "line": 392,
+      "end_line": 410,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "oracle::should_count_the_validation_scan_apart_from_traversal_reads"
         }
       ],
       "attributes": [
@@ -322582,8 +324136,8 @@
       "current_file": "tests/Cargo.toml",
       "role": "fixture_data",
       "action": "keep",
-      "lines": 219,
-      "sha256": "226a71ea59f9d38a35b739c95d80d3b3be7dbf3edc1a1e1e90805b213066eea5",
+      "lines": 223,
+      "sha256": "1277bb8144fcf7b3cfd997d5cc5960f9d9782d1aca2d4b5f32f86ee87a080bc6",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [
@@ -329176,11 +330730,86 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_guide/coverage.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 61,
+      "sha256": "4f9527c33b8f9dd3ffb6caa58406def73932750de6c508319feda6b5cfd7f17a",
+      "test_declarations": 3,
+      "registered_suites": [
+        "graph_guide"
+      ],
+      "destinations": [
+        "tests/graph_guide/semantics/coverage.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_guide/examples.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 104,
+      "sha256": "e8f9353383a62f797a378fcd34a4e8b6389ea2acd3172abc7585bbbb7ad50f6a",
+      "test_declarations": 8,
+      "registered_suites": [
+        "graph_guide"
+      ],
+      "destinations": [
+        "tests/graph_guide/semantics/examples.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_guide/guide.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 149,
+      "sha256": "23ca393886e40cb3b0d57cc8a475b0ac25d5b3948f3f115e51637497fc7c0633",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_guide"
+      ],
+      "destinations": [
+        "tests/graph_guide/guide.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_guide/runner.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 138,
+      "sha256": "c1d0fbe94725b2e94fece641a0a9d75eef1d061e859ffa56ac5949cf03b92c31",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_guide"
+      ],
+      "destinations": [
+        "tests/graph_guide/runner.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_guide.rs",
+      "role": "cargo_target",
+      "action": "keep",
+      "lines": 18,
+      "sha256": "1d2ebce1810c45c2092546c7bac88ddd413c9b8edb71bd404c12c46d68c27a81",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_guide"
+      ],
+      "destinations": [
+        "tests/graph_guide.rs"
+      ],
+      "line_limit": 12000
+    },
+    {
       "current_file": "tests/graph_table/composition.rs",
       "role": "test_module",
       "action": "split_by_contract",
       "lines": 172,
-      "sha256": "f46d3f88cecab246174e088264e7097ec61695a92bde67a5bab95b4e89451c1d",
+      "sha256": "956659d7cd7cd0bb91d956e173000553ea45fdb81b136f5153d8be0f4c1c8fba",
       "test_declarations": 9,
       "registered_suites": [
         "graph_table"
@@ -329211,7 +330840,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 152,
-      "sha256": "d1c4313cb69f297f1edf122cf7c87c2382337bd5b5db497d0c2db80b896d63f2",
+      "sha256": "d85d0924d036786990f8531b97df124e689ee07ffde68ce2e0947f48cf21416b",
       "test_declarations": 6,
       "registered_suites": [
         "graph_table"
@@ -329222,11 +330851,26 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 668,
+      "sha256": "a75b6d6f9a949b7e08a6e9f1c9dd837fb991625ca0bb05f7908c0a7a07d65a85",
+      "test_declarations": 20,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/fast_reads.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/matrix.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 136,
-      "sha256": "a0b17985efaeff87d25e32fbed6e318d2f318f135a8fc0ee361be9c24a8edf51",
+      "sha256": "f5a38c3352a6562f8320db1841f38734496df5308bce9ba415c529a1c406bd49",
       "test_declarations": 2,
       "registered_suites": [
         "graph_table"
@@ -329241,7 +330885,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 615,
-      "sha256": "eae1e26a93c628d97884d14825e1758a5a6a7259885fca2e0b21c87e453efb16",
+      "sha256": "5ba1406d8b356ff5efb236c8ff4dadf8c8897fb12659a289e9cabf31819f1c19",
       "test_declarations": 16,
       "registered_suites": [
         "graph_table"
@@ -329271,7 +330915,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 145,
-      "sha256": "3803c6afda84db1dac32635725d2a4fa219eb25d6574a6a76693c9b6b7098973",
+      "sha256": "7abb3059639089b5adeea303f3e7decff75a68d2fe1cdbca30604aecd4b99081",
       "test_declarations": 4,
       "registered_suites": [
         "graph_table"
@@ -329286,7 +330930,7 @@
       "role": "test_module",
       "action": "split_by_contract",
       "lines": 544,
-      "sha256": "a7ba99923e74edafb4be1125a631eff8c8b9763d90e2da738e6dd18ff24b3830",
+      "sha256": "407b93c9daab795a6fb264915ac22eb95bf22177956e1714a37f47d7ad2f80f9",
       "test_declarations": 23,
       "registered_suites": [
         "graph_table"
@@ -329304,13 +330948,28 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 197,
-      "sha256": "71d0db6eea97018039a1f2f6c258b9bd85ab159e63adfc2d4f318521a79c1a58",
+      "sha256": "4b4c81bb127b8032b1bff545917dfe2d5f4363e6e4be0ceefeb8b1957ffc4853",
       "test_declarations": 7,
       "registered_suites": [
         "graph_table"
       ],
       "destinations": [
         "tests/graph_table/transactions/transactions.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/variants.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 506,
+      "sha256": "ebbb8c5f58d0b9b7610bb8a458a9e957060cea4d3ac93006c706809c8f24659e",
+      "test_declarations": 18,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/variants.rs"
       ],
       "line_limit": 1000
     },
@@ -329333,8 +330992,8 @@
       "current_file": "tests/graph_table/world.rs",
       "role": "test_support",
       "action": "keep",
-      "lines": 343,
-      "sha256": "be247260c744bbeadd2cab106ad069fa90eca3c338dbfcc038b1184afb75330e",
+      "lines": 382,
+      "sha256": "f29bbd59665aac3a1325886a5a74586c692d8556b816663c1a0e2a5a7567b469",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"
@@ -329348,8 +331007,8 @@
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 43,
-      "sha256": "cf1e5e57a2572a5b098840470424bacb464733938394b84708e60f68a479df04",
+      "lines": 49,
+      "sha256": "6de6d268b9df07fc897cf7817b8974a5bc1f3558a8f12a262175bb4e5871353f",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"
@@ -329558,9 +331217,9 @@
       "current_file": "tests/graph_weighted/oracle.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 389,
-      "sha256": "d27d28ea1bd0a3dc2fb8c098073261689e0fa36be3806693333843b8eb6a2508",
-      "test_declarations": 19,
+      "lines": 410,
+      "sha256": "0637a390819b2f8fa262cbc655764ace12995630920a88617d0a10487667849d",
+      "test_declarations": 20,
       "registered_suites": [
         "graph_weighted"
       ],

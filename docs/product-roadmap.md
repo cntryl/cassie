@@ -124,7 +124,12 @@ reworked and closed with a recorded disposition. On 2026-11-14, the v0.1–v0.5
 GitHub milestones were closed with no open issues; that is backlog state, not
 proof of release publication or exact-head qualification. v0.6.0 is the open
 [graph milestone](https://github.com/cntryl/cassie/milestone/13); its contract
-and building blocks are specified in [Graph v0.6.0 contract](graph-v060-contract.md).
+and building blocks are specified in [Graph v0.6.0 contract](graph-v060-contract.md), and
+the delivered surface is described in the [graph guide](graph-guide.md). Mapped property
+graphs, `GRAPH_TABLE`, the path types and `graph_weighted_paths` run on exact reads and the
+legacy graph feature is removed. Graph support remains Experimental until the decision in
+[Promotion evidence](graph-v060-gap-analysis.md#promotion-evidence); fast adjacency reads are
+delivered last and are not part of the current build.
 The separate [replay durability and throughput milestone](https://github.com/cntryl/cassie/milestone/14)
 tracks atomic replay, public checkpoint-view snapshot correctness, and workload evidence.
 
@@ -137,7 +142,7 @@ tracks atomic replay, public checkpoint-view snapshot correctness, and workload 
 | [v0.3.0 Composite Types and JSON Recordsets](https://github.com/cntryl/cassie/milestone/12) | TBD | Composite and domain type behavior, object-identifier conversions, catalog introspection and JSON recordsets. Its issue milestone is closed; composite arrays for graph paths remain a separate v0.6 prerequisite. |
 | [v0.4.0 Named Enum Types](https://github.com/cntryl/cassie/milestone/11) | TBD | The finite named ENUM scope in #827. Its issue milestone is closed; this does not add general PostgreSQL type or catalog parity. |
 | [v0.5.0 Authoritative Columnar Tables](https://github.com/cntryl/cassie/milestone/10) | TBD | Add an opt-in per-table column-authoritative layout alongside row-authoritative tables, with a versioned contract, durable recovery, mixed-mode queries and writes, constraints, derived indexes, and explicit conversion/image behavior. Midge remains the only storage layer. |
-| [v0.6.0 Fast, Idiomatic Graphs](https://github.com/cntryl/cassie/milestone/13) | TBD | Graph queries and native paths over projector-maintained tables, with transaction, correctness, client and resource evidence defined by the graph contract. Features are delivered on exact reads first and fast adjacency reads last; the legacy `CREATE GRAPH` feature is removed without conversion. |
+| [v0.6.0 Fast, Idiomatic Graphs](https://github.com/cntryl/cassie/milestone/13) | TBD | Graph queries and native paths over projector-maintained tables, with transaction, correctness, client and resource evidence defined by the graph contract. Features are delivered on exact reads first and fast adjacency reads last; the legacy `CREATE GRAPH` feature is removed without conversion. Delivered: mapped graph DDL, `GRAPH_TABLE`, path types and `graph_weighted_paths`, with a [guide](graph-guide.md) and tier 1-3 benchmarks; open: promotion evidence, read bounds and EXPLAIN. |
 
 The [v0.5.0 release qualification record](v0.5-release-qualification.md) maps every milestone issue to its finite acceptance evidence and actual validation status.
 

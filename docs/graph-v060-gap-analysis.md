@@ -12,6 +12,12 @@
 > feature as it was at the baseline. That feature was removed in v0.6.0 without
 > conversion (#1258): the statement, its backing tables, adjacency sidecars, the
 > three table functions, their metrics and their benchmark no longer exist.
+>
+> Current state (2026-11-15): mapped property graphs, `GRAPH_TABLE`, the `cassie_graph` path
+> types and `graph_weighted_paths` are implemented on exact reads, the legacy benchmark is
+> replaced by mapped-graph benchmarks at tiers 1 to 3, and the [graph guide](graph-guide.md)
+> exists. The gaps in the tables below are historical; the [promotion
+> evidence](#promotion-evidence) section at the end lists what is proven and what is open.
 
 Milestone: [v0.6.0 Fast, Idiomatic Graphs](https://github.com/cntryl/cassie/milestone/13).
 Baseline: `main` at `e949a6689` (2026-11-13). Status today: graph traversal is **Experimental**
@@ -129,3 +135,41 @@ Gates 3 (completeness proof) and 4 (algorithm semantics) are decided inside the 
 | 9 | [#1260](https://github.com/cntryl/cassie/issues/1260) Documentation/readiness: Qualify graph traversal for Stable with benchmarks, EXPLAIN evidence and a user guide | A12, B11, B12, D5 | 2-8 |
 
 Out of milestone (gap kept here only): C2 `WITH RECURSIVE` acceleration and C4 graph algorithms.
+
+## Promotion evidence
+
+This section collects the evidence for the decision whether graph support moves out of
+Experimental ([promotion criteria](experimental-promotion-criteria.md)). It does not change
+the support status, which is recorded in [Feature support](feature-support.md) and stays
+Experimental until the integrator decides from this list. Each entry below is a source
+claim backed by a test or a document; none is a performance claim.
+
+### Proven by tests and documents
+
+| Area | Evidence |
+| --- | --- |
+| Mapped graph DDL: definition, key and endpoint validation, drop, rename, durable identities, discovery | [`property_graph_command_tests.rs`](../src/executor/execution/property_graph_command_tests.rs), [`property_graph_durability_tests.rs`](../src/executor/execution/property_graph_durability_tests.rs), [`property_graph_dependents_tests.rs`](../src/executor/execution/property_graph_dependents_tests.rs), [`virtual_views_property_graphs_tests.rs`](../src/catalog/virtual_views_property_graphs_tests.rs), [`persistence.rs`](../tests/graph_table/persistence.rs), [`database_scope.rs`](../tests/graph_table/database_scope.rs) |
+| Lifecycle guards (`2BP01`, `0A000` for `CASCADE`), including renames and schema moves | [`property_graph_dependents_tests.rs`](../src/executor/execution/property_graph_dependents_tests.rs); guide section 10 run by [`graph_guide`](../tests/graph_guide/examples.rs) |
+| `GRAPH_TABLE` semantics against an independent exhaustive oracle: directions, quantifiers, modes, selectors, tie order, key shapes, row and column storage | [`semantics.rs`](../tests/graph_table/semantics.rs), [`matrix.rs`](../tests/graph_table/matrix.rs), [`exact_reads.rs`](../tests/graph_table/exact_reads.rs), oracle in [`graph_oracle`](../tests/support/graph_oracle) |
+| Own writes, savepoints, other-session isolation and snapshot reads | [`transactions.rs`](../tests/graph_table/transactions.rs) |
+| Resource controls: memory budget `54000` and cancellation `57014` | [`resources.rs`](../tests/graph_table/resources.rs) |
+| Path types, constructors, validation, JSON export, catalog discovery, restart | [`graph_types`](../tests/graph_types.rs) |
+| Wire behavior: Describe metadata, text and binary results and parameters, no row emitted for a failing evaluation | [`wire.rs`](../tests/graph_table/wire.rs), [`wire.rs`](../tests/graph_types/wire.rs); these use the repository's protocol harness |
+| Weighted paths against an exhaustive oracle, weight validation, arguments, permissions, resources | [`graph_weighted`](../tests/graph_weighted.rs) |
+| Read authority: a graph grants nothing | [`security.rs`](../tests/graph_weighted/security.rs); guide section 8 |
+| Admin catalog `property_graphs` section | [`property_graphs.rs`](../tests/rest/queries/admin_query/property_graphs.rs), [`openapi.yml`](../public/openapi.yml) |
+| User guide whose every SQL example is executed and compared | [`graph_guide`](../tests/graph_guide.rs), [graph guide](graph-guide.md) |
+| Benchmarks exist at tiers 1 to 3, are registered with the `graph` workload family, compile and run to completion once in smoke mode with results checked against Rust oracles | [performance contracts](performance-contracts.md#graph-benchmarks) |
+| Legacy feature removed without conversion | [contract](graph-v060-contract.md), `f54952d08` |
+
+### Still open
+
+| Item | State |
+| --- | --- |
+| Read bounds | Every graph read is an exact read of the mapped tables. No O(degree) bound is claimed or measured, and `graph_weighted_paths` reads every edge by design. Fast reads (#1253, #1254 read-bound part, #1259) are not part of the current build. |
+| `EXPLAIN` and `EXPLAIN ANALYZE` evidence | The graph plan node is pending from its owning lane. Until it reports an access path, the tier 3 owner declares `graph_table_exact_read` in its metadata. |
+| Real-driver qualification | The wire evidence above uses the repository's protocol harness. A qualification with at least one real PostgreSQL driver for text and binary composite results is not recorded; the contract asks for two. |
+| Tier 3 scale | The Tier 3 scenarios keep the 100,000-row contract class, but exact reads under the 64 MiB profile failed with `54000` from about 30,000 mapped rows, so the fixtures map 15,000 to 28,000 rows. See [performance contracts](performance-contracts.md#graph-benchmarks). |
+| Benchmark numbers | No timing or scaling number is recorded. Gate-quality results need the release profile with at least five samples, host identity and a baseline. |
+| Exact-head gates | The ordered local gate and the hosted checks run on the integrated head are owned by the assembler and are not recorded here. |
+| Guide scope | The guide documents the current dialect. Standard SQL/PGQ conformance is not claimed and no normative grammar comparison has been done. |

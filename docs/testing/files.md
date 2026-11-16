@@ -4,7 +4,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 
 | Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| `tests/Cargo.toml` | fixture_data | 219 | 0 | — | keep | `tests/Cargo.toml` |
+| `tests/Cargo.toml` | fixture_data | 223 | 0 | — | keep | `tests/Cargo.toml` |
 | `tests/analytics/aggregates/aggregate_acceleration.rs` | test_module | 522 | 7 | analytics | keep | `tests/analytics/aggregates/aggregate_acceleration.rs` |
 | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 228 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
 | `tests/analytics/column_store/column_batch_encoded_scans.rs` | test_module | 397 | 4 | analytics | keep | `tests/analytics/column_store/column_batch_encoded_scans.rs` |
@@ -448,18 +448,25 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/fixtures/sqlx_probe/Cargo.lock` | external_client_fixture | 1518 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.lock` |
 | `tests/fixtures/sqlx_probe/Cargo.toml` | external_client_fixture | 11 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.toml` |
 | `tests/fixtures/sqlx_probe/src/main.rs` | external_client_fixture | 159 | 0 | — | keep | `tests/fixtures/sqlx_probe/src/main.rs` |
+| `tests/graph_guide/coverage.rs` | test_module | 61 | 3 | graph_guide | move_with_module_alias | `tests/graph_guide/semantics/coverage.rs` |
+| `tests/graph_guide/examples.rs` | test_module | 104 | 8 | graph_guide | move_with_module_alias | `tests/graph_guide/semantics/examples.rs` |
+| `tests/graph_guide/guide.rs` | test_support | 149 | 0 | graph_guide | keep | `tests/graph_guide/guide.rs` |
+| `tests/graph_guide/runner.rs` | test_support | 138 | 0 | graph_guide | keep | `tests/graph_guide/runner.rs` |
+| `tests/graph_guide.rs` | cargo_target | 18 | 0 | graph_guide | keep | `tests/graph_guide.rs` |
 | `tests/graph_table/composition.rs` | test_module | 172 | 9 | graph_table | split_by_contract | `tests/graph_table/aggregates/core/composition.rs`; `tests/graph_table/semantics/composition.rs` |
 | `tests/graph_table/database_scope.rs` | test_module | 150 | 4 | graph_table | move_with_module_alias | `tests/graph_table/ddl/database_scope.rs` |
 | `tests/graph_table/exact_reads.rs` | test_module | 152 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/exact_reads.rs` |
+| `tests/graph_table/fast_reads.rs` | test_module | 668 | 20 | graph_table | move_with_module_alias | `tests/graph_table/semantics/fast_reads.rs` |
 | `tests/graph_table/matrix.rs` | test_module | 136 | 2 | graph_table | move_with_module_alias | `tests/graph_table/semantics/matrix.rs` |
 | `tests/graph_table/paths.rs` | test_module | 615 | 16 | graph_table | move_with_module_alias | `tests/graph_table/semantics/paths.rs` |
 | `tests/graph_table/persistence.rs` | test_module | 109 | 3 | graph_table | move_with_module_alias | `tests/graph_table/semantics/persistence.rs` |
 | `tests/graph_table/resources.rs` | test_module | 145 | 4 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |
 | `tests/graph_table/semantics.rs` | test_module | 544 | 23 | graph_table | split_by_contract | `tests/graph_table/semantics/errors.rs`; `tests/graph_table/semantics/parameters.rs`; `tests/graph_table/semantics/resources.rs`; `tests/graph_table/semantics/semantics.rs` |
 | `tests/graph_table/transactions.rs` | test_module | 197 | 7 | graph_table | move_with_module_alias | `tests/graph_table/transactions/transactions.rs` |
+| `tests/graph_table/variants.rs` | test_module | 506 | 18 | graph_table | move_with_module_alias | `tests/graph_table/semantics/variants.rs` |
 | `tests/graph_table/wire.rs` | test_module | 170 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
-| `tests/graph_table/world.rs` | test_support | 343 | 0 | graph_table | keep | `tests/graph_table/world.rs` |
-| `tests/graph_table.rs` | cargo_target | 43 | 0 | graph_table | keep | `tests/graph_table.rs` |
+| `tests/graph_table/world.rs` | test_support | 382 | 0 | graph_table | keep | `tests/graph_table/world.rs` |
+| `tests/graph_table.rs` | cargo_target | 49 | 0 | graph_table | keep | `tests/graph_table.rs` |
 | `tests/graph_types/catalog.rs` | test_module | 100 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/catalog.rs` |
 | `tests/graph_types/constructors.rs` | test_module | 31 | 1 | graph_types | move_with_module_alias | `tests/graph_types/semantics/constructors.rs` |
 | `tests/graph_types/fixture.rs` | test_support | 113 | 0 | graph_types | keep | `tests/graph_types/fixture.rs` |
@@ -473,7 +480,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/graph_weighted/arguments.rs` | test_module | 230 | 12 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/arguments.rs` |
 | `tests/graph_weighted/binding.rs` | test_module | 215 | 11 | graph_weighted | move_with_module_alias | `tests/graph_weighted/parameters/binding.rs` |
 | `tests/graph_weighted/matrix.rs` | test_module | 75 | 1 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/matrix.rs` |
-| `tests/graph_weighted/oracle.rs` | test_module | 389 | 19 | graph_weighted | split_by_contract | `tests/graph_weighted/aggregates/core/oracle.rs`; `tests/graph_weighted/semantics/oracle.rs` |
+| `tests/graph_weighted/oracle.rs` | test_module | 410 | 20 | graph_weighted | split_by_contract | `tests/graph_weighted/aggregates/core/oracle.rs`; `tests/graph_weighted/semantics/oracle.rs` |
 | `tests/graph_weighted/resources.rs` | test_module | 107 | 3 | graph_weighted | move_with_module_alias | `tests/graph_weighted/resources/resources.rs` |
 | `tests/graph_weighted/security.rs` | test_module | 93 | 4 | graph_weighted | move_with_module_alias | `tests/graph_weighted/security/security.rs` |
 | `tests/graph_weighted/views.rs` | test_module | 178 | 6 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/views.rs` |

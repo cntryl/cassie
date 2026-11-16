@@ -238,8 +238,8 @@ indexes consulted are the ones every indexed SQL query already trusts.
   leading columns are the endpoint columns (source columns for outgoing, destination
   columns for incoming, both for undirected), followed by point reads of the named rows.
   Every candidate row is re-checked against the exact key comparison before use.
-- **Start vertices.** When the start vertex pattern (the end pattern is not anchored in this
-  slice) has an inline predicate that is exactly a conjunction of `key_column = constant or
+- **Start vertices.** When the start vertex pattern (an anchored end pattern, which would
+  need a backward search, is not implemented) has an inline predicate that is exactly a conjunction of `key_column = constant or
   parameter` terms covering the whole key of a mapping, the start set is fetched with point
   lookups. Any other predicate shape, an unconvertible constant, or a partial key reads the
   start vertex mapping exactly, as before. Predicates containing other terms are never used
@@ -251,9 +251,10 @@ indexes consulted are the ones every indexed SQL query already trusts.
   memory by endpoint key. A partial neighborhood is never returned. Vertex mappings are
   always fetched through their unique key. The reason is named in `EXPLAIN`:
   `no_endpoint_index`, or the statement forcing the exact path.
-- **Exact switch.** `SET cassie.graph_exact_reads = on` forces every mapping onto the exact
-  full read of the previous implementation. It exists so tests compare both paths on the
-  same data and is the escape hatch for operators.
+- **Exact switch.** `Cassie::set_graph_exact_reads(true)` (a runtime control, not a SQL
+  setting) forces every mapping onto the exact full read of the previous implementation. It
+  exists so tests compare both paths on the same data and is the escape hatch for
+  operators.
 - **`graph_weighted_paths`.** The function must validate every graph-visible edge of the
   selected mappings before any result, so it keeps the full controlled scan. Its cost is
   O(selected edges) by contract and is not claimed O(degree). Those rows are counted under
@@ -325,10 +326,27 @@ read), `graph_overlay_changes` (pending session changes examined), `graph_cache_
 
 ### Observability
 
-`EXPLAIN` names, for each `GRAPH_TABLE`, the access path of every mapping (`point_lookup`
-or `indexed` with the index name, or `exact` with the fallback reason) and the start
-strategy. `EXPLAIN ANALYZE` adds the counters above for the statement and, for `LATERAL`,
-the cache reuse.
+`EXPLAIN` names, for each `GRAPH_TABLE`, the access path of every mapping in the plan line
+and as a `graph` node of the structured plan: `graph_table=<graph>
+vertex[<alias>]=point_lookup(index=<name>),start=anchored|scan edge[<alias>]=indexed(index=out:<name>|in:<name>)`
+or `exact(reason=no_endpoint_index|no_key_index|exact_reads_forced)`. `EXPLAIN ANALYZE`
+appends `graph_reads=index_entries:N,row_fetches:N,full_rows:N,overlay_changes:N,cache_hits:N,validation_rows:N,frontier_peak:N`
+for the statement, where `cache_hits` is the reuse across `LATERAL` rows. The structured
+plan's analyze block does not carry the graph counters; the text plan and the
+`read_paths.graph_*` runtime metrics do.
+
+### Implementation notes
+
+- The scalar index scan and the point row read both open their transaction through
+  `begin_database_readonly_tx_for`, which returns the statement's captured data snapshot
+  whenever the statement has one (`src/midge/adapter/transactions.rs:939`), so an index
+  entry and the row it names come from one snapshot. Neither merges the session overlay;
+  `src/executor/execution/graph_table/lazy.rs` does, per lookup.
+- A lookup never trusts the index alone: every row it returns is re-checked against the
+  exact key comparison of the exact path, and a constant that is NULL or not representable in
+  the key type reads the mapping exactly.
+- Edges are ordered by key inside a neighborhood and results by the documented path order,
+  so enumeration order is not observable.
 
 ### Resources
 

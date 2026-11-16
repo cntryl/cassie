@@ -162,3 +162,72 @@ fn should_retain_sequence_effect_classification_after_savepoint_rollback() {
     assert_eq!(writes.primary_buffered_attempts, 0);
     assert_eq!(writes.best_effort_attempts, 0);
 }
+
+/// Commits a declared SQL projector transaction against simulated cloud
+/// storage and returns the first native policy it used.
+fn first_cloud_policy(configured_strict: bool, mixed: bool) -> Option<&'static str> {
+    let path =
+        std::env::temp_dir().join(format!("cassie-sql-cloud-policy-{}", uuid::Uuid::new_v4()));
+    let config = CassieRuntimeConfig::default();
+    let midge = crate::midge::adapter::Midge::new_cloud_simulated_for_test(
+        &path,
+        &config.database,
+        configured_strict,
+    )
+    .unwrap();
+    let cassie = Cassie::new_with_midge_and_config(std::sync::Arc::new(midge), config).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("projector", None);
+    for sql in [
+        "CREATE TABLE replay_sql_data (value INT)",
+        "CREATE SEQUENCE replay_sql_sequence",
+        "BEGIN",
+        "SET LOCAL cassie.projection_write_mode = 'replayable'",
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+    ] {
+        execute(&cassie, &session, sql);
+    }
+    if mixed {
+        execute(&cassie, &session, "SELECT nextval('replay_sql_sequence')");
+    }
+    let (result, writes) =
+        observe_native_commits(|| cassie.execute_sql(&session, "COMMIT", vec![]));
+    result.unwrap();
+    writes.first_policy
+}
+
+#[test]
+fn should_use_lazy_cloud_upload_for_declared_sql_projection_on_background_cloud() {
+    // Arrange
+    let mixed = false;
+
+    // Act
+    let policy = first_cloud_policy(false, mixed);
+
+    // Assert
+    assert_eq!(policy, Some("cloud_async"));
+}
+
+#[test]
+fn should_not_downgrade_configured_cloud_strict_for_declared_sql_projection() {
+    // Arrange
+    let mixed = false;
+
+    // Act
+    let policy = first_cloud_policy(true, mixed);
+
+    // Assert
+    assert_eq!(policy, Some("cloud_strict"));
+}
+
+#[test]
+fn should_promote_a_mixed_sql_projection_to_cloud_strict_on_background_cloud() {
+    // Arrange
+    let mixed = true;
+
+    // Act
+    let policy = first_cloud_policy(false, mixed);
+
+    // Assert
+    assert_eq!(policy, Some("cloud_strict"));
+}

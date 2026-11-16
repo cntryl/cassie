@@ -182,6 +182,26 @@ impl Midge {
         )
     }
 
+    /// Opens local storage whose writer lease expires quickly, so a test that
+    /// kills a child process can reopen the store without waiting out the
+    /// default 30 second lease.
+    #[cfg(test)]
+    pub(crate) fn new_local_short_lease_for_test(
+        data_dir: impl AsRef<Path>,
+        default_database: impl Into<String>,
+        ttl: std::time::Duration,
+    ) -> Result<Self, CassieError> {
+        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref())
+            .lease_ttl(ttl)
+            .build()
+            .map_err(CassieError::from)?;
+        Self::open_with_write_policy(
+            options,
+            default_database,
+            super::storage_config::WritePolicy::Local,
+        )
+    }
+
     #[must_use]
     pub(crate) fn write_options_sync(&self) -> WriteOptions {
         self.write_policy.sync()

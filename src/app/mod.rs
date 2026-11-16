@@ -202,8 +202,11 @@ mod commit_unknown_outcome_tests;
 mod implicit_sequence_database_tests;
 #[cfg(all(test, feature = "replay-benchmark-observation"))]
 mod projection_sql_durability_tests;
+
 #[cfg(test)]
 mod projection_sql_mode_tests;
+#[cfg(test)]
+mod projection_sql_restart_tests;
 #[cfg(test)]
 mod query_failure_admission_tests;
 #[cfg(test)]

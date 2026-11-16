@@ -2,7 +2,7 @@
 use std::io;
 
 use crate::types::typed::TypedValue;
-use crate::types::{RecordValue, Value};
+use crate::types::{DataType, RecordValue, Value};
 
 /// The record carried by `value`, if it is one.
 pub(super) const fn as_record(value: &Value) -> Option<&RecordValue> {
@@ -39,6 +39,16 @@ pub(super) fn text(record: &RecordValue) -> String {
 /// PostgreSQL binary record output (`record_send`).
 pub(super) fn binary(record: &RecordValue) -> io::Result<Vec<u8>> {
     crate::types::composite::send_record_binary(record, |value, data_type| {
+        // A field that is an array of a named composite type (`graph_path.vertices`) nests
+        // its own `array_send` of `record_send` elements.
+        if let DataType::Array(element) = data_type.flattened() {
+            if let DataType::Composite(descriptor) = element.flattened() {
+                if !value.is_null() {
+                    return super::record_array::encode_nested(value, descriptor)
+                        .map_err(|error| RecordSendError(error.to_string()));
+                }
+            }
+        }
         let field_oid = data_type.type_oid();
         super::value_to_binary(value, field_oid).map_err(|error| RecordSendError(error.to_string()))
     })

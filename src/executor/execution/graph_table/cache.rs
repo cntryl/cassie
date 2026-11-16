@@ -17,6 +17,9 @@ use crate::runtime::QueryMemoryReservation;
 /// A fetched row and its key tuple.
 pub(super) type Keyed = (Vec<KeyPart>, BatchRow);
 
+/// Graph name, edge mapping, source side and the key a neighborhood belongs to.
+pub(super) type HoodKey = (String, usize, bool, Vec<KeyPart>);
+
 /// The pending session changes of one table, converted once.
 pub(super) struct Pending {
     pub(super) changes: usize,
@@ -34,7 +37,7 @@ pub(super) struct FullEdges {
 pub(super) struct Cache {
     memory: QueryMemoryReservation,
     pub(super) vertices: HashMap<(String, usize, Vec<KeyPart>), Option<BatchRow>>,
-    pub(super) neighborhoods: HashMap<(String, usize, bool, Vec<KeyPart>), Arc<Vec<Keyed>>>,
+    pub(super) neighborhoods: HashMap<HoodKey, Arc<Vec<Keyed>>>,
     pub(super) vertex_scans: HashMap<(String, usize), Arc<Vec<Keyed>>>,
     pub(super) edge_scans: HashMap<(String, usize), Arc<FullEdges>>,
     pub(super) pending: HashMap<String, Arc<Pending>>,
@@ -55,11 +58,6 @@ impl Cache {
     /// Admits `bytes` of retained state.
     pub(super) fn admit(&mut self, bytes: usize) -> Result<(), QueryError> {
         Ok(self.memory.try_grow(bytes)?)
-    }
-
-    #[cfg(test)]
-    pub(super) fn retained_bytes(&self) -> usize {
-        self.memory.bytes()
     }
 }
 

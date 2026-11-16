@@ -440,7 +440,7 @@ fn should_return_the_rows_of_independent_traversals_given_lateral_reuse() {
 
     // Assert
     assert_eq!(lazy, exact);
-    assert!(!lazy.is_empty());
+    assert_ne!(lazy.len(), 0);
 }
 
 fn explain(world: &World, sql: &str) -> String {
@@ -486,7 +486,7 @@ fn should_name_the_fallback_reason_given_an_explain_without_endpoint_indexes() {
 }
 
 #[test]
-fn should_report_counted_reads_and_the_frontier_given_an_explain_analyze() {
+fn should_report_counted_reads_given_an_explain_analyze() {
     // Arrange
     let world = star_world(INDEXED, 3, 20);
 
@@ -604,7 +604,7 @@ fn should_not_reuse_cached_reads_given_a_later_statement() {
 }
 
 #[test]
-fn should_use_a_composite_key_and_a_reordered_endpoint_index_given_a_two_column_key() {
+fn should_use_a_reordered_endpoint_index_given_a_two_column_key() {
     // Arrange
     let mut setup = vec![
         "CREATE TABLE city (country TEXT NOT NULL, code INT NOT NULL, name TEXT, \

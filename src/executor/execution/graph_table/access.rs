@@ -101,8 +101,6 @@ pub(super) enum Side {
 pub(super) struct EdgeAccess {
     pub(super) source: Option<KeyIndex>,
     pub(super) destination: Option<KeyIndex>,
-    /// Sides the pattern's steps need.
-    pub(super) needs: [bool; 2],
     pub(super) reason: Option<&'static str>,
 }
 
@@ -182,7 +180,6 @@ impl Access {
             edge[mapping] = Some(EdgeAccess {
                 source,
                 destination,
-                needs,
                 reason,
             });
         }
@@ -301,19 +298,18 @@ pub(super) fn describe(access: &Access, plan: &Plan<'_>, graph: &PropertyGraphMe
         let Some(edge) = &access.edge[mapping] else {
             continue;
         };
-        let path = match edge.reason {
-            Some(reason) => format!("exact(reason={reason})"),
-            None => {
-                let names = [
-                    ("out", edge.source.as_ref()),
-                    ("in", edge.destination.as_ref()),
-                ]
-                .into_iter()
-                .filter_map(|(side, key)| key.map(|key| format!("{side}:{}", key.index.name)))
-                .collect::<Vec<_>>()
-                .join("|");
-                format!("indexed(index={names})")
-            }
+        let path = if let Some(reason) = edge.reason {
+            format!("exact(reason={reason})")
+        } else {
+            let names = [
+                ("out", edge.source.as_ref()),
+                ("in", edge.destination.as_ref()),
+            ]
+            .into_iter()
+            .filter_map(|(side, key)| key.map(|key| format!("{side}:{}", key.index.name)))
+            .collect::<Vec<_>>()
+            .join("|");
+            format!("indexed(index={names})")
         };
         parts.push(format!("edge[{}]={path}", meta.alias));
     }

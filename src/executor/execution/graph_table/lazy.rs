@@ -343,12 +343,11 @@ impl Store {
             })?;
             row
         };
-        match row {
-            Some(row) => Ok(Some(self.add_vertex(mapping, key.to_vec(), row)?)),
-            None => {
-                self.lazy_state().vertex_ids.insert(probe, None);
-                Ok(None)
-            }
+        if let Some(row) = row {
+            Ok(Some(self.add_vertex(mapping, key.to_vec(), row)?))
+        } else {
+            self.lazy_state().vertex_ids.insert(probe, None);
+            Ok(None)
         }
     }
 
@@ -576,6 +575,38 @@ impl Store {
         Ok(())
     }
 
+    /// The id of edge `edge_key` of mapping `edge`, adding it on first sight.
+    fn edge_id(
+        &mut self,
+        edge: usize,
+        (edge_key, row): (&[KeyPart], &BatchRow),
+        (source, destination): (usize, usize),
+    ) -> Result<usize, QueryError> {
+        let known = self
+            .lazy_state()
+            .edge_ids
+            .get(&(edge, edge_key.to_vec()))
+            .copied();
+        if let Some(id) = known {
+            return Ok(id);
+        }
+        let bytes = keyed_bytes(edge_key, row)? + size_of::<EdgeRecord>() + 4 * size_of::<usize>();
+        let id = self.edges.len();
+        let lazy = self.lazy_state();
+        lazy.memory.try_grow(bytes)?;
+        lazy.edge_ids.insert((edge, edge_key.to_vec()), id);
+        let loaded = self.edge_maps[edge].as_mut().expect("edge mapping");
+        self.edges.push(EdgeRecord {
+            mapping: edge,
+            row: loaded.rows.len(),
+            source,
+            destination,
+        });
+        loaded.rows.push(row.clone());
+        loaded.keys.push(edge_key.to_vec());
+        Ok(id)
+    }
+
     fn merge(
         &mut self,
         env: &SourceExecutionEnv<'_>,
@@ -608,33 +639,7 @@ impl Store {
             } else {
                 (far_id, vertex)
             };
-            let known = self
-                .lazy_state()
-                .edge_ids
-                .get(&(edge, edge_key.clone()))
-                .copied();
-            let id = match known {
-                Some(id) => id,
-                None => {
-                    let bytes = keyed_bytes(edge_key, row)?
-                        + size_of::<EdgeRecord>()
-                        + 4 * size_of::<usize>();
-                    let id = self.edges.len();
-                    let lazy = self.lazy_state();
-                    lazy.memory.try_grow(bytes)?;
-                    lazy.edge_ids.insert((edge, edge_key.clone()), id);
-                    let loaded = self.edge_maps[edge].as_mut().expect("edge mapping");
-                    self.edges.push(EdgeRecord {
-                        mapping: edge,
-                        row: loaded.rows.len(),
-                        source,
-                        destination,
-                    });
-                    loaded.rows.push(row.clone());
-                    loaded.keys.push(edge_key.clone());
-                    id
-                }
-            };
+            let id = self.edge_id(edge, (edge_key, row), (source, destination))?;
             if side == Side::Source {
                 self.outgoing[vertex].push(id);
             } else {

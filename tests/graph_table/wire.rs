@@ -20,6 +20,7 @@ fn setup() -> Vec<(&'static str, Vec<Value>)> {
              CONSTRAINT follows_pk PRIMARY KEY (a, b))",
             Vec::new(),
         ),
+        ("INSERT INTO people VALUES (7, 'zed', 40)", Vec::new()),
         (
             "CREATE PROPERTY GRAPH social
                VERTEX TABLES (people AS person KEY (id) LABEL person PROPERTIES (id, name, age))
@@ -110,16 +111,17 @@ fn should_infer_a_parameter_type_from_an_inline_predicate() {
 }
 
 #[test]
-fn should_report_unavailable_execution_after_describing() {
+fn should_return_the_matching_row_after_describing() {
     // Arrange
     let sql = "SELECT g.pid FROM GRAPH_TABLE (social MATCH (a IS person) \
                COLUMNS (a.id AS pid)) AS g";
     let cycles = vec![fixture::execute_cycle(sql, None, 0, true)];
 
     // Act
-    let batches = fixture::run_cycles("graph-table-wire-unavailable", &setup(), cycles);
+    let batches = fixture::run_cycles("graph-table-wire-rows", &setup(), cycles);
 
     // Assert
     assert_eq!(row_descriptions(&batches[0]).len(), 2);
-    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("0A000"));
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(fixture::data_row_payloads(&batches[0]).len(), 1);
 }

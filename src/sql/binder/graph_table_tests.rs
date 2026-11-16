@@ -26,8 +26,6 @@ const SETUP: [&str; 5] = [
     "INSERT INTO people VALUES (1, 'ann', 30)",
 ];
 
-const NOT_AVAILABLE: &str = "GRAPH_TABLE execution is not available yet";
-
 fn fixture() -> (Cassie, CassieSession) {
     let password = uuid::Uuid::new_v4().to_string();
     let config = CassieRuntimeConfig {
@@ -53,10 +51,17 @@ fn failure(cassie: &Cassie, session: &CassieSession, sql: &str) -> (&'static str
     }
 }
 
-/// Asserts that `sql` binds and stops only at the execution boundary.
+/// The rows of a statement that must bind and execute.
+fn succeed(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
+    match cassie.execute_sql(session, sql, vec![]) {
+        Ok(result) => result.rows().to_vec(),
+        Err(error) => panic!("statement failed: {error}"),
+    }
+}
+
+/// Asserts that `sql` binds and executes.
 fn assert_binds(cassie: &Cassie, session: &CassieSession, sql: &str) {
-    let (state, message) = failure(cassie, session, sql);
-    assert_eq!((state, message.as_str()), ("0A000", NOT_AVAILABLE));
+    succeed(cassie, session, sql);
 }
 
 fn graph_from(table: &str) -> String {
@@ -218,13 +223,10 @@ fn should_bind_parameters_in_predicates_or_columns() {
     ];
 
     // Act
-    let error = cassie
-        .execute_sql(&root, &sql, params)
-        .expect_err("execution is not available");
+    let result = cassie.execute_sql(&root, &sql, params);
 
     // Assert
-    assert_eq!(error.sql_state(), "0A000");
-    assert_eq!(error.to_string(), NOT_AVAILABLE);
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -777,11 +779,11 @@ fn should_require_select_on_a_vertex_table() {
             vec![],
         )
         .expect("grant");
-    let granted = failure(&cassie, &reader, &sql);
+    let granted = cassie.execute_sql(&reader, &sql, vec![]);
 
     // Assert
     assert_eq!(denied.0, "42501");
-    assert_eq!((granted.0, granted.1.as_str()), ("0A000", NOT_AVAILABLE));
+    assert!(granted.is_ok());
 }
 
 #[test]
@@ -801,11 +803,11 @@ fn should_require_select_on_an_edge_table() {
             vec![],
         )
         .expect("grant");
-    let granted = failure(&cassie, &reader, &sql);
+    let granted = cassie.execute_sql(&reader, &sql, vec![]);
 
     // Assert
     assert_eq!(denied.0, "42501");
-    assert_eq!((granted.0, granted.1.as_str()), ("0A000", NOT_AVAILABLE));
+    assert!(granted.is_ok());
 }
 
 #[test]
@@ -830,10 +832,10 @@ fn should_not_require_select_on_a_table_a_label_does_not_select() {
     let sql = graph_from("social MATCH (a IS person) COLUMNS (a.id AS pid)");
 
     // Act
-    let (state, message) = failure(&cassie, &reader, &sql);
+    let result = cassie.execute_sql(&reader, &sql, vec![]);
 
     // Assert
-    assert_eq!((state, message.as_str()), ("0A000", NOT_AVAILABLE));
+    assert!(result.is_ok());
 }
 
 // Views.
@@ -870,10 +872,10 @@ fn should_query_a_view_over_a_graph_table() {
         .expect("view");
 
     // Act
-    let (state, message) = failure(&cassie, &root, "SELECT * FROM friends");
+    let rows = succeed(&cassie, &root, "SELECT * FROM friends");
 
     // Assert
-    assert_eq!((state, message.as_str()), ("0A000", NOT_AVAILABLE));
+    assert_eq!(rows, vec![vec![Value::Int64(1)]]);
 }
 
 const GRAPH_VIEW: &str = "CREATE VIEW friends AS SELECT g.pid FROM GRAPH_TABLE (social MATCH \

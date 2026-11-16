@@ -210,7 +210,7 @@ reproducible probe, not a passing receipt or an expansion of SQLx discovery.
 out-degree 16/64/256 at one hop, depth 2/4/8 at fanout one, and fanout 2/4/8 at
 three hops. Every fixture uses memory storage and the same 64 MiB query budget.
 Results record actual mapped rows, fanout, depth, expected leaf cardinality,
-setup duration, an indexed `EXPLAIN ANALYZE` preflight and runtime read counters.
+setup duration, an indexed plain `EXPLAIN` preflight and runtime read counters.
 The correctness oracle is the number of leaves of the generated rooted tree;
 there are no performance timing assertions. These bounded curves complement,
 and do not replace, the 100k-row Tier 3 representatives or five-sample release

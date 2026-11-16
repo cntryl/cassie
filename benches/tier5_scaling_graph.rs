@@ -59,7 +59,7 @@ fn main() {
             let setup_ns = setup_start.elapsed().as_nanos();
             let sql = tree.sql();
             let plan = cassie
-                .execute_sql(&session, &format!("EXPLAIN ANALYZE {sql}"), vec![])
+                .execute_sql(&session, &format!("EXPLAIN {sql}"), vec![])
                 .expect("scaling preflight");
             let Some(Value::String(plan)) = plan.rows().first().and_then(|row| row.first()) else {
                 panic!("scaling explain plan");
@@ -72,7 +72,7 @@ fn main() {
                 .metadata("graph_fanout", fanout.to_string())
                 .metadata("graph_depth", depth.to_string())
                 .metadata("graph_expected_rows", tree.leaves.to_string())
-                .metadata("graph_explain_analyze", plan)
+                .metadata("graph_explain", plan)
                 .preflight_evidence("graph_table_indexed_read", "none")
                 .runtime_evidence(cassie.clone());
             runner.measure_batch(case, 1, || {

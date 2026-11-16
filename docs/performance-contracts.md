@@ -862,3 +862,36 @@ work. Current codec tags, latest-only layouts, generation fences, authoritative
 fallback, query-accounting scope and measured benchmark objectives remain
 unchanged. No disk-spill implementation, public batch ABI, durable encoding or
 native capacity/SLO is introduced by this foundation.
+
+### Graph topology-axis scaling fixtures
+
+The selected Tier 5 graph curves vary a topology parameter rather than the
+standard dataset row count. The narrow exception applies only to these exact
+`tier5_scaling_graph` workload/scale/actual-mapped-row tuples, with Tier 5,
+`Batch` timing and the `Scaling` fixture class:
+
+| Workload | Scale | Actual mapped rows |
+| --- | --- | --- |
+| `graph_degree_scaling_query` | `16` | 33 |
+| `graph_degree_scaling_query` | `64` | 129 |
+| `graph_degree_scaling_query` | `256` | 513 |
+| `graph_depth_scaling_query` | `2` | 5 |
+| `graph_depth_scaling_query` | `4` | 9 |
+| `graph_depth_scaling_query` | `8` | 17 |
+| `graph_fanout_scaling_query` | `2` | 29 |
+| `graph_fanout_scaling_query` | `4` | 169 |
+| `graph_fanout_scaling_query` | `8` | 1,169 |
+
+Mapped rows count vertices plus edges. Degree uses one hop, depth uses fanout
+one, and fanout uses three hops. Each rooted tree is measured under the same
+64 MiB query budget. These small topology fixtures complement the Tier 3 100k
+representatives; they make no representative-throughput claim. All other Tier 5
+fixtures retain the existing 10k/100k/250k row-count requirement. Other owners,
+workloads, scale strings, row counts or fixture classes cannot use this
+exception. Source-backed Jev selected the exact topology-axis exception over
+expanding the generic allowed row sizes (probability 1.00).
+
+Scaling preflight uses plain `EXPLAIN` to validate the indexed access path.
+It must not execute or warm the timed query. Measured executions supply graph
+read counters through `runtime_evidence`; `EXPLAIN ANALYZE` remains appropriate
+for separate correctness/diagnostic evidence, not this timing preflight.

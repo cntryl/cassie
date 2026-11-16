@@ -62,6 +62,13 @@ unknown commit and cannot cancel an admitted one, so Cassie does not either.
    checkpoint in the same transaction reads the checkpoint after restart: if it advanced,
    the commit applied; if not, replay from the retained source. Do not infer the outcome
    from the error, from a timeout, or from replica or cache state.
+   After a hard kill of a local-storage process, Midge keeps the dead writer's lease
+   until it expires (30 seconds by default), so an immediate restart can be refused with
+   `Writer lease held`. Retry after the lease expires. If the kill landed during a lease
+   renewal, a `.midge_leader.lock` file can remain in the data directory and Midge
+   refuses to remove it itself. Confirm that no Cassie process is using that directory,
+   remove the file by hand, then restart. Observed once in 15 kill-and-reopen runs with a
+   2 second test lease; the frequency at the default lease is not measured.
 4. Writes are accepted again once the store reopens. A client pool may reuse its
    connections, because the failed transaction left each session idle.
 

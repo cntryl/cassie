@@ -385,8 +385,12 @@ Not implemented, and therefore not claimed:
   storage: a committed declared transaction returns its rows and checkpoint
   together after a clean shutdown, an uncommitted one returns neither, and
   after an in-process drop with no shutdown the result is both or neither,
-  never partial. This is not a process-kill or power-loss test: the drop lets
-  the engine run its own teardown.
+  never partial. A second set runs the commit in a child process that calls
+  `abort()` with no teardown, then reopens the store: a strict declared commit
+  is fully present, a replayable one is fully present or fully absent. This is
+  process death, not power loss. The tests use a 2 second writer lease and
+  remove a stale `.midge_leader.lock` the way an operator would (see
+  [local diagnostics](local-diagnostics-contract.md)).
 - **Cloud and performance evidence.** The native write policy chosen for each
   storage mode is unit-tested, including that configured cloud-strict is never
   downgraded. No run against a cloud endpoint (real or emulated) and no

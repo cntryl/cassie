@@ -21,6 +21,11 @@ thread_local! {
     static VARIANT: std::cell::Cell<Variant> = std::cell::Cell::new(Variant::default());
 }
 
+/// The variant the current test builds its worlds with.
+pub fn current_variant() -> Variant {
+    VARIANT.with(std::cell::Cell::get)
+}
+
 /// Builds every world of the current test with `variant` until the guard drops.
 pub struct VariantGuard(Variant);
 
@@ -81,6 +86,7 @@ pub fn started(config: Option<cassie::config::CassieRuntimeConfig>, setup: &[&st
             );
         }
     }
+    cassie.set_graph_exact_reads(current_variant().exact);
     Fixture { session, cassie }
 }
 
@@ -223,7 +229,7 @@ impl Wg {
              weight INT, extra INT)"
                 .to_owned(),
         ];
-        let variant = VARIANT.with(std::cell::Cell::get);
+        let variant = current_variant();
         if variant.endpoint_indexes {
             for (table, column) in [("fast", "a"), ("fast", "b"), ("slow", "a"), ("slow", "b")] {
                 setup.push(format!(
@@ -260,7 +266,6 @@ impl Wg {
         }
         let statements = setup.iter().map(String::as_str).collect::<Vec<_>>();
         let fixture = started(config, &statements);
-        fixture.cassie.set_graph_exact_reads(variant.exact);
         let defined = fixture
             .cassie
             .catalog

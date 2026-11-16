@@ -111,6 +111,10 @@ fn suite() -> Vec<(&'static str, fn())> {
             crate::matrix::should_agree_with_the_oracle_for_every_argument_combination as fn(),
         ),
         (
+            "should_agree_with_the_oracle_when_an_invalid_weight_decides_the_answer",
+            crate::matrix::should_agree_with_the_oracle_when_an_invalid_weight_decides_the_answer as fn(),
+        ),
+        (
             "should_order_mixed_mapping_ties_by_the_shared_reference_order",
             crate::mixed_mappings::should_order_mixed_mapping_ties_by_the_shared_reference_order as fn(),
         ),

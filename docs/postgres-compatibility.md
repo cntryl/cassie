@@ -285,7 +285,7 @@ Portal `max_rows` controls one execute response; it does not reset Cassie's quer
 
 ## Catalog Contract
 
-Cassie supplies the PostgreSQL-like virtual catalog rows needed by supported clients. These views describe Cassie objects; they are not byte-for-byte PostgreSQL catalogs. Applications must not depend on undocumented catalog columns, OIDs, server settings, extensions, or system functions.
+Cassie supplies the PostgreSQL-like virtual catalog rows needed by supported clients. These views describe Cassie objects; they are not byte-for-byte PostgreSQL catalogs. Applications must not depend on undocumented catalog columns, OIDs, server settings, extensions, or system functions. The only extension dependency rows are the selected `pg_depend` `deptype = 'e'` members of `pgcrypto` and `vector` recorded in [Catalog Support](catalog-support.md#extension-membership-dependencies-1273); this is not general dependency or extension ABI parity.
 
 The stable named-client subset and its exact columns, lifecycle behavior, failure contract, and
 retained client evidence are defined in [Catalog Support](catalog-support.md). Only

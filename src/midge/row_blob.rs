@@ -943,7 +943,7 @@ fn value_from_decoded_tag(type_tag: u8, value: serde_json::Value) -> Result<Valu
             })
             .map(crate::types::Vector::new)
             .map(Value::Vector),
-        TYPE_JSON | TYPE_ENUM => Some(Value::Json(value)),
+        TYPE_JSON | TYPE_ENUM | TYPE_COMPOSITE => Some(Value::Json(value)),
         _ => None,
     }
     .ok_or_else(|| CassieError::Parse(format!("invalid array element for type tag {type_tag}")))

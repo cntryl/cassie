@@ -63,6 +63,8 @@ mod bind_parameters;
 mod portal_state;
 #[path = "extended/portal_streaming.rs"]
 mod portal_streaming;
+#[path = "extended/record_parameters.rs"]
+mod record_parameters;
 #[path = "extended/text_parameters.rs"]
 mod text_parameters;
 use portal_state::{
@@ -335,11 +337,11 @@ async fn handle_bind(
     validate_format_count(parameter_formats.len(), parameters.len(), "parameter")?;
 
     let vector_oid = session_vector_oid(&cassie, session);
-    let enum_columns = bind_parameters::enum_columns(&cassie, session, &prepared.parameter_types);
+    let user_types = bind_parameters::user_parameters(&cassie, session, &prepared.parameter_types);
     let (values, parameter_memory) = bind_parameters::decode(
         (&parameters, &parameter_formats, &prepared.parameter_types),
         &state.portal_memory_controls,
-        (vector_oid, &enum_columns),
+        (vector_oid, &user_types),
     )?;
 
     let prepared_id = prepared.id;

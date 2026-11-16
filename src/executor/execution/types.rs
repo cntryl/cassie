@@ -15,7 +15,9 @@ pub struct ColumnMeta {
     /// `ROW(...)`), which is the only family with a user-range binary codec.
     pub is_record: bool,
     /// The descriptor behind a named record column, which pgwire needs to
-    /// send the rendered record text in binary `record_send` layout.
+    /// send the rendered record text in binary `record_send` layout. For an
+    /// array of a named composite type (`is_record` is false) it is the
+    /// element descriptor; see [`Self::record_array`].
     #[serde(skip)]
     pub record_type: Option<crate::types::CompositeRef>,
     /// The enum type's OID for a named enum column (`t`) or an enum array
@@ -69,6 +71,18 @@ impl EnumColumn {
     }
 }
 
+/// The record descriptor of an array of a named composite type, at any depth.
+fn record_array_element(data_type: &DataType) -> Option<&crate::types::CompositeRef> {
+    match data_type {
+        DataType::Array(inner) => match inner.as_ref() {
+            DataType::Composite(descriptor) => Some(descriptor),
+            nested @ DataType::Array(_) => record_array_element(nested),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 impl ColumnMeta {
     pub fn text(name: impl Into<String>) -> Self {
         Self::from_data_type(name, &DataType::Text)
@@ -96,6 +110,7 @@ impl ColumnMeta {
             is_record: matches!(data_type, DataType::Composite(_)),
             record_type: match data_type {
                 DataType::Composite(descriptor) => Some(descriptor.clone()),
+                DataType::Array(_) => record_array_element(data_type).cloned(),
                 _ => None,
             },
             enum_element_oid,
@@ -117,7 +132,17 @@ impl ColumnMeta {
     /// (a record, enum or enum array) rather than a builtin one.
     #[must_use]
     pub fn user_codec(&self) -> bool {
-        self.is_record || self.enum_element_oid.is_some()
+        self.is_record || self.record_type.is_some() || self.enum_element_oid.is_some()
+    }
+
+    /// The element descriptor of an array-of-composite column, which reports
+    /// the composite's array OID and is sent as `array_send` over records.
+    #[must_use]
+    pub fn record_array(&self) -> Option<&crate::types::CompositeRef> {
+        if self.is_record {
+            return None;
+        }
+        self.record_type.as_ref()
     }
 
     pub(crate) fn is_vector(&self) -> bool {

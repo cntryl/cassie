@@ -103,7 +103,12 @@ pub(super) fn normalize_element(
         | DataType::Array(_)
         | DataType::Null => Ok(value),
         DataType::Enum(descriptor) => enum_element(descriptor, &value),
-        DataType::Composite(_) => Err("arrays of composite types are not supported".to_string()),
+        // A record element is either its stored document or text that the
+        // executor's composite cast still has to convert field by field.
+        DataType::Composite(_) => match value {
+            JsonValue::String(_) | JsonValue::Object(_) => Ok(value),
+            _ => Err("composite array element expects a record".to_string()),
+        },
         DataType::Domain(_) => Err("arrays of domain types are not supported".to_string()),
     }
 }

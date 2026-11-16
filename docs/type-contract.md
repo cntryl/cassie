@@ -364,12 +364,16 @@ compiled or executed (assembler-owned gate). Pending or excluded:
   `(expr).*` and domains are described under increment 2 below; the JSON
   recordset functions and `JSON_TABLE` are implemented and described in
   `docs/feature-support.md`;
-- arrays of composite types (`name[]` columns and casts) are rejected with
-  `0A000` although the `_name` array type row and OID exist;
+- arrays of named composite types (`name[]`, `name ARRAY`) are supported as
+  columns, casts, composite attributes, results and bind parameters in text and
+  binary (#1268). Declared dimensions are not enforced. Not implemented:
+  `COPY` into such a column, appending one record with `array || record`
+  (`array || array` works), and arrays of table row types;
 - composite columns cannot carry `DEFAULT`, `PRIMARY KEY`, `UNIQUE` or an
   index; `CREATE TABLE AS` with a RECORD column is not yet rejected;
-- binary parameter input of composite types, `COPY` of composite columns and
-  `DROP TYPE ... CASCADE` with dependents are not implemented;
+- `COPY` of composite columns and `DROP TYPE ... CASCADE` with dependents are
+  not implemented; binary parameter input of composite types and their arrays
+  is accepted when the parameter is declared with the type's OID (#1268);
 - record ordering uses an order-preserving key that is exact for equality and
   for text, integer, float and boolean fields; fields of other families order
   by their typed key bytes;

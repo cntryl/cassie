@@ -10,7 +10,7 @@ use crate::catalog::{
 };
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{TypeAction, TypeAttribute, TypeStatement};
-use crate::types::{CompositeField, DataType};
+use crate::types::CompositeField;
 
 pub(super) const ROOT_OID: u32 = 10;
 /// First revision of a newly created composite descriptor.
@@ -216,17 +216,6 @@ pub(super) fn set_schema_collision(
     )
 }
 
-/// Arrays of composite types are not stored yet.
-pub(super) fn reject_composite_array(data_type: &DataType) -> Result<(), QueryError> {
-    if matches!(data_type, DataType::Array(inner) if matches!(**inner, DataType::Composite(_))) {
-        return Err(diagnostic(
-            "0A000",
-            "arrays of composite types are not supported".into(),
-        ));
-    }
-    Ok(())
-}
-
 fn validated_fields(attributes: &[TypeAttribute]) -> Result<Vec<CompositeField>, QueryError> {
     let mut fields: Vec<CompositeField> = Vec::with_capacity(attributes.len());
     for attribute in attributes {
@@ -237,7 +226,6 @@ fn validated_fields(attributes: &[TypeAttribute]) -> Result<Vec<CompositeField>,
                 format!("column \"{}\" specified more than once", attribute.name),
             ));
         }
-        reject_composite_array(&attribute.data_type)?;
         fields.push(CompositeField {
             name: attribute.name.clone(),
             data_type: attribute.data_type.clone(),

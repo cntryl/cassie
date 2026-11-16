@@ -664,6 +664,12 @@ fn copy_value_to_json(
         DataType::Array(element_type) if matches!(**element_type, DataType::Enum(_)) => {
             Err(enum_copy_unsupported(&field.name))
         }
+        DataType::Array(element_type) if matches!(**element_type, DataType::Composite(_)) => {
+            Err(CassieError::Unsupported(format!(
+                "COPY into composite array field '{}' is not supported",
+                field.name
+            )))
+        }
         DataType::Array(element_type) => {
             crate::types::array::parse_text_array(&value, element_type).map_err(|error| {
                 let message = format!("field '{}' expects array: {error}", field.name);

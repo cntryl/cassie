@@ -164,11 +164,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1715,
-    "rust_files": 1678,
-    "rust_test_declarations": 10174,
+    "files": 1718,
+    "rust_files": 1681,
+    "rust_test_declarations": 10198,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10180,
+    "registered_rust_instances": 10204,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -40902,6 +40902,781 @@
       }
     },
     {
+      "id": "tests/composite_types/array_parameters.rs::should_accept_a_binary_record_parameter",
+      "name": "should_accept_a_binary_record_parameter",
+      "current_file": "tests/composite_types/array_parameters.rs",
+      "line": 77,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_parameters::should_accept_a_binary_record_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_parameters.rs::should_accept_a_binary_composite_array_parameter",
+      "name": "should_accept_a_binary_composite_array_parameter",
+      "current_file": "tests/composite_types/array_parameters.rs",
+      "line": 94,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_parameters::should_accept_a_binary_composite_array_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_parameters.rs::should_store_a_binary_composite_array_parameter_in_a_column",
+      "name": "should_store_a_binary_composite_array_parameter_in_a_column",
+      "current_file": "tests/composite_types/array_parameters.rs",
+      "line": 119,
+      "end_line": 148,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_parameters::should_store_a_binary_composite_array_parameter_in_a_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_parameters.rs::should_accept_a_text_parameter_declared_as_a_composite_array",
+      "name": "should_accept_a_text_parameter_declared_as_a_composite_array",
+      "current_file": "tests/composite_types/array_parameters.rs",
+      "line": 151,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_parameters::should_accept_a_text_parameter_declared_as_a_composite_array"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_parameters.rs::should_reject_malformed_binary_composite_input_with_sqlstate_22p03",
+      "name": "should_reject_malformed_binary_composite_input_with_sqlstate_22p03",
+      "current_file": "tests/composite_types/array_parameters.rs",
+      "line": 167,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_parameters::should_reject_malformed_binary_composite_input_with_sqlstate_22p03"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_parameters.rs::should_keep_awkward_text_fields_of_binary_parameters_intact",
+      "name": "should_keep_awkward_text_fields_of_binary_parameters_intact",
+      "current_file": "tests/composite_types/array_parameters.rs",
+      "line": 199,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_parameters::should_keep_awkward_text_fields_of_binary_parameters_intact"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_parameters.rs::should_reject_an_array_header_that_claims_more_elements_than_it_carries",
+      "name": "should_reject_an_array_header_that_claims_more_elements_than_it_carries",
+      "current_file": "tests/composite_types/array_parameters.rs",
+      "line": 233,
+      "end_line": 266,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_parameters::should_reject_an_array_header_that_claims_more_elements_than_it_carries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_wire.rs::should_send_composite_array_text_with_postgresql_quoting",
+      "name": "should_send_composite_array_text_with_postgresql_quoting",
+      "current_file": "tests/composite_types/array_wire.rs",
+      "line": 27,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_wire::should_send_composite_array_text_with_postgresql_quoting"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_wire.rs::should_describe_a_composite_array_with_the_array_type_oid",
+      "name": "should_describe_a_composite_array_with_the_array_type_oid",
+      "current_file": "tests/composite_types/array_wire.rs",
+      "line": 52,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_wire::should_describe_a_composite_array_with_the_array_type_oid"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_wire.rs::should_send_binary_composite_arrays_in_array_send_layout",
+      "name": "should_send_binary_composite_arrays_in_array_send_layout",
+      "current_file": "tests/composite_types/array_wire.rs",
+      "line": 83,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_wire::should_send_binary_composite_arrays_in_array_send_layout"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_wire.rs::should_send_an_empty_binary_composite_array_with_zero_dimensions",
+      "name": "should_send_an_empty_binary_composite_array_with_zero_dimensions",
+      "current_file": "tests/composite_types/array_wire.rs",
+      "line": 126,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_wire::should_send_an_empty_binary_composite_array_with_zero_dimensions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/array_wire.rs::should_accept_a_text_parameter_cast_to_a_composite_array",
+      "name": "should_accept_a_text_parameter_cast_to_a_composite_array",
+      "current_file": "tests/composite_types/array_wire.rs",
+      "line": 147,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "array_wire::should_accept_a_text_parameter_cast_to_a_composite_array"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/array_wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_render_an_array_of_records_with_nested_quoting",
+      "name": "should_render_an_array_of_records_with_nested_quoting",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 31,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_render_an_array_of_records_with_nested_quoting"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_parse_array_text_into_typed_records",
+      "name": "should_parse_array_text_into_typed_records",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 46,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_parse_array_text_into_typed_records"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_reject_an_element_that_is_not_a_record_of_the_type",
+      "name": "should_reject_an_element_that_is_not_a_record_of_the_type",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 71,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_reject_an_element_that_is_not_a_record_of_the_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_round_trip_a_composite_array_column",
+      "name": "should_round_trip_a_composite_array_column",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 87,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_round_trip_a_composite_array_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_carry_a_composite_array_as_a_composite_attribute",
+      "name": "should_carry_a_composite_array_as_a_composite_attribute",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 126,
+      "end_line": 154,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_carry_a_composite_array_as_a_composite_attribute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_compare_composite_arrays_element_by_element",
+      "name": "should_compare_composite_arrays_element_by_element",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 157,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_compare_composite_arrays_element_by_element"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_describe_a_composite_array_column_in_the_catalogs",
+      "name": "should_describe_a_composite_array_column_in_the_catalogs",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 179,
+      "end_line": 209,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_describe_a_composite_array_column_in_the_catalogs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_keep_a_type_alive_while_an_array_column_uses_it",
+      "name": "should_keep_a_type_alive_while_an_array_column_uses_it",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 212,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_keep_a_type_alive_while_an_array_column_uses_it"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_restore_composite_array_values_after_restart",
+      "name": "should_restore_composite_array_values_after_restart",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 233,
+      "end_line": 260,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_restore_composite_array_values_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_expand_a_composite_array_into_typed_rows",
+      "name": "should_expand_a_composite_array_into_typed_rows",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 263,
+      "end_line": 285,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_expand_a_composite_array_into_typed_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_search_a_composite_array_with_any",
+      "name": "should_search_a_composite_array_with_any",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 288,
+      "end_line": 313,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_search_a_composite_array_with_any"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_convert_a_composite_array_to_json_by_field_name",
+      "name": "should_convert_a_composite_array_to_json_by_field_name",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 316,
+      "end_line": 331,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_convert_a_composite_array_to_json_by_field_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/arrays.rs::should_store_typed_records_through_every_write_path",
+      "name": "should_store_typed_records_through_every_write_path",
+      "current_file": "tests/composite_types/arrays.rs",
+      "line": 334,
+      "end_line": 378,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "arrays::should_store_typed_records_through_every_write_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "types/arrays",
+        "directory": "tests/composite_types/types/arrays",
+        "file": "tests/composite_types/types/arrays/arrays.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/composite_types/catalogs.rs::should_publish_a_pg_type_row_for_the_composite_type",
       "name": "should_publish_a_pg_type_row_for_the_composite_type",
       "current_file": "tests/composite_types/catalogs.rs",
@@ -41876,37 +42651,6 @@
         {
           "suite": "composite_types",
           "name": "ddl::should_reject_a_duplicate_type_created_in_the_same_transaction"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "composite_types",
-        "category": "ddl",
-        "directory": "tests/composite_types/ddl",
-        "file": "tests/composite_types/ddl/ddl.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/composite_types/ddl.rs::should_reject_an_array_of_a_composite_type_with_sqlstate_0a000",
-      "name": "should_reject_an_array_of_a_composite_type_with_sqlstate_0a000",
-      "current_file": "tests/composite_types/ddl.rs",
-      "line": 443,
-      "end_line": 454,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "composite_types",
-          "name": "ddl::should_reject_an_array_of_a_composite_type_with_sqlstate_0a000"
         }
       ],
       "attributes": [
@@ -321002,6 +321746,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/composite_types/array_parameters.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 266,
+      "sha256": "54fea933fcc987b2952d025fcd13439913a724f5c4b42070e5cf90678dccda9c",
+      "test_declarations": 7,
+      "registered_suites": [
+        "composite_types"
+      ],
+      "destinations": [
+        "tests/composite_types/types/arrays/array_parameters.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/composite_types/array_wire.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 165,
+      "sha256": "0c27995612fda7605e40a3de5b1fb604008a2e793dca22721f8158946b1024f6",
+      "test_declarations": 5,
+      "registered_suites": [
+        "composite_types"
+      ],
+      "destinations": [
+        "tests/composite_types/types/arrays/array_wire.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/composite_types/arrays.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 378,
+      "sha256": "6f7edc2ee0cd801f56d878c2540c55ddffad03c96b0695b1b456dae3fb8a25f7",
+      "test_declarations": 13,
+      "registered_suites": [
+        "composite_types"
+      ],
+      "destinations": [
+        "tests/composite_types/types/arrays/arrays.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/composite_types/catalogs.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -321020,9 +321809,9 @@
       "current_file": "tests/composite_types/ddl.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 454,
-      "sha256": "9c03d79138365d1373d7a145a6ed6e5e8d0fa164a9e49f26a52fbbd6dd22a781",
-      "test_declarations": 25,
+      "lines": 440,
+      "sha256": "3ed1f33e321af37bb142a642e8030e8f743cc967a415da109964bedceddb31a8",
+      "test_declarations": 24,
       "registered_suites": [
         "composite_types"
       ],
@@ -321246,8 +322035,8 @@
       "current_file": "tests/composite_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 58,
-      "sha256": "a319699e9787ec0b3e30e82584ae87cb603b6fe7aed9bfb19b5e8b7678f8f634",
+      "lines": 67,
+      "sha256": "8c9adfacd13000698b0f5d7654a2bdf5e61b469f2d6fd5db879e123e3c3aca33",
       "test_declarations": 0,
       "registered_suites": [
         "composite_types"

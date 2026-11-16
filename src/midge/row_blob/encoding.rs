@@ -3,8 +3,8 @@ use crate::types::DataType;
 use uuid::Uuid;
 
 use super::{
-    decode_bytea, write_varint, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_DATE, TYPE_ENUM,
-    TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
+    decode_bytea, write_varint, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE,
+    TYPE_ENUM, TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
     TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
 
@@ -252,7 +252,8 @@ fn encode_array_value(
         match value_type {
             TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID => out.extend_from_slice(&value_data),
             TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME
-            | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA | TYPE_EXTENDED | TYPE_ENUM => {
+            | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA | TYPE_EXTENDED | TYPE_ENUM
+            | TYPE_COMPOSITE => {
                 write_varint(
                     u64::try_from(value_data.len()).unwrap_or(u64::MAX),
                     &mut out,

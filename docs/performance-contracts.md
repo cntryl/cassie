@@ -283,7 +283,7 @@ indexes consulted are the ones every indexed SQL query already trusts.
   oracle-equivalence tests for both paths are authored in
   [`lazy_reads.rs`](../tests/graph_weighted/lazy_reads.rs),
   [`transactions.rs`](../tests/graph_weighted/transactions.rs) and
-  [`variants.rs`](../tests/graph_weighted/variants.rs); they have not been run yet.
+  [`variants.rs`](../tests/graph_weighted/variants.rs); they passed in the assembler run of the `graph_weighted` suite (116 tests) on the integrated head; no timing is recorded.
 
 ### Integrity model
 
@@ -422,8 +422,8 @@ social graph of the friends-of-friends scenario at 100,000 mapped rows and the 6
 and no separate smaller instance remains. The function has no graph plan node, so the owner
 classifies its read path from one counted preflight execution (`graph_access_path_source=counted`):
 the path is `indexed` when the call moved `graph_index_entries` and left `graph_full_rows`
-unchanged, which the fixture's endpoint indexes should produce (authored, not run). Whether the route query fits the 64 MiB budget at this size has not been
-measured: the change is authored and not yet run, and this document records no timing figure.
+unchanged, which the fixture's endpoint indexes should produce (the counted-read tests passed in the assembler run; the benchmark itself has not been run). Whether the route query fits the 64 MiB budget at this size has not been
+measured: the benchmark compiles but has not been run at this size, and this document records no timing figure.
 
 Run one owner with, for example,
 `cargo bench --locked --bench tier2_subsystem_graph -- --profile smoke`; a smoke run is

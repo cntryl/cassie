@@ -89,7 +89,7 @@ pub fn should_agree_with_the_oracle_for_every_argument_combination() {
     assert_eq!(compared, 360);
 }
 
-/// authored/not run: the same matrix with a negative weight on a slow edge, so the calls that
+/// The same matrix with a negative weight on a slow edge, so the calls that
 /// select only `fast` return rows while every other call fails with 22023, under every read
 /// path.
 #[test]

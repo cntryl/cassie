@@ -126,7 +126,7 @@ fn peak(world: &Wg) -> usize {
     .expect("peak fits")
 }
 
-/// authored/not run: the budget that the lazy streaming call just fits is below what the
+/// The budget that the lazy streaming call just fits is below what the
 /// forced exact read of the same 1500 unrelated edges needs, so the lazy call's memory does
 /// not grow with edges it never reaches.
 #[test]

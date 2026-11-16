@@ -2,7 +2,7 @@
 //! NULL endpoint components, composite keys, the in-full fallback of a parallel scan and
 //! quoted mixed-case columns. Every case runs under the four read paths (lazy without and
 //! with endpoint indexes, exact without and with them) and must answer identically (#1258,
-//! #1268). Every test here is authored/not run.
+//! #1268).
 //!
 //! `Endpoints::scan_keys` (a vertex mapping with no usable key index) is reached through a
 //! REPEATABLE READ transaction opened before a second unique key replaced the original: the
@@ -349,7 +349,7 @@ fn guarded(weight: &'static str) -> Swapped {
         .expect("the two-session swap finished within the hang guard")
 }
 
-/// authored/not run: option (a) of N2, as a differential. `locate` reads the three vertex
+/// Option (a) of N2, as a differential. `locate` reads the three vertex
 /// rows in full once no key index is visible, in both runs. Only when edge 3 has an invalid
 /// weight does validation also ask whether vertex 9 exists, which without a visible index
 /// reads the three vertex keys once more (`Endpoints::scan_keys`), so the invalid run adds

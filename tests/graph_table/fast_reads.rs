@@ -2,6 +2,7 @@
 //! statement's own writes and snapshot (#1253, #1254), reuse across `LATERAL` rows (#1259)
 //! and the access paths `EXPLAIN` reports. Reads are counted, never timed.
 
+use crate::support_sql_fixture::sql_fixture;
 use crate::world::{ints, link, node, Link, Node, Variant, VariantGuard, World};
 use cassie::app::CassieSession;
 use cassie::types::Value;
@@ -600,4 +601,68 @@ fn should_not_reuse_cached_reads_given_a_later_statement() {
     assert_eq!(first, vec![vec![2], vec![3]]);
     assert_eq!(second, vec![vec![2], vec![3], vec![9]]);
     assert_eq!(reads.cache_hits, 0);
+}
+
+#[test]
+fn should_use_a_composite_key_and_a_reordered_endpoint_index_given_a_two_column_key() {
+    // Arrange
+    let mut setup = vec![
+        "CREATE TABLE city (country TEXT NOT NULL, code INT NOT NULL, name TEXT, \
+         PRIMARY KEY (country, code))"
+            .to_owned(),
+        "CREATE TABLE road (id BIGINT PRIMARY KEY, a_country TEXT NOT NULL, a_code INT NOT NULL, \
+         b_country TEXT NOT NULL, b_code INT NOT NULL)"
+            .to_owned(),
+        "CREATE INDEX road_a ON road (a_code, a_country)".to_owned(),
+        "CREATE INDEX road_b ON road (b_country, b_code)".to_owned(),
+    ];
+    for (country, code) in [("de", 1), ("de", 2), ("fr", 1), ("fr", 2)] {
+        setup.push(format!(
+            "INSERT INTO city VALUES ('{country}', {code}, 'c')"
+        ));
+    }
+    for (id, a, b) in [
+        (1, ("de", 1), ("de", 2)),
+        (2, ("de", 1), ("fr", 1)),
+        (3, ("fr", 1), ("fr", 2)),
+        (4, ("fr", 2), ("de", 1)),
+    ] {
+        setup.push(format!(
+            "INSERT INTO road VALUES ({id}, '{}', {}, '{}', {})",
+            a.0, a.1, b.0, b.1
+        ));
+    }
+    setup.push(
+        "CREATE PROPERTY GRAPH roads \
+         VERTEX TABLES (city AS c KEY (country, code) LABEL city PROPERTIES (country, code, name)) \
+         EDGE TABLES (road AS r KEY (id) \
+           SOURCE KEY (a_country, a_code) REFERENCES c (country, code) \
+           DESTINATION KEY (b_country, b_code) REFERENCES c (country, code) \
+           LABEL road PROPERTIES (id))"
+            .to_owned(),
+    );
+    let fixture = sql_fixture(
+        "graph-composite",
+        &setup.iter().map(String::as_str).collect::<Vec<_>>(),
+    );
+    let sql = "SELECT * FROM GRAPH_TABLE (roads MATCH \
+               (a IS city WHERE a.country = 'de' AND a.code = 1) -[IS road]->{1,2} (b IS city) \
+               COLUMNS (b.code AS code)) AS t ORDER BY code";
+    let before = fixture.cassie.metrics()["read_paths"]["graph_full_rows"]
+        .as_u64()
+        .expect("counter");
+
+    // Act
+    let lazy = fixture.rows(sql);
+    let reads = fixture.cassie.metrics()["read_paths"]["graph_full_rows"]
+        .as_u64()
+        .expect("counter")
+        - before;
+    fixture.cassie.set_graph_exact_reads(true);
+    let exact = fixture.rows(sql);
+
+    // Assert
+    assert_eq!(lazy, exact);
+    assert_eq!(lazy.len(), 3);
+    assert_eq!(reads, 0);
 }

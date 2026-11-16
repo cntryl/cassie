@@ -77,7 +77,7 @@ async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
             "username": "root",
-            "password": "topsecret"
+            "password": crate::support_sql::test_root_password()
         }))
         .send()
         .await
@@ -359,10 +359,7 @@ fn should_record_consistency_metrics() {
 fn should_support_admin_rest_manifest_consistency_workflow() {
     // Arrange
     let path = data_dir("projection_consistency_rest");
-    let config = CassieRuntimeConfig {
-        password: "topsecret".to_string(),
-        ..CassieRuntimeConfig::default()
-    };
+    let config = crate::support_sql::with_test_root_password(CassieRuntimeConfig::default());
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     crate::support_sql::install_vector_extension(&cassie);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -451,10 +448,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
 fn should_support_restful_projection_consistency_aliases() {
     // Arrange
     let path = data_dir("projection_consistency_restful_aliases");
-    let config = CassieRuntimeConfig {
-        password: "topsecret".to_string(),
-        ..CassieRuntimeConfig::default()
-    };
+    let config = crate::support_sql::with_test_root_password(CassieRuntimeConfig::default());
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     crate::support_sql::install_vector_extension(&cassie);
     let runtime = tokio::runtime::Builder::new_current_thread()

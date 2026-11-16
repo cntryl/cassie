@@ -142,7 +142,10 @@ fn should_bind_parameters_in_a_prepared_graph_table() {
             .execute_sql(&world.fixture.session, sql, params)
         {
             Ok(result) => ints(result.rows().to_vec()),
-            Err(error) => panic!("prepared statement failed: {error}"),
+            Err(error) => panic!(
+                "prepared statement failed with SQLSTATE {}",
+                error.sql_state()
+            ),
         }
     };
 

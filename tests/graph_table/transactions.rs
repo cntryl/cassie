@@ -17,13 +17,13 @@ fn base() -> World {
 fn run(world: &World, session: &CassieSession, sql: &str) -> Vec<Vec<i64>> {
     match world.fixture.cassie.execute_sql(session, sql, vec![]) {
         Ok(result) => ints(result.rows().to_vec()),
-        Err(error) => panic!("statement failed: {sql}: {error}"),
+        Err(error) => panic!("statement failed with SQLSTATE {}", error.sql_state()),
     }
 }
 
 fn exec(world: &World, session: &CassieSession, sql: &str) {
     if let Err(error) = world.fixture.cassie.execute_sql(session, sql, vec![]) {
-        panic!("statement failed: {sql}: {error}");
+        panic!("statement failed with SQLSTATE {}", error.sql_state());
     }
 }
 

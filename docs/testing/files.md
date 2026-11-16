@@ -454,7 +454,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/fixtures/sqlx_probe/Cargo.lock` | external_client_fixture | 1518 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.lock` |
 | `tests/fixtures/sqlx_probe/Cargo.toml` | external_client_fixture | 11 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.toml` |
 | `tests/fixtures/sqlx_probe/src/main.rs` | external_client_fixture | 159 | 0 | — | keep | `tests/fixtures/sqlx_probe/src/main.rs` |
-| `tests/graph_table/composition.rs` | test_module | 169 | 9 | graph_table | split_by_contract | `tests/graph_table/aggregates/core/composition.rs`; `tests/graph_table/semantics/composition.rs` |
+| `tests/graph_table/composition.rs` | test_module | 172 | 9 | graph_table | split_by_contract | `tests/graph_table/aggregates/core/composition.rs`; `tests/graph_table/semantics/composition.rs` |
 | `tests/graph_table/exact_reads.rs` | test_module | 152 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/exact_reads.rs` |
 | `tests/graph_table/matrix.rs` | test_module | 136 | 2 | graph_table | move_with_module_alias | `tests/graph_table/semantics/matrix.rs` |
 | `tests/graph_table/resources.rs` | test_module | 120 | 3 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |

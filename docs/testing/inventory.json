@@ -65927,7 +65927,7 @@
       "name": "should_bind_parameters_in_a_prepared_graph_table",
       "current_file": "tests/graph_table/composition.rs",
       "line": 129,
-      "end_line": 153,
+      "end_line": 156,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65957,8 +65957,8 @@
       "id": "tests/graph_table/composition.rs::should_reevaluate_a_lateral_parameter_for_each_outer_row",
       "name": "should_reevaluate_a_lateral_parameter_for_each_outer_row",
       "current_file": "tests/graph_table/composition.rs",
-      "line": 156,
-      "end_line": 169,
+      "line": 159,
+      "end_line": 172,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -326023,8 +326023,8 @@
       "current_file": "tests/graph_table/composition.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 169,
-      "sha256": "14c5c407e40e52ac0b452ec8b962d1ab44ee7fcece086ed39b4d1c9ab23d1cec",
+      "lines": 172,
+      "sha256": "f46d3f88cecab246174e088264e7097ec61695a92bde67a5bab95b4e89451c1d",
       "test_declarations": 9,
       "registered_suites": [
         "graph_table"
@@ -326070,7 +326070,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 120,
-      "sha256": "7d1a977d5243e5aba019b1b926ef9925537e137b809dfd27863d21815d8edbac",
+      "sha256": "b192daef12efda8b1a9c87525277137525429a17a45b08059f24ea5cb6667d0d",
       "test_declarations": 3,
       "registered_suites": [
         "graph_table"
@@ -326103,7 +326103,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 197,
-      "sha256": "c67d75e9090b5e6ef7724fb1f4b6fe4115808332abccea43271b248eed82981b",
+      "sha256": "71d0db6eea97018039a1f2f6c258b9bd85ab159e63adfc2d4f318521a79c1a58",
       "test_declarations": 7,
       "registered_suites": [
         "graph_table"

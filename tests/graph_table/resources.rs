@@ -32,7 +32,7 @@ fn limited(count: i64, budget: usize) -> World {
 
 fn failure(world: &World, sql: &str) -> CassieError {
     match world.fixture.execute(sql) {
-        Ok(_) => panic!("statement should fail: {sql}"),
+        Ok(_) => panic!("a statement that should fail succeeded"),
         Err(error) => error,
     }
 }

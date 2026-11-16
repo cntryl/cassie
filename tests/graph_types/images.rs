@@ -63,7 +63,7 @@ fn should_not_resolve_a_source_graph_in_a_distinct_database_clone() {
 }
 
 #[test]
-fn should_give_a_distinct_clone_a_fresh_database_identity_and_new_graph_identities() {
+fn should_give_a_distinct_clone_fresh_identities() {
     // Arrange
     let fixture = social("graph_images_fresh");
     let source = fixture.rows(REF_DB);

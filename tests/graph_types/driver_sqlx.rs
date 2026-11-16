@@ -109,7 +109,6 @@ fn should_read_the_ordered_steps_of_a_path_as_scalars_through_sqlx() {
             path()
         );
 
-        // Act
         let rows = rows(&mut server, sql).await;
         let steps: Vec<(i64, Option<i16>)> = rows
             .iter()
@@ -137,7 +136,6 @@ fn should_read_the_typed_key_of_an_element_through_sqlx() {
             crate::driver::ROOM_1
         );
 
-        // Act
         let rows = rows(&mut server, sql).await;
         let parts: Vec<(i64, i16, Option<String>, Option<i32>)> = rows
             .iter()
@@ -173,7 +171,6 @@ fn should_export_the_versioned_jsonb_document_of_a_path_through_sqlx() {
         let mut server = start().await;
         let sql = format!("SELECT cassie_graph.path_to_jsonb({})::text", path());
 
-        // Act
         let rows = rows(&mut server, sql).await;
         let document = rows[0].get::<String, _>(0);
         server.stop().await;
@@ -195,7 +192,6 @@ fn should_keep_a_bigint_key_exact_through_a_sqlx_bound_parameter() {
     let work = async {
         let mut server = start().await;
 
-        // Act
         let row = must(
             sqlx::query("SELECT (cassie_graph.key_part($1::bigint)).integer_value")
                 .bind(9_007_199_254_740_993_i64)
@@ -222,7 +218,6 @@ fn should_render_a_whole_path_in_composite_text_form_through_sqlx() {
         let mut server = start().await;
         let sql = format!("SELECT ({})::text", path());
 
-        // Act
         let rows = rows(&mut server, sql).await;
         let text = rows[0].get::<String, _>(0);
         server.stop().await;

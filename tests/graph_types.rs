@@ -40,9 +40,6 @@ mod record_frame;
 #[path = "graph_types/record_codec.rs"]
 mod record_codec;
 
-#[path = "graph_types/record_codec_sqlx.rs"]
-mod record_codec_sqlx;
-
 #[path = "graph_types/driver.rs"]
 mod driver;
 

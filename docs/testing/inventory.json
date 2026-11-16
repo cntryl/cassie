@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1769,
-    "rust_files": 1732,
-    "rust_test_declarations": 10516,
+    "files": 1768,
+    "rust_files": 1731,
+    "rust_test_declarations": 10505,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10541,
+    "registered_rust_instances": 10530,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -69593,352 +69593,11 @@
       }
     },
     {
-      "id": "tests/graph_types/driver_sqlx.rs::should_describe_the_graph_types_as_composites_through_sqlx",
-      "name": "should_describe_the_graph_types_as_composites_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 154,
-      "end_line": 189,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_describe_the_graph_types_as_composites_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_round_trip_key_parts_of_every_shape_through_sqlx",
-      "name": "should_round_trip_key_parts_of_every_shape_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 192,
-      "end_line": 233,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_round_trip_key_parts_of_every_shape_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_round_trip_a_key_part_array_with_a_null_element_through_sqlx",
-      "name": "should_round_trip_a_key_part_array_with_a_null_element_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 236,
-      "end_line": 261,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_round_trip_a_key_part_array_with_a_null_element_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_round_trip_a_heterogeneous_composite_key_reference_through_sqlx",
-      "name": "should_round_trip_a_heterogeneous_composite_key_reference_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 264,
-      "end_line": 302,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_round_trip_a_heterogeneous_composite_key_reference_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_round_trip_a_zero_hop_path_through_sqlx",
-      "name": "should_round_trip_a_zero_hop_path_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 305,
-      "end_line": 319,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_round_trip_a_zero_hop_path_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_round_trip_a_one_hop_path_through_sqlx",
-      "name": "should_round_trip_a_one_hop_path_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 322,
-      "end_line": 336,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_round_trip_a_one_hop_path_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_round_trip_an_array_of_element_references_through_sqlx",
-      "name": "should_round_trip_an_array_of_element_references_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 339,
-      "end_line": 356,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_round_trip_an_array_of_element_references_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_round_trip_an_array_of_paths_with_a_null_element_through_sqlx",
-      "name": "should_round_trip_an_array_of_paths_with_a_null_element_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 359,
-      "end_line": 381,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_round_trip_an_array_of_paths_with_a_null_element_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_sqlx",
-      "name": "should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_sqlx",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 384,
-      "end_line": 403,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_sqlx"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_report_the_driver_parameter_type_of_a_path_function_argument",
-      "name": "should_report_the_driver_parameter_type_of_a_path_function_argument",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 420,
-      "end_line": 434,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_report_the_driver_parameter_type_of_a_path_function_argument"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
-      "id": "tests/graph_types/driver_sqlx.rs::should_report_the_inferred_parameter_type_of_an_undeclared_path_function_argument",
-      "name": "should_report_the_inferred_parameter_type_of_an_undeclared_path_function_argument",
-      "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 437,
-      "end_line": 451,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "graph_types",
-          "name": "driver_sqlx::should_report_the_inferred_parameter_type_of_an_undeclared_path_function_argument"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "graph_types",
-        "category": "semantics",
-        "directory": "tests/graph_types/semantics",
-        "file": "tests/graph_types/semantics/driver_sqlx.rs",
-        "basis": "focused_source_module",
-        "review": "recommended",
-        "migration": "preserve_module_alias_and_fixture_scope"
-      }
-    },
-    {
       "id": "tests/graph_types/driver_sqlx.rs::should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist",
       "name": "should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist",
       "current_file": "tests/graph_types/driver_sqlx.rs",
-      "line": 457,
-      "end_line": 477,
+      "line": 61,
+      "end_line": 81,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -333948,9 +333607,9 @@
       "current_file": "tests/graph_types/driver_sqlx.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 477,
-      "sha256": "c9c71aaac5fb6ec64f208c255bc20b4742ea6bbbb490717f1503d0b0c122c975",
-      "test_declarations": 12,
+      "lines": 81,
+      "sha256": "1c2e1189b3e4fb6e8b8eb7e480678b5f8915a79e8d0177165e63dbb32967a5fd",
+      "test_declarations": 1,
       "registered_suites": [
         "graph_types"
       ],
@@ -334035,21 +333694,6 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/graph_types/record_codec_sqlx.rs",
-      "role": "test_support",
-      "action": "keep",
-      "lines": 117,
-      "sha256": "ece4a6c754f9bdd71566ce0b2e3c71233971fa9a59911324a88ab8aa15f683ce",
-      "test_declarations": 0,
-      "registered_suites": [
-        "graph_types"
-      ],
-      "destinations": [
-        "tests/graph_types/record_codec_sqlx.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
       "current_file": "tests/graph_types/record_frame.rs",
       "role": "test_support",
       "action": "keep",
@@ -334128,8 +333772,8 @@
       "current_file": "tests/graph_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 50,
-      "sha256": "1a2f35dcf843a5382de7a2784a0626c75f2096d73d47c424ce2d2f04a8fc799f",
+      "lines": 47,
+      "sha256": "0d7dec07d233c3b8157ae81c8adbb9f2ab3d1fe1b4e9518ce536ded39bc3708a",
       "test_declarations": 0,
       "registered_suites": [
         "graph_types"

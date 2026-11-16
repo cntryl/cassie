@@ -141,9 +141,9 @@ Out of milestone (gap kept here only): C2 `WITH RECURSIVE` acceleration and C4 g
 **Decision (2026-11-16): graph traversal stays Experimental.** The evidence below supports
 correctness of the delivered surface, but items a Stable claim needs are open: recorded
 benchmark numbers from gate-quality runs, use outside the test suite, and the executed
-results of two pieces of evidence that are now authored and have not been run: round trips
-through a second real PostgreSQL driver (`sqlx`) and `graph_weighted_paths` at the
-100,000-row representative under the standard memory profile. Promotion is reconsidered when
+results of two pieces of evidence: round trips through a second real PostgreSQL driver
+(`sqlx`, blocked on catalog scope #905) and `graph_weighted_paths` at the 100,000-row
+representative under the standard memory profile. Promotion is reconsidered when
 those are closed. The status in [Feature support](feature-support.md) is unchanged.
 
 This section collects the evidence for that decision
@@ -173,7 +173,7 @@ claim backed by a test or a document; none is a performance claim.
 | Item | State |
 | --- | --- |
 | Read bounds | The documented read bounds and their counters are in [performance contracts](performance-contracts.md#graph-reads-v060-fast-reads-1253-1254-1259). `graph_weighted_paths` reads every selected edge row once for validation by contract (counted as `graph_validation_rows`, cost O(selected edges)) and its search reads only the neighbourhoods of the vertices it visits. No timing figure is recorded. |
-| Real-driver qualification | Text and binary round trips of the three path types and their arrays run through `tokio-postgres` ([`driver.rs`](../tests/graph_types/driver.rs), executed in earlier gates). A second real driver, `sqlx` 0.9 (plaintext local connection, no TLS feature), is wired into the same harness in [`driver_sqlx.rs`](../tests/graph_types/driver_sqlx.rs) over the shared framing of [`record_frame.rs`](../tests/graph_types/record_frame.rs): prepare, describe, simple-query text, prepared binary results and every value bound back as a parameter for key parts of every shape (bigint 9007199254740993, escaped text, UUID, smallint), a key-part array with a NULL element, a heterogeneous composite key, arrays of references and of paths, zero-hop and one-hop paths, a path from `GRAPH_TABLE` and one from `graph_weighted_paths`. Authored and not run: the `sqlx` tests have not compiled or executed. Expected failure, source-derived (not observed): `sqlx` 0.9 resolves a composite column with one statement joining `pg_catalog.pg_type` to `pg_catalog.pg_range` and reading `pg_catalog.pg_attribute WHERE attrelid = pg_type.typrelid` (`connection/resolve.rs`), and Cassie has no `pg_range` relation (ranges are #905) and exposes `pg_attribute.attrelid` as text, so the prepare fails with SQLSTATE `42P01` and the `sqlx` round trips cannot pass until #905 lands. The 0.8 line was read and does not remove the blocker: its `fetch_composite_by_oid` still binds an oid to `attrelid`, which is text here. `should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist` pins the missing relation; the other `sqlx` tests stay in place, not ignored. |
+| Real-driver qualification | Text and binary round trips of the three path types and their arrays run through `tokio-postgres` ([`driver.rs`](../tests/graph_types/driver.rs), executed in earlier gates). A second real driver is a recorded blocker, not evidence. `sqlx` 0.9 was run against the harness and every prepare of a composite or array of graph types failed at its type-resolver statement (`connection/resolve.rs`) with SQLSTATE `42601` (`unexpected text after function call`: the aggregate-call parser reads the alias-without-`AS` after `NULLIF(typelem, 0::oid) typelem` as a trailing clause). Past that, the statement also needs `pg_catalog.pg_range` (a join against it fails with `42P01`, pinned by `should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist`), an oid-typed `pg_attribute.attrelid` (text here), `regtype` casts and a row value inside `array_agg`. These are catalog and parser scope owned by [#905](https://github.com/cntryl/cassie/issues/905). Decision (Jev `sqlx_disposition`, 0.99, receipt `target/jev/sqlx_decision_resp.json`): the eleven failing `sqlx` round-trip tests and their framing helper were removed from this change rather than ignored; the pin test and the dev-dependency stay. The #1268 criterion of a second real client therefore stays open with #905 as its dependency. |
 | Weighted routes at scale | The three `GRAPH_TABLE` Tier 3 scenarios run at about 100,000 mapped rows under the 64 MiB profile on the indexed read path. `graph_weighted_paths` now validates weights with one streaming scan and searches the lazy indexed store ([performance contracts](performance-contracts.md#graph-reads-v060-fast-reads-1253-1254-1259)); its Tier 3 route scenario is restored to the shared 100,000-row social graph. Counted-read, own-write and oracle-equivalence tests under the lazy indexed and forced exact paths are authored (`lazy_reads.rs`, `transactions.rs`, `variants.rs`) and not run; the benchmark has not been run at this size. |
 | Benchmark numbers | No timing or scaling number is recorded. Gate-quality results need the release profile with at least five samples, host identity and a baseline. |
 | Exact-head gates | The ordered local gate and the hosted checks run on the integrated head are owned by the assembler and are not recorded here. |
@@ -183,7 +183,9 @@ claim backed by a test or a document; none is a performance claim.
 
 - **Second real driver:** add `sqlx` as a dev-dependency of the integration test crate only
   (`postgres` and `runtime-tokio` features, no TLS backend, plaintext local connection).
-  Judgment `sqlx_dev_dependency`: 0.96.
+  Judgment `sqlx_dev_dependency`: 0.96. Superseded in part at assembly: the round-trip tests
+  failed at the resolver statement and were removed (judgment `sqlx_disposition`: 0.99), see the
+  real-driver row above.
 - **Weighted paths at scale:** replace load-validate-search with one streaming validation
   scan followed by a search over the lazy indexed store. Judgment
   `streaming_validation_then_indexed_search`: 1.00; its equivalence with the previous

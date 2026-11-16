@@ -26,7 +26,7 @@ pub fn started(label: &str, setup: &[&str]) -> GraphFixture {
     for sql in setup {
         assert!(
             cassie.execute_sql(&session, sql, vec![]).is_ok(),
-            "setup statement failed in {label}: {sql}"
+            "a setup statement failed in {label}"
         );
     }
     GraphFixture { session, cassie }
@@ -47,7 +47,7 @@ impl GraphFixture {
     pub fn rows(&self, sql: &str) -> Vec<Vec<Value>> {
         match self.execute(sql) {
             Ok(result) => result.rows().to_vec(),
-            Err(error) => panic!("query failed: {sql}: {error}"),
+            Err(error) => panic!("query failed with SQLSTATE {}", error.sql_state()),
         }
     }
 
@@ -58,7 +58,7 @@ impl GraphFixture {
     /// Panics when the statement fails.
     pub fn run(&self, sql: &str) {
         if let Err(error) = self.execute(sql) {
-            panic!("statement failed: {sql}: {error}");
+            panic!("statement failed with SQLSTATE {}", error.sql_state());
         }
     }
 
@@ -70,7 +70,7 @@ impl GraphFixture {
     #[must_use]
     pub fn sqlstate(&self, sql: &str) -> String {
         match self.execute(sql) {
-            Ok(_) => panic!("query should fail: {sql}"),
+            Ok(_) => panic!("a statement that should fail succeeded"),
             Err(error) => error.sql_state().to_owned(),
         }
     }

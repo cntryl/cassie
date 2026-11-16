@@ -7,7 +7,7 @@ fn run(cassie: &cassie::app::Cassie, sql: &str) -> Vec<Vec<Value>> {
     let session = cassie.create_session("tester", None);
     match cassie.execute_sql(&session, sql, Vec::new()) {
         Ok(result) => result.rows().to_vec(),
-        Err(error) => panic!("query failed: {sql}: {error}"),
+        Err(error) => panic!("query failed with SQLSTATE {}", error.sql_state()),
     }
 }
 

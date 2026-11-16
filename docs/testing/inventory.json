@@ -325964,7 +325964,7 @@
       "role": "test_support",
       "action": "keep",
       "lines": 113,
-      "sha256": "7998d0c2bcd5cc760a75ebeee2c41d4527aff57bcb1c96081e9b4868a45ef85d",
+      "sha256": "292ae5d0660f51f226e6be2c8a4eedec9b24bfb9f8c209735a0813f70fc00e00",
       "test_declarations": 0,
       "registered_suites": [
         "graph_types"
@@ -326024,7 +326024,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 180,
-      "sha256": "8f356391ac7b31fcbd5f6ed759936d5ef2d6312bcaf705097e2833c20466fbcc",
+      "sha256": "bc94134aca523bd15f2ee68ef852814d291a1cd28e4f50b5769d85aec8db0f18",
       "test_declarations": 5,
       "registered_suites": [
         "graph_types"

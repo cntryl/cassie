@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use super::bindings::Candidate;
 use super::store::Store;
 use super::{QueryError, SourceExecutionEnv};
+use crate::runtime::QueryScoringTestBoundary;
 use crate::sql::ast::GraphSelectorKind;
 
 /// Compares paths lexicographically over `V0, E0, direction0, V1, E1, direction1, V2, ...`.
@@ -51,6 +52,7 @@ pub(super) fn apply(
     env.controls.check_interruption()?;
     let limit = match kind {
         GraphSelectorKind::All => {
+            selection_boundary(env)?;
             candidates.sort_by(|left, right| order(store, left, right));
             return Ok(candidates);
         }
@@ -77,12 +79,21 @@ pub(super) fn apply(
         });
         chosen.extend(group.into_iter().take(limit));
     }
+    selection_boundary(env)?;
     let mut chosen = chosen
         .into_iter()
         .map(|index| std::mem::replace(&mut candidates[index], empty()))
         .collect::<Vec<_>>();
     chosen.sort_by(|left, right| order(store, left, right));
     Ok(chosen)
+}
+
+/// Cancellation and the diagnostic pause just before a (non-interruptible) sort.
+fn selection_boundary(env: &SourceExecutionEnv<'_>) -> Result<(), QueryError> {
+    env.controls
+        .scored_candidate(QueryScoringTestBoundary::GraphSelection)?;
+    env.controls.check_interruption()?;
+    Ok(())
 }
 
 fn empty() -> Candidate {

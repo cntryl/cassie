@@ -364,6 +364,7 @@ fn edge_weights(
             .map(|(_, column)| column.as_str())
             .ok_or_else(invalid_weight)?;
         weights.push(weight(row.get(column))?);
+        env.controls.count_graph_weight_validation(1);
     }
     Ok(weights)
 }

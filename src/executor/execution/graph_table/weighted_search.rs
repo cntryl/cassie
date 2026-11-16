@@ -18,7 +18,7 @@ use super::store::Store;
 use super::weighted_args::{diagnostic, Way};
 use super::{QueryError, SourceExecutionEnv};
 use crate::executor::retained_memory::{add, mul};
-use crate::runtime::QueryMemoryReservation;
+use crate::runtime::{QueryMemoryReservation, QueryScoringTestBoundary};
 use crate::types::extended::numeric::{math, Numeric};
 use crate::types::graph::{Direction, ElementKind, ElementRef, KeyPart, Path};
 
@@ -325,6 +325,9 @@ impl<'a, 'e> Search<'a, 'e> {
             cursor: 0,
         }];
         while let Some(top) = stack.len().checked_sub(1) {
+            self.env
+                .controls
+                .scored_candidate(QueryScoringTestBoundary::GraphWeightedSearch)?;
             self.env.controls.check_interruption()?;
             let hops = top;
             let vertex = stack[top].vertex;

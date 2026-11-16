@@ -41,3 +41,9 @@ mod database_scope;
 
 #[path = "graph_table/persistence.rs"]
 mod persistence;
+
+#[path = "graph_table/cancellation.rs"]
+mod cancellation;
+
+#[path = "graph_table/tie_order.rs"]
+mod tie_order;

@@ -777,7 +777,6 @@ fn is_database_data_key(key: &[u8]) -> bool {
                 | "row-hash"
                 | "range-hash"
                 | "root-hash"
-                | "graph-adjacency"
         )
     )
 }

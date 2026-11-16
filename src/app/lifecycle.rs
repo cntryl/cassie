@@ -197,9 +197,6 @@ impl Cassie {
             .reconcile_time_series_indexes()
             .map_err(|error| CassieError::Storage(format!("time-series recovery: {error}")))?;
         self.midge
-            .reconcile_graph_adjacency()
-            .map_err(|error| CassieError::Storage(format!("graph recovery: {error}")))?;
-        self.midge
             .reconcile_ivfflat_indexes()
             .map_err(|error| CassieError::Storage(format!("IVFFlat recovery: {error}")))?;
 

@@ -7,6 +7,11 @@
 > unbounded WALK is rejected even with a selector; existing graph data requires
 > a preserving conversion; and node-only Dijkstra is not assumed correct for
 > bounded paths. This document does not establish ISO conformance.
+>
+> The "Current implementation" section below describes the legacy `CREATE GRAPH`
+> feature as it was at the baseline. That feature was removed in v0.6.0 without
+> conversion (#1258): the statement, its backing tables, adjacency sidecars, the
+> three table functions, their metrics and their benchmark no longer exist.
 
 Milestone: [v0.6.0 Fast, Idiomatic Graphs](https://github.com/cntryl/cassie/milestone/13).
 Baseline: `main` at `e949a6689` (2026-11-13). Status today: graph traversal is **Experimental**

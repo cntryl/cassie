@@ -11,7 +11,7 @@ use crate::sql::ast::{
     AlterIndexOperation, AlterIndexStatement, AlterRetentionPolicyStatement, AlterRoleStatement,
     AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
     AlterTableStatement, BinaryOp, CallProcedureStatement, CommonTableExpression,
-    CreateDatabaseStatement, CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
+    CreateDatabaseStatement, CreateFunctionStatement, CreateIndexStatement,
     CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
@@ -183,6 +183,8 @@ mod extensions;
 mod graph_table;
 #[path = "parser/graph_table_path.rs"]
 mod graph_table_path;
+#[path = "parser/graph_weighted_call.rs"]
+mod graph_weighted_call;
 #[path = "parser/identifiers.rs"]
 mod identifiers;
 mod lexical;
@@ -250,10 +252,7 @@ use materialized_view::{
     parse_refresh_materialized_view_statement, parse_rename_materialized_view_statement,
 };
 pub(crate) use preflight::preflight_sql;
-use query::{
-    parse_enclosed_parenthesized, parse_projection_items, parse_select_statement,
-    parse_with_statement,
-};
+use query::{parse_projection_items, parse_select_statement, parse_with_statement};
 use retention::{
     parse_alter_retention_policy_statement, parse_create_retention_policy_statement,
     parse_drop_retention_policy_statement, parse_enforce_retention_policy_statement,
@@ -264,8 +263,8 @@ use rollups::{
 use schema::{
     parse_alter_index_statement, parse_alter_role_statement, parse_alter_schema_statement,
     parse_alter_sequence_statement, parse_alter_table_statement, parse_create_database_statement,
-    parse_create_graph_statement, parse_create_index_statement, parse_create_role_statement,
-    parse_create_schema_statement, parse_create_sequence_statement, parse_create_table_statement,
+    parse_create_index_statement, parse_create_role_statement, parse_create_schema_statement,
+    parse_create_sequence_statement, parse_create_table_statement,
     parse_database_connect_privilege_statement, parse_drop_database_statement,
     parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
     parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
@@ -552,8 +551,6 @@ fn parse_table_or_schema_statement(
 ) -> Result<Option<ParsedStatement>, SqlError> {
     if starts_statement(lower, "create table") {
         Ok(Some(parse_create_table_statement(trimmed)?))
-    } else if starts_statement(lower, "create graph") {
-        Ok(Some(parse_create_graph_statement(trimmed)?))
     } else if starts_statement(lower, "create sequence")
         || starts_statement(lower, "create temporary sequence")
         || starts_statement(lower, "create temp sequence")

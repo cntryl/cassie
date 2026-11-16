@@ -205,11 +205,6 @@ impl Policy {
                     self.statement(&query.query)?;
                 }
             }
-            QueryStatement::CreateGraph(definition) => {
-                for field in definition.node_fields.iter().chain(&definition.edge_fields) {
-                    self.constraints(&field.constraints)?;
-                }
-            }
             QueryStatement::AlterTable(definition) => self.alter_table(&definition.operation)?,
             QueryStatement::CreateView(definition) => self.query_sql(&definition.query)?,
             QueryStatement::CreateFunction(definition) => {

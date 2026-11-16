@@ -30,7 +30,6 @@ mod record_function_source;
 #[path = "set_function_source.rs"]
 mod set_function_source;
 use query_cte::parse_cte_definitions;
-pub(super) use query_cte::parse_enclosed_parenthesized;
 
 pub(super) fn parse_select_statement(
     sql: &str,
@@ -876,7 +875,8 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
             let lateral = lateral
                 || crate::sql::functions::is_options_table(&name)
                 || crate::sql::functions::is_identify_object(&name)
-                || crate::sql::functions::graph_types::is_table_function(&name);
+                || crate::sql::functions::graph_types::is_table_function(&name)
+                || crate::sql::functions::graph_weighted::is_weighted_paths(&name);
             return relation_alias::parse(
                 QuerySource::TableFunction {
                     name,
@@ -894,10 +894,7 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
         let lower_name = function.name.to_ascii_lowercase();
         if matches!(
             lower_name.as_str(),
-            "graph_neighbors"
-                | "graph_expand"
-                | "graph_shortest_path"
-                | "pg_show_all_settings"
+            "pg_show_all_settings"
                 | "pg_catalog.pg_show_all_settings"
                 | "pg_input_error_info"
                 | "pg_catalog.pg_input_error_info"

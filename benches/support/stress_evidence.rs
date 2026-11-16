@@ -373,7 +373,6 @@ pub fn scoped_storage_read_observation(
         "/hybrid/posting_reads_total",
         "/hybrid/candidate_row_fetches_total",
         "/hybrid/ann_reads_total",
-        "/graph/reads",
     ]
     .into_iter()
     .map(|pointer| pointer_u64(delta, pointer))
@@ -412,13 +411,6 @@ pub fn scoped_candidate_count(delta: &serde_json::Value, access_family: &str) ->
             .saturating_add(pointer_u64(delta, "/joins/right_input_rows_total"))
     } else if access_family.contains("worker") {
         pointer_u64(delta, "/parallel_aggregation/rows")
-    } else if access_family.contains("graph") {
-        let candidates = pointer_u64(delta, "/graph/candidates");
-        if candidates > 0 {
-            candidates
-        } else {
-            pointer_u64(delta, "/graph/rows")
-        }
     } else if access_family.contains("column") {
         pointer_u64(delta, "/aggregate_acceleration/accelerated_segments")
     } else if access_family.contains("time_series") {

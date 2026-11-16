@@ -135,7 +135,7 @@ pub(crate) fn record_declared_columns(
                 .map(|field| (field.name.clone(), field.data_type.clone()))
                 .collect(),
         ),
-        None => None,
+        Some(TableFunctionForm::GraphElements(_) | TableFunctionForm::Typed(_)) | None => None,
     }
 }
 

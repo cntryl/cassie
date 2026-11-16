@@ -118,3 +118,28 @@ fn should_cancel_a_traversal_at_an_inline_predicate_boundary() {
         Err(error) => assert_eq!(error.sql_state(), "57014"),
     }
 }
+
+#[test]
+fn should_account_projected_path_values_against_the_budget() {
+    // Arrange
+    let pattern = "(s IS node) -[IS link]->{1,2} (t IS node)";
+    let path_query =
+        format!("SELECT * FROM GRAPH_TABLE (g MATCH p = {pattern} COLUMNS (p AS path)) AS t");
+    let scalar_query =
+        format!("SELECT * FROM GRAPH_TABLE (g MATCH {pattern} COLUMNS (s.num AS s)) AS t");
+    let measured = limited(6, 64 * 1024 * 1024);
+    let path_rows = measured.fixture.rows(&path_query).len();
+    let needed = peak(&measured);
+    let scalar = limited(6, 64 * 1024 * 1024);
+    let scalar_rows = scalar.fixture.rows(&scalar_query).len();
+
+    // Act
+    let below = failure(&limited(6, needed - 1), &path_query);
+    let at = limited(6, needed).fixture.rows(&path_query).len();
+
+    // Assert
+    assert_eq!(scalar_rows, 180);
+    assert!(needed > peak(&scalar));
+    assert_eq!(below.sql_state(), "54000");
+    assert_eq!((path_rows, at), (180, 180));
+}

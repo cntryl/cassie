@@ -22,7 +22,6 @@ Status is owned by [Feature Support](feature-support.md); this summary follows t
 | Expression indexes | Experimental | Deterministic expression matching |
 | Full-text indexes | Stable | Cassie inverted index and BM25 support |
 | Vector indexes | Stable | Declared exact, HNSW and IVFFlat candidate/reranking contracts; no pgvector extension ABI promise |
-| Graph adjacency sidecars | Experimental | Outbound/inbound edge traversal for `CREATE GRAPH` backing tables |
 | Time-series indexes | Stable | Fixed positive minute/hour/day UTC widths, bucket-native membership, authoritative fallback, diagnostics and restart-safe metadata |
 | Column-batch indexes | Stable | Covered scans, segment pruning, aggregate acceleration |
 | Retention policies | Experimental | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
@@ -42,7 +41,6 @@ status in the table above applies to both.
 | Scalar btree, unique, partial, expression indexes | Supported | Supported |
 | Full-text BM25, vector HNSW/IVFFlat, hybrid retrieval | Supported | Supported |
 | Time-series indexes | Supported | Supported |
-| Graph backing tables (`CREATE GRAPH`) | Supported | Not available: graph tables stay row-authoritative; converting one fails with `0A000` |
 | `CREATE INDEX ... USING column` (column-batch accelerator) | Supported | `0A000`, nothing published: the table is already column-authoritative |
 
 Equivalence evidence: [constraints](../tests/columnar_surface/constraint_equivalence.rs)
@@ -276,32 +274,15 @@ Current IVFFlat support:
   unsupported shapes fall back to the exact row/vector path. Candidate exhaustion, resource
   bounds and recall retain their [Performance Contracts](performance-contracts.md) requirements.
 
-## Graph Adjacency Sidecars
+## Legacy Graph Adjacency Sidecars
 
-`CREATE GRAPH` creates normal node and edge backing tables plus persisted graph metadata.
-Edge writes maintain outbound and inbound adjacency sidecars keyed by typed source and target ids.
-
-```sql
-CREATE GRAPH social (NODES (label TEXT), EDGES (source TEXT));
-SELECT node_id
-FROM graph_expand('social', 'person', 'alice', 2, 'out', 'knows', 10);
-```
-
-Current guarantee:
-
-- Node identity is `(node_type, node_id)`, with ASCII case-insensitive node types and case-sensitive node ids.
-- Edge rows use typed source/target ids, `edge_type`, and non-negative numeric `weight`.
-- `graph_neighbors`, `graph_expand`, and `graph_shortest_path` are SQL table functions.
-- `graph_shortest_path` returns up to `max_paths` lowest-cost simple paths within `max_depth`, ordered by total weight. A path cannot visit the same typed node twice; traversal is limited by the query's timeout and memory budget.
-- Exact simple-path enumeration can grow exponentially. Exceeding the timeout or memory budget fails the query instead of returning a truncated set of paths.
-- Adjacency sidecars are accelerators; edge row blobs remain authoritative.
-- Dropping a graph node or edge backing collection removes its outbound/inbound adjacency sidecars,
-  including replay after an interrupted schema commit.
-- EXPLAIN reports `access_path=graph_adjacency`, and `/metrics` reports graph traversal counters.
-
-Current limitation:
-
-- Graph support is Cassie-specific and experimental; Cypher, Gremlin, distributed traversal, and graph mutation languages are not supported.
+`CREATE GRAPH`, its fixed node and edge backing tables, its adjacency sidecars and the
+`graph_neighbors`, `graph_expand` and `graph_shortest_path` table functions were removed in
+v0.6.0 without conversion or a compatibility window. Mapped property graphs
+(`CREATE PROPERTY GRAPH` and `GRAPH_TABLE`) replace them and keep no derived state; see the
+[v0.6 graph contract](graph-v060-contract.md). A store that still holds legacy graph definitions
+or adjacency entries has them deleted at startup; the former backing tables remain ordinary
+tables that a property graph may map.
 
 ## Time-Series Indexes
 

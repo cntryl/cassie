@@ -41,7 +41,6 @@ pub enum DocumentWriteFailurePoint {
     Row,
     ScalarIndex,
     TimeSeriesIndex,
-    GraphAdjacency,
     NormalizedVector,
     VectorState,
 }
@@ -52,7 +51,6 @@ impl DocumentWriteFailurePoint {
             Self::Row => 1,
             Self::ScalarIndex => 2,
             Self::TimeSeriesIndex => 3,
-            Self::GraphAdjacency => 4,
             Self::NormalizedVector => 5,
             Self::VectorState => 6,
         }
@@ -63,7 +61,6 @@ impl DocumentWriteFailurePoint {
             Self::Row => "row",
             Self::ScalarIndex => "scalar-index",
             Self::TimeSeriesIndex => "time-series-index",
-            Self::GraphAdjacency => "graph-adjacency",
             Self::NormalizedVector => "normalized-vector",
             Self::VectorState => "vector-state",
         }

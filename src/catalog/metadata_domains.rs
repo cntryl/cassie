@@ -1,9 +1,8 @@
 use super::Catalog;
 use crate::catalog::{
     local_name, name_matches, normalize_role_name, parse_name, ExtensionMeta, FunctionMeta,
-    GraphMeta, MaintenanceDebtMeta, NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind,
-    ProjectionMeta, RetentionPolicyMeta, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta,
-    RollupMeta, ViewMeta,
+    MaintenanceDebtMeta, NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind, ProjectionMeta,
+    RetentionPolicyMeta, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RollupMeta, ViewMeta,
 };
 use std::collections::BTreeSet;
 
@@ -64,55 +63,6 @@ impl Catalog {
                 debt.artifact.to_ascii_lowercase(),
             )
         });
-        out
-    }
-
-    pub fn register_graph(&self, metadata: GraphMeta) {
-        self.graphs
-            .write()
-            .insert(metadata.name.to_ascii_lowercase(), metadata);
-        self.bump_version();
-    }
-
-    #[must_use]
-    pub fn get_graph(&self, name: &str) -> Option<GraphMeta> {
-        let graphs = self.graphs.read();
-        graphs.get(&name.to_ascii_lowercase()).cloned().or_else(|| {
-            graphs
-                .values()
-                .find(|graph| name_matches(&graph.name, name))
-                .cloned()
-        })
-    }
-
-    #[must_use]
-    pub(crate) fn get_graph_exact(&self, name: &str) -> Option<GraphMeta> {
-        self.graphs.read().get(&name.to_ascii_lowercase()).cloned()
-    }
-
-    #[must_use]
-    pub fn graph_exists(&self, name: &str) -> bool {
-        self.get_graph(name).is_some()
-    }
-
-    #[must_use]
-    pub(crate) fn graph_exists_exact(&self, name: &str) -> bool {
-        self.get_graph_exact(name).is_some()
-    }
-
-    #[must_use]
-    pub fn graph_for_edge_collection(&self, collection: &str) -> Option<GraphMeta> {
-        self.graphs
-            .read()
-            .values()
-            .find(|graph| graph.edge_collection.eq_ignore_ascii_case(collection))
-            .cloned()
-    }
-
-    #[must_use]
-    pub fn list_graphs(&self) -> Vec<GraphMeta> {
-        let mut out = self.graphs.read().values().cloned().collect::<Vec<_>>();
-        out.sort_by_key(|graph| graph.name.to_ascii_lowercase());
         out
     }
 

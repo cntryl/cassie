@@ -27,3 +27,6 @@ mod storage;
 
 #[path = "graph_types/wire.rs"]
 mod wire;
+
+#[path = "graph_types/projected_paths.rs"]
+mod projected_paths;

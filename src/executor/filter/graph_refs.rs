@@ -41,18 +41,27 @@ pub(super) fn evaluate(
     let (catalog, binding, midge) = session
         .sequence_context()
         .ok_or_else(|| failure("XX000", "cassie_graph functions require storage"))?;
-    let definition = crate::sql::binder::resolve_existing_name(graph, &binding, |candidate| {
-        catalog.get_property_graph(candidate).is_some()
-    })
-    .map_err(QueryError::Cassie)
-    .ok()
-    .and_then(|name| catalog.get_property_graph(&name))
-    .ok_or_else(|| {
-        failure(
-            "42704",
-            format!("property graph \"{graph}\" does not exist"),
-        )
-    })?;
+    // An instance that does not enforce database scoping stores names unqualified; the
+    // statement binder resolves those through an unscoped context, so the same is tried here.
+    let unscoped = crate::sql::binder::BindingContext::unscoped(
+        binding.database.clone(),
+        binding.search_path.clone(),
+    );
+    let definition = [&binding, &unscoped]
+        .into_iter()
+        .find_map(|context| {
+            crate::sql::binder::resolve_existing_name(graph, context, |candidate| {
+                catalog.get_property_graph(candidate).is_some()
+            })
+            .ok()
+            .and_then(|name| catalog.get_property_graph(&name))
+        })
+        .ok_or_else(|| {
+            failure(
+                "42704",
+                format!("property graph \"{graph}\" does not exist"),
+            )
+        })?;
     let resolved =
         ResolvedMapping::by_alias(&definition, mapping, kind).map_err(QueryError::Cassie)?;
     resolved.check_key(&key).map_err(QueryError::Cassie)?;

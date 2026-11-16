@@ -146,7 +146,6 @@ impl Midge {
                 "collection cleanup requires a persisted relation identity".to_string(),
             ));
         }
-        let canonical_name = self.canonical_collection_name(name);
         let mut data_tx = self.begin_data_rw_tx_for(name)?;
         let mut document_keys = Vec::new();
         let mut data_prefixes = Vec::new();
@@ -170,18 +169,6 @@ impl Midge {
                 Self::row_hash_prefix(name),
                 Self::range_hash_prefix(name),
             ]);
-            data_prefixes.extend(
-                self.list_graphs()?
-                    .into_iter()
-                    .filter(|graph| {
-                        self.canonical_collection_name(&graph.node_collection)
-                            .eq_ignore_ascii_case(&canonical_name)
-                            || self
-                                .canonical_collection_name(&graph.edge_collection)
-                                .eq_ignore_ascii_case(&canonical_name)
-                    })
-                    .map(|graph| Self::graph_adjacency_prefix(graph.storage_id)),
-            );
         }
         for data_prefix in data_prefixes {
             let documents = collect_scan(

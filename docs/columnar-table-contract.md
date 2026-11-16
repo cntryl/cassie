@@ -94,10 +94,9 @@ Not supported, rejected with `0A000` before any change:
 - `CREATE INDEX ... USING column` on a column table, because it is already
   column-authoritative.
 - Any table access method other than `heap` and `columnar`.
-- Graphs. `CREATE GRAPH` node and edge backing tables are always
-  row-authoritative, and `ALTER TABLE ... SET ACCESS METHOD columnar` on one
-  fails. Graph traversal does not need column storage (owner direction,
-  2026-11-13).
+- The removed `CREATE GRAPH` backing tables. That feature was removed in
+  v0.6.0; mapped property graphs read row-authoritative and column-authoritative
+  tables alike.
 
 ## Write and transaction semantics
 

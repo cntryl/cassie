@@ -180,11 +180,9 @@ fn should_reject_fresh_loaders_for_a_column_table() {
     // Act
     let fresh = midge.put_fresh_documents(TABLE, document());
     let time_series = midge.put_fresh_time_series_documents(TABLE, document());
-    let graph = midge.put_fresh_graph_documents(TABLE, document());
 
     // Assert
     assert!(fresh.is_err());
     assert!(time_series.is_err());
-    assert!(graph.is_err());
     env.assert_column_authority(TABLE, 3, FIELDS, "fresh loaders");
 }

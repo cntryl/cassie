@@ -541,19 +541,52 @@ fn should_reject_an_element_variable_projected_whole() {
 // Path-valued projections.
 
 #[test]
-fn should_report_path_valued_columns_as_not_yet_supported() {
+fn should_bind_a_projected_path_variable_as_the_graph_path_type() {
+    // Arrange
+    let (cassie, root) = fixture();
+    let sql = "SELECT pg_typeof(g.path)::text FROM GRAPH_TABLE (social MATCH \
+               p = (a IS person) -[e IS knows]->{0,2} (b IS person) COLUMNS (p AS path)) AS g";
+
+    // Act
+    let rows = succeed(&cassie, &root, sql);
+
+    // Assert
+    assert_eq!(rows.len(), 1);
+    assert!(rows
+        .iter()
+        .all(|row| row == &vec![Value::String("cassie_graph.graph_path".to_owned())]));
+}
+
+#[test]
+fn should_refuse_a_path_variable_inside_an_expression_with_0a000() {
     // Arrange
     let (cassie, root) = fixture();
     let sql = graph_from(
-        "social MATCH p = (a IS person) -[e IS knows]->{0,2} (b IS person) COLUMNS (p AS path)",
+        "social MATCH p = (a IS person) -[e IS knows]->{0,2} (b IS person) \
+         COLUMNS (cassie_graph.path_to_jsonb(p) AS document)",
     );
 
     // Act
-    let (state, message) = failure(&cassie, &root, &sql);
+    let (state, _) = failure(&cassie, &root, &sql);
 
     // Assert
     assert_eq!(state, "0A000");
-    assert!(message.contains("graph_path"));
+}
+
+#[test]
+fn should_refuse_a_path_variable_in_the_pattern_where_with_0a000() {
+    // Arrange
+    let (cassie, root) = fixture();
+    let sql = graph_from(
+        "social MATCH p = (a IS person) -[e IS knows]-> (b IS person) \
+         WHERE p IS NOT NULL COLUMNS (a.id AS pid)",
+    );
+
+    // Act
+    let (state, _) = failure(&cassie, &root, &sql);
+
+    // Assert
+    assert_eq!(state, "0A000");
 }
 
 // Output schema.

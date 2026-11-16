@@ -134,7 +134,6 @@ pub enum QueryStatement {
     Transaction(TransactionStatement),
     SessionObject(SessionObjectStatement),
     CreateTable(CreateTableStatement),
-    CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSequence(CreateSequenceStatement),
@@ -363,14 +362,6 @@ pub struct CreateTableStatement {
     pub as_query: Option<CreateTableAsClause>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub like: Option<CreateTableLikeClause>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateGraphStatement {
-    pub name: String,
-    pub if_not_exists: bool,
-    pub node_fields: Vec<FieldDefinition>,
-    pub edge_fields: Vec<FieldDefinition>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -44,6 +44,8 @@ mod table_functions;
 pub(crate) mod unary_numeric;
 #[path = "binder/values.rs"]
 pub(crate) mod values;
+#[path = "binder/weighted_paths.rs"]
+mod weighted_paths;
 pub(crate) use coalesce_coercion::has_float_domain as coalesce_has_float_domain;
 mod coalesce_coercion;
 mod result_coercion;
@@ -206,8 +208,8 @@ use routines::{
     bind_drop_procedure,
 };
 use schema::{
-    bind_alter_schema, bind_alter_table, bind_create_graph, bind_create_index, bind_create_table,
-    bind_create_view, bind_drop_index, bind_drop_schema, bind_drop_table, bind_drop_view,
+    bind_alter_schema, bind_alter_table, bind_create_index, bind_create_table, bind_create_view,
+    bind_drop_index, bind_drop_schema, bind_drop_table, bind_drop_view,
 };
 use schema_sequences::{bind_create_sequence, bind_drop_sequence};
 use select::bind_select;
@@ -632,11 +634,6 @@ fn bind_catalog_definition_route(
             raw_sql,
             bind_create_table(statement, catalog, context),
             QueryStatement::CreateTable,
-        ),
-        CatalogStatement::CreateGraph(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_graph(statement, catalog, context),
-            QueryStatement::CreateGraph,
         ),
         CatalogStatement::DropTable(statement) => bind_catalog_statement(
             raw_sql,

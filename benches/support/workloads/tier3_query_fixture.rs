@@ -15,7 +15,6 @@ use super::document_batches::bench_document_write_batch_ranges;
 
 const JOIN_USERS: &str = "bench_join_users";
 const JOIN_ORDERS: &str = "bench_join_orders";
-const GRAPH: &str = "bench_graph";
 const TIME_SERIES: &str = "bench_time_series_events";
 
 pub fn tier3_query_context(
@@ -80,23 +79,6 @@ pub fn empty_tier3_query_context(
     ready(empty_tier3_query_context_now(label, dataset_rows))
 }
 
-pub const AUTHORITATIVE_GRAPH_QUERY_MEMORY_BYTES: usize = 128 * 1024 * 1024;
-pub const AUTHORITATIVE_GRAPH_RESOURCE_PROFILE: &str = "authoritative_graph_100k_128m";
-
-pub fn tier3_authoritative_graph_context(
-    label: &str,
-    dataset_rows: usize,
-) -> Ready<Result<BenchContext, CassieError>> {
-    ready(
-        empty_tier3_query_context_with_memory_now(
-            label,
-            dataset_rows,
-            AUTHORITATIVE_GRAPH_QUERY_MEMORY_BYTES,
-        )
-        .and_then(|context| prepare_graph(&context, dataset_rows).map(|()| context)),
-    )
-}
-
 fn empty_tier3_query_context_now(
     label: &str,
     dataset_rows: usize,
@@ -143,7 +125,6 @@ fn empty_tier3_query_context_with_memory_now(
 #[derive(Debug, Clone, Copy)]
 pub struct Tier3QueryDomains {
     pub join: bool,
-    pub graph: bool,
     pub time_series: bool,
 }
 
@@ -154,9 +135,6 @@ pub fn prepare_tier3_query_domains(
 ) -> Result<(), CassieError> {
     if domains.join {
         prepare_join_collections(context, dataset_rows)?;
-    }
-    if domains.graph {
-        prepare_graph(context, dataset_rows)?;
     }
     if domains.time_series {
         prepare_time_series(context, dataset_rows, "1 hour")?;
@@ -219,62 +197,6 @@ fn prepare_join_collections(
             .cassie
             .midge
             .put_fresh_documents(JOIN_ORDERS, orders)
-            .map(|_| ())
-    })?;
-    Ok(())
-}
-
-fn prepare_graph(context: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
-    if context.cassie.catalog.graph_exists(GRAPH) {
-        return Ok(());
-    }
-
-    execute_ddl(
-        context,
-        "CREATE GRAPH bench_graph (NODES (label TEXT), EDGES (source TEXT))",
-    )?;
-    for_each_tier3_domain_batch(dataset_rows, "graph nodes", |range| {
-        let nodes = range
-            .map(|index| {
-                (
-                    Some(format!("node-{index}")),
-                    json!({
-                        "node_type": "doc",
-                        "node_id": format!("node-{index}"),
-                        "label": format!("Node {index}"),
-                    }),
-                )
-            })
-            .collect::<Vec<_>>();
-        context
-            .cassie
-            .midge
-            .put_fresh_graph_documents("bench_graph_nodes", nodes)
-            .map(|_| ())
-    })?;
-
-    for_each_tier3_domain_batch(dataset_rows.saturating_sub(1), "graph edges", |range| {
-        let edges = range
-            .map(|index| {
-                (
-                    Some(format!("edge-{index}")),
-                    json!({
-                        "edge_id": format!("edge-{index}"),
-                        "source_type": "doc",
-                        "source_id": format!("node-{index}"),
-                        "target_type": "doc",
-                        "target_id": format!("node-{}", index + 1),
-                        "edge_type": "links",
-                        "weight": 1,
-                        "source": "bench",
-                    }),
-                )
-            })
-            .collect::<Vec<_>>();
-        context
-            .cassie
-            .midge
-            .put_fresh_graph_documents("bench_graph_edges", edges)
             .map(|_| ())
     })?;
     Ok(())

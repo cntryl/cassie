@@ -21,6 +21,15 @@ pub(crate) fn derived_source_schema(
     derived_source_schema_with_parameters(source, ctes, catalog, user_functions, &[])
 }
 
+/// Table functions whose output columns are typed in result metadata: the generated
+/// sources, the `cassie_graph` step and key-part relations (#1256) and
+/// `graph_weighted_paths` (#1258).
+fn described_source(name: &str) -> bool {
+    crate::sql::table_sources::is_generated(name)
+        || crate::sql::functions::graph_types::is_table_function(name)
+        || crate::sql::functions::graph_weighted::is_weighted_paths(name)
+}
+
 pub(crate) fn derived_source_schema_with_parameters(
     source: &QuerySource,
     ctes: &[CommonTableExpression],
@@ -45,7 +54,7 @@ pub(crate) fn derived_source_schema_with_parameters(
         ) || matches!(
             inner.as_ref(),
             QuerySource::TableFunction { function, .. }
-                if crate::sql::table_sources::is_generated(&function.name)
+                if described_source(&function.name)
         ) =>
         {
             let schema = infer_source_schema_with_parameters(
@@ -59,9 +68,7 @@ pub(crate) fn derived_source_schema_with_parameters(
             .ok()?;
             (alias, schema)
         }
-        QuerySource::TableFunction { name, function, .. }
-            if crate::sql::table_sources::is_generated(&function.name) =>
-        {
+        QuerySource::TableFunction { name, function, .. } if described_source(&function.name) => {
             let schema = infer_source_schema_with_parameters(
                 source,
                 catalog,

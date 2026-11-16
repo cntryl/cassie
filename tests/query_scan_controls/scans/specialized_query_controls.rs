@@ -16,15 +16,13 @@ enum AnalyticalFamily {
     TimeSeries,
     ColumnProjection,
     ColumnAggregate,
-    Graph,
 }
 
 impl AnalyticalFamily {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 3] = [
         Self::TimeSeries,
         Self::ColumnProjection,
         Self::ColumnAggregate,
-        Self::Graph,
     ];
 
     const fn label(self) -> &'static str {
@@ -32,7 +30,6 @@ impl AnalyticalFamily {
             Self::TimeSeries => "time-series",
             Self::ColumnProjection => "column-projection",
             Self::ColumnAggregate => "column-aggregate",
-            Self::Graph => "graph",
         }
     }
 
@@ -47,9 +44,6 @@ impl AnalyticalFamily {
             Self::ColumnAggregate => {
                 "SELECT COUNT(*), SUM(score), AVG(score) FROM controlled_column_aggregate"
             }
-            Self::Graph => {
-                "SELECT edge_id, node_id, cost FROM graph_neighbors('controlled_graph', 'person', 'root', 'out', 'knows', 5) LIMIT 5"
-            }
         }
     }
 
@@ -62,7 +56,6 @@ impl AnalyticalFamily {
             Self::ColumnAggregate => metrics["aggregate_acceleration"]["scans"]
                 .as_u64()
                 .unwrap_or_default(),
-            Self::Graph => metrics["graph"]["traversals"].as_u64().unwrap_or_default(),
         }
     }
 
@@ -70,7 +63,6 @@ impl AnalyticalFamily {
         match self {
             Self::TimeSeries => (3 * FIXTURE_ROWS + 1) as u64,
             Self::ColumnProjection | Self::ColumnAggregate => FIXTURE_ROWS as u64,
-            Self::Graph => (5 * FIXTURE_ROWS + 1 + RESULT_LIMIT) as u64,
         }
     }
 }
@@ -82,7 +74,6 @@ struct Fixture {
 
 struct FallbackEvidence {
     rows: Vec<Vec<cassie::types::Value>>,
-    overlay_metrics: Option<serde_json::Value>,
     final_metrics: serde_json::Value,
 }
 
@@ -169,7 +160,6 @@ fn seed_family(cassie: &Cassie, session: &CassieSession, family: AnalyticalFamil
         AnalyticalFamily::ColumnAggregate => {
             seed_column(cassie, session, "controlled_column_aggregate");
         }
-        AnalyticalFamily::Graph => seed_graph(cassie, session),
     }
 }
 
@@ -234,31 +224,6 @@ fn seed_column(cassie: &Cassie, session: &CassieSession, table: &str) {
     );
 }
 
-fn seed_graph(cassie: &Cassie, session: &CassieSession) {
-    execute(cassie, session, "CREATE GRAPH controlled_graph");
-    let rows = (0..FIXTURE_ROWS)
-        .map(|index| {
-            let edge_id = format!("edge-{index:04}");
-            (
-                Some(edge_id.clone()),
-                json!({
-                    "edge_id": edge_id,
-                    "source_type": "person",
-                    "source_id": "root",
-                    "target_type": "person",
-                    "target_id": format!("node-{index:04}-{}", "x".repeat(256)),
-                    "edge_type": "knows",
-                    "weight": index,
-                }),
-            )
-        })
-        .collect();
-    cassie
-        .midge
-        .put_fresh_graph_documents("controlled_graph_edges", rows)
-        .expect("seed graph edges");
-}
-
 fn metric(metrics: &serde_json::Value, family: &str, name: &str) -> u64 {
     metrics[family][name].as_u64().unwrap_or_default()
 }
@@ -298,12 +263,6 @@ fn assert_failed_path_metrics_unchanged(
             ("aggregate_acceleration", "row_blob_fallbacks"),
             ("column_batches", "fallback_scans"),
         ],
-        AnalyticalFamily::Graph => &[
-            ("graph", "traversals"),
-            ("graph", "rows"),
-            ("graph", "reads"),
-            ("graph", "candidates"),
-        ],
     };
     for (metric_family, name) in fields {
         assert_eq!(
@@ -338,14 +297,6 @@ fn exact_fallback_evidence(family: AnalyticalFamily, fixture: &Fixture) -> Fallb
             &fixture.session,
             "DROP INDEX controlled_column_aggregate_idx ON controlled_column_aggregate",
         ),
-        AnalyticalFamily::Graph => {
-            execute(&fixture.cassie, &fixture.session, "BEGIN");
-            execute(
-                &fixture.cassie,
-                &fixture.session,
-                "INSERT INTO controlled_graph_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('edge-extra', 'person', 'root', 'person', 'node-extra', 'knows', 0)",
-            );
-        }
     }
     let rows = fixture
         .cassie
@@ -353,24 +304,8 @@ fn exact_fallback_evidence(family: AnalyticalFamily, fixture: &Fixture) -> Fallb
         .expect("exact controlled fallback")
         .rows()
         .to_vec();
-    if matches!(family, AnalyticalFamily::Graph) {
-        let overlay_metrics = fixture.cassie.metrics();
-        execute(&fixture.cassie, &fixture.session, "COMMIT");
-        let committed_result = fixture
-            .cassie
-            .execute_sql(&fixture.session, family.query(), vec![])
-            .expect("committed native graph query");
-        let committed = committed_result.rows();
-        assert_eq!(rows, committed, "graph overlay/native equivalence");
-        return FallbackEvidence {
-            rows,
-            overlay_metrics: Some(overlay_metrics),
-            final_metrics: fixture.cassie.metrics(),
-        };
-    }
     FallbackEvidence {
         rows,
-        overlay_metrics: None,
         final_metrics: fixture.cassie.metrics(),
     }
 }
@@ -421,13 +356,6 @@ fn assert_success_metrics(
                 - metric(before, "aggregate_acceleration", "accelerated_segments"),
             (2 * FIXTURE_ROWS) as u64
         ),
-        AnalyticalFamily::Graph => {
-            assert!(
-                metric(after, "graph", "last_reads")
-                    <= (5 * FIXTURE_ROWS + 1 + RESULT_LIMIT) as u64
-            );
-            assert!(metric(after, "graph", "last_candidates") <= FIXTURE_ROWS as u64);
-        }
     }
 }
 
@@ -518,47 +446,6 @@ fn should_cancel_each_analytical_path_after_three_controlled_reads_without_parti
     }
 }
 
-fn assert_graph_fallback_metrics(
-    fallback: &FallbackEvidence,
-    selected_metrics: &serde_json::Value,
-) {
-    let final_metrics = &fallback.final_metrics;
-    let overlay_metrics = fallback
-        .overlay_metrics
-        .as_ref()
-        .expect("graph overlay metrics");
-    assert_eq!(
-        metric(overlay_metrics, "graph", "traversals")
-            - metric(selected_metrics, "graph", "traversals"),
-        1
-    );
-    assert_eq!(
-        overlay_metrics["graph"]["last_fallback_reason"].as_str(),
-        Some("transaction-overlay")
-    );
-    assert!(metric(overlay_metrics, "graph", "last_reads") <= 65);
-    assert!(metric(overlay_metrics, "graph", "last_candidates") <= 65);
-    assert!(
-        metric(overlay_metrics, "graph", "reads") - metric(selected_metrics, "graph", "reads")
-            <= 65
-    );
-    assert!(
-        metric(overlay_metrics, "graph", "candidates")
-            - metric(selected_metrics, "graph", "candidates")
-            <= 65
-    );
-    assert_eq!(
-        metric(final_metrics, "graph", "traversals")
-            - metric(overlay_metrics, "graph", "traversals"),
-        1
-    );
-    assert!(
-        metric(final_metrics, "graph", "last_reads")
-            <= (5 * (FIXTURE_ROWS + 1) + 1 + RESULT_LIMIT) as u64
-    );
-    assert!(metric(final_metrics, "graph", "last_candidates") <= FIXTURE_ROWS as u64);
-}
-
 #[test]
 fn should_publish_only_deterministic_bounded_final_analytical_paths() {
     let _hook_guard = query_scan_control_test_guard();
@@ -588,22 +475,12 @@ fn should_publish_only_deterministic_bounded_final_analytical_paths() {
 
         // Assert
         assert_eq!(first.rows(), second.rows(), "{} ordering", family.label());
-        if matches!(family, AnalyticalFamily::Graph) {
-            assert_ne!(fallback.rows, first.rows(), "graph overlay visibility");
-            assert!(
-                fallback.rows.iter().any(|row| {
-                    row.first() == Some(&cassie::types::Value::String("edge-extra".to_string()))
-                }),
-                "graph overlay row visibility"
-            );
-        } else {
-            assert_eq!(
-                fallback.rows,
-                first.rows(),
-                "{} exact fallback",
-                family.label()
-            );
-        }
+        assert_eq!(
+            fallback.rows,
+            first.rows(),
+            "{} exact fallback",
+            family.label()
+        );
         if matches!(family, AnalyticalFamily::ColumnAggregate) {
             assert_eq!(
                 first.rows(),
@@ -623,16 +500,12 @@ fn should_publish_only_deterministic_bounded_final_analytical_paths() {
             "{} controlled read bound: {selected_reads}",
             family.label()
         );
-        if matches!(family, AnalyticalFamily::Graph) {
-            assert_graph_fallback_metrics(&fallback, &selected_metrics);
-        } else {
-            assert_eq!(
-                family.successful_paths(final_metrics),
-                family.successful_paths(&selected_metrics),
-                "{} fallback published accelerator success",
-                family.label()
-            );
-        }
+        assert_eq!(
+            family.successful_paths(final_metrics),
+            family.successful_paths(&selected_metrics),
+            "{} fallback published accelerator success",
+            family.label()
+        );
         drop((first, second));
         assert_query_cleanup(&fixture.cassie);
         fixture.cleanup();

@@ -4,8 +4,6 @@
 
 #[path = "support/column_store_controls.rs"]
 mod support_column_store_controls;
-#[path = "support/graph_evidence.rs"]
-mod support_graph_evidence;
 use cassie_test_support::support_pgwire;
 use cassie_test_support::support_sql;
 
@@ -34,10 +32,6 @@ mod vector_ann_concurrency;
 // Formerly tests/rest_request_cancellation.rs.
 #[path = "query_scan_controls/cancellation/request_cancellation.rs"]
 mod rest_request_cancellation;
-
-// Formerly tests/graph_resilience.rs.
-#[path = "query_scan_controls/scans/graph_resilience.rs"]
-mod graph_resilience;
 
 // Formerly tests/query_resource_controls.rs.
 #[path = "query_scan_controls/resources/query_resource_controls.rs"]

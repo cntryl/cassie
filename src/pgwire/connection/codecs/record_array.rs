@@ -61,6 +61,15 @@ pub(in crate::pgwire::connection) fn encode(
     }
 }
 
+/// The `array_send` bytes of a composite array nested as a record field.
+///
+/// # Errors
+///
+/// Returns an error for a value that is not an array of `descriptor` records.
+pub(super) fn encode_nested(value: &Value, descriptor: &CompositeRef) -> io::Result<Vec<u8>> {
+    binary(&typed(value, descriptor)?, descriptor)
+}
+
 /// PostgreSQL `array_send`: dimension count, null flag, element type OID, one
 /// `(length, lower bound)` pair per dimension, then each element as a length
 /// and its `record_send` bytes (`-1` for SQL NULL).

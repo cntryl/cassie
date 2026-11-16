@@ -13,7 +13,7 @@ pub enum ReadAccessPath {
     PrefixScan,
     RangeScan,
     OrderedBoundedScan,
-    GraphAdjacency,
+    TableFunction,
     RuntimeJoin,
 }
 
@@ -27,7 +27,7 @@ impl ReadAccessPath {
             Self::PrefixScan => "prefix_scan",
             Self::RangeScan => "range_scan",
             Self::OrderedBoundedScan => "ordered_bounded_scan",
-            Self::GraphAdjacency => "graph_adjacency",
+            Self::TableFunction => "table_function",
             Self::RuntimeJoin => "runtime_join",
         }
     }

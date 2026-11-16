@@ -4,6 +4,7 @@ use std::mem::size_of;
 
 use super::bindings::{scalar_entries, Candidate};
 use super::eval::Evaluator;
+use super::path_value::PathBuilder;
 use super::plan::Plan;
 use super::store::Store;
 use super::BatchRow;
@@ -11,6 +12,7 @@ use super::QueryError;
 use super::SourceExecutionEnv;
 use crate::executor::retained_memory::{add, value_clone_bytes};
 use crate::runtime::QueryMemoryReservation;
+use crate::sql::ast::Expr;
 
 /// One output row per selected path whose pattern `WHERE` is TRUE.
 ///
@@ -30,6 +32,13 @@ pub(super) fn rows(
     let names = (0..table.columns.len())
         .map(crate::sql::table_sources::physical_name)
         .collect::<Vec<_>>();
+    let is_path = |expr: &Expr| matches!((expr, &table.path_variable), (Expr::Column(name), Some(path)) if name == path);
+    let paths = table
+        .columns
+        .iter()
+        .any(|column| is_path(&column.expr))
+        .then(|| PathBuilder::new(env, &plan.graph))
+        .transpose()?;
     let mut out = Vec::new();
     for path in selected {
         env.controls.check_interruption()?;
@@ -42,7 +51,10 @@ pub(super) fn rows(
         let mut values = Vec::with_capacity(names.len());
         let mut bytes = size_of::<BatchRow>() + 64;
         for (name, column) in names.iter().zip(&table.columns) {
-            let value = eval.value(&column.expr, entries.clone())?;
+            let value = match &paths {
+                Some(builder) if is_path(&column.expr) => builder.value(env, store, path)?,
+                _ => eval.value(&column.expr, entries.clone())?,
+            };
             bytes = add(
                 bytes,
                 add(name.capacity() + 64, value_clone_bytes(&value)?)?,

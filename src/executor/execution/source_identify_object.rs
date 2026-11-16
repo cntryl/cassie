@@ -1,7 +1,7 @@
 //! `pg_identify_object(classid, objid, objsubid)` as a FROM source.
 use super::{
-    batch, finalize_source_batches, graph, BatchRow, QueryError, SourceExecution,
-    SourceExecutionEnv, Value,
+    batch, finalize_source_batches, BatchRow, QueryError, SourceExecution, SourceExecutionEnv,
+    Value,
 };
 use crate::app::DiagnosticError;
 use crate::catalog::object_identity::{ObjectIdentity, ObjectScope};
@@ -26,7 +26,7 @@ pub(super) fn execute(
             })
             .collect::<Result<Vec<_>, QueryError>>()?
     } else {
-        graph::evaluate_args(env, function, outer_row)?
+        super::source_table_function::evaluate_args(env, function, outer_row)?
     };
     let [class_id, object_id, sub_id] = args.as_slice() else {
         return Err(wrong_argument_type());

@@ -52,13 +52,27 @@ pub(super) fn insert_type(types: &mut FieldTypeMap, name: &str, data_type: &Data
     }
 }
 
-/// #1268: a path variable projects a `cassie_graph.graph_path` value. The composite types
-/// are built in another lane, so every use of a path variable ends here.
-pub(super) fn path_valued_column(variable: &str) -> CassieError {
+/// A path variable is a `cassie_graph.graph_path` value. The contract defines only its
+/// projection: it is not a scalar, has no properties and takes part in no other expression.
+fn path_valued_use(variable: &str) -> CassieError {
     unsupported(format!(
-        "path variable \"{variable}\" cannot be used yet: cassie_graph.graph_path values are \
-         not available"
+        "path variable \"{variable}\" can only be projected directly as a COLUMNS item, \
+         not used inside an expression or predicate"
     ))
+}
+
+/// Whether `expr` is exactly a reference to the path variable of the pattern: the one
+/// expression that projects a `cassie_graph.graph_path` value.
+pub(super) fn is_path_projection(expr: &Expr, scope: &Scope<'_, '_>) -> bool {
+    let Expr::Column(name) = expr else {
+        return false;
+    };
+    ColumnIdentifierPath::parse(name).is_ok_and(|path| {
+        !path.is_qualified()
+            && scope
+                .variable(path.final_name())
+                .is_some_and(|variable| variable.kind == GraphVariableKind::Path)
+    })
 }
 
 /// Checks every reference of `expr`. `own_group` names the quantified edge variable whose
@@ -132,7 +146,7 @@ fn check_property(
 
 fn bare_variable(variable: &Variable<'_>) -> CassieError {
     match variable.kind {
-        GraphVariableKind::Path => path_valued_column(&variable.name),
+        GraphVariableKind::Path => path_valued_use(&variable.name),
         GraphVariableKind::Vertex | GraphVariableKind::Edge if variable.group => {
             unsupported(format!(
                 "direct scalar use of the group variable \"{}\" is not supported",

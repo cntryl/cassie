@@ -153,7 +153,7 @@ active branch protection.
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
 - The [Query Promotion Evidence](query-promotion-evidence.md) inventory maps each optimized query
   family to an independent baseline and retained evidence. Seeded differential cases cover scalar
-  pagination and overlays, native-versus-adjacency graph reads, join and CTE rewrites, window ties
+  pagination and overlays, mapped-graph reads against the independent oracle, join and CTE rewrites, window ties
   and null ordering, and insertion-order permutations. These close #11's evidence gaps without
   changing Experimental feature status; each family still requires its named feature-owner and
   operational promotion review.

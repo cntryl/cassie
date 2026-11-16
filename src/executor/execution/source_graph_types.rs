@@ -2,8 +2,8 @@
 //! sources (#1268). The rows are computed from the supplied value alone: the
 //! functions never consult current graph rows.
 use super::{
-    batch, finalize_source_batches, graph, BatchRow, QueryError, SourceExecution,
-    SourceExecutionEnv, Value,
+    batch, finalize_source_batches, BatchRow, QueryError, SourceExecution, SourceExecutionEnv,
+    Value,
 };
 use crate::app::{CassieError, DiagnosticError};
 use crate::types::extended::numeric::math;
@@ -34,7 +34,7 @@ fn execute(
     outer_row: Option<&BatchRow>,
     qualify: bool,
 ) -> SourceExecution {
-    let args = graph::evaluate_args(env, function, outer_row)?;
+    let args = super::source_table_function::evaluate_args(env, function, outer_row)?;
     let local = name.rsplit('.').next().unwrap_or(name);
     let rows = match (local, args.as_slice()) {
         ("key_parts", [reference]) => key_part_rows(reference)?,

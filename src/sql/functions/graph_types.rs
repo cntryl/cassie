@@ -105,11 +105,27 @@ pub(crate) fn table_arity(name: &str) -> usize {
     }
 }
 
-/// Output columns of a table function. The element columns are typed by the
-/// records themselves at execution (the descriptor is per database), so the
-/// static schema leaves them untyped.
+/// Whether the `vertex` and `edge` columns of `name` are `graph_element_ref`s.
+pub(crate) fn has_element_columns(name: &str) -> bool {
+    TABLE_FUNCTIONS[1..]
+        .iter()
+        .any(|function| function.eq_ignore_ascii_case(name))
+}
+
+/// Output columns of a table function with the element columns untyped, for callers with
+/// no catalog. The descriptor is per database, so the binder resolves it and the typed
+/// columns come from [`table_columns_typed`].
 pub(crate) fn table_columns(name: &str) -> Option<Vec<(String, DataType)>> {
-    let element = DataType::Null;
+    table_columns_typed(name, &DataType::Null)
+}
+
+/// Output columns of a table function whose `vertex` and `edge` columns have the
+/// `element` type.
+pub(crate) fn table_columns_typed(
+    name: &str,
+    element: &DataType,
+) -> Option<Vec<(String, DataType)>> {
+    let element = element.clone();
     let columns: Vec<(&str, DataType)> = if name.eq_ignore_ascii_case(TABLE_FUNCTIONS[0]) {
         vec![
             ("ordinal", DataType::BigInt),

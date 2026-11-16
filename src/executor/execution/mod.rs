@@ -140,7 +140,6 @@ pub(crate) fn delete_document_with_referential_actions(
         cancellation,
     )
 }
-mod graph_command;
 mod identity_alter;
 mod materialized_projection;
 mod materialized_view_rename;
@@ -201,7 +200,6 @@ mod time_series_read;
 
 mod fulltext_options;
 pub(crate) use fulltext_options::load_fulltext_index_options;
-mod graph;
 mod statement_data_dependency;
 pub(crate) use statement_data_dependency::plan_needs_statement_data;
 mod plan_inspection;

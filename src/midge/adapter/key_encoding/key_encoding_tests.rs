@@ -187,14 +187,6 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
     let reservation_index_parts = reservation_index
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
-    let graph_out = graph_outbound_prefix(13, "person", "a1");
-    let graph_in = graph_inbound_prefix(13, "person", "a1");
-    let graph_out_parts = graph_out
-        .split(|byte| *byte == LexKey::SEPARATOR)
-        .collect::<Vec<_>>();
-    let graph_in_parts = graph_in
-        .split(|byte| *byte == LexKey::SEPARATOR)
-        .collect::<Vec<_>>();
     let fulltext_metadata = fulltext_index_key(7, 11);
     let fulltext_metadata_parts = fulltext_metadata
         .split(|byte| *byte == LexKey::SEPARATOR)
@@ -223,10 +215,6 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
         .iter()
         .any(|part| part == b"constraint"));
     assert!(!reservation_index_parts.iter().any(|part| part == b"index"));
-    assert!(
-        !graph_out_parts.iter().any(|part| part == b"out")
-            && !graph_in_parts.iter().any(|part| part == b"in")
-    );
     assert!(!fulltext_metadata_parts
         .iter()
         .any(|part| part == b"metadata"));

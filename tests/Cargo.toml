@@ -91,6 +91,10 @@ name = "graph_table"
 path = "graph_table.rs"
 
 [[test]]
+name = "graph_weighted"
+path = "graph_weighted.rs"
+
+[[test]]
 name = "domain_types"
 path = "domain_types.rs"
 

@@ -1,6 +1,6 @@
 use super::super::command_output::empty as empty_command;
 use super::super::{catalog, Cassie, QueryError, QueryResult};
-use super::{schema_foreign_keys, schema_graph_rename, schema_sequence_rename};
+use super::{schema_foreign_keys, schema_sequence_rename};
 use crate::app::CassieSession;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
@@ -438,12 +438,6 @@ fn rename_schema_descendants(
         next_schema,
         &relation_renames,
     )?;
-    schema_graph_rename::rename_schema_graphs(
-        cassie,
-        current_schema,
-        next_schema,
-        &relation_renames,
-    )?;
     crate::executor::execution::property_graph_dependents::rename_schema(
         cassie,
         current_schema,
@@ -671,11 +665,6 @@ fn schema_is_empty(cassie: &Cassie, schema: &str) -> bool {
         && !schema_has_routines(cassie, schema)
         && !crate::executor::execution::domain_schema_scope::schema_has_domains(cassie, schema)
         && !crate::executor::execution::enum_schema_scope::schema_has_enums(cassie, schema)
-        && !cassie
-            .catalog
-            .list_graphs()
-            .into_iter()
-            .any(|graph| object_in_schema(&graph.name, schema))
         && !crate::executor::execution::property_graph_dependents::schema_has_graphs(cassie, schema)
         && !cassie
             .catalog
@@ -735,11 +724,6 @@ fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
             .any(|procedure| {
                 crate::catalog::relation_belongs_to_database(&procedure.name, database)
             })
-        && !cassie
-            .catalog
-            .list_graphs()
-            .into_iter()
-            .any(|graph| crate::catalog::relation_belongs_to_database(&graph.name, database))
         && !crate::executor::execution::property_graph_dependents::database_has_graphs(
             cassie, database,
         )

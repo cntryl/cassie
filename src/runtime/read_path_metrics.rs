@@ -113,38 +113,4 @@ impl RuntimeState {
         let _ = rows;
         update(&mut metrics);
     }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn record_graph_traversal(
-        &self,
-        graph: &str,
-        strategy: &str,
-        max_depth: usize,
-        rows: usize,
-        stop_reason: &str,
-    ) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.graph.traversals += 1;
-        metrics.graph.rows = metrics.graph.rows.saturating_add(rows as u64);
-        metrics.graph.max_depth = metrics.graph.max_depth.max(max_depth as u64);
-        metrics.graph.last_graph = graph.to_string();
-        metrics.graph.last_strategy = strategy.to_string();
-        metrics.graph.last_stop_reason = stop_reason.to_string();
-    }
-
-    /// Record why graph traversal used the row-backed correctness path.
-    pub(crate) fn record_graph_fallback(&self, reason: &str) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.graph.last_fallback_reason = reason.to_string();
-    }
-
-    pub(crate) fn record_graph_read_evidence(&self, reads: usize, candidates: usize) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.graph.reads = metrics.graph.reads.saturating_add(reads as u64);
-        metrics.graph.candidates = metrics.graph.candidates.saturating_add(candidates as u64);
-        metrics.graph.last_reads = reads as u64;
-        metrics.graph.last_candidates = candidates as u64;
-    }
 }

@@ -8,9 +8,9 @@ use crate::app::CassieError;
 use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
     CollectionSchema, CollectionStorageMode, CompositeTypeMeta, DatabaseMeta, DomainTypeMeta,
-    ExtensionMeta, FieldConstraint, FunctionMeta, GraphMeta, IndexKind, IndexMeta,
-    MaintenanceDebtMeta, NamespaceMeta, ObjectCommentMeta, OperationalAssignmentMeta,
-    ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
+    ExtensionMeta, FieldConstraint, FunctionMeta, IndexKind, IndexMeta, MaintenanceDebtMeta,
+    NamespaceMeta, ObjectCommentMeta, OperationalAssignmentMeta, ProcedureMeta,
+    ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
     ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RoleObjectGrantMeta, RollupMeta,
     SequenceMeta, ViewMeta,
 };
@@ -38,7 +38,6 @@ pub struct Catalog {
     pub(super) projections: Arc<RwLock<HashMap<String, ProjectionMeta>>>,
     pub(super) constraints: Arc<RwLock<HashMap<String, Vec<FieldConstraint>>>>,
     pub(super) indexes: Arc<RwLock<HashMap<String, IndexMeta>>>,
-    pub(super) graphs: Arc<RwLock<HashMap<String, GraphMeta>>>,
     pub(super) property_graphs:
         Arc<RwLock<HashMap<String, super::property_graphs::PropertyGraphMeta>>>,
     pub(super) functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
@@ -92,7 +91,6 @@ impl Catalog {
             projections: Arc::new(RwLock::new(HashMap::new())),
             constraints: Arc::new(RwLock::new(HashMap::new())),
             indexes: Arc::new(RwLock::new(HashMap::new())),
-            graphs: Arc::new(RwLock::new(HashMap::new())),
             property_graphs: Arc::new(RwLock::new(HashMap::new())),
             functions: Arc::new(RwLock::new(HashMap::new())),
             procedures: Arc::new(RwLock::new(HashMap::new())),
@@ -131,7 +129,6 @@ impl Catalog {
         (*self.schemas.write()).clone_from(&snapshot.schemas.read());
         (*self.constraints.write()).clone_from(&snapshot.constraints.read());
         (*self.indexes.write()).clone_from(&snapshot.indexes.read());
-        (*self.graphs.write()).clone_from(&snapshot.graphs.read());
         (*self.property_graphs.write()).clone_from(&snapshot.property_graphs.read());
         (*self.views.write()).clone_from(&snapshot.views.read());
         (*self.extensions.write()).clone_from(&snapshot.extensions.read());
@@ -321,7 +318,6 @@ impl Catalog {
         self.rollups.write().clear();
         self.retention_policies.write().clear();
         self.indexes.write().clear();
-        self.graphs.write().clear();
         self.property_graphs.write().clear();
         self.vector_indexes.write().clear();
         self.cardinality.write().clear();

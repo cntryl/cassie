@@ -251,7 +251,7 @@ fn empty_vectorized_join(
 
 pub(super) enum StreamingRightRows {
     Rows(AccountedVec<BatchRow>),
-    Dense(JoinResult),
+    Dense(Box<JoinResult>),
 }
 
 pub(super) fn load_streaming_right_rows(
@@ -266,7 +266,7 @@ pub(super) fn load_streaming_right_rows(
                 && can_dense_stream(env, spec.left_collection, spec.right_collection)? =>
         {
             execute_dense_streaming_bounded_inner_join(env, spec, retention)
-                .map(StreamingRightRows::Dense)
+                .map(|rows| StreamingRightRows::Dense(Box::new(rows)))
         }
         Err(error) => Err(error),
     }

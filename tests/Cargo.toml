@@ -11,7 +11,7 @@ workspace = true
 
 [[bench]]
 name = "tier4_pgwire_fixture_profile"
-path = "../benches/tier4_pgwire_fixture_profile.rs"
+path = "../benches/support/pgwire_fixture_profile.rs"
 harness = false
 
 [lib]

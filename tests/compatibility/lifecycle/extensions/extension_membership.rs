@@ -174,9 +174,9 @@ fn should_roll_back_extension_members_with_create_extension() {
         assert!(after.is_empty());
         drop(reader);
         drop(client);
-        server.shutdown(connection).await;
         reader_connection.abort();
         let _ = reader_connection.await;
+        server.shutdown(connection).await;
     });
 }
 
@@ -298,9 +298,9 @@ fn should_isolate_extension_members_between_databases() {
     // Arrange
     let cassie = support::new_in_memory_cassie().expect("create Cassie");
     cassie.startup().expect("start Cassie");
-    let postgres = cassie.create_session("tester", Some("postgres".to_owned()));
+    let postgres = cassie.create_session("root", Some("postgres".to_owned()));
     run(&cassie, &postgres, "CREATE DATABASE tenant_two");
-    let tenant = cassie.create_session("tester", Some("tenant_two".to_owned()));
+    let tenant = cassie.create_session("root", Some("tenant_two".to_owned()));
 
     // Act
     run(&cassie, &postgres, "CREATE EXTENSION pgcrypto");
@@ -327,7 +327,7 @@ fn should_keep_extension_members_after_restart() {
     let _directory = DataDirectory(path.clone());
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie instance");
     cassie.startup().expect("start Cassie instance");
-    let session = cassie.create_session("tester", None);
+    let session = cassie.create_session("root", None);
     run(&cassie, &session, "CREATE EXTENSION pgcrypto");
     let before = run(&cassie, &session, DIGEST_MEMBERS);
     drop(session);
@@ -336,7 +336,7 @@ fn should_keep_extension_members_after_restart() {
     // Act
     let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie instance");
     restarted.startup().expect("recover extension metadata");
-    let session = restarted.create_session("tester", None);
+    let session = restarted.create_session("root", None);
     let after = run(&restarted, &session, DIGEST_MEMBERS);
 
     // Assert

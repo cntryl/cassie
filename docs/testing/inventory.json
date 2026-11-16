@@ -182,9 +182,9 @@
     ],
     "files": 1771,
     "rust_files": 1734,
-    "rust_test_declarations": 10523,
+    "rust_test_declarations": 10524,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10548,
+    "registered_rust_instances": 10549,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -6285,6 +6285,37 @@
         {
           "suite": "bench_diagnostics",
           "name": "graph_topology::should_reject_invalid_topology_catalog_contracts_without_relabeling_other_scales"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/graph_topology.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/graph_topology.rs::should_keep_nine_topology_fixtures_distinct_under_the_owner_scale_identity_guard",
+      "name": "should_keep_nine_topology_fixtures_distinct_under_the_owner_scale_identity_guard",
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "line": 164,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "graph_topology::should_keep_nine_topology_fixtures_distinct_under_the_owner_scale_identity_guard"
         }
       ],
       "attributes": [
@@ -327817,9 +327848,9 @@
       "current_file": "tests/bench_diagnostics/graph_topology.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 161,
-      "sha256": "58c73346f178d6e6dfb58d29ed31d8a8a4bb2c32436531e1e00b71b33436ffd2",
-      "test_declarations": 4,
+      "lines": 197,
+      "sha256": "1174b507b936b39b4ac15b52c232f0910fa2dd6d8e583ff6d5af059f482d6b0b",
+      "test_declarations": 5,
       "registered_suites": [
         "bench_diagnostics"
       ],
@@ -327862,8 +327893,8 @@
       "current_file": "tests/bench_diagnostics.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 11,
-      "sha256": "9d79a21dea958a355bca6090a196c949e82a17605967de6c62420e7a98ca7d0a",
+      "lines": 14,
+      "sha256": "5aa8fbb5eedca6dd314f04e5185da0c4dfa2d871e2cd7395131facedcafa175a",
       "test_declarations": 0,
       "registered_suites": [
         "bench_diagnostics"

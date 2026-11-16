@@ -83,6 +83,10 @@ name = "composite_types"
 path = "composite_types.rs"
 
 [[test]]
+name = "graph_types"
+path = "graph_types.rs"
+
+[[test]]
 name = "domain_types"
 path = "domain_types.rs"
 

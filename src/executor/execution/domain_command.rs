@@ -299,6 +299,9 @@ fn create(
             format!("permission denied to create type in schema \"{schema}\""),
         ));
     }
+    if crate::catalog::graph_schema::is_graph_schema(&schema) {
+        return Err(crate::catalog::graph_schema::reserved_schema_error("create a type").into());
+    }
     let canonical_schema = canonical_schema_name(database, &schema);
     if !(schema.eq_ignore_ascii_case(DEFAULT_SCHEMA)
         || cassie.catalog.namespace_exists(&canonical_schema))
@@ -532,6 +535,9 @@ fn move_domain(
             "42501",
             format!("permission denied to move type into schema \"{schema}\""),
         ));
+    }
+    if crate::catalog::graph_schema::is_graph_schema(schema) {
+        return Err(crate::catalog::graph_schema::reserved_schema_error("move a type into it").into());
     }
     if !(schema.eq_ignore_ascii_case(DEFAULT_SCHEMA)
         || cassie

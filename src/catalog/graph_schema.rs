@@ -31,10 +31,26 @@ pub enum GraphSchemaState {
     UserOwned,
 }
 
-/// Whether `schema` names the reserved graph schema.
+/// Whether `schema` names the reserved graph schema. A database-qualified
+/// schema (`db.cassie_graph`) names it too, in whichever database.
 #[must_use]
 pub fn is_graph_schema(schema: &str) -> bool {
-    schema.eq_ignore_ascii_case(GRAPH_SCHEMA)
+    super::split_identifier_path(schema)
+        .ok()
+        .and_then(|parts| parts.last().cloned())
+        .is_some_and(|last| last.eq_ignore_ascii_case(GRAPH_SCHEMA))
+}
+
+/// The error of user DDL that would create, alter, rename or drop an object of
+/// the reserved schema. The system owns the schema: PostgreSQL reports a
+/// system-owned schema as `42501`, and so does Cassie.
+#[must_use]
+pub fn reserved_schema_error(action: &str) -> crate::app::CassieError {
+    crate::app::DiagnosticError::new(
+        "42501",
+        format!("permission denied to {action}: schema \"{GRAPH_SCHEMA}\" is reserved for Cassie graph types"),
+    )
+    .into()
 }
 
 /// Canonical name of the reserved schema in `database`.

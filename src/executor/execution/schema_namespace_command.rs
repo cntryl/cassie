@@ -13,6 +13,12 @@ pub(crate) fn create_schema(
     statement: &CreateSchemaStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    if crate::catalog::graph_schema::is_graph_schema(&statement.schema) {
+        if statement.if_not_exists {
+            return empty_command("CREATE SCHEMA", controls);
+        }
+        return Err(crate::catalog::graph_schema::reserved_schema_error("create a schema").into());
+    }
     if statement.if_not_exists && cassie.catalog.namespace_exists(&statement.schema) {
         return empty_command("CREATE SCHEMA", controls);
     }
@@ -122,6 +128,9 @@ pub(crate) fn drop_schema(
     statement: &DropSchemaStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    if crate::catalog::graph_schema::is_graph_schema(&statement.schema) {
+        return Err(crate::catalog::graph_schema::reserved_schema_error("drop a schema").into());
+    }
     if statement.if_exists && !cassie.catalog.namespace_exists(&statement.schema) {
         return empty_command("DROP SCHEMA", controls);
     }
@@ -336,6 +345,11 @@ pub(crate) fn drop_database(
     cassie.catalog.unregister_namespace(&public_schema);
     cassie
         .catalog
+        .unregister_namespace(&crate::catalog::graph_schema::graph_schema_namespace(
+            &statement.name,
+        ));
+    cassie
+        .catalog
         .unregister_composite_types_for_database(&statement.name);
     cassie
         .catalog
@@ -358,6 +372,11 @@ pub(crate) fn alter_schema(
         AlterSchemaOperation::RenameTo { schema } => schema.clone(),
     };
     let target_schema = statement.schema.clone();
+    if crate::catalog::graph_schema::is_graph_schema(&target_schema)
+        || crate::catalog::graph_schema::is_graph_schema(&next_schema)
+    {
+        return Err(crate::catalog::graph_schema::reserved_schema_error("rename a schema").into());
+    }
 
     if cassie.catalog.namespace_exists(&next_schema) {
         return Err(QueryError::General(format!(
@@ -670,6 +689,7 @@ fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
             crate::catalog::schema_belongs_to_database(&namespace.name, database)
                 && !crate::catalog::local_name(&namespace.name)
                     .eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA)
+                && namespace.system_owner.is_none()
         })
         && !cassie
             .catalog

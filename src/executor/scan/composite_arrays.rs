@@ -72,6 +72,15 @@ pub(crate) fn typed_records(
             other => Ok(other.clone()),
         })
         .collect::<Result<Vec<_>, _>>()?;
+    for element in &elements {
+        if let Value::Typed(crate::types::typed::TypedValue::Record(record)) = element {
+            crate::executor::filter::graph_validation::validate(record)
+                .map_err(|error| match error {
+                    crate::executor::QueryError::Cassie(error) => error,
+                    other => CassieError::Execution(other.to_string()),
+                })?;
+        }
+    }
     SqlArray::new(array.dimensions().to_vec(), elements)
         .map(Value::Array)
         .map_err(|detail| corrupt(&detail))

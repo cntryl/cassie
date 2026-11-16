@@ -382,6 +382,8 @@ mod casts;
 pub(crate) mod character_arrays;
 #[path = "filter/composite_cast.rs"]
 mod composite_cast;
+#[path = "filter/graph_validation.rs"]
+pub(crate) mod graph_validation;
 #[path = "filter/membership.rs"]
 mod membership;
 pub(crate) use composite_cast::{assign_record, record_from_text};

@@ -58,15 +58,14 @@ impl GraphTypeKind {
     /// identity.
     #[must_use]
     pub fn of(descriptor: &CompositeType) -> Option<Self> {
-        if descriptor.qualified_name.is_empty()
-            || !crate::catalog::relation_schema_name(&descriptor.qualified_name)
-                .eq_ignore_ascii_case(GRAPH_SCHEMA)
-        {
-            return None;
-        }
-        Self::ALL
+        // The cheap local-name test runs first: this sits on every record cast.
+        let kind = Self::ALL
             .into_iter()
-            .find(|kind| kind.type_name() == descriptor.name)
+            .find(|kind| kind.type_name() == descriptor.name)?;
+        (!descriptor.qualified_name.is_empty()
+            && crate::catalog::relation_schema_name(&descriptor.qualified_name)
+                .eq_ignore_ascii_case(GRAPH_SCHEMA))
+        .then_some(kind)
     }
 }
 

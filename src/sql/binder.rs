@@ -40,6 +40,8 @@ mod string_operators;
 mod symmetric_between;
 #[path = "binder/table_functions.rs"]
 mod table_functions;
+#[path = "binder/weighted_paths.rs"]
+mod weighted_paths;
 #[path = "binder/unary_numeric.rs"]
 pub(crate) mod unary_numeric;
 #[path = "binder/values.rs"]

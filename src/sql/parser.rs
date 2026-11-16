@@ -181,6 +181,8 @@ mod expr;
 mod extensions;
 #[path = "parser/graph_table.rs"]
 mod graph_table;
+#[path = "parser/graph_weighted_call.rs"]
+mod graph_weighted_call;
 #[path = "parser/graph_table_path.rs"]
 mod graph_table_path;
 #[path = "parser/identifiers.rs"]

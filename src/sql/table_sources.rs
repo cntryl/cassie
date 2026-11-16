@@ -128,6 +128,7 @@ pub(crate) fn record_declared_columns(
         ),
         Some(TableFunctionForm::JsonTable(spec)) => Some(spec.output_columns()),
         Some(TableFunctionForm::GraphTable(table)) => Some(graph_table_columns(table)),
+        Some(TableFunctionForm::Typed(_)) => None,
         None if record_source(&function.name).is_some_and(|record| record.populate) => Some(
             populate_base_type(function)?
                 .fields

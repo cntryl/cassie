@@ -16,6 +16,9 @@ pub enum TableFunctionForm {
     /// A `GRAPH_TABLE(...)` pattern. Its expressions live in the table itself, so the
     /// call's `function.args` stay empty.
     GraphTable(Box<super::GraphTable>),
+    /// The output column types a fixed-shape function resolved while binding, such as the
+    /// database's `graph_path` composite for `graph_weighted_paths`.
+    Typed(Vec<DataType>),
 }
 
 impl TableFunctionForm {

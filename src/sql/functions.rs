@@ -33,6 +33,7 @@ mod bitwise;
 mod bytea;
 mod enums;
 pub(crate) mod graph_types;
+pub(crate) mod graph_weighted;
 pub(crate) mod hashing;
 mod inputs;
 mod retrieval;

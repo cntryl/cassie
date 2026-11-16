@@ -4,10 +4,11 @@
 //! with endpoint indexes, exact without and with them) and must answer identically (#1258,
 //! #1268). Every test here is authored/not run.
 //!
-//! `Endpoints::scan_keys` (a vertex mapping with no usable key index) has no case: a property
-//! graph is rejected with 42830 unless every vertex and endpoint key is a unique key
-//! (`property_graph_command_tests.rs`, `should_reject_a_key_without_a_matching_unique_key`)
-//! and a unique constraint or index is a scalar index that `access.rs` `find_index` accepts.
+//! `Endpoints::scan_keys` (a vertex mapping with no usable key index) is reached through a
+//! REPEATABLE READ transaction opened before a second unique key replaced the original: the
+//! replacement is not visible to that transaction and `find_index` returns None
+//! (`transaction_index_visible`). `should_answer_the_same_when_a_repeatable_read_cannot_see_the_replacing_key_index`
+//! covers it with two sessions.
 
 use crate::world::{started, Variant, VariantGuard};
 use cassie::config::CassieRuntimeConfig;
@@ -269,4 +270,71 @@ fn should_reject_a_visible_invalid_weight_of_a_quoted_mixed_case_column_under_ev
 
     // Assert
     assert!(all.iter().all(|found| *found == Err("22023".to_owned())));
+}
+
+fn graph_call(source: i64, target: i64) -> String {
+    let vertex = |id: i64| {
+        format!("cassie_graph.vertex_ref('ng', 'n', ARRAY[cassie_graph.key_part({id}::bigint)])")
+    };
+    format!(
+        "SELECT p.path_rank::text, p.cost::text FROM graph_weighted_paths('ng', {}, {}, \
+         'weight', 2) AS p ORDER BY p.path_rank",
+        vertex(source),
+        vertex(target)
+    )
+}
+
+/// authored/not run: option (a) of N2. Dropping the original unique key succeeds only once a
+/// second key exists; a REPEATABLE READ transaction opened before that sees neither the new
+/// key (not in its snapshot) nor the dropped one, so validation reads the vertex keys in
+/// full. The answer must equal the one the same transaction gave before the swap.
+#[test]
+fn should_answer_the_same_when_a_repeatable_read_cannot_see_the_replacing_key_index() {
+    // Arrange
+    let fixture = started(
+        None,
+        &[
+            "CREATE TABLE pn (id BIGINT NOT NULL)",
+            "CREATE UNIQUE INDEX pn_first ON pn (id)",
+            "CREATE TABLE en (id BIGINT PRIMARY KEY, s BIGINT, d BIGINT, weight NUMERIC)",
+            "INSERT INTO pn VALUES (1), (2), (3)",
+            "INSERT INTO en VALUES (1, 1, 2, 1), (2, 2, 3, 1), (3, 1, 9, -1)",
+            "CREATE PROPERTY GRAPH ng VERTEX TABLES (pn AS n KEY (id) LABEL node \
+             PROPERTIES (id)) EDGE TABLES (en AS e KEY (id) SOURCE KEY (s) \
+             REFERENCES n (id) DESTINATION KEY (d) REFERENCES n (id) LABEL link \
+             PROPERTIES (weight))",
+        ],
+    );
+    let writer = fixture.cassie.create_session("tester", None);
+    let full_rows = || {
+        fixture.cassie.metrics()["read_paths"]["graph_full_rows"]
+            .as_u64()
+            .expect("counter")
+    };
+    let sql = graph_call(1, 3);
+    fixture.rows("BEGIN ISOLATION LEVEL REPEATABLE READ");
+    let first = fixture.rows(&sql);
+    let started_at = full_rows();
+    let repeated = fixture.rows(&sql);
+    let indexed_reads = full_rows() - started_at;
+
+    // Act
+    let created =
+        fixture
+            .cassie
+            .execute_sql(&writer, "CREATE UNIQUE INDEX pn_second ON pn (id)", vec![]);
+    let dropped = fixture
+        .cassie
+        .execute_sql(&writer, "DROP INDEX pn_first", vec![]);
+    let before_swap = full_rows();
+    let replaced = fixture.rows(&sql);
+    let scanned_reads = full_rows() - before_swap;
+    fixture.rows("ROLLBACK");
+
+    // Assert
+    assert!(created.is_ok());
+    assert!(dropped.is_ok());
+    assert_eq!(first, repeated);
+    assert_eq!(first, replaced);
+    assert!(scanned_reads > indexed_reads);
 }

@@ -35,9 +35,12 @@ fn sql_state(rejection: &str) -> String {
     .to_owned()
 }
 
+/// The index of a disagreeing combination with the SQLSTATE of each side, if it failed.
+type Disagreement = (usize, Option<String>, Option<String>);
+
 /// Compares every argument combination of `world` with the oracle, the whole result
 /// including a failing SQLSTATE. Returns the number compared and the disagreements.
-fn compare(world: &Wg) -> (usize, Vec<String>) {
+fn compare(world: &Wg) -> (usize, Vec<Disagreement>) {
     let mut compared = 0_usize;
     let mut mismatches = Vec::new();
     for (from, to) in ENDPOINTS {
@@ -62,7 +65,7 @@ fn compare(world: &Wg) -> (usize, Vec<String>) {
                                 .map_err(|rejection| sql_state(&rejection));
                             compared += 1;
                             if actual != expected {
-                                mismatches.push(format!("{from}->{to}: {rest}"));
+                                mismatches.push((compared, actual.err(), expected.err()));
                             }
                         }
                     }
@@ -82,23 +85,24 @@ pub fn should_agree_with_the_oracle_for_every_argument_combination() {
     let (compared, mismatches) = compare(&world);
 
     // Assert
-    assert_eq!(mismatches, Vec::<String>::new());
+    assert_eq!(mismatches, Vec::<Disagreement>::new());
     assert_eq!(compared, 360);
 }
 
-/// authored/not run: the same matrix with a negative weight on a fast edge, so label
-/// selection decides between the rows and a 22023 failure under every read path.
+/// authored/not run: the same matrix with a negative weight on a slow edge, so the calls that
+/// select only `fast` return rows while every other call fails with 22023, under every read
+/// path.
 #[test]
 pub fn should_agree_with_the_oracle_when_an_invalid_weight_decides_the_answer() {
     // Arrange
     let mut all = links();
-    all.push(fast(8, 2, 4, -1));
+    all.push(slow(8, 2, 4, -1));
     let world = Wg::new(4, &all);
 
     // Act
     let (compared, mismatches) = compare(&world);
 
     // Assert
-    assert_eq!(mismatches, Vec::<String>::new());
+    assert_eq!(mismatches, Vec::<Disagreement>::new());
     assert_eq!(compared, 360);
 }

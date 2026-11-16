@@ -11,7 +11,7 @@ use std::mem::size_of;
 
 use super::bindings::{group_entries, scalar_entries, Candidate};
 use super::eval::{element_entries, Evaluator};
-use super::plan::Plan;
+use super::plan::{Plan, Source};
 use super::store::Store;
 use super::{QueryError, SourceExecutionEnv};
 use crate::runtime::QueryMemoryReservation;
@@ -331,9 +331,22 @@ impl<'a> Walk<'a> {
             return Ok(());
         }
         if self.plan.may_duplicate {
+            // Hop splits of one path are one match unless they bind a named singleton
+            // variable to different elements; then each binding is its own match.
             let mut key = candidate.vertices.clone();
             key.extend(&candidate.edges);
             key.extend(candidate.directions.iter().map(|d| usize::from(*d)));
+            key.extend(
+                self.plan
+                    .variables
+                    .iter()
+                    .filter_map(|variable| match variable.source {
+                        Source::Vertex(position) | Source::Edge(position) => {
+                            Some(candidate.offset(position))
+                        }
+                        Source::Group => None,
+                    }),
+            );
             self.memory
                 .try_grow(key.capacity() * 4 + 2 * size_of::<usize>())?;
             if !self.seen.insert(key) {

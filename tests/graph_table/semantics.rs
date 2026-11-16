@@ -485,7 +485,7 @@ fn should_count_a_path_once_across_adjacent_quantified_steps() {
 
     // Act
     let actual = world.query(
-        "(s IS node) -[IS link]->{0,2} (m IS node) -[IS link]->{0,2} (t IS node)",
+        "(s IS node) -[IS link]->{0,2} (IS node) -[IS link]->{0,2} (t IS node)",
         "s.num AS s, t.num AS t",
     );
 
@@ -513,4 +513,32 @@ fn should_evaluate_an_edge_predicate_that_reads_another_variable() {
         .collect::<Vec<_>>();
     assert_eq!(actual, expected);
     assert_eq!(actual.len(), 2);
+}
+
+#[test]
+fn should_return_each_binding_of_a_named_vertex_between_quantified_steps() {
+    // Arrange
+    let world = World::simple(&nodes(4), &[link(1, 1, 2), link(2, 2, 3), link(3, 3, 4)]);
+
+    // Act
+    let projected = world.query(
+        "(s IS node WHERE s.num = 1) -[IS link]->{1,2} (m IS node) -[IS link]->{1,2} \
+         (t IS node WHERE t.num = 4)",
+        "s.num AS s, m.num AS m, t.num AS t",
+    );
+    let unreferenced = world.query(
+        "(s IS node WHERE s.num = 1) -[IS link]->{1,2} (m IS node) -[IS link]->{1,2} \
+         (t IS node WHERE t.num = 4)",
+        "s.num AS s, t.num AS t",
+    );
+    let unnamed = world.query(
+        "(s IS node WHERE s.num = 1) -[IS link]->{1,2} (IS node) -[IS link]->{1,2} \
+         (t IS node WHERE t.num = 4)",
+        "s.num AS s, t.num AS t",
+    );
+
+    // Assert
+    assert_eq!(projected, vec![vec![1, 2, 4], vec![1, 3, 4]]);
+    assert_eq!(unreferenced, vec![vec![1, 4], vec![1, 4]]);
+    assert_eq!(unnamed, vec![vec![1, 4]]);
 }

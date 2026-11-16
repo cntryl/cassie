@@ -456,12 +456,13 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/fixtures/sqlx_probe/src/main.rs` | external_client_fixture | 159 | 0 | — | keep | `tests/fixtures/sqlx_probe/src/main.rs` |
 | `tests/graph_table/composition.rs` | test_module | 169 | 9 | graph_table | split_by_contract | `tests/graph_table/aggregates/core/composition.rs`; `tests/graph_table/semantics/composition.rs` |
 | `tests/graph_table/exact_reads.rs` | test_module | 152 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/exact_reads.rs` |
+| `tests/graph_table/matrix.rs` | test_module | 136 | 2 | graph_table | move_with_module_alias | `tests/graph_table/semantics/matrix.rs` |
 | `tests/graph_table/resources.rs` | test_module | 120 | 3 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |
-| `tests/graph_table/semantics.rs` | test_module | 516 | 22 | graph_table | split_by_contract | `tests/graph_table/semantics/errors.rs`; `tests/graph_table/semantics/parameters.rs`; `tests/graph_table/semantics/resources.rs`; `tests/graph_table/semantics/semantics.rs` |
+| `tests/graph_table/semantics.rs` | test_module | 544 | 23 | graph_table | split_by_contract | `tests/graph_table/semantics/errors.rs`; `tests/graph_table/semantics/parameters.rs`; `tests/graph_table/semantics/resources.rs`; `tests/graph_table/semantics/semantics.rs` |
 | `tests/graph_table/transactions.rs` | test_module | 197 | 7 | graph_table | move_with_module_alias | `tests/graph_table/transactions/transactions.rs` |
 | `tests/graph_table/wire.rs` | test_module | 170 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
 | `tests/graph_table/world.rs` | test_support | 343 | 0 | graph_table | keep | `tests/graph_table/world.rs` |
-| `tests/graph_table.rs` | cargo_target | 31 | 0 | graph_table | keep | `tests/graph_table.rs` |
+| `tests/graph_table.rs` | cargo_target | 34 | 0 | graph_table | keep | `tests/graph_table.rs` |
 | `tests/json_writes/contracts/errors.rs` | test_module | 34 | 2 | json_writes | keep | `tests/json_writes/contracts/errors.rs` |
 | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` | test_module | 94 | 2 | json_writes | keep | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` |
 | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` | test_module | 806 | 15 | json_writes | keep | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` |

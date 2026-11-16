@@ -27,5 +27,8 @@ mod resources;
 #[path = "graph_table/semantics.rs"]
 mod semantics;
 
+#[path = "graph_table/matrix.rs"]
+mod matrix;
+
 #[path = "graph_table/wire.rs"]
 mod wire;

@@ -168,11 +168,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1733,
-    "rust_files": 1696,
-    "rust_test_declarations": 10270,
+    "files": 1734,
+    "rust_files": 1697,
+    "rust_test_declarations": 10273,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10276,
+    "registered_rust_instances": 10279,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -66171,6 +66171,68 @@
       }
     },
     {
+      "id": "tests/graph_table/matrix.rs::should_agree_with_the_oracle_for_every_mode_direction_bound_selector",
+      "name": "should_agree_with_the_oracle_for_every_mode_direction_bound_selector",
+      "current_file": "tests/graph_table/matrix.rs",
+      "line": 64,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "matrix::should_agree_with_the_oracle_for_every_mode_direction_bound_selector"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/matrix.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/matrix.rs::should_agree_with_the_oracle_for_unbounded_quantifiers_under_finite_modes",
+      "name": "should_agree_with_the_oracle_for_unbounded_quantifiers_under_finite_modes",
+      "current_file": "tests/graph_table/matrix.rs",
+      "line": 104,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "matrix::should_agree_with_the_oracle_for_unbounded_quantifiers_under_finite_modes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/matrix.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/resources.rs::should_fail_with_the_resource_limit_when_the_budget_is_exhausted",
       "name": "should_fail_with_the_resource_limit_when_the_budget_is_exhausted",
       "current_file": "tests/graph_table/resources.rs",
@@ -66940,6 +67002,37 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_return_each_binding_of_a_named_vertex_between_quantified_steps",
+      "name": "should_return_each_binding_of_a_named_vertex_between_quantified_steps",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 519,
+      "end_line": 544,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_return_each_binding_of_a_named_vertex_between_quantified_steps"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/parameters.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -325958,6 +326051,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/matrix.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 136,
+      "sha256": "a0b17985efaeff87d25e32fbed6e318d2f318f135a8fc0ee361be9c24a8edf51",
+      "test_declarations": 2,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/matrix.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/resources.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -325976,9 +326084,9 @@
       "current_file": "tests/graph_table/semantics.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 516,
-      "sha256": "2cec2ea92a6b905080c7b8a12bd486adb645b89950e8339adb06c1fa53ca2039",
-      "test_declarations": 22,
+      "lines": 544,
+      "sha256": "a7ba99923e74edafb4be1125a631eff8c8b9763d90e2da738e6dd18ff24b3830",
+      "test_declarations": 23,
       "registered_suites": [
         "graph_table"
       ],
@@ -326039,8 +326147,8 @@
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 31,
-      "sha256": "ef09be987bccd32f7064436895c6faca0f336e387e2edf4f52f76fd787059275",
+      "lines": 34,
+      "sha256": "f49474ae45ab51d9965da9ccd2aece3d16ffbb101b98325e7f249ac9aac75d0f",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"

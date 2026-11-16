@@ -8,10 +8,10 @@ use super::{non_empty_or_none, projection_freshness, selected_cost};
 pub(super) fn plan_line(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
-
+    graph: &[String],
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<String, CassieError> {
-    let mut sections = allocation.vector(9)?;
+    let mut sections = allocation.vector(10)?;
     sections.push(read_plan_section(cassie, physical, allocation)?);
     sections.push(cte_section(physical, allocation)?);
     sections.push(operator_feedback_section(physical, allocation)?);
@@ -21,6 +21,9 @@ pub(super) fn plan_line(
     sections.push(vectorized_join_section(cassie, physical, allocation)?);
     sections.push(acceleration_section(cassie, physical, allocation)?);
     sections.push(cost_section(physical, allocation)?);
+    if !graph.is_empty() {
+        sections.push(allocation.join(graph.iter().map(String::as_str), " ")?);
+    }
     allocation.join(sections.iter().map(String::as_str), " ")
 }
 

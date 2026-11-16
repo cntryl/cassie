@@ -7,6 +7,7 @@ use super::{QueryPlanMetric, QueryPlanNode};
 pub(super) fn plan_nodes(
     cassie: &Cassie,
     physical: &PhysicalPlan,
+    graph: &[String],
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<Vec<QueryPlanNode>, CassieError> {
     let has_join = physical.join.strategy.is_some() || !physical.join.keys.is_empty();
@@ -14,9 +15,13 @@ pub(super) fn plan_nodes(
     let count = 2
         + usize::from(has_join)
         + usize::from(has_aggregate)
-        + usize::from(physical.top_k.enabled);
+        + usize::from(physical.top_k.enabled)
+        + graph.len();
     let mut nodes = allocation.vector(count)?;
     nodes.push(read_node(cassie, physical, allocation)?);
+    for line in graph {
+        nodes.push(graph_node(line, allocation)?);
+    }
     if has_join {
         nodes.push(join_node(physical, allocation)?);
     }
@@ -249,5 +254,21 @@ fn project_node(
         status: allocation.text("active")?,
         badges,
         metrics,
+    })
+}
+
+fn graph_node(
+    line: &str,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<QueryPlanNode, CassieError> {
+    let exact = line.contains("exact(");
+    Ok(QueryPlanNode {
+        id: allocation.text("graph")?,
+        label: allocation.text("Graph traversal")?,
+        kind: allocation.text("graph")?,
+        detail: allocation.text(line)?,
+        status: allocation.text(if exact { "fallback" } else { "optimized" })?,
+        badges: allocation.vector(0)?,
+        metrics: allocation.vector(0)?,
     })
 }

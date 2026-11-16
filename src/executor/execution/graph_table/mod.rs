@@ -7,9 +7,12 @@
 //! and `COLUMNS` run on the selected paths. The complete result is materialized before any
 //! row leaves the source.
 
+mod access;
 mod bindings;
+mod cache;
 mod eval;
 mod keys;
+mod lazy;
 mod path_value;
 mod plan;
 mod project;
@@ -68,11 +71,18 @@ pub(super) fn execute(
     let mut output = env.controls.reserve_query_memory(0)?;
     let rows = {
         let mut traversal = env.controls.reserve_query_memory(0)?;
-        let store = store::Store::load(env, &plan, &mut traversal)?;
-        let found = walk::Walk::new(env, &plan, &store, &eval, &mut traversal).run()?;
+        let access = access::Access::choose(env.cassie, env.session, &plan);
+        let mut store = if access.forced_exact {
+            store::Store::load(env, &plan, &mut traversal)?
+        } else {
+            store::Store::lazy(env, &plan, access)?
+        };
+        let found = walk::Walk::new(env, &plan, &mut store, &eval, &mut traversal).run()?;
         let kind = table.effective_selector().kind;
         let selected = select::apply(env, &store, kind, found)?;
-        project::rows(env, &plan, &store, &eval, &selected, &mut output)?
+        let rows = project::rows(env, &plan, &store, &eval, &selected, &mut output)?;
+        store.record_reads(env, 0);
+        rows
     };
     env.controls.check_interruption()?;
     let types = Arc::new(binding.output.clone());
@@ -93,4 +103,50 @@ pub(super) fn execute(
         .collect();
     let batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
     finalize_source_batches(env, batches, text_fields, qualify, name)
+}
+
+/// The `EXPLAIN` description of every `GRAPH_TABLE` source reachable from `source`: its
+/// graph and the access path of each mapping.
+pub(crate) fn explain_sources(
+    cassie: &crate::app::Cassie,
+    session: Option<&crate::app::CassieSession>,
+    source: &QuerySource,
+    out: &mut Vec<String>,
+) {
+    match source {
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            explain_sources(cassie, session, source, out);
+        }
+        QuerySource::Join { left, right, .. } => {
+            explain_sources(cassie, session, left, out);
+            explain_sources(cassie, session, right, out);
+        }
+        QuerySource::Subquery { select, .. } => {
+            explain_sources(cassie, session, &select.source, out);
+        }
+        QuerySource::TableFunction {
+            form: Some(form), ..
+        } => {
+            let TableFunctionForm::GraphTable(table) = form.as_ref() else {
+                return;
+            };
+            let Some(graph) = table
+                .binding
+                .as_ref()
+                .and_then(|binding| cassie.catalog.get_property_graph(&binding.graph))
+            else {
+                return;
+            };
+            let name = graph.name.clone();
+            let Ok(plan) = plan::Plan::build(table, graph) else {
+                return;
+            };
+            let access = access::Access::choose(cassie, session, &plan);
+            out.push(format!(
+                "graph_table={name} {}",
+                access::describe(&access, &plan, &plan.graph)
+            ));
+        }
+        _ => {}
+    }
 }

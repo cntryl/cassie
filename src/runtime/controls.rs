@@ -135,6 +135,9 @@ pub struct QueryExecutionControls {
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
     /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
     temporal: Arc<parking_lot::RwLock<TemporalSlot>>,
+    /// Statement-scoped state of one executor subsystem, shared by clones and released with
+    /// the last clone, so its reservations end with the statement.
+    statement_state: Arc<parking_lot::Mutex<Option<Box<dyn std::any::Any + Send>>>>,
 }
 
 #[derive(Debug, Default)]
@@ -302,6 +305,8 @@ impl QueryExecutionControls {
     ) -> Self {
         Self {
             statement_read: owner,
+            // Statement state is valid for one captured read only.
+            statement_state: Arc::default(),
             ..self.clone()
         }
     }
@@ -338,12 +343,21 @@ impl QueryExecutionControls {
             cancellation,
             relational_cte_boundary: false,
             temporal: Arc::default(),
+            statement_state: Arc::default(),
             memory: Arc::new(QueryMemoryTracker {
                 budget: limits.query_memory_budget_bytes,
                 used: AtomicUsize::new(0),
                 peak: AtomicUsize::new(0),
             }),
         }
+    }
+
+    /// Runs `visit` with the statement-scoped state slot locked.
+    pub(crate) fn with_statement_state<R>(
+        &self,
+        visit: impl FnOnce(&mut Option<Box<dyn std::any::Any + Send>>) -> R,
+    ) -> R {
+        visit(&mut self.statement_state.lock())
     }
 
     /// Installs the statement's temporal session for evaluation and output.

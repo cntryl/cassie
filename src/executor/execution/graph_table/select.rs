@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use super::bindings::Candidate;
 use super::store::Store;
 use super::{QueryError, SourceExecutionEnv};
+use crate::runtime::QueryScoringTestBoundary;
 use crate::sql::ast::GraphSelectorKind;
 
 /// Compares paths lexicographically over `V0, E0, direction0, V1, E1, direction1, V2, ...`.
@@ -15,15 +16,14 @@ use crate::sql::ast::GraphSelectorKind;
 pub(super) fn order(store: &Store, left: &Candidate, right: &Candidate) -> Ordering {
     let shared = left.vertices.len().min(right.vertices.len());
     for index in 0..shared {
-        let by_vertex =
-            store.vertex_rank[left.vertices[index]].cmp(&store.vertex_rank[right.vertices[index]]);
+        let by_vertex = store.vertex_order(left.vertices[index], right.vertices[index]);
         if by_vertex != Ordering::Equal {
             return by_vertex;
         }
         if index >= left.edges.len() || index >= right.edges.len() {
             break;
         }
-        let by_edge = store.edge_rank[left.edges[index]].cmp(&store.edge_rank[right.edges[index]]);
+        let by_edge = store.edge_order(left.edges[index], right.edges[index]);
         if by_edge != Ordering::Equal {
             return by_edge;
         }
@@ -51,6 +51,7 @@ pub(super) fn apply(
     env.controls.check_interruption()?;
     let limit = match kind {
         GraphSelectorKind::All => {
+            selection_boundary(env)?;
             candidates.sort_by(|left, right| order(store, left, right));
             return Ok(candidates);
         }
@@ -77,12 +78,21 @@ pub(super) fn apply(
         });
         chosen.extend(group.into_iter().take(limit));
     }
+    selection_boundary(env)?;
     let mut chosen = chosen
         .into_iter()
         .map(|index| std::mem::replace(&mut candidates[index], empty()))
         .collect::<Vec<_>>();
     chosen.sort_by(|left, right| order(store, left, right));
     Ok(chosen)
+}
+
+/// Cancellation and the diagnostic pause just before a (non-interruptible) sort.
+fn selection_boundary(env: &SourceExecutionEnv<'_>) -> Result<(), QueryError> {
+    env.controls
+        .scored_candidate(QueryScoringTestBoundary::GraphSelection)?;
+    env.controls.check_interruption()?;
+    Ok(())
 }
 
 fn empty() -> Candidate {

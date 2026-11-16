@@ -185,7 +185,7 @@ pub(crate) use session_command::show_result_columns;
 mod vector_index_command;
 
 mod source;
-pub(crate) use source::{aggregate_signature, expr_key, group_expr_name};
+pub(crate) use source::{aggregate_signature, explain_graph_sources, expr_key, group_expr_name};
 mod scored;
 pub(crate) use scored::{vector_prefilter_fallback_reason, vector_prefilter_supported};
 

@@ -31,3 +31,9 @@ mod resources;
 
 #[path = "graph_weighted/matrix.rs"]
 mod matrix;
+
+#[path = "graph_weighted/mixed_mappings.rs"]
+mod mixed_mappings;
+
+#[path = "graph_weighted/prepared.rs"]
+mod prepared;

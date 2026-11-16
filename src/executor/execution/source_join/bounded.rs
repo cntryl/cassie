@@ -331,7 +331,7 @@ fn execute_right_build_streaming_bounded_inner_join(
     let limits = env.cassie.runtime.limits();
     let right_rows = match load_streaming_right_rows(env, spec, retention)? {
         StreamingRightRows::Rows(right_rows) => right_rows,
-        StreamingRightRows::Dense(rows) => return Ok(rows),
+        StreamingRightRows::Dense(rows) => return Ok(*rows),
     };
     if right_rows.is_empty() {
         return Ok(JoinResult::new(

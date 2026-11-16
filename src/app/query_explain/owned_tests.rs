@@ -62,7 +62,7 @@ fn build_plan(
     physical: &PhysicalPlan,
     controls: &QueryExecutionControls,
 ) -> Result<QueryExplainPlan, CassieError> {
-    super::structured_plan(cassie, physical, controls)
+    super::structured_plan(cassie, physical, &[], controls)
 }
 
 #[test]

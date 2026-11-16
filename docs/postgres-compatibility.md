@@ -317,7 +317,7 @@ with the archived dispatch interface in the [Compatibility Probes workflow at th
 - No trigger or stored-procedure business-logic platform.
 - No cross-database queries.
 - Cassie-specific search, vector, graph, time-series, projection, and administrative features may use PostgreSQL-compatible syntax without promising PostgreSQL semantics beyond their documented behavior.
-- The planned [v0.6 graph surface](graph-v060-contract.md) is not current functionality or a claim of SQL/PGQ or PostgreSQL graph compatibility.
+- `CREATE PROPERTY GRAPH`, `GRAPH_TABLE`, the `cassie_graph` path types and functions, and `graph_weighted_paths` are Cassie's own dialect of SQL property graph queries, described in the [graph guide](graph-guide.md) and the [v0.6 graph contract](graph-v060-contract.md). They are not a claim of SQL/PGQ (SQL:2023 Part 16) conformance or of PostgreSQL graph compatibility. The `information_schema` property-graph views use the SQL/PGQ view names; `pg_catalog.pg_property_graph_identities` is Cassie-specific. The `cassie_graph` composite types and their arrays use PostgreSQL composite and array text and binary framing, and their type OIDs are allocated per database, so a client must look them up in `pg_type` instead of assuming OIDs. The earlier `CREATE GRAPH` statement and its table functions were removed in v0.6.0.
 
 ## Finite Query Engine Target
 

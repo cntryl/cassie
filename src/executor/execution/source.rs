@@ -9,6 +9,7 @@ mod jsonpath_table;
 mod pull_tests;
 #[path = "source_graph_table.rs"]
 mod source_graph_table;
+pub(crate) use source_graph_table::explain_graph_sources;
 #[path = "source_graph_types.rs"]
 mod source_graph_types;
 #[path = "source_identify_object.rs"]

@@ -70,7 +70,7 @@ pub(super) fn attribute_schema() -> Vec<(String, DataType)> {
         int("attrelid_oid"),
         text("attname"),
         int("attnum"),
-        int("atttypid"),
+        oid("atttypid"),
         bool("attnotnull"),
         int("atttypmod"),
         bool("atthasdef"),

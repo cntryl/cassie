@@ -35,7 +35,21 @@ impl Fold<'_, '_> {
         source_named(self.contexts.values[context].source, name).then_some(2249)
     }
 
+    /// `oid` (26) for a name-valued catalog column (`pg_attribute.attrelid`,
+    /// `pg_index.indexrelid`) that exposes its numeric identity as a `<column>_oid`
+    /// sibling, as PostgreSQL types it. The binder compares the sibling.
+    fn name_valued_oid(&self, context: usize, name: &str) -> Option<i32> {
+        let base = name.rsplit('.').next()?.trim_matches('"');
+        if !matches!(base, "attrelid" | "indexrelid") {
+            return None;
+        }
+        self.column_oid(context, &format!("{name}_oid")).map(|_| 26)
+    }
+
     pub(super) fn column_oid(&self, context: usize, name: &str) -> Option<i32> {
+        if let Some(oid) = self.name_valued_oid(context, name) {
+            return Some(oid);
+        }
         // Identifier projections and canonical qualifier variants remain transient
         // metadata-input work. Retain no parsed path, schema or namespace directory.
         let column = ColumnIdentifierPath::parse(name).ok()?;

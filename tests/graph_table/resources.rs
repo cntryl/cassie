@@ -7,7 +7,7 @@ use cassie::runtime::QueryCancellationHandle;
 
 const BUDGET_BYTES: usize = 1024 * 1024;
 
-fn complete(count: i64) -> (Vec<Node>, Vec<Link>) {
+pub(crate) fn complete(count: i64) -> (Vec<Node>, Vec<Link>) {
     let nodes = (1..=count).map(node).collect();
     let mut links = Vec::new();
     for from in 1..=count {
@@ -21,7 +21,7 @@ fn complete(count: i64) -> (Vec<Node>, Vec<Link>) {
     (nodes, links)
 }
 
-fn limited(count: i64, budget: usize) -> World {
+pub(crate) fn limited(count: i64, budget: usize) -> World {
     let mut config = crate::support_sql::with_test_root_password(
         CassieRuntimeConfig::from_env().expect("runtime config"),
     );
@@ -30,7 +30,7 @@ fn limited(count: i64, budget: usize) -> World {
     World::limited(config, &nodes, &links)
 }
 
-fn failure(world: &World, sql: &str) -> CassieError {
+pub(crate) fn failure(world: &World, sql: &str) -> CassieError {
     match world.fixture.execute(sql) {
         Ok(_) => panic!("a statement that should fail succeeded"),
         Err(error) => error,
@@ -55,7 +55,7 @@ fn should_fail_with_the_resource_limit_when_the_budget_is_exhausted() {
     assert_eq!(error.sql_state(), "54000");
 }
 
-fn peak(world: &World) -> usize {
+pub(crate) fn peak(world: &World) -> usize {
     let metrics = world.fixture.cassie.metrics();
     usize::try_from(
         metrics["query"]["peak_accounted_memory_bytes"]

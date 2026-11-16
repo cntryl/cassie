@@ -43,7 +43,7 @@ fn first_middle_last(world: &World, path: &Path) -> Vec<i64> {
 }
 
 #[test]
-fn should_match_oracle_for_single_hop_edges() {
+pub(crate) fn should_match_oracle_for_single_hop_edges() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 1, 3), link(3, 2, 3)]);
     let oracle = Pattern::new(any_node()).step(forward(Quantifier::one()), any_node());
@@ -59,7 +59,7 @@ fn should_match_oracle_for_single_hop_edges() {
 }
 
 #[test]
-fn should_return_every_vertex_for_a_vertex_only_pattern() {
+pub(crate) fn should_return_every_vertex_for_a_vertex_only_pattern() {
     // Arrange
     let world = World::simple(&nodes(4), &[]);
     let oracle = Pattern::new(any_node());
@@ -72,7 +72,7 @@ fn should_return_every_vertex_for_a_vertex_only_pattern() {
 }
 
 #[test]
-fn should_honour_inclusive_bounds_of_two_to_three_hops() {
+pub(crate) fn should_honour_inclusive_bounds_of_two_to_three_hops() {
     // Arrange
     let world = World::simple(
         &nodes(4),
@@ -91,7 +91,7 @@ fn should_honour_inclusive_bounds_of_two_to_three_hops() {
 }
 
 #[test]
-fn should_bind_both_endpoints_of_a_zero_hop_path_to_one_vertex() {
+pub(crate) fn should_bind_both_endpoints_of_a_zero_hop_path_to_one_vertex() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2)]);
     let oracle = Pattern::new(any_node()).step(forward(Quantifier::between(0, 1)), any_node());
@@ -107,7 +107,7 @@ fn should_bind_both_endpoints_of_a_zero_hop_path_to_one_vertex() {
 }
 
 #[test]
-fn should_require_both_endpoint_predicates_on_a_zero_hop_vertex() {
+pub(crate) fn should_require_both_endpoint_predicates_on_a_zero_hop_vertex() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2)]);
     let oracle =
@@ -125,7 +125,7 @@ fn should_require_both_endpoint_predicates_on_a_zero_hop_vertex() {
 }
 
 #[test]
-fn should_apply_inline_predicates_before_selection_unlike_the_graph_where() {
+pub(crate) fn should_apply_inline_predicates_before_selection_unlike_the_graph_where() {
     // Arrange
     let world = World::simple(
         &nodes(5),
@@ -166,7 +166,7 @@ fn should_apply_inline_predicates_before_selection_unlike_the_graph_where() {
 }
 
 #[test]
-fn should_distinguish_simple_from_acyclic_on_a_two_cycle() {
+pub(crate) fn should_distinguish_simple_from_acyclic_on_a_two_cycle() {
     // Arrange
     let world = World::simple(&nodes(2), &[link(1, 1, 2), link(2, 2, 1)]);
     let simple = Pattern::new(any_node())
@@ -194,7 +194,7 @@ fn should_distinguish_simple_from_acyclic_on_a_two_cycle() {
 }
 
 #[test]
-fn should_enumerate_bounded_walks_like_the_oracle() {
+pub(crate) fn should_enumerate_bounded_walks_like_the_oracle() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 2, 1), link(3, 2, 3)]);
     let walk = Pattern::new(any_node()).step(forward(Quantifier::between(1, 4)), any_node());
@@ -210,7 +210,7 @@ fn should_enumerate_bounded_walks_like_the_oracle() {
 }
 
 #[test]
-fn should_enumerate_unbounded_trails_like_the_oracle() {
+pub(crate) fn should_enumerate_unbounded_trails_like_the_oracle() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 2, 1), link(3, 2, 3)]);
     let trail = Pattern::new(any_node())
@@ -228,7 +228,7 @@ fn should_enumerate_unbounded_trails_like_the_oracle() {
 }
 
 #[test]
-fn should_traverse_an_undirected_self_loop_once() {
+pub(crate) fn should_traverse_an_undirected_self_loop_once() {
     // Arrange
     let world = World::simple(&nodes(2), &[link(1, 1, 1), link(2, 1, 2)]);
     let oracle = Pattern::new(any_node()).step(
@@ -248,7 +248,7 @@ fn should_traverse_an_undirected_self_loop_once() {
 }
 
 #[test]
-fn should_follow_edges_against_their_direction_like_the_oracle() {
+pub(crate) fn should_follow_edges_against_their_direction_like_the_oracle() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 3, 2)]);
     let incoming = Pattern::new(any_node()).step(
@@ -267,7 +267,7 @@ fn should_follow_edges_against_their_direction_like_the_oracle() {
 }
 
 #[test]
-fn should_follow_undirected_edges_in_both_orientations_like_the_oracle() {
+pub(crate) fn should_follow_undirected_edges_in_both_orientations_like_the_oracle() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 3, 2)]);
     let undirected = Pattern::new(any_node()).step(
@@ -287,7 +287,7 @@ fn should_follow_undirected_edges_in_both_orientations_like_the_oracle() {
 }
 
 #[test]
-fn should_keep_parallel_edges_as_distinct_matches() {
+pub(crate) fn should_keep_parallel_edges_as_distinct_matches() {
     // Arrange
     let world = World::simple(&nodes(2), &[link(1, 1, 2), link(2, 1, 2)]);
     let oracle = Pattern::new(any_node()).step(forward(Quantifier::one()), any_node());
@@ -304,7 +304,7 @@ fn should_keep_parallel_edges_as_distinct_matches() {
 }
 
 #[test]
-fn should_choose_the_path_through_the_lower_edge_on_a_shortest_tie() {
+pub(crate) fn should_choose_the_path_through_the_lower_edge_on_a_shortest_tie() {
     // Arrange
     let world = World::simple(
         &nodes(4),
@@ -328,7 +328,7 @@ fn should_choose_the_path_through_the_lower_edge_on_a_shortest_tie() {
 }
 
 #[test]
-fn should_return_the_k_lowest_tied_paths_per_endpoint_pair() {
+pub(crate) fn should_return_the_k_lowest_tied_paths_per_endpoint_pair() {
     // Arrange
     let world = World::simple(
         &nodes(5),
@@ -359,7 +359,7 @@ fn should_return_the_k_lowest_tied_paths_per_endpoint_pair() {
 }
 
 #[test]
-fn should_apply_an_inline_edge_predicate_to_each_group_edge() {
+pub(crate) fn should_apply_an_inline_edge_predicate_to_each_group_edge() {
     // Arrange
     let world = World::simple(
         &nodes(3),
@@ -386,7 +386,7 @@ fn should_apply_an_inline_edge_predicate_to_each_group_edge() {
 }
 
 #[test]
-fn should_bind_a_repeated_variable_to_one_vertex() {
+pub(crate) fn should_bind_a_repeated_variable_to_one_vertex() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 2, 1), link(3, 2, 3)]);
     let oracle = Pattern::new(any_node())
@@ -410,7 +410,7 @@ fn should_bind_a_repeated_variable_to_one_vertex() {
 }
 
 #[test]
-fn should_reject_a_predicate_that_is_not_true() {
+pub(crate) fn should_reject_a_predicate_that_is_not_true() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2)]);
 
@@ -422,7 +422,7 @@ fn should_reject_a_predicate_that_is_not_true() {
 }
 
 #[test]
-fn should_agree_with_the_oracle_across_key_shapes() {
+pub(crate) fn should_agree_with_the_oracle_across_key_shapes() {
     // Arrange
     let links = [link(1, 1, 2), link(2, 2, 3), link(3, 1, 3), link(4, 3, 1)];
     let oracle = Pattern::new(any_node())
@@ -449,7 +449,7 @@ fn should_agree_with_the_oracle_across_key_shapes() {
 }
 
 #[test]
-fn should_agree_with_the_oracle_on_columnar_tables() {
+pub(crate) fn should_agree_with_the_oracle_on_columnar_tables() {
     // Arrange
     let links = [link(1, 1, 2), link(2, 2, 3), link(3, 3, 1)];
     let oracle = Pattern::new(any_node())
@@ -476,7 +476,7 @@ fn should_agree_with_the_oracle_on_columnar_tables() {
 }
 
 #[test]
-fn should_count_a_path_once_across_adjacent_quantified_steps() {
+pub(crate) fn should_count_a_path_once_across_adjacent_quantified_steps() {
     // Arrange
     let world = World::simple(&nodes(4), &[link(1, 1, 2), link(2, 2, 3), link(3, 3, 4)]);
     let oracle = Pattern::new(any_node())
@@ -494,7 +494,7 @@ fn should_count_a_path_once_across_adjacent_quantified_steps() {
 }
 
 #[test]
-fn should_evaluate_an_edge_predicate_that_reads_another_variable() {
+pub(crate) fn should_evaluate_an_edge_predicate_that_reads_another_variable() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 1, 3), link(3, 2, 3)]);
     let oracle = Pattern::new(any_node()).step(forward(Quantifier::one()), any_node());
@@ -516,7 +516,7 @@ fn should_evaluate_an_edge_predicate_that_reads_another_variable() {
 }
 
 #[test]
-fn should_return_each_binding_of_a_named_vertex_between_quantified_steps() {
+pub(crate) fn should_return_each_binding_of_a_named_vertex_between_quantified_steps() {
     // Arrange
     let world = World::simple(&nodes(4), &[link(1, 1, 2), link(2, 2, 3), link(3, 3, 4)]);
 

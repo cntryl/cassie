@@ -327,7 +327,7 @@ export type QuerySchemaColumn = {
 
 export type QuerySchemaItem = {
   "id": string;
-  "kind": "table" | "view" | "index" | "udf" | "procedure";
+  "kind": "table" | "view" | "index" | "udf" | "procedure" | "property_graph";
   "label": string;
   "database": string;
   "schema": string;
@@ -341,7 +341,7 @@ export type QuerySchemaResponse = {
 };
 
 export type QuerySchemaSection = {
-  "id": "tables" | "views" | "indexes" | "udfs" | "procedures";
+  "id": "tables" | "views" | "indexes" | "udfs" | "procedures" | "property_graphs";
   "label": string;
   "items": Array<QuerySchemaItem>;
 };

@@ -12,6 +12,12 @@ use crate::app::CassieError;
 pub enum QueryScoringTestBoundary {
     ExactVector,
     PersistedFulltext,
+    /// Each iteration of the `GRAPH_TABLE` path search loop.
+    GraphTraversal,
+    /// Each iteration of the `graph_weighted_paths` search loop.
+    GraphWeightedSearch,
+    /// Just before the `GRAPH_TABLE` selector sorts its candidates.
+    GraphSelection,
 }
 
 type PauseChannels = (SyncSender<()>, Receiver<()>);

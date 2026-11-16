@@ -81,15 +81,11 @@ pub(crate) fn table_arity(name: &str) -> usize {
     }
 }
 
-/// Output columns of a table function. The element columns are typed with the
-/// reserved composite when `descriptors` are known and `NULL`-typed otherwise.
-pub(crate) fn table_columns(
-    name: &str,
-    descriptors: Option<&crate::types::graph::GraphDescriptors>,
-) -> Option<Vec<(String, DataType)>> {
-    let element = descriptors.map_or(DataType::Null, |descriptors| {
-        DataType::Composite(descriptors.element_ref.clone())
-    });
+/// Output columns of a table function. The element columns are typed by the
+/// records themselves at execution (the descriptor is per database), so the
+/// static schema leaves them untyped.
+pub(crate) fn table_columns(name: &str) -> Option<Vec<(String, DataType)>> {
+    let element = DataType::Null;
     let columns: Vec<(&str, DataType)> = if name.eq_ignore_ascii_case(TABLE_FUNCTIONS[0]) {
         vec![
             ("ordinal", DataType::BigInt),

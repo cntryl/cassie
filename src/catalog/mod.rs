@@ -17,6 +17,7 @@ pub mod enum_types;
 pub(crate) use controlled_name::name_matches_controlled;
 pub(crate) use controlled_name::trim_checked as trim_catalog_name_controlled;
 pub mod function_resolution;
+pub mod graph_resolution;
 pub mod graph_schema;
 pub mod graphs;
 pub mod indexes;

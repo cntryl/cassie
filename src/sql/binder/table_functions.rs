@@ -209,14 +209,6 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
     {
         return vec![("value".to_string(), DataType::Jsonb)];
     }
-    if let Some(crate::sql::ast::TableFunctionForm::Columns(bound)) = form.as_deref() {
-        if crate::sql::functions::graph_types::is_table_function(name) {
-            return bound
-                .iter()
-                .map(|column| (column.name.clone(), column.data_type.clone()))
-                .collect();
-        }
-    }
     if let Some(columns) = crate::sql::functions::catalog_table_columns(name) {
         return columns;
     }
@@ -317,11 +309,6 @@ pub(super) fn bind(
         unreachable!("table function binding requires a table function");
     };
     validate_graph_table_function(&function, form.as_deref(), lateral_fields)?;
-    let form = if crate::sql::functions::graph_types::is_table_function(&function.name) {
-        Some(Box::new(graph_type_form(&function.name, catalog, context)?))
-    } else {
-        form
-    };
     if crate::sql::table_sources::is_generated(&function.name) {
         return Ok(QuerySource::TableFunction {
             name,
@@ -367,27 +354,6 @@ pub(super) fn bind(
         with_ordinality,
         form,
     })
-}
-
-/// The typed output columns of a `cassie_graph` table function, resolved from
-/// the reserved types of the session's database.
-fn graph_type_form(
-    name: &str,
-    catalog: &Catalog,
-    context: &BindingContext,
-) -> Result<TableFunctionForm, CassieError> {
-    let descriptors = catalog.graph_descriptors(&context.database).ok_or_else(|| {
-        CassieError::from(crate::app::DiagnosticError::new(
-            "42704",
-            "type cassie_graph.graph_path does not exist: the reserved schema is not bootstrapped",
-        ))
-    })?;
-    let columns = crate::sql::functions::graph_types::table_columns(name, Some(&descriptors))
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(name, data_type)| crate::sql::ast::RecordColumn { name, data_type })
-        .collect();
-    Ok(TableFunctionForm::Columns(columns))
 }
 
 fn bind_options_argument(arg: &mut Expr) -> Result<(), CassieError> {

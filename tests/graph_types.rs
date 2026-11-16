@@ -10,3 +10,6 @@ mod catalog;
 
 #[path = "graph_types/constructors.rs"]
 mod constructors;
+
+#[path = "graph_types/scratch.rs"]
+mod scratch;

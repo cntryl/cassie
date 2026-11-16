@@ -23,7 +23,7 @@ pub(crate) fn catalog_table_columns(name: &str) -> Option<Vec<(String, DataType)
     if super::object_identity::is_identify_object(name) {
         return Some(super::object_identity::identify_object_columns());
     }
-    if let Some(columns) = super::graph_types::table_columns(name, None) {
+    if let Some(columns) = super::graph_types::table_columns(name) {
         return Some(columns);
     }
     if is_pg_input_error_info(name) {

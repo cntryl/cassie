@@ -9,6 +9,7 @@ pub(crate) fn is_catalog_table(name: &str) -> bool {
         || is_options_table(name)
         || is_pg_input_error_info(name)
         || super::object_identity::is_identify_object(name)
+        || super::graph_types::is_table_function(name)
 }
 
 pub(crate) fn is_pg_input_error_info(name: &str) -> bool {
@@ -21,6 +22,9 @@ pub(crate) fn catalog_table_columns(name: &str) -> Option<Vec<(String, DataType)
     }
     if super::object_identity::is_identify_object(name) {
         return Some(super::object_identity::identify_object_columns());
+    }
+    if let Some(columns) = super::graph_types::table_columns(name, None) {
+        return Some(columns);
     }
     if is_pg_input_error_info(name) {
         return Some(

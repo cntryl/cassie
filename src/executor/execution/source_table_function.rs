@@ -81,6 +81,15 @@ pub(super) fn execute(
             ctes,
         );
     }
+    if crate::sql::functions::graph_types::is_table_function(&function.name) {
+        return super::source_graph_types::execute(
+            env,
+            name,
+            function,
+            if lateral { outer_row } else { None },
+            qualify,
+        );
+    }
     if crate::sql::functions::is_pg_input_error_info(&function.name) {
         return execute_pg_input_error_info(
             env,

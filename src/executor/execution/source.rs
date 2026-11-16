@@ -7,6 +7,8 @@ mod jsonpath_table;
 #[cfg(test)]
 #[path = "source_pull_tests.rs"]
 mod pull_tests;
+#[path = "source_graph_types.rs"]
+mod source_graph_types;
 #[path = "source_identify_object.rs"]
 mod source_identify_object;
 #[path = "source_json_elements.rs"]

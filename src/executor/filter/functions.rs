@@ -33,6 +33,10 @@ mod datum_size;
 mod encoding;
 #[path = "enum_functions.rs"]
 mod enum_functions;
+#[path = "graph_functions.rs"]
+pub(crate) mod graph_functions;
+#[path = "graph_refs.rs"]
+mod graph_refs;
 #[path = "math.rs"]
 pub(super) mod math;
 #[path = "relation_definitions.rs"]

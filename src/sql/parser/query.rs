@@ -870,7 +870,8 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
             let name = function.name.to_ascii_lowercase();
             let lateral = lateral
                 || crate::sql::functions::is_options_table(&name)
-                || crate::sql::functions::is_identify_object(&name);
+                || crate::sql::functions::is_identify_object(&name)
+                || crate::sql::functions::graph_types::is_table_function(&name);
             return relation_alias::parse(
                 QuerySource::TableFunction {
                     name,

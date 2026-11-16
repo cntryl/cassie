@@ -7,3 +7,6 @@ mod fixture;
 
 #[path = "graph_types/catalog.rs"]
 mod catalog;
+
+#[path = "graph_types/constructors.rs"]
+mod constructors;

@@ -135,22 +135,7 @@ impl Access {
         session: Option<&CassieSession>,
         plan: &Plan<'_>,
     ) -> Self {
-        let graph = &plan.graph;
-        let forced_exact = cassie.runtime.graph_exact_reads();
-        let vertex_list = plan.vertex_mappings_read();
-        let edge_list = plan.edge_mappings_read();
-        let mut vertex = vec![None; graph.vertices.len()];
-        let mut vertex_read = vec![false; graph.vertices.len()];
-        for &mapping in &vertex_list {
-            vertex_read[mapping] = true;
-            if !forced_exact {
-                let meta = &graph.vertices[mapping];
-                vertex[mapping] = find_index(cassie, session, &meta.table, &key_columns(&meta.key));
-            }
-        }
-        let mut edge = (0..graph.edges.len()).map(|_| None).collect::<Vec<_>>();
-        for &mapping in &edge_list {
-            let meta = &graph.edges[mapping];
+        let needs = |mapping: usize| {
             let mut needs = [false; 2];
             for step in &plan.steps {
                 if step.selection[mapping].is_none() {
@@ -162,17 +147,49 @@ impl Access {
                     GraphEdgeDirection::Undirected => needs = [true, true],
                 }
             }
+            needs
+        };
+        Self::for_mappings(
+            (cassie, session),
+            &plan.graph,
+            (&plan.vertex_mappings_read(), &plan.edge_mappings_read()),
+            needs,
+        )
+    }
+
+    /// The access paths for explicit vertex and edge mapping lists; `needs` tells, for an
+    /// edge mapping, whether its source side and its destination side are looked up.
+    pub(super) fn for_mappings(
+        (cassie, session): (&Cassie, Option<&CassieSession>),
+        graph: &PropertyGraphMeta,
+        (vertex_list, edge_list): (&[usize], &[usize]),
+        needs: impl Fn(usize) -> [bool; 2],
+    ) -> Self {
+        let forced_exact = cassie.runtime.graph_exact_reads();
+        let mut vertex = vec![None; graph.vertices.len()];
+        let mut vertex_read = vec![false; graph.vertices.len()];
+        for &mapping in vertex_list {
+            vertex_read[mapping] = true;
+            if !forced_exact {
+                let meta = &graph.vertices[mapping];
+                vertex[mapping] = find_index(cassie, session, &meta.table, &key_columns(&meta.key));
+            }
+        }
+        let mut edge = (0..graph.edges.len()).map(|_| None).collect::<Vec<_>>();
+        for &mapping in edge_list {
+            let meta = &graph.edges[mapping];
+            let sides = needs(mapping);
             let find = |wanted: bool, columns: &[String]| {
                 if forced_exact || !wanted {
                     return None;
                 }
                 find_index(cassie, session, &meta.table, columns)
             };
-            let source = find(needs[0], &meta.source.columns);
-            let destination = find(needs[1], &meta.destination.columns);
+            let source = find(sides[0], &meta.source.columns);
+            let destination = find(sides[1], &meta.destination.columns);
             let reason = if forced_exact {
                 Some(FORCED_EXACT)
-            } else if (needs[0] && source.is_none()) || (needs[1] && destination.is_none()) {
+            } else if (sides[0] && source.is_none()) || (sides[1] && destination.is_none()) {
                 Some(NO_ENDPOINT_INDEX)
             } else {
                 None

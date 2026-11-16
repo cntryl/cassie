@@ -22,8 +22,9 @@ mod workloads;
 const BENCHMARK: &str = "tier3_system_graph";
 /// The scenario contract fixes the Tier 3 fixture class at 100,000 rows. The exact read of a
 /// mapped graph does not fit the 64 MiB analytical profile at that size (it fails with
-/// `54000` from roughly 30,000 mapped rows), so the fixtures below map fewer rows and the
-/// result metadata records the real count as `graph_mapped_rows`.
+/// `54000` from roughly 30,000 mapped rows), so the fixtures below use endpoint indexes and
+/// the lazy read path, and the result metadata records the real mapped count as
+/// `graph_mapped_rows`.
 const FIXTURE_SCALE: &str = "100k";
 const FIXTURE_ROWS: usize = 100_000;
 const SOCIAL_MAPPED_ROWS: i64 = SOCIAL_PEOPLE + SOCIAL_EDGES;
@@ -32,11 +33,6 @@ const ACCESS_MAPPED_ROWS: i64 =
     ACCESS_PRINCIPALS + ACCESS_RESOURCES + ACCESS_MEMBERSHIPS + ACCESS_RESOURCES;
 const SOCIAL_PEOPLE: i64 = 30_000;
 const SOCIAL_EDGES: i64 = 70_000;
-/// `graph_weighted_paths` validates every selected edge and holds the selected mappings in
-/// memory, so its route workload maps a smaller graph that fits the 64 MiB query budget.
-const ROUTE_PEOPLE: i64 = 5_000;
-const ROUTE_EDGES: i64 = 10_000;
-const ROUTE_MAPPED_ROWS: i64 = ROUTE_PEOPLE + ROUTE_EDGES;
 const HIERARCHY_NODES: i64 = 50_000;
 const ACCESS_PRINCIPALS: i64 = 20_000;
 const ACCESS_GROUPS: i64 = 1_000;
@@ -100,7 +96,8 @@ fn open_fixture() -> Fixture {
 }
 
 /// Reads the access path from the graph node of `EXPLAIN`. A plan without that node (the
-/// weighted path function, which validates every selected edge) declares the exact read.
+/// weighted path function) is classified by one counted execution: the read is `indexed`
+/// when it read index entries and no full rows.
 fn preflight(fixture: &Fixture, sql: &str, params: &[Value]) -> (String, &'static str) {
     let plan = fixture
         .cassie
@@ -113,7 +110,7 @@ fn preflight(fixture: &Fixture, sql: &str, params: &[Value]) -> (String, &'stati
     // The graph node names the access path of each mapping: every edge mapping indexed
     // means neighborhoods are read through endpoint indexes; any exact mapping is a full read.
     if !text.contains("graph_table=") {
-        return (EXACT_READ_PATH.to_owned(), "declared");
+        return counted_path(fixture, sql, params);
     }
     let path = if text.contains("=indexed(") && !text.contains("=exact(") {
         INDEXED_READ_PATH
@@ -121,6 +118,29 @@ fn preflight(fixture: &Fixture, sql: &str, params: &[Value]) -> (String, &'stati
         EXACT_READ_PATH
     };
     (path.to_owned(), "reported")
+}
+
+/// Runs `sql` once and classifies its read path from the graph read counters it moved.
+fn counted_path(fixture: &Fixture, sql: &str, params: &[Value]) -> (String, &'static str) {
+    let counter = |name: &str| {
+        fixture.cassie.metrics()["read_paths"][name]
+            .as_u64()
+            .unwrap_or_else(|| panic!("graph read counter {name} is missing"))
+    };
+    let (entries, full) = (counter("graph_index_entries"), counter("graph_full_rows"));
+    fixture
+        .cassie
+        .execute_sql(&fixture.session, sql, params.to_vec())
+        .unwrap_or_else(|error| {
+            panic!("graph preflight failed with SQLSTATE {}", error.sql_state())
+        });
+    let indexed = counter("graph_index_entries") > entries && counter("graph_full_rows") == full;
+    let path = if indexed {
+        INDEXED_READ_PATH
+    } else {
+        EXACT_READ_PATH
+    };
+    (path.to_owned(), "counted")
 }
 
 fn evidenced(
@@ -171,7 +191,7 @@ fn main() {
     let fixture = open_fixture();
     let setup_started = Instant::now();
     let social = graph_social::Social::new(SOCIAL_PEOPLE, SOCIAL_EDGES);
-    if friends.is_some() {
+    if friends.is_some() || routes.is_some() {
         social.plan().apply(&fixture.cassie, &fixture.session);
     }
     let access = graph_org::Access::new(
@@ -232,27 +252,18 @@ fn main() {
         });
     }
     if let Some(case) = routes {
-        // A separate instance: the route graph reuses the social table names at its own size.
-        let route_fixture = open_fixture();
-        let route_started = Instant::now();
-        let route_graph = graph_social::Social::new(ROUTE_PEOPLE, ROUTE_EDGES);
-        route_graph
-            .plan()
-            .apply(&route_fixture.cassie, &route_fixture.session);
-        let route_setup = route_started.elapsed();
-        let route = route_graph.route(1, ROUTE_HOPS, ROUTE_PATHS);
+        let route = social.route(1, ROUTE_HOPS, ROUTE_PATHS);
         let sql = route.sql();
         let case = evidenced(
             case,
-            &route_fixture,
-            route_setup,
-            ROUTE_MAPPED_ROWS,
-            preflight(&route_fixture, &sql, &[]),
+            &fixture,
+            setup,
+            SOCIAL_MAPPED_ROWS,
+            preflight(&fixture, &sql, &[]),
         );
         runner.measure_batch(case, QUERIES_PER_BATCH, || {
-            expect_rows(&route_fixture, &sql, &[], route.expected_rows)
+            expect_rows(&fixture, &sql, &[], route.expected_rows)
         });
-        route_fixture.cassie.shutdown();
     }
     fixture.cassie.shutdown();
     runner.finish();

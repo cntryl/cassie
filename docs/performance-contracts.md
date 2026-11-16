@@ -255,10 +255,35 @@ indexes consulted are the ones every indexed SQL query already trusts.
   setting) forces every mapping onto the exact full read of the previous implementation. It
   exists so tests compare both paths on the same data and is the escape hatch for
   operators.
-- **`graph_weighted_paths`.** The function must validate every graph-visible edge of the
-  selected mappings before any result, so it keeps the full controlled scan. Its cost is
-  O(selected edges) by contract and is not claimed O(degree). Those rows are counted under
-  `graph_validation_rows`, separately from traversal reads.
+- **`graph_weighted_paths`** (#1258, #1268). The function must validate every graph-visible
+  edge weight of the selected mappings before any result, and it does so with one streaming
+  scan: each row of each selected edge mapping is read once through the statement's own read
+  path (session overlay, savepoints and snapshot included), judged and dropped, so nothing
+  but a counter is retained. The exception is a statement whose read path cannot stream
+  (`parallel_scan_workers` above 1): the mapping is then read in full through the
+  statement's controlled read, so the scan materializes the whole edge mapping (accounted,
+  O(E) memory, and able to fail with `54000`) before judging its rows. The scan is counted under `graph_validation_rows` (rows whose
+  edge key is not NULL), separately from traversal reads, and its cost is O(selected edges)
+  by contract. An edge is graph-visible only when both endpoint vertices exist and no
+  endpoint component is NULL; that is decided only for an edge whose weight is invalid (a
+  valid weight is never an error), by one key lookup per endpoint on the vertex key index,
+  or from the keys of one full read of the vertex mapping when it has none, so the vertex
+  tables are never materialized. Validation (`22023`) completes before the search starts and
+  after the endpoint references are located (`42704`), as before. The search then expands
+  only the vertices it visits over the lazy indexed store: the incident edges of a visited
+  vertex are fetched through the endpoint index (or the per-statement full read of an
+  unindexed edge mapping, recorded by `graph_full_rows`), and each edge's weight is read from
+  its row when the edge becomes known. Search reads are therefore bounded by the visited
+  neighbourhoods, O(sum of d over visited vertices) with at most `max_hops` levels,
+  independent of the number of unrelated edges. Retained memory: the visited vertices,
+  edges, weights and the `k` best candidates (accounted against the query budget), plus the
+  vertex key set only when a vertex mapping has no key index. With
+  `Cassie::set_graph_exact_reads(true)` the previous load-validate-search over the fully read
+  mappings is used unchanged, so tests compare both paths. Counted-read, own-write and
+  oracle-equivalence tests for both paths are authored in
+  [`lazy_reads.rs`](../tests/graph_weighted/lazy_reads.rs),
+  [`transactions.rs`](../tests/graph_weighted/transactions.rs) and
+  [`variants.rs`](../tests/graph_weighted/variants.rs); they passed in the assembler run of the `graph_weighted` suite (116 tests) on the integrated head; no timing is recorded.
 
 ### Integrity model
 
@@ -376,7 +401,7 @@ numbers need the release profile with at least five measured samples and have no
 | `perf.graph.authorization_reachability.100k` | `tier3_system_graph` | Documents reachable by a user through at most one membership edge and one grant. | 20,000 principals, 20,000 resources, 40,000 memberships, 20,000 grants (100,000 mapped rows) |
 | `perf.graph.hierarchy_ancestry.100k` | `tier3_system_graph` | All ancestors of the deepest node with `+` and `ACYCLIC`. | 50,000 nodes, 49,999 edges (99,999 mapped rows) |
 | `perf.graph.friends_of_friends.100k` | `tier3_system_graph` | `{2,2}` expansion from one person. | 30,000 people, 70,000 edges (100,000 mapped rows) |
-| `perf.graph.weighted_routes.100k` | `tier3_system_graph` | Three cheapest simple routes within four hops. | its own instance: 5,000 people, 10,000 edges (15,000 mapped rows) |
+| `perf.graph.weighted_routes.100k` | `tier3_system_graph` | Three cheapest simple routes within four hops. | the shared social graph: 30,000 people, 70,000 edges (100,000 mapped rows) |
 
 The tier 3 fixtures use memory storage, a 2 GiB native storage budget with a 512 MiB memtable
 (separate from the query budget), and the 64 MiB analytical query-memory profile described
@@ -390,13 +415,15 @@ from the `EXPLAIN` graph node and records `graph_table_indexed_read` with
 `graph_access_path_source=reported`. Without endpoint indexes the same queries read the mapped
 tables in full and exceeded the 64 MiB budget (`54000`) from about 30,000 mapped rows.
 
-**Open finding: weighted routes do not fit at 100k.** `graph_weighted_paths` validates every
-edge weight of the selected mappings on each call, as the contract requires, and holds the
-selected mappings in memory while it searches. The scenario keeps the `.100k` contract class
-and id but maps 15,000 rows in a separate instance, recorded as `graph_mapped_rows`, with the
-access path `graph_table_exact_read` declared (the function has no graph plan node). Running it
-at 100,000 rows under 64 MiB needs a streaming validation scan and a search over the indexed
-store, which are not implemented.
+**Weighted routes at 100k.** `graph_weighted_paths` validates every selected edge weight with a
+streaming scan that retains no rows and searches the lazy indexed store (see
+[Graph Reads](#graph-reads-v060-fast-reads-1253-1254-1259)), so the route scenario shares the
+social graph of the friends-of-friends scenario at 100,000 mapped rows and the 64 MiB profile,
+and no separate smaller instance remains. The function has no graph plan node, so the owner
+classifies its read path from one counted preflight execution (`graph_access_path_source=counted`):
+the path is `indexed` when the call moved `graph_index_entries` and left `graph_full_rows`
+unchanged, which the fixture's endpoint indexes should produce (the counted-read tests passed in the assembler run; the benchmark itself has not been run). Whether the route query fits the 64 MiB budget at this size has not been
+measured: the benchmark compiles but has not been run at this size, and this document records no timing figure.
 
 Run one owner with, for example,
 `cargo bench --locked --bench tier2_subsystem_graph -- --profile smoke`; a smoke run is

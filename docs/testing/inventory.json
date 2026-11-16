@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1762,
-    "rust_files": 1725,
-    "rust_test_declarations": 10475,
+    "files": 1768,
+    "rust_files": 1731,
+    "rust_test_declarations": 10505,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10500,
+    "registered_rust_instances": 10530,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -69348,8 +69348,8 @@
       "id": "tests/graph_types/driver.rs::should_describe_the_graph_types_as_composites_through_the_driver",
       "name": "should_describe_the_graph_types_as_composites_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 158,
-      "end_line": 185,
+      "line": 171,
+      "end_line": 198,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -69379,8 +69379,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_key_parts_of_every_shape_through_the_driver",
       "name": "should_round_trip_key_parts_of_every_shape_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 188,
-      "end_line": 224,
+      "line": 201,
+      "end_line": 237,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -69410,8 +69410,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_a_key_part_array_with_a_null_element_through_the_driver",
       "name": "should_round_trip_a_key_part_array_with_a_null_element_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 227,
-      "end_line": 252,
+      "line": 240,
+      "end_line": 265,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -69441,8 +69441,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver",
       "name": "should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 255,
-      "end_line": 293,
+      "line": 268,
+      "end_line": 306,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -69472,8 +69472,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_a_zero_hop_path_through_the_driver",
       "name": "should_round_trip_a_zero_hop_path_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 309,
-      "end_line": 326,
+      "line": 322,
+      "end_line": 339,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -69503,8 +69503,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_a_one_hop_path_through_the_driver",
       "name": "should_round_trip_a_one_hop_path_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 329,
-      "end_line": 346,
+      "line": 342,
+      "end_line": 359,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -69534,8 +69534,8 @@
       "id": "tests/graph_types/driver.rs::should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_the_driver",
       "name": "should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 349,
-      "end_line": 368,
+      "line": 362,
+      "end_line": 381,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -69565,8 +69565,8 @@
       "id": "tests/graph_types/driver.rs::should_report_the_driver_parameter_type_of_a_path_function_argument",
       "name": "should_report_the_driver_parameter_type_of_a_path_function_argument",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 371,
-      "end_line": 389,
+      "line": 384,
+      "end_line": 402,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -69587,6 +69587,37 @@
         "category": "semantics",
         "directory": "tests/graph_types/semantics",
         "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver_sqlx.rs::should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist",
+      "name": "should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist",
+      "current_file": "tests/graph_types/driver_sqlx.rs",
+      "line": 61,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver_sqlx::should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver_sqlx.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -69761,6 +69792,130 @@
         {
           "suite": "graph_types",
           "name": "parameter_functions::should_pass_a_binary_reference_parameter_to_key_parts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_infer_the_path_type_of_an_undeclared_parameter_given_path_to_jsonb",
+      "name": "should_infer_the_path_type_of_an_undeclared_parameter_given_path_to_jsonb",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 183,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_infer_the_path_type_of_an_undeclared_parameter_given_path_to_jsonb"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_infer_the_path_type_of_an_undeclared_binary_parameter_given_path_to_jsonb",
+      "name": "should_infer_the_path_type_of_an_undeclared_binary_parameter_given_path_to_jsonb",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 201,
+      "end_line": 216,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_infer_the_path_type_of_an_undeclared_binary_parameter_given_path_to_jsonb"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_infer_the_path_type_of_an_undeclared_parameter_given_path_steps",
+      "name": "should_infer_the_path_type_of_an_undeclared_parameter_given_path_steps",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 219,
+      "end_line": 234,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_infer_the_path_type_of_an_undeclared_parameter_given_path_steps"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_infer_the_reference_type_of_an_undeclared_parameter_given_key_parts",
+      "name": "should_infer_the_reference_type_of_an_undeclared_parameter_given_key_parts",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 237,
+      "end_line": 252,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_infer_the_reference_type_of_an_undeclared_parameter_given_key_parts"
         }
       ],
       "attributes": [
@@ -72817,11 +72972,166 @@
       }
     },
     {
+      "id": "tests/graph_weighted/lazy_reads.rs::should_not_read_unrelated_edges_given_endpoint_indexes",
+      "name": "should_not_read_unrelated_edges_given_endpoint_indexes",
+      "current_file": "tests/graph_weighted/lazy_reads.rs",
+      "line": 56,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "lazy_reads::should_not_read_unrelated_edges_given_endpoint_indexes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/lazy_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/lazy_reads.rs::should_validate_every_selected_edge_row_without_reading_them_in_full",
+      "name": "should_validate_every_selected_edge_row_without_reading_them_in_full",
+      "current_file": "tests/graph_weighted/lazy_reads.rs",
+      "line": 74,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "lazy_reads::should_validate_every_selected_edge_row_without_reading_them_in_full"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/lazy_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/lazy_reads.rs::should_read_further_neighbourhoods_only_when_the_hop_limit_allows",
+      "name": "should_read_further_neighbourhoods_only_when_the_hop_limit_allows",
+      "current_file": "tests/graph_weighted/lazy_reads.rs",
+      "line": 87,
+      "end_line": 102,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "lazy_reads::should_read_further_neighbourhoods_only_when_the_hop_limit_allows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/lazy_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/lazy_reads.rs::should_fit_the_lazy_search_in_a_budget_the_exact_read_of_unrelated_edges_exceeds",
+      "name": "should_fit_the_lazy_search_in_a_budget_the_exact_read_of_unrelated_edges_exceeds",
+      "current_file": "tests/graph_weighted/lazy_reads.rs",
+      "line": 133,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "lazy_reads::should_fit_the_lazy_search_in_a_budget_the_exact_read_of_unrelated_edges_exceeds"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/lazy_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/lazy_reads.rs::should_count_the_edge_rows_of_only_the_selected_labels_in_the_validation_scan",
+      "name": "should_count_the_edge_rows_of_only_the_selected_labels_in_the_validation_scan",
+      "current_file": "tests/graph_weighted/lazy_reads.rs",
+      "line": 154,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "lazy_reads::should_count_the_edge_rows_of_only_the_selected_labels_in_the_validation_scan"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/lazy_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_weighted/matrix.rs::should_agree_with_the_oracle_for_every_argument_combination",
       "name": "should_agree_with_the_oracle_for_every_argument_combination",
       "current_file": "tests/graph_weighted/matrix.rs",
-      "line": 31,
-      "end_line": 75,
+      "line": 80,
+      "end_line": 90,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -72848,11 +73158,42 @@
       }
     },
     {
+      "id": "tests/graph_weighted/matrix.rs::should_agree_with_the_oracle_when_an_invalid_weight_decides_the_answer",
+      "name": "should_agree_with_the_oracle_when_an_invalid_weight_decides_the_answer",
+      "current_file": "tests/graph_weighted/matrix.rs",
+      "line": 96,
+      "end_line": 108,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "matrix::should_agree_with_the_oracle_when_an_invalid_weight_decides_the_answer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/matrix.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_weighted/mixed_mappings.rs::should_order_mixed_mapping_ties_by_the_shared_reference_order",
       "name": "should_order_mixed_mapping_ties_by_the_shared_reference_order",
       "current_file": "tests/graph_weighted/mixed_mappings.rs",
       "line": 196,
-      "end_line": 242,
+      "end_line": 256,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -73472,7 +73813,7 @@
       "name": "should_count_the_validation_scan_apart_from_traversal_reads",
       "current_file": "tests/graph_weighted/oracle.rs",
       "line": 392,
-      "end_line": 410,
+      "end_line": 411,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -74020,6 +74361,595 @@
         "category": "security",
         "directory": "tests/graph_weighted/security",
         "file": "tests/graph_weighted/security/security.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/transactions.rs::should_see_an_own_inserted_edge",
+      "name": "should_see_an_own_inserted_edge",
+      "current_file": "tests/graph_weighted/transactions.rs",
+      "line": 49,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "transactions::should_see_an_own_inserted_edge"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "transactions",
+        "directory": "tests/graph_weighted/transactions",
+        "file": "tests/graph_weighted/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/transactions.rs::should_see_an_own_updated_weight",
+      "name": "should_see_an_own_updated_weight",
+      "current_file": "tests/graph_weighted/transactions.rs",
+      "line": 67,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "transactions::should_see_an_own_updated_weight"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "transactions",
+        "directory": "tests/graph_weighted/transactions",
+        "file": "tests/graph_weighted/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/transactions.rs::should_not_see_an_own_deleted_edge",
+      "name": "should_not_see_an_own_deleted_edge",
+      "current_file": "tests/graph_weighted/transactions.rs",
+      "line": 85,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "transactions::should_not_see_an_own_deleted_edge"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "transactions",
+        "directory": "tests/graph_weighted/transactions",
+        "file": "tests/graph_weighted/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/transactions.rs::should_reject_an_own_update_to_a_negative_weight_until_it_is_rolled_back",
+      "name": "should_reject_an_own_update_to_a_negative_weight_until_it_is_rolled_back",
+      "current_file": "tests/graph_weighted/transactions.rs",
+      "line": 103,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "transactions::should_reject_an_own_update_to_a_negative_weight_until_it_is_rolled_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "transactions",
+        "directory": "tests/graph_weighted/transactions",
+        "file": "tests/graph_weighted/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/transactions.rs::should_reject_an_own_inserted_edge_without_a_weight_between_existing_vertices",
+      "name": "should_reject_an_own_inserted_edge_without_a_weight_between_existing_vertices",
+      "current_file": "tests/graph_weighted/transactions.rs",
+      "line": 121,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "transactions::should_reject_an_own_inserted_edge_without_a_weight_between_existing_vertices"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "transactions",
+        "directory": "tests/graph_weighted/transactions",
+        "file": "tests/graph_weighted/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/transactions.rs::should_ignore_an_own_inserted_invalid_edge_whose_endpoint_does_not_exist_yet",
+      "name": "should_ignore_an_own_inserted_invalid_edge_whose_endpoint_does_not_exist_yet",
+      "current_file": "tests/graph_weighted/transactions.rs",
+      "line": 139,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "transactions::should_ignore_an_own_inserted_invalid_edge_whose_endpoint_does_not_exist_yet"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "transactions",
+        "directory": "tests/graph_weighted/transactions",
+        "file": "tests/graph_weighted/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/transactions.rs::should_ignore_an_invalid_edge_whose_endpoint_vertex_was_deleted_in_the_transaction",
+      "name": "should_ignore_an_invalid_edge_whose_endpoint_vertex_was_deleted_in_the_transaction",
+      "current_file": "tests/graph_weighted/transactions.rs",
+      "line": 161,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "transactions::should_ignore_an_invalid_edge_whose_endpoint_vertex_was_deleted_in_the_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "transactions",
+        "directory": "tests/graph_weighted/transactions",
+        "file": "tests/graph_weighted/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_ignore_an_invalid_weight_on_an_edge_with_a_null_endpoint_under_every_read_path",
+      "name": "should_ignore_an_invalid_weight_on_an_edge_with_a_null_endpoint_under_every_read_path",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 120,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_ignore_an_invalid_weight_on_an_edge_with_a_null_endpoint_under_every_read_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_reject_the_invalid_weight_of_a_visible_edge_beside_a_null_endpoint_edge_under_every_read_path",
+      "name": "should_reject_the_invalid_weight_of_a_visible_edge_beside_a_null_endpoint_edge_under_every_read_path",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 133,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_reject_the_invalid_weight_of_a_visible_edge_beside_a_null_endpoint_edge_under_every_read_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_answer_the_same_when_the_parallel_scan_falls_back_to_reading_in_full",
+      "name": "should_answer_the_same_when_the_parallel_scan_falls_back_to_reading_in_full",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 146,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_answer_the_same_when_the_parallel_scan_falls_back_to_reading_in_full"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_reject_an_invalid_visible_weight_when_the_parallel_scan_reads_in_full",
+      "name": "should_reject_an_invalid_visible_weight_when_the_parallel_scan_reads_in_full",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 160,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_reject_an_invalid_visible_weight_when_the_parallel_scan_reads_in_full"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_ignore_an_invalid_weight_toward_a_missing_composite_vertex_under_every_read_path",
+      "name": "should_ignore_an_invalid_weight_toward_a_missing_composite_vertex_under_every_read_path",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 199,
+      "end_line": 209,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_ignore_an_invalid_weight_toward_a_missing_composite_vertex_under_every_read_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_reject_an_invalid_weight_between_two_existing_composite_vertices_under_every_read_path",
+      "name": "should_reject_an_invalid_weight_between_two_existing_composite_vertices_under_every_read_path",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 212,
+      "end_line": 221,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_reject_an_invalid_weight_between_two_existing_composite_vertices_under_every_read_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_answer_identically_for_quoted_mixed_case_columns_under_every_read_path",
+      "name": "should_answer_identically_for_quoted_mixed_case_columns_under_every_read_path",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 250,
+      "end_line": 260,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_answer_identically_for_quoted_mixed_case_columns_under_every_read_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_reject_a_visible_invalid_weight_of_a_quoted_mixed_case_column_under_every_read_path",
+      "name": "should_reject_a_visible_invalid_weight_of_a_quoted_mixed_case_column_under_every_read_path",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 263,
+      "end_line": 272,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_reject_a_visible_invalid_weight_of_a_quoted_mixed_case_column_under_every_read_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/validation_equivalence.rs::should_read_the_vertex_keys_in_full_when_a_repeatable_read_cannot_see_the_replacing_key_index",
+      "name": "should_read_the_vertex_keys_in_full_when_a_repeatable_read_cannot_see_the_replacing_key_index",
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "line": 357,
+      "end_line": 370,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "validation_equivalence::should_read_the_vertex_keys_in_full_when_a_repeatable_read_cannot_see_the_replacing_key_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/validation_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/variants.rs::should_pass_the_weighted_suites_given_lazy_indexed_reads",
+      "name": "should_pass_the_weighted_suites_given_lazy_indexed_reads",
+      "current_file": "tests/graph_weighted/variants.rs",
+      "line": 125,
+      "end_line": 132,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "variants::should_pass_the_weighted_suites_given_lazy_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/variants.rs::should_pass_the_weighted_suites_given_exact_plain_reads",
+      "name": "should_pass_the_weighted_suites_given_exact_plain_reads",
+      "current_file": "tests/graph_weighted/variants.rs",
+      "line": 135,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "variants::should_pass_the_weighted_suites_given_exact_plain_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/variants.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/variants.rs::should_pass_the_weighted_suites_given_exact_indexed_reads",
+      "name": "should_pass_the_weighted_suites_given_exact_indexed_reads",
+      "current_file": "tests/graph_weighted/variants.rs",
+      "line": 145,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "variants::should_pass_the_weighted_suites_given_exact_indexed_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/variants.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -325686,8 +326616,8 @@
       "current_file": "tests/Cargo.toml",
       "role": "fixture_data",
       "action": "keep",
-      "lines": 223,
-      "sha256": "1277bb8144fcf7b3cfd997d5cc5960f9d9782d1aca2d4b5f32f86ee87a080bc6",
+      "lines": 225,
+      "sha256": "a143e105e0206375c189f45a7020ff646821bb2fd6897b7a45800c8d9c2ab610",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [
@@ -332662,14 +333592,29 @@
       "current_file": "tests/graph_types/driver.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 389,
-      "sha256": "9bb621e3a42eca87845c5b949d4197309e7876137b10a5e1da7d9a8e708ec190",
+      "lines": 402,
+      "sha256": "1bda8c1ca30a4afabb99829f3220f007f6ceed5044845bcfdd453a805eadd548",
       "test_declarations": 8,
       "registered_suites": [
         "graph_types"
       ],
       "destinations": [
         "tests/graph_types/semantics/driver.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/driver_sqlx.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 81,
+      "sha256": "0986e98ffe0391b46f1dd772069268a2ff7831642d808bc2db885763362ed61c",
+      "test_declarations": 1,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/driver_sqlx.rs"
       ],
       "line_limit": 1000
     },
@@ -332692,9 +333637,9 @@
       "current_file": "tests/graph_types/parameter_functions.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 180,
-      "sha256": "d012a1a14ef50e3a35edc430e988bc8ad896fff6fc8d0c8a3c0ab8586190cce9",
-      "test_declarations": 6,
+      "lines": 252,
+      "sha256": "2ed12bdc5369013d6310d9f51e46e36504ee5c1347f997fe85b835171f5bca0f",
+      "test_declarations": 10,
       "registered_suites": [
         "graph_types"
       ],
@@ -332737,14 +333682,29 @@
       "current_file": "tests/graph_types/record_codec.rs",
       "role": "test_support",
       "action": "keep",
-      "lines": 171,
-      "sha256": "363b374678120b39987eafa2074c396ad98c33a5f2eb5a557c3c2120c2686712",
+      "lines": 55,
+      "sha256": "a4af15037e46ed80ab1b873595f9c9df6c77495d80406e1eb6485288ec3854fc",
       "test_declarations": 0,
       "registered_suites": [
         "graph_types"
       ],
       "destinations": [
         "tests/graph_types/record_codec.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/record_frame.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 186,
+      "sha256": "edecb81eb098198c2a900960e9b27426802bdef8fc91fd2e9ac9db9cd7900159",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/record_frame.rs"
       ],
       "line_limit": 1000
     },
@@ -332812,8 +333772,8 @@
       "current_file": "tests/graph_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 41,
-      "sha256": "29d25b1b7af8cd4e1eed56cb21d21dcd152e724f9d915f99e5754ba5be2b445a",
+      "lines": 47,
+      "sha256": "0d7dec07d233c3b8157ae81c8adbb9f2ab3d1fe1b4e9518ce536ded39bc3708a",
       "test_declarations": 0,
       "registered_suites": [
         "graph_types"
@@ -332854,12 +333814,27 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_weighted/lazy_reads.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 176,
+      "sha256": "d61e4844e821374ffc0cd15d5285734005df81a9e11656c700bb6ad17d3ee031",
+      "test_declarations": 5,
+      "registered_suites": [
+        "graph_weighted"
+      ],
+      "destinations": [
+        "tests/graph_weighted/semantics/lazy_reads.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_weighted/matrix.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 75,
-      "sha256": "f62d5d0f944a484e78d5417f5dbcbd8e993bd2e70c39935be0c8d7b5c7725240",
-      "test_declarations": 1,
+      "lines": 108,
+      "sha256": "378d886144684f4b999c060ab8056e3f189c86eb602402b2deec9701d89453ac",
+      "test_declarations": 2,
       "registered_suites": [
         "graph_weighted"
       ],
@@ -332872,8 +333847,8 @@
       "current_file": "tests/graph_weighted/mixed_mappings.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 242,
-      "sha256": "29d05359fe1aacd8fd6a607d5178dee80da86d328f033dba14fbaf2c1eeca3f4",
+      "lines": 256,
+      "sha256": "cc2334b519bfb8927caf780428e7ea23d46bdd1fd740bfecf73cc854dc43cc57",
       "test_declarations": 1,
       "registered_suites": [
         "graph_weighted"
@@ -332887,8 +333862,8 @@
       "current_file": "tests/graph_weighted/oracle.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 410,
-      "sha256": "0637a390819b2f8fa262cbc655764ace12995630920a88617d0a10487667849d",
+      "lines": 411,
+      "sha256": "a178efe6b3d3fd76ed088d93fdd9c388da8e8b9a904847b4dde6e3270a767a5a",
       "test_declarations": 20,
       "registered_suites": [
         "graph_weighted"
@@ -332945,6 +333920,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_weighted/transactions.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 177,
+      "sha256": "ff983ff460686a4640cd189e32f60225bb32fa0ef7534b9de54e9e6102be3525",
+      "test_declarations": 7,
+      "registered_suites": [
+        "graph_weighted"
+      ],
+      "destinations": [
+        "tests/graph_weighted/transactions/transactions.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_weighted/validation_equivalence.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 370,
+      "sha256": "d6a6655bb32fab80b8410af376b32ab62d88197dc62616417b5c8c993a1aa507",
+      "test_declarations": 9,
+      "registered_suites": [
+        "graph_weighted"
+      ],
+      "destinations": [
+        "tests/graph_weighted/semantics/validation_equivalence.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_weighted/variants.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 152,
+      "sha256": "caabfe543b3d8b1442ee4cb9e2b471d99ac40fffed01482c4a6decea71657988",
+      "test_declarations": 3,
+      "registered_suites": [
+        "graph_weighted"
+      ],
+      "destinations": [
+        "tests/graph_weighted/semantics/variants.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_weighted/views.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -332963,8 +333983,8 @@
       "current_file": "tests/graph_weighted/world.rs",
       "role": "test_support",
       "action": "keep",
-      "lines": 464,
-      "sha256": "d3c7c2b8ac9ce1e2c3aefd69862e29ce9915e4e7e556114bb32e2f60a90fee44",
+      "lines": 505,
+      "sha256": "651bf0e90c9b566f7965d5f2cb621e96de814c5cd95d3439a9551af043ba79a8",
       "test_declarations": 0,
       "registered_suites": [
         "graph_weighted"
@@ -332978,8 +333998,8 @@
       "current_file": "tests/graph_weighted.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 39,
-      "sha256": "b64f9d4d2bd7820fcd1027aee921900fe40098f1195854864327aa36efca32e7",
+      "lines": 51,
+      "sha256": "197e1b1db7c707edecb2ebfae1d8e884185b028400ee7f319b32479e9677a476",
       "test_declarations": 0,
       "registered_suites": [
         "graph_weighted"

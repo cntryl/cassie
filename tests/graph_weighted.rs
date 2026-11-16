@@ -37,3 +37,15 @@ mod mixed_mappings;
 
 #[path = "graph_weighted/prepared.rs"]
 mod prepared;
+
+#[path = "graph_weighted/variants.rs"]
+mod variants;
+
+#[path = "graph_weighted/lazy_reads.rs"]
+mod lazy_reads;
+
+#[path = "graph_weighted/transactions.rs"]
+mod transactions;
+
+#[path = "graph_weighted/validation_equivalence.rs"]
+mod validation_equivalence;

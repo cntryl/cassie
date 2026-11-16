@@ -2,7 +2,8 @@
 //!
 //! A definition lives in the Data family of its database, so it commits
 //! atomically with any other change of the same transaction. Nothing derived
-//! is stored: graph reads are exact reads of the mapped tables.
+//! is stored: graph reads go to the mapped tables, through their ordinary indexes
+//! where present.
 
 use super::{key_encoding, CassieError, Midge};
 use crate::catalog::PropertyGraphMeta;

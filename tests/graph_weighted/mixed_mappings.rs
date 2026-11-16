@@ -3,7 +3,7 @@
 
 use crate::graph_oracle::model::{vertex_ref, Edge, Graph, KeyPart, Scalar, Vertex, SCALE};
 use crate::graph_oracle::weighted::{weighted_paths, WeightedQuery};
-use crate::world::started;
+use crate::world::{current_variant, started};
 use cassie::types::graph::{compare_paths, Direction, ElementKind, ElementRef, Path};
 use cassie::types::Value;
 
@@ -193,9 +193,23 @@ fn oracle_identities(vertex_ids: &[u128], edge_ids: &[u128]) -> Vec<Vec<(u128, i
 }
 
 #[test]
-fn should_order_mixed_mapping_ties_by_the_shared_reference_order() {
+pub fn should_order_mixed_mapping_ties_by_the_shared_reference_order() {
     // Arrange
-    let fixture = started(None, &SETUP);
+    let indexes = [
+        "CREATE INDEX ab_s ON ab (s)",
+        "CREATE INDEX ab_d ON ab (d)",
+        "CREATE INDEX ba_s ON ba (s)",
+        "CREATE INDEX ba_d ON ba (d)",
+        "CREATE INDEX aa_s ON aa (s)",
+        "CREATE INDEX aa_d ON aa (d)",
+    ];
+    let setup = if current_variant().endpoint_indexes {
+        let (tables, graph) = SETUP.split_at(SETUP.len() - 1);
+        [tables, &indexes, graph].concat()
+    } else {
+        SETUP.to_vec()
+    };
+    let fixture = started(None, &setup);
     let defined = fixture
         .cassie
         .catalog

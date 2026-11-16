@@ -2,8 +2,9 @@
 //!
 //! Order of work: arguments (NULL, type, bounds), graph, references, edge labels, read
 //! authority on every table the call can read, weight property and its declared type, the
-//! exact-read store, source and target existence, then one controlled scan that validates
-//! the weight of every graph-visible edge of the selected mappings. Only then does the
+//! store (lazy indexed, or the exact full read when exact reads are forced), source and
+//! target existence, then one streaming scan that validates the weight of every
+//! graph-visible edge of the selected mappings (see `weighted_validate`). Only then does the
 //! search run, so a hidden invalid edge is an error whatever path would be returned. The
 //! complete result is materialized before the first row leaves the source.
 
@@ -14,15 +15,14 @@ use uuid::Uuid;
 
 use super::super::super::{finalize_source_batches, SourceExecution};
 use super::keys::{key_part, KeyPart as StoredKey};
-use super::store::Store;
 use super::weighted_args::{diagnostic, Request};
-use super::weighted_search::{Candidate, Query, Search};
+use super::weighted_run;
+use super::weighted_search::Candidate;
 use super::{batch, BatchRow, QueryError, SourceExecutionEnv};
 use crate::catalog::property_graphs::{GraphEdgeMeta, GraphLabelMeta, PropertyGraphMeta};
 use crate::catalog::Catalog;
 use crate::executor::retained_memory::{add, value_clone_bytes};
 use crate::sql::ast::FunctionCall;
-use crate::types::extended::numeric::Numeric;
 use crate::types::extended::ExtendedType;
 use crate::types::graph::{ElementRef, KeyPart};
 use crate::types::typed::TypedValue;
@@ -142,7 +142,7 @@ fn weight_columns(
         .collect())
 }
 
-fn stored_key(key: &[KeyPart]) -> Vec<StoredKey> {
+pub(super) fn stored_key(key: &[KeyPart]) -> Vec<StoredKey> {
     key.iter()
         .filter_map(|part| {
             let (value, data_type) = match part {
@@ -157,42 +157,15 @@ fn stored_key(key: &[KeyPart]) -> Vec<StoredKey> {
         .collect()
 }
 
-fn invalid_weight() -> QueryError {
-    diagnostic(
-        "22023",
-        "a selected edge has a missing, negative or non-finite weight",
-    )
-}
-
-/// A present, finite, non-negative exact number.
-fn weight(value: Option<&Value>) -> Result<Numeric, QueryError> {
-    let numeric = match value {
-        Some(Value::Int64(number)) => Numeric::from_i64(*number),
-        Some(Value::Typed(TypedValue::Numeric(numeric))) => numeric.clone(),
-        _ => return Err(invalid_weight()),
-    };
-    match numeric.signum() {
-        Some(sign) if sign >= 0 && matches!(numeric, Numeric::Finite { .. }) => Ok(numeric),
-        _ => Err(invalid_weight()),
-    }
-}
-
-fn uuids(ids: impl Iterator<Item = Option<String>>) -> Vec<Uuid> {
-    ids.map(|id| {
-        id.and_then(|id| Uuid::parse_str(&id).ok())
-            .unwrap_or_default()
-    })
-    .collect()
-}
-
 /// What a request resolves to in the catalog, with authority already checked.
-struct Resolved {
-    graph: PropertyGraphMeta,
-    source_mapping: usize,
-    target_mapping: usize,
-    vertex_list: Vec<usize>,
-    edge_list: Vec<usize>,
-    columns: Vec<(usize, String)>,
+pub(super) struct Resolved {
+    pub(super) graph: PropertyGraphMeta,
+    pub(super) source_mapping: usize,
+    pub(super) target_mapping: usize,
+    pub(super) vertex_list: Vec<usize>,
+    pub(super) edge_list: Vec<usize>,
+    /// `(edge mapping index, weight column)` of each selected edge mapping.
+    pub(super) columns: Vec<(usize, String)>,
 }
 
 /// Graph, references, labels, read authority and weight property, in that order.
@@ -274,54 +247,13 @@ pub(in super::super) fn execute(
     env.controls.check_interruption()?;
     let args = super::super::super::source_table_function::evaluate_args(env, function, outer_row)?;
     let request = Request::parse(&args)?;
-    let Resolved {
-        graph,
-        source_mapping,
-        target_mapping,
-        vertex_list,
-        edge_list,
-        columns,
-    } = resolve(env, &request)?;
+    let resolved = resolve(env, &request)?;
     let descriptors = crate::executor::filter::graph_functions::descriptors_of(env.session)?;
 
     let mut output = env.controls.reserve_query_memory(0)?;
     let found = {
         let mut traversal = env.controls.reserve_query_memory(0)?;
-        let store = Store::load_mappings(env, &graph, (&vertex_list, &edge_list), &mut traversal)?;
-        let locate = |mapping: usize, reference: &ElementRef| {
-            store.vertex_maps[mapping]
-                .as_ref()
-                .and_then(|loaded| loaded.index.get(&stored_key(&reference.key)))
-                .map(|row| store.vertex_id(mapping, *row))
-                .ok_or_else(|| diagnostic("42704", "the vertex does not exist"))
-        };
-        let source = locate(source_mapping, &request.source)?;
-        let target = locate(target_mapping, &request.target)?;
-        let weights = edge_weights(env, &store, &columns, &mut traversal)?;
-        // The whole-edge validation scan is counted apart from traversal reads.
-        let validated = store
-            .edge_maps
-            .iter()
-            .flatten()
-            .map(|loaded| loaded.rows.len() as u64)
-            .sum();
-        store.record_reads(env, validated);
-        let vertex_mappings = uuids(graph.vertices.iter().map(|m| Some(m.mapping_id.clone())));
-        let edge_mappings = uuids(graph.edges.iter().map(|m| Some(m.mapping_id.clone())));
-        let query = Query {
-            source,
-            target,
-            way: request.way,
-            max_hops: request.max_hops,
-            max_cost: request.max_cost.as_ref(),
-            k: request.k,
-            weights: &weights,
-            vertex_mappings: &vertex_mappings,
-            edge_mappings: &edge_mappings,
-            database_id: request.source.database_id,
-            graph_id: request.source.graph_id,
-        };
-        let found = Search::new(env, &store, &query, &mut traversal)?.run()?;
+        let found = weighted_run::run(env, &request, &resolved, &mut traversal)?;
         rows(env, &descriptors, &found, &mut output)?
     };
     env.controls.check_interruption()?;
@@ -348,32 +280,6 @@ pub(in super::super) fn execute(
         qualify,
         name,
     )
-}
-
-/// One controlled scan of every graph-visible edge of the selected mappings: the weight of
-/// each, by edge id, or the first invalid one as an error.
-fn edge_weights(
-    env: &SourceExecutionEnv<'_>,
-    store: &Store,
-    columns: &[(usize, String)],
-    memory: &mut crate::runtime::QueryMemoryReservation,
-) -> Result<Vec<Numeric>, QueryError> {
-    memory.try_grow(crate::executor::retained_memory::mul(
-        store.edges.len(),
-        size_of::<Numeric>() + 64,
-    )?)?;
-    let mut weights = Vec::with_capacity(store.edges.len());
-    for edge in 0..store.edges.len() {
-        env.controls.check_interruption()?;
-        let (mapping, row) = store.edge_row(edge);
-        let column = columns
-            .iter()
-            .find(|(index, _)| *index == mapping)
-            .map(|(_, column)| column.as_str())
-            .ok_or_else(invalid_weight)?;
-        weights.push(weight(row.get(column))?);
-    }
-    Ok(weights)
 }
 
 fn rows(

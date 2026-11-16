@@ -21,7 +21,10 @@ mod store;
 mod walk;
 mod weighted;
 mod weighted_args;
+mod weighted_run;
 mod weighted_search;
+mod weighted_validate;
+mod weighted_weight;
 
 pub(super) use weighted::execute as execute_weighted;
 
@@ -75,7 +78,7 @@ pub(super) fn execute(
         let mut store = if access.forced_exact {
             store::Store::load(env, &plan, &mut traversal)?
         } else {
-            store::Store::lazy(env, &plan, access)?
+            store::Store::lazy(env, &plan.graph, access)?
         };
         let found = walk::Walk::new(env, &plan, &mut store, &eval, &mut traversal).run()?;
         let kind = table.effective_selector().kind;

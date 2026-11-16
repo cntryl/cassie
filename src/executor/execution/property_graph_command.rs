@@ -1,7 +1,8 @@
 //! `CREATE`, `DROP` and `ALTER PROPERTY GRAPH` (#1255).
 //!
 //! A definition is validated against the catalog and stored. It builds no
-//! derived state: graph reads are exact reads of the mapped tables. Dropping a
+//! derived state: graph reads go to the mapped tables, through their ordinary
+//! indexes where present. Dropping a
 //! graph never touches the tables it maps or their rows.
 
 use super::command_output::empty as empty_command;

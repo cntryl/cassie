@@ -34,8 +34,14 @@ mod projected_paths;
 #[path = "graph_types/parameter_functions.rs"]
 mod parameter_functions;
 
+#[path = "graph_types/record_frame.rs"]
+mod record_frame;
+
 #[path = "graph_types/record_codec.rs"]
 mod record_codec;
 
 #[path = "graph_types/driver.rs"]
 mod driver;
+
+#[path = "graph_types/driver_sqlx.rs"]
+mod driver_sqlx;

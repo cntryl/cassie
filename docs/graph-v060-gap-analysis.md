@@ -139,11 +139,12 @@ Out of milestone (gap kept here only): C2 `WITH RECURSIVE` acceleration and C4 g
 ## Promotion evidence
 
 **Decision (2026-11-16): graph traversal stays Experimental.** The evidence below supports
-correctness of the delivered surface, but four items a Stable claim needs are open: round
-trips through a second real PostgreSQL driver, recorded benchmark numbers from gate-quality
-runs, `graph_weighted_paths` at the 100,000-row representative under the standard memory
-profile, and use outside the test suite. Promotion is reconsidered when those are closed. The
-status in [Feature support](feature-support.md) is unchanged.
+correctness of the delivered surface, but items a Stable claim needs are open: recorded
+benchmark numbers from gate-quality runs, use outside the test suite, and the executed
+results of two pieces of evidence: round trips through a second real PostgreSQL driver
+(`sqlx`, blocked on catalog scope #905) and `graph_weighted_paths` at the 100,000-row
+representative under the standard memory profile. Promotion is reconsidered when
+those are closed. The status in [Feature support](feature-support.md) is unchanged.
 
 This section collects the evidence for that decision
 ([promotion criteria](experimental-promotion-criteria.md)). Each entry below is a source
@@ -171,9 +172,28 @@ claim backed by a test or a document; none is a performance claim.
 
 | Item | State |
 | --- | --- |
-| Read bounds | Every graph read is an exact read of the mapped tables. No O(degree) bound is claimed or measured, and `graph_weighted_paths` reads every edge by design. Fast reads (#1253, #1254 read-bound part, #1259) are not part of the current build. |
-| Real-driver qualification | Text and binary round trips of the three path types and their arrays run through one real driver (`tokio-postgres`, `tests/graph_types/driver.rs`). The contract asks for two; a second always-available client is not wired into the harness. |
-| Weighted routes at scale | The three `GRAPH_TABLE` Tier 3 scenarios run at about 100,000 mapped rows under the 64 MiB profile on the indexed read path. `graph_weighted_paths` holds its selected mappings in memory and runs at 15,000 mapped rows. See [performance contracts](performance-contracts.md#graph-benchmarks). |
+| Read bounds | The documented read bounds and their counters are in [performance contracts](performance-contracts.md#graph-reads-v060-fast-reads-1253-1254-1259). `graph_weighted_paths` reads every selected edge row once for validation by contract (counted as `graph_validation_rows`, cost O(selected edges)) and its search reads only the neighbourhoods of the vertices it visits. No timing figure is recorded. |
+| Real-driver qualification | Text and binary round trips of the three path types and their arrays run through `tokio-postgres` ([`driver.rs`](../tests/graph_types/driver.rs), executed in earlier gates). A second real driver is a recorded blocker, not evidence. `sqlx` 0.9 was run against the harness and every prepare of a composite or array of graph types failed at its type-resolver statement (`connection/resolve.rs`) with SQLSTATE `42601` (`unexpected text after function call`: the aggregate-call parser reads the alias-without-`AS` after `NULLIF(typelem, 0::oid) typelem` as a trailing clause). Past that, the statement also needs `pg_catalog.pg_range` (a join against it fails with `42P01`, pinned by `should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist`), an oid-typed `pg_attribute.attrelid` (text here), `regtype` casts and a row value inside `array_agg`. These are catalog and parser scope owned by [#905](https://github.com/cntryl/cassie/issues/905). Decision (Jev `sqlx_disposition`, 0.99, receipt `target/jev/sqlx_decision_resp.json`): the eleven failing `sqlx` round-trip tests and their framing helper were removed from this change rather than ignored; the pin test and the dev-dependency stay. The #1268 criterion of a second real client therefore stays open with #905 as its dependency. |
+| Weighted routes at scale | The three `GRAPH_TABLE` Tier 3 scenarios run at about 100,000 mapped rows under the 64 MiB profile on the indexed read path. `graph_weighted_paths` now validates weights with one streaming scan and searches the lazy indexed store ([performance contracts](performance-contracts.md#graph-reads-v060-fast-reads-1253-1254-1259)); its Tier 3 route scenario is restored to the shared 100,000-row social graph. Counted-read, own-write and oracle-equivalence tests under the lazy indexed and forced exact paths pass in the assembler run of the `graph_weighted` suite on the integrated head (`lazy_reads.rs`, `transactions.rs`, `variants.rs`); the benchmark compiles but has not been run at this size. |
 | Benchmark numbers | No timing or scaling number is recorded. Gate-quality results need the release profile with at least five samples, host identity and a baseline. |
 | Exact-head gates | The ordered local gate and the hosted checks run on the integrated head are owned by the assembler and are not recorded here. |
 | Guide scope | The guide documents the current dialect. Standard SQL/PGQ conformance is not claimed and no normative grammar comparison has been done. |
+
+### Decisions recorded for batch A (2026-11-16, delegated Jev process)
+
+- **Second real driver:** add `sqlx` as a dev-dependency of the integration test crate only
+  (`postgres` and `runtime-tokio` features, no TLS backend, plaintext local connection).
+  Judgment `sqlx_dev_dependency`: 0.96. Superseded in part at assembly: the round-trip tests
+  failed at the resolver statement and were removed (judgment `sqlx_disposition`: 0.99), see the
+  real-driver row above.
+- **Weighted paths at scale:** replace load-validate-search with one streaming validation
+  scan followed by a search over the lazy indexed store. Judgment
+  `streaming_validation_then_indexed_search`: 1.00; its equivalence with the previous
+  implementation was rated only 0.50, so the 360-case oracle matrix, the counted-read and the
+  own-write tests are the proof obligation and run under the lazy indexed, exact plain and
+  exact indexed paths.
+- **Undeclared parameters at graph function arguments:** the parameter fold already holds the
+  catalog and the database scope, so `$n` takes the reserved type from the function's
+  declared argument type, as it does for `graph_weighted_paths`; the earlier blocker (the
+  legacy inference had no database in scope) does not apply to the fold in
+  `src/sql/parameters/fold_graph_functions.rs`.

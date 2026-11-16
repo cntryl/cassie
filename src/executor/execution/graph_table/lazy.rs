@@ -94,7 +94,7 @@ fn pending_of(
 /// The rows of `table` whose `columns` hold exactly `key`, read through `index` in the
 /// statement's view: committed index hits whose row has no pending change, plus pending
 /// upserts that match. Every candidate is re-checked against the exact key comparison.
-fn lookup_rows(
+pub(super) fn lookup_rows(
     env: &SourceExecutionEnv<'_>,
     reads: &mut Reads,
     table: &str,
@@ -163,10 +163,9 @@ impl Store {
     /// Memory-budget errors of the store's reservation.
     pub(super) fn lazy(
         env: &SourceExecutionEnv<'_>,
-        plan: &Plan<'_>,
+        graph: &PropertyGraphMeta,
         access: Access,
     ) -> Result<Self, QueryError> {
-        let graph = &plan.graph;
         let empty = |id: &str| Loaded {
             id: id.to_owned(),
             rows: Vec::new(),
@@ -295,7 +294,7 @@ impl Store {
     }
 
     /// The id of the vertex of `mapping` with `key`, fetching it when it is not known.
-    fn find_vertex(
+    pub(super) fn find_vertex(
         &mut self,
         env: &SourceExecutionEnv<'_>,
         graph: &PropertyGraphMeta,

@@ -22,6 +22,8 @@ mod enum_quantified;
 mod expressions;
 #[path = "fold_functions.rs"]
 mod functions;
+#[path = "fold_graph_functions.rs"]
+mod graph_functions;
 #[path = "fold_literal_inputs.rs"]
 mod literal_inputs;
 #[path = "fold_nodes.rs"]

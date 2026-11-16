@@ -35,6 +35,9 @@ impl Fold<'_, '_> {
         function: &ast::FunctionCall,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if let Some(summary) = self.graph_function(function, frame)? {
+            return Ok(summary);
+        }
         if let Some(summary) = self.generated_function(function, frame)? {
             return Ok(summary);
         }

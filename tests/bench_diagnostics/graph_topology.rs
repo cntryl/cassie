@@ -1,10 +1,9 @@
 //! The narrow topology exception used within Tier 5's Batch validation.
 
-#[path = "../../benches/support/performance_graph_topology.rs"]
-mod topology;
+use crate::performance_benchmarks::performance_graph_topology as topology;
 
-#[path = "../../benches/support/stress_runtime_contract.rs"]
-pub mod runtime_contract;
+#[path = "../../benches/support/stress_fixture_identity.rs"]
+mod fixture_identity;
 
 #[test]
 fn should_register_all_topology_fixtures_without_reusing_an_owner_scale_identity() {
@@ -12,7 +11,7 @@ fn should_register_all_topology_fixtures_without_reusing_an_owner_scale_identity
     let scenarios = crate::performance_benchmarks::benchmark_scenarios()
         .filter(|scenario| scenario.benchmark == "tier5_scaling_graph")
         .collect::<Vec<_>>();
-    let mut identities = runtime_contract::FixtureIdentityTracker::default();
+    let mut identities = fixture_identity::FixtureIdentityTracker::default();
 
     // Act
     let outcomes = scenarios

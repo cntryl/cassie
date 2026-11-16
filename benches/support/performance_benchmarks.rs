@@ -7,7 +7,7 @@ mod performance_benchmark_scenarios;
 #[path = "performance_benchmark_types.rs"]
 mod performance_benchmark_types;
 #[path = "performance_graph_topology.rs"]
-mod performance_graph_topology;
+pub(crate) mod performance_graph_topology;
 
 pub type BenchmarkSampleSummary = performance_benchmark_types::BenchmarkSampleSummary;
 pub type BenchmarkOwnerManifest = performance_benchmark_samples::BenchmarkOwnerManifest;

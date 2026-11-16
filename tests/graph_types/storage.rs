@@ -88,7 +88,7 @@ fn should_reject_an_invalid_value_written_by_update() {
 fn replay_key_part(
     cassie: &cassie::app::Cassie,
     document_id: &str,
-    fields: serde_json::Value,
+    fields: &serde_json::Value,
 ) -> Result<u64, cassie::app::CassieError> {
     let oid = match run(
         cassie,
@@ -131,10 +131,14 @@ fn should_validate_reserved_values_written_by_projector_replay() {
     );
 
     // Act
-    let valid = replay_key_part(&cassie, "ok", serde_json::json!([3, 7, null, null]));
-    let wrong_slot = replay_key_part(&cassie, "slot", serde_json::json!([3, null, "seven", null]));
-    let two_slots = replay_key_part(&cassie, "two", serde_json::json!([3, 7, "seven", null]));
-    let unknown_tag = replay_key_part(&cassie, "tag", serde_json::json!([9, 7, null, null]));
+    let valid = replay_key_part(&cassie, "ok", &serde_json::json!([3, 7, null, null]));
+    let wrong_slot = replay_key_part(
+        &cassie,
+        "slot",
+        &serde_json::json!([3, null, "seven", null]),
+    );
+    let two_slots = replay_key_part(&cassie, "two", &serde_json::json!([3, 7, "seven", null]));
+    let unknown_tag = replay_key_part(&cassie, "tag", &serde_json::json!([9, 7, null, null]));
     let stored = run(&cassie, "SELECT count(*)::text FROM replayed_parts");
 
     // Assert

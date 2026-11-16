@@ -459,7 +459,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/graph_table/exact_reads.rs` | test_module | 152 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/exact_reads.rs` |
 | `tests/graph_table/fast_reads.rs` | test_module | 668 | 20 | graph_table | move_with_module_alias | `tests/graph_table/semantics/fast_reads.rs` |
 | `tests/graph_table/matrix.rs` | test_module | 136 | 2 | graph_table | move_with_module_alias | `tests/graph_table/semantics/matrix.rs` |
-| `tests/graph_table/overlay_probes.rs` | test_module | 238 | 5 | graph_table | move_with_module_alias | `tests/graph_table/semantics/overlay_probes.rs` |
+| `tests/graph_table/overlay_probes.rs` | test_module | 237 | 5 | graph_table | move_with_module_alias | `tests/graph_table/semantics/overlay_probes.rs` |
 | `tests/graph_table/paths.rs` | test_module | 615 | 16 | graph_table | move_with_module_alias | `tests/graph_table/semantics/paths.rs` |
 | `tests/graph_table/persistence.rs` | test_module | 109 | 3 | graph_table | move_with_module_alias | `tests/graph_table/semantics/persistence.rs` |
 | `tests/graph_table/resources.rs` | test_module | 145 | 4 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |
@@ -489,7 +489,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/graph_weighted/mixed_mappings.rs` | test_module | 242 | 1 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/mixed_mappings.rs` |
 | `tests/graph_weighted/oracle.rs` | test_module | 410 | 20 | graph_weighted | split_by_contract | `tests/graph_weighted/aggregates/core/oracle.rs`; `tests/graph_weighted/semantics/oracle.rs` |
 | `tests/graph_weighted/prepared.rs` | test_module | 239 | 6 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/prepared.rs` |
-| `tests/graph_weighted/resources.rs` | test_module | 221 | 7 | graph_weighted | move_with_module_alias | `tests/graph_weighted/resources/resources.rs` |
+| `tests/graph_weighted/resources.rs` | test_module | 222 | 7 | graph_weighted | move_with_module_alias | `tests/graph_weighted/resources/resources.rs` |
 | `tests/graph_weighted/security.rs` | test_module | 93 | 4 | graph_weighted | move_with_module_alias | `tests/graph_weighted/security/security.rs` |
 | `tests/graph_weighted/views.rs` | test_module | 178 | 6 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/views.rs` |
 | `tests/graph_weighted/world.rs` | test_support | 464 | 0 | graph_weighted | keep | `tests/graph_weighted/world.rs` |

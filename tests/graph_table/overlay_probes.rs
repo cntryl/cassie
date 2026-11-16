@@ -19,12 +19,11 @@ fn rows_of(fixture: &SqlFixture, session: &CassieSession, sql: &str) -> Vec<Vec<
     }
 }
 
+/// The rows of each query of a batch, in query order.
+type Results = Vec<Vec<Vec<Value>>>;
+
 /// Each query's rows under the lazy store and under the forced exact read.
-fn both(
-    fixture: &SqlFixture,
-    session: &CassieSession,
-    queries: &[String],
-) -> (Vec<Vec<Vec<Value>>>, Vec<Vec<Vec<Value>>>) {
+fn both(fixture: &SqlFixture, session: &CassieSession, queries: &[String]) -> (Results, Results) {
     let run = |exact: bool| {
         fixture.cassie.set_graph_exact_reads(exact);
         queries

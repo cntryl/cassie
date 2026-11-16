@@ -138,10 +138,15 @@ Out of milestone (gap kept here only): C2 `WITH RECURSIVE` acceleration and C4 g
 
 ## Promotion evidence
 
-This section collects the evidence for the decision whether graph support moves out of
-Experimental ([promotion criteria](experimental-promotion-criteria.md)). It does not change
-the support status, which is recorded in [Feature support](feature-support.md) and stays
-Experimental until the integrator decides from this list. Each entry below is a source
+**Decision (2026-11-16): graph traversal stays Experimental.** The evidence below supports
+correctness of the delivered surface, but four items a Stable claim needs are open: round
+trips through a second real PostgreSQL driver, recorded benchmark numbers from gate-quality
+runs, `graph_weighted_paths` at the 100,000-row representative under the standard memory
+profile, and use outside the test suite. Promotion is reconsidered when those are closed. The
+status in [Feature support](feature-support.md) is unchanged.
+
+This section collects the evidence for that decision
+([promotion criteria](experimental-promotion-criteria.md)). Each entry below is a source
 claim backed by a test or a document; none is a performance claim.
 
 ### Proven by tests and documents

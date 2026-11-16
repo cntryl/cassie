@@ -185,17 +185,18 @@ fn should_release_query_memory_after_a_pre_search_cancellation() {
     assert_eq!(live_reservations(&world), 0);
 }
 
-fn validated(world: &Wg, rest: &str) -> usize {
-    let cancellation = QueryCancellationHandle::new();
+/// Edge rows the weight validation scan of one call read, from the read-path metrics.
+fn validated(world: &Wg, rest: &str) -> u64 {
+    let counter = || {
+        world.fixture.cassie.metrics()["read_paths"]["graph_validation_rows"]
+            .as_u64()
+            .expect("validation counter")
+    };
+    let before = counter();
     let statement = Wg::select(&format!("'wg', {}, {}, {rest}", vertex(1), vertex(2)));
-    let outcome = world.fixture.cassie.execute_sql_with_cancellation(
-        &world.fixture.session,
-        &statement,
-        vec![],
-        &cancellation,
-    );
+    let outcome = world.fixture.execute(&statement);
     assert!(outcome.is_ok());
-    cancellation.graph_weight_validation_rows()
+    counter() - before
 }
 
 #[test]

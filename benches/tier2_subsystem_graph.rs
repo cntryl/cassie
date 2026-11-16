@@ -72,9 +72,7 @@ fn main() {
     let session = cassie.create_session("benchmark", None);
     let setup_started = Instant::now();
     let social = graph_social::Social::new(PEOPLE, EDGES);
-    for statement in social.setup() {
-        graph_social::run(&cassie, &session, &statement);
-    }
+    social.plan().apply(&cassie, &session);
     let setup_time_ns = setup_started.elapsed().as_nanos().max(1).to_string();
 
     if runner.is_enabled(&binding) {

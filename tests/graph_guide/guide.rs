@@ -132,8 +132,7 @@ pub fn parse() -> Parsed {
                         world: world.clone(),
                         session: attribute("session").unwrap_or_else(|| "main".to_owned()),
                         params: attribute("params")
-                            .map(|text| parse_params(&text))
-                            .unwrap_or_default(),
+                            .map_or_else(Vec::new, |text| parse_params(&text)),
                         sql: body.join("\n"),
                         expect,
                     });

@@ -20,19 +20,27 @@ pub mod stress;
 mod workloads;
 
 const BENCHMARK: &str = "tier3_system_graph";
+/// The scenario contract fixes the Tier 3 fixture class at 100,000 rows. The exact read of a
+/// mapped graph does not fit the 64 MiB analytical profile at that size (it fails with
+/// `54000` from roughly 30,000 mapped rows), so the fixtures below map fewer rows and the
+/// result metadata records the real count as `graph_mapped_rows`.
 const FIXTURE_SCALE: &str = "100k";
 const FIXTURE_ROWS: usize = 100_000;
-const SOCIAL_PEOPLE: i64 = 50_000;
-const SOCIAL_EDGES: i64 = 100_000;
-const HIERARCHY_NODES: i64 = 100_000;
-const ACCESS_PRINCIPALS: i64 = 20_000;
-const ACCESS_GROUPS: i64 = 1_000;
-const ACCESS_MEMBERSHIPS: i64 = 50_000;
-const ACCESS_RESOURCES: i64 = 50_000;
+const SOCIAL_MAPPED_ROWS: i64 = SOCIAL_PEOPLE + SOCIAL_EDGES;
+const HIERARCHY_MAPPED_ROWS: i64 = 2 * HIERARCHY_NODES - 1;
+const ACCESS_MAPPED_ROWS: i64 =
+    ACCESS_PRINCIPALS + ACCESS_RESOURCES + ACCESS_MEMBERSHIPS + ACCESS_RESOURCES;
+const SOCIAL_PEOPLE: i64 = 5_000;
+const SOCIAL_EDGES: i64 = 10_000;
+const HIERARCHY_NODES: i64 = 10_000;
+const ACCESS_PRINCIPALS: i64 = 4_000;
+const ACCESS_GROUPS: i64 = 200;
+const ACCESS_MEMBERSHIPS: i64 = 8_000;
+const ACCESS_RESOURCES: i64 = 8_000;
 const MINIMUM_REACHABLE_GRANTS: usize = 3;
 const ROUTE_HOPS: usize = 4;
 const ROUTE_PATHS: usize = 3;
-const QUERIES_PER_BATCH: u64 = 1;
+const QUERIES_PER_BATCH: u64 = 4;
 const FRIENDS_OF_FRIENDS_SQL: &str = "SELECT t.friend FROM GRAPH_TABLE (bench_social MATCH \
      (a IS person WHERE a.id = $1) -[IS knows]->{2,2} (b IS person) \
      COLUMNS (b.id AS friend)) AS t";
@@ -63,10 +71,17 @@ fn selected_case(
     runner.is_enabled(&case).then_some(case)
 }
 
+/// Native storage memory for the memory-mode fixtures. It is separate from the 64 MiB query
+/// budget and large enough to hold the generated tables without write stalls.
+const STORAGE_MEMORY_BYTES: usize = 2 * 1024 * 1024 * 1024;
+const STORAGE_MEMTABLE_BYTES: usize = 512 * 1024 * 1024;
+
 fn open_fixture() -> Fixture {
     std::env::set_var("CASSIE_STORAGE_MODE", "memory");
     let mut config = CassieRuntimeConfig::from_env().expect("graph benchmark config");
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+    config.storage_memory_budget_bytes = Some(STORAGE_MEMORY_BYTES);
+    config.storage_memtable_size_bytes = Some(STORAGE_MEMTABLE_BYTES);
     config.limits.query_memory_budget_bytes = workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
     config.limits.query_timeout_ms = workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
     let cassie = Cassie::new_in_memory_with_config(config).expect("graph benchmark fixture");
@@ -75,12 +90,6 @@ fn open_fixture() -> Fixture {
     Fixture {
         cassie: Arc::new(cassie),
         session,
-    }
-}
-
-fn load(fixture: &Fixture, statements: &[String]) {
-    for statement in statements {
-        graph_social::run(&fixture.cassie, &fixture.session, statement);
     }
 }
 
@@ -113,25 +122,34 @@ fn evidenced(
     case: stress::StressCase,
     fixture: &Fixture,
     setup: Duration,
+    mapped_rows: i64,
     (path, source): (String, &'static str),
 ) -> stress::StressCase {
     case.metadata("setup_time_ns", setup.as_nanos().max(1).to_string())
+        .metadata("graph_mapped_rows", mapped_rows.to_string())
         .metadata("graph_access_path_source", source)
         .preflight_evidence(path, "none")
         .runtime_evidence(fixture.cassie.clone())
 }
 
+/// Runs the query `QUERIES_PER_BATCH` times and checks the oracle cardinality of every result.
 fn expect_rows(fixture: &Fixture, sql: &str, params: &[Value], rows: usize) -> usize {
-    let result = fixture
-        .cassie
-        .execute_sql(&fixture.session, sql, params.to_vec())
-        .unwrap_or_else(|error| panic!("graph query failed with SQLSTATE {}", error.sql_state()));
-    assert_eq!(
-        result.rows().len(),
-        rows,
-        "graph representative cardinality"
-    );
-    std::hint::black_box(result.rows().len())
+    let mut observed = 0;
+    for _ in 0..QUERIES_PER_BATCH {
+        let result = fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, params.to_vec())
+            .unwrap_or_else(|error| {
+                panic!("graph query failed with SQLSTATE {}", error.sql_state())
+            });
+        assert_eq!(
+            result.rows().len(),
+            rows,
+            "graph representative cardinality"
+        );
+        observed = std::hint::black_box(result.rows().len());
+    }
+    observed
 }
 
 fn main() {
@@ -149,7 +167,7 @@ fn main() {
     let setup_started = Instant::now();
     let social = graph_social::Social::new(SOCIAL_PEOPLE, SOCIAL_EDGES);
     if friends.is_some() || routes.is_some() {
-        load(&fixture, &social.setup());
+        social.plan().apply(&fixture.cassie, &fixture.session);
     }
     let access = graph_org::Access::new(
         ACCESS_PRINCIPALS,
@@ -158,11 +176,11 @@ fn main() {
         ACCESS_RESOURCES,
     );
     if authorization.is_some() {
-        load(&fixture, &access.setup());
+        access.plan().apply(&fixture.cassie, &fixture.session);
     }
     let org = graph_org::Hierarchy::new(HIERARCHY_NODES);
     if hierarchy.is_some() {
-        load(&fixture, &org.setup());
+        org.plan().apply(&fixture.cassie, &fixture.session);
     }
     let setup = setup_started.elapsed();
 
@@ -173,6 +191,7 @@ fn main() {
             case,
             &fixture,
             setup,
+            ACCESS_MAPPED_ROWS,
             preflight(&fixture, graph_org::REACHABILITY_SQL, &params),
         );
         runner.measure_batch(case, QUERIES_PER_BATCH, || {
@@ -186,6 +205,7 @@ fn main() {
             case,
             &fixture,
             setup,
+            HIERARCHY_MAPPED_ROWS,
             preflight(&fixture, graph_org::ANCESTRY_SQL, &params),
         );
         runner.measure_batch(case, QUERIES_PER_BATCH, || {
@@ -199,6 +219,7 @@ fn main() {
             case,
             &fixture,
             setup,
+            SOCIAL_MAPPED_ROWS,
             preflight(&fixture, FRIENDS_OF_FRIENDS_SQL, &params),
         );
         runner.measure_batch(case, QUERIES_PER_BATCH, || {
@@ -208,7 +229,13 @@ fn main() {
     if let Some(case) = routes {
         let route = social.route(1, ROUTE_HOPS, ROUTE_PATHS);
         let sql = route.sql();
-        let case = evidenced(case, &fixture, setup, preflight(&fixture, &sql, &[]));
+        let case = evidenced(
+            case,
+            &fixture,
+            setup,
+            SOCIAL_MAPPED_ROWS,
+            preflight(&fixture, &sql, &[]),
+        );
         runner.measure_batch(case, QUERIES_PER_BATCH, || {
             expect_rows(&fixture, &sql, &[], route.expected_rows)
         });

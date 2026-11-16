@@ -85,9 +85,6 @@ impl<'a> Sessions<'a> {
 fn check(example: &Example, outcome: &Result<Vec<Vec<Value>>, String>) -> Option<String> {
     match (&example.expect, outcome) {
         (Expect::Success, Ok(_)) => None,
-        (Expect::Success, Err(state)) => {
-            Some(format!("{}: failed with SQLSTATE {state}", example.id))
-        }
         (Expect::State(expected), Err(state)) if expected == state => None,
         (Expect::State(expected), Err(state)) => Some(format!(
             "{}: expected SQLSTATE {expected}, observed {state}",
@@ -115,7 +112,7 @@ fn check(example: &Example, outcome: &Result<Vec<Vec<Value>>, String>) -> Option
                     .map_or(observed.len().min(expected.len()) + 1, |index| index + 1)
             )),
         },
-        (Expect::Rows(_), Err(state)) => {
+        (Expect::Success | Expect::Rows(_), Err(state)) => {
             Some(format!("{}: failed with SQLSTATE {state}", example.id))
         }
     }

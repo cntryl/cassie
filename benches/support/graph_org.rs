@@ -1,7 +1,7 @@
 //! Projector-shaped authorization and hierarchy graphs over ordinary tables, with independent
 //! Rust oracles. Used by the Tier 3 graph benchmark.
 
-use super::graph_social::chunked_inserts;
+use super::graph_social::{Plan, TableLoad};
 
 /// `bench_org`: a binary-heap-shaped reporting tree. Node `c > 1` reports to node `c / 2`.
 pub struct Hierarchy {
@@ -19,30 +19,37 @@ impl Hierarchy {
     }
 
     #[must_use]
-    pub fn setup(&self) -> Vec<String> {
+    pub fn plan(&self) -> Plan {
         let nodes = self.nodes;
-        let mut statements = vec![
-            "CREATE TABLE bench_org_member (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
-            "CREATE TABLE bench_reports_to (id BIGINT PRIMARY KEY, child BIGINT NOT NULL, \
-             parent BIGINT NOT NULL)"
+        Plan {
+            tables: vec![
+                "CREATE TABLE bench_org_member (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
+                "CREATE TABLE bench_reports_to (id BIGINT PRIMARY KEY, child BIGINT NOT NULL, \
+                 parent BIGINT NOT NULL)"
+                    .to_owned(),
+            ],
+            loads: vec![
+                TableLoad {
+                    table: "bench_org_member",
+                    rows: nodes,
+                    row: Box::new(|key| serde_json::json!({ "id": key, "name": "member" })),
+                },
+                TableLoad {
+                    table: "bench_reports_to",
+                    rows: nodes - 1,
+                    row: Box::new(|key| {
+                        serde_json::json!({ "id": key, "child": key + 1, "parent": (key + 1) / 2 })
+                    }),
+                },
+            ],
+            graph: "CREATE PROPERTY GRAPH bench_org \
+                    VERTEX TABLES (bench_org_member AS member KEY (id) LABEL member PROPERTIES (id, name)) \
+                    EDGE TABLES (bench_reports_to AS reports_to KEY (id) \
+                      SOURCE KEY (child) REFERENCES member (id) \
+                      DESTINATION KEY (parent) REFERENCES member (id) \
+                      LABEL reports_to PROPERTIES (id))"
                 .to_owned(),
-        ];
-        statements.extend(chunked_inserts("bench_org_member", "g.k, 'member'", nodes));
-        statements.extend(chunked_inserts(
-            "bench_reports_to",
-            "g.k, g.k + 1, (g.k + 1) / 2",
-            nodes - 1,
-        ));
-        statements.push(
-            "CREATE PROPERTY GRAPH bench_org \
-             VERTEX TABLES (bench_org_member AS member KEY (id) LABEL member PROPERTIES (id, name)) \
-             EDGE TABLES (bench_reports_to AS reports_to KEY (id) \
-               SOURCE KEY (child) REFERENCES member (id) \
-               DESTINATION KEY (parent) REFERENCES member (id) \
-               LABEL reports_to PROPERTIES (id))"
-                .to_owned(),
-        );
-        statements
+        }
     }
 
     /// The deepest node and its number of ancestors, which is `floor(log2(node))`.
@@ -85,7 +92,7 @@ impl Access {
     }
 
     #[must_use]
-    pub fn setup(&self) -> Vec<String> {
+    pub fn plan(&self) -> Plan {
         let (principals, groups, memberships, resources) = (
             self.principals,
             self.groups,
@@ -93,53 +100,66 @@ impl Access {
             self.resources,
         );
         let users = principals - groups;
-        let mut statements = vec![
-            "CREATE TABLE bench_principal (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
-            "CREATE TABLE bench_resource (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
-            "CREATE TABLE bench_member_of (id BIGINT PRIMARY KEY, member BIGINT NOT NULL, \
-             grp BIGINT NOT NULL)"
+        Plan {
+            tables: vec![
+                "CREATE TABLE bench_principal (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
+                "CREATE TABLE bench_resource (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
+                "CREATE TABLE bench_member_of (id BIGINT PRIMARY KEY, member BIGINT NOT NULL, \
+                 grp BIGINT NOT NULL)"
+                    .to_owned(),
+                "CREATE TABLE bench_grants (id BIGINT PRIMARY KEY, holder BIGINT NOT NULL, \
+                 resource BIGINT NOT NULL)"
+                    .to_owned(),
+            ],
+            loads: vec![
+                TableLoad {
+                    table: "bench_principal",
+                    rows: principals,
+                    row: Box::new(|key| serde_json::json!({ "id": key, "name": "principal" })),
+                },
+                TableLoad {
+                    table: "bench_resource",
+                    rows: resources,
+                    row: Box::new(|key| serde_json::json!({ "id": key, "name": "resource" })),
+                },
+                TableLoad {
+                    table: "bench_member_of",
+                    rows: memberships,
+                    row: Box::new(move |key| {
+                        serde_json::json!({
+                            "id": key,
+                            "member": groups + (key % users) + 1,
+                            "grp": key % groups + 1,
+                        })
+                    }),
+                },
+                TableLoad {
+                    table: "bench_grants",
+                    rows: resources,
+                    row: Box::new(move |key| {
+                        serde_json::json!({
+                            "id": key,
+                            "holder": (key * HOLDER_STEP) % principals + 1,
+                            "resource": key,
+                        })
+                    }),
+                },
+            ],
+            graph: "CREATE PROPERTY GRAPH bench_access \
+                    VERTEX TABLES (\
+                      bench_principal AS principal KEY (id) LABEL principal PROPERTIES (id, name), \
+                      bench_resource AS resource KEY (id) LABEL resource PROPERTIES (id, name)) \
+                    EDGE TABLES (\
+                      bench_member_of AS member_of KEY (id) \
+                        SOURCE KEY (member) REFERENCES principal (id) \
+                        DESTINATION KEY (grp) REFERENCES principal (id) \
+                        LABEL member_of PROPERTIES (id), \
+                      bench_grants AS grants KEY (id) \
+                        SOURCE KEY (holder) REFERENCES principal (id) \
+                        DESTINATION KEY (resource) REFERENCES resource (id) \
+                        LABEL grants PROPERTIES (id))"
                 .to_owned(),
-            "CREATE TABLE bench_grants (id BIGINT PRIMARY KEY, holder BIGINT NOT NULL, \
-             resource BIGINT NOT NULL)"
-                .to_owned(),
-        ];
-        statements.extend(chunked_inserts(
-            "bench_principal",
-            "g.k, 'principal'",
-            principals,
-        ));
-        statements.extend(chunked_inserts(
-            "bench_resource",
-            "g.k, 'resource'",
-            resources,
-        ));
-        statements.extend(chunked_inserts(
-            "bench_member_of",
-            &format!("g.k, {groups} + (g.k % {users}) + 1, (g.k % {groups}) + 1"),
-            memberships,
-        ));
-        statements.extend(chunked_inserts(
-            "bench_grants",
-            &format!("g.k, ((g.k * {HOLDER_STEP}) % {principals}) + 1, g.k"),
-            resources,
-        ));
-        statements.push(
-            "CREATE PROPERTY GRAPH bench_access \
-             VERTEX TABLES (\
-               bench_principal AS principal KEY (id) LABEL principal PROPERTIES (id, name), \
-               bench_resource AS resource KEY (id) LABEL resource PROPERTIES (id, name)) \
-             EDGE TABLES (\
-               bench_member_of AS member_of KEY (id) \
-                 SOURCE KEY (member) REFERENCES principal (id) \
-                 DESTINATION KEY (grp) REFERENCES principal (id) \
-                 LABEL member_of PROPERTIES (id), \
-               bench_grants AS grants KEY (id) \
-                 SOURCE KEY (holder) REFERENCES principal (id) \
-                 DESTINATION KEY (resource) REFERENCES resource (id) \
-                 LABEL grants PROPERTIES (id))"
-                .to_owned(),
-        );
-        statements
+        }
     }
 
     /// The number of `(zero or one membership) then grant` walks from `user`. A repeated

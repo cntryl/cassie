@@ -19,21 +19,51 @@ pub fn run(cassie: &Cassie, session: &CassieSession, sql: &str) {
     }
 }
 
-const INSERT_CHUNK: i64 = 5_000;
+const BATCH_ROWS: i64 = 1_000;
 
-/// `INSERT ... SELECT` statements that load `total` generated rows in chunks, so that one
-/// statement never holds more rows than the standard query-memory profile allows.
-#[must_use]
-pub fn chunked_inserts(table: &str, columns: &str, total: i64) -> Vec<String> {
-    (1..=total)
-        .step_by(usize::try_from(INSERT_CHUNK).expect("chunk size"))
-        .map(|first| {
-            let last = (first + INSERT_CHUNK - 1).min(total);
-            format!(
-                "INSERT INTO {table} SELECT {columns} FROM generate_series({first}, {last}) AS g(k)"
-            )
-        })
-        .collect()
+/// Rows of one generated table: `row(k)` is the JSON document of row `k`, for `k` in `1..=rows`.
+pub struct TableLoad {
+    pub table: &'static str,
+    pub rows: i64,
+    pub row: Box<dyn Fn(i64) -> serde_json::Value>,
+}
+
+/// Fixture statements: tables first, then generated rows, then the graph definition.
+pub struct Plan {
+    pub tables: Vec<String>,
+    pub loads: Vec<TableLoad>,
+    pub graph: String,
+}
+
+impl Plan {
+    /// Creates the tables, writes the rows in storage batches and defines the graph. Rows go
+    /// through the document write path in batches, as the other Tier 3 fixtures do.
+    pub fn apply(self, cassie: &Cassie, session: &CassieSession) {
+        for statement in &self.tables {
+            run(cassie, session, statement);
+        }
+        for load in &self.loads {
+            let mut first = 1;
+            while first <= load.rows {
+                let last = (first + BATCH_ROWS - 1).min(load.rows);
+                let documents = (first..=last)
+                    .map(|key| (Some(key.to_string()), (load.row)(key)))
+                    .collect::<Vec<_>>();
+                cassie
+                    .midge
+                    .put_documents(load.table, documents)
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "graph fixture rows of {} failed with SQLSTATE {}",
+                            load.table,
+                            error.sql_state()
+                        )
+                    });
+                first = last + 1;
+            }
+        }
+        run(cassie, session, &self.graph);
+    }
 }
 
 pub struct Social {
@@ -82,33 +112,42 @@ impl Social {
 
     /// Tables, rows and the graph definition.
     #[must_use]
-    pub fn setup(&self) -> Vec<String> {
+    pub fn plan(&self) -> Plan {
         let (people, edges) = (self.people, self.edges);
-        let mut statements = vec![
-            "CREATE TABLE bench_person (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
-            "CREATE TABLE bench_knows (id BIGINT PRIMARY KEY, src BIGINT NOT NULL, \
-             dst BIGINT NOT NULL, weight INT NOT NULL)"
+        Plan {
+            tables: vec![
+                "CREATE TABLE bench_person (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
+                "CREATE TABLE bench_knows (id BIGINT PRIMARY KEY, src BIGINT NOT NULL, \
+                 dst BIGINT NOT NULL, weight INT NOT NULL)"
+                    .to_owned(),
+            ],
+            loads: vec![
+                TableLoad {
+                    table: "bench_person",
+                    rows: people,
+                    row: Box::new(|key| serde_json::json!({ "id": key, "name": "person" })),
+                },
+                TableLoad {
+                    table: "bench_knows",
+                    rows: edges,
+                    row: Box::new(move |key| {
+                        serde_json::json!({
+                            "id": key,
+                            "src": (key - 1) % people + 1,
+                            "dst": (key * MULTIPLIER) % people + 1,
+                            "weight": key % WEIGHT_CLASSES + 1,
+                        })
+                    }),
+                },
+            ],
+            graph: "CREATE PROPERTY GRAPH bench_social \
+                    VERTEX TABLES (bench_person AS person KEY (id) LABEL person PROPERTIES (id, name)) \
+                    EDGE TABLES (bench_knows AS knows KEY (id) \
+                      SOURCE KEY (src) REFERENCES person (id) \
+                      DESTINATION KEY (dst) REFERENCES person (id) \
+                      LABEL knows PROPERTIES (weight))"
                 .to_owned(),
-        ];
-        statements.extend(chunked_inserts("bench_person", "g.k, 'person'", people));
-        statements.extend(chunked_inserts(
-            "bench_knows",
-            &format!(
-                "g.k, ((g.k - 1) % {people}) + 1, ((g.k * {MULTIPLIER}) % {people}) + 1, \
-                 (g.k % {WEIGHT_CLASSES}) + 1"
-            ),
-            edges,
-        ));
-        statements.push(
-            "CREATE PROPERTY GRAPH bench_social \
-             VERTEX TABLES (bench_person AS person KEY (id) LABEL person PROPERTIES (id, name)) \
-             EDGE TABLES (bench_knows AS knows KEY (id) \
-               SOURCE KEY (src) REFERENCES person (id) \
-               DESTINATION KEY (dst) REFERENCES person (id) \
-               LABEL knows PROPERTIES (weight))"
-                .to_owned(),
-        );
-        statements
+        }
     }
 
     /// Out-edges by source vertex: `(destination, weight)` in edge-key order.

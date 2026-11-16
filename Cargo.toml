@@ -6,6 +6,9 @@ publish = false
 autotests = false
 license-file = "LICENSE"
 
+[lints]
+workspace = true
+
 [features]
 replay-benchmark-observation = []
 graph-client-qualification = []

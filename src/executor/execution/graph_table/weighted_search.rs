@@ -1,5 +1,10 @@
 //! Exhaustive search for the `k` cheapest SIMPLE paths of `graph_weighted_paths` (#1258).
 //!
+//! Over the lazy store a vertex's incident edges are fetched when the search first leaves
+//! it, and each edge's weight is read from its row as the edge becomes known, so the search
+//! reads only the neighbourhoods of vertices it visits. Over the exact full read every edge
+//! and weight is known at the start. The weights were validated before the search.
+//!
 //! A depth-first walk with an explicit stack visits every simple path of at most `max_hops`
 //! edges from the source. Nothing is pruned: a candidate that cannot enter the retained
 //! `k` is only not kept, so the answer is the first `k` of all qualifying paths in
@@ -14,11 +19,15 @@ use std::mem::size_of;
 
 use uuid::Uuid;
 
+use super::plan::Selection;
 use super::store::Store;
 use super::weighted_args::{diagnostic, Way};
+use super::weighted_weight::{invalid_weight, weight};
 use super::{QueryError, SourceExecutionEnv};
+use crate::catalog::PropertyGraphMeta;
 use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryMemoryReservation, QueryScoringTestBoundary};
+use crate::sql::ast::GraphEdgeDirection;
 use crate::types::extended::numeric::{math, Numeric};
 use crate::types::graph::{Direction, ElementKind, ElementRef, KeyPart, Path};
 
@@ -95,8 +104,12 @@ pub(super) struct Query<'a> {
     pub(super) max_hops: usize,
     pub(super) max_cost: Option<&'a Numeric>,
     pub(super) k: usize,
-    /// Cost of each edge, by edge id.
-    pub(super) weights: &'a [Numeric],
+    /// The weight column of each edge mapping, by mapping index; `None` when not selected.
+    pub(super) columns: &'a [Option<String>],
+    pub(super) graph: &'a PropertyGraphMeta,
+    /// The selected edge mappings, as the lazy store expands them.
+    pub(super) selection: &'a Selection,
+    pub(super) direction: GraphEdgeDirection,
     /// Durable identity of each vertex and edge mapping.
     pub(super) vertex_mappings: &'a [Uuid],
     pub(super) edge_mappings: &'a [Uuid],
@@ -117,9 +130,13 @@ struct Frame {
 
 pub(super) struct Search<'a, 'e> {
     env: &'a SourceExecutionEnv<'e>,
-    store: &'a Store,
+    store: &'a mut Store,
     query: &'a Query<'a>,
     memory: &'a mut QueryMemoryReservation,
+    /// Cost of each known edge, by edge id.
+    weights: Vec<Numeric>,
+    /// Path depths whose per-edge state is accounted.
+    depth_accounted: usize,
     on_path: Vec<bool>,
     vertices: Vec<usize>,
     edges: Vec<usize>,
@@ -139,31 +156,79 @@ fn key_part(part: &super::keys::KeyPart) -> KeyPart {
 }
 
 impl<'a, 'e> Search<'a, 'e> {
+    /// # Errors
+    ///
+    /// `22023` for an invalid weight over the exact full read, and memory-budget errors.
     pub(super) fn new(
         env: &'a SourceExecutionEnv<'e>,
-        store: &'a Store,
+        store: &'a mut Store,
         query: &'a Query<'a>,
         memory: &'a mut QueryMemoryReservation,
     ) -> Result<Self, QueryError> {
-        memory.try_grow(add(
-            store.vertices.len(),
-            mul(
-                query.max_hops.min(store.vertices.len()) + 2,
-                4 * size_of::<usize>() + size_of::<Numeric>() + NUMERIC_HEAP,
-            )?,
-        )?)?;
-        Ok(Self {
+        let mut search = Self {
             env,
             store,
             query,
             memory,
-            on_path: vec![false; store.vertices.len()],
+            weights: Vec::new(),
+            depth_accounted: 0,
+            on_path: Vec::new(),
             vertices: Vec::new(),
             directions: Vec::new(),
             edges: Vec::new(),
             totals: Vec::new(),
             best: BinaryHeap::new(),
-        })
+        };
+        search.settle()?;
+        Ok(search)
+    }
+
+    /// Accounts for the vertices and edges learned since the last call and reads the weight
+    /// of each new edge.
+    fn settle(&mut self) -> Result<(), QueryError> {
+        let vertices = self.store.vertices.len();
+        if vertices > self.on_path.len() {
+            self.memory.try_grow(vertices - self.on_path.len())?;
+            self.on_path.resize(vertices, false);
+        }
+        let edges = self.store.edges.len();
+        if edges > self.weights.len() {
+            self.memory.try_grow(mul(
+                edges - self.weights.len(),
+                size_of::<Numeric>() + NUMERIC_HEAP,
+            )?)?;
+        }
+        while self.weights.len() < edges {
+            let (mapping, row) = self.store.edge_row(self.weights.len());
+            let column = self.query.columns[mapping]
+                .as_deref()
+                .ok_or_else(invalid_weight)?;
+            let value = weight(row.get(column))?;
+            self.weights.push(value);
+        }
+        Ok(())
+    }
+
+    /// Fetches the incident edges of `vertex` before the search leaves it, when a path
+    /// reaching it with `hops` edges can still be extended.
+    fn open(&mut self, vertex: usize, hops: usize) -> Result<(), QueryError> {
+        if hops >= self.query.max_hops {
+            return Ok(());
+        }
+        if hops >= self.depth_accounted {
+            self.memory.try_grow(add(
+                4 * size_of::<usize>(),
+                size_of::<Numeric>() + NUMERIC_HEAP,
+            )?)?;
+            self.depth_accounted = hops + 1;
+        }
+        self.store.expand(
+            self.env,
+            self.query.graph,
+            vertex,
+            (self.query.direction, self.query.selection),
+        )?;
+        self.settle()
     }
 
     fn element(
@@ -272,13 +337,13 @@ impl<'a, 'e> Search<'a, 'e> {
         let mut edge_costs = self
             .edges
             .iter()
-            .map(|id| self.query.weights[*id].clone())
+            .map(|id| self.weights[*id].clone())
             .collect::<Vec<_>>();
         if let Some(hop) = hop {
             vertices.push(self.vertex_ref(hop.to));
             edges.push(self.edge_ref(hop.edge));
             directions.push(hop.direction);
-            edge_costs.push(self.query.weights[hop.edge].clone());
+            edge_costs.push(self.weights[hop.edge].clone());
         }
         let candidate = Candidate {
             cost: cost.clone(),
@@ -306,7 +371,7 @@ impl<'a, 'e> Search<'a, 'e> {
 
     fn add_cost(&self, edge: usize) -> Result<Numeric, QueryError> {
         let total = self.totals.last().expect("a path has a cost");
-        math::add(total, &self.query.weights[edge])
+        math::add(total, &self.weights[edge])
             .map_err(|error| diagnostic(error.sqlstate, error.message))
     }
 
@@ -316,6 +381,7 @@ impl<'a, 'e> Search<'a, 'e> {
         self.vertices.push(source);
         self.totals.push(Numeric::zero());
         self.on_path[source] = true;
+        self.open(source, 0)?;
         if source == self.query.target {
             self.offer(&Numeric::zero(), None)?;
         }
@@ -372,6 +438,7 @@ impl<'a, 'e> Search<'a, 'e> {
                 vertex: hop.to,
                 cursor: 0,
             });
+            self.open(hop.to, stack.len() - 1)?;
         }
         Ok(self.best.into_sorted_vec())
     }

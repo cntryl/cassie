@@ -387,16 +387,16 @@ describe("admin query page lifecycle and actions", () => {
     expect(catalogRequests).toHaveLength(2);
   });
 
-  it("should_refresh_the_schema_given_a_successful_graph_ddl_command", async () => {
+  it("should_refresh_the_schema_given_a_successful_property_graph_ddl_command", async () => {
     // Arrange
-    mockSchemaChangingCommandSuccess("CREATE GRAPH");
+    mockSchemaChangingCommandSuccess("CREATE PROPERTY GRAPH");
     const root = await mountQueryRoute();
-    updateEditor(root, "CREATE GRAPH ui_graph;");
+    updateEditor(root, "CREATE PROPERTY GRAPH ui_graph;");
     await flushUi();
 
     // Act
     buttonByText(root, "Run").click();
-    await waitForText(root, "CREATE GRAPH");
+    await waitForText(root, "CREATE PROPERTY GRAPH");
 
     // Assert
     const catalogRequests = fetchMock.mock.calls.filter(

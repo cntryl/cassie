@@ -1,16 +1,16 @@
 use super::expr::split_csv;
 use super::lexical::strip_keyword_suffix;
 use super::{
-    find_matching_paren, find_top_level_keyword, parse_enclosed_parenthesized,
-    parse_optional_role_password, split_keyword, strip_parentheses, AlterIndexOperation,
-    AlterIndexStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
-    AlterSequenceStatement, AlterTableOperation, AlterTableStatement, ConstraintCheck,
-    ConstraintOperator, CreateDatabaseStatement, CreateGraphStatement, CreateIndexStatement,
-    CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
-    DataType, DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropIndexStatement,
-    DropRoleStatement, DropSchemaStatement, DropSequenceStatement, DropTableStatement, Expr,
-    FieldConstraint, FieldDefinition, HashSet, IndexKind, ObjectPrivilegeStatement,
-    ObjectPrivilegeTarget, ParsedStatement, QueryStatement, SqlError, Value,
+    find_matching_paren, find_top_level_keyword, parse_optional_role_password, split_keyword,
+    strip_parentheses, AlterIndexOperation, AlterIndexStatement, AlterRoleStatement,
+    AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
+    AlterTableStatement, ConstraintCheck, ConstraintOperator, CreateDatabaseStatement,
+    CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement,
+    CreateTableStatement, DataType, DatabaseConnectPrivilegeStatement, DropDatabaseStatement,
+    DropIndexStatement, DropRoleStatement, DropSchemaStatement, DropSequenceStatement,
+    DropTableStatement, Expr, FieldConstraint, FieldDefinition, HashSet, IndexKind,
+    ObjectPrivilegeStatement, ObjectPrivilegeTarget, ParsedStatement, QueryStatement, SqlError,
+    Value,
 };
 use crate::catalog::RoleObjectPrivilege;
 
@@ -48,7 +48,6 @@ mod schema_sequences;
 mod schema_table_constraints;
 #[path = "sequence_options.rs"]
 mod sequence_options;
-use schema_fields::parse_field_definition;
 use schema_fields::parse_field_definition_for_table;
 pub(super) use schema_identifiers::{parse_column_identifier, parse_identifier};
 use schema_identifiers::{parse_column_reference, parse_relation_path};
@@ -202,110 +201,6 @@ fn parse_create_table_body(
     }
 
     Ok((fields, like))
-}
-
-pub(super) fn parse_create_graph_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
-    let trimmed = sql.trim().trim_end_matches(';').trim();
-    let rest = trimmed["create graph".len()..].trim();
-    let (if_not_exists, rest) = parse_if_not_exists(rest);
-    if rest.is_empty() {
-        return Err(SqlError::new("CREATE GRAPH requires a graph name".into()));
-    }
-
-    let (name, body) = if let Some(open) = rest.find('(') {
-        let close = find_matching_paren(rest, open)
-            .ok_or_else(|| SqlError::new("CREATE GRAPH requires closing ')'".into()))?;
-        let name = rest[..open].trim();
-        let trailing = rest[(close + 1)..].trim();
-        if !trailing.is_empty() {
-            return Err(SqlError::new(
-                "unexpected tokens after CREATE GRAPH body".into(),
-            ));
-        }
-        (name, Some(rest[(open + 1)..close].trim()))
-    } else {
-        (rest.trim(), None)
-    };
-
-    if name.is_empty() || name.split_whitespace().count() != 1 {
-        return Err(SqlError::new("CREATE GRAPH requires one graph name".into()));
-    }
-
-    let mut node_fields = Vec::new();
-    let mut edge_fields = Vec::new();
-    if let Some(body) = body {
-        for section in split_csv(body) {
-            let section = section.trim();
-            if section.is_empty() {
-                continue;
-            }
-            let lower = section.to_ascii_lowercase();
-            let (target, raw_fields) = if lower.starts_with("nodes") {
-                ("nodes", section["nodes".len()..].trim())
-            } else if lower.starts_with("edges") {
-                ("edges", section["edges".len()..].trim())
-            } else {
-                return Err(SqlError::new(format!(
-                    "unsupported CREATE GRAPH section '{section}'"
-                )));
-            };
-            let fields_body = parse_enclosed_parenthesized(raw_fields).ok_or_else(|| {
-                SqlError::new(format!(
-                    "CREATE GRAPH {target} requires fields in parentheses"
-                ))
-            })?;
-            let fields = parse_graph_fields(&fields_body, target)?;
-            if target == "nodes" {
-                node_fields = fields;
-            } else {
-                edge_fields = fields;
-            }
-        }
-    }
-
-    Ok(ParsedStatement {
-        raw_sql: trimmed.to_string(),
-        statement: QueryStatement::CreateGraph(CreateGraphStatement {
-            name: name.to_string(),
-            if_not_exists,
-            node_fields,
-            edge_fields,
-        }),
-    })
-}
-
-fn parse_graph_fields(raw: &str, section: &str) -> Result<Vec<FieldDefinition>, SqlError> {
-    let reserved = match section {
-        "nodes" => &["node_type", "node_id"][..],
-        "edges" => &[
-            "edge_id",
-            "source_type",
-            "source_id",
-            "target_type",
-            "target_id",
-            "edge_type",
-            "weight",
-        ][..],
-        _ => &[][..],
-    };
-    let mut fields = Vec::new();
-    if raw.trim().is_empty() {
-        return Ok(fields);
-    }
-    for field in split_csv(raw) {
-        let parsed = parse_field_definition(field.trim())?;
-        if reserved
-            .iter()
-            .any(|reserved| parsed.name.eq_ignore_ascii_case(reserved))
-        {
-            return Err(SqlError::new(format!(
-                "CREATE GRAPH {section} field '{}' is reserved",
-                parsed.name
-            )));
-        }
-        fields.push(parsed);
-    }
-    Ok(fields)
 }
 
 pub(super) fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

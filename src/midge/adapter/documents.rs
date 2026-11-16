@@ -57,7 +57,6 @@ struct DocumentWriteBatchContext {
     scalar_indexes: Vec<super::IndexMeta>,
     time_series_indexes: Vec<super::IndexMeta>,
     fulltext_indexes: Vec<super::IndexMeta>,
-    graph: Option<crate::catalog::GraphMeta>,
     needs_existing_payload: bool,
 }
 
@@ -541,7 +540,6 @@ impl Midge {
             .filter(|index| index.collection == collection && index.kind == IndexKind::FullText)
             .cloned()
             .collect::<Vec<_>>();
-        let graph = self.graph_for_edge_collection(collection)?;
         let loaded = self.load_constraints(collection)?;
         let constraints = loaded
             .iter()
@@ -553,8 +551,7 @@ impl Midge {
         let needs_existing_payload = !constraints.is_empty()
             || !unique_scalar_indexes.is_empty()
             || !scalar_indexes.is_empty()
-            || !time_series_indexes.is_empty()
-            || graph.is_some();
+            || !time_series_indexes.is_empty();
         Ok(DocumentWriteBatchContext {
             schema,
             row_schema,
@@ -567,7 +564,6 @@ impl Midge {
             scalar_indexes,
             time_series_indexes,
             fulltext_indexes,
-            graph,
             needs_existing_payload,
         })
     }
@@ -923,21 +919,9 @@ impl Midge {
             &context.time_series_indexes,
             context.target_generation,
         )?;
-        let (graph_deleted, graph_puts) = Self::sync_graph_adjacency_for_document(
-            tx,
-            context.graph.as_ref(),
-            id,
-            previous,
-            next,
-            context.target_generation,
-        )?;
         Ok((
-            scalar_deleted
-                .saturating_add(time_series_deleted)
-                .saturating_add(graph_deleted),
-            scalar_puts
-                .saturating_add(time_series_puts)
-                .saturating_add(graph_puts),
+            scalar_deleted.saturating_add(time_series_deleted),
+            scalar_puts.saturating_add(time_series_puts),
         ))
     }
 

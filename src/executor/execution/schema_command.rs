@@ -3,8 +3,8 @@ use super::{catalog, virtual_views, Cassie, FieldSchema, QueryError, QueryResult
 use crate::app::{CassieError, CassieSession, CatalogObjectKind};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
-    AlterTableOperation, AlterTableStatement, CreateGraphStatement, CreateViewStatement,
-    DropTableStatement, DropViewStatement,
+    AlterTableOperation, AlterTableStatement, CreateViewStatement, DropTableStatement,
+    DropViewStatement,
 };
 use crate::types::DataType;
 
@@ -24,8 +24,6 @@ mod scalar_index_rename;
 pub(super) mod schema_constraint_helpers;
 #[path = "schema_foreign_keys.rs"]
 pub(super) mod schema_foreign_keys;
-#[path = "schema_graph_rename.rs"]
-pub(super) mod schema_graph_rename;
 #[path = "schema_index_command.rs"]
 mod schema_index_command;
 #[path = "schema_namespace_command.rs"]
@@ -36,40 +34,6 @@ pub(super) use schema_index_command::{alter_index_storage_parameters, drop_index
 pub(super) use schema_namespace_command::{
     alter_schema, create_database, create_schema, drop_database, drop_schema,
 };
-pub(super) fn create_graph(
-    cassie: &Cassie,
-    statement: &CreateGraphStatement,
-    controls: &QueryExecutionControls,
-) -> Result<QueryResult, QueryError> {
-    let graph = catalog::GraphMeta::new(&statement.name);
-    if statement.if_not_exists && cassie.catalog.graph_exists_exact(&statement.name) {
-        return empty_command("CREATE GRAPH", controls);
-    }
-
-    let output = empty_command("CREATE GRAPH", controls)?;
-    super::graph_command::create_graph_collection(
-        cassie,
-        &graph.node_collection,
-        graph.node_builtin_fields(),
-        &statement.node_fields,
-    )?;
-    super::graph_command::create_graph_collection(
-        cassie,
-        &graph.edge_collection,
-        graph.edge_builtin_fields(),
-        &statement.edge_fields,
-    )?;
-    cassie
-        .midge
-        .put_graph(&graph)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.register_graph(graph);
-    refresh_table_cardinality_stats(cassie, &format!("{}_nodes", statement.name))?;
-    refresh_table_cardinality_stats(cassie, &format!("{}_edges", statement.name))?;
-
-    Ok(output)
-}
-
 pub(super) fn create_view(
     cassie: &Cassie,
     session: Option<&crate::app::CassieSession>,
@@ -771,7 +735,6 @@ fn alter_table_drop_column(
     field: &str,
     cascade: bool,
 ) -> Result<(), QueryError> {
-    schema_graph_rename::reject_graph_column_drop(cassie, table, field)?;
     super::property_graph_dependents::reject_column_change(cassie, table, field, cascade)?;
     if cascade {
         schema_foreign_keys::drop_referencing_foreign_keys_on_column(cassie, table, field)?;
@@ -876,7 +839,6 @@ fn alter_table_rename_column(
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.rename_collection_field(table, from, to);
     schema_foreign_keys::rename_referenced_field(cassie, table, from, to)?;
-    schema_graph_rename::rename_graph_columns(cassie, table, from, to)?;
     super::property_graph_dependents::rename_column(cassie, table, from, to)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
@@ -905,7 +867,6 @@ fn alter_table_rename_table(
         .rename_collection(table, next_table)
         .map_err(|error| QueryError::General(error.to_string()))?;
     schema_sequence_rename::rename_owned_table_sequences(cassie, next_table)?;
-    schema_graph_rename::rename_graph_tables(cassie, table, next_table)?;
     super::property_graph_dependents::rename_table(cassie, table, next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, next_table)
 }
@@ -955,7 +916,6 @@ fn alter_table_set_schema(
             .map_err(QueryError::Cassie)?;
     }
     schema_sequence_rename::move_owned_table_sequences(cassie, sequence_move)?;
-    schema_graph_rename::rename_graph_tables(cassie, table, &next_table)?;
     super::property_graph_dependents::rename_table(cassie, table, &next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, &next_table)?;
     cassie

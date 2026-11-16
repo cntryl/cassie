@@ -202,17 +202,12 @@ impl Cassie {
             self.catalog.register_index(index);
         }
 
-        let graphs = self.midge.list_graphs().map_err(|error| {
+        // The removed CREATE GRAPH feature is not converted: its stored state is dropped.
+        self.midge.purge_legacy_graph_state().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
-            CassieError::Storage(format!("list graphs: {error}"))
+            CassieError::Storage(format!("remove legacy graph state: {error}"))
         })?;
         self.runtime.record_storage_access("schema", false, true);
-        for mut graph in graphs {
-            graph.name = self.midge.canonical_collection_name(&graph.name);
-            graph.node_collection = self.midge.canonical_collection_name(&graph.node_collection);
-            graph.edge_collection = self.midge.canonical_collection_name(&graph.edge_collection);
-            self.catalog.register_graph(graph);
-        }
 
         let property_graphs = self.midge.list_property_graphs().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);

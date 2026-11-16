@@ -1,23 +1,4 @@
-use super::super::graphs::GraphEdgeRecord;
-use super::{
-    encoded_u64_component, key, prefix, scoped_key, FAMILY_DATABASE_IDENTITY, FAMILY_GRAPH,
-    FAMILY_GRAPH_ADJACENCY, FAMILY_PROPERTY_GRAPH,
-};
-
-const OUTBOUND_EDGE_TYPE: &[u8] = b"OE";
-const INBOUND_EDGE_TYPE: &[u8] = b"IE";
-const OUTBOUND_WEIGHT: &[u8] = b"OW";
-const INBOUND_WEIGHT: &[u8] = b"IW";
-const MANIFEST: &[u8] = b"M";
-
-pub(crate) fn graph_prefix() -> Vec<u8> {
-    prefix(FAMILY_GRAPH, &[])
-}
-
-pub(crate) fn graph_key(name: &str) -> Vec<u8> {
-    let normalized = name.trim().to_ascii_lowercase();
-    scoped_key(FAMILY_GRAPH, &normalized, &[])
-}
+use super::{key, prefix, scoped_key, FAMILY_DATABASE_IDENTITY, FAMILY_PROPERTY_GRAPH};
 
 /// Every mapped property graph definition in one database family.
 pub(crate) fn property_graph_prefix() -> Vec<u8> {
@@ -34,184 +15,25 @@ pub(crate) fn database_identity_key() -> Vec<u8> {
     key(FAMILY_DATABASE_IDENTITY, &[])
 }
 
-pub(crate) fn graph_adjacency_prefix(graph_id: u64) -> Vec<u8> {
-    let graph = encoded_u64_component(graph_id);
-    prefix(FAMILY_GRAPH_ADJACENCY, &[graph.as_slice()])
+/// The family of the removed `CREATE GRAPH` definitions.
+const LEGACY_FAMILY_GRAPH: &[u8] = b"graph";
+/// The family of the removed `CREATE GRAPH` adjacency entries.
+const LEGACY_FAMILY_GRAPH_ADJACENCY: &[u8] = b"\x16";
+
+/// Prefixes of the state the removed `CREATE GRAPH` feature persisted. Nothing
+/// reads or writes them any more; startup deletes whatever a store still holds.
+pub(crate) fn legacy_graph_prefixes() -> [Vec<u8>; 2] {
+    [
+        prefix(LEGACY_FAMILY_GRAPH, &[]),
+        prefix(LEGACY_FAMILY_GRAPH_ADJACENCY, &[]),
+    ]
 }
 
-pub(crate) fn graph_manifest_key(graph_id: u64) -> Vec<u8> {
-    let graph = encoded_u64_component(graph_id);
-    key(FAMILY_GRAPH_ADJACENCY, &[graph.as_slice(), MANIFEST])
-}
-
-pub(crate) fn graph_outbound_prefix(graph_id: u64, source_type: &str, source_id: &str) -> Vec<u8> {
-    graph_node_prefix(graph_id, OUTBOUND_WEIGHT, source_type, source_id)
-}
-
-pub(crate) fn graph_inbound_prefix(graph_id: u64, target_type: &str, target_id: &str) -> Vec<u8> {
-    graph_node_prefix(graph_id, INBOUND_WEIGHT, target_type, target_id)
-}
-
-pub(crate) fn graph_outbound_edge_type_prefix(
-    graph_id: u64,
-    source_type: &str,
-    source_id: &str,
-    edge_type: &str,
-) -> Vec<u8> {
-    graph_node_type_prefix(
-        graph_id,
-        OUTBOUND_EDGE_TYPE,
-        source_type,
-        source_id,
-        edge_type,
-    )
-}
-
-pub(crate) fn graph_inbound_edge_type_prefix(
-    graph_id: u64,
-    target_type: &str,
-    target_id: &str,
-    edge_type: &str,
-) -> Vec<u8> {
-    graph_node_type_prefix(
-        graph_id,
-        INBOUND_EDGE_TYPE,
-        target_type,
-        target_id,
-        edge_type,
-    )
-}
-
-pub(crate) fn graph_outbound_edge_key(record: &GraphEdgeRecord) -> Vec<u8> {
-    graph_weight_edge_key(record, OUTBOUND_WEIGHT, true)
-}
-
-pub(crate) fn graph_inbound_edge_key(record: &GraphEdgeRecord) -> Vec<u8> {
-    graph_weight_edge_key(record, INBOUND_WEIGHT, false)
-}
-
-pub(crate) fn graph_outbound_edge_type_key(record: &GraphEdgeRecord) -> Vec<u8> {
-    graph_type_edge_key(record, OUTBOUND_EDGE_TYPE, true)
-}
-
-pub(crate) fn graph_inbound_edge_type_key(record: &GraphEdgeRecord) -> Vec<u8> {
-    graph_type_edge_key(record, INBOUND_EDGE_TYPE, false)
-}
-
-fn graph_node_prefix(graph_id: u64, ordering: &[u8], node_type: &str, node_id: &str) -> Vec<u8> {
-    let node_type = node_type.to_ascii_lowercase();
-    let graph = encoded_u64_component(graph_id);
-    prefix(
-        FAMILY_GRAPH_ADJACENCY,
-        &[
-            graph.as_slice(),
-            ordering,
-            node_type.as_bytes(),
-            node_id.as_bytes(),
-        ],
-    )
-}
-
-fn graph_node_type_prefix(
-    graph_id: u64,
-    ordering: &[u8],
-    node_type: &str,
-    node_id: &str,
-    edge_type: &str,
-) -> Vec<u8> {
-    let node_type = node_type.to_ascii_lowercase();
-    let edge_type = edge_type.to_ascii_lowercase();
-    let graph = encoded_u64_component(graph_id);
-    prefix(
-        FAMILY_GRAPH_ADJACENCY,
-        &[
-            graph.as_slice(),
-            ordering,
-            node_type.as_bytes(),
-            node_id.as_bytes(),
-            edge_type.as_bytes(),
-        ],
-    )
-}
-
-fn graph_weight_edge_key(record: &GraphEdgeRecord, ordering: &[u8], outbound: bool) -> Vec<u8> {
-    let graph = encoded_u64_component(record.graph_id);
-    let weight = sortable_weight(record.weight);
-    let (node_type, node_id, other_type, other_id) = graph_edge_nodes(record, outbound);
-    let node_type = anchor_node_type(node_type);
-    key(
-        FAMILY_GRAPH_ADJACENCY,
-        &[
-            graph.as_slice(),
-            ordering,
-            node_type.as_bytes(),
-            node_id,
-            weight.as_bytes(),
-            record.edge_id.as_bytes(),
-            record.edge_type.as_bytes(),
-            other_type,
-            other_id,
-            record.row_id.as_bytes(),
-        ],
-    )
-}
-
-fn graph_type_edge_key(record: &GraphEdgeRecord, ordering: &[u8], outbound: bool) -> Vec<u8> {
-    let graph = encoded_u64_component(record.graph_id);
-    let weight = sortable_weight(record.weight);
-    let normalized_edge_type = record.edge_type.to_ascii_lowercase();
-    let (node_type, node_id, other_type, other_id) = graph_edge_nodes(record, outbound);
-    let node_type = anchor_node_type(node_type);
-    key(
-        FAMILY_GRAPH_ADJACENCY,
-        &[
-            graph.as_slice(),
-            ordering,
-            node_type.as_bytes(),
-            node_id,
-            normalized_edge_type.as_bytes(),
-            weight.as_bytes(),
-            record.edge_id.as_bytes(),
-            record.edge_type.as_bytes(),
-            other_type,
-            other_id,
-            record.row_id.as_bytes(),
-        ],
-    )
-}
-
-/// Node types match ASCII case-insensitively (as the row-scan fallback and
-/// edge types do), so the anchor node type is folded in adjacency keys and
-/// in the prefixes that scan them. The far endpoint keeps its stored spelling
-/// because it is decoded back into the returned edge.
-fn anchor_node_type(node_type: &[u8]) -> String {
-    String::from_utf8_lossy(node_type).to_ascii_lowercase()
-}
-
-fn graph_edge_nodes(record: &GraphEdgeRecord, outbound: bool) -> (&[u8], &[u8], &[u8], &[u8]) {
-    if outbound {
-        (
-            record.source_type.as_bytes(),
-            record.source_id.as_bytes(),
-            record.target_type.as_bytes(),
-            record.target_id.as_bytes(),
-        )
-    } else {
-        (
-            record.target_type.as_bytes(),
-            record.target_id.as_bytes(),
-            record.source_type.as_bytes(),
-            record.source_id.as_bytes(),
-        )
-    }
-}
-
-pub(crate) fn sortable_weight(value: f64) -> String {
-    let bits = value.to_bits();
-    let ordered = if bits & (1_u64 << 63) == 0 {
-        bits ^ (1_u64 << 63)
-    } else {
-        !bits
-    };
-    format!("{ordered:016x}")
+/// One definition key and one adjacency key shaped like the removed feature wrote them.
+#[cfg(test)]
+pub(crate) fn legacy_graph_sample_keys() -> [Vec<u8>; 2] {
+    [
+        scoped_key(LEGACY_FAMILY_GRAPH, "postgres.public.social", &[]),
+        key(LEGACY_FAMILY_GRAPH_ADJACENCY, &[b"7", b"M"]),
+    ]
 }

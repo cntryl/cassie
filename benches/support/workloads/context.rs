@@ -484,28 +484,6 @@ fn time_series_context_with_dir_and_config(
     Ok(ctx)
 }
 
-pub fn graph_context(label: &str, dataset_rows: usize) -> Ready<Result<BenchContext, CassieError>> {
-    ready(graph_context_now(label, dataset_rows))
-}
-
-fn graph_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
-    configure_benchmark_environment();
-    let dir = benchmark_data_dir(label);
-
-    let cassie = Arc::new(Cassie::new_with_data_dir(dir.clone())?);
-    cassie.startup()?;
-    let session = cassie.create_session("benchmark", None);
-    let ctx = BenchContext {
-        cassie,
-        session,
-        collection: "bench_graph".to_string(),
-        data_dir: dir,
-        _embedding_server: None,
-    };
-    prepare_graph(&ctx, dataset_rows)?;
-    Ok(ctx)
-}
-
 #[derive(Debug, Clone, Copy)]
 pub(super) struct BenchIndexOptions {
     include_scalar_indexes: bool,
@@ -931,59 +909,6 @@ fn prepare_time_series_collection(
         ctx.cassie
             .midge
             .put_fresh_time_series_documents(&ctx.collection, documents)?;
-    }
-
-    Ok(())
-}
-
-fn prepare_graph(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
-    if ctx.cassie.catalog.graph_exists(&ctx.collection) {
-        return Ok(());
-    }
-
-    ctx.cassie.execute_sql(
-        &ctx.session,
-        "CREATE GRAPH bench_documents (NODES (label TEXT), EDGES (source TEXT))",
-        vec![],
-    )?;
-
-    let mut nodes = Vec::with_capacity(dataset_rows);
-    for index in 0..dataset_rows {
-        nodes.push((
-            Some(format!("node-{index}")),
-            json!({
-                "node_type": "doc",
-                "node_id": format!("node-{index}"),
-                "label": format!("Node {index}"),
-            }),
-        ));
-    }
-    if !nodes.is_empty() {
-        ctx.cassie
-            .midge
-            .put_fresh_graph_documents(&format!("{}_nodes", ctx.collection), nodes)?;
-    }
-
-    let mut edges = Vec::with_capacity(dataset_rows.saturating_sub(1));
-    for index in 0..dataset_rows.saturating_sub(1) {
-        edges.push((
-            Some(format!("edge-{index}")),
-            json!({
-                "edge_id": format!("edge-{index}"),
-                "source_type": "doc",
-                "source_id": format!("node-{index}"),
-                "target_type": "doc",
-                "target_id": format!("node-{}", index + 1),
-                "edge_type": "links",
-                "weight": 1,
-                "source": "bench",
-            }),
-        ));
-    }
-    if !edges.is_empty() {
-        ctx.cassie
-            .midge
-            .put_fresh_graph_documents(&format!("{}_edges", ctx.collection), edges)?;
     }
 
     Ok(())

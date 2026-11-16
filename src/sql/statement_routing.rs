@@ -4,7 +4,7 @@ use super::{
     AlterIndexStatement, AlterMaterializedProjectionStatement, AlterRetentionPolicyStatement,
     AlterRoleStatement, AlterSchemaStatement, AlterSequenceStatement, AlterTableStatement,
     CallProcedureStatement, CommentOnStatement, CompareProjectionStatement, CopyStatement,
-    CreateDatabaseStatement, CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
+    CreateDatabaseStatement, CreateFunctionStatement, CreateIndexStatement,
     CreateMaterializedProjectionStatement, CreateMaterializedViewStatement,
     CreateProcedureStatement, CreateRetentionPolicyStatement, CreateRoleStatement,
     CreateRollupStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
@@ -58,7 +58,6 @@ pub enum RuntimeStatementRef<'a> {
 pub enum CatalogStatementRef<'a> {
     CommentOn(&'a CommentOnStatement),
     CreateTable(&'a CreateTableStatement),
-    CreateGraph(&'a CreateGraphStatement),
     DropTable(&'a DropTableStatement),
     AlterTable(&'a AlterTableStatement),
     CreateSequence(&'a CreateSequenceStatement),
@@ -144,7 +143,6 @@ pub enum RuntimeStatement {
 pub enum CatalogStatement {
     CommentOn(CommentOnStatement),
     CreateTable(CreateTableStatement),
-    CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),
     AlterTable(AlterTableStatement),
     CreateSequence(CreateSequenceStatement),
@@ -220,7 +218,6 @@ impl QueryStatement {
             | Self::Transaction(_)
             | Self::SessionObject(_) => StatementFamily::Runtime,
             Self::CreateTable(_)
-            | Self::CreateGraph(_)
             | Self::DropTable(_)
             | Self::AlterTable(_)
             | Self::CreateSequence(_)
@@ -321,7 +318,6 @@ impl QueryStatement {
         match self {
             Self::CommentOn(statement) => CatalogStatementRef::CommentOn(statement),
             Self::CreateTable(statement) => CatalogStatementRef::CreateTable(statement),
-            Self::CreateGraph(statement) => CatalogStatementRef::CreateGraph(statement),
             Self::DropTable(statement) => CatalogStatementRef::DropTable(statement),
             Self::AlterTable(statement) => CatalogStatementRef::AlterTable(statement),
             Self::CreateSequence(statement) => CatalogStatementRef::CreateSequence(statement),
@@ -448,7 +444,6 @@ impl QueryStatement {
         match self {
             Self::CommentOn(statement) => CatalogStatement::CommentOn(statement),
             Self::CreateTable(statement) => CatalogStatement::CreateTable(statement),
-            Self::CreateGraph(statement) => CatalogStatement::CreateGraph(statement),
             Self::DropTable(statement) => CatalogStatement::DropTable(statement),
             Self::AlterTable(statement) => CatalogStatement::AlterTable(statement),
             Self::CreateSequence(statement) => CatalogStatement::CreateSequence(statement),

@@ -4,7 +4,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 
 | Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| `tests/Cargo.toml` | fixture_data | 215 | 0 | — | keep | `tests/Cargo.toml` |
+| `tests/Cargo.toml` | fixture_data | 219 | 0 | — | keep | `tests/Cargo.toml` |
 | `tests/analytics/aggregates/aggregate_acceleration.rs` | test_module | 522 | 7 | analytics | keep | `tests/analytics/aggregates/aggregate_acceleration.rs` |
 | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 228 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
 | `tests/analytics/column_store/column_batch_encoded_scans.rs` | test_module | 397 | 4 | analytics | keep | `tests/analytics/column_store/column_batch_encoded_scans.rs` |
@@ -130,9 +130,9 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/catalog_security/catalogs/types/text_search_identifier_lookup/restart.rs` | test_support | 119 | 0 | — | keep | `tests/catalog_security/catalogs/types/text_search_identifier_lookup/restart.rs` |
 | `tests/catalog_security/databases/images/database_images.rs` | test_module | 232 | 4 | catalog_security | keep | `tests/catalog_security/databases/images/database_images.rs` |
 | `tests/catalog_security/ddl/schema_epoch_safety.rs` | test_module | 535 | 7 | catalog_security | keep | `tests/catalog_security/ddl/schema_epoch_safety.rs` |
-| `tests/catalog_security/ddl/schema_operation_recovery.rs` | test_module | 745 | 10 | catalog_security | keep | `tests/catalog_security/ddl/schema_operation_recovery.rs` |
+| `tests/catalog_security/ddl/schema_operation_recovery.rs` | test_module | 659 | 9 | catalog_security | keep | `tests/catalog_security/ddl/schema_operation_recovery.rs` |
 | `tests/catalog_security/ddl/schema_write_conflicts.rs` | test_module | 234 | 3 | catalog_security | keep | `tests/catalog_security/ddl/schema_write_conflicts.rs` |
-| `tests/catalog_security/namespaces/database_scope.rs` | test_module | 632 | 10 | catalog_security | keep | `tests/catalog_security/namespaces/database_scope.rs` |
+| `tests/catalog_security/namespaces/database_scope.rs` | test_module | 567 | 9 | catalog_security | keep | `tests/catalog_security/namespaces/database_scope.rs` |
 | `tests/catalog_security/namespaces/schema_scope_storage.rs` | test_module | 388 | 6 | catalog_security | keep | `tests/catalog_security/namespaces/schema_scope_storage.rs` |
 | `tests/catalog_security/namespaces/search_path_resolution.rs` | test_module | 265 | 9 | catalog_security | keep | `tests/catalog_security/namespaces/search_path_resolution.rs` |
 | `tests/catalog_security/namespaces/udf_database_scope.rs` | test_module | 124 | 2 | catalog_security | keep | `tests/catalog_security/namespaces/udf_database_scope.rs` |
@@ -152,7 +152,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/catalog_security/views/semantics.rs` | test_module | 293 | 5 | catalog_security | keep | `tests/catalog_security/views/semantics.rs` |
 | `tests/catalog_security.rs` | cargo_target | 176 | 0 | catalog_security | keep | `tests/catalog_security.rs` |
 | `tests/columnar_surface/constraint_equivalence.rs` | test_module | 463 | 11 | columnar_surface | move_with_module_alias | `tests/columnar_surface/constraints/constraint_equivalence.rs` |
-| `tests/columnar_surface/index_equivalence.rs` | test_module | 380 | 9 | columnar_surface | move_with_module_alias | `tests/columnar_surface/indexes/index_equivalence.rs` |
+| `tests/columnar_surface/index_equivalence.rs` | test_module | 349 | 8 | columnar_surface | move_with_module_alias | `tests/columnar_surface/indexes/index_equivalence.rs` |
 | `tests/columnar_surface/pair.rs` | test_support | 142 | 0 | columnar_surface | keep | `tests/columnar_surface/pair.rs` |
 | `tests/columnar_surface/query_equivalence.rs` | test_module | 309 | 11 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/core/query_equivalence.rs`; `tests/columnar_surface/semantics/query_equivalence.rs` |
 | `tests/columnar_surface.rs` | cargo_target | 14 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
@@ -364,12 +364,6 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/corpus/postgresql18/v3-approved-proposal.txt` | oracle_data | 53 | 0 | — | keep | `tests/corpus/postgresql18/v3-approved-proposal.txt` |
 | `tests/corpus/postgresql18/v3-catalog-export-approved-proposal.txt` | oracle_data | 320 | 0 | — | keep | `tests/corpus/postgresql18/v3-catalog-export-approved-proposal.txt` |
 | `tests/corpus/postgresql18/v3-contract-vectors.json` | oracle_data | 175 | 0 | — | keep | `tests/corpus/postgresql18/v3-contract-vectors.json` |
-| `tests/domain_models/graph/database_scope/graph_database_scope.rs` | test_module | 182 | 3 | domain_models | keep | `tests/domain_models/graph/database_scope/graph_database_scope.rs` |
-| `tests/domain_models/graph/ddl/graph_backing_table_ddl.rs` | test_module | 233 | 5 | domain_models | keep | `tests/domain_models/graph/ddl/graph_backing_table_ddl.rs` |
-| `tests/domain_models/graph/qualification.rs` | test_module | 318 | 6 | domain_models | keep | `tests/domain_models/graph/qualification.rs` |
-| `tests/domain_models/graph/queries/graph_function_correctness.rs` | test_module | 259 | 7 | domain_models | keep | `tests/domain_models/graph/queries/graph_function_correctness.rs` |
-| `tests/domain_models/graph/queries/semantics.rs` | test_module | 269 | 4 | domain_models | keep | `tests/domain_models/graph/queries/semantics.rs` |
-| `tests/domain_models/graph/transactions/graph_transaction_semantics.rs` | test_module | 366 | 10 | domain_models | keep | `tests/domain_models/graph/transactions/graph_transaction_semantics.rs` |
 | `tests/domain_models/time_series/indexes/time_series_index_completeness.rs` | test_module | 430 | 10 | domain_models | keep | `tests/domain_models/time_series/indexes/time_series_index_completeness.rs` |
 | `tests/domain_models/time_series/indexes/time_series_indexes/errors.rs` | test_module | 86 | 2 | domain_models | keep | `tests/domain_models/time_series/indexes/time_series_indexes/errors.rs` |
 | `tests/domain_models/time_series/indexes/time_series_indexes/mod.rs` | module_registration | 36 | 0 | domain_models | keep | `tests/domain_models/time_series/indexes/time_series_indexes/mod.rs` |
@@ -385,7 +379,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/domain_models/time_series/rollups/time_series_rollups/mod.rs` | module_registration | 133 | 0 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/mod.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/restart.rs` | test_module | 150 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/restart.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs` | test_module | 644 | 11 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs` |
-| `tests/domain_models.rs` | cargo_target | 60 | 0 | domain_models | keep | `tests/domain_models.rs` |
+| `tests/domain_models.rs` | cargo_target | 37 | 0 | domain_models | keep | `tests/domain_models.rs` |
 | `tests/domain_types/alter.rs` | test_module | 559 | 34 | domain_types | move_with_module_alias | `tests/domain_types/semantics/alter.rs` |
 | `tests/domain_types/cast_wire.rs` | test_module | 346 | 23 | domain_types | split_by_contract | `tests/domain_types/aggregates/core/cast_wire.rs`; `tests/domain_types/aggregates/strings/cast_wire.rs`; `tests/domain_types/grammar/cast_wire.rs` |
 | `tests/domain_types/catalogs.rs` | test_module | 167 | 8 | domain_types | move_with_module_alias | `tests/domain_types/semantics/catalogs.rs` |
@@ -455,23 +449,35 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/fixtures/sqlx_probe/Cargo.toml` | external_client_fixture | 11 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.toml` |
 | `tests/fixtures/sqlx_probe/src/main.rs` | external_client_fixture | 159 | 0 | — | keep | `tests/fixtures/sqlx_probe/src/main.rs` |
 | `tests/graph_table/composition.rs` | test_module | 172 | 9 | graph_table | split_by_contract | `tests/graph_table/aggregates/core/composition.rs`; `tests/graph_table/semantics/composition.rs` |
+| `tests/graph_table/database_scope.rs` | test_module | 150 | 4 | graph_table | move_with_module_alias | `tests/graph_table/ddl/database_scope.rs` |
 | `tests/graph_table/exact_reads.rs` | test_module | 152 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/exact_reads.rs` |
 | `tests/graph_table/matrix.rs` | test_module | 136 | 2 | graph_table | move_with_module_alias | `tests/graph_table/semantics/matrix.rs` |
-| `tests/graph_table/resources.rs` | test_module | 120 | 3 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |
+| `tests/graph_table/paths.rs` | test_module | 577 | 15 | graph_table | move_with_module_alias | `tests/graph_table/semantics/paths.rs` |
+| `tests/graph_table/persistence.rs` | test_module | 109 | 3 | graph_table | move_with_module_alias | `tests/graph_table/semantics/persistence.rs` |
+| `tests/graph_table/resources.rs` | test_module | 145 | 4 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |
 | `tests/graph_table/semantics.rs` | test_module | 544 | 23 | graph_table | split_by_contract | `tests/graph_table/semantics/errors.rs`; `tests/graph_table/semantics/parameters.rs`; `tests/graph_table/semantics/resources.rs`; `tests/graph_table/semantics/semantics.rs` |
 | `tests/graph_table/transactions.rs` | test_module | 197 | 7 | graph_table | move_with_module_alias | `tests/graph_table/transactions/transactions.rs` |
 | `tests/graph_table/wire.rs` | test_module | 170 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
 | `tests/graph_table/world.rs` | test_support | 343 | 0 | graph_table | keep | `tests/graph_table/world.rs` |
-| `tests/graph_table.rs` | cargo_target | 34 | 0 | graph_table | keep | `tests/graph_table.rs` |
+| `tests/graph_table.rs` | cargo_target | 43 | 0 | graph_table | keep | `tests/graph_table.rs` |
 | `tests/graph_types/catalog.rs` | test_module | 100 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/catalog.rs` |
 | `tests/graph_types/constructors.rs` | test_module | 31 | 1 | graph_types | move_with_module_alias | `tests/graph_types/semantics/constructors.rs` |
 | `tests/graph_types/fixture.rs` | test_support | 113 | 0 | graph_types | keep | `tests/graph_types/fixture.rs` |
 | `tests/graph_types/paths.rs` | test_module | 210 | 12 | graph_types | move_with_module_alias | `tests/graph_types/semantics/paths.rs` |
+| `tests/graph_types/projected_paths.rs` | test_module | 386 | 9 | graph_types | move_with_module_alias | `tests/graph_types/semantics/projected_paths.rs` |
 | `tests/graph_types/refs.rs` | test_module | 306 | 18 | graph_types | move_with_module_alias | `tests/graph_types/semantics/refs.rs` |
 | `tests/graph_types/reserved.rs` | test_module | 306 | 16 | graph_types | move_with_module_alias | `tests/graph_types/semantics/reserved.rs` |
 | `tests/graph_types/storage.rs` | test_module | 180 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/storage.rs` |
 | `tests/graph_types/wire.rs` | test_module | 245 | 10 | graph_types | move_with_module_alias | `tests/graph_types/semantics/wire.rs` |
-| `tests/graph_types.rs` | cargo_target | 29 | 0 | graph_types | keep | `tests/graph_types.rs` |
+| `tests/graph_types.rs` | cargo_target | 32 | 0 | graph_types | keep | `tests/graph_types.rs` |
+| `tests/graph_weighted/arguments.rs` | test_module | 230 | 12 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/arguments.rs` |
+| `tests/graph_weighted/binding.rs` | test_module | 215 | 11 | graph_weighted | move_with_module_alias | `tests/graph_weighted/parameters/binding.rs` |
+| `tests/graph_weighted/oracle.rs` | test_module | 389 | 19 | graph_weighted | split_by_contract | `tests/graph_weighted/aggregates/core/oracle.rs`; `tests/graph_weighted/semantics/oracle.rs` |
+| `tests/graph_weighted/resources.rs` | test_module | 107 | 3 | graph_weighted | move_with_module_alias | `tests/graph_weighted/resources/resources.rs` |
+| `tests/graph_weighted/security.rs` | test_module | 93 | 4 | graph_weighted | move_with_module_alias | `tests/graph_weighted/security/security.rs` |
+| `tests/graph_weighted/views.rs` | test_module | 178 | 6 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/views.rs` |
+| `tests/graph_weighted/world.rs` | test_support | 464 | 0 | graph_weighted | keep | `tests/graph_weighted/world.rs` |
+| `tests/graph_weighted.rs` | cargo_target | 30 | 0 | graph_weighted | keep | `tests/graph_weighted.rs` |
 | `tests/json_writes/contracts/errors.rs` | test_module | 34 | 2 | json_writes | keep | `tests/json_writes/contracts/errors.rs` |
 | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` | test_module | 94 | 2 | json_writes | keep | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` |
 | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` | test_module | 806 | 15 | json_writes | keep | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` |
@@ -511,7 +517,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/parser_types/grammar/aliases.rs` | test_module | 33 | 1 | parser_types | keep | `tests/parser_types/grammar/aliases.rs` |
 | `tests/parser_types/grammar/boundaries/transport_boundaries.rs` | test_module | 104 | 1 | parser_types | keep | `tests/parser_types/grammar/boundaries/transport_boundaries.rs` |
 | `tests/parser_types/grammar/core.rs` | test_module | 512 | 22 | parser_types | keep | `tests/parser_types/grammar/core.rs` |
-| `tests/parser_types/grammar/ctes/cte_schema.rs` | test_module | 538 | 25 | parser_types | keep | `tests/parser_types/grammar/ctes/cte_schema.rs` |
+| `tests/parser_types/grammar/ctes/cte_schema.rs` | test_module | 485 | 23 | parser_types | keep | `tests/parser_types/grammar/ctes/cte_schema.rs` |
 | `tests/parser_types/grammar/ctes/ctes.rs` | test_module | 121 | 6 | parser_types | keep | `tests/parser_types/grammar/ctes/ctes.rs` |
 | `tests/parser_types/grammar/ddl/create_table_like.rs` | test_module | 134 | 6 | parser_types | keep | `tests/parser_types/grammar/ddl/create_table_like.rs` |
 | `tests/parser_types/grammar/ddl/ddl_check_literals.rs` | test_module | 140 | 3 | parser_types | keep | `tests/parser_types/grammar/ddl/ddl_check_literals.rs` |
@@ -1175,12 +1181,11 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/query_scan_controls/resources/scalar_index_resource_controls.rs` | test_module | 175 | 3 | query_scan_controls | keep | `tests/query_scan_controls/resources/scalar_index_resource_controls.rs` |
 | `tests/query_scan_controls/scans/column_batch_controls.rs` | test_module | 138 | 2 | query_scan_controls | keep | `tests/query_scan_controls/scans/column_batch_controls.rs` |
 | `tests/query_scan_controls/scans/column_store_query_controls.rs` | test_module | 352 | 7 | query_scan_controls | keep | `tests/query_scan_controls/scans/column_store_query_controls.rs` |
-| `tests/query_scan_controls/scans/graph_resilience.rs` | test_module | 741 | 13 | query_scan_controls | keep | `tests/query_scan_controls/scans/graph_resilience.rs` |
 | `tests/query_scan_controls/scans/normalized_query_controls.rs` | test_module | 80 | 1 | query_scan_controls | keep | `tests/query_scan_controls/scans/normalized_query_controls.rs` |
-| `tests/query_scan_controls/scans/specialized_query_controls.rs` | test_module | 640 | 3 | query_scan_controls | keep | `tests/query_scan_controls/scans/specialized_query_controls.rs` |
+| `tests/query_scan_controls/scans/specialized_query_controls.rs` | test_module | 513 | 3 | query_scan_controls | keep | `tests/query_scan_controls/scans/specialized_query_controls.rs` |
 | `tests/query_scan_controls/scans/specialized_query_controls_retrieval.rs` | test_module | 725 | 9 | query_scan_controls | keep | `tests/query_scan_controls/scans/specialized_query_controls_retrieval.rs` |
 | `tests/query_scan_controls/scans/vector_ann_concurrency.rs` | test_module | 506 | 9 | query_scan_controls | keep | `tests/query_scan_controls/scans/vector_ann_concurrency.rs` |
-| `tests/query_scan_controls.rs` | cargo_target | 64 | 0 | query_scan_controls | keep | `tests/query_scan_controls.rs` |
+| `tests/query_scan_controls.rs` | cargo_target | 58 | 0 | query_scan_controls | keep | `tests/query_scan_controls.rs` |
 | `tests/relational_qualification/ancestor_scope.rs` | test_module | 258 | 5 | relational_qualification | keep | `tests/relational_qualification/ancestor_scope.rs` |
 | `tests/relational_qualification/exists_having.rs` | test_module | 130 | 3 | relational_qualification | keep | `tests/relational_qualification/exists_having.rs` |
 | `tests/relational_qualification/exists_order.rs` | test_module | 138 | 4 | relational_qualification | keep | `tests/relational_qualification/exists_order.rs` |
@@ -1339,7 +1344,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_mutations/transactions/transaction_isolation.rs` | test_module | 332 | 9 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_isolation.rs` |
 | `tests/sql_mutations/transactions/transaction_semantics.rs` | test_module | 352 | 8 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_semantics.rs` |
 | `tests/sql_mutations/transactions/transaction_staging.rs` | test_module | 332 | 6 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_staging.rs` |
-| `tests/sql_mutations/transactions/transaction_storage_failures.rs` | test_module | 465 | 6 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_storage_failures.rs` |
+| `tests/sql_mutations/transactions/transaction_storage_failures.rs` | test_module | 393 | 5 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_storage_failures.rs` |
 | `tests/sql_mutations/transactions/transaction_visibility.rs` | test_module | 219 | 4 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_visibility.rs` |
 | `tests/sql_mutations/transactions/transactional_ddl.rs` | test_module | 591 | 14 | sql_mutations | keep | `tests/sql_mutations/transactions/transactional_ddl.rs` |
 | `tests/sql_mutations/types/arrays/array_input_copy.rs` | test_module | 84 | 1 | sql_mutations | keep | `tests/sql_mutations/types/arrays/array_input_copy.rs` |
@@ -1565,7 +1570,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/storage_indexes/column_store/corruption.rs` | test_module | 451 | 16 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/corruption.rs` |
 | `tests/storage_indexes/column_store/images.rs` | test_module | 203 | 3 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/images.rs` |
 | `tests/storage_indexes/column_store/mod.rs` | module_registration | 133 | 0 | storage_indexes | keep | `tests/storage_indexes/column_store/mod.rs` |
-| `tests/storage_indexes/column_store/no_row_blob.rs` | test_module | 190 | 9 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/no_row_blob.rs` |
+| `tests/storage_indexes/column_store/no_row_blob.rs` | test_module | 188 | 9 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/no_row_blob.rs` |
 | `tests/storage_indexes/column_store/restart.rs` | test_module | 551 | 10 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/restart.rs` |
 | `tests/storage_indexes/constraints/namespace_backing.rs` | test_module | 835 | 25 | storage_indexes | keep | `tests/storage_indexes/constraints/namespace_backing.rs` |
 | `tests/storage_indexes/databases/image_generation.rs` | test_module | 213 | 6 | storage_indexes | keep | `tests/storage_indexes/databases/image_generation.rs` |
@@ -1584,7 +1589,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/storage_indexes/indexes/scalar_indexes/semantics.rs` | test_module | 583 | 8 | storage_indexes | keep | `tests/storage_indexes/indexes/scalar_indexes/semantics.rs` |
 | `tests/storage_indexes/indexes/uuid_bytea_scalar_indexes.rs` | test_module | 309 | 8 | storage_indexes | keep | `tests/storage_indexes/indexes/uuid_bytea_scalar_indexes.rs` |
 | `tests/storage_indexes/integrity/storage_integrity.rs` | test_module | 289 | 7 | storage_indexes | keep | `tests/storage_indexes/integrity/storage_integrity.rs` |
-| `tests/storage_indexes/key_codec/key_encoding_segment_compaction.rs` | test_module | 148 | 1 | storage_indexes | keep | `tests/storage_indexes/key_codec/key_encoding_segment_compaction.rs` |
+| `tests/storage_indexes/key_codec/key_encoding_segment_compaction.rs` | test_module | 132 | 1 | storage_indexes | keep | `tests/storage_indexes/key_codec/key_encoding_segment_compaction.rs` |
 | `tests/storage_indexes/ownership/operational_ownership.rs` | test_module | 279 | 4 | storage_indexes | keep | `tests/storage_indexes/ownership/operational_ownership.rs` |
 | `tests/storage_indexes/read_paths/scalar_read_equivalence.rs` | test_module | 331 | 7 | storage_indexes | keep | `tests/storage_indexes/read_paths/scalar_read_equivalence.rs` |
 | `tests/storage_indexes/row_codec/midge_row_blob_layout.rs` | test_module | 476 | 7 | storage_indexes | keep | `tests/storage_indexes/row_codec/midge_row_blob_layout.rs` |
@@ -1632,16 +1637,13 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/executor.rs` | shared_support | 114 | 0 | catalog_security, executor, search, storage_indexes | keep | `tests/support/executor.rs` |
 | `tests/support/fetch.rs` | shared_support | 72 | 0 | pgwire_extended | keep | `tests/support/fetch.rs` |
 | `tests/support/fetch_sql.rs` | shared_support | 20 | 0 | sql_queries | keep | `tests/support/fetch_sql.rs` |
-| `tests/support/graph.rs` | shared_support | 24 | 0 | domain_models | keep | `tests/support/graph.rs` |
-| `tests/support/graph_evidence.rs` | shared_support | 134 | 0 | query_scan_controls | keep | `tests/support/graph_evidence.rs` |
-| `tests/support/graph_neighbors.rs` | shared_support | 15 | 0 | domain_models | keep | `tests/support/graph_neighbors.rs` |
-| `tests/support/graph_oracle/enumerate.rs` | shared_support | 106 | 0 | graph_table | keep | `tests/support/graph_oracle/enumerate.rs` |
-| `tests/support/graph_oracle/mod.rs` | shared_support | 19 | 0 | graph_table | keep | `tests/support/graph_oracle/mod.rs` |
-| `tests/support/graph_oracle/model.rs` | shared_support | 298 | 0 | graph_table | keep | `tests/support/graph_oracle/model.rs` |
-| `tests/support/graph_oracle/pattern.rs` | shared_support | 236 | 0 | graph_table | keep | `tests/support/graph_oracle/pattern.rs` |
-| `tests/support/graph_oracle/select.rs` | shared_support | 57 | 0 | graph_table | keep | `tests/support/graph_oracle/select.rs` |
-| `tests/support/graph_oracle/tests.rs` | shared_support | 471 | 19 | graph_table | keep | `tests/support/graph_oracle/tests.rs` |
-| `tests/support/graph_oracle/weighted.rs` | shared_support | 123 | 0 | graph_table | keep | `tests/support/graph_oracle/weighted.rs` |
+| `tests/support/graph_oracle/enumerate.rs` | shared_support | 106 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/enumerate.rs` |
+| `tests/support/graph_oracle/mod.rs` | shared_support | 19 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/mod.rs` |
+| `tests/support/graph_oracle/model.rs` | shared_support | 298 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/model.rs` |
+| `tests/support/graph_oracle/pattern.rs` | shared_support | 236 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/pattern.rs` |
+| `tests/support/graph_oracle/select.rs` | shared_support | 57 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/select.rs` |
+| `tests/support/graph_oracle/tests.rs` | shared_support | 471 | 19 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/tests.rs` |
+| `tests/support/graph_oracle/weighted.rs` | shared_support | 123 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/weighted.rs` |
 | `tests/support/local_storage.rs` | shared_support | 5 | 0 | sql_mutations, storage_indexes | keep | `tests/support/local_storage.rs` |
 | `tests/support/metrics.rs` | shared_support | 8 | 0 | metrics, planner_controls | keep | `tests/support/metrics.rs` |
 | `tests/support/mixed_numeric.rs` | shared_support | 24 | 0 | pgwire_types, sql_queries | keep | `tests/support/mixed_numeric.rs` |

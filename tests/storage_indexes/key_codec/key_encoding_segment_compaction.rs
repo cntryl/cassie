@@ -36,7 +36,6 @@ fn should_pack_internal_key_segments_with_compact_markers() {
 
 fn populate_compaction_fixtures(cassie: &Cassie, session: &CassieSession) {
     execute_all_queries(cassie, session, SCALAR_INDEX_QUERIES);
-    execute_all_queries(cassie, session, GRAPH_QUERIES);
     execute_all_queries(cassie, session, FULLTEXT_INDEX_QUERIES);
 }
 
@@ -59,9 +58,6 @@ fn assert_key_encoding_marker_compaction(data_keys: &[(Vec<u8>, Vec<u8>)]) {
     assert!(data_keys
         .iter()
         .any(|(key, _)| key_family(key) == Some(b"\x18".as_slice())));
-    assert!(data_keys
-        .iter()
-        .any(|(key, _)| key_family(key) == Some(b"\x16".as_slice())));
 
     let scalar_checks = data_keys
         .iter()
@@ -85,10 +81,6 @@ fn assert_key_encoding_marker_compaction(data_keys: &[(Vec<u8>, Vec<u8>)]) {
                 && !has_key_component(key, b"deleted")
                 && !has_key_component(key, b"field")
         });
-    let graph_checks = data_keys
-        .iter()
-        .filter(|(key, _)| key_family(key) == Some(b"\x16".as_slice()))
-        .all(|(key, _)| !has_key_component(key, b"out") && !has_key_component(key, b"in"));
     let fulltext_checks = data_keys
         .iter()
         .filter(|(key, _)| key_family(key) == Some(b"\x12".as_slice()))
@@ -107,7 +99,6 @@ fn assert_key_encoding_marker_compaction(data_keys: &[(Vec<u8>, Vec<u8>)]) {
     assert!(time_series_checks);
     assert!(batch_checks);
     assert!(store_checks);
-    assert!(graph_checks);
     assert!(fulltext_checks);
 }
 
@@ -132,13 +123,6 @@ const SCALAR_INDEX_QUERIES: &[&str] = &[
     "INSERT INTO keyseg_column_store (k, payload) VALUES ('r1', 'keep'), ('r2', 'delete')",
     "SELECT payload FROM keyseg_column_store WHERE k = 'r1'",
     "DELETE FROM keyseg_column_store WHERE k = 'r2'",
-];
-
-const GRAPH_QUERIES: &[&str] = &[
-    "CREATE GRAPH keyseg_graph (NODES (label TEXT), EDGES (source TEXT))",
-    "INSERT INTO keyseg_graph_nodes (node_type, node_id, label) VALUES ('person', 'alice', 'Alice')",
-    "INSERT INTO keyseg_graph_nodes (node_type, node_id, label) VALUES ('person', 'bob', 'Bob')",
-    "INSERT INTO keyseg_graph_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 1)",
 ];
 
 const FULLTEXT_INDEX_QUERIES: &[&str] = &[

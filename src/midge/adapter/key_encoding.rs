@@ -29,12 +29,10 @@ pub(crate) use fulltext::{
     fulltext_index_collection_prefix, fulltext_index_key, fulltext_index_manifest_key,
     fulltext_postings_prefix, fulltext_term_postings_block_key, fulltext_term_postings_prefix,
 };
-pub(super) use graph::{database_identity_key, property_graph_key, property_graph_prefix};
+#[cfg(test)]
+pub(super) use graph::legacy_graph_sample_keys;
 pub(super) use graph::{
-    graph_adjacency_prefix, graph_inbound_edge_key, graph_inbound_edge_type_key,
-    graph_inbound_edge_type_prefix, graph_inbound_prefix, graph_key, graph_manifest_key,
-    graph_outbound_edge_key, graph_outbound_edge_type_key, graph_outbound_edge_type_prefix,
-    graph_outbound_prefix, graph_prefix,
+    database_identity_key, legacy_graph_prefixes, property_graph_key, property_graph_prefix,
 };
 pub(super) use hot_indexes::{
     column_batch_collection_prefix, column_batch_field_key, column_batch_index_prefix,
@@ -130,10 +128,8 @@ const FAMILY_COLLECTION_METADATA: &[u8] = b"collection-meta";
 const FAMILY_COLUMN_STORE: &[u8] = b"\x18";
 const FAMILY_ROLLUP: &[u8] = b"rollup";
 const FAMILY_RETENTION: &[u8] = b"retention";
-const FAMILY_GRAPH: &[u8] = b"graph";
 const FAMILY_PROPERTY_GRAPH: &[u8] = b"property-graph";
 const FAMILY_DATABASE_IDENTITY: &[u8] = b"database-identity";
-const FAMILY_GRAPH_ADJACENCY: &[u8] = b"\x16";
 const FAMILY_DATA_EPOCH: &[u8] = b"data-epoch";
 const FAMILY_COLLECTION_GENERATION: &[u8] = b"collection-generation";
 const FAMILY_MAINTENANCE_DEBT: &[u8] = b"maintenance-debt";

@@ -320,12 +320,6 @@ fn parse_parenthesized_prefix(raw: &str) -> Option<(String, &str)> {
     Some((raw[1..close].to_string(), &raw[close + 1..]))
 }
 
-pub(in crate::sql::parser) fn parse_enclosed_parenthesized(raw: &str) -> Option<String> {
-    let raw = super::super::lexical::trim_separators(raw);
-    let close = super::super::lexical::matching_paren(raw, 0)?;
-    (close + 1 == raw.len()).then(|| raw[1..close].to_string())
-}
-
 fn parse_recursive_cte_query(body: &str) -> Result<Option<CteQuery>, SqlError> {
     let Some((set_position, set_length, all)) = find_top_level_union(body) else {
         return Ok(None);

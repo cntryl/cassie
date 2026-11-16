@@ -326,37 +326,6 @@ fn should_maintain_time_series_indexes_on_column_tables() {
 }
 
 #[test]
-fn should_reject_converting_graph_backing_tables_to_columnar() {
-    // Arrange
-    with_pair(|pair| {
-        pair.run("CREATE GRAPH gx");
-        pair.run(
-            "INSERT INTO gx_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) \
-             VALUES ('e1','n','A','n','B','r',1)",
-        );
-
-        // Act
-        let nodes = pair.sqlstate("ALTER TABLE gx_nodes SET ACCESS METHOD columnar");
-        let edges = pair.sqlstate("ALTER TABLE gx_edges SET ACCESS METHOD columnar");
-
-        // Assert
-        assert_eq!(nodes, "0A000");
-        assert_eq!(edges, "0A000");
-        assert_eq!(
-            pair.sorted("SELECT storage_mode FROM pg_catalog.pg_table_storage WHERE tablename IN ('gx_nodes', 'gx_edges')"),
-            vec![
-                vec![Value::String("row-store".to_string())],
-                vec![Value::String("row-store".to_string())],
-            ]
-        );
-        assert_eq!(
-            pair.sorted("SELECT node_id FROM graph_neighbors('gx','n','A','out','*',10)"),
-            vec![vec![Value::String("B".to_string())]]
-        );
-    });
-}
-
-#[test]
 fn should_reject_column_indexes_on_column_tables_with_feature_not_supported() {
     // Arrange
     with_pair(|pair| {

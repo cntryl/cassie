@@ -35,3 +35,9 @@ mod wire;
 
 #[path = "graph_table/paths.rs"]
 mod paths;
+
+#[path = "graph_table/database_scope.rs"]
+mod database_scope;
+
+#[path = "graph_table/persistence.rs"]
+mod persistence;

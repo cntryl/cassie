@@ -672,9 +672,10 @@ no on-disk compatibility promise. They are deleted once mapped property graphs,
 `GRAPH_TABLE` and `graph_weighted_paths` cover their uses, and their tests and
 benchmark are migrated to mapped graphs. No conversion tool, equivalence
 preflight or compatibility window is provided. A store that still holds a
-legacy graph definition after the removal ignores it; its former node and edge
-tables remain ordinary tables that a new graph may map. Graph writes remain
-ordinary SQL table writes.
+legacy graph definition after the removal ignores it and deletes the stored
+legacy definitions and adjacency entries at startup (implemented by #1258); its
+former node and edge tables remain ordinary tables that a new graph may map.
+Graph writes remain ordinary SQL table writes.
 
 The removal deliberately drops three legacy behaviours that the mapped model
 does not carry: traversal over edges whose endpoint rows do not exist, FLOAT

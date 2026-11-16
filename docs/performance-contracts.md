@@ -906,3 +906,16 @@ selection stays unchanged. The graph owner rejects any explicit deployment
 profile other than this one, so a forced-memory run cannot emit disk-profile
 metadata. The assembler must summarize all nine emitted scenario artifacts as
 well as running them before claiming the artifact contract passed.
+
+For a local diagnostic run, pass its complete graph-owner JSON artifact to:
+
+```sh
+cargo run --locked --example summarize_graph_scaling -- <graph-artifact.json>
+```
+
+This helper requires nine scenario summaries and the explicit topology profile
+metadata, then calls the shared summarizer for every registered topology point.
+Its storage field is the registered profile's declared storage label; physical
+memory mode is established by the benchmark's explicit constructor, not by that
+label. This diagnostic helper does not relax the separate release-artifact
+validator or promote local samples to release evidence.

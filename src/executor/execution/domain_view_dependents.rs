@@ -42,7 +42,7 @@ fn names_domain(raw: &str, domain: &DomainTypeMeta) -> bool {
 /// Parses a stored view definition with every user type name in scope. When
 /// `watched` is given, a type name that denotes it resolves to it and sets
 /// `named`.
-fn parse_view(
+pub(super) fn parse_view(
     cassie: &Cassie,
     query: &str,
     watched: Option<(&DomainTypeMeta, &Rc<Cell<bool>>)>,

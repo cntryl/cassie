@@ -4,7 +4,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 
 | Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| `tests/Cargo.toml` | fixture_data | 207 | 0 | — | keep | `tests/Cargo.toml` |
+| `tests/Cargo.toml` | fixture_data | 211 | 0 | — | keep | `tests/Cargo.toml` |
 | `tests/analytics/aggregates/aggregate_acceleration.rs` | test_module | 522 | 7 | analytics | keep | `tests/analytics/aggregates/aggregate_acceleration.rs` |
 | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 228 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
 | `tests/analytics/column_store/column_batch_encoded_scans.rs` | test_module | 397 | 4 | analytics | keep | `tests/analytics/column_store/column_batch_encoded_scans.rs` |
@@ -454,6 +454,8 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/fixtures/sqlx_probe/Cargo.lock` | external_client_fixture | 1518 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.lock` |
 | `tests/fixtures/sqlx_probe/Cargo.toml` | external_client_fixture | 11 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.toml` |
 | `tests/fixtures/sqlx_probe/src/main.rs` | external_client_fixture | 159 | 0 | — | keep | `tests/fixtures/sqlx_probe/src/main.rs` |
+| `tests/graph_table/wire.rs` | test_module | 125 | 4 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
+| `tests/graph_table.rs` | cargo_target | 8 | 0 | graph_table | keep | `tests/graph_table.rs` |
 | `tests/json_writes/contracts/errors.rs` | test_module | 34 | 2 | json_writes | keep | `tests/json_writes/contracts/errors.rs` |
 | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` | test_module | 94 | 2 | json_writes | keep | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` |
 | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` | test_module | 806 | 15 | json_writes | keep | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` |

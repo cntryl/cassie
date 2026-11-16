@@ -13,6 +13,45 @@ pub enum TableFunctionForm {
     /// A `JSON_TABLE(...)` specification. The context item and `PASSING` values are the
     /// function arguments, in that order.
     JsonTable(Box<JsonTableSpec>),
+    /// A `GRAPH_TABLE(...)` pattern. Its expressions live in the table itself, so the
+    /// call's `function.args` stay empty.
+    GraphTable(Box<super::GraphTable>),
+}
+
+impl TableFunctionForm {
+    /// The `GRAPH_TABLE` of this form, if it is one.
+    #[must_use]
+    pub fn graph_table(&self) -> Option<&super::GraphTable> {
+        match self {
+            Self::GraphTable(table) => Some(table),
+            _ => None,
+        }
+    }
+
+    /// The `GRAPH_TABLE` of this form, mutably.
+    pub fn graph_table_mut(&mut self) -> Option<&mut super::GraphTable> {
+        match self {
+            Self::GraphTable(table) => Some(table),
+            _ => None,
+        }
+    }
+
+    /// The expressions of a `GRAPH_TABLE` form; empty for every other form.
+    pub fn graph_expressions(&self) -> impl Iterator<Item = &Expr> {
+        self.graph_table()
+            .into_iter()
+            .flat_map(super::GraphTable::expressions)
+    }
+
+    /// Mutable counterpart of [`TableFunctionForm::graph_expressions`].
+    pub fn graph_expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+        match self {
+            Self::GraphTable(table) => Some(table),
+            _ => None,
+        }
+        .into_iter()
+        .flat_map(|table| table.expressions_mut())
+    }
 }
 
 /// One declared output column of a column definition list.

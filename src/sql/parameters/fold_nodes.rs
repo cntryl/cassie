@@ -63,6 +63,7 @@ impl<'a> Fold<'a, '_> {
                         (index == function.args.len()).then_some(Node::FunctionModifiers(function))
                     })
                 }
+                Node::Graph(table) => table.expression_at(index).map(Node::Expr),
                 Node::FunctionModifiers(function) => match index {
                     0 => function.filter.as_deref().map(Node::Expr),
                     _ => Some(Node::Orders(&function.order_by)),
@@ -258,15 +259,19 @@ fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
                 2 + usize::from(repeatable.is_some())
             }
             ast::QuerySource::Aliased { .. } | ast::QuerySource::Subquery { .. } => 1,
-            ast::QuerySource::TableFunction { function, .. } => {
-                usize::from(crate::sql::table_sources::is_generated(&function.name))
-            }
+            ast::QuerySource::TableFunction { function, form, .. } => usize::from(
+                crate::sql::table_sources::is_generated(&function.name)
+                    || form
+                        .as_deref()
+                        .is_some_and(|form| form.graph_table().is_some()),
+            ),
             ast::QuerySource::Collection(_)
             | ast::QuerySource::Cte(_)
             | ast::QuerySource::SingleRow => 0,
         },
         Node::Expr(expr) => expression_children(expr),
         Node::Function(function) => function.args.len() + 1,
+        Node::Graph(table) => table.expression_slots(),
         Node::FunctionModifiers(_) => 2,
         Node::Expressions(expressions) => expressions.len(),
         Node::Items(items) => items.len(),
@@ -397,7 +402,10 @@ fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
             1 => Node::Source(right),
             _ => Node::Expr(on),
         }),
-        ast::QuerySource::TableFunction { function, .. } => {
+        ast::QuerySource::TableFunction { function, form, .. } => {
+            if let Some(table) = form.as_deref().and_then(|form| form.graph_table()) {
+                return Some(Node::Graph(table));
+            }
             crate::sql::table_sources::is_generated(&function.name)
                 .then_some(Node::Function(function))
         }

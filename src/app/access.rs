@@ -2,8 +2,11 @@ use super::{CassieError, CassieSession, QueryStatement};
 use crate::catalog::{RoleGrantTarget, RoleObjectPrivilege};
 use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, IdentifierPath, MutationSource, QuerySource,
-    ReturningAliases, SelectItem, SelectStatement,
+    ReturningAliases, SelectItem, SelectStatement, TableFunctionForm,
 };
+
+#[path = "access_graph_table.rs"]
+mod graph_table;
 
 impl CassieSession {
     pub(crate) fn authorize_statement(
@@ -603,8 +606,11 @@ impl super::Cassie {
                 Ok(())
             }
             QuerySource::Subquery { select, .. } => self.authorize_select(session, context, select),
-            QuerySource::TableFunction { function, .. } => {
+            QuerySource::TableFunction { function, form, .. } => {
                 reject_sequence_function(&function.name)?;
+                if let Some(TableFunctionForm::GraphTable(table)) = form.as_deref() {
+                    return self.authorize_graph_table(session, context, table);
+                }
                 for expression in function.expressions() {
                     self.authorize_expression(session, context, expression)?;
                 }

@@ -169,6 +169,7 @@ mod enum_views;
 mod extension_command;
 mod property_graph_command;
 mod property_graph_dependents;
+mod property_graph_views;
 mod retention;
 mod role_command;
 mod rollups;

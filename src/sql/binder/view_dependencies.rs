@@ -5,13 +5,27 @@ use crate::sql::ast::{
     SelectItem, SelectStatement,
 };
 
-pub(crate) fn select_referenced_relations(statement: &SelectStatement) -> Vec<String> {
-    let mut relations = BTreeSet::new();
-    collect_select(statement, &mut relations);
-    relations.into_iter().collect()
+/// What a select reads: relations by name and `GRAPH_TABLE` graphs by name.
+#[derive(Default)]
+struct Collected {
+    relations: BTreeSet<String>,
+    graphs: BTreeSet<String>,
 }
 
-fn collect_select(statement: &SelectStatement, relations: &mut BTreeSet<String>) {
+pub(crate) fn select_referenced_relations(statement: &SelectStatement) -> Vec<String> {
+    let mut collected = Collected::default();
+    collect_select(statement, &mut collected);
+    collected.relations.into_iter().collect()
+}
+
+/// The graph names, as written, that `GRAPH_TABLE` sources of the select read.
+pub(crate) fn select_referenced_graphs(statement: &SelectStatement) -> Vec<String> {
+    let mut collected = Collected::default();
+    collect_select(statement, &mut collected);
+    collected.graphs.into_iter().collect()
+}
+
+fn collect_select(statement: &SelectStatement, relations: &mut Collected) {
     collect_source(&statement.source, relations);
     for item in &statement.projection {
         collect_item(item, relations);
@@ -38,7 +52,7 @@ fn collect_select(statement: &SelectStatement, relations: &mut BTreeSet<String>)
     }
 }
 
-fn collect_cte(cte: &CommonTableExpression, relations: &mut BTreeSet<String>) {
+fn collect_cte(cte: &CommonTableExpression, relations: &mut Collected) {
     match &cte.query {
         CteQuery::Simple(statement) => collect_parsed_statement(statement, relations),
         CteQuery::Recursive {
@@ -54,16 +68,16 @@ fn collect_cte(cte: &CommonTableExpression, relations: &mut BTreeSet<String>) {
     }
 }
 
-fn collect_parsed_statement(statement: &ParsedStatement, relations: &mut BTreeSet<String>) {
+fn collect_parsed_statement(statement: &ParsedStatement, relations: &mut Collected) {
     if let QueryStatement::Select(select) = &statement.statement {
         collect_select(select, relations);
     }
 }
 
-fn collect_source(source: &QuerySource, relations: &mut BTreeSet<String>) {
+fn collect_source(source: &QuerySource, relations: &mut Collected) {
     match source {
         QuerySource::Collection(name) => {
-            relations.insert(name.to_string());
+            relations.relations.insert(name.to_string());
         }
         QuerySource::Values { rows } => {
             for expression in rows.iter().flatten() {
@@ -83,9 +97,16 @@ fn collect_source(source: &QuerySource, relations: &mut BTreeSet<String>) {
             }
         }
         QuerySource::Aliased { source, .. } => collect_source(source, relations),
-        QuerySource::TableFunction { function, .. } => {
+        QuerySource::TableFunction { function, form, .. } => {
             for expression in function.expressions() {
                 collect_expression(expression, relations);
+            }
+            if let Some(table) = form.as_deref().and_then(|form| form.graph_table()) {
+                // A view over a graph depends on the graph, which depends on its mapped tables.
+                relations.graphs.insert(table.graph.to_string());
+                for expression in table.expressions() {
+                    collect_expression(expression, relations);
+                }
             }
         }
         QuerySource::Subquery { select, .. } => collect_select(select, relations),
@@ -100,7 +121,7 @@ fn collect_source(source: &QuerySource, relations: &mut BTreeSet<String>) {
     }
 }
 
-fn collect_item(item: &SelectItem, relations: &mut BTreeSet<String>) {
+fn collect_item(item: &SelectItem, relations: &mut Collected) {
     match item {
         SelectItem::Expr { expr, .. } => collect_expression(expr, relations),
         SelectItem::Function { function, .. } => {
@@ -126,7 +147,7 @@ fn collect_item(item: &SelectItem, relations: &mut BTreeSet<String>) {
     }
 }
 
-fn collect_expression(expression: &Expr, relations: &mut BTreeSet<String>) {
+fn collect_expression(expression: &Expr, relations: &mut Collected) {
     expression.any_descendant_or_self(&mut |candidate| {
         match candidate {
             Expr::Exists(statement) => collect_parsed_statement(statement, relations),

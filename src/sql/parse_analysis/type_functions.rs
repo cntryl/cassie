@@ -157,8 +157,14 @@ impl Normalizer<'_> {
                 self.source(right, depth + 1)?;
                 self.expression(on, depth + 1)?;
             }
-            QuerySource::TableFunction { function, .. } => {
+            QuerySource::TableFunction { function, form, .. } => {
                 for expr in function.expressions_mut() {
+                    self.expression(expr, depth + 1)?;
+                }
+                for expr in form
+                    .iter_mut()
+                    .flat_map(|form| form.graph_expressions_mut())
+                {
                     self.expression(expr, depth + 1)?;
                 }
             }

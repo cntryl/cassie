@@ -18,6 +18,7 @@ const QUERY_SCHEMA_SECTION_ORDER: QuerySchemaSection["id"][] = [
   "indexes",
   "udfs",
   "procedures",
+  "property_graphs",
 ];
 
 const DEFAULT_DATABASE_ID = "postgres";
@@ -36,7 +37,8 @@ function toSchemaId(value: string): QuerySchemaSection["id"] | null {
     value === "views" ||
     value === "indexes" ||
     value === "udfs" ||
-    value === "procedures"
+    value === "procedures" ||
+    value === "property_graphs"
   ) {
     return value;
   }

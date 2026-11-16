@@ -254,7 +254,7 @@ fn should_round_trip_a_key_part_array_with_a_null_element_through_the_driver() {
 #[test]
 fn should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver() {
     // Arrange
-    let uuid_edge = DOOR;
+    let door_reference = DOOR;
 
     // Act
     let (vertex, edge) = run(async {
@@ -267,7 +267,7 @@ fn should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver(
         .await;
         let edge = round_trip(
             &server.client,
-            &format!("SELECT {uuid_edge}"),
+            &format!("SELECT {door_reference}"),
             "graph_element_ref",
         )
         .await;

@@ -15,6 +15,7 @@ const READER: &str = "reader";
 
 pub fn fixture_for(world: &str) -> SqlFixture {
     let fixture = sql_fixture(&format!("graph-guide-{world}"), &[]);
+    fixture.cassie.startup().expect("the guide instance starts");
     if ROLE_WORLDS.contains(&world) {
         let password = support_sql::test_root_password();
         let created =

@@ -351,7 +351,8 @@ FROM GRAPH_TABLE (
 ORDER BY t.friend
 ```
 ```text result
-PENDING
+Ben
+Cy
 ```
 
 The pattern `(a IS person WHERE a.id = 1) -[IS knows]-> (b IS person)` has two vertex
@@ -381,7 +382,8 @@ FROM GRAPH_TABLE (
 ORDER BY t.follower
 ```
 ```text result
-PENDING
+Ada
+Ben
 ```
 
 <!-- example: pattern-either-direction -->
@@ -394,7 +396,9 @@ FROM GRAPH_TABLE (
 ORDER BY t.neighbour
 ```
 ```text result
-PENDING
+Ben
+Cy
+Di
 ```
 
 ### Quantifiers
@@ -416,7 +420,11 @@ FROM GRAPH_TABLE (
 ORDER BY t.reached
 ```
 ```text result
-PENDING
+Ben
+Cy
+Cy
+Di
+Eli
 ```
 
 Cy appears twice because two different paths reach Cy within two edges. With `{2}`, only
@@ -432,7 +440,9 @@ FROM GRAPH_TABLE (
 ORDER BY t.reached
 ```
 ```text result
-PENDING
+Cy
+Di
+Eli
 ```
 
 A lower bound of zero matches the start vertex itself, with no edge:
@@ -447,7 +457,9 @@ FROM GRAPH_TABLE (
 ORDER BY t.reached
 ```
 ```text result
-PENDING
+Ada
+Ben
+Cy
 ```
 
 ### Path modes and selectors
@@ -473,8 +485,8 @@ vertices and edges. These modes restrict that:
 Ties between paths of equal length are broken by a documented total order on the stable
 element identities, not by storage order, so repeated runs return the same path.
 
-A walk with an unbounded quantifier (`*` or `+`, or no upper bound) could be infinite on a
-graph with a cycle, so Cassie rejects it, even with a shortest selector. Use a bounded
+A walk with an unbounded quantifier (`*` or `+`) could be infinite on a graph with a cycle,
+so Cassie rejects it with `0A000`, even with a shortest selector. Use a bounded
 quantifier, or an unbounded one together with `TRAIL`, `ACYCLIC` or `SIMPLE`. The graph above
 has the cycle Ada, Cy, Di, Ada:
 
@@ -487,7 +499,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+0A000
 ```
 
 With `ACYCLIC`, the same pattern terminates. The query below counts how many acyclic paths
@@ -504,7 +516,11 @@ GROUP BY t.reached
 ORDER BY t.reached
 ```
 ```text result
-PENDING
+Ada | 1
+Ben | 1
+Cy | 2
+Di | 2
+Eli | 1
 ```
 
 `ANY SHORTEST PATH` returns one row per reachable end vertex. A bounded quantifier keeps the
@@ -520,7 +536,11 @@ FROM GRAPH_TABLE (
 ORDER BY t.reached
 ```
 ```text result
-PENDING
+Ada
+Ben
+Cy
+Di
+Eli
 ```
 
 ### 3.4 Predicates
@@ -549,7 +569,7 @@ FROM GRAPH_TABLE (
 ORDER BY t.friend
 ```
 ```text result
-PENDING
+Ben
 ```
 
 The inline predicate changes which path is shortest. Ada follows Cy directly through an
@@ -567,7 +587,7 @@ FROM GRAPH_TABLE (
 CROSS JOIN LATERAL cassie_graph.path_steps(g.route) AS s
 ```
 ```text result
-PENDING
+2
 ```
 
 <!-- example: predicate-shortest-active-edge -->
@@ -581,7 +601,7 @@ FROM GRAPH_TABLE (
 CROSS JOIN LATERAL cassie_graph.path_steps(g.route) AS s
 ```
 ```text result
-PENDING
+3
 ```
 
 A pattern-level `WHERE` filters after selection. Here the shortest path to each person is
@@ -597,7 +617,8 @@ FROM GRAPH_TABLE (
 ORDER BY t.reached
 ```
 ```text result
-PENDING
+Cy
+Di
 ```
 
 An outer `WHERE` filters the produced rows:
@@ -613,7 +634,9 @@ WHERE t.team = 'ops'
 ORDER BY t.reached
 ```
 ```text result
-PENDING
+Cy
+Cy
+Di
 ```
 
 Predicates follow SQL's three-valued logic: only `TRUE` satisfies a condition, so a `NULL`
@@ -634,7 +657,8 @@ FROM GRAPH_TABLE (
 ORDER BY t.friend
 ```
 ```text result
-PENDING
+Ben
+Cy
 ```
 
 Quantifier bounds, `KEEP` counts and mode names are part of the statement and cannot be
@@ -659,7 +683,8 @@ WHERE p.team = 'ops'
 ORDER BY p.name, f.friend
 ```
 ```text result
-PENDING
+Cy | Di
+Di | Ada
 ```
 
 <!-- example: compose-aggregate -->
@@ -673,7 +698,11 @@ GROUP BY t.followee
 ORDER BY followers DESC, t.followee
 ```
 ```text result
-PENDING
+Cy | 2
+Ada | 1
+Ben | 1
+Di | 1
+Eli | 1
 ```
 
 <!-- example: compose-join -->
@@ -688,7 +717,8 @@ WHERE p.name = 'Ben'
 ORDER BY t.reached
 ```
 ```text result
-PENDING
+Ben | Cy
+Ben | Eli
 ```
 
 A graph source is computed completely before its first row is returned. It is never
@@ -734,7 +764,9 @@ CROSS JOIN LATERAL cassie_graph.path_steps(g.route) AS s
 ORDER BY s.position
 ```
 ```text result
-PENDING
+0 | NULL
+1 | 1
+2 | 1
 ```
 
 `vertex_ref` builds the reference of a known vertex, and `key_parts` takes it apart:
@@ -747,7 +779,7 @@ FROM cassie_graph.key_parts(
 ) AS k
 ```
 ```text result
-PENDING
+1 | 3 | 3
 ```
 
 Because references compare by identity, you can use `vertex_ref` to locate a vertex inside a
@@ -764,7 +796,7 @@ CROSS JOIN LATERAL cassie_graph.path_steps(g.route) AS s
 WHERE s.vertex = cassie_graph.vertex_ref('social', 'person', ARRAY[cassie_graph.key_part(3::bigint)])
 ```
 ```text result
-PENDING
+2
 ```
 
 `path_to_jsonb` exports a path for an application that does not decode composites. The
@@ -779,7 +811,7 @@ FROM GRAPH_TABLE (
 ) AS g
 ```
 ```text result
-PENDING
+[2]
 ```
 
 A path is a detached value. Constructing one, through a `ROW` cast or a parameter, does not
@@ -912,7 +944,9 @@ FROM GRAPH_TABLE (
 ORDER BY t.title
 ```
 ```text result
-PENDING
+handbook | read
+payroll | write
+roadmap | write
 ```
 
 The same pattern read backwards answers the audit question, who can open this document:
@@ -927,7 +961,8 @@ FROM GRAPH_TABLE (
 ORDER BY t.who
 ```
 ```text result
-PENDING
+alice
+bob
 ```
 
 The bound of three bounds the depth of nested groups that the query follows. Choose it from
@@ -985,7 +1020,9 @@ FROM GRAPH_TABLE (
 ORDER BY t.manager
 ```
 ```text result
-PENDING
+Ines
+Jo
+Lee
 ```
 
 Reading the edge backwards lists everyone below a manager, at any depth:
@@ -1000,7 +1037,9 @@ FROM GRAPH_TABLE (
 ORDER BY t.report
 ```
 ```text result
-PENDING
+Lee
+Moe
+Ned
 ```
 
 To get depth, count the steps of the projected path. Ned is three levels below Ines:
@@ -1009,13 +1048,13 @@ To get depth, count the steps of the projected path. Ned is three levels below I
 ```sql
 SELECT count(*) - 1 AS levels
 FROM GRAPH_TABLE (
-  org MATCH p = (e IS employee WHERE e.name = 'Ned') -[IS reports_to]->+ (m IS employee WHERE m.name = 'Ines') KEEP ANY SHORTEST PATH
+  org MATCH p = (e IS employee WHERE e.name = 'Ned') -[IS reports_to]->+ (m IS employee WHERE m.name = 'Ines') KEEP ANY SHORTEST ACYCLIC PATH
   COLUMNS (p AS route)
 ) AS g
 CROSS JOIN LATERAL cassie_graph.path_steps(g.route) AS s
 ```
 ```text result
-PENDING
+3
 ```
 
 Unbounded traversal is limited by the query memory budget. A very deep or very wide
@@ -1042,7 +1081,8 @@ WHERE t.suggestion_id NOT IN (
 ORDER BY t.suggestion
 ```
 ```text result
-PENDING
+Di
+Eli
 ```
 
 ### 6.4 Weighted routes
@@ -1098,7 +1138,9 @@ FROM graph_weighted_paths(
 ORDER BY w.path_rank
 ```
 ```text result
-PENDING
+1 | 14.50
+2 | 15.00
+3 | 18.00
 ```
 
 `direction => 'both'` lets a route use roads in either direction, and `max_cost` caps the
@@ -1118,7 +1160,11 @@ CROSS JOIN LATERAL cassie_graph.weighted_path_steps(w.path, w.edge_costs) AS s
 ORDER BY s.position
 ```
 ```text result
-PENDING
+0 | 0
+1 | 4.00
+2 | 9.50
+3 | 12.50
+4 | 14.50
 ```
 
 <!-- example: routes-both-directions -->
@@ -1136,7 +1182,7 @@ FROM graph_weighted_paths(
 ORDER BY w.path_rank
 ```
 ```text result
-PENDING
+1 | 14.50
 ```
 
 A negative weight anywhere in the edge table makes every call fail, even for a route that
@@ -1169,10 +1215,10 @@ FROM graph_weighted_paths(
 A graph query reads the mapped tables in the transaction view of its own statement. Inside a
 transaction it sees the transaction's own uncommitted inserts, updates and deletes, including
 rows written before a savepoint that has not been rolled back. Other sessions see only
-committed rows. The following sequence uses two sessions, `writer` and `reader`. Eli follows
+committed rows. The following sequence uses two sessions, `writer` and `observer`. Eli follows
 nobody yet:
 
-<!-- example: tx-before session=reader -->
+<!-- example: tx-before session=observer -->
 ```sql
 SELECT count(*) AS followed
 FROM GRAPH_TABLE (
@@ -1181,7 +1227,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text result
-PENDING
+0
 ```
 
 <!-- example: tx-begin session=writer -->
@@ -1194,7 +1240,7 @@ BEGIN
 INSERT INTO follows VALUES (7, 5, 1, TRUE, 1)
 ```
 
-The writer sees its own edge, and the reader does not:
+The writer sees its own edge, and the observer does not:
 
 <!-- example: tx-writer-sees session=writer -->
 ```sql
@@ -1205,10 +1251,10 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text result
-PENDING
+1
 ```
 
-<!-- example: tx-reader-hidden session=reader -->
+<!-- example: tx-reader-hidden session=observer -->
 ```sql
 SELECT count(*) AS followed
 FROM GRAPH_TABLE (
@@ -1217,7 +1263,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text result
-PENDING
+0
 ```
 
 <!-- example: tx-commit session=writer -->
@@ -1225,7 +1271,7 @@ PENDING
 COMMIT
 ```
 
-<!-- example: tx-reader-after session=reader -->
+<!-- example: tx-reader-after session=observer -->
 ```sql
 SELECT count(*) AS followed
 FROM GRAPH_TABLE (
@@ -1234,7 +1280,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text result
-PENDING
+1
 ```
 
 A rolled-back transaction leaves no trace in later graph queries. An edge whose endpoint
@@ -1254,7 +1300,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text result
-PENDING
+1
 ```
 
 Inserting the vertex makes the edge visible; no change to the graph is needed:
@@ -1273,7 +1319,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text result
-PENDING
+2
 ```
 
 A statement reads one consistent view: vertex properties, edge properties and endpoint
@@ -1293,27 +1339,27 @@ fail with `42501` for other roles.
 The examples below use a role `reader`, which an administrator created with a password.
 They run as `reader` and as `root`. The tables are the ones from section 2.
 
-<!-- example: perm-create-people session=root -->
+<!-- example: perm-create-people -->
 ```sql
 CREATE TABLE people (id BIGINT PRIMARY KEY, name TEXT NOT NULL)
 ```
 
-<!-- example: perm-create-follows session=root -->
+<!-- example: perm-create-follows -->
 ```sql
 CREATE TABLE follows (id BIGINT PRIMARY KEY, a BIGINT NOT NULL, b BIGINT NOT NULL)
 ```
 
-<!-- example: perm-insert-people session=root -->
+<!-- example: perm-insert-people -->
 ```sql
 INSERT INTO people VALUES (1, 'Ada'), (2, 'Ben')
 ```
 
-<!-- example: perm-insert-follows session=root -->
+<!-- example: perm-insert-follows -->
 ```sql
 INSERT INTO follows VALUES (1, 1, 2)
 ```
 
-<!-- example: perm-create-graph session=root -->
+<!-- example: perm-create-graph -->
 ```sql
 CREATE PROPERTY GRAPH circle
   VERTEX TABLES (people AS person KEY (id) LABEL person PROPERTIES (id, name))
@@ -1356,7 +1402,7 @@ the graph listed:
 SELECT count(*) FROM information_schema.property_graphs
 ```
 ```text result
-PENDING
+0
 ```
 
 After the grants, the reader can query the graph and see it listed:
@@ -1385,7 +1431,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text result
-PENDING
+Ben
 ```
 
 <!-- example: perm-visible-graph session=reader -->
@@ -1393,7 +1439,7 @@ PENDING
 SELECT property_graph_name FROM information_schema.property_graphs
 ```
 ```text result
-PENDING
+circle
 ```
 
 <!-- example: perm-no-ddl session=reader -->
@@ -1422,7 +1468,7 @@ graphs of the database in a `property_graphs` section; see the [OpenAPI document
 SELECT property_graph_name FROM information_schema.property_graphs ORDER BY property_graph_name
 ```
 ```text result
-PENDING
+social
 ```
 
 <!-- example: discovery-elements -->
@@ -1433,7 +1479,8 @@ WHERE property_graph_name = 'social'
 ORDER BY element_table_kind DESC, element_table_alias
 ```
 ```text result
-PENDING
+person | VERTEX | people
+knows | EDGE | follows
 ```
 
 <!-- example: discovery-label-properties -->
@@ -1444,7 +1491,11 @@ WHERE property_graph_name = 'social'
 ORDER BY label_name, property_name
 ```
 ```text result
-PENDING
+knows | active
+knows | cost
+person | id
+person | name
+person | team
 ```
 
 <!-- example: discovery-edge-ends -->
@@ -1455,7 +1506,8 @@ WHERE property_graph_name = 'social'
 ORDER BY edge_end
 ```
 ```text result
-PENDING
+knows | DESTINATION | followee_id | person | id
+knows | SOURCE | follower_id | person | id
 ```
 
 <!-- example: discovery-identities -->
@@ -1466,7 +1518,8 @@ WHERE property_graph_name = 'social'
 ORDER BY element_table_kind DESC
 ```
 ```text result
-PENDING
+person | VERTEX
+knows | EDGE
 ```
 
 ## 10. Lifecycle
@@ -1602,7 +1655,7 @@ rejected with a deterministic error. Nothing is silently reinterpreted.
 | Construct or condition | SQLSTATE |
 | --- | --- |
 | Comma-separated path patterns, pattern unions, graph mutation syntax | `0A000` |
-| Unbounded `WALK` (`*`, `+`) without a mode, with or without a selector | see the example in section 3 |
+| Unbounded `WALK` (`*`, `+`) without a mode, with or without a selector | `0A000` |
 | Parenthesized repetition and nested quantifiers | `0A000` |
 | Reading a quantified (group) edge variable outside its own inline `WHERE` | `0A000` |
 | A subquery inside a graph predicate or projection, `WITH ORDINALITY` | `0A000` |
@@ -1625,7 +1678,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+0A000
 ```
 
 <!-- example: limit-bad-bounds -->
@@ -1637,7 +1690,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+22023
 ```
 
 <!-- example: limit-shortest-zero -->
@@ -1649,7 +1702,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+22023
 ```
 
 <!-- example: limit-missing-alias -->
@@ -1661,7 +1714,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+42601
 ```
 
 <!-- example: limit-duplicate-columns -->
@@ -1673,7 +1726,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+42701
 ```
 
 <!-- example: limit-unknown-label -->
@@ -1685,7 +1738,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+42704
 ```
 
 <!-- example: limit-unknown-graph -->
@@ -1697,7 +1750,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+42704
 ```
 
 <!-- example: limit-group-variable -->
@@ -1709,7 +1762,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+0A000
 ```
 
 <!-- example: limit-subquery -->
@@ -1721,7 +1774,7 @@ FROM GRAPH_TABLE (
 ) AS t
 ```
 ```text sqlstate
-PENDING
+0A000
 ```
 
 Other limits to keep in mind:
@@ -1759,7 +1812,7 @@ ordinary tables, and you can map them with `CREATE PROPERTY GRAPH`.
 CREATE GRAPH legacy
 ```
 ```text sqlstate
-PENDING
+0A000
 ```
 
 <!-- example: legacy-function -->
@@ -1767,7 +1820,7 @@ PENDING
 SELECT * FROM graph_neighbors('legacy', 'doc', 'a', 'out', '*', 10)
 ```
 ```text sqlstate
-PENDING
+42601
 ```
 
 What to use instead:
@@ -1783,3 +1836,4 @@ The removal drops three behaviours that the mapped model does not carry. Edges w
 rows do not exist are not traversed: add the missing vertex rows. `FLOAT` edge weights are not
 accepted: use an exact numeric or integer weight column. A per-row node or edge type value is
 replaced by labels on mappings: declare one mapping per type, or one label per mapping.
+

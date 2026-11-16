@@ -1,7 +1,6 @@
 //! The narrow topology exception used within Tier 5's Batch validation.
 
-#[path = "../../benches/support/performance_graph_topology.rs"]
-mod topology;
+use super::performance_benchmarks::performance_graph_topology as topology;
 
 #[test]
 fn should_admit_only_the_declared_graph_topology_points() {

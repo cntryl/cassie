@@ -1,6 +1,6 @@
 //! Exact topology-axis fixtures; generic Tier 5 row sizes are unchanged.
 
-pub(super) fn is_graph_topology_fixture(
+pub(crate) fn is_graph_topology_fixture(
     owner: &str,
     workload: &str,
     scale: &str,

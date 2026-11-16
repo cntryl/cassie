@@ -28,7 +28,7 @@ fn world() -> Wg {
 }
 
 #[test]
-fn should_agree_with_the_oracle_for_every_argument_combination() {
+pub fn should_agree_with_the_oracle_for_every_argument_combination() {
     // Arrange
     let world = world();
     let mut compared = 0_usize;

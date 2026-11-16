@@ -193,7 +193,7 @@ fn oracle_identities(vertex_ids: &[u128], edge_ids: &[u128]) -> Vec<Vec<(u128, i
 }
 
 #[test]
-fn should_order_mixed_mapping_ties_by_the_shared_reference_order() {
+pub fn should_order_mixed_mapping_ties_by_the_shared_reference_order() {
     // Arrange
     let fixture = started(None, &SETUP);
     let defined = fixture

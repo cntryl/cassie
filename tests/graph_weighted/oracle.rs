@@ -4,7 +4,7 @@ use crate::graph_oracle::model::{Direction, SCALE};
 use crate::world::{fast, fast_micro, slow, unweighted, OracleCall, Wg};
 
 #[test]
-fn should_reject_a_hidden_negative_edge_even_when_the_cheapest_path_avoids_it() {
+pub fn should_reject_a_hidden_negative_edge_even_when_the_cheapest_path_avoids_it() {
     // Arrange
     let world = Wg::new(
         3,
@@ -21,7 +21,7 @@ fn should_reject_a_hidden_negative_edge_even_when_the_cheapest_path_avoids_it() 
 }
 
 #[test]
-fn should_reject_a_disconnected_invalid_edge() {
+pub fn should_reject_a_disconnected_invalid_edge() {
     // Arrange
     let world = Wg::new(5, &[fast(1, 1, 2, 1), unweighted(2, 4, 5)]);
 
@@ -33,7 +33,7 @@ fn should_reject_a_disconnected_invalid_edge() {
 }
 
 #[test]
-fn should_ignore_an_invalid_edge_that_the_label_filter_excludes() {
+pub fn should_ignore_an_invalid_edge_that_the_label_filter_excludes() {
     // Arrange
     let world = Wg::new(
         3,
@@ -53,7 +53,7 @@ fn should_ignore_an_invalid_edge_that_the_label_filter_excludes() {
 }
 
 #[test]
-fn should_reject_an_invalid_edge_of_a_selected_label() {
+pub fn should_reject_an_invalid_edge_of_a_selected_label() {
     // Arrange
     let world = Wg::new(
         3,
@@ -68,7 +68,7 @@ fn should_reject_an_invalid_edge_of_a_selected_label() {
 }
 
 #[test]
-fn should_select_no_edge_for_an_empty_label_array() {
+pub fn should_select_no_edge_for_an_empty_label_array() {
     // Arrange
     let world = Wg::new(2, &[fast(1, 1, 2, 4)]);
 
@@ -82,7 +82,7 @@ fn should_select_no_edge_for_an_empty_label_array() {
 }
 
 #[test]
-fn should_return_the_zero_hop_path_before_the_closing_cycle_of_a_zero_cost_two_cycle() {
+pub fn should_return_the_zero_hop_path_before_the_closing_cycle_of_a_zero_cost_two_cycle() {
     // Arrange
     let world = Wg::new(2, &[fast(1, 1, 2, 0), fast(2, 2, 1, 0)]);
 
@@ -105,7 +105,7 @@ fn should_return_the_zero_hop_path_before_the_closing_cycle_of_a_zero_cost_two_c
 }
 
 #[test]
-fn should_order_equal_cost_paths_by_the_contract_path_order() {
+pub fn should_order_equal_cost_paths_by_the_contract_path_order() {
     // Arrange
     let world = Wg::new(
         4,
@@ -131,7 +131,7 @@ fn should_order_equal_cost_paths_by_the_contract_path_order() {
 }
 
 #[test]
-fn should_order_parallel_edges_of_different_mappings_by_mapping_identity() {
+pub fn should_order_parallel_edges_of_different_mappings_by_mapping_identity() {
     // Arrange
     let world = Wg::new(2, &[fast(1, 1, 2, 3), slow(1, 1, 2, 3), fast(2, 1, 2, 3)]);
 
@@ -149,7 +149,7 @@ fn should_order_parallel_edges_of_different_mappings_by_mapping_identity() {
 }
 
 #[test]
-fn should_include_a_path_whose_cost_equals_max_cost() {
+pub fn should_include_a_path_whose_cost_equals_max_cost() {
     // Arrange
     let world = Wg::new(3, &[fast(1, 1, 2, 2), fast(2, 2, 3, 3), fast(3, 1, 3, 6)]);
     let call = OracleCall {
@@ -171,7 +171,7 @@ fn should_include_a_path_whose_cost_equals_max_cost() {
 }
 
 #[test]
-fn should_exclude_paths_longer_than_max_hops() {
+pub fn should_exclude_paths_longer_than_max_hops() {
     // Arrange
     let world = Wg::new(3, &[fast(1, 1, 2, 1), fast(2, 2, 3, 1)]);
 
@@ -184,7 +184,7 @@ fn should_exclude_paths_longer_than_max_hops() {
 }
 
 #[test]
-fn should_follow_edges_backwards_for_direction_in() {
+pub fn should_follow_edges_backwards_for_direction_in() {
     // Arrange
     let world = Wg::new(3, &[fast(1, 2, 1, 4), fast(2, 3, 2, 5)]);
     let call = OracleCall {
@@ -206,7 +206,7 @@ fn should_follow_edges_backwards_for_direction_in() {
 }
 
 #[test]
-fn should_follow_edges_both_ways_for_direction_both() {
+pub fn should_follow_edges_both_ways_for_direction_both() {
     // Arrange
     let world = Wg::new(
         4,
@@ -236,7 +236,7 @@ fn should_follow_edges_both_ways_for_direction_both() {
 }
 
 #[test]
-fn should_return_the_zero_hop_path_for_a_source_equal_to_its_target() {
+pub fn should_return_the_zero_hop_path_for_a_source_equal_to_its_target() {
     // Arrange
     let world = Wg::new(2, &[fast(1, 1, 2, 3)]);
 
@@ -256,7 +256,7 @@ fn should_return_the_zero_hop_path_for_a_source_equal_to_its_target() {
 }
 
 #[test]
-fn should_return_a_self_loop_as_the_closing_path_of_its_vertex() {
+pub fn should_return_a_self_loop_as_the_closing_path_of_its_vertex() {
     // Arrange
     let world = Wg::new(1, &[fast(1, 1, 1, 2)]);
 
@@ -274,7 +274,7 @@ fn should_return_a_self_loop_as_the_closing_path_of_its_vertex() {
 }
 
 #[test]
-fn should_keep_fractional_weights_exact() {
+pub fn should_keep_fractional_weights_exact() {
     // Arrange
     let world = Wg::new(
         3,
@@ -290,7 +290,7 @@ fn should_keep_fractional_weights_exact() {
 }
 
 #[test]
-fn should_agree_with_the_oracle_on_a_dense_graph_for_every_k() {
+pub fn should_agree_with_the_oracle_on_a_dense_graph_for_every_k() {
     // Arrange
     let mut links = Vec::new();
     let mut id = 0;
@@ -323,7 +323,7 @@ fn should_agree_with_the_oracle_on_a_dense_graph_for_every_k() {
 }
 
 #[test]
-fn should_agree_with_the_oracle_when_an_in_range_cost_limit_cuts_the_answer() {
+pub fn should_agree_with_the_oracle_when_an_in_range_cost_limit_cuts_the_answer() {
     // Arrange
     let world = Wg::new(
         4,
@@ -355,7 +355,7 @@ fn should_agree_with_the_oracle_when_an_in_range_cost_limit_cuts_the_answer() {
 }
 
 #[test]
-fn should_fail_with_22003_when_a_cost_sum_is_unrepresentable() {
+pub fn should_fail_with_22003_when_a_cost_sum_is_unrepresentable() {
     // Arrange
     let world = Wg::new(3, &[fast(1, 1, 2, 1), fast(2, 2, 3, 1)]);
     world.run("UPDATE fast SET weight = 9 * (10::numeric ^ 131071)");
@@ -374,7 +374,7 @@ fn should_fail_with_22003_when_a_cost_sum_is_unrepresentable() {
 }
 
 #[test]
-fn should_ignore_the_weight_of_an_edge_whose_endpoint_does_not_exist() {
+pub fn should_ignore_the_weight_of_an_edge_whose_endpoint_does_not_exist() {
     // Arrange
     let world = Wg::new(2, &[fast(1, 1, 2, 1), unweighted(2, 1, 99)]);
 
@@ -389,7 +389,7 @@ fn should_ignore_the_weight_of_an_edge_whose_endpoint_does_not_exist() {
 }
 
 #[test]
-fn should_count_the_validation_scan_apart_from_traversal_reads() {
+pub fn should_count_the_validation_scan_apart_from_traversal_reads() {
     // Arrange
     let world = Wg::new(3, &[fast(1, 1, 2, 1), fast(2, 2, 3, 1), fast(3, 1, 3, 5)]);
     let counter = |name: &str| {
@@ -405,6 +405,7 @@ fn should_count_the_validation_scan_apart_from_traversal_reads() {
     // Assert
     assert!(rows.is_ok());
     assert_eq!(counter("graph_validation_rows") - validation, 3);
-    // The vertex rows of the selected mappings are read in full, apart from the validation.
+    // The edge mapping has no endpoint index here, so the search reads it in full once, apart
+    // from the validation; vertices are fetched by their key.
     assert_eq!(counter("graph_full_rows") - full, 3);
 }

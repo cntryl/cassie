@@ -9,6 +9,33 @@ use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::executor::QueryResult;
 use cassie::types::Value;
 
+/// How a world reads its graph: through the lazy indexed store or forced onto the exact full
+/// read, and whether the edge tables carry indexes on their endpoint columns.
+#[derive(Clone, Copy, Default)]
+pub struct Variant {
+    pub exact: bool,
+    pub endpoint_indexes: bool,
+}
+
+thread_local! {
+    static VARIANT: std::cell::Cell<Variant> = std::cell::Cell::new(Variant::default());
+}
+
+/// Builds every world of the current test with `variant` until the guard drops.
+pub struct VariantGuard(Variant);
+
+impl VariantGuard {
+    pub fn set(variant: Variant) -> Self {
+        Self(VARIANT.with(|cell| cell.replace(variant)))
+    }
+}
+
+impl Drop for VariantGuard {
+    fn drop(&mut self) {
+        VARIANT.with(|cell| cell.set(self.0));
+    }
+}
+
 /// A started in-memory instance: the reserved `cassie_graph` schema bootstraps at startup,
 /// before the mapped graphs are defined.
 pub struct Fixture {
@@ -196,6 +223,14 @@ impl Wg {
              weight INT, extra INT)"
                 .to_owned(),
         ];
+        let variant = VARIANT.with(std::cell::Cell::get);
+        if variant.endpoint_indexes {
+            for (table, column) in [("fast", "a"), ("fast", "b"), ("slow", "a"), ("slow", "b")] {
+                setup.push(format!(
+                    "CREATE INDEX {table}_{column} ON {table} ({column})"
+                ));
+            }
+        }
         for id in 1..=vertices {
             setup.push(format!("INSERT INTO v VALUES ({id})"));
         }
@@ -225,6 +260,7 @@ impl Wg {
         }
         let statements = setup.iter().map(String::as_str).collect::<Vec<_>>();
         let fixture = started(config, &statements);
+        fixture.cassie.set_graph_exact_reads(variant.exact);
         let defined = fixture
             .cassie
             .catalog

@@ -1,13 +1,13 @@
 # Transaction authority within Midge as published
 
-Status: **selected design; sections 1, 3 and 4 and three increments of section 2 implemented and the session-state inventory recorded; the per-transaction cell itself and reserved-key documentation are not**. This document selects how the
+Status: **selected design; sections 1, 3 and 4 and three increments of section 2 implemented and the session-state inventory recorded; the per-transaction cell itself and reserved-key documentation remain deferred**. This document selects how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
 [#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
 [#1279](https://github.com/cntryl/cassie/issues/1279)) is built so that Cassie
 works with published `cntryl-midge` 0.5.2 exactly as it is. It supersedes the
 admission-permit-and-drain and admission-lease-with-compensator directions
-recorded on those issues. Only section 1 is implemented.
+recorded on those issues. Implementation boundaries are recorded in each section below.
 
 ## What Midge provides, and what it does not
 

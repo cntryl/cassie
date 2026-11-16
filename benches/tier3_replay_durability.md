@@ -80,3 +80,72 @@ physical WAL sync can satisfy several of them.
 No run of these lanes is recorded here. The 100k-row matched comparison across
 batch sizes, the duplicate and no-op cases, recovery time, and any cloud
 profile remain open under #1271.
+
+## Separate duplicate/no-op lanes and clean recovery
+
+`CASSIE_REPLAY_BENCH_WORKLOAD` selects `apply` (default), `duplicate` or `noop`.
+The latter two are replay-API-only lanes; SQL modes reject them before opening a
+store, since the SQL fixture has no event ledger. Both seed the full fixture
+before timing. `duplicate` resubmits the same event ids and checks that every
+one is skipped. `noop` submits an empty event list per batch: it measures a
+metadata/checkpoint-preserving acknowledgement, not an optimized zero-I/O path.
+Both retain the seeded rows and final checkpoint. Setup commits are excluded
+from the measured counter window, though background work can cross that window.
+
+Each result identifies the workload and selected primary policy. `events` is
+the fixture size; `submitted_events` excludes seed events and is zero for `noop`;
+`applied_events` is zero for duplicate and no-op lanes. `events_per_second` uses
+submitted events, so no-op throughput should be calculated as batches/time.
+The per-batch samples retain full acknowledgement latency for all lanes.
+
+After recording measurement counters, the driver verifies row count, all 16
+title equality buckets, and the replay metadata or SQL checkpoint. Indexed
+fixtures exercise the planner-selected equality read path; this does not force
+or independently attest an index plan. It then shuts down cleanly, releases the
+engine, reopens the same directory and checks the same results again.
+`recovery_ns` measures constructor plus startup after **clean shutdown**, with
+verification excluded. It is not crash recovery, process-kill, power-loss or
+cloud-cache-loss latency. `verification_ns` is the first untimed verification.
+Neither interval enters acknowledgement samples or measured native counters.
+
+The additions are authored, not executed, until the assembler's frozen gate.
+#1271 remains open: repeated 100k-row measurements across profiles, shapes and
+batch sizes, crash recovery time, power-loss and cloud-cache-loss qualification,
+and production operator diagnostics are not established by adding these lanes.
+Existing #1271 historical measurements at `a9231cd09` remain a separate source
+identity. No speedup or bounded-loss claim follows from the driver.
+
+## Explicit analytical query-memory profile
+
+The persistent replay driver selects a **64 MiB query-memory budget** for both
+its initial engine and clean reopen, matching the existing analytical benchmark
+profile in `benches/support/workloads/context.rs`. The untimed full-row/count
+verification of the first 100k-row indexed strict run exceeded the ordinary
+10 MiB default (`10486558 > 10485760`); that failed run remains failed evidence.
+The selected repair changes only the benchmark fixture configuration, retains
+all input rows and verification assertions, and records
+`query_memory_budget_bytes` from the exact configuration used for both opens.
+Production defaults and write durability policies are unchanged. Source-backed
+Jev selected the existing explicit 64 MiB analytical profile at probability
+1.00; successful corrected runs must be recorded against their own source.
+
+### Bounded title verification
+
+The diagnostic run at `e88dd5d0` identified the 64 MiB failure as
+`SELECT COUNT(*) FROM replay_bench WHERE title = 'title-0'` (`54000`);
+the independent unfiltered total count had passed. The typed aggregate predicate
+supports numeric/boolean fields, not text (`aggregate_exec/typed/predicate.rs`),
+so this query falls back to retaining the full source before filtering. This
+is an existing execution boundary, not a repaired engine path.
+
+The selected verifier keeps the independent unfiltered total count and replaces
+each text-filtered aggregate with `SELECT title ... WHERE title = 'title-N'`.
+The projected read streams admitted input batches, filters before retaining
+output, and retains only that bucket's matching title rows. Each bucket asserts
+its full expected cardinality and every returned title, then releases the result
+before querying the next bucket. The independent total count still detects
+extra rows with unknown or null titles; the total is never inferred by summing
+known buckets. All checkpoint and clean-reopen checks and the 64 MiB budget stay
+in place. Jev selected this finite verifier change at probability 0.98; its
+0.36 oracle-gap lead requires focused short/extra/wrong/null-result controls
+and actual 100k-row execution. Authored controls are not passing evidence.

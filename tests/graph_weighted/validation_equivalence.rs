@@ -7,7 +7,7 @@
 //! `Endpoints::scan_keys` (a vertex mapping with no usable key index) is reached through a
 //! REPEATABLE READ transaction opened before a second unique key replaced the original: the
 //! replacement is not visible to that transaction and `find_index` returns None
-//! (`transaction_index_visible`). `should_answer_the_same_when_a_repeatable_read_cannot_see_the_replacing_key_index`
+//! (`transaction_index_visible`). `should_read_the_vertex_keys_in_full_when_a_repeatable_read_cannot_see_the_replacing_key_index`
 //! covers it with two sessions.
 
 use crate::world::{started, Variant, VariantGuard};
@@ -284,13 +284,18 @@ fn graph_call(source: i64, target: i64) -> String {
     )
 }
 
-/// authored/not run: option (a) of N2. Dropping the original unique key succeeds only once a
-/// second key exists; a REPEATABLE READ transaction opened before that sees neither the new
-/// key (not in its snapshot) nor the dropped one, so validation reads the vertex keys in
-/// full. The answer must equal the one the same transaction gave before the swap.
-#[test]
-fn should_answer_the_same_when_a_repeatable_read_cannot_see_the_replacing_key_index() {
-    // Arrange
+/// What one two-session run observed: the answer before the swap, the answer after it and
+/// the `graph_full_rows` the post-swap call added.
+struct Swapped {
+    before: Vec<Vec<Value>>,
+    after: Vec<Vec<Value>>,
+    full_rows: u64,
+}
+
+/// Opens a REPEATABLE READ transaction, lets a second session create a second unique key
+/// and drop the original, then runs the call again in the first transaction. `weight` is the
+/// weight of edge 3, which points at the missing vertex 9.
+fn swapped(weight: &'static str) -> Swapped {
     let fixture = started(
         None,
         &[
@@ -298,7 +303,7 @@ fn should_answer_the_same_when_a_repeatable_read_cannot_see_the_replacing_key_in
             "CREATE UNIQUE INDEX pn_first ON pn (id)",
             "CREATE TABLE en (id BIGINT PRIMARY KEY, s BIGINT, d BIGINT, weight NUMERIC)",
             "INSERT INTO pn VALUES (1), (2), (3)",
-            "INSERT INTO en VALUES (1, 1, 2, 1), (2, 2, 3, 1), (3, 1, 9, -1)",
+            &format!("INSERT INTO en VALUES (1, 1, 2, 1), (2, 2, 3, 1), (3, 1, 9, {weight})"),
             "CREATE PROPERTY GRAPH ng VERTEX TABLES (pn AS n KEY (id) LABEL node \
              PROPERTIES (id)) EDGE TABLES (en AS e KEY (id) SOURCE KEY (s) \
              REFERENCES n (id) DESTINATION KEY (d) REFERENCES n (id) LABEL link \
@@ -313,28 +318,54 @@ fn should_answer_the_same_when_a_repeatable_read_cannot_see_the_replacing_key_in
     };
     let sql = graph_call(1, 3);
     fixture.rows("BEGIN ISOLATION LEVEL REPEATABLE READ");
-    let first = fixture.rows(&sql);
-    let started_at = full_rows();
-    let repeated = fixture.rows(&sql);
-    let indexed_reads = full_rows() - started_at;
+    let before = fixture.rows(&sql);
+    for ddl in [
+        "CREATE UNIQUE INDEX pn_second ON pn (id)",
+        "DROP INDEX pn_first",
+    ] {
+        let outcome = fixture.cassie.execute_sql(&writer, ddl, vec![]);
+        assert!(outcome.is_ok());
+    }
+    let counted = full_rows();
+    let after = fixture.rows(&sql);
+    let full_rows = full_rows() - counted;
+    fixture.rows("ROLLBACK");
+    Swapped {
+        before,
+        after,
+        full_rows,
+    }
+}
+
+/// Runs `swapped` on a worker thread so that a DDL blocked behind the open transaction fails
+/// the test instead of hanging it.
+fn guarded(weight: &'static str) -> Swapped {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(swapped(weight));
+    });
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(60))
+        .expect("the two-session swap finished within the hang guard")
+}
+
+/// authored/not run: option (a) of N2, as a differential. `locate` reads the three vertex
+/// rows in full once no key index is visible, in both runs. Only when edge 3 has an invalid
+/// weight does validation also ask whether vertex 9 exists, which without a visible index
+/// reads the three vertex keys once more (`Endpoints::scan_keys`), so the invalid run adds
+/// exactly the vertex row count over the control, whose valid weight never asks.
+#[test]
+fn should_read_the_vertex_keys_in_full_when_a_repeatable_read_cannot_see_the_replacing_key_index() {
+    // Arrange
+    let vertex_rows = 3;
 
     // Act
-    let created =
-        fixture
-            .cassie
-            .execute_sql(&writer, "CREATE UNIQUE INDEX pn_second ON pn (id)", vec![]);
-    let dropped = fixture
-        .cassie
-        .execute_sql(&writer, "DROP INDEX pn_first", vec![]);
-    let before_swap = full_rows();
-    let replaced = fixture.rows(&sql);
-    let scanned_reads = full_rows() - before_swap;
-    fixture.rows("ROLLBACK");
+    let invalid = guarded("-1");
+    let control = guarded("1");
 
     // Assert
-    assert!(created.is_ok());
-    assert!(dropped.is_ok());
-    assert_eq!(first, repeated);
-    assert_eq!(first, replaced);
-    assert!(scanned_reads > indexed_reads);
+    assert_eq!(invalid.before, invalid.after);
+    assert_eq!(control.before, control.after);
+    assert_eq!(invalid.after, control.after);
+    assert_eq!(invalid.full_rows - control.full_rows, vertex_rows);
 }

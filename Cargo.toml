@@ -265,3 +265,13 @@ resolver = "2"
 
 [workspace.lints.clippy]
 pedantic = "warn"
+
+[[bench]]
+name = "qualification_graph_psycopg"
+path = "benches/qualification_graph_psycopg.rs"
+harness = false
+
+[[bench]]
+name = "tier5_scaling_graph"
+path = "benches/tier5_scaling_graph.rs"
+harness = false

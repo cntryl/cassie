@@ -298,6 +298,8 @@ pub(in super::super) fn execute(
         let source = locate(source_mapping, &request.source)?;
         let target = locate(target_mapping, &request.target)?;
         let weights = edge_weights(env, &store, &columns, &mut traversal)?;
+        // The whole-edge validation scan is counted apart from traversal reads.
+        store.record_reads(env, store.reads.full_rows);
         let vertex_mappings = uuids(graph.vertices.iter().map(|m| Some(m.mapping_id.clone())));
         let edge_mappings = uuids(graph.edges.iter().map(|m| Some(m.mapping_id.clone())));
         let query = Query {

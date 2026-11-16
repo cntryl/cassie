@@ -7,9 +7,12 @@
 //! and `COLUMNS` run on the selected paths. The complete result is materialized before any
 //! row leaves the source.
 
+mod access;
 mod bindings;
+mod cache;
 mod eval;
 mod keys;
+mod lazy;
 mod path_value;
 mod plan;
 mod project;
@@ -68,11 +71,18 @@ pub(super) fn execute(
     let mut output = env.controls.reserve_query_memory(0)?;
     let rows = {
         let mut traversal = env.controls.reserve_query_memory(0)?;
-        let store = store::Store::load(env, &plan, &mut traversal)?;
-        let found = walk::Walk::new(env, &plan, &store, &eval, &mut traversal).run()?;
+        let access = access::Access::choose(env.cassie, env.session, &plan);
+        let mut store = if access.forced_exact {
+            store::Store::load(env, &plan, &mut traversal)?
+        } else {
+            store::Store::lazy(env, &plan, access)?
+        };
+        let found = walk::Walk::new(env, &plan, &mut store, &eval, &mut traversal).run()?;
         let kind = table.effective_selector().kind;
         let selected = select::apply(env, &store, kind, found)?;
-        project::rows(env, &plan, &store, &eval, &selected, &mut output)?
+        let rows = project::rows(env, &plan, &store, &eval, &selected, &mut output)?;
+        store.record_reads(env, 0);
+        rows
     };
     env.controls.check_interruption()?;
     let types = Arc::new(binding.output.clone());

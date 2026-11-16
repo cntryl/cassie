@@ -114,3 +114,45 @@ impl RuntimeState {
         update(&mut metrics);
     }
 }
+
+/// What one graph read counted; recorded once when its traversal ends.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GraphReadCounts {
+    pub index_entries: u64,
+    pub row_fetches: u64,
+    pub full_rows: u64,
+    pub overlay_changes: u64,
+    pub cache_hits: u64,
+    pub validation_rows: u64,
+    pub frontier_peak: u64,
+}
+
+impl RuntimeState {
+    /// Forces every graph read onto the exact full-read path. Used by equivalence tests and
+    /// as an operator escape hatch.
+    pub fn set_graph_exact_reads(&self, exact: bool) {
+        self.graph_exact_reads
+            .store(exact, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    #[must_use]
+    pub fn graph_exact_reads(&self) -> bool {
+        self.graph_exact_reads
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
+    pub fn record_graph_reads(&self, counts: GraphReadCounts) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        let paths = &mut metrics.read_paths;
+        paths.graph_index_entries += counts.index_entries;
+        paths.graph_row_fetches += counts.row_fetches;
+        paths.graph_full_rows += counts.full_rows;
+        paths.graph_overlay_changes += counts.overlay_changes;
+        paths.graph_cache_hits += counts.cache_hits;
+        paths.graph_validation_rows += counts.validation_rows;
+        paths.graph_last_frontier_peak = counts.frontier_peak;
+    }
+}

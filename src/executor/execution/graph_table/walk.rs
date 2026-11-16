@@ -39,7 +39,7 @@ struct Frame {
 pub(super) struct Walk<'a> {
     env: &'a SourceExecutionEnv<'a>,
     plan: &'a Plan<'a>,
-    store: &'a Store,
+    store: &'a mut Store,
     eval: &'a Evaluator<'a>,
     memory: &'a mut QueryMemoryReservation,
     mode: GraphPathMode,
@@ -57,7 +57,7 @@ impl<'a> Walk<'a> {
     pub(super) fn new(
         env: &'a SourceExecutionEnv<'a>,
         plan: &'a Plan<'a>,
-        store: &'a Store,
+        store: &'a mut Store,
         eval: &'a Evaluator<'a>,
         memory: &'a mut QueryMemoryReservation,
     ) -> Self {
@@ -86,7 +86,8 @@ impl<'a> Walk<'a> {
     /// Every path matching labels, inline predicates, quantifier bounds and the mode, before
     /// any selector or graph-pattern `WHERE`.
     pub(super) fn run(mut self) -> Result<Vec<Candidate>, QueryError> {
-        for start in 0..self.store.vertices.len() {
+        let starts = self.store.start_vertices(self.env, self.plan, self.eval)?;
+        for start in starts {
             self.env.controls.check_interruption()?;
             if !self.vertex_ok(0, start)? {
                 continue;
@@ -259,13 +260,20 @@ impl<'a> Walk<'a> {
     /// The traversal choices leaving the path's last vertex in `step`, when another hop is
     /// allowed. A self-loop is one step under an undirected edge, recorded as direction 1.
     fn hops_of(&mut self, step: usize, hops: usize) -> Result<Vec<Hop>, QueryError> {
-        let place = &self.plan.steps[step];
+        let plan = self.plan;
+        let place = &plan.steps[step];
         if place.max.is_some_and(|max| hops >= max) {
             return Ok(Vec::new());
         }
         let direction = place.direction;
         let from = *self.vertices.last().expect("path has a vertex");
-        let store = self.store;
+        self.store.expand(
+            self.env,
+            &plan.graph,
+            from,
+            (direction, &place.selection),
+        )?;
+        let store = &*self.store;
         let mut choices = Vec::new();
         if direction != GraphEdgeDirection::Incoming {
             for edge in &store.outgoing[from] {
@@ -362,7 +370,7 @@ impl<'a> Walk<'a> {
     /// before any selector.
     fn deferred_hold(&mut self, candidate: &Candidate) -> Result<bool, QueryError> {
         let plan = self.plan;
-        let scalars = scalar_entries(plan, self.store, candidate);
+        let scalars = scalar_entries(plan, &*self.store, candidate);
         for place in &plan.positions {
             let Some(filter) = place.filter.as_ref().filter(|filter| !filter.local) else {
                 continue;
@@ -386,7 +394,7 @@ impl<'a> Walk<'a> {
             for edge in &candidate.edges[first..last] {
                 self.env.controls.check_interruption()?;
                 let mut entries = scalars.clone();
-                entries.extend(group_entries(plan, self.store, index, *edge));
+                entries.extend(group_entries(plan, &*self.store, index, *edge));
                 if !self.eval.holds(filter.expr, entries)? {
                     return Ok(false);
                 }

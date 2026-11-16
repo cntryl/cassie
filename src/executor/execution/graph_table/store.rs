@@ -21,6 +21,19 @@ pub(super) struct Loaded {
     pub(super) keys: Vec<Vec<KeyPart>>,
     /// Row position by key tuple; filled for vertex mappings.
     pub(super) index: HashMap<Vec<KeyPart>, usize>,
+    /// Dense vertex id of each row of a vertex mapping.
+    pub(super) ids: Vec<usize>,
+}
+
+/// What one statement's graph read counted.
+#[derive(Clone, Copy, Default)]
+pub(super) struct Reads {
+    pub(super) index_entries: u64,
+    pub(super) row_fetches: u64,
+    pub(super) full_rows: u64,
+    pub(super) overlay_changes: u64,
+    pub(super) cache_hits: u64,
+    pub(super) frontier_peak: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -37,23 +50,23 @@ pub(super) struct Store {
     pub(super) edge_maps: Vec<Option<Loaded>>,
     /// `(mapping, row)` of each dense vertex id.
     pub(super) vertices: Vec<(usize, usize)>,
-    vertex_base: Vec<usize>,
     /// Only edges whose endpoints both exist in this view.
     pub(super) edges: Vec<EdgeRecord>,
     pub(super) outgoing: Vec<Vec<usize>>,
     pub(super) incoming: Vec<Vec<usize>>,
-    pub(super) vertex_rank: Vec<usize>,
-    pub(super) edge_rank: Vec<usize>,
+    pub(super) reads: Reads,
+    /// Lazy indexed expansion; `None` for the exact full read.
+    pub(super) lazy: Option<Box<super::lazy::Lazy>>,
 }
 
-fn key_types(key: &[GraphKeyColumn]) -> (Vec<String>, Vec<DataType>) {
+pub(super) fn key_types(key: &[GraphKeyColumn]) -> (Vec<String>, Vec<DataType>) {
     (
         key.iter().map(|column| column.name.clone()).collect(),
         key.iter().map(|column| column.data_type.clone()).collect(),
     )
 }
 
-fn read_rows(env: &SourceExecutionEnv<'_>, table: &str) -> Result<Vec<BatchRow>, QueryError> {
+pub(super) fn read_rows(env: &SourceExecutionEnv<'_>, table: &str) -> Result<Vec<BatchRow>, QueryError> {
     let batches = source_collection::scan_collection(
         env,
         table,
@@ -68,15 +81,17 @@ fn read_rows(env: &SourceExecutionEnv<'_>, table: &str) -> Result<Vec<BatchRow>,
 
 fn load_mapping(
     env: &SourceExecutionEnv<'_>,
-    id: &str,
-    table: &str,
+    (id, table): (&str, &str),
     key: &[GraphKeyColumn],
     memory: &mut QueryMemoryReservation,
+    reads: &mut Reads,
 ) -> Result<Loaded, QueryError> {
     let (columns, types) = key_types(key);
     let mut rows = Vec::new();
     let mut keys = Vec::new();
-    for row in read_rows(env, table)? {
+    let scanned = read_rows(env, table)?;
+    reads.full_rows += scanned.len() as u64;
+    for row in scanned {
         env.controls.check_interruption()?;
         let Some(tuple) = key_of(|column| row.get(column), &columns, &types) else {
             continue;
@@ -100,20 +115,8 @@ fn load_mapping(
         rows,
         keys,
         index: HashMap::new(),
+        ids: Vec::new(),
     })
-}
-
-fn rank_of(
-    count: usize,
-    mut order_before: impl FnMut(usize, usize) -> std::cmp::Ordering,
-) -> Vec<usize> {
-    let mut order = (0..count).collect::<Vec<_>>();
-    order.sort_by(|left, right| order_before(*left, *right));
-    let mut rank = vec![0; count];
-    for (position, element) in order.into_iter().enumerate() {
-        rank[element] = position;
-    }
-    rank
 }
 
 impl Store {
@@ -146,15 +149,16 @@ impl Store {
         (vertex_list, edge_list): (&[usize], &[usize]),
         memory: &mut QueryMemoryReservation,
     ) -> Result<Self, QueryError> {
+        let mut reads = Reads::default();
         let mut vertex_maps = (0..graph.vertices.len()).map(|_| None).collect::<Vec<_>>();
         for &index in vertex_list {
             let mapping = &graph.vertices[index];
             let mut loaded = load_mapping(
                 env,
-                &mapping.mapping_id,
-                &mapping.table,
+                (&mapping.mapping_id, &mapping.table),
                 &mapping.key,
                 memory,
+                &mut reads,
             )?;
             memory.try_grow(mul(
                 loaded.keys.len(),
@@ -171,26 +175,24 @@ impl Store {
             let mapping = &graph.edges[index];
             edge_maps[index] = Some(load_mapping(
                 env,
-                &mapping.mapping_id,
-                &mapping.table,
+                (&mapping.mapping_id, &mapping.table),
                 &mapping.key,
                 memory,
+                &mut reads,
             )?);
         }
         let mut store = Self {
             vertex_maps,
             edge_maps,
             vertices: Vec::new(),
-            vertex_base: Vec::new(),
             edges: Vec::new(),
             outgoing: Vec::new(),
             incoming: Vec::new(),
-            vertex_rank: Vec::new(),
-            edge_rank: Vec::new(),
+            reads,
+            lazy: None,
         };
         store.number_vertices(memory)?;
         store.connect(env, graph, edge_list, memory)?;
-        store.rank(memory)?;
         Ok(store)
     }
 
@@ -206,9 +208,11 @@ impl Store {
             2 * size_of::<Vec<usize>>() + size_of::<(usize, usize)>(),
         )?)?;
         self.vertices.reserve(total);
-        for (mapping, loaded) in self.vertex_maps.iter().enumerate() {
-            self.vertex_base.push(self.vertices.len());
+        for (mapping, loaded) in self.vertex_maps.iter_mut().enumerate() {
             for row in 0..loaded.as_ref().map_or(0, |loaded| loaded.rows.len()) {
+                if let Some(loaded) = loaded.as_mut() {
+                    loaded.ids.push(self.vertices.len());
+                }
                 self.vertices.push((mapping, row));
             }
         }
@@ -219,7 +223,10 @@ impl Store {
 
     /// The dense id of the vertex at `row` of vertex mapping `mapping`.
     pub(super) fn vertex_id(&self, mapping: usize, row: usize) -> usize {
-        self.vertex_base[mapping] + row
+        self.vertex_maps[mapping]
+            .as_ref()
+            .expect("vertex mapping loaded")
+            .ids[row]
     }
 
     fn endpoint(
@@ -284,18 +291,28 @@ impl Store {
         Ok(())
     }
 
-    fn rank(&mut self, memory: &mut QueryMemoryReservation) -> Result<(), QueryError> {
-        memory.try_grow(mul(
-            self.vertices.len() + self.edges.len(),
-            size_of::<usize>(),
-        )?)?;
-        self.vertex_rank = rank_of(self.vertices.len(), |a, b| {
-            self.vertex_key(a).cmp(&self.vertex_key(b))
-        });
-        self.edge_rank = rank_of(self.edges.len(), |a, b| {
-            self.edge_key(a).cmp(&self.edge_key(b))
-        });
-        Ok(())
+    /// Adds this statement's graph reads to the runtime counters.
+    pub(super) fn record_reads(&self, env: &SourceExecutionEnv<'_>, validation_rows: u64) {
+        env.cassie
+            .runtime
+            .record_graph_reads(crate::runtime::GraphReadCounts {
+                index_entries: self.reads.index_entries,
+                row_fetches: self.reads.row_fetches,
+                full_rows: self.reads.full_rows - validation_rows.min(self.reads.full_rows),
+                overlay_changes: self.reads.overlay_changes,
+                cache_hits: self.reads.cache_hits,
+                validation_rows,
+                frontier_peak: self.reads.frontier_peak,
+            });
+    }
+
+    /// The documented order of durable references: mapping ID, then key tuple.
+    pub(super) fn vertex_order(&self, left: usize, right: usize) -> std::cmp::Ordering {
+        self.vertex_key(left).cmp(&self.vertex_key(right))
+    }
+
+    pub(super) fn edge_order(&self, left: usize, right: usize) -> std::cmp::Ordering {
+        self.edge_key(left).cmp(&self.edge_key(right))
     }
 
     pub(super) fn vertex_key(&self, id: usize) -> (&String, &Vec<KeyPart>) {

@@ -15,15 +15,14 @@ use crate::sql::ast::GraphSelectorKind;
 pub(super) fn order(store: &Store, left: &Candidate, right: &Candidate) -> Ordering {
     let shared = left.vertices.len().min(right.vertices.len());
     for index in 0..shared {
-        let by_vertex =
-            store.vertex_rank[left.vertices[index]].cmp(&store.vertex_rank[right.vertices[index]]);
+        let by_vertex = store.vertex_order(left.vertices[index], right.vertices[index]);
         if by_vertex != Ordering::Equal {
             return by_vertex;
         }
         if index >= left.edges.len() || index >= right.edges.len() {
             break;
         }
-        let by_edge = store.edge_rank[left.edges[index]].cmp(&store.edge_rank[right.edges[index]]);
+        let by_edge = store.edge_order(left.edges[index], right.edges[index]);
         if by_edge != Ordering::Equal {
             return by_edge;
         }

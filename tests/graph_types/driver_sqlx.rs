@@ -449,3 +449,29 @@ fn should_report_the_inferred_parameter_type_of_an_undeclared_path_function_argu
     // Assert
     assert_eq!(name, "graph_path");
 }
+
+/// authored/not run: pins the catalog statement `sqlx` 0.9 issues to resolve a composite
+/// column (`LEFT JOIN pg_catalog.pg_range`, `connection/resolve.rs`) so that the blocker on
+/// range types (#905) is a recorded, executable fact rather than a silent gap.
+#[test]
+fn should_reject_the_sqlx_type_resolver_range_catalog_join_until_ranges_exist() {
+    // Arrange
+    let work = async {
+        let mut server = start().await;
+        let outcome = raw_sql(
+            "SELECT t.oid, r.rngsubtype FROM pg_catalog.pg_type t \
+             LEFT JOIN pg_catalog.pg_range r ON t.oid = r.rngtypid",
+        )
+        .fetch_all(&mut server.connection)
+        .await;
+        let sql_state = outcome.err().map(|error| state(&error));
+        server.stop().await;
+        sql_state
+    };
+
+    // Act
+    let sql_state = run(work);
+
+    // Assert
+    assert_eq!(sql_state.as_deref(), Some("42P01"));
+}

@@ -408,7 +408,14 @@ mapping UUIDs and catalog type OIDs recorded in that image; objects absent from
 the restored image remain unresolved. A distinct live clone or import receives a
 fresh database UUID. Graph-reference values copied from the source retain their
 source UUID and resolve as `42704` in the clone until an explicit, authorized
-remap; detached structural inspection remains possible. Never silently retarget
+remap; detached structural inspection remains possible. Selected and implemented (#1268): restore always creates a
+new logical database, so it follows the clone policy. The image's stored
+database identity and property graph definitions are not copied; the clone
+allocates its own database identity on first use, and graphs are recreated in
+it by `CREATE PROPERTY GRAPH` with fresh graph and mapping identities. There is no remap
+operation: a source reference resolves as `42704` in the clone and never retargets, and an
+identity-preserving restore into an existing logical database is not offered by the
+restore API. Never silently retarget
 a reference across databases. A missing durable allocator
 for database, graph and mapping identities is an explicit #1268 prerequisite;
 these identities are a target contract, not a claim about today's catalog. Public labels and

@@ -55,7 +55,10 @@ fn should_not_resolve_a_source_graph_in_a_distinct_database_clone() {
     let outcome = fixture.cassie.execute_sql(&clone, REF_DB, vec![]);
 
     // Assert
-    assert_eq!(outcome.expect_err("no graph in the clone").sql_state(), "42704");
+    assert_eq!(
+        outcome.expect_err("no graph in the clone").sql_state(),
+        "42704"
+    );
     assert!(fixture.execute(REF_DB).is_ok());
 }
 

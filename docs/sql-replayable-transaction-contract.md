@@ -377,10 +377,13 @@ Not implemented, and therefore not claimed:
 - **A drain.** COMMIT does not wait for in-flight statement forks. It seals the
   transaction instead (see below), which is the selected design in
   [Transaction authority within Midge as published](transaction-authority-midge-contract.md).
-- **Extended-protocol and pool evidence.** The mode is transaction-owned, so it
-  cannot survive COMMIT or ROLLBACK, but no pgwire pool-reuse or
-  extended-protocol test was written.
+- **Extended-protocol and pool evidence.** Covered by
+  `tests/pgwire_extended/transactions/replayable_mode_reuse.rs`: a declaration
+  does not survive COMMIT, ROLLBACK or a failed block on a reused connection,
+  and an extended-protocol declaration outside a block is `25P01`.
 - **Recovery and performance evidence.** No persistent restart test, cloud
   simulation or benchmark was run for the SQL mode; #1271 owns those.
-- **Retirement.** Cancellation while COMMIT waits, owner-checked retirement and
-  the failed-or-retiring ReadyForQuery status remain under #1290.
+- **Retirement.** Implemented under #1290: COMMIT does not wait, so there is no
+  cancellation-while-waiting case; retirement is owner-checked, and
+  ReadyForQuery reports failed to other threads while a COMMIT owns the
+  transaction.

@@ -1,6 +1,6 @@
 # Transaction authority within Midge as published
 
-Status: **selected design; sections 1 and 3 and the first increment of section 2 implemented; the per-transaction cell, outcome handling and reserved-key documentation are not**. This document selects how the
+Status: **selected design; sections 1, 3 and 4 and three increments of section 2 implemented; the per-transaction cell and reserved-key documentation are not**. This document selects how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
 [#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
@@ -124,13 +124,23 @@ cannot cancel an admitted commit. Only the thread running that COMMIT can mark
 the sealed transaction failed, so a refused statement does not change the
 outcome the COMMIT reports. COMMIT's final cleanup retires only the transaction
 it sealed: if another path already ended it, or a later transaction has begun,
-nothing is reset. The committing thread is never refused
-its own transaction control. A failure mark from another thread's statement is
-dropped while the COMMIT is sealed; if that COMMIT then fails and leaves the
-transaction open, the other statement's failure is not recorded on it.
-Rollbacks issued directly by pgwire error handling do not go
-through the SQL statement path and are not refused; the owner check is what
-keeps a later transaction safe in that case.
+nothing is reset. The committing thread is never refused its own transaction
+control.
+
+**Third increment implemented: direct rollbacks and wire status.**
+`rollback_transaction` is a no-op on any thread other than the one running a
+sealed COMMIT, so the rollbacks pgwire error handling, CTAS and modifying CTEs
+issue directly cannot end a transaction whose native commit is in flight; the
+committing thread retires it once the outcome is known. ReadyForQuery reports
+`E` to any other thread while a COMMIT owns the transaction, so a client never
+sees a usable `T` or `I` for a transaction that is not. A failure mark from
+another thread is dropped while the COMMIT is sealed. That loses nothing: a
+COMMIT that fails always ends its transaction, so there is no open transaction
+left to carry the mark. Portal cleanup runs only when the status is idle, so a
+refused rollback also leaves portals in place until the COMMIT retires.
+
+Cancellation while COMMIT waits does not arise: COMMIT never waits. It seals,
+submits and finishes, and cancellation is honoured only before submission.
 
 Jev's adversarial probability that a hazard remains through state that cannot
 live in the cell is 0.59, so this is the main proof obligation. Session-level
@@ -170,8 +180,9 @@ cell.
   accepted. Nothing is retried. After the store is reopened the transaction is
   present in full if the commit had applied and absent if it had not, and
   writes are accepted again. This matches the fence-until-recovery option (Jev
-  0.67); no code change was needed. What an operator should do while fenced,
-  short of a restart, is not defined.
+  0.67); no code change was needed. Operator guidance is in
+  [local diagnostics](local-diagnostics-contract.md): restart, then reconcile
+  through the transaction's own checkpoint.
 
 ### 5. Raw native writers (0.99)
 

@@ -452,8 +452,27 @@ impl CassieSession {
         self.settings.lock().set(&name, value).map(|_| ())
     }
 
+    /// The transaction status a client should be told. While a COMMIT runs on
+    /// another thread the transaction is not usable, so it reads as failed
+    /// until that COMMIT retires it (#1290).
+    pub(crate) fn ready_for_query_status(&self) -> SessionTransactionStatus {
+        let transaction = self.transaction.lock();
+        if transaction.status == SessionTransactionStatus::InTransaction
+            && !transaction.may_be_failed_by_current_thread()
+        {
+            return SessionTransactionStatus::Failed;
+        }
+        transaction.status
+    }
+
     pub(crate) fn rollback_transaction(&self) {
         let mut transaction = self.transaction.lock();
+        if !transaction.may_be_failed_by_current_thread() {
+            // A COMMIT on another thread owns the transaction and retires it
+            // itself once its native outcome is known. Midge cannot cancel an
+            // admitted commit, so this rollback must not end it underneath.
+            return;
+        }
         let unique_owner_id = transaction.unique_owner_id;
         let session_state = transaction.session_state.take();
         transaction.status = SessionTransactionStatus::Idle;

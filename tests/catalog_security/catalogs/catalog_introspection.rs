@@ -462,6 +462,7 @@ fn should_list_namespaces_through_pg_catalog() {
             selected.rows(),
             vec![
                 vec![Value::String("analytics".to_string())],
+                vec![Value::String("cassie_graph".to_string())],
                 vec![Value::String("information_schema".to_string())],
                 vec![Value::String("pg_catalog".to_string())],
                 vec![Value::String("public".to_string())],

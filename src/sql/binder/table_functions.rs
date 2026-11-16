@@ -89,6 +89,9 @@ fn validate_graph_table_function(
             "pg_input_error_info" | "pg_catalog.pg_input_error_info" => 2,
             "pg_show_all_settings" | "pg_catalog.pg_show_all_settings" => 0,
             name if crate::sql::functions::is_identify_object(name) => 3,
+            name if crate::sql::functions::graph_types::is_table_function(name) => {
+                crate::sql::functions::graph_types::table_arity(name)
+            }
             "graph_neighbors" => 6,
             "graph_expand" => 7,
             "graph_shortest_path" => 9,

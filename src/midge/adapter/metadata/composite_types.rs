@@ -3,7 +3,7 @@ use super::{CassieError, Midge};
 use crate::catalog::composite_alter::CompositeGroup;
 use crate::catalog::{CompositeTypeMeta, COMPOSITE_TYPE_FORMAT_VERSION};
 
-fn validate_composite_type(metadata: &CompositeTypeMeta) -> Result<(), CassieError> {
+pub(super) fn validate_composite_type(metadata: &CompositeTypeMeta) -> Result<(), CassieError> {
     if metadata.format_version != COMPOSITE_TYPE_FORMAT_VERSION {
         return Err(CassieError::Unsupported(format!(
             "composite type metadata format {} is unsupported",

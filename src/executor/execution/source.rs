@@ -9,6 +9,8 @@ mod jsonpath_table;
 mod pull_tests;
 #[path = "source_graph_table.rs"]
 mod source_graph_table;
+#[path = "source_graph_types.rs"]
+mod source_graph_types;
 #[path = "source_identify_object.rs"]
 mod source_identify_object;
 #[path = "source_json_elements.rs"]

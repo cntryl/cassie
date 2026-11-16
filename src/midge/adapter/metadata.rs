@@ -14,6 +14,8 @@ mod domain_types;
 mod enum_types;
 #[path = "metadata/extensions.rs"]
 mod extensions;
+#[path = "metadata/graph_schema.rs"]
+mod graph_schema;
 #[path = "metadata/index_lifecycle.rs"]
 mod index_lifecycle;
 

@@ -15,7 +15,19 @@ fn failure(state: &'static str, message: impl Into<String>) -> QueryError {
     QueryError::Cassie(CassieError::from(DiagnosticError::new(state, message)))
 }
 
-pub(super) fn execute(
+/// Runs `function` when it is one of the `cassie_graph` table functions.
+pub(super) fn dispatch(
+    env: &SourceExecutionEnv<'_>,
+    name: &str,
+    function: &crate::sql::ast::FunctionCall,
+    outer_row: Option<&BatchRow>,
+    qualify: bool,
+) -> Option<SourceExecution> {
+    crate::sql::functions::graph_types::is_table_function(&function.name)
+        .then(|| execute(env, name, function, outer_row, qualify))
+}
+
+fn execute(
     env: &SourceExecutionEnv<'_>,
     name: &str,
     function: &crate::sql::ast::FunctionCall,
@@ -82,7 +94,10 @@ fn key_part_rows(argument: &Value) -> Result<Vec<BatchRow>, QueryError> {
                 _ => Value::Null,
             };
             row(vec![
-                ("ordinal", Value::Int64(i64::try_from(index + 1).unwrap_or(i64::MAX))),
+                (
+                    "ordinal",
+                    Value::Int64(i64::try_from(index + 1).unwrap_or(i64::MAX)),
+                ),
                 ("type_tag", Value::Int64(i64::from(part.type_tag()))),
                 ("integer_value", integer),
                 ("text_value", text),
@@ -97,14 +112,10 @@ fn cost(value: &Value) -> Result<Numeric, QueryError> {
     let numeric = match value {
         Value::Typed(TypedValue::Numeric(numeric)) => numeric.clone(),
         Value::Int64(number) => Numeric::from_i64(*number),
-        Value::Float64(number) => Numeric::from_f64(*number)
-            .map_err(|error| failure("22023", error.message))?,
-        Value::Null => {
-            return Err(failure(
-                "22004",
-                "null value not allowed in edge_costs",
-            ))
+        Value::Float64(number) => {
+            Numeric::from_f64(*number).map_err(|error| failure("22023", error.message))?
         }
+        Value::Null => return Err(failure("22004", "null value not allowed in edge_costs")),
         _ => return Err(failure("42804", "edge_costs must be numeric[]")),
     };
     match numeric.signum() {
@@ -148,9 +159,7 @@ fn step_rows(
     let Some(path) = crate::executor::filter::graph_functions::path_argument(argument)? else {
         return Ok(Vec::new());
     };
-    let costs = costs
-        .map(|costs| edge_costs(costs, &path))
-        .transpose()?;
+    let costs = costs.map(|costs| edge_costs(costs, &path)).transpose()?;
     // Every cumulative cost is computed before the first row is emitted, so
     // an overflow never yields a partial result.
     let cumulative = costs.as_deref().map(cumulative_costs).transpose()?;
@@ -165,7 +174,9 @@ fn cumulative_costs(costs: &[Numeric]) -> Result<Vec<Numeric>, QueryError> {
     totals.push(Numeric::zero());
     for cost in costs {
         let previous = totals.last().cloned().unwrap_or_else(Numeric::zero);
-        totals.push(math::add(&previous, cost).map_err(|error| failure(error.sqlstate, error.message))?);
+        totals.push(
+            math::add(&previous, cost).map_err(|error| failure(error.sqlstate, error.message))?,
+        );
     }
     Ok(totals)
 }
@@ -184,13 +195,18 @@ fn step(
     let previous = index.checked_sub(1);
     let direction = previous
         .and_then(|edge| path.directions.get(edge))
-        .map_or(Value::Null, |direction| Value::Int64(i64::from(direction.tag())));
+        .map_or(Value::Null, |direction| {
+            Value::Int64(i64::from(direction.tag()))
+        });
     let edge = match previous.and_then(|edge| path.edges.get(edge)) {
         Some(edge) => encode(edge)?,
         None => Value::Null,
     };
     let mut columns = vec![
-        ("position", Value::Int64(i64::try_from(index).unwrap_or(i64::MAX))),
+        (
+            "position",
+            Value::Int64(i64::try_from(index).unwrap_or(i64::MAX)),
+        ),
         ("direction", direction),
         ("vertex", encode(&path.vertices[index])?),
         ("edge", edge),

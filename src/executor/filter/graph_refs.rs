@@ -26,7 +26,10 @@ pub(super) fn evaluate(
         ElementKind::Edge
     };
     let [graph, mapping, key_parts] = args else {
-        return Err(failure("42883", "graph element constructors take three arguments"));
+        return Err(failure(
+            "42883",
+            "graph element constructors take three arguments",
+        ));
     };
     let (Value::String(graph), Value::String(mapping)) = (graph, mapping) else {
         return Err(null_or_mismatch(graph, mapping, key_parts));
@@ -44,8 +47,14 @@ pub(super) fn evaluate(
     .map_err(QueryError::Cassie)
     .ok()
     .and_then(|name| catalog.get_property_graph(&name))
-    .ok_or_else(|| failure("42704", format!("property graph \"{graph}\" does not exist")))?;
-    let resolved = ResolvedMapping::by_alias(&definition, mapping, kind).map_err(QueryError::Cassie)?;
+    .ok_or_else(|| {
+        failure(
+            "42704",
+            format!("property graph \"{graph}\" does not exist"),
+        )
+    })?;
+    let resolved =
+        ResolvedMapping::by_alias(&definition, mapping, kind).map_err(QueryError::Cassie)?;
     resolved.check_key(&key).map_err(QueryError::Cassie)?;
     crate::app::require_table_read(&catalog, session, &binding, &resolved.table)
         .map_err(QueryError::Cassie)?;
@@ -64,8 +73,14 @@ pub(super) fn evaluate(
 
 /// `22004` for a NULL required argument, `42804` for a wrongly typed one.
 fn null_or_mismatch(graph: &Value, mapping: &Value, key_parts: &Value) -> QueryError {
-    if [graph, mapping, key_parts].iter().any(|value| value.is_null()) {
-        failure("22004", "null value not allowed in a graph element reference")
+    if [graph, mapping, key_parts]
+        .iter()
+        .any(|value| value.is_null())
+    {
+        failure(
+            "22004",
+            "null value not allowed in a graph element reference",
+        )
     } else {
         failure("42804", "graph and mapping names must be text")
     }
@@ -74,7 +89,11 @@ fn null_or_mismatch(graph: &Value, mapping: &Value, key_parts: &Value) -> QueryE
 /// The typed key tuple of a `graph_key_part[]` argument.
 fn key_arguments(key_parts: &Value, context: EvalContext<'_>) -> Result<Vec<KeyPart>, QueryError> {
     let Value::Array(array) = key_parts else {
-        return Err(null_or_mismatch(&Value::Bool(true), &Value::Bool(true), key_parts));
+        return Err(null_or_mismatch(
+            &Value::Bool(true),
+            &Value::Bool(true),
+            key_parts,
+        ));
     };
     array
         .elements()
@@ -88,11 +107,20 @@ fn key_arguments(key_parts: &Value, context: EvalContext<'_>) -> Result<Vec<KeyP
                 match crate::executor::filter::record_from_text(text, &descriptors.key_part)? {
                     Value::Typed(TypedValue::Record(record)) => KeyPart::from_record(&record)
                         .map_err(|error| failure("22023", error.message().to_owned())),
-                    _ => Err(failure("42804", "key parts must be cassie_graph.graph_key_part values")),
+                    _ => Err(failure(
+                        "42804",
+                        "key parts must be cassie_graph.graph_key_part values",
+                    )),
                 }
             }
-            Value::Null => Err(failure("22004", "null key part in a graph element reference")),
-            _ => Err(failure("42804", "key parts must be cassie_graph.graph_key_part values")),
+            Value::Null => Err(failure(
+                "22004",
+                "null key part in a graph element reference",
+            )),
+            _ => Err(failure(
+                "42804",
+                "key parts must be cassie_graph.graph_key_part values",
+            )),
         })
         .collect()
 }

@@ -228,7 +228,10 @@ fn should_keep_a_reference_resolvable_after_the_graph_is_renamed() {
     fixture.run("ALTER PROPERTY GRAPH social RENAME TO friends");
 
     // Act
-    let resolved = fixture.cassie.catalog.resolve_element_ref(&before, "postgres");
+    let resolved = fixture
+        .cassie
+        .catalog
+        .resolve_element_ref(&before, "postgres");
     let after = reference_of(
         &fixture,
         "cassie_graph.vertex_ref('friends', 'person', ARRAY[cassie_graph.key_part(2::bigint)])",
@@ -241,7 +244,7 @@ fn should_keep_a_reference_resolvable_after_the_graph_is_renamed() {
 }
 
 #[test]
-fn should_make_an_old_reference_unresolvable_after_drop_and_recreate() {
+fn should_make_an_old_reference_unresolvable_after_the_graph_is_dropped_then_recreated() {
     // Arrange
     let fixture = social("graph_refs_recreate");
     let old = reference_of(&fixture, &person(2), 2);

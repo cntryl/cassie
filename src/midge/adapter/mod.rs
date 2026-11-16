@@ -354,6 +354,7 @@ mod column_store;
 mod column_store_tests;
 mod database_catalog_rewrite;
 mod databases;
+pub(crate) mod graph_catalog_entries;
 mod native_memory;
 pub use native_memory::{NativeMemoryConfiguration, NativeMemoryDiagnostics, NativeMemoryRuntime};
 mod storage_conversion;

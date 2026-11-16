@@ -129,6 +129,69 @@ fn drop_schema_types(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
     crate::executor::execution::domain_schema_scope::drop_schema_domains(cassie, schema)
 }
 
+/// Drops every type, view, table and sequence a `CASCADE` schema drop owns.
+fn drop_cascaded_objects(
+    cassie: &Cassie,
+    schema: &str,
+    transactional: bool,
+) -> Result<(), QueryError> {
+    drop_schema_types(cassie, schema)?;
+    let schema_views = cassie
+        .catalog
+        .list_views()
+        .into_iter()
+        .filter(|view| object_in_schema(&view.name, schema))
+        .collect::<Vec<_>>();
+    for view in schema_views {
+        cassie
+            .midge
+            .defer_drop_view(&view.name, cassie.runtime.schema_epoch())
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        cassie.catalog.unregister_view(&view.name);
+    }
+
+    let schema_collections = cassie
+        .catalog
+        .list_collections_canonical()
+        .into_iter()
+        .filter(|collection| object_in_schema(&collection.name, schema))
+        .collect::<Vec<_>>();
+    for collection in schema_collections {
+        schema_foreign_keys::drop_referencing_foreign_keys_on_table(cassie, &collection.name)?;
+        cassie
+            .midge
+            .defer_drop_collection(&collection.name, cassie.runtime.schema_epoch())
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        super::cleanup_relation_comments(cassie, &collection.name, collection.storage_id)?;
+        cleanup_table_role_grants_after_drop(
+            cassie,
+            transactional,
+            &collection.name,
+            collection.storage_id,
+        )?;
+        schema_sequence_rename::drop_owned_table_sequences(cassie, &collection.name)?;
+        cassie
+            .catalog
+            .unregister_collection(&collection.name)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+    }
+
+    let schema_sequences = cassie
+        .catalog
+        .list_sequences()
+        .into_iter()
+        .filter(|sequence| object_in_schema(&sequence.name, schema))
+        .collect::<Vec<_>>();
+    for sequence in schema_sequences {
+        cassie
+            .midge
+            .delete_sequence(&sequence.name)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        cassie.catalog.unregister_sequence(&sequence.name);
+    }
+    Ok(())
+}
+
 pub(crate) fn drop_schema(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -168,60 +231,7 @@ pub(crate) fn drop_schema(
     }
     let output = empty_command("DROP SCHEMA", controls)?;
     if statement.cascade {
-        drop_schema_types(cassie, &statement.schema)?;
-        let schema_views = cassie
-            .catalog
-            .list_views()
-            .into_iter()
-            .filter(|view| object_in_schema(&view.name, &statement.schema))
-            .collect::<Vec<_>>();
-        for view in schema_views {
-            cassie
-                .midge
-                .defer_drop_view(&view.name, cassie.runtime.schema_epoch())
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_view(&view.name);
-        }
-
-        let schema_collections = cassie
-            .catalog
-            .list_collections_canonical()
-            .into_iter()
-            .filter(|collection| object_in_schema(&collection.name, &statement.schema))
-            .collect::<Vec<_>>();
-        for collection in schema_collections {
-            schema_foreign_keys::drop_referencing_foreign_keys_on_table(cassie, &collection.name)?;
-            cassie
-                .midge
-                .defer_drop_collection(&collection.name, cassie.runtime.schema_epoch())
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            super::cleanup_relation_comments(cassie, &collection.name, collection.storage_id)?;
-            cleanup_table_role_grants_after_drop(
-                cassie,
-                transactional,
-                &collection.name,
-                collection.storage_id,
-            )?;
-            schema_sequence_rename::drop_owned_table_sequences(cassie, &collection.name)?;
-            cassie
-                .catalog
-                .unregister_collection(&collection.name)
-                .map_err(|error| QueryError::General(error.to_string()))?;
-        }
-
-        let schema_sequences = cassie
-            .catalog
-            .list_sequences()
-            .into_iter()
-            .filter(|sequence| object_in_schema(&sequence.name, &statement.schema))
-            .collect::<Vec<_>>();
-        for sequence in schema_sequences {
-            cassie
-                .midge
-                .delete_sequence(&sequence.name)
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_sequence(&sequence.name);
-        }
+        drop_cascaded_objects(cassie, &statement.schema, transactional)?;
     }
     cassie
         .midge

@@ -12,7 +12,10 @@ fn element(reference: &ElementRef) -> Json {
         .map(|part| json!({ "type": part.type_name(), "value": part.value_text() }))
         .collect::<Vec<_>>();
     let mut object = Map::new();
-    object.insert("database_id".into(), json!(reference.database_id.to_string()));
+    object.insert(
+        "database_id".into(),
+        json!(reference.database_id.to_string()),
+    );
     object.insert("graph_id".into(), json!(reference.graph_id.to_string()));
     object.insert("mapping_id".into(), json!(reference.mapping_id.to_string()));
     object.insert("kind".into(), json!(reference.kind.name()));

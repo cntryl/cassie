@@ -148,7 +148,12 @@ fn should_reject_a_key_part_with_a_missing_slot() {
 #[test]
 fn should_reject_a_smallint_key_part_outside_its_range() {
     // Arrange
-    let fields = vec![Value::Int64(1), Value::Int64(40_000), Value::Null, Value::Null];
+    let fields = vec![
+        Value::Int64(1),
+        Value::Int64(40_000),
+        Value::Null,
+        Value::Null,
+    ];
 
     // Act
     let outcome = key_part_with(fields);
@@ -205,7 +210,7 @@ fn should_reject_a_path_with_a_vertex_in_the_edge_array() {
 }
 
 #[test]
-fn should_reject_a_path_with_a_direction_outside_one_and_two() {
+fn should_reject_a_path_with_a_direction_outside_the_two_valid_tags() {
     // Arrange
     let descriptors = descriptors();
     let first = vertex(vec![KeyPart::BigInt(1)]);
@@ -234,9 +239,13 @@ fn should_reject_a_null_element_inside_an_array_field() {
     let first = vertex(vec![KeyPart::BigInt(1)])
         .to_value(&descriptors)
         .expect("value");
-    let good = path_of(vec![vertex(vec![KeyPart::BigInt(1)])], Vec::new(), Vec::new())
-        .to_value(&descriptors)
-        .expect("value");
+    let good = path_of(
+        vec![vertex(vec![KeyPart::BigInt(1)])],
+        Vec::new(),
+        Vec::new(),
+    )
+    .to_value(&descriptors)
+    .expect("value");
     let mut fields = record_of(&good).fields().to_vec();
     fields[0] = Value::Array(SqlArray::from_elements(vec![first, Value::Null]).expect("array"));
     let record = RecordValue::new(descriptors.path, fields).expect("shape");
@@ -252,7 +261,11 @@ fn should_reject_a_null_element_inside_an_array_field() {
 fn should_accept_a_zero_hop_path() {
     // Arrange
     let descriptors = descriptors();
-    let path = path_of(vec![vertex(vec![KeyPart::BigInt(1)])], Vec::new(), Vec::new());
+    let path = path_of(
+        vec![vertex(vec![KeyPart::BigInt(1)])],
+        Vec::new(),
+        Vec::new(),
+    );
     let value = path.to_value(&descriptors).expect("value");
 
     // Act

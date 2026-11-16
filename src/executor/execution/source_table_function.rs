@@ -1,7 +1,7 @@
 //! Existing catalog/graph table-function dispatch and selected generated sources.
 use super::{
-    batch, filter, finalize_source_batches, graph, jsonpath_table, source_options, BatchRow,
-    QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
+    batch, filter, finalize_source_batches, graph, jsonpath_table, source_graph_types,
+    source_options, BatchRow, QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
 };
 
 pub(super) fn execute(
@@ -22,7 +22,7 @@ pub(super) fn execute(
     else {
         unreachable!("table function dispatch requires a table function");
     };
-    let lateral = *lateral;
+    let outer = if *lateral { outer_row } else { None };
     if crate::sql::table_sources::is_series(&function.name) {
         return super::source_series::execute(
             env,
@@ -72,32 +72,13 @@ pub(super) fn execute(
         return finalize_source_batches(env, Vec::new(), Vec::new(), qualify, name);
     }
     if crate::sql::functions::is_identify_object(&function.name) {
-        return super::source_identify_object::execute(
-            env,
-            name,
-            function,
-            if lateral { outer_row } else { None },
-            qualify,
-            ctes,
-        );
+        return super::source_identify_object::execute(env, name, function, outer, qualify, ctes);
     }
-    if crate::sql::functions::graph_types::is_table_function(&function.name) {
-        return super::source_graph_types::execute(
-            env,
-            name,
-            function,
-            if lateral { outer_row } else { None },
-            qualify,
-        );
+    if let Some(result) = source_graph_types::dispatch(env, name, function, outer, qualify) {
+        return result;
     }
     if crate::sql::functions::is_pg_input_error_info(&function.name) {
-        return execute_pg_input_error_info(
-            env,
-            name,
-            function,
-            if lateral { outer_row } else { None },
-            qualify,
-        );
+        return execute_pg_input_error_info(env, name, function, outer, qualify);
     }
     if matches!(
         function.name.to_ascii_lowercase().as_str(),
@@ -108,10 +89,9 @@ pub(super) fn execute(
     let (rows, _table_memory) = if function.name.eq_ignore_ascii_case("jsonb_path_query")
         || function.name.eq_ignore_ascii_case("jsonb_path_query_tz")
     {
-        jsonpath_table::execute(env, function, if lateral { outer_row } else { None })?
+        jsonpath_table::execute(env, function, outer)?
     } else {
-        graph::execute_table_function(env, function, if lateral { outer_row } else { None })?
-            .into_parts()
+        graph::execute_table_function(env, function, outer)?.into_parts()
     };
     finalize_source_batches(
         env,

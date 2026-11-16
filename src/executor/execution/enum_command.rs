@@ -288,8 +288,13 @@ fn set_schema(
             format!("permission denied to move type into schema \"{schema}\""),
         ));
     }
-    if cassie.catalog.is_reserved_graph_schema(scope.database, schema) {
-        return Err(crate::catalog::graph_schema::reserved_schema_error("move a type into it").into());
+    if cassie
+        .catalog
+        .is_reserved_graph_schema(scope.database, schema)
+    {
+        return Err(
+            crate::catalog::graph_schema::reserved_schema_error("move a type into it").into(),
+        );
     }
     if !(schema.eq_ignore_ascii_case(DEFAULT_SCHEMA)
         || cassie

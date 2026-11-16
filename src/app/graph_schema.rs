@@ -50,17 +50,21 @@ impl Cassie {
         }
     }
 
-    /// Bootstraps every known database at startup. A user-owned schema of the
-    /// reserved name does not stop the server (the operator must be able to
-    /// resolve it with SQL); the graph feature stays unavailable in that
-    /// database and a retry reports the conflict again.
+    /// [`Self::ensure_graph_schema`] that leaves a user-owned schema of the
+    /// reserved name alone: the operator must be able to resolve it with SQL,
+    /// so the graph feature stays unavailable in that database and a later
+    /// explicit retry reports the conflict again.
+    pub(crate) fn ensure_graph_schema_if_free(&self, database: &str) -> Result<(), CassieError> {
+        match self.ensure_graph_schema(database) {
+            Err(error) if is_name_conflict(&error) => Ok(()),
+            outcome => outcome,
+        }
+    }
+
+    /// Bootstraps every known database at startup.
     pub(super) fn bootstrap_graph_schemas(&self) -> Result<(), CassieError> {
         for database in self.catalog.list_databases() {
-            match self.ensure_graph_schema(&database.name) {
-                Ok(()) => {}
-                Err(error) if is_name_conflict(&error) => {}
-                Err(error) => return Err(error),
-            }
+            self.ensure_graph_schema_if_free(&database.name)?;
         }
         Ok(())
     }

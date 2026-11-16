@@ -751,12 +751,10 @@ fn resolved_table_privilege(
     let Some(database_meta) = catalog.get_database(&database) else {
         return Err(CassieError::InsufficientPrivilege);
     };
-    let Some(schema) = catalog
-        .get_namespace(&crate::catalog::canonical_schema_name(
-            &database,
-            &schema_name,
-        ))
-    else {
+    let Some(schema) = catalog.get_namespace(&crate::catalog::canonical_schema_name(
+        &database,
+        &schema_name,
+    )) else {
         return Err(CassieError::InsufficientPrivilege);
     };
     let Some(role) = catalog.get_role(&session.user) else {

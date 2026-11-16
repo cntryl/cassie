@@ -154,7 +154,9 @@ fn should_leave_the_user_schema_untouched_when_bootstrap_conflicts() {
     let _ = cassie.ensure_graph_schema("postgres");
 
     // Assert
-    let types = cassie.catalog.get_composite_type("postgres.cassie_graph.graph_path");
+    let types = cassie
+        .catalog
+        .get_composite_type("postgres.cassie_graph.graph_path");
     assert!(types.is_none());
     assert!(cassie.catalog.namespace_exists("postgres.cassie_graph"));
 }
@@ -180,4 +182,84 @@ fn should_bootstrap_after_the_user_removes_the_conflicting_schema() {
         .catalog
         .get_composite_type("postgres.cassie_graph.graph_path")
         .is_some());
+}
+
+#[test]
+fn should_drop_an_empty_database_that_holds_the_reserved_schema() {
+    // Arrange
+    let fixture = started("graph_reserved_drop_database", &[]);
+    let password = crate::support_sql::test_root_password();
+    let root = fixture
+        .cassie
+        .authenticate_role("root", Some(password), None)
+        .expect("root login");
+    fixture
+        .cassie
+        .execute_sql(&root, "CREATE DATABASE scratch", Vec::new())
+        .expect("create database");
+
+    // Act
+    let dropped = fixture
+        .cassie
+        .execute_sql(&root, "DROP DATABASE scratch", Vec::new());
+
+    // Assert
+    assert!(dropped.is_ok());
+}
+
+#[test]
+fn should_bootstrap_the_reserved_schema_in_a_new_database() {
+    // Arrange
+    let fixture = started("graph_reserved_new_database", &[]);
+    let password = crate::support_sql::test_root_password();
+    let root = fixture
+        .cassie
+        .authenticate_role("root", Some(password), None)
+        .expect("root login");
+    fixture
+        .cassie
+        .execute_sql(&root, "CREATE DATABASE scratch", Vec::new())
+        .expect("create database");
+
+    // Act
+    let published = fixture
+        .cassie
+        .catalog
+        .get_composite_type("scratch.cassie_graph.graph_path");
+
+    // Assert
+    assert!(published.is_some());
+}
+
+#[test]
+fn should_give_a_restored_database_its_own_reserved_schema() {
+    // Arrange
+    let fixture = started("graph_reserved_restore", &[]);
+    let mut backup = fixture
+        .cassie
+        .begin_database_backup("postgres")
+        .expect("backup");
+    let mut restore = fixture
+        .cassie
+        .begin_database_restore("restored")
+        .expect("restore");
+    while let Some(chunk) = backup.next_chunk().expect("chunk") {
+        restore.push_chunk(&chunk).expect("push");
+    }
+
+    // Act
+    restore.finish().expect("finish");
+
+    // Assert
+    let source = fixture
+        .cassie
+        .catalog
+        .get_composite_type("postgres.cassie_graph.graph_path")
+        .expect("source type");
+    let target = fixture
+        .cassie
+        .catalog
+        .get_composite_type("restored.cassie_graph.graph_path")
+        .expect("restored type");
+    assert_ne!(source.object_id, target.object_id);
 }

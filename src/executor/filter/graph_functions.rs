@@ -111,9 +111,9 @@ trait WithHint {
 impl WithHint for QueryError {
     fn with_hint(self, hint: &str) -> Self {
         match self {
-            Self::Cassie(CassieError::Diagnostic(diagnostic)) => {
-                Self::Cassie(CassieError::Diagnostic(Box::new(diagnostic.with_hint(hint))))
-            }
+            Self::Cassie(CassieError::Diagnostic(diagnostic)) => Self::Cassie(
+                CassieError::Diagnostic(Box::new(diagnostic.with_hint(hint))),
+            ),
             other => other,
         }
     }
@@ -121,7 +121,10 @@ impl WithHint for QueryError {
 
 fn key_part(args: &[Value], context: EvalContext<'_>) -> Result<Value, QueryError> {
     let [value, Value::Int64(tag)] = args else {
-        return Err(failure("42883", "cassie_graph.key_part expects one argument"));
+        return Err(failure(
+            "42883",
+            "cassie_graph.key_part expects one argument",
+        ));
     };
     let part = match (tag, value) {
         (_, Value::Null) => {
@@ -137,7 +140,12 @@ fn key_part(args: &[Value], context: EvalContext<'_>) -> Result<Value, QueryErro
         (5, Value::String(text)) => crate::types::uuid_text::parse(text).map(KeyPart::Uuid),
         _ => None,
     }
-    .ok_or_else(|| failure("42804", "cassie_graph.key_part argument does not match its type"))?;
+    .ok_or_else(|| {
+        failure(
+            "42804",
+            "cassie_graph.key_part argument does not match its type",
+        )
+    })?;
     let descriptors = descriptors_of(context.session)?;
     part.to_value(&descriptors)
         .map_err(|message| failure("XX000", message))
@@ -159,7 +167,10 @@ pub(crate) fn path_argument(value: &Value) -> Result<Option<Path>, QueryError> {
 
 fn path_to_jsonb(args: &[Value]) -> Result<Value, QueryError> {
     let [argument] = args else {
-        return Err(failure("42883", "cassie_graph.path_to_jsonb expects one argument"));
+        return Err(failure(
+            "42883",
+            "cassie_graph.path_to_jsonb expects one argument",
+        ));
     };
     Ok(path_argument(argument)?.map_or(Value::Null, |path| {
         Value::Json(crate::types::graph::path_to_json(&path))

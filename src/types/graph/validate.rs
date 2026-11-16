@@ -53,7 +53,9 @@ pub fn validate_record(record: &RecordValue) -> Result<(), GraphTypeError> {
 }
 
 fn expect_kind(record: &RecordValue, kind: GraphTypeKind) -> Checked<()> {
-    if GraphTypeKind::of(record.descriptor()) == Some(kind) && record.fields().len() == field_count(kind) {
+    if GraphTypeKind::of(record.descriptor()) == Some(kind)
+        && record.fields().len() == field_count(kind)
+    {
         Ok(())
     } else {
         Err(GraphTypeError::new(kind, "the record is not of this type"))
@@ -128,7 +130,10 @@ impl KeyPart {
         };
         let integer = |bounded: fn(i64) -> Option<Self>| match &fields[1] {
             Value::Int64(number) => bounded(*number).ok_or_else(|| {
-                GraphTypeError::new(KIND, format!("integer_value {number} is out of range for type_tag {tag}"))
+                GraphTypeError::new(
+                    KIND,
+                    format!("integer_value {number} is out of range for type_tag {tag}"),
+                )
             }),
             _ => Err(wrong_slot()),
         };
@@ -170,7 +175,10 @@ fn record_array<'a>(
             )),
             _ => Err(GraphTypeError::new(
                 kind,
-                format!("array {field} must contain only {} values", element.type_name()),
+                format!(
+                    "array {field} must contain only {} values",
+                    element.type_name()
+                ),
             )),
         })
         .collect()
@@ -216,11 +224,18 @@ impl ElementRef {
         let database_id = identity(0, "database_id")?;
         let graph_id = identity(1, "graph_id")?;
         let mapping_id = identity(2, "mapping_id")?;
-        let kind = match small_tag(KIND, required(KIND, record, 3, "element_kind")?, "element_kind")? {
+        let kind = match small_tag(
+            KIND,
+            required(KIND, record, 3, "element_kind")?,
+            "element_kind",
+        )? {
             1 => ElementKind::Vertex,
             2 => ElementKind::Edge,
             other => {
-                return Err(GraphTypeError::new(KIND, format!("unknown element_kind {other}")))
+                return Err(GraphTypeError::new(
+                    KIND,
+                    format!("unknown element_kind {other}"),
+                ))
             }
         };
         let parts = record_array(
@@ -279,18 +294,19 @@ impl Path {
         };
         let vertices = elements(0, "vertices", ElementKind::Vertex)?;
         let edges = elements(1, "edges", ElementKind::Edge)?;
-        let directions = shaped_array(KIND, required(KIND, record, 2, "directions")?, "directions")?
-            .iter()
-            .map(|value| match value {
-                Value::Int64(1) => Ok(Direction::Forward),
-                Value::Int64(2) => Ok(Direction::Reverse),
-                Value::Null => Err(GraphTypeError::new(
-                    KIND,
-                    "array directions must not contain NULL elements",
-                )),
-                _ => Err(GraphTypeError::new(KIND, "direction must be 1 or 2")),
-            })
-            .collect::<Checked<Vec<_>>>()?;
+        let directions =
+            shaped_array(KIND, required(KIND, record, 2, "directions")?, "directions")?
+                .iter()
+                .map(|value| match value {
+                    Value::Int64(1) => Ok(Direction::Forward),
+                    Value::Int64(2) => Ok(Direction::Reverse),
+                    Value::Null => Err(GraphTypeError::new(
+                        KIND,
+                        "array directions must not contain NULL elements",
+                    )),
+                    _ => Err(GraphTypeError::new(KIND, "direction must be 1 or 2")),
+                })
+                .collect::<Checked<Vec<_>>>()?;
         if vertices.len() != edges.len() + 1 {
             return Err(GraphTypeError::new(
                 KIND,

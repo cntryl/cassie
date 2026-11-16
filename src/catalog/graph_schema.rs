@@ -98,10 +98,7 @@ pub fn build_graph_types(
             GraphTypeKind::Path => vec![
                 field("vertices", array_of(&built[1].descriptor())),
                 field("edges", array_of(&built[1].descriptor())),
-                field(
-                    "directions",
-                    DataType::Array(Box::new(DataType::SmallInt)),
-                ),
+                field("directions", DataType::Array(Box::new(DataType::SmallInt))),
             ],
         };
         let metadata = CompositeTypeMeta {
@@ -135,7 +132,8 @@ impl Catalog {
             }) => (database, schema),
             Err(_) => return false,
         };
-        is_graph_schema(&name) && self.graph_schema_state(&database) == GraphSchemaState::SystemOwned
+        is_graph_schema(&name)
+            && self.graph_schema_state(&database) == GraphSchemaState::SystemOwned
     }
 
     /// Who owns the reserved schema name in `database`.
@@ -143,9 +141,7 @@ impl Catalog {
     pub fn graph_schema_state(&self, database: &str) -> GraphSchemaState {
         match self.get_namespace(&graph_schema_namespace(database)) {
             None => GraphSchemaState::Absent,
-            Some(namespace)
-                if namespace.system_owner.as_deref() == Some(GRAPH_SCHEMA_OWNER) =>
-            {
+            Some(namespace) if namespace.system_owner.as_deref() == Some(GRAPH_SCHEMA_OWNER) => {
                 GraphSchemaState::SystemOwned
             }
             Some(_) => GraphSchemaState::UserOwned,

@@ -35,7 +35,12 @@ fn bigint_part(value: i64) -> Vec<u8> {
 
 /// A bound parameter of `oid` in `format`, selected through `sql`.
 fn bound(label: &str, sql: &str, oid: i32, format: i16, body: &[u8]) -> fixture::Frames {
-    let cycles = vec![fixture::execute_cycle(sql, Some((oid, format, Some(body))), 0, false)];
+    let cycles = vec![fixture::execute_cycle(
+        sql,
+        Some((oid, format, Some(body))),
+        0,
+        false,
+    )];
     fixture::run_cycles(label, &setup(), cycles).remove(0)
 }
 
@@ -176,7 +181,13 @@ fn should_reject_a_well_formed_invalid_text_parameter_with_22023() {
     let oid = key_part_oid("graph-wire-22023-text");
 
     // Act
-    let batch = bound("graph-wire-22023-text", "SELECT $1::text", oid, 0, b"(9,1,,)");
+    let batch = bound(
+        "graph-wire-22023-text",
+        "SELECT $1::text",
+        oid,
+        0,
+        b"(9,1,,)",
+    );
 
     // Assert
     assert_eq!(wire::error_code(&batch), Some("22023".to_owned()));
@@ -200,7 +211,10 @@ fn should_reject_a_well_formed_invalid_binary_parameter_with_22023() {
 fn should_round_trip_a_path_through_its_text_form() {
     // Arrange
     let cycles = vec![fixture::execute_cycle(
-        &format!("SELECT {}::text", crate::fixture::one_hop(2, 9_007_199_254_740_993, 1)),
+        &format!(
+            "SELECT {}::text",
+            crate::fixture::one_hop(2, 9_007_199_254_740_993, 1)
+        ),
         None,
         0,
         false,
@@ -224,5 +238,8 @@ fn should_round_trip_a_path_through_its_text_form() {
     );
 
     // Assert
-    assert_eq!(wire::data_rows(&echoed[0])[0][0].as_deref(), Some(text.as_str()));
+    assert_eq!(
+        wire::data_rows(&echoed[0])[0][0].as_deref(),
+        Some(text.as_str())
+    );
 }

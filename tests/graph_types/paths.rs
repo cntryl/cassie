@@ -66,7 +66,10 @@ fn should_start_path_steps_at_position_zero_with_no_edge_or_direction() {
     ));
 
     // Assert
-    assert_eq!(rows[0], vec![Value::Int64(0), Value::Null, Value::Bool(true)]);
+    assert_eq!(
+        rows[0],
+        vec![Value::Int64(0), Value::Null, Value::Bool(true)]
+    );
     assert_eq!(rows[1][1], Value::Int64(1));
 }
 
@@ -95,7 +98,7 @@ fn should_return_no_rows_for_a_null_path() {
     let rows = fixture.rows("SELECT * FROM cassie_graph.path_steps(NULL)");
 
     // Assert
-    assert!(rows.is_empty());
+    assert_eq!(rows, Vec::<Vec<Value>>::new());
 }
 
 #[test]
@@ -190,8 +193,14 @@ fn should_order_forward_before_reverse_paths_with_order_by() {
     // Arrange
     let fixture = social("graph_paths_order");
     fixture.run("CREATE TABLE routes (id INT PRIMARY KEY, p cassie_graph.graph_path)");
-    fixture.run(&format!("INSERT INTO routes VALUES (1, {})", one_hop(2, 2, 2)));
-    fixture.run(&format!("INSERT INTO routes VALUES (2, {})", one_hop(2, 2, 1)));
+    fixture.run(&format!(
+        "INSERT INTO routes VALUES (1, {})",
+        one_hop(2, 2, 2)
+    ));
+    fixture.run(&format!(
+        "INSERT INTO routes VALUES (2, {})",
+        one_hop(2, 2, 1)
+    ));
 
     // Act
     let rows = fixture.rows("SELECT id FROM routes ORDER BY p");

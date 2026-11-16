@@ -24,21 +24,33 @@ fn should_restore_stored_graph_values_after_a_restart() {
          EDGE TABLES (people AS loop KEY (id) SOURCE KEY (id) REFERENCES person (id) \
          DESTINATION KEY (id) REFERENCES person (id) LABEL loop PROPERTIES (id))",
     );
-    run(&first, "CREATE TABLE holders (id INT PRIMARY KEY, r cassie_graph.graph_element_ref)");
+    run(
+        &first,
+        "CREATE TABLE holders (id INT PRIMARY KEY, r cassie_graph.graph_element_ref)",
+    );
     run(
         &first,
         "INSERT INTO holders VALUES (1, cassie_graph.vertex_ref('g', 'person', \
          ARRAY[cassie_graph.key_part(9007199254740993::bigint)]))",
     );
     let before = run(&first, "SELECT r FROM holders");
-    let type_before = run(&first, "SELECT oid FROM pg_type WHERE typname = 'graph_element_ref'");
+    let type_before = run(
+        &first,
+        "SELECT oid FROM pg_type WHERE typname = 'graph_element_ref'",
+    );
     drop(first);
 
     // Act
     let second = store.open();
     let after = run(&second, "SELECT r FROM holders");
-    let type_after = run(&second, "SELECT oid FROM pg_type WHERE typname = 'graph_element_ref'");
-    let key = run(&second, "SELECT ((r).key_parts[1]).integer_value FROM holders");
+    let type_after = run(
+        &second,
+        "SELECT oid FROM pg_type WHERE typname = 'graph_element_ref'",
+    );
+    let key = run(
+        &second,
+        "SELECT ((r).key_parts[1]).integer_value FROM holders",
+    );
 
     // Assert
     assert_eq!(before, after);

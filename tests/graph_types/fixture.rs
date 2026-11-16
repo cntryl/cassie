@@ -90,7 +90,9 @@ pub const SOCIAL_SETUP: [&str; 5] = [
 /// A vertex reference expression over the shared graph.
 #[must_use]
 pub fn person(id: i64) -> String {
-    format!("cassie_graph.vertex_ref('social', 'person', ARRAY[cassie_graph.key_part({id}::bigint)])")
+    format!(
+        "cassie_graph.vertex_ref('social', 'person', ARRAY[cassie_graph.key_part({id}::bigint)])"
+    )
 }
 
 /// An edge reference expression over the shared graph.

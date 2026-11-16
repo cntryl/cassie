@@ -29,8 +29,7 @@ fn undefined(message: String) -> CassieError {
 }
 
 fn parse(identity: &str, what: &str) -> Result<Uuid, CassieError> {
-    Uuid::parse_str(identity)
-        .map_err(|_| undefined(format!("{what} identity is not available")))
+    Uuid::parse_str(identity).map_err(|_| undefined(format!("{what} identity is not available")))
 }
 
 /// The `type_tag` a key column of `data_type` carries.
@@ -101,9 +100,8 @@ impl ResolvedMapping {
     /// Returns `42804` for a wrong number of components or a component whose
     /// type is not the declared key column type.
     pub fn check_key(&self, key: &[KeyPart]) -> Result<(), CassieError> {
-        let mismatch = |detail: String| -> CassieError {
-            DiagnosticError::new("42804", detail).into()
-        };
+        let mismatch =
+            |detail: String| -> CassieError { DiagnosticError::new("42804", detail).into() };
         if key.len() != self.key.len() {
             return Err(mismatch(format!(
                 "the {} key has {} columns but {} key parts were supplied",
@@ -165,19 +163,24 @@ impl Catalog {
             ElementKind::Vertex => graph
                 .vertices
                 .iter()
-                .find(|mapping| parse(&mapping.mapping_id, "mapping").is_ok_and(|id| id == reference.mapping_id))
+                .find(|mapping| {
+                    parse(&mapping.mapping_id, "mapping").is_ok_and(|id| id == reference.mapping_id)
+                })
                 .map(|mapping| (&mapping.mapping_id, &mapping.table, &mapping.key)),
             ElementKind::Edge => graph
                 .edges
                 .iter()
-                .find(|mapping| parse(&mapping.mapping_id, "mapping").is_ok_and(|id| id == reference.mapping_id))
+                .find(|mapping| {
+                    parse(&mapping.mapping_id, "mapping").is_ok_and(|id| id == reference.mapping_id)
+                })
                 .map(|mapping| (&mapping.mapping_id, &mapping.table, &mapping.key)),
         }
         .ok_or_else(|| undefined("the mapping of this reference does not exist".to_owned()))?;
-        let resolved = ResolvedMapping::from_parts(&graph, reference.kind, mapping.0, mapping.1, mapping.2)?;
-        resolved
-            .check_key(&reference.key)
-            .map_err(|_| undefined("the key of this reference no longer matches its mapping".to_owned()))?;
+        let resolved =
+            ResolvedMapping::from_parts(&graph, reference.kind, mapping.0, mapping.1, mapping.2)?;
+        resolved.check_key(&reference.key).map_err(|_| {
+            undefined("the key of this reference no longer matches its mapping".to_owned())
+        })?;
         Ok(resolved)
     }
 }

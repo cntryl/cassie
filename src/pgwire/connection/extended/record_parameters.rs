@@ -114,12 +114,9 @@ fn validate_reserved(text: &str, record: &RecordParameter) -> Result<(), Extende
     let outcome = if record.is_array {
         crate::executor::scan::composite_arrays::from_text(text, &record.descriptor).map(drop)
     } else {
-        crate::executor::filter::assign_record(
-            &Value::String(text.to_owned()),
-            &record.descriptor,
-        )
-        .map(drop)
-        .map_err(crate::app::CassieError::from)
+        crate::executor::filter::assign_record(&Value::String(text.to_owned()), &record.descriptor)
+            .map(drop)
+            .map_err(crate::app::CassieError::from)
     };
     outcome.map_err(|error| ExtendedQueryError::cassie(&error))
 }

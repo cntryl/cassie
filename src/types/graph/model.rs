@@ -140,7 +140,8 @@ pub struct GraphDescriptors {
 }
 
 fn record(descriptor: &CompositeRef, fields: Vec<Value>) -> Result<Value, String> {
-    RecordValue::new(descriptor.clone(), fields).map(|record| Value::Typed(TypedValue::Record(record)))
+    RecordValue::new(descriptor.clone(), fields)
+        .map(|record| Value::Typed(TypedValue::Record(record)))
 }
 
 fn array(elements: Vec<Value>) -> Result<Value, String> {
@@ -156,7 +157,12 @@ impl KeyPart {
         let [integer, text, uuid] = self.slots();
         record(
             &descriptors.key_part,
-            vec![Value::Int64(i64::from(self.type_tag())), integer, text, uuid],
+            vec![
+                Value::Int64(i64::from(self.type_tag())),
+                integer,
+                text,
+                uuid,
+            ],
         )
     }
 }

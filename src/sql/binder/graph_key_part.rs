@@ -53,7 +53,12 @@ pub(super) fn lower(
     let name = function.name.to_ascii_lowercase();
     if name == VERTEX_REF || name == EDGE_REF {
         let mut lowered = function.clone();
-        lowered.name = if name == VERTEX_REF { VERTEX_REF_TYPED } else { EDGE_REF_TYPED }.to_owned();
+        let typed_name = if name == VERTEX_REF {
+            VERTEX_REF_TYPED
+        } else {
+            EDGE_REF_TYPED
+        };
+        typed_name.clone_into(&mut lowered.name);
         return Ok(Some(typed(lowered, &graph.element_ref)));
     }
     if name != KEY_PART || function.args.len() != 1 {
@@ -82,7 +87,7 @@ pub(super) fn lower(
         .into());
     };
     let mut tagged = function.clone();
-    tagged.name = KEY_PART_TAGGED.to_owned();
+    KEY_PART_TAGGED.clone_into(&mut tagged.name);
     tagged.args.push(Expr::IntegerLiteral(type_tag));
     Ok(Some(typed(tagged, &graph.key_part)))
 }

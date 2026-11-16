@@ -381,8 +381,16 @@ Not implemented, and therefore not claimed:
   `tests/pgwire_extended/transactions/replayable_mode_reuse.rs`: a declaration
   does not survive COMMIT, ROLLBACK or a failed block on a reused connection,
   and an extended-protocol declaration outside a block is `25P01`.
-- **Recovery and performance evidence.** No persistent restart test, cloud
-  simulation or benchmark was run for the SQL mode; #1271 owns those.
+- **Restart evidence.** `src/app/projection_sql_restart_tests.rs` reopens local
+  storage: a committed declared transaction returns its rows and checkpoint
+  together after a clean shutdown, an uncommitted one returns neither, and
+  after an in-process drop with no shutdown the result is both or neither,
+  never partial. This is not a process-kill or power-loss test: the drop lets
+  the engine run its own teardown.
+- **Cloud and performance evidence.** The native write policy chosen for each
+  storage mode is unit-tested, including that configured cloud-strict is never
+  downgraded. No run against a cloud endpoint (real or emulated) and no
+  benchmark was done for the SQL mode; #1271 owns those.
 - **Retirement.** Implemented under #1290: COMMIT does not wait, so there is no
   cancellation-while-waiting case; retirement is owner-checked, and
   ReadyForQuery reports failed to other threads while a COMMIT owns the

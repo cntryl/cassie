@@ -1,19 +1,15 @@
-//! Execution of a bound `GRAPH_TABLE` source (#1256).
-//!
-//! Binding is complete; traversal is a separate step. This is the single place a bound
-//! `GRAPH_TABLE` source would run.
+//! Entry point for a bound `GRAPH_TABLE` source (#1257); the work lives in `graph_table/`.
 
-use super::{QueryError, SourceExecution};
-use crate::app::DiagnosticError;
+#[path = "graph_table/mod.rs"]
+mod graph_table;
 
-const UNSUPPORTED: &str = "0A000";
+use super::{finalize_source_batches, BatchRow, QuerySource, SourceExecution, SourceExecutionEnv};
 
-pub(super) fn execute() -> SourceExecution {
-    Err(QueryError::Cassie(
-        DiagnosticError::new(
-            UNSUPPORTED,
-            "GRAPH_TABLE execution is not available yet".to_owned(),
-        )
-        .into(),
-    ))
+pub(super) fn execute(
+    env: &SourceExecutionEnv<'_>,
+    source: &QuerySource,
+    outer_row: Option<&BatchRow>,
+    qualify: bool,
+) -> SourceExecution {
+    graph_table::execute(env, source, outer_row, qualify)
 }

@@ -177,7 +177,7 @@ pub(super) fn execute_query_source_with_traversal(
         QuerySource::TableFunction { name, .. }
             if crate::sql::table_sources::is_graph_table(name) =>
         {
-            source_graph_table::execute()
+            source_graph_table::execute(env, source, outer_row, qualify)
         }
         QuerySource::TableFunction { .. } => {
             source_table_function::execute(env, source, outer_row, qualify, row_budget, cte_context)

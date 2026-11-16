@@ -281,6 +281,18 @@ table the pattern can read, including the endpoint vertex tables of each
 selected edge mapping. A view over `GRAPH_TABLE` depends on its graph:
 `DROP PROPERTY GRAPH` returns `2BP01` while such a view exists.
 
+Execution selects these readings. Two adjacent variable-length steps can reach
+one path through different hop splits: the splits are one match and one row
+unless they bind a named singleton variable to different elements, in which
+case each binding is its own match, whether or not the variable is projected.
+An inline predicate that reads only its own element is evaluated once per
+element; one that reads another pattern variable is evaluated on each complete
+candidate path, still before any selector, which yields the same matches. When
+several labels named by an element expose one property from different columns
+of a mapping, the first named label the mapping carries supplies the value.
+A graph-bearing source is computed completely before its first row is
+returned and is never streamed, so a failing evaluation emits no row.
+
 ### Path modes and selectors
 
 The selected semantics are:

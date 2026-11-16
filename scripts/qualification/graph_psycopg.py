@@ -123,6 +123,43 @@ class GraphClientQualification(unittest.TestCase):
                                          [self.infos["graph_path"].oid, self.infos["graph_path"].array_oid])
                         self.assertIsNone(cursor.fetchone())
 
+    def should_roundtrip_native_graph_table_paths_in_text_and_binary(self):
+        # Arrange: the executor must emit the same heterogeneous and zero-hop
+        # carriers that Psycopg's public composite adapters construct.
+        path_type = self.infos["graph_path"].python_type
+        cases = [
+            ("p = (a IS room WHERE a.seq = %s::bigint) -[IS door]-> (b IS place)",
+             path_type([self.vertex, self.target], [self.edge], [1])),
+            ("p = (a IS room WHERE a.seq = %s::bigint)",
+             path_type([self.vertex], [], [])),
+        ]
+        for pattern, expected in cases:
+            for binary_result in (False, True):
+                with self.subTest(pattern=pattern, binary_result=binary_result):
+                    with self.conn.cursor(binary=binary_result) as cursor:
+                        # Act: read the native path produced by GRAPH_TABLE.
+                        cursor.execute(
+                            "SELECT g.path FROM GRAPH_TABLE (rooms MATCH "
+                            f"{pattern} COLUMNS (p AS path)) AS g",
+                            (-(2**63),), prepare=True,
+                        )
+                        emitted = cursor.fetchone()[0]
+                        # Assert: preserve its native type, ordered references,
+                        # exact composite keys, directions and Describe OID.
+                        self.assertIsInstance(emitted, path_type)
+                        self.assertEqual(emitted, expected)
+                        self.assertEqual(cursor.description[0].type_code,
+                                         self.infos["graph_path"].oid)
+                        self.assertIsNone(cursor.fetchone())
+                        for parameter_format in ("t", "b"):
+                            with self.subTest(parameter_format=parameter_format):
+                                cursor.execute(
+                                    f"SELECT %{parameter_format}::cassie_graph.graph_path",
+                                    (emitted,), prepare=True,
+                                )
+                                self.assertEqual(cursor.fetchone(), (expected,))
+                                self.assertIsNone(cursor.fetchone())
+
     def should_read_typed_keys_and_ordered_steps_from_a_bound_path(self):
         # Arrange
         path = self.infos["graph_path"].python_type([self.vertex, self.target], [self.edge], [1])

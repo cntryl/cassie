@@ -402,23 +402,18 @@ gets a new identity. An operation resolving a reference from a different
 database or a removed graph/mapping fails deterministically instead of
 retargeting it. Element identity is mapping plus typed key, with no row
 incarnation: after delete and reinsertion of the same key in the same mapping,
-the old reference resolves to the replacement row in a later snapshot. Restore
-of an image to the same logical database preserves the database, graph and
-mapping UUIDs and catalog type OIDs recorded in that image; objects absent from
-the restored image remain unresolved. A distinct live clone or import receives a
-fresh database UUID. Graph-reference values copied from the source retain their
-source UUID and resolve as `42704` in the clone until an explicit, authorized
-remap; detached structural inspection remains possible. Selected and implemented (#1268): restore always creates a
-new logical database, so it follows the clone policy. The image's stored
+the old reference resolves to the replacement row in a later snapshot.
+The selected and implemented image policy (#1327, closing the image portion of
+#1268) is clone-only: restore always creates a new logical database with a fresh
+database UUID. The image's stored
 database identity and property graph definitions are not copied; the clone
 allocates its own database identity on first use, and graphs are recreated in
-it by `CREATE PROPERTY GRAPH` with fresh graph and mapping identities. There is no remap
-operation: a source reference resolves as `42704` in the clone and never retargets, and an
-identity-preserving restore into an existing logical database is not offered by the
-restore API. Never silently retarget
-a reference across databases. A missing durable allocator
-for database, graph and mapping identities is an explicit #1268 prerequisite;
-these identities are a target contract, not a claim about today's catalog. Public labels and
+it by `CREATE PROPERTY GRAPH` with fresh graph and mapping identities. Copied
+graph-reference values retain their source identities and resolve as `42704` in
+the clone; detached structural inspection remains possible. There is no remap
+operation or identity-preserving restore into an existing logical database.
+A reference never silently retargets across databases. Database, graph and
+mapping identities use the durable catalog allocators. Public labels and
 properties are resolved from the applicable graph snapshot; identity equality
 does not depend on the current label text. References are not authorization
 tokens and must not bypass source-table access checks.

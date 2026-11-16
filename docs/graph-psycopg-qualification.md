@@ -45,7 +45,11 @@ The fixture inserts both bigint endpoint rows, the UUID target and matching
 UUID edges before using the existence-checking graph constructors. A graph
 query checks both heterogeneous connections, in addition to exact row/key
 checks. The whole-path round trips transport paths constructed from those
-references; they do not qualify storage image recovery.
+references. A separate probe reads native heterogeneous one-hop and zero-hop
+paths emitted by `GRAPH_TABLE` in both result formats, verifies their composite
+type, exact values and Describe OID, then rebinds those returned objects through
+prepared text and binary parameters. These probes do not qualify storage image
+recovery.
 
 Source identity, actual command outcome and Python/Psycopg versions must be
 recorded by the assembler after execution. The new probe is authored/not run

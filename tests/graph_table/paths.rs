@@ -575,3 +575,41 @@ fn should_accept_a_projected_path_back_as_a_parameter() {
     };
     assert_eq!(document["directions"], serde_json::json!([1]));
 }
+
+#[test]
+fn should_resolve_a_reference_constructor_like_the_pattern_source() {
+    // Arrange
+    let world = crate::world::World::simple(
+        &[crate::world::node(1), crate::world::node(2)],
+        &[crate::world::link(1, 1, 2)],
+    );
+    let resolves = |sql: &str| world.fixture.execute(sql).is_ok();
+
+    // Act
+    let outcomes = ["g", "public.g", "absent"].map(|name| {
+        let pattern = resolves(&format!(
+            "SELECT * FROM GRAPH_TABLE ({name} MATCH (a IS node) COLUMNS (a.num AS n)) AS t"
+        ));
+        let vertex = resolves(&format!(
+            "SELECT cassie_graph.vertex_ref('{name}', 'n', ARRAY[cassie_graph.key_part(1::bigint)])"
+        ));
+        let edge = resolves(&format!(
+            "SELECT cassie_graph.edge_ref('{name}', 'l', ARRAY[cassie_graph.key_part(1::bigint)])"
+        ));
+        (pattern, vertex, edge)
+    });
+    let label_is_not_an_alias = world
+        .fixture
+        .error(
+            "SELECT cassie_graph.vertex_ref('g', 'node', ARRAY[cassie_graph.key_part(1::bigint)])",
+        )
+        .sql_state()
+        .to_owned();
+
+    // Assert
+    assert_eq!(outcomes[0], (true, true, true));
+    assert_eq!(outcomes[1].1, outcomes[1].0);
+    assert_eq!(outcomes[1].2, outcomes[1].0);
+    assert_eq!(outcomes[2], (false, false, false));
+    assert_eq!(label_is_not_an_alias, "42704");
+}

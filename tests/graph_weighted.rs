@@ -28,3 +28,6 @@ mod security;
 
 #[path = "graph_weighted/resources.rs"]
 mod resources;
+
+#[path = "graph_weighted/matrix.rs"]
+mod matrix;

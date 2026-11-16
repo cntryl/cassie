@@ -176,11 +176,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1745,
-    "rust_files": 1708,
-    "rust_test_declarations": 10373,
+    "files": 1746,
+    "rust_files": 1709,
+    "rust_test_declarations": 10375,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10398,
+    "registered_rust_instances": 10400,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -65652,6 +65652,37 @@
       }
     },
     {
+      "id": "tests/graph_table/paths.rs::should_resolve_a_reference_constructor_like_the_pattern_source",
+      "name": "should_resolve_a_reference_constructor_like_the_pattern_source",
+      "current_file": "tests/graph_table/paths.rs",
+      "line": 580,
+      "end_line": 615,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "paths::should_resolve_a_reference_constructor_like_the_pattern_source"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/persistence.rs::should_keep_composite_key_parts_with_separators_distinct",
       "name": "should_keep_composite_key_parts_with_separators_distinct",
       "current_file": "tests/graph_table/persistence.rs",
@@ -70048,6 +70079,37 @@
         "category": "parameters",
         "directory": "tests/graph_weighted/parameters",
         "file": "tests/graph_weighted/parameters/binding.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/matrix.rs::should_agree_with_the_oracle_for_every_argument_combination",
+      "name": "should_agree_with_the_oracle_for_every_argument_combination",
+      "current_file": "tests/graph_weighted/matrix.rs",
+      "line": 31,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "matrix::should_agree_with_the_oracle_for_every_argument_combination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/matrix.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -329178,9 +329240,9 @@
       "current_file": "tests/graph_table/paths.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 577,
-      "sha256": "2e5bdd18197c4e42e536001a0969205476a0049dcba1b35c8b2b6fe28a1e68e2",
-      "test_declarations": 15,
+      "lines": 615,
+      "sha256": "eae1e26a93c628d97884d14825e1758a5a6a7259885fca2e0b21c87e453efb16",
+      "test_declarations": 16,
       "registered_suites": [
         "graph_table"
       ],
@@ -329478,6 +329540,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_weighted/matrix.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 75,
+      "sha256": "f62d5d0f944a484e78d5417f5dbcbd8e993bd2e70c39935be0c8d7b5c7725240",
+      "test_declarations": 1,
+      "registered_suites": [
+        "graph_weighted"
+      ],
+      "destinations": [
+        "tests/graph_weighted/semantics/matrix.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_weighted/oracle.rs",
       "role": "test_module",
       "action": "split_by_contract",
@@ -329557,8 +329634,8 @@
       "current_file": "tests/graph_weighted.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 30,
-      "sha256": "dc73997bb9ee6db3f4d103beeeed03229a030b4a826039a27ca8a3785cb518db",
+      "lines": 33,
+      "sha256": "e24519cabe7da13416060620a7a1980095af143c2f4e4b9e9db0faf0f346f0e4",
       "test_declarations": 0,
       "registered_suites": [
         "graph_weighted"

@@ -452,7 +452,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/graph_table/database_scope.rs` | test_module | 150 | 4 | graph_table | move_with_module_alias | `tests/graph_table/ddl/database_scope.rs` |
 | `tests/graph_table/exact_reads.rs` | test_module | 152 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/exact_reads.rs` |
 | `tests/graph_table/matrix.rs` | test_module | 136 | 2 | graph_table | move_with_module_alias | `tests/graph_table/semantics/matrix.rs` |
-| `tests/graph_table/paths.rs` | test_module | 577 | 15 | graph_table | move_with_module_alias | `tests/graph_table/semantics/paths.rs` |
+| `tests/graph_table/paths.rs` | test_module | 615 | 16 | graph_table | move_with_module_alias | `tests/graph_table/semantics/paths.rs` |
 | `tests/graph_table/persistence.rs` | test_module | 109 | 3 | graph_table | move_with_module_alias | `tests/graph_table/semantics/persistence.rs` |
 | `tests/graph_table/resources.rs` | test_module | 145 | 4 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |
 | `tests/graph_table/semantics.rs` | test_module | 544 | 23 | graph_table | split_by_contract | `tests/graph_table/semantics/errors.rs`; `tests/graph_table/semantics/parameters.rs`; `tests/graph_table/semantics/resources.rs`; `tests/graph_table/semantics/semantics.rs` |
@@ -472,12 +472,13 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/graph_types.rs` | cargo_target | 32 | 0 | graph_types | keep | `tests/graph_types.rs` |
 | `tests/graph_weighted/arguments.rs` | test_module | 230 | 12 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/arguments.rs` |
 | `tests/graph_weighted/binding.rs` | test_module | 215 | 11 | graph_weighted | move_with_module_alias | `tests/graph_weighted/parameters/binding.rs` |
+| `tests/graph_weighted/matrix.rs` | test_module | 75 | 1 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/matrix.rs` |
 | `tests/graph_weighted/oracle.rs` | test_module | 389 | 19 | graph_weighted | split_by_contract | `tests/graph_weighted/aggregates/core/oracle.rs`; `tests/graph_weighted/semantics/oracle.rs` |
 | `tests/graph_weighted/resources.rs` | test_module | 107 | 3 | graph_weighted | move_with_module_alias | `tests/graph_weighted/resources/resources.rs` |
 | `tests/graph_weighted/security.rs` | test_module | 93 | 4 | graph_weighted | move_with_module_alias | `tests/graph_weighted/security/security.rs` |
 | `tests/graph_weighted/views.rs` | test_module | 178 | 6 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/views.rs` |
 | `tests/graph_weighted/world.rs` | test_support | 464 | 0 | graph_weighted | keep | `tests/graph_weighted/world.rs` |
-| `tests/graph_weighted.rs` | cargo_target | 30 | 0 | graph_weighted | keep | `tests/graph_weighted.rs` |
+| `tests/graph_weighted.rs` | cargo_target | 33 | 0 | graph_weighted | keep | `tests/graph_weighted.rs` |
 | `tests/json_writes/contracts/errors.rs` | test_module | 34 | 2 | json_writes | keep | `tests/json_writes/contracts/errors.rs` |
 | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` | test_module | 94 | 2 | json_writes | keep | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` |
 | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` | test_module | 806 | 15 | json_writes | keep | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` |

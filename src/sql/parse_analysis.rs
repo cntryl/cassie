@@ -262,9 +262,17 @@ impl<'a> Footprint<'a> {
                     bytes = add(bytes, self.expression(seed, depth + 1)?)?;
                 }
             }
-            QuerySource::TableFunction { name, function, .. } => {
+            QuerySource::TableFunction {
+                name,
+                function,
+                form,
+                ..
+            } => {
                 bytes = add(bytes, name.len())?;
                 bytes = add(bytes, self.function(function, depth + 1)?)?;
+                for expr in form.iter().flat_map(|form| form.graph_expressions()) {
+                    bytes = add(bytes, self.expression(expr, depth + 1)?)?;
+                }
             }
             QuerySource::Subquery { alias, select, .. } => {
                 bytes = add(bytes, alias.len())?;

@@ -84,6 +84,7 @@ fn drop_graph(
             Err(missing_graph(name))
         };
     };
+    super::property_graph_views::reject_drop(cassie, context, &graph)?;
     cassie
         .midge
         .delete_property_graph(&graph.name)

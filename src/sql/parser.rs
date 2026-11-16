@@ -179,6 +179,10 @@ mod enum_scope;
 mod expr;
 #[path = "parser/extensions.rs"]
 mod extensions;
+#[path = "parser/graph_table.rs"]
+mod graph_table;
+#[path = "parser/graph_table_path.rs"]
+mod graph_table_path;
 #[path = "parser/identifiers.rs"]
 mod identifiers;
 mod lexical;

@@ -353,8 +353,11 @@ impl Policy {
                 self.source(right)?;
                 self.expression(on)?;
             }
-            QuerySource::TableFunction { function, .. } => {
-                for expr in function.expressions() {
+            QuerySource::TableFunction { function, form, .. } => {
+                for expr in function
+                    .expressions()
+                    .chain(form.iter().flat_map(|form| form.graph_expressions()))
+                {
                     self.expression(expr)?;
                 }
             }

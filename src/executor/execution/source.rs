@@ -7,6 +7,8 @@ mod jsonpath_table;
 #[cfg(test)]
 #[path = "source_pull_tests.rs"]
 mod pull_tests;
+#[path = "source_graph_table.rs"]
+mod source_graph_table;
 #[path = "source_graph_types.rs"]
 mod source_graph_types;
 #[path = "source_identify_object.rs"]
@@ -172,6 +174,11 @@ pub(super) fn execute_query_source_with_traversal(
             qualify,
         ),
         QuerySource::SingleRow => execute_single_row_source(env),
+        QuerySource::TableFunction { name, .. }
+            if crate::sql::table_sources::is_graph_table(name) =>
+        {
+            source_graph_table::execute()
+        }
         QuerySource::TableFunction { .. } => {
             source_table_function::execute(env, source, outer_row, qualify, row_budget, cte_context)
         }

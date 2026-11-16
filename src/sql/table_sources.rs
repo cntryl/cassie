@@ -19,6 +19,7 @@ pub(crate) fn is_generated(name: &str) -> bool {
         || json_element_source(name).is_some()
         || record_source(name).is_some()
         || is_json_table(name)
+        || is_graph_table(name)
 }
 
 pub(crate) fn is_json_table(name: &str) -> bool {
@@ -126,6 +127,7 @@ pub(crate) fn record_declared_columns(
                 .collect(),
         ),
         Some(TableFunctionForm::JsonTable(spec)) => Some(spec.output_columns()),
+        Some(TableFunctionForm::GraphTable(table)) => Some(graph_table_columns(table)),
         None if record_source(&function.name).is_some_and(|record| record.populate) => Some(
             populate_base_type(function)?
                 .fields
@@ -135,6 +137,33 @@ pub(crate) fn record_declared_columns(
         ),
         None => None,
     }
+}
+
+/// Declared columns of a `GRAPH_TABLE` source: the projection names, typed once bound and
+/// `NULL`-typed before.
+fn graph_table_columns(table: &crate::sql::ast::GraphTable) -> Vec<(String, DataType)> {
+    table
+        .columns
+        .iter()
+        .enumerate()
+        .map(|(index, column)| {
+            let name = column.output_name().unwrap_or_default();
+            let data_type = table
+                .binding
+                .as_ref()
+                .and_then(|binding| binding.output.get(index))
+                .cloned()
+                .unwrap_or(DataType::Null);
+            (name, data_type)
+        })
+        .collect()
+}
+
+/// The name of the `GRAPH_TABLE` table source.
+pub(crate) const GRAPH_TABLE_FUNCTION: &str = "graph_table";
+
+pub(crate) fn is_graph_table(name: &str) -> bool {
+    name.eq_ignore_ascii_case(GRAPH_TABLE_FUNCTION)
 }
 
 /// Physical output columns of a record-returning or `JSON_TABLE` source, followed by BIGINT

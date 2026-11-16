@@ -4,7 +4,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 
 | Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| `tests/Cargo.toml` | fixture_data | 211 | 0 | — | keep | `tests/Cargo.toml` |
+| `tests/Cargo.toml` | fixture_data | 215 | 0 | — | keep | `tests/Cargo.toml` |
 | `tests/analytics/aggregates/aggregate_acceleration.rs` | test_module | 522 | 7 | analytics | keep | `tests/analytics/aggregates/aggregate_acceleration.rs` |
 | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 228 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
 | `tests/analytics/column_store/column_batch_encoded_scans.rs` | test_module | 397 | 4 | analytics | keep | `tests/analytics/column_store/column_batch_encoded_scans.rs` |
@@ -454,13 +454,15 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/fixtures/sqlx_probe/Cargo.lock` | external_client_fixture | 1518 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.lock` |
 | `tests/fixtures/sqlx_probe/Cargo.toml` | external_client_fixture | 11 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.toml` |
 | `tests/fixtures/sqlx_probe/src/main.rs` | external_client_fixture | 159 | 0 | — | keep | `tests/fixtures/sqlx_probe/src/main.rs` |
+| `tests/graph_table/wire.rs` | test_module | 125 | 4 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
+| `tests/graph_table.rs` | cargo_target | 8 | 0 | graph_table | keep | `tests/graph_table.rs` |
 | `tests/graph_types/catalog.rs` | test_module | 100 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/catalog.rs` |
 | `tests/graph_types/constructors.rs` | test_module | 31 | 1 | graph_types | move_with_module_alias | `tests/graph_types/semantics/constructors.rs` |
 | `tests/graph_types/fixture.rs` | test_support | 113 | 0 | graph_types | keep | `tests/graph_types/fixture.rs` |
 | `tests/graph_types/paths.rs` | test_module | 210 | 12 | graph_types | move_with_module_alias | `tests/graph_types/semantics/paths.rs` |
 | `tests/graph_types/refs.rs` | test_module | 306 | 18 | graph_types | move_with_module_alias | `tests/graph_types/semantics/refs.rs` |
 | `tests/graph_types/reserved.rs` | test_module | 306 | 16 | graph_types | move_with_module_alias | `tests/graph_types/semantics/reserved.rs` |
-| `tests/graph_types/storage.rs` | test_module | 176 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/storage.rs` |
+| `tests/graph_types/storage.rs` | test_module | 180 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/storage.rs` |
 | `tests/graph_types/wire.rs` | test_module | 245 | 10 | graph_types | move_with_module_alias | `tests/graph_types/semantics/wire.rs` |
 | `tests/graph_types.rs` | cargo_target | 29 | 0 | graph_types | keep | `tests/graph_types.rs` |
 | `tests/json_writes/contracts/errors.rs` | test_module | 34 | 2 | json_writes | keep | `tests/json_writes/contracts/errors.rs` |

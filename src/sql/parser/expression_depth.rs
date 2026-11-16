@@ -117,8 +117,11 @@ fn source(query: &QuerySource, depth: usize) -> Result<(), SqlError> {
                 validate(seed, depth + 1)?;
             }
         }
-        QuerySource::TableFunction { function, .. } => {
-            for arg in function.expressions() {
+        QuerySource::TableFunction { function, form, .. } => {
+            for arg in function
+                .expressions()
+                .chain(form.iter().flat_map(|form| form.graph_expressions()))
+            {
                 validate(arg, depth + 1)?;
             }
         }

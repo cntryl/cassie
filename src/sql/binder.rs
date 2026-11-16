@@ -9,6 +9,16 @@ mod function_casts;
 mod function_validation;
 #[path = "binder/graph_key_part.rs"]
 mod graph_key_part;
+#[path = "binder/graph_table.rs"]
+mod graph_table;
+#[path = "binder/graph_table_expr.rs"]
+mod graph_table_expr;
+#[path = "binder/graph_table_scope.rs"]
+mod graph_table_scope;
+pub(crate) use graph_table::{
+    property_types as graph_table_property_types, resolve_graph,
+    tables_read as graph_table_tables_read,
+};
 #[path = "binder/grouped_projection.rs"]
 mod grouped_projection;
 #[path = "binder/integer_operators.rs"]
@@ -151,7 +161,7 @@ mod vector_dependencies;
 pub(crate) use vector_dependencies::{data_type_uses_vector, select_uses_vector_extension};
 #[path = "binder/view_dependencies.rs"]
 mod view_dependencies;
-pub(crate) use view_dependencies::select_referenced_relations;
+pub(crate) use view_dependencies::{select_referenced_graphs, select_referenced_relations};
 #[path = "binder/search_field_case.rs"]
 mod search_field_case;
 #[path = "binder/select.rs"]
@@ -1010,3 +1020,7 @@ fn bind_copy(
 
     Ok(statement)
 }
+
+#[cfg(test)]
+#[path = "binder/graph_table_tests.rs"]
+mod graph_table_tests;

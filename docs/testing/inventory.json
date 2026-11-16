@@ -64,6 +64,10 @@
         "file": "tests/expression_index_upsert.rs"
       },
       {
+        "name": "graph_table",
+        "file": "tests/graph_table.rs"
+      },
+      {
         "name": "graph_types",
         "file": "tests/graph_types.rs"
       },
@@ -168,11 +172,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1727,
-    "rust_files": 1690,
-    "rust_test_declarations": 10265,
+    "files": 1729,
+    "rust_files": 1692,
+    "rust_test_declarations": 10269,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10271,
+    "registered_rust_instances": 10275,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -65706,6 +65710,130 @@
       }
     },
     {
+      "id": "tests/graph_table/wire.rs::should_describe_declared_column_types_in_row_description",
+      "name": "should_describe_declared_column_types_in_row_description",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 44,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_describe_declared_column_types_in_row_description"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_describe_a_wildcard_over_a_graph_table",
+      "name": "should_describe_a_wildcard_over_a_graph_table",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 75,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_describe_a_wildcard_over_a_graph_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_infer_a_parameter_type_from_an_inline_predicate",
+      "name": "should_infer_a_parameter_type_from_an_inline_predicate",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 94,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_infer_a_parameter_type_from_an_inline_predicate"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_report_unavailable_execution_after_describing",
+      "name": "should_report_unavailable_execution_after_describing",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 113,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_report_unavailable_execution_after_describing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_types/catalog.rs::should_publish_the_three_graph_types_in_pg_type",
       "name": "should_publish_the_three_graph_types_in_pg_type",
       "current_file": "tests/graph_types/catalog.rs",
@@ -67415,7 +67543,7 @@
       "name": "should_validate_reserved_values_written_by_projector_replay",
       "current_file": "tests/graph_types/storage.rs",
       "line": 123,
-      "end_line": 146,
+      "end_line": 150,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -67445,8 +67573,8 @@
       "id": "tests/graph_types/storage.rs::should_validate_a_reserved_value_nested_in_a_user_type",
       "name": "should_validate_a_reserved_value_nested_in_a_user_type",
       "current_file": "tests/graph_types/storage.rs",
-      "line": 149,
-      "end_line": 176,
+      "line": 153,
+      "end_line": 180,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -319088,8 +319216,8 @@
       "current_file": "tests/Cargo.toml",
       "role": "fixture_data",
       "action": "keep",
-      "lines": 211,
-      "sha256": "ca2686f3d59265ec6e6cf3d2910efc7d8d611b8d4452d6e616145d8e8f44c8de",
+      "lines": 215,
+      "sha256": "98d81690d03cec874c379909925417354eaf353158c64f96cfa080e31d3276db",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [
@@ -325772,6 +325900,36 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/wire.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 125,
+      "sha256": "8b86bbd5a91fd1e52d6664a16f202c0230206733afef1aa485a521c435f0e53d",
+      "test_declarations": 4,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/wire.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table.rs",
+      "role": "cargo_target",
+      "action": "keep",
+      "lines": 8,
+      "sha256": "c19f39f500351da6cbefd4f1d2600ed7bc85ef00ea8a18b21224c52df3f62493",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table.rs"
+      ],
+      "line_limit": 12000
+    },
+    {
       "current_file": "tests/graph_types/catalog.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -325865,8 +326023,8 @@
       "current_file": "tests/graph_types/storage.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 176,
-      "sha256": "08080c9345bcf28e552b7edcddc8a8da1f2dc279178b86c0f3086cfcc6706f90",
+      "lines": 180,
+      "sha256": "8f356391ac7b31fcbd5f6ed759936d5ef2d6312bcaf705097e2833c20466fbcc",
       "test_declarations": 5,
       "registered_suites": [
         "graph_types"

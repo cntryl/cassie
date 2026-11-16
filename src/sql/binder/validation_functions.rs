@@ -68,13 +68,17 @@ fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
                 collect_expr(seed, out);
             }
         }
-        QuerySource::TableFunction { function, .. } => {
+        QuerySource::TableFunction { function, form, .. } => {
             if !crate::sql::functions::is_catalog_table(&function.name)
                 && !crate::sql::table_sources::is_generated(&function.name)
+                && !crate::sql::table_sources::is_graph_table(&function.name)
             {
                 out.push(function.clone());
             }
-            for arg in function.expressions() {
+            for arg in function
+                .expressions()
+                .chain(form.iter().flat_map(|form| form.graph_expressions()))
+            {
                 collect_expr(arg, out);
             }
         }

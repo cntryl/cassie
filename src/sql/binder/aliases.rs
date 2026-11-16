@@ -702,15 +702,54 @@ pub(super) fn lower_lateral(
         QuerySource::TableFunction {
             function,
             lateral: true,
+            form,
             ..
         } => {
             for expr in function.expressions_mut() {
                 rewrite(expr, &spaces, false)?;
             }
+            if let Some(table) = form.as_deref_mut().and_then(|form| form.graph_table_mut()) {
+                lower_graph_references(table, &spaces)?;
+            }
         }
         _ => {}
     }
     Ok(())
+}
+
+/// Lowers the outer-row references of a `GRAPH_TABLE`. Its own pattern variables shadow any
+/// outer relation of the same name, so references they own stay as written.
+fn lower_graph_references(
+    table: &mut crate::sql::ast::GraphTable,
+    spaces: &[Namespace],
+) -> Result<(), CassieError> {
+    let owned = table
+        .variable_names()
+        .map(str::to_owned)
+        .collect::<std::collections::HashSet<_>>();
+    table
+        .expressions_mut()
+        .try_for_each(|expr| lower_graph_expression(expr, spaces, &owned))
+}
+
+fn lower_graph_expression(
+    expr: &mut Expr,
+    spaces: &[Namespace],
+    owned: &std::collections::HashSet<String>,
+) -> Result<(), CassieError> {
+    if let Expr::Column(name) = expr {
+        let path = ColumnIdentifierPath::parse(name).map_err(CassieError::Planner)?;
+        let variable = if path.is_qualified() {
+            path.namespace_qualifier()
+        } else {
+            Some(path.final_name().to_owned())
+        };
+        if variable.is_none_or(|variable| !owned.contains(&variable)) {
+            *name = reference(name, spaces, false)?;
+        }
+        return Ok(());
+    }
+    expr.try_visit_children_mut(|child| lower_graph_expression(child, spaces, owned))
 }
 
 /// Keep a source namespace when physical lowering would erase ORDER provenance.

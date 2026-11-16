@@ -87,6 +87,10 @@ name = "graph_types"
 path = "graph_types.rs"
 
 [[test]]
+name = "graph_table"
+path = "graph_table.rs"
+
+[[test]]
 name = "domain_types"
 path = "domain_types.rs"
 

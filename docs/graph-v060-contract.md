@@ -270,6 +270,17 @@ and unsupported quantifiers, return SQLSTATE `0A000`; malformed syntax returns
 properties and incompatible types use Cassie's corresponding existing binder
 errors. Errors must not silently select a different meaning.
 
+Binding selects these readings where the grammar is silent. A projection that
+is a bare `variable.property` is named after the property; any other projection
+needs `AS column_alias` (`42601` without one), and duplicate output names are
+`42701`. Inside a `LATERAL` `GRAPH_TABLE`, a pattern variable shadows an outer
+relation of the same name. A subquery inside a graph predicate or projection,
+`WITH ORDINALITY`, and repeating a quantified edge variable are `0A000`. An
+unknown graph or label is `42704`. Reading a graph requires `SELECT` on every
+table the pattern can read, including the endpoint vertex tables of each
+selected edge mapping. A view over `GRAPH_TABLE` depends on its graph:
+`DROP PROPERTY GRAPH` returns `2BP01` while such a view exists.
+
 ### Path modes and selectors
 
 The selected semantics are:

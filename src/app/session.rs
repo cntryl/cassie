@@ -124,7 +124,15 @@ struct SessionTransactionState {
     commit_thread: Option<std::thread::ThreadId>,
     /// A failure another thread reported while COMMIT owned the transaction.
     /// It applies only if COMMIT leaves the transaction open (#1290).
-    deferred_failure: bool,
+    deferred_failure: DeferredFailure,
+}
+
+/// A failure another thread reported while COMMIT owned the transaction.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum DeferredFailure {
+    #[default]
+    None,
+    Pending,
 }
 
 impl SessionTransactionState {
@@ -144,7 +152,7 @@ impl SessionTransactionState {
         if self.may_be_failed_by_current_thread() {
             self.status = SessionTransactionStatus::Failed;
         } else {
-            self.deferred_failure = true;
+            self.deferred_failure = DeferredFailure::Pending;
         }
     }
 }
@@ -318,7 +326,7 @@ impl CassieSession {
                 projection_write: Arc::default(),
                 sealed_for_commit: false,
                 commit_thread: None,
-                deferred_failure: false,
+                deferred_failure: DeferredFailure::None,
             })),
             transaction_unique_waits: Arc::default(),
             owns_transaction_lifecycle: true,

@@ -1,8 +1,8 @@
 //! Session transaction characteristics and ownership boundaries.
 
 use super::{
-    Arc, CassieError, CassieSession, Mutex, SessionTransactionStatus, SharedTransactionWrites,
-    TransactionIsolation,
+    Arc, CassieError, CassieSession, DeferredFailure, Mutex, SessionTransactionStatus,
+    SharedTransactionWrites, TransactionIsolation,
 };
 use crate::app::TransactionErrorKind;
 use crate::catalog::Catalog;
@@ -158,7 +158,7 @@ impl CassieSession {
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
         transaction.commit_thread = None;
-        transaction.deferred_failure = false;
+        transaction.deferred_failure = DeferredFailure::None;
         if let Some(authority) = authority {
             authority.adopt_start(self, &transaction);
         }
@@ -395,7 +395,7 @@ impl CassieSession {
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
         transaction.commit_thread = None;
-        transaction.deferred_failure = false;
+        transaction.deferred_failure = DeferredFailure::None;
         // Retire everything the transaction owned before releasing the mutex.
         // BEGIN needs this mutex, so no later transaction can start, attach a
         // schema context, declare a cursor or snapshot settings until the old
@@ -496,7 +496,7 @@ impl CassieSession {
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
         transaction.commit_thread = None;
-        transaction.deferred_failure = false;
+        transaction.deferred_failure = DeferredFailure::None;
         // See `commit_transaction`: cleanup completes before the mutex is released.
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
@@ -549,7 +549,7 @@ impl Drop for CommitSeal<'_> {
         if transaction.generation == self.generation {
             transaction.sealed_for_commit = false;
             transaction.commit_thread = None;
-            if std::mem::take(&mut transaction.deferred_failure) {
+            if std::mem::take(&mut transaction.deferred_failure) == DeferredFailure::Pending {
                 transaction.fail_or_defer();
             }
         }

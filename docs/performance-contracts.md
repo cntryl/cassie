@@ -373,29 +373,32 @@ numbers need the release profile with at least five measured samples and have no
 | `perf.graph.one_hop.64` | `tier2_subsystem_graph` | One-hop expansion from one vertex. | same |
 | `perf.graph.bounded_expansion.64` | `tier2_subsystem_graph` | `{1,3}` expansion from one vertex. | same |
 | `perf.graph.weighted_paths.64` | `tier2_subsystem_graph` | `graph_weighted_paths` for three paths with named arguments. | same |
-| `perf.graph.authorization_reachability.100k` | `tier3_system_graph` | Documents reachable by a user through at most one membership edge and one grant. | 4,000 principals, 8,000 resources, 8,000 memberships, 8,000 grants (28,000 mapped rows) |
-| `perf.graph.hierarchy_ancestry.100k` | `tier3_system_graph` | All ancestors of the deepest node with `+` and `ACYCLIC`. | 10,000 nodes, 9,999 edges (19,999 mapped rows) |
-| `perf.graph.friends_of_friends.100k` | `tier3_system_graph` | `{2,2}` expansion from one person. | 5,000 people, 10,000 edges (15,000 mapped rows) |
-| `perf.graph.weighted_routes.100k` | `tier3_system_graph` | Three cheapest simple routes within four hops. | same |
+| `perf.graph.authorization_reachability.100k` | `tier3_system_graph` | Documents reachable by a user through at most one membership edge and one grant. | 20,000 principals, 20,000 resources, 40,000 memberships, 20,000 grants (100,000 mapped rows) |
+| `perf.graph.hierarchy_ancestry.100k` | `tier3_system_graph` | All ancestors of the deepest node with `+` and `ACYCLIC`. | 50,000 nodes, 49,999 edges (99,999 mapped rows) |
+| `perf.graph.friends_of_friends.100k` | `tier3_system_graph` | `{2,2}` expansion from one person. | 30,000 people, 70,000 edges (100,000 mapped rows) |
+| `perf.graph.weighted_routes.100k` | `tier3_system_graph` | Three cheapest simple routes within four hops. | its own instance: 5,000 people, 10,000 edges (15,000 mapped rows) |
 
 The tier 3 fixtures use memory storage, a 2 GiB native storage budget with a 512 MiB memtable
 (separate from the query budget), and the 64 MiB analytical query-memory profile described
 above. Rows are written through the document write path in batches of 1,000.
 
-**Open finding: the 100k class does not fit.** The scenario contract fixes the Tier 3 fixture
-class at 100,000 rows, and these scenarios keep that class and the `.100k` ids. A mapped graph
-is read exactly, so a query materializes the rows of the tables it maps. Under the 64 MiB
-profile, graph queries failed with `54000` from about 30,000 mapped rows (during development a 100,000-node hierarchy,
-a 32,000-row hierarchy and a 30,000-row social graph failed, and a 28,000-row access graph passed), so the fixtures map the
-smaller sizes in the table above and record the real count as the result metadata
-`graph_mapped_rows`. The ids therefore name the contract class, not the mapped size. Whether
-to give graph a larger benchmark profile, as the removed legacy graph had, or to wait for
-bounded adjacency reads is a decision for the owner and is not made here. `graph_weighted_paths` validates every edge weight
-of the mapped edge tables on each call, so its tier 3 workload reads all 10,000 edges
-by design. Until the `EXPLAIN` plan reports a graph access path, the tier 3 owner declares the
-access path `graph_table_exact_read` and records `graph_access_path_source=declared` in the
-result metadata; when the plan reports an `access_path`, the owner records it with source
-`reported`. Run one owner with, for example,
+**Scale.** The three `GRAPH_TABLE` scenarios map about 100,000 rows and run under the
+64 MiB profile. Their edge tables carry ordinary indexes on the endpoint columns and their
+start vertex is fixed by key, so the plan reads neighborhoods through those indexes (see
+[Graph Reads](#graph-reads-v060-fast-reads-1253-1254-1259)); the owner reads the access path
+from the `EXPLAIN` graph node and records `graph_table_indexed_read` with
+`graph_access_path_source=reported`. Without endpoint indexes the same queries read the mapped
+tables in full and exceeded the 64 MiB budget (`54000`) from about 30,000 mapped rows.
+
+**Open finding: weighted routes do not fit at 100k.** `graph_weighted_paths` validates every
+edge weight of the selected mappings on each call, as the contract requires, and holds the
+selected mappings in memory while it searches. The scenario keeps the `.100k` contract class
+and id but maps 15,000 rows in a separate instance, recorded as `graph_mapped_rows`, with the
+access path `graph_table_exact_read` declared (the function has no graph plan node). Running it
+at 100,000 rows under 64 MiB needs a streaming validation scan and a search over the indexed
+store, which are not implemented.
+
+Run one owner with, for example,
 `cargo bench --locked --bench tier2_subsystem_graph -- --profile smoke`; a smoke run is
 a diagnostic and not a gate.
 

@@ -27,6 +27,8 @@ impl Hierarchy {
                 "CREATE TABLE bench_reports_to (id BIGINT PRIMARY KEY, child BIGINT NOT NULL, \
                  parent BIGINT NOT NULL)"
                     .to_owned(),
+                "CREATE INDEX bench_reports_to_child ON bench_reports_to (child)".to_owned(),
+                "CREATE INDEX bench_reports_to_parent ON bench_reports_to (parent)".to_owned(),
             ],
             loads: vec![
                 TableLoad {
@@ -110,6 +112,10 @@ impl Access {
                 "CREATE TABLE bench_grants (id BIGINT PRIMARY KEY, holder BIGINT NOT NULL, \
                  resource BIGINT NOT NULL)"
                     .to_owned(),
+                "CREATE INDEX bench_member_of_member ON bench_member_of (member)".to_owned(),
+                "CREATE INDEX bench_member_of_grp ON bench_member_of (grp)".to_owned(),
+                "CREATE INDEX bench_grants_holder ON bench_grants (holder)".to_owned(),
+                "CREATE INDEX bench_grants_resource ON bench_grants (resource)".to_owned(),
             ],
             loads: vec![
                 TableLoad {

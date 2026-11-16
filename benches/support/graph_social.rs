@@ -120,6 +120,8 @@ impl Social {
                 "CREATE TABLE bench_knows (id BIGINT PRIMARY KEY, src BIGINT NOT NULL, \
                  dst BIGINT NOT NULL, weight INT NOT NULL)"
                     .to_owned(),
+                "CREATE INDEX bench_knows_src ON bench_knows (src)".to_owned(),
+                "CREATE INDEX bench_knows_dst ON bench_knows (dst)".to_owned(),
             ],
             loads: vec![
                 TableLoad {

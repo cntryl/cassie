@@ -167,9 +167,8 @@ claim backed by a test or a document; none is a performance claim.
 | Item | State |
 | --- | --- |
 | Read bounds | Every graph read is an exact read of the mapped tables. No O(degree) bound is claimed or measured, and `graph_weighted_paths` reads every edge by design. Fast reads (#1253, #1254 read-bound part, #1259) are not part of the current build. |
-| `EXPLAIN` and `EXPLAIN ANALYZE` evidence | The graph plan node is pending from its owning lane. Until it reports an access path, the tier 3 owner declares `graph_table_exact_read` in its metadata. |
-| Real-driver qualification | The wire evidence above uses the repository's protocol harness. A qualification with at least one real PostgreSQL driver for text and binary composite results is not recorded; the contract asks for two. |
-| Tier 3 scale | The Tier 3 scenarios keep the 100,000-row contract class, but exact reads under the 64 MiB profile failed with `54000` from about 30,000 mapped rows, so the fixtures map 15,000 to 28,000 rows. See [performance contracts](performance-contracts.md#graph-benchmarks). |
+| Real-driver qualification | Text and binary round trips of the three path types and their arrays run through one real driver (`tokio-postgres`, `tests/graph_types/driver.rs`). The contract asks for two; a second always-available client is not wired into the harness. |
+| Weighted routes at scale | The three `GRAPH_TABLE` Tier 3 scenarios run at about 100,000 mapped rows under the 64 MiB profile on the indexed read path. `graph_weighted_paths` holds its selected mappings in memory and runs at 15,000 mapped rows. See [performance contracts](performance-contracts.md#graph-benchmarks). |
 | Benchmark numbers | No timing or scaling number is recorded. Gate-quality results need the release profile with at least five samples, host identity and a baseline. |
 | Exact-head gates | The ordered local gate and the hosted checks run on the integrated head are owned by the assembler and are not recorded here. |
 | Guide scope | The guide documents the current dialect. Standard SQL/PGQ conformance is not claimed and no normative grammar comparison has been done. |

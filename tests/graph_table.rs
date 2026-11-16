@@ -53,3 +53,6 @@ mod cancellation;
 
 #[path = "graph_table/tie_order.rs"]
 mod tie_order;
+
+#[path = "graph_table/overlay_probes.rs"]
+mod overlay_probes;

@@ -176,11 +176,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1746,
-    "rust_files": 1709,
-    "rust_test_declarations": 10375,
+    "files": 1747,
+    "rust_files": 1710,
+    "rust_test_declarations": 10384,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10400,
+    "registered_rust_instances": 10409,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -30650,6 +30650,285 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_publish_both_digest_overloads_as_extension_members",
+      "name": "should_publish_both_digest_overloads_as_extension_members",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 32,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_publish_both_digest_overloads_as_extension_members"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_keep_extension_member_oids_stable_after_relocation",
+      "name": "should_keep_extension_member_oids_stable_after_relocation",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 75,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_keep_extension_member_oids_stable_after_relocation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_allocate_fresh_member_identities_when_extension_is_recreated",
+      "name": "should_allocate_fresh_member_identities_when_extension_is_recreated",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 112,
+      "end_line": 148,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_allocate_fresh_member_identities_when_extension_is_recreated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_roll_back_extension_members_with_create_extension",
+      "name": "should_roll_back_extension_members_with_create_extension",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 151,
+      "end_line": 181,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_roll_back_extension_members_with_create_extension"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_restore_extension_members_after_drop_extension_rollback",
+      "name": "should_restore_extension_members_after_drop_extension_rollback",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 184,
+      "end_line": 214,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_restore_extension_members_after_drop_extension_rollback"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_list_extension_members_for_driver_introspection",
+      "name": "should_list_extension_members_for_driver_introspection",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 217,
+      "end_line": 269,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_list_extension_members_for_driver_introspection"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_publish_vector_extension_members_that_join_their_catalog_rows",
+      "name": "should_publish_vector_extension_members_that_join_their_catalog_rows",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 272,
+      "end_line": 294,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_publish_vector_extension_members_that_join_their_catalog_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_isolate_extension_members_between_databases",
+      "name": "should_isolate_extension_members_between_databases",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 297,
+      "end_line": 320,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_isolate_extension_members_between_databases"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/extensions/extension_membership.rs::should_keep_extension_members_after_restart",
+      "name": "should_keep_extension_members_after_restart",
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "line": 323,
+      "end_line": 345,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::extension_membership::should_keep_extension_members_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/extension_membership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -325708,8 +325987,8 @@
       "current_file": "tests/compatibility/lifecycle/ddl/ddl_extensions.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 47,
-      "sha256": "1db219f6e72e184ae8516102993d6e4251aad3d25b973d99a4833b77f29cb9ae",
+      "lines": 49,
+      "sha256": "934c739aa0d6ae201a37db89d1c00a781de6c4b74a0e8f0222121f725e2c836b",
       "test_declarations": 0,
       "registered_suites": [
         "compatibility"
@@ -325866,6 +326145,21 @@
       ],
       "destinations": [
         "tests/compatibility/lifecycle/extensions/extension_catalog_coverage.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/compatibility/lifecycle/extensions/extension_membership.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 345,
+      "sha256": "260212dc112059300c37714c95d5395fc3bc58c474b6714000569753b174ae19",
+      "test_declarations": 9,
+      "registered_suites": [
+        "compatibility"
+      ],
+      "destinations": [
+        "tests/compatibility/clients/extension_membership.rs"
       ],
       "line_limit": 1000
     },

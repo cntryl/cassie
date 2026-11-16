@@ -1,13 +1,13 @@
-//! Selected extension membership in `pg_depend` (#1273). Authored/not run.
+//! Selected extension membership in `pg_depend` (#1273).
 use super::*;
 use cassie::app::CassieSession;
 use cassie::types::Value;
 
-const DIGEST_MEMBERS: &str = "SELECT p.oid FROM pg_catalog.pg_depend d \
-    JOIN pg_catalog.pg_proc p ON p.oid = d.objid \
+const DIGEST_MEMBERS: &str = "SELECT d.objid FROM pg_catalog.pg_depend d \
     JOIN pg_catalog.pg_extension e ON e.oid = d.refobjid \
-    WHERE e.extname = 'pgcrypto' AND p.proname = 'digest' AND d.deptype = 'e' \
-    ORDER BY p.oid";
+    WHERE e.extname = 'pgcrypto' AND d.deptype = 'e' \
+    AND d.objid IN (SELECT oid FROM pg_catalog.pg_proc WHERE proname = 'digest') \
+    ORDER BY d.objid";
 
 const EXTENSION_OID: &str = "SELECT oid FROM pg_catalog.pg_extension WHERE extname = 'pgcrypto'";
 

@@ -8,7 +8,7 @@ The canonical documents have non-overlapping ownership:
 - `feature-support.md` owns behavior and status for every capability.
 - `postgres-compatibility.md` owns pgwire and client compatibility.
 - `performance-contracts.md` owns performance contracts, access paths, resource accounting, and benchmark evidence requirements.
-- `production-readiness.md` owns readiness evidence and remaining Production-ready blockers.
+- `production-readiness.md` owns deployment evidence, measurements and remaining operational work.
 - `product-roadmap.md` owns Cassie's product scope, release order, exclusions, and future work.
 - `release-baseline.md` records the unreleased 0.1.0 starting point and Cassie-owned format boundary.
 
@@ -26,7 +26,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 - [Internal Typed Batch Contract](typed-batch-contract.md)
 - [First Typed Pipeline Acceptance](typed-pipeline-acceptance.md)
 - [PostgreSQL Wire Transaction Boundaries](pgwire-transaction-contract.md)
-- [Query Promotion Evidence](query-promotion-evidence.md)
+- [Query Qualification Evidence](query-promotion-evidence.md)
 - [Compatibility Probe Contract](compatibility-probe-contract.md)
 - [Performance Contracts](performance-contracts.md)
 - [Query Result Ownership](query-result-ownership.md)
@@ -61,8 +61,8 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 - [Release Checklist](release-checklist.md)
 - [Tooling Contract](tooling-contract.md)
 - [Completed Ordinary Aliases and Pagination Integration Record](alias-pagination-plan.md)
-- [Experimental Promotion Criteria](experimental-promotion-criteria.md)
-- [Promotion Evidence Matrix](promotion-evidence-matrix.md)
+- [Feature Qualification](feature-qualification.md)
+- [Feature Evidence Matrix](promotion-evidence-matrix.md)
 - [Feature Ownership](feature-ownership.md)
 - [Module Organization](module-organization.md)
 - [Database Jargon Glossary](database-jargon-glossary.md)

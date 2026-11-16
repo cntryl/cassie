@@ -1,23 +1,27 @@
 # Production Readiness
 
-This document is the canonical owner for beta and Production-ready evidence. Feature behavior and status live in [Feature Support](feature-support.md). Passing unit or integration tests does not by itself establish either readiness classification.
+This document owns deployment evidence, measured operating limits and remaining
+operational work. [Feature Support](feature-support.md) records concrete
+behavior, implementation gaps and exclusions. Passing tests supplies evidence
+for those cases and does not establish an unmeasured operating envelope.
 
-## Current Classification
+## Project posture
 
-The Cassie query-engine baseline is a **Production Candidate** for the documented
-unreleased 0.1.0 support envelope. Stable capabilities are supported;
-Experimental capabilities are available for evaluation under their documented
-limits and may change before 1.0.
+Cassie is a pre-release project. The unreleased 0.1.0 baseline and every
+capability share that posture; APIs, client behavior and persistent formats may
+change according to the documented release and format contracts.
 
-Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient to catch correctness and gross resource-bound regressions, but it is not representative-scale evidence for production latency, capacity, cancellation latency, recovery time, or sustained concurrency.
+Local disk-backed smoke evidence catches correctness and gross resource-bound
+regressions. It does not establish production latency, capacity, cancellation
+latency, recovery time or sustained concurrency at an unmeasured scale.
 
 ## Product release boundary
 
 The [Product Roadmap](product-roadmap.md) defines v0.1.0 Projection Store,
 v0.2.0 Query and Retrieval, v0.3.0 Composite Types and JSON Recordsets,
 v0.4.0 Named Enum Types, v0.5.0 Authoritative Columnar Tables and
-v0.6.0 Fast, Idiomatic Graphs as the feature releases. Production readiness is a separate qualification gate;
-this document defines its evidence without creating another feature milestone
+v0.6.0 Fast, Idiomatic Graphs as the feature releases. Deployment qualification is separate from feature delivery;
+this document records its evidence without creating another feature milestone
 or expanding SQL and server compatibility scope.
 
 PostgreSQL 18.6 comparisons qualify selected behaviors named by current
@@ -28,7 +32,7 @@ owned by the [release checklist](release-checklist.md) and the production
 evidence below; GitHub feature milestones remain limited to the finite releases
 in the roadmap.
 
-The [v0.5.0 release qualification record](v0.5-release-qualification.md) tracks the authoritative-columnar feature gate separately from this production-readiness classification. Its pending checks are not production evidence.
+The [v0.5.0 release qualification record](v0.5-release-qualification.md) tracks the authoritative-columnar feature gate separately from deployment measurements and operational evidence. Its pending checks are not production evidence.
 
 ## Graph qualification snapshot — 2026-11-16
 
@@ -39,9 +43,9 @@ arrays passed through `tokio-postgres` and the explicit public Psycopg workflow.
 All 20 graph benchmark scenario rows passed correctness, including 100k weighted
 routes under a 64 MiB query budget and the nine topology points; several
 release-profile timing rows failed quality. The committed raw artifacts retain
-those failures. Graph traversal remains Experimental, and this finite milestone
-evidence does not change the overall Production Candidate classification or
-supply native production capacity or release-publication evidence.
+those failures. This finite milestone evidence remains scoped to the recorded
+graph workloads and supplies no native production-capacity or release-publication
+evidence.
 
 ## Prior Local Check Snapshot — 2026-10-29
 
@@ -92,13 +96,13 @@ and test-fixture-label reconciliation. No runtime source changed.
 - `cntryl-tools validate-tests -f tests/sql_queries/types/uuid_lsn/uuid_hash_lsn.rs`:
   passed (36/36).
 
-## Workflow and Branch-Protection State
+## Historical Workflow and Branch-Protection Snapshot — 2026-10-30
 
 GitHub readback on 2026-10-30 reports repository Actions permission `enabled: true`; CodeQL is
 active, while `Containers`, `Version`, `CI Backend`, `CI Frontend`, and `Publish` are manually
 disabled. No `Operational readiness` workflow is present in the current workflow tree or registry.
-`AGENTS.md` still prohibits enabling or dispatching workflows until the user explicitly changes
-that direction; no backend, benchmark, or release workflow was dispatched.
+At that snapshot, `AGENTS.md` prohibited enabling or dispatching workflows; no
+backend, benchmark or release workflow was dispatched for that record.
 
 PR #1144 remains open at `92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba`. CodeQL run
 `41117159326` completed successfully on this exact head: all four language analyzers and the
@@ -126,11 +130,11 @@ active branch protection.
   recorded in [Testing and Validation](testing/validation.md); it is not an
   exact-release-commit qualification.
 - Integration coverage across SQL, indexes, transactions, pgwire, REST, search, vector, analytics, projection lifecycle, and recovery adapters.
-- The stable named-client catalog subset is limited to the documented columns of
+- The documented named-client catalog subset is limited to the documented columns of
   `information_schema.tables` and `information_schema.columns`, with lifecycle tests plus retained
-  passing sqlx 0.8.3 and Diesel 2.2.6 loopback pgwire manifests. Other virtual catalogs and
-  PostgreSQL-internal parity remain Experimental.
-- The Stable limited-procedure subset is confined to one persisted Cassie SQL statement with
+  passing sqlx 0.8.3 and Diesel 2.2.6 loopback pgwire manifests. Other virtual catalogs
+  retain their documented coverage and exclusions; PostgreSQL-internal parity is not claimed.
+- The implemented limited-procedure subset is confined to one persisted Cassie SQL statement with
   positional argument binding. Restart, deterministic unsupported-syntax, recursion,
   transaction-control, and `tokio-postgres` create/call/read evidence are retained; PL/pgSQL,
   triggers, dynamic SQL, and business-procedure workflows remain outside the product contract.
@@ -141,7 +145,7 @@ active branch protection.
 - The [HNSW Release Evidence](hnsw-release-evidence.md) contract fixes the representative fixture,
   graph parameters, exact-top-k recall comparison, resource observations, and interrupted-publication
   recovery proof. Its exact-head native-Linux artifact link remains open until the release-candidate
-  run completes; the Stable feature label is not a Cassie-wide capacity claim.
+  run completes; selected query behavior does not establish Cassie-wide capacity.
 - The [IVFFlat Release Evidence](ivfflat-release-evidence.md) contract fixes the representative
   list, probe, training, filter, recall, resource, and interrupted-publication matrix. Its exact-head
   native-Linux artifact link remains open until the release-candidate run completes.
@@ -157,32 +161,31 @@ active branch protection.
   earlier runs. The 2026-10-30 local ARM64 image and restart smoke is recorded in
   [Testing and Validation](testing/validation.md); its digest is local-only and it
   does not satisfy exact-release-commit or amd64 evidence. No backend, benchmark,
-  or release workflow has been dispatched under the current no-dispatch
-  instruction; those required hosted results remain blocked.
+  or release workflow had been dispatched under that snapshot's no-dispatch
+  instruction; those historical results were unavailable.
 - Named evidence boundaries are defined in [Deployment Profiles](deployment-profiles.md); the
   native-Linux profile remains an explicit evidence requirement rather than an implied claim.
 - The release support, upgrade, rollback, and security-response envelope is defined in
   [Support, Release, and Security-Response Policy](support-policy.md).
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
-- The [Query Promotion Evidence](query-promotion-evidence.md) inventory maps each optimized query
+- The [Query Qualification Evidence](query-promotion-evidence.md) inventory maps each optimized query
   family to an independent baseline and retained evidence. Seeded differential cases cover scalar
   pagination and overlays, mapped-graph reads against the independent oracle, join and CTE rewrites, window ties
-  and null ordering, and insertion-order permutations. These close #11's evidence gaps without
-  changing Experimental feature status; each family still requires its named feature-owner and
-  operational promotion review.
+  and null ordering, and insertion-order permutations. These close #11's named evidence gaps; each family retains its
+  documented limitations and remaining feature-owner and operational evidence requirements.
 - The selected opt-in adaptive surface is limited to feedback-informed scalar read selection and
   vectorized-to-merge inner/left equi-join switching. A retained backend-CI artifact records a same-commit
   `cassie-adaptive-profile-<commit>` artifact with fixed/evaluation results, plans, storage reads,
   candidates, memory, workers, fallback diagnostics, and configuration. Deterministic tests cover
-  feedback guards and failure states plus restart rollback. Broader adaptive planning remains
-  Experimental, and the default profile remains disabled.
-- Fixed-duration time-series indexing is Stable for positive integer minute, hour, and day widths.
+  feedback guards and failure states plus restart rollback. Other adaptive paths remain outside this selected scope, and the default
+  profile remains disabled.
+- Fixed-duration time-series indexing is implemented for positive integer minute, hour, and day widths.
   The 15-minute, 1-hour, and 1-day differential matrix is backed by independent authoritative-row
-  controls, and PR [#231](https://github.com/cntryl/cassie/pull/231) records the exact promotion
+  controls, and PR [#231](https://github.com/cntryl/cassie/pull/231) records the exact qualification
   commit and retained native-linux-amd64-disk artifact `cassie-benchmark-issue-27-time-series-pr231`.
   Rollups, retention workflows, calendar buckets, local-time boundaries, and daylight-saving
-  semantics remain outside this promoted surface.
-- The local materialized projection lifecycle is Stable as defined in
+  semantics remain outside this selected surface.
+- The local materialized projection lifecycle is implemented as defined in
   [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). PR
   [#233](https://github.com/cntryl/cassie/pull/233) records exact commit
   `815e962b3edaa2fe4cf1edb48fc2040b4aee0492` with retained native-linux-amd64-disk Tier 5
@@ -194,7 +197,7 @@ active branch protection.
   budget. Refresh, verification, and repair throughput met acceptable or authoritative gate
   quality; replay throughput was noisy on hosted runners and is diagnostic only, not a replay
   latency or capacity objective. Column-store table mode, retained 250k capacity rows, and
-  deployment-profile alert thresholds (#8) remain outside this promotion.
+  deployment-profile alert thresholds (#8) remain outside this qualification scope.
 - Canonical v1 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary and FSST decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates. ALP codec version 1 has the retained `should_emit_cross_architecture_stable_alp_bytes` golden fixture, sparse-null and exact-result fallback/rebuild coverage, unknown-version fail-closed coverage, and paired `perf.column.alp_selective_scan.2k` / `perf.column.alp_plain_scan_baseline.2k` owners enforcing at least 75% chunk-byte savings and no more than 5% p95 query regression. FSST codec version 1 has the retained `should_emit_cross_architecture_stable_fsst_bytes` full-CBC1 golden fixture plus sparse-null selected decoding, corrupt-unselected-value rejection, fallback/restart rebuild, and rename/drop lifecycle coverage. Its paired `perf.column.fsst_selective_scan.2k` / `perf.column.fsst_plain_scan_baseline.2k` owners require every candidate chunk to save at least 25% and the selective-query p95 to remain within 5% of forced plain. Each of the four candidate/baseline pairs owns an independent sampling group and alternates within each invocation so unrelated pairs cannot create sustained drift or bias the comparison.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
 - Monaco sanitizer resolution is controlled by the scoped override in
@@ -204,7 +207,7 @@ active branch protection.
   import is routed to the audited dependency in production, development
   optimization and worker builds. Upstream dependency
   tracking remains [microsoft/monaco-editor#5352](https://github.com/microsoft/monaco-editor/issues/5352).
-- Retained production-browser evidence records the Admin UI running against a real temporary Cassie process at desktop and mobile viewports. The Askr `0.4.4`, Askr UI `0.4.3`, `@askrjs/themes` `0.4.2`, and `@askrjs/monaco` `0.4.0` graph with Monaco `0.56.0` and DOMPurify `3.4.17` passed 121 repository tests, 26 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases together. Five repository tests qualify sanitizer resolution in production, dependency optimization and worker graphs, importer isolation and missing-dependency rejection; dated evidence is recorded in [Validation](testing/validation.md). Mock-browser evidence covers axe scans of login, empty workspace, controlled dialog, populated results, query failure, and mobile-sidebar states plus committed populated desktop light/dark and mobile open/closed screenshots. The production-browser case loads a fresh Monaco editor, immediately filters the schema tree, and rejects the historical `state.set() cannot be called during component render` console failure. Cassie isolates live query-text reactivity from Monaco host reconciliation so editor selection, history, completion, results, and theme changes preserve workspace state. The released packages resolve [askrjs/askr-monaco#22](https://github.com/askrjs/askr-monaco/issues/22) and [askrjs/askr-themes#62](https://github.com/askrjs/askr-themes/issues/62), so their application workarounds are removed. This evidence promotes only the Admin UI support entry to Stable; Cassie's overall Production Candidate classification is unchanged.
+- Retained production-browser evidence records the Admin UI running against a real temporary Cassie process at desktop and mobile viewports. The Askr `0.4.4`, Askr UI `0.4.3`, `@askrjs/themes` `0.4.2`, and `@askrjs/monaco` `0.4.0` graph with Monaco `0.56.0` and DOMPurify `3.4.17` passed 121 repository tests, 26 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases together. Five repository tests qualify sanitizer resolution in production, dependency optimization and worker graphs, importer isolation and missing-dependency rejection; dated evidence is recorded in [Validation](testing/validation.md). Mock-browser evidence covers axe scans of login, empty workspace, controlled dialog, populated results, query failure, and mobile-sidebar states plus committed populated desktop light/dark and mobile open/closed screenshots. The production-browser case loads a fresh Monaco editor, immediately filters the schema tree, and rejects the historical `state.set() cannot be called during component render` console failure. Cassie isolates live query-text reactivity from Monaco host reconciliation so editor selection, history, completion, results, and theme changes preserve workspace state. The released packages resolve [askrjs/askr-monaco#22](https://github.com/askrjs/askr-monaco/issues/22) and [askrjs/askr-themes#62](https://github.com/askrjs/askr-themes/issues/62), so their application workarounds are removed. This evidence qualifies the listed Admin UI workflows at those versions; it does not establish project-wide capacity.
 - Askr does not yet expose a lifecycle-owned dynamic keyed-query collection with bounded prefetch and aggregate state. Cassie therefore retains one narrow `DatabaseCatalogController` for lazy schema loading, three-request search prefetch, retry, aggregate progress, and abort-on-unmount without adding another schema cache. The upstream capability is tracked in [askrjs/askr#327](https://github.com/askrjs/askr/issues/327).
 
 ## Rollup and Retention Operator Contract
@@ -248,20 +251,20 @@ evidence, not an SLO or an assertion that larger operator windows fit the same m
 Calendar-aware buckets, background scheduling, distributed coordination, and analytical
 projection lifecycle remain outside this contract.
 
-## Production Candidate Support Envelope
+## Pre-release Support Envelope
 
 - PostgreSQL wire is the primary SQL interface; REST is secondary and administrative.
-- Only capabilities marked Stable are supported contracts. Experimental capabilities are evaluation surfaces, not compatibility commitments.
+- Supported behavior follows the finite contracts, explicit exclusions and release-specific compatibility notes in [Feature Support](feature-support.md) and the [support policy](support-policy.md).
 - Midge is the only storage layer. Cassie is permanently single-node and does not provide distributed SQL, cluster management, replication, consensus, sharding or rebalancing, cross-node transactions, distributed planning, remote query forwarding, or automatic cross-node repair.
-- The Production Candidate bar requires the validation sequence in [Definition of Done](definition-of-done.md), UI production-dependency audit and gates, benchmark-owner compilation, and a disk-backed smoke run on the release commit.
+- Release evidence includes the validation sequence in [Definition of Done](definition-of-done.md), UI production-dependency audit and gates, benchmark-owner compilation, and a disk-backed smoke run on the release commit.
 - Smoke results are regression diagnostics, not service-level objectives or capacity claims.
 
-## Remaining Production Blockers
+## Remaining Deployment Evidence
 
 Tracking owners #8, #29, and #781 were closed as `NOT_PLANNED` on 2026-10-28.
 Their closure comments say this did not complete the acceptance criteria or
 resolve the outstanding evidence gaps. The blockers below remain active under
-the roadmap's separate production-readiness boundary.
+the roadmap's separate operational-evidence scope.
 
 - Database-image checksums detect content changes but do not authenticate who produced an image.
   Operators must follow the detached-signature and trusted-identity procedure in
@@ -270,26 +273,26 @@ the roadmap's separate production-readiness boundary.
 
 - Retain complete same-commit Tier 1-6 artifacts for
   `workstation-apple-m5-arm64-apfs`, including the two-hour Tier 6 set, and add
-  representative native-Linux capacity and soak evidence before a global Production-ready
-  claim.
+  representative native-Linux capacity and soak evidence before a project-wide
+  operating-capacity claim.
 - Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.
 - Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
 - The cross-architecture rehearsal record is defined in [Cross-Architecture Release Rehearsal](cross-architecture-rehearsal.md); amd64 and arm64 evidence remains pending until separate retained bundles exist.
 - The historical `Operational readiness` workflow from PR #226 is absent from the current
   `.github/workflows/` tree and GitHub workflow registry. Its shape and scale/endurance modes are
-  not runnable in this checkout. The repository permission reports Actions enabled, but `AGENTS.md`
-  prohibits dispatch; the required retained native amd64/arm64 evidence remains pending.
+  not runnable in this checkout. Required retained native amd64/arm64 evidence
+  remains pending; removing feature maturity labels does not supply those measurements.
 - Validate the support, upgrade compatibility, release rollback, and security response expectations
   in [Support, Release, and Security-Response Policy](support-policy.md) against a tagged release
   artifact and rehearsal evidence.
 
-## Promotion Evidence
+## Deployment Evidence Requirements
 
-A Production-ready claim must link to the exact commit, toolchain, deployment profile, configuration, fixture, complete owner-suite artifacts, restart or recovery evidence, resource-bound measurements, and known limitations. Evidence must include result correctness, selected access paths, fallback reasons, storage reads, candidates, peak accounted query memory, workers, and cancellation latency. Local fallback-storage results remain developer diagnostics.
+A production deployment or capacity claim must link to the exact commit, toolchain, deployment profile, configuration, fixture, complete owner-suite artifacts, restart or recovery evidence, resource-bound measurements, and known limitations. Evidence must include result correctness, selected access paths, fallback reasons, storage reads, candidates, peak accounted query memory, workers, and cancellation latency. Local fallback-storage results remain developer diagnostics.
 
 Midge evidence owns persistence, durability, and recovery mechanics. Cassie readiness evidence owns logical layout compatibility, query-visible failure behavior, adapter integration, restart hydration, and query semantics over recovered data.
 
-## Query Engine Target 1 Promotion Boundary
+## Query Engine Target 1 Qualification Boundary
 
 [Query Engine Target 1](query-engine-target.md) separates the finite PostgreSQL
 wire/dialect/client, physical ColumnStore, CBM1 acceleration, typed relational
@@ -299,15 +302,15 @@ obligations to child acceptance and existing operational owners.
 
 The [finite type contract](type-contract.md) pins compatibility and explicit wire
 exclusions. Its local and hosted qualification remains separate from typed
-native adoption and release promotion.
+native adoption and release verification.
 
-This foundation does not promote a capability or change Production Candidate to
-Production-ready. Mapped tests, fixed P0 defects, a completed milestone, trace
+This foundation does not establish a broader measured operating envelope.
+Mapped tests, fixed P0 defects, a completed milestone, trace
 replay and short smoke runs remain distinct from retained native qualification.
 [#8](https://github.com/cntryl/cassie/issues/8) retains native profile objectives,
 measurement windows, repeated-run variance, recovery/scale/soak and fail-closed
 artifact requirements. [#29](https://github.com/cntryl/cassie/issues/29) retains local
-diagnostic promotion after that evidence; its already delivered local field
+diagnostic qualification after that evidence; its already delivered local field
 contracts are not duplicated. [#781](https://github.com/cntryl/cassie/issues/781)
 consolidates the final exact revision/image/profile/client/known-limit ledger only
 after its dependencies complete. Existing deployment profiles and evidence

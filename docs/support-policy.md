@@ -1,14 +1,17 @@
 # Support, Release, and Security-Response Policy
 
-This policy defines the Cassie pre-release service envelope. It does not promote Experimental
-features or external providers to compatibility commitments.
+Cassie is a pre-release project. This policy defines how release artifacts,
+documented behavior, compatibility boundaries and operational response are
+recorded for that project.
 
 ## Supported release boundary
 
 - A supported release is a tagged Cassie artifact with its exact commit, Cargo lockfile, Rust
   toolchain, Midge revision, container digest, and generated Admin UI assets retained together.
-- The support envelope is the capabilities marked `Stable` in [Feature Support](feature-support.md).
-  Experimental capabilities are evaluation surfaces and may change without compatibility guarantees.
+- The support envelope is the concrete behavior and explicit limits in
+  [Feature Support](feature-support.md), together with the compatibility notes
+  for the exact release artifact. Pre-release APIs and formats may change;
+  a feature label does not supply an additional compatibility guarantee.
 - PostgreSQL wire is the primary interface; REST remains secondary and administrative. Unsupported
   PostgreSQL parity, distributed behavior, trigger/application logic, and provider guarantees remain
   outside the support envelope.
@@ -30,7 +33,7 @@ features or external providers to compatibility commitments.
 
 | Level | Trigger | Response expectation |
 | --- | --- | --- |
-| Critical | Data loss/corruption, authentication bypass, remote code execution, or an unsafe release rollback. | Stop promotion, preserve evidence, isolate affected nodes, publish an owner and mitigation immediately, and prepare an emergency patch or rollback. |
+| Critical | Data loss/corruption, authentication bypass, remote code execution, or an unsafe release rollback. | Pause release rollout, preserve evidence, isolate affected nodes, publish an owner and mitigation immediately, and prepare an emergency patch or rollback. |
 | High | Material availability, authorization, query-isolation, or recovery defect without a confirmed data-loss path. | Triage promptly, reproduce against the exact release artifact, document workaround/rollback, and schedule a patch release. |
 | Normal | Compatibility, diagnostics, performance, or documentation defect within the supported envelope. | Record the affected release/profile, add regression coverage, and schedule through the normal backlog. |
 

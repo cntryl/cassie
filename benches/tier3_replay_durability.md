@@ -149,3 +149,31 @@ known buckets. All checkpoint and clean-reopen checks and the 64 MiB budget stay
 in place. Jev selected this finite verifier change at probability 0.98; its
 0.36 oracle-gap lead requires focused short/extra/wrong/null-result controls
 and actual 100k-row execution. Authored controls are not passing evidence.
+
+## Bounded replay verification deadline
+
+This driver now selects a **replay-specific 120,000 ms query deadline** together
+with its 64 MiB query-memory budget, for both initial startup and clean reopen.
+The deadline is finite and applies to each SQL query; it is not a limit on the
+whole benchmark run. The 120-second cap matches the existing large analytical
+benchmark timeout value, but this is a new replay benchmark profile, **not** a
+pre-existing 100k-row representative default or a production-default change.
+The JSON result records `query_timeout_ms` from the actual configuration used
+for both engines, alongside `query_memory_budget_bytes`.
+
+The earlier 30-second profile remains historical evidence: thirteen large
+controls passed, an unindexed SQL-default apply run failed during untimed
+verification of `title-10` with `57014`, and the final two controls were not run.
+The failure remains a failed query at that profile, not proof of a production
+runtime defect or a passing measurement. The selected finite next step is to
+rerun the failed control and the two remaining controls, plus needed targeted
+smoke coverage, on the new source with this bounded 120-second profile. Jev
+selected that step at probability 0.76; completion is subject to actual results.
+
+Old 30-second successes and new 120-second runs must retain separate source and
+profile identities. Combining them does not establish a uniform matched 100k
+matrix or the repeated comparisons required by #1271. Uniform-profile reruns,
+repeated measurements and broader durability qualification remain follow-up
+work. The fixture keeps all rows, title-bucket, total-count, checkpoint and
+reopen assertions; this profile change neither weakens them nor raises the
+memory budget. No global environment variable or production deadline is changed.

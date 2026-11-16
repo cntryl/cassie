@@ -185,11 +185,12 @@ fn measure_batch(
     (elapsed_ns, commits)
 }
 
-/// Use the standard analytical profile for full 100k-row verification.
+/// Replay-specific finite verification profile; production defaults stay unchanged.
 fn benchmark_config() -> CassieRuntimeConfig {
     CassieRuntimeConfig {
         limits: CassieRuntimeLimits {
             query_memory_budget_bytes: 64 * 1024 * 1024,
+            query_timeout_ms: 120_000,
             ..CassieRuntimeLimits::default()
         },
         ..CassieRuntimeConfig::default()
@@ -217,6 +218,7 @@ fn main() {
     let path = std::env::temp_dir().join(format!("cassie-replay-bench-{}", uuid::Uuid::new_v4()));
     let config = benchmark_config();
     let query_memory_budget_bytes = config.limits.query_memory_budget_bytes;
+    let query_timeout_ms = config.limits.query_timeout_ms;
     let setup_start = Instant::now();
     let cassie =
         Cassie::new_local_with_data_dir_and_config(&path, config.clone()).expect("local Cassie");
@@ -270,6 +272,7 @@ fn main() {
             "workload": workload.label(),
             "selected_primary_policy": mode.native_policy(),
             "query_memory_budget_bytes": query_memory_budget_bytes,
+            "query_timeout_ms": query_timeout_ms,
             "submitted_events": submitted_events,
             "applied_events": if workload == Workload::Apply { event_count } else { 0 },
             "verification_ns": verification_ns.to_string(),

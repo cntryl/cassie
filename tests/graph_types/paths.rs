@@ -1,7 +1,7 @@
 //! Path constructors, `key_parts`, `path_steps`, `weighted_path_steps`,
 //! `path_to_jsonb` and structural validation.
 
-use crate::fixture::{one_hop, person, started, SOCIAL_SETUP};
+use crate::fixture::{knows, one_hop, person, started, SOCIAL_SETUP};
 use cassie::types::Value;
 
 fn social(label: &str) -> crate::fixture::GraphFixture {
@@ -207,4 +207,33 @@ fn should_order_forward_before_reverse_paths_with_order_by() {
 
     // Assert
     assert_eq!(rows, vec![vec![Value::Int64(2)], vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_fail_with_22003_when_a_cumulative_cost_overflows_numeric() {
+    // Arrange
+    let fixture = social("graph_paths_overflow");
+    let big = "(9 * (10::numeric ^ 131071))";
+    let single = fixture.rows(&format!(
+        "SELECT count(*) FROM cassie_graph.weighted_path_steps({}, ARRAY[{big}])",
+        one_hop(2, 9_007_199_254_740_993, 1)
+    ));
+    let two_hops = format!(
+        "ROW(ARRAY[{}, {}, {}], ARRAY[{}, {}], ARRAY[1::smallint, 2::smallint])\
+         ::cassie_graph.graph_path",
+        person(2),
+        person(9_007_199_254_740_993),
+        person(2),
+        knows(10),
+        knows(10)
+    );
+
+    // Act
+    let state = fixture.sqlstate(&format!(
+        "SELECT * FROM cassie_graph.weighted_path_steps({two_hops}, ARRAY[{big}, {big}])"
+    ));
+
+    // Assert
+    assert_eq!(single, vec![vec![Value::Int64(2)]]);
+    assert_eq!(state, "22003");
 }

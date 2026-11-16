@@ -53,6 +53,17 @@ catalogs 62.74s, extended 135.58s, grammar 127.91s and types 113.59s. These are
 one hosted sample with restored dependency artifacts, not a controlled speedup
 comparison or an attribution of runtime cost.
 
+The later [main run at `62f14515`](https://github.com/cntryl/cassie/actions/runs/43961578762)
+passed on the same day in 28m54s. Its Cargo test step took 25m34s, comprising
+9m13s of compilation and about 16m21s of execution and doctests. The named
+wire targets reported catalogs 68.82s (605 cases), extended 144.02s (982),
+grammar 137.67s (1,233) and types 122.81s (1,226): 473.32s combined. These
+are reported harness durations, not the sum of per-test times. The run retained
+nine inherited ignores. Different source, test counts and uncontrolled runner
+conditions prevent treating the two runs as a speed comparison. The existing
+60-minute workflow limit is current operational context; increasing a deadline
+is not the fixture improvement requested by #1191, which remains open.
+
 The explicit `tier4_pgwire_fixture_profile` benchmark measures fresh memory
 fixture/startup, listener/connect, real password authentication, eight query
 cycles and socket/listener stop separately. Accepted connection tasks and runtime

@@ -7,6 +7,8 @@ use database_commands::{bind_create_database_statement, bind_drop_database_state
 mod function_casts;
 #[path = "binder/function_validation.rs"]
 mod function_validation;
+#[path = "binder/graph_key_part.rs"]
+mod graph_key_part;
 #[path = "binder/graph_table.rs"]
 mod graph_table;
 #[path = "binder/graph_table_expr.rs"]

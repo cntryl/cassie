@@ -316,7 +316,9 @@ impl Midge {
                 metadata.name
             )));
         }
-        let catalog_entries = self.database_catalog_entries(name)?;
+        let catalog_entries = super::graph_catalog_entries::without_reserved_objects(
+            self.database_catalog_entries(name)?,
+        );
         if catalog_entries
             .iter()
             .any(|(key, _)| is_database_catalog_data_key(key))

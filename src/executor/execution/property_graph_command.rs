@@ -128,6 +128,11 @@ fn create(
     context: &BindingContext,
     graph: &CreatePropertyGraph,
 ) -> Result<(), QueryError> {
+    // The graph feature is published only with its reserved types: a user-owned
+    // `cassie_graph` schema fails here with `42710` until the operator resolves it.
+    cassie
+        .ensure_graph_schema(&context.database)
+        .map_err(QueryError::Cassie)?;
     let name =
         crate::sql::binder::normalize_new_relation_path(&graph.name, context, &cassie.catalog)
             .map_err(QueryError::Cassie)?;

@@ -71,6 +71,22 @@ fn cast_with(
     controls: Option<&QueryExecutionControls>,
     coercion: Coercion,
 ) -> Result<ScalarValue, QueryError> {
+    let cast = cast_unchecked(value, descriptor, controls, coercion)?;
+    // The single choke point of every record construction by cast, assignment
+    // and text or bind-parameter input: the reserved graph types carry
+    // invariants a composite descriptor cannot express.
+    if let ScalarValue::Typed(TypedValue::Record(record)) = &cast {
+        super::graph_validation::validate(record)?;
+    }
+    Ok(cast)
+}
+
+fn cast_unchecked(
+    value: &ScalarValue,
+    descriptor: &CompositeRef,
+    controls: Option<&QueryExecutionControls>,
+    coercion: Coercion,
+) -> Result<ScalarValue, QueryError> {
     match value {
         ScalarValue::Typed(TypedValue::Record(record)) => {
             cast_record(record, descriptor, controls, coercion).map(typed)

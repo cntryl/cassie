@@ -131,6 +131,7 @@ fn should_bootstrap_default_database_with_public_schema_on_fresh_startup() {
         assert_eq!(
             schemata.rows(),
             vec![
+                vec![Value::String("cassie_graph".to_string())],
                 vec![Value::String("information_schema".to_string())],
                 vec![Value::String("pg_catalog".to_string())],
                 vec![Value::String("public".to_string())],

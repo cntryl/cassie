@@ -83,6 +83,7 @@ fn should_preserve_namespace_oid_above_signed_integer_range() {
             name: "postgres.high_oid".to_owned(),
             description: None,
             object_id: u64::from(u32::MAX) - 16_384,
+            system_owner: None,
         });
 
     // Act
@@ -111,6 +112,7 @@ fn should_round_trip_maximum_namespace_oid_in_binary_pgwire() {
                 name: "postgres.wire_high_oid".to_owned(),
                 description: None,
                 object_id: u64::from(u32::MAX) - 16_384,
+                system_owner: None,
             });
         let server = support_pgwire::spawn_server(cassie).await;
         let mut config = tokio_postgres::Config::new();

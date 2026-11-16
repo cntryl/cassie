@@ -4,12 +4,12 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1720 |
-| Rust files | 1683 |
-| Rust test declarations | 10202 |
+| Files under `tests/` | 1729 |
+| Rust files | 1692 |
+| Rust test declarations | 10269 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10208 |
-| Cargo test targets | 41 |
+| Static Rust registration instances | 10275 |
+| Cargo test targets | 42 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
@@ -42,6 +42,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [graph_table](inventory/graph_table.md) | 4 | 0 |
+| [graph_types](inventory/graph_types.md) | 67 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
 | [metrics](inventory/metrics.md) | 58 | 0 |
 | [null_safe_predicates](inventory/null_safe_predicates.md) | 65 | 0 |
@@ -93,6 +94,7 @@ Each suite's Cargo target and source root are recorded here.
 | `executor` | `tests/executor.rs` |
 | `expression_index_upsert` | `tests/expression_index_upsert.rs` |
 | `graph_table` | `tests/graph_table.rs` |
+| `graph_types` | `tests/graph_types.rs` |
 | `json_writes` | `tests/json_writes.rs` |
 | `metrics` | `tests/metrics.rs` |
 | `null_safe_predicates` | `tests/null_safe_predicates.rs` |

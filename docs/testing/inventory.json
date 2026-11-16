@@ -68,6 +68,10 @@
         "file": "tests/graph_table.rs"
       },
       {
+        "name": "graph_types",
+        "file": "tests/graph_types.rs"
+      },
+      {
         "name": "json_writes",
         "file": "tests/json_writes.rs"
       },
@@ -168,11 +172,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1720,
-    "rust_files": 1683,
-    "rust_test_declarations": 10202,
+    "files": 1729,
+    "rust_files": 1692,
+    "rust_test_declarations": 10269,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10208,
+    "registered_rust_instances": 10275,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -8476,7 +8480,7 @@
       "name": "should_list_namespaces_through_pg_catalog",
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
       "line": 434,
-      "end_line": 473,
+      "end_line": 474,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -8506,8 +8510,8 @@
       "id": "tests/catalog_security/catalogs/catalog_introspection.rs::should_list_constraints_through_information_schema",
       "name": "should_list_constraints_through_information_schema",
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
-      "line": 476,
-      "end_line": 518,
+      "line": 477,
+      "end_line": 519,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -8537,8 +8541,8 @@
       "id": "tests/catalog_security/catalogs/catalog_introspection.rs::should_return_admin_role_for_pg_roles_catalog_view",
       "name": "should_return_admin_role_for_pg_roles_catalog_view",
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
-      "line": 521,
-      "end_line": 548,
+      "line": 522,
+      "end_line": 549,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -8568,8 +8572,8 @@
       "id": "tests/catalog_security/catalogs/catalog_introspection.rs::should_list_supported_types_through_pg_catalog_type_view",
       "name": "should_list_supported_types_through_pg_catalog_type_view",
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
-      "line": 551,
-      "end_line": 641,
+      "line": 552,
+      "end_line": 642,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -8599,8 +8603,8 @@
       "id": "tests/catalog_security/catalogs/catalog_introspection.rs::should_list_user_defined_views_through_catalog_views",
       "name": "should_list_user_defined_views_through_catalog_views",
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
-      "line": 644,
-      "end_line": 703,
+      "line": 645,
+      "end_line": 704,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11111,7 +11115,7 @@
       "name": "should_preserve_namespace_oid_above_signed_integer_range",
       "current_file": "tests/catalog_security/catalogs/namespaces/namespace_descriptors.rs",
       "line": 76,
-      "end_line": 96,
+      "end_line": 97,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11141,8 +11145,8 @@
       "id": "tests/catalog_security/catalogs/namespaces/namespace_descriptors.rs::should_round_trip_maximum_namespace_oid_in_binary_pgwire",
       "name": "should_round_trip_maximum_namespace_oid_in_binary_pgwire",
       "current_file": "tests/catalog_security/catalogs/namespaces/namespace_descriptors.rs",
-      "line": 99,
-      "end_line": 143,
+      "line": 100,
+      "end_line": 145,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11172,8 +11176,8 @@
       "id": "tests/catalog_security/catalogs/namespaces/namespace_descriptors.rs::should_preserve_namespace_identity_across_rollback",
       "name": "should_preserve_namespace_identity_across_rollback",
       "current_file": "tests/catalog_security/catalogs/namespaces/namespace_descriptors.rs",
-      "line": 146,
-      "end_line": 192,
+      "line": 148,
+      "end_line": 194,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -19884,7 +19888,7 @@
       "name": "should_bootstrap_default_database_with_public_schema_on_fresh_startup",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
       "line": 96,
-      "end_line": 140,
+      "end_line": 141,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -19914,8 +19918,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_reject_queries_for_missing_session_database",
       "name": "should_reject_queries_for_missing_session_database",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 143,
-      "end_line": 167,
+      "line": 144,
+      "end_line": 168,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -19945,8 +19949,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_filter_catalog_views_plus_constraints_to_current_database",
       "name": "should_filter_catalog_views_plus_constraints_to_current_database",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 170,
-      "end_line": 260,
+      "line": 171,
+      "end_line": 261,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -19976,8 +19980,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_filter_projection_catalog_views_to_current_database",
       "name": "should_filter_projection_catalog_views_to_current_database",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 263,
-      "end_line": 347,
+      "line": 264,
+      "end_line": 348,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20007,8 +20011,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_restrict_pg_table_visibility_to_search_path",
       "name": "should_restrict_pg_table_visibility_to_search_path",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 350,
-      "end_line": 406,
+      "line": 351,
+      "end_line": 407,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20038,8 +20042,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_reject_relation_creation_in_system_schemas",
       "name": "should_reject_relation_creation_in_system_schemas",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 409,
-      "end_line": 435,
+      "line": 410,
+      "end_line": 436,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20069,8 +20073,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_reject_relation_creation_given_system_schema_first_in_search_path",
       "name": "should_reject_relation_creation_given_system_schema_first_in_search_path",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 438,
-      "end_line": 456,
+      "line": 439,
+      "end_line": 457,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20100,8 +20104,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_keep_system_schema_qualified_names_out_of_other_databases",
       "name": "should_keep_system_schema_qualified_names_out_of_other_databases",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 459,
-      "end_line": 484,
+      "line": 460,
+      "end_line": 485,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20131,8 +20135,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_not_read_graph_edges_from_another_database",
       "name": "should_not_read_graph_edges_from_another_database",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 487,
-      "end_line": 549,
+      "line": 488,
+      "end_line": 550,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20162,8 +20166,8 @@
       "id": "tests/catalog_security/namespaces/database_scope.rs::should_scope_index_catalog_views_like_regclass_when_embedded_database_is_absent",
       "name": "should_scope_index_catalog_views_like_regclass_when_embedded_database_is_absent",
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
-      "line": 552,
-      "end_line": 631,
+      "line": 553,
+      "end_line": 632,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65824,6 +65828,2083 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/catalog.rs::should_publish_the_three_graph_types_in_pg_type",
+      "name": "should_publish_the_three_graph_types_in_pg_type",
+      "current_file": "tests/graph_types/catalog.rs",
+      "line": 8,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "catalog::should_publish_the_three_graph_types_in_pg_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/catalog.rs::should_publish_the_array_types_in_pg_type",
+      "name": "should_publish_the_array_types_in_pg_type",
+      "current_file": "tests/graph_types/catalog.rs",
+      "line": 34,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "catalog::should_publish_the_array_types_in_pg_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/catalog.rs::should_publish_composite_relations_in_pg_class",
+      "name": "should_publish_composite_relations_in_pg_class",
+      "current_file": "tests/graph_types/catalog.rs",
+      "line": 49,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "catalog::should_publish_composite_relations_in_pg_class"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/catalog.rs::should_publish_the_attributes_of_graph_path_in_pg_attribute",
+      "name": "should_publish_the_attributes_of_graph_path_in_pg_attribute",
+      "current_file": "tests/graph_types/catalog.rs",
+      "line": 65,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "catalog::should_publish_the_attributes_of_graph_path_in_pg_attribute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/catalog.rs::should_keep_the_type_identities_across_a_second_bootstrap",
+      "name": "should_keep_the_type_identities_across_a_second_bootstrap",
+      "current_file": "tests/graph_types/catalog.rs",
+      "line": 88,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "catalog::should_keep_the_type_identities_across_a_second_bootstrap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/constructors.rs::should_build_a_key_part_from_each_exact_type",
+      "name": "should_build_a_key_part_from_each_exact_type",
+      "current_file": "tests/graph_types/constructors.rs",
+      "line": 7,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "constructors::should_build_a_key_part_from_each_exact_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/constructors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_reject_a_path_with_the_wrong_vertex_count_with_22023",
+      "name": "should_reject_a_path_with_the_wrong_vertex_count_with_22023",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 12,
+      "end_line": 24,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_reject_a_path_with_the_wrong_vertex_count_with_22023"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_accept_a_zero_hop_path",
+      "name": "should_accept_a_zero_hop_path",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 27,
+      "end_line": 40,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_accept_a_zero_hop_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_list_the_key_parts_of_a_reference_from_ordinal_one",
+      "name": "should_list_the_key_parts_of_a_reference_from_ordinal_one",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 43,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_list_the_key_parts_of_a_reference_from_ordinal_one"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_start_path_steps_at_position_zero_with_no_edge_or_direction",
+      "name": "should_start_path_steps_at_position_zero_with_no_edge_or_direction",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 58,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_start_path_steps_at_position_zero_with_no_edge_or_direction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_return_one_row_for_a_zero_hop_path_in_path_steps",
+      "name": "should_return_one_row_for_a_zero_hop_path_in_path_steps",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 77,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_return_one_row_for_a_zero_hop_path_in_path_steps"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_return_no_rows_for_a_null_path",
+      "name": "should_return_no_rows_for_a_null_path",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 93,
+      "end_line": 102,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_return_no_rows_for_a_null_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_accumulate_costs_along_a_weighted_path",
+      "name": "should_accumulate_costs_along_a_weighted_path",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 105,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_accumulate_costs_along_a_weighted_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_reject_a_negative_edge_cost_with_22023",
+      "name": "should_reject_a_negative_edge_cost_with_22023",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 127,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_reject_a_negative_edge_cost_with_22023"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_reject_a_cost_array_of_the_wrong_length_with_22023",
+      "name": "should_reject_a_cost_array_of_the_wrong_length_with_22023",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 142,
+      "end_line": 154,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_reject_a_cost_array_of_the_wrong_length_with_22023"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_export_a_zero_hop_path_as_version_one_json",
+      "name": "should_export_a_zero_hop_path_as_version_one_json",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 157,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_export_a_zero_hop_path_as_version_one_json"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_return_null_for_a_null_path_in_path_to_jsonb",
+      "name": "should_return_null_for_a_null_path_in_path_to_jsonb",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 180,
+      "end_line": 189,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_return_null_for_a_null_path_in_path_to_jsonb"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_order_forward_before_reverse_paths_with_order_by",
+      "name": "should_order_forward_before_reverse_paths_with_order_by",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 192,
+      "end_line": 210,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_order_forward_before_reverse_paths_with_order_by"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_resolve_an_existing_vertex",
+      "name": "should_resolve_an_existing_vertex",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 33,
+      "end_line": 42,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_resolve_an_existing_vertex"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_resolve_an_existing_edge",
+      "name": "should_resolve_an_existing_edge",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 45,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_resolve_an_existing_edge"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_resolve_a_schema_qualified_graph_name",
+      "name": "should_resolve_a_schema_qualified_graph_name",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 57,
+      "end_line": 69,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_resolve_a_schema_qualified_graph_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_reject_an_unknown_graph_with_42704",
+      "name": "should_reject_an_unknown_graph_with_42704",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 72,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_reject_an_unknown_graph_with_42704"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_reject_an_unknown_mapping_with_42704",
+      "name": "should_reject_an_unknown_mapping_with_42704",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 86,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_reject_an_unknown_mapping_with_42704"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_reject_an_edge_mapping_used_as_a_vertex_mapping_with_42704",
+      "name": "should_reject_an_edge_mapping_used_as_a_vertex_mapping_with_42704",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 100,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_reject_an_edge_mapping_used_as_a_vertex_mapping_with_42704"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_reject_an_unknown_element_with_42704",
+      "name": "should_reject_an_unknown_element_with_42704",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 114,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_reject_an_unknown_element_with_42704"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_reject_a_key_type_mismatch_with_42804",
+      "name": "should_reject_a_key_type_mismatch_with_42804",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 126,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_reject_a_key_type_mismatch_with_42804"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_reject_a_key_arity_mismatch_with_42804",
+      "name": "should_reject_a_key_arity_mismatch_with_42804",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 140,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_reject_a_key_arity_mismatch_with_42804"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_reject_a_null_graph_name_with_22004",
+      "name": "should_reject_a_null_graph_name_with_22004",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 155,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_reject_a_null_graph_name_with_22004"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_reject_a_null_key_array_with_22004",
+      "name": "should_reject_a_null_key_array_with_22004",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 169,
+      "end_line": 178,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_reject_a_null_key_array_with_22004"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_see_a_row_inserted_in_the_current_transaction",
+      "name": "should_see_a_row_inserted_in_the_current_transaction",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 181,
+      "end_line": 192,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_see_a_row_inserted_in_the_current_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_not_see_a_row_deleted_in_the_current_transaction",
+      "name": "should_not_see_a_row_deleted_in_the_current_transaction",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 195,
+      "end_line": 206,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_not_see_a_row_deleted_in_the_current_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_forget_a_row_whose_insert_was_rolled_back",
+      "name": "should_forget_a_row_whose_insert_was_rolled_back",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 209,
+      "end_line": 221,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_forget_a_row_whose_insert_was_rolled_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_keep_a_reference_resolvable_after_the_graph_is_renamed",
+      "name": "should_keep_a_reference_resolvable_after_the_graph_is_renamed",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 224,
+      "end_line": 244,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_keep_a_reference_resolvable_after_the_graph_is_renamed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_make_an_old_reference_unresolvable_after_the_graph_is_dropped_then_recreated",
+      "name": "should_make_an_old_reference_unresolvable_after_the_graph_is_dropped_then_recreated",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 247,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_make_an_old_reference_unresolvable_after_the_graph_is_dropped_then_recreated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_deny_a_role_without_select_on_the_mapped_table_with_42501",
+      "name": "should_deny_a_role_without_select_on_the_mapped_table_with_42501",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 264,
+      "end_line": 282,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_deny_a_role_without_select_on_the_mapped_table_with_42501"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs.rs::should_not_reveal_whether_a_protected_row_exists_to_a_role_without_select",
+      "name": "should_not_reveal_whether_a_protected_row_exists_to_a_role_without_select",
+      "current_file": "tests/graph_types/refs.rs",
+      "line": 285,
+      "end_line": 306,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs::should_not_reveal_whether_a_protected_row_exists_to_a_role_without_select"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_dropping_the_reserved_schema",
+      "name": "should_block_dropping_the_reserved_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 13,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_dropping_the_reserved_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_dropping_the_reserved_schema_with_cascade",
+      "name": "should_block_dropping_the_reserved_schema_with_cascade",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 25,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_dropping_the_reserved_schema_with_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_renaming_the_reserved_schema",
+      "name": "should_block_renaming_the_reserved_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 37,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_renaming_the_reserved_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_creating_a_type_in_the_reserved_schema",
+      "name": "should_block_creating_a_type_in_the_reserved_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 49,
+      "end_line": 58,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_creating_a_type_in_the_reserved_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_creating_a_table_in_the_reserved_schema",
+      "name": "should_block_creating_a_table_in_the_reserved_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 61,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_creating_a_table_in_the_reserved_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_dropping_a_reserved_type_even_with_cascade",
+      "name": "should_block_dropping_a_reserved_type_even_with_cascade",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 73,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_dropping_a_reserved_type_even_with_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_renaming_a_reserved_type",
+      "name": "should_block_renaming_a_reserved_type",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 85,
+      "end_line": 94,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_renaming_a_reserved_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_adding_an_attribute_to_a_reserved_type",
+      "name": "should_block_adding_an_attribute_to_a_reserved_type",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 97,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_adding_an_attribute_to_a_reserved_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_keep_the_reserved_types_after_a_blocked_cascade_drop",
+      "name": "should_keep_the_reserved_types_after_a_blocked_cascade_drop",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 109,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_keep_the_reserved_types_after_a_blocked_cascade_drop"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_fail_bootstrap_with_42710_when_the_user_owns_the_schema",
+      "name": "should_fail_bootstrap_with_42710_when_the_user_owns_the_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 129,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_fail_bootstrap_with_42710_when_the_user_owns_the_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_leave_the_user_schema_untouched_when_bootstrap_conflicts",
+      "name": "should_leave_the_user_schema_untouched_when_bootstrap_conflicts",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 146,
+      "end_line": 162,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_leave_the_user_schema_untouched_when_bootstrap_conflicts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_bootstrap_after_the_user_removes_the_conflicting_schema",
+      "name": "should_bootstrap_after_the_user_removes_the_conflicting_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 165,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_bootstrap_after_the_user_removes_the_conflicting_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_drop_an_empty_database_that_holds_the_reserved_schema",
+      "name": "should_drop_an_empty_database_that_holds_the_reserved_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 188,
+      "end_line": 208,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_drop_an_empty_database_that_holds_the_reserved_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_bootstrap_the_reserved_schema_in_a_new_database",
+      "name": "should_bootstrap_the_reserved_schema_in_a_new_database",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 211,
+      "end_line": 232,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_bootstrap_the_reserved_schema_in_a_new_database"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_give_a_restored_database_its_own_reserved_schema",
+      "name": "should_give_a_restored_database_its_own_reserved_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 235,
+      "end_line": 265,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_give_a_restored_database_its_own_reserved_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reserved.rs::should_block_every_other_object_kind_in_the_reserved_schema",
+      "name": "should_block_every_other_object_kind_in_the_reserved_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 268,
+      "end_line": 306,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_every_other_object_kind_in_the_reserved_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/storage.rs::should_restore_stored_graph_values_after_a_restart",
+      "name": "should_restore_stored_graph_values_after_a_restart",
+      "current_file": "tests/graph_types/storage.rs",
+      "line": 15,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "storage::should_restore_stored_graph_values_after_a_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/storage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/storage.rs::should_reject_an_invalid_value_written_to_a_stored_column",
+      "name": "should_reject_an_invalid_value_written_to_a_stored_column",
+      "current_file": "tests/graph_types/storage.rs",
+      "line": 62,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "storage::should_reject_an_invalid_value_written_to_a_stored_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/storage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/storage.rs::should_reject_an_invalid_value_written_by_update",
+      "name": "should_reject_an_invalid_value_written_by_update",
+      "current_file": "tests/graph_types/storage.rs",
+      "line": 75,
+      "end_line": 86,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "storage::should_reject_an_invalid_value_written_by_update"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/storage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/storage.rs::should_validate_reserved_values_written_by_projector_replay",
+      "name": "should_validate_reserved_values_written_by_projector_replay",
+      "current_file": "tests/graph_types/storage.rs",
+      "line": 123,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "storage::should_validate_reserved_values_written_by_projector_replay"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/storage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/storage.rs::should_validate_a_reserved_value_nested_in_a_user_type",
+      "name": "should_validate_a_reserved_value_nested_in_a_user_type",
+      "current_file": "tests/graph_types/storage.rs",
+      "line": 153,
+      "end_line": 180,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "storage::should_validate_a_reserved_value_nested_in_a_user_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/storage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_send_a_key_part_in_text_form",
+      "name": "should_send_a_key_part_in_text_form",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 48,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_send_a_key_part_in_text_form"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_send_a_key_part_in_binary_record_form",
+      "name": "should_send_a_key_part_in_binary_record_form",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 68,
+      "end_line": 86,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_send_a_key_part_in_binary_record_form"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_accept_a_text_key_part_parameter_with_escaped_text",
+      "name": "should_accept_a_text_key_part_parameter_with_escaped_text",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 89,
+      "end_line": 108,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_accept_a_text_key_part_parameter_with_escaped_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_accept_a_binary_key_part_parameter_beyond_the_double_precision_range",
+      "name": "should_accept_a_binary_key_part_parameter_beyond_the_double_precision_range",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 111,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_accept_a_binary_key_part_parameter_beyond_the_double_precision_range"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_distinguish_a_null_parameter_from_a_populated_one",
+      "name": "should_distinguish_a_null_parameter_from_a_populated_one",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 133,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_distinguish_a_null_parameter_from_a_populated_one"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_reject_malformed_text_input_with_22p02",
+      "name": "should_reject_malformed_text_input_with_22p02",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 154,
+      "end_line": 163,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_reject_malformed_text_input_with_22p02"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_reject_malformed_binary_input_with_22p03",
+      "name": "should_reject_malformed_binary_input_with_22p03",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 166,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_reject_malformed_binary_input_with_22p03"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_reject_a_well_formed_invalid_text_parameter_with_22023",
+      "name": "should_reject_a_well_formed_invalid_text_parameter_with_22023",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 179,
+      "end_line": 194,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_reject_a_well_formed_invalid_text_parameter_with_22023"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_reject_a_well_formed_invalid_binary_parameter_with_22023",
+      "name": "should_reject_a_well_formed_invalid_binary_parameter_with_22023",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 197,
+      "end_line": 208,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_reject_a_well_formed_invalid_binary_parameter_with_22023"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/wire.rs::should_round_trip_a_path_through_its_text_form",
+      "name": "should_round_trip_a_path_through_its_text_form",
+      "current_file": "tests/graph_types/wire.rs",
+      "line": 211,
+      "end_line": 245,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "wire::should_round_trip_a_path_through_its_text_form"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/wire.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -317135,8 +319216,8 @@
       "current_file": "tests/Cargo.toml",
       "role": "fixture_data",
       "action": "keep",
-      "lines": 211,
-      "sha256": "11a20460dd4324b34ef86493e51c283f51d7b640886dd5c960fd8281b4472386",
+      "lines": 215,
+      "sha256": "98d81690d03cec874c379909925417354eaf353158c64f96cfa080e31d3276db",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [
@@ -317913,8 +319994,8 @@
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 703,
-      "sha256": "7028eb415e9e429fee8f6ea5958cc596f94e4a05f61ac2f6cc3e8936cc550e71",
+      "lines": 704,
+      "sha256": "09763914179b6434d104eda5bbb2d1456feebfa6b3b54f81b479f98cd41aaf09",
       "test_declarations": 12,
       "registered_suites": [
         "catalog_security"
@@ -318241,8 +320322,8 @@
       "current_file": "tests/catalog_security/catalogs/namespaces/namespace_descriptors.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 192,
-      "sha256": "ba57a86f6ab386c983bd6170767c4f0d08039ac8b117ab78639051a2a2a58ff2",
+      "lines": 194,
+      "sha256": "a971b1af697e8f91becf430fe45a719306598d778a689dcac143bb140146face",
       "test_declarations": 5,
       "registered_suites": [
         "catalog_security"
@@ -319047,8 +321128,8 @@
       "current_file": "tests/catalog_security/namespaces/database_scope.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 631,
-      "sha256": "7cb4ad4bdd74881aa319e35615001d3b2868724e357bfd0c313c06fdceff6dc5",
+      "lines": 632,
+      "sha256": "e6e98d4cf53e054da301a64257c25ea5d8612f35c16ec8e4814c25a132865053",
       "test_declarations": 10,
       "registered_suites": [
         "catalog_security"
@@ -323845,6 +325926,141 @@
       ],
       "destinations": [
         "tests/graph_table.rs"
+      ],
+      "line_limit": 12000
+    },
+    {
+      "current_file": "tests/graph_types/catalog.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 100,
+      "sha256": "2d0020ef1ad02f1d43321698112b793683461244bbfe8f3da1e8bb351eb3bd95",
+      "test_declarations": 5,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/catalog.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/constructors.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 31,
+      "sha256": "d23ad00585118a3c38388e975235e0027903dd7f5e87e66fc701c33ec0e2eed0",
+      "test_declarations": 1,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/constructors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/fixture.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 113,
+      "sha256": "292ae5d0660f51f226e6be2c8a4eedec9b24bfb9f8c209735a0813f70fc00e00",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/fixture.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/paths.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 210,
+      "sha256": "634346967f9ead6bb581506da841693ed667cf8c332a881cd8f0a5a55f55fc4c",
+      "test_declarations": 12,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/paths.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/refs.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 306,
+      "sha256": "ffc2935c1579d2eddbdad0e5ae752ac2398f39d686c39e6bcb6025f9b232db18",
+      "test_declarations": 18,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/refs.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/reserved.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 306,
+      "sha256": "7e2f7ac0e487e2a3811eb27c812740094b74835821d1b4e2f47b12050db117bf",
+      "test_declarations": 16,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/reserved.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/storage.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 180,
+      "sha256": "bc94134aca523bd15f2ee68ef852814d291a1cd28e4f50b5769d85aec8db0f18",
+      "test_declarations": 5,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/storage.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/wire.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 245,
+      "sha256": "dbf327e18161f3f43efc9c59117306e2312eea7cad8d89d07a97449765fe79e3",
+      "test_declarations": 10,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/wire.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types.rs",
+      "role": "cargo_target",
+      "action": "keep",
+      "lines": 29,
+      "sha256": "727cc529805a7bfb8c4e5d5eb72ca2e1b7ef7a3ba68e81788049b9d0e81100c2",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types.rs"
       ],
       "line_limit": 12000
     },

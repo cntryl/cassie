@@ -422,6 +422,10 @@ pub struct NamespaceMeta {
     /// Stable identity allocated at creation; renames keep it.
     #[serde(default)]
     pub object_id: u64,
+    /// The marker of a schema the system owns (the reserved `cassie_graph`
+    /// schema); `None` for every user-created schema.
+    #[serde(default)]
+    pub system_owner: Option<String>,
 }
 
 impl CollectionMeta {
@@ -605,6 +609,7 @@ impl NamespaceMeta {
             name: name.into(),
             description,
             object_id: 0,
+            system_owner: None,
         }
     }
 }

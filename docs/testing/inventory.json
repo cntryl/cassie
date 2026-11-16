@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1760,
-    "rust_files": 1723,
-    "rust_test_declarations": 10461,
+    "files": 1761,
+    "rust_files": 1724,
+    "rust_test_declarations": 10466,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10486,
+    "registered_rust_instances": 10491,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -66270,6 +66270,161 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/matrix.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/overlay_probes.rs::should_match_the_exact_read_when_pending_updates_move_edges_between_vertices",
+      "name": "should_match_the_exact_read_when_pending_updates_move_edges_between_vertices",
+      "current_file": "tests/graph_table/overlay_probes.rs",
+      "line": 68,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "overlay_probes::should_match_the_exact_read_when_pending_updates_move_edges_between_vertices"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/overlay_probes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/overlay_probes.rs::should_match_the_exact_read_when_pending_changes_remove_or_rekey_a_vertex",
+      "name": "should_match_the_exact_read_when_pending_changes_remove_or_rekey_a_vertex",
+      "current_file": "tests/graph_table/overlay_probes.rs",
+      "line": 99,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "overlay_probes::should_match_the_exact_read_when_pending_changes_remove_or_rekey_a_vertex"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/overlay_probes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/overlay_probes.rs::should_match_the_exact_read_after_a_truncate_inside_the_transaction",
+      "name": "should_match_the_exact_read_after_a_truncate_inside_the_transaction",
+      "current_file": "tests/graph_table/overlay_probes.rs",
+      "line": 129,
+      "end_line": 149,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "overlay_probes::should_match_the_exact_read_after_a_truncate_inside_the_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/overlay_probes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/overlay_probes.rs::should_match_the_exact_read_for_text_keys_that_differ_by_case_or_padding",
+      "name": "should_match_the_exact_read_for_text_keys_that_differ_by_case_or_padding",
+      "current_file": "tests/graph_table/overlay_probes.rs",
+      "line": 152,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "overlay_probes::should_match_the_exact_read_for_text_keys_that_differ_by_case_or_padding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/overlay_probes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/overlay_probes.rs::should_read_the_statement_snapshot_when_a_statement_writes_the_table_it_traverses",
+      "name": "should_read_the_statement_snapshot_when_a_statement_writes_the_table_it_traverses",
+      "current_file": "tests/graph_table/overlay_probes.rs",
+      "line": 217,
+      "end_line": 238,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "overlay_probes::should_read_the_statement_snapshot_when_a_statement_writes_the_table_it_traverses"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/overlay_probes.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -332012,6 +332167,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/overlay_probes.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 238,
+      "sha256": "d0bc1a4beab264f0ddb92b3895c0048e7548862475544199bb3da936e263027f",
+      "test_declarations": 5,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/overlay_probes.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/paths.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -332153,8 +332323,8 @@
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 55,
-      "sha256": "315a871acd8720e0684035b2b48902fb1ae1a593a8e7ef855de0de2756282842",
+      "lines": 58,
+      "sha256": "accbe373085bef394e0fae29cd0b9eb44e2fa4ae39bd0821464bfe37d5a7393b",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"

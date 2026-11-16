@@ -46,6 +46,7 @@ pub(crate) fn derived_source_schema_with_parameters(
             inner.as_ref(),
             QuerySource::TableFunction { function, .. }
                 if crate::sql::table_sources::is_generated(&function.name)
+                    || crate::sql::functions::graph_weighted::is_weighted_paths(&function.name)
         ) =>
         {
             let schema = infer_source_schema_with_parameters(
@@ -60,7 +61,8 @@ pub(crate) fn derived_source_schema_with_parameters(
             (alias, schema)
         }
         QuerySource::TableFunction { name, function, .. }
-            if crate::sql::table_sources::is_generated(&function.name) =>
+            if crate::sql::table_sources::is_generated(&function.name)
+                || crate::sql::functions::graph_weighted::is_weighted_paths(&function.name) =>
         {
             let schema = infer_source_schema_with_parameters(
                 source,

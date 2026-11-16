@@ -15,6 +15,11 @@ mod project;
 mod select;
 mod store;
 mod walk;
+mod weighted;
+mod weighted_args;
+mod weighted_search;
+
+pub(super) use weighted::execute as execute_weighted;
 
 use std::sync::Arc;
 

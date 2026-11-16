@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1770,
-    "rust_files": 1733,
-    "rust_test_declarations": 10517,
+    "files": 1771,
+    "rust_files": 1734,
+    "rust_test_declarations": 10521,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10542,
+    "registered_rust_instances": 10546,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -6176,6 +6176,130 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/graph_topology.rs::should_admit_only_the_declared_graph_topology_points",
+      "name": "should_admit_only_the_declared_graph_topology_points",
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "line": 7,
+      "end_line": 42,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "graph_topology::should_admit_only_the_declared_graph_topology_points"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/graph_topology.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/graph_topology.rs::should_reject_changes_to_the_topology_owner_workload_scale_or_class",
+      "name": "should_reject_changes_to_the_topology_owner_workload_scale_or_class",
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "line": 45,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "graph_topology::should_reject_changes_to_the_topology_owner_workload_scale_or_class"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/graph_topology.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/graph_topology.rs::should_resolve_a_memory_profile_for_every_registered_topology_scenario",
+      "name": "should_resolve_a_memory_profile_for_every_registered_topology_scenario",
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "line": 87,
+      "end_line": 107,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "graph_topology::should_resolve_a_memory_profile_for_every_registered_topology_scenario"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/graph_topology.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/graph_topology.rs::should_reject_invalid_topology_catalog_contracts_without_relabeling_other_scales",
+      "name": "should_reject_invalid_topology_catalog_contracts_without_relabeling_other_scales",
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "line": 110,
+      "end_line": 162,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "graph_topology::should_reject_invalid_topology_catalog_contracts_without_relabeling_other_scales"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/graph_topology.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -327628,6 +327752,21 @@
       "line_limit": 12000
     },
     {
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 162,
+      "sha256": "21e96fd158ee352f291ea24becb3b1b2ef51cb2c89a7a6fc8551602124666f98",
+      "test_declarations": 4,
+      "registered_suites": [
+        "bench_diagnostics"
+      ],
+      "destinations": [
+        "tests/bench_diagnostics/semantics/graph_topology.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/bench_diagnostics/relations/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -327661,8 +327800,8 @@
       "current_file": "tests/bench_diagnostics.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 5,
-      "sha256": "98f19e94cb9ac4f0a836cf39c548c73019b69132f3a3ac0c0bc97dc52a185f27",
+      "lines": 11,
+      "sha256": "9d79a21dea958a355bca6090a196c949e82a17605967de6c62420e7a98ca7d0a",
       "test_declarations": 0,
       "registered_suites": [
         "bench_diagnostics"

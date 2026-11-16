@@ -27,6 +27,17 @@ pub(crate) fn is_reserved_entry(key: &[u8], value: &[u8]) -> bool {
     }
 }
 
+/// The durable database identity and the stored property graph definitions.
+/// A distinct clone must not inherit them: it allocates its own database
+/// identity, and graphs are recreated there with fresh graph and mapping
+/// identities, so a copied reference never resolves in the clone (#1268).
+pub(crate) fn is_clone_excluded_identity_entry(key: &[u8]) -> bool {
+    matches!(
+        key_family(key),
+        Some("database-identity" | "property-graph")
+    )
+}
+
 /// Removes the reserved schema from a `namespaces` registry value.
 fn without_reserved_namespace(value: &[u8]) -> Vec<u8> {
     let Ok(names) = serde_json::from_slice::<Vec<String>>(value) else {

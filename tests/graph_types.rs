@@ -43,5 +43,8 @@ mod record_codec;
 #[path = "graph_types/driver.rs"]
 mod driver;
 
+#[path = "graph_types/images.rs"]
+mod images;
+
 #[path = "graph_types/driver_sqlx.rs"]
 mod driver_sqlx;

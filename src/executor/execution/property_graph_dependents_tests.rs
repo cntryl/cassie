@@ -455,7 +455,7 @@ fn should_guard_mapped_tables_in_an_instance_that_was_not_started() {
         .catalog
         .list_property_graphs()
         .first()
-        .map(|graph| crate::catalog::local_name(&graph.vertices[0].table).to_owned());
+        .map(|graph| crate::catalog::local_name(&graph.vertices[0].table));
 
     // Assert
     assert_eq!(drop_table, "2BP01");

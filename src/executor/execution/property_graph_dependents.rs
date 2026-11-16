@@ -257,7 +257,7 @@ pub(super) fn rename_table(
                 if mapped.eq_ignore_ascii_case(&current) {
                     next.clone()
                 } else {
-                    crate::catalog::local_name(&next).to_owned()
+                    crate::catalog::local_name(&next)
                 }
             })
         })

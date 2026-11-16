@@ -289,8 +289,8 @@ Cassie supplies the PostgreSQL-like virtual catalog rows needed by supported cli
 
 The stable named-client subset and its exact columns, lifecycle behavior, failure contract, and
 retained client evidence are defined in [Catalog Support](catalog-support.md). Only
-`information_schema.tables` and `information_schema.columns` are Stable; all other virtual catalogs
-remain Experimental.
+`information_schema.tables` and `information_schema.columns` have the documented
+named-client contract; other virtual catalogs retain their explicit finite boundaries.
 
 ## Client Evidence
 
@@ -300,7 +300,7 @@ Certification requires normalized, secret-free traces and deterministic replay f
 
 PostgreSQL replication, foreign-data wrappers, triggers, dashboards, maintenance, debugger, and backup tooling are explicitly unsupported. Cassie does not load native PostgreSQL extension libraries or claim extension ABI parity; the only planned bounded extension shims are the `vector` and `pgcrypto` behaviors in [#843](https://github.com/cntryl/cassie/issues/843), with vector SQL behavior owned by [#844](https://github.com/cntryl/cassie/issues/844). GUI create/alter dialogs are outside this contract; supported DDL remains available through query tools. Cassie does not claim full PostgreSQL, pgAdmin, or DBeaver parity.
 
-The Stable procedure subset is defined separately in [Limited Procedures and CALL](procedure-support.md). It covers one persisted Cassie SQL statement and a named `tokio-postgres` workflow, not PostgreSQL procedural languages or trigger behavior.
+The documented procedure subset is defined separately in [Limited Procedures and CALL](procedure-support.md). It covers one persisted Cassie SQL statement and a named `tokio-postgres` workflow, not PostgreSQL procedural languages or trigger behavior.
 
 The repository currently keeps automated coverage for the native pgwire harness and `tokio-postgres`; external Prisma, psql, and SQLAlchemy probes are opt-in when separately provisioned. Version-pinned pgAdmin 9.16 and DBeaver 26.1.3 normalized trace-replay lanes are available and retain explicitly non-certifying manifests. The psycopg 3 and JDBC client lanes remain Planned/unverified, and pgAdmin/DBeaver remain uncertified until separately provisioned live desktop workflows retain exact-revision evidence. Client-version upgrades require refreshed traces and live smoke suites before a future certification claim changes.
 

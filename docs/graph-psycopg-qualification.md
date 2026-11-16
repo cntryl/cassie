@@ -2,7 +2,7 @@
 
 This is an explicit client qualification workflow for the selected graph type
 contract (#1268), using Psycopg 3's public `CompositeInfo` and
-`register_composite` APIs. Graph support remains Experimental. The five-invariant workflow passed on
+`register_composite` APIs. Cassie is pre-release. The five-invariant workflow passed on
 2026-11-16; exact source, command, versions and output are in the
 [qualification record](graph-v060-qualification.md#native-paths-and-real-clients-1268). The source-backed Jev decision
 selected this workflow over expanding SQLx's catalog resolver. SQLx's native
@@ -25,7 +25,7 @@ Run the standalone qualification from the repository root:
 ```sh
 python3 -m venv target/graph-client-venv
 target/graph-client-venv/bin/python -m pip install -r scripts/qualification/graph-requirements.txt
-CASSIE_GRAPH_PYTHON="$PWD/target/graph-client-venv/bin/python" cargo bench --locked --features graph-client-qualification --bench qualification_graph_psycopg
+CASSIE_GRAPH_PYTHON="$PWD/target/graph-client-venv/bin/python" cargo run --locked --release --example qualification_graph_psycopg
 ```
 
 The Rust entrypoint starts a memory-mode Cassie instance on an owned ephemeral
@@ -34,9 +34,8 @@ Python process through its environment. It awaits the child while serving the
 listener on a current-thread async runtime. The child has a 60-second hang
 guard, and the listener and child are retired when qualification ends. Missing
 Python or dependencies fail this explicit command; ordinary Cargo tests do not
-install or invoke Python. The benchmark requires the explicit
-`graph-client-qualification` feature, so ordinary `cargo bench --locked` also
-skips this host-dependent qualification workflow.
+install or invoke Python. The entrypoint is an explicitly run example, so
+ordinary `cargo bench --locked` does not invoke this host-dependent workflow.
 
 The assertions cover prepared text and binary parameters, text and binary
 results, path arrays, zero-hop paths, a one-hop path spanning two vertex

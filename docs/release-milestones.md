@@ -95,9 +95,8 @@ legacy graph feature was removed without conversion.
 
 The [qualification record](graph-v060-qualification.md) retains the complete
 locked suite and affected checks, two native-client workflows, read-bound and
-EXPLAIN owners, 100k weighted routes and nine topology points. Graph traversal
-remains Experimental after the conditional promotion review: all scenario
-correctness checks passed, but several local timing rows failed quality. A
+EXPLAIN owners, 100k weighted routes and nine topology points. The qualification review found all scenario correctness checks passed, but
+several local timing rows failed quality. A
 feature-milestone closeout is distinct from publication or production capacity.
 
 Delivery order, by owner decision of 2026-11-15: mapped graphs (#1255), native

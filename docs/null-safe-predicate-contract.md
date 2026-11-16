@@ -34,7 +34,7 @@ JSON equality and finite VECTOR input/dimension rules. The current
 [mixed numeric SQL comparison contract](mixed-numeric-comparison-contract.md)
 records the selected integer/FLOAT operator input domain used by ordinary and
 null-safe equality; the old #904 parent is closed and is historical provenance.
-This null-safe surface remains Experimental while #798 and #761 retain broader
+This null-safe surface has remaining qualification work while #798 and #761 retain broader
 acceptance matrices. Signed zero and admitted nonfinite FLOAT inputs require
 explicit operator oracle controls; general key semantics do not prove their SQL
 behavior. Existing compatible one-dimensional scalar ARRAY equality

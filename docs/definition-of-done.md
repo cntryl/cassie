@@ -3,17 +3,13 @@
 Feature work is not done when code compiles. A Cassie feature is done when implementation, tests, documentation, compatibility, and operational behavior are all explicit.
 Production-readiness evidence is tracked in [Production Readiness](production-readiness.md).
 
-## Status Levels
+## Project posture and evidence
 
-| Status | Required Bar |
-| --- | --- |
-| Implemented | Code path exists and has targeted tests. Documentation and compatibility may still be incomplete. |
-| Experimental | Feature is usable for supported cases, but compatibility or output shape may change; promotion requires [Experimental Promotion Criteria](experimental-promotion-criteria.md). |
-| Stable | Feature has tests, documentation, known compatibility boundaries, and deterministic failure behavior. |
-| Beta-ready | The documented pre-release support envelope passes the locked release gates, production-dependency audit, benchmark compilation, and disk-backed smoke evidence. Experimental capabilities remain explicitly labelled and may change. |
-| Production-ready | Stable plus benchmark or operational evidence for performance-sensitive paths. |
+Cassie is pre-release. Features record implemented, partial and unsupported behavior,
+executed checks and remaining gaps; they do not receive separate maturity labels.
+Use [Feature Qualification](feature-qualification.md) for evidence requirements.
 
-## Required for Implemented
+## Implementation requirements
 
 - Parser, binder, planner, executor, storage, and protocol/API behavior are marked Complete, Partial, or N/A.
 - Tests use `should_` names and `// Arrange / Act / Assert` comments.
@@ -22,7 +18,7 @@ Production-readiness evidence is tracked in [Production Readiness](production-re
 - Large legacy files are split before broad feature work grows them.
 - Midge remains the direct storage layer.
 
-## Required for Stable
+## Behavior and compatibility requirements
 
 - All implemented behavior has focused unit or integration tests.
 - Unsupported behavior returns deterministic errors where reachable.
@@ -32,9 +28,9 @@ Production-readiness evidence is tracked in [Production Readiness](production-re
 - The feature does not rely on hidden local configuration outside documented `CASSIE_*` variables.
 - Read-model features document freshness, replay, rebuild, verification, and fallback behavior where applicable.
 
-## Required for Production-Ready
+## Operational evidence requirements
 
-- All Stable requirements are met.
+- All behavior and compatibility requirements above are met.
 - Performance-sensitive features have benchmark or metrics evidence.
 - EXPLAIN or metrics expose important planner/executor choices when behavior may surprise users.
 - Fallback behavior is deterministic and observable.
@@ -67,5 +63,5 @@ Every feature record should answer:
 - What PostgreSQL behavior is supported?
 - What PostgreSQL behavior is unsupported?
 - What differences are intentional?
-- What remains before production-ready?
+- Which operational evidence and deployment limits remain?
 - What compatibility guarantee applies?

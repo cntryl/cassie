@@ -13,7 +13,7 @@ selected v0.2 catalog fields on 2026-11-11. Its field-selection prerequisite
 for #818 is satisfied: `pg_namespace` selects `oid` and `nspname`; `pg_class`
 selects relation identity and namespace fields; and `pg_type` selects built-in
 type identity. The earlier [v0.2 catalog source map](catalog-v020-inventory-2026-11-06.md)
-records where those experimental fields are implemented. #817 remains open for
+records where those fields are implemented. #817 remains open for
 its other catalog semantics; this contract does not claim that issue complete.
 #796 is closed.
 

@@ -4,34 +4,34 @@ Cassie keeps stored row and field values as the source of truth and uses indexes
 
 ## Support Summary
 
-Status is owned by [Feature Support](feature-support.md); this summary follows that canonical owner.
+Implemented behavior and limits are documented in [Feature Support](feature-support.md).
 
-| Area | Status | Guarantee |
-| --- | --- | --- |
-| Primary key indexes | Experimental | Identity, point lookup, duplicate rejection, catalog metadata |
-| Unique constraints | Experimental | Duplicate rejection over supported keys |
-| NOT NULL | Experimental | Write-time validation |
-| CHECK | Experimental | Deterministic scalar validation |
-| DEFAULT | Experimental | Default value application on supported write paths |
-| Foreign keys | Experimental | Projection validation with documented limits |
-| Generated columns | Experimental | Generated value support with documented limits |
-| Secondary scalar indexes | Experimental | Equality and range acceleration |
-| Composite indexes | Experimental | Left-prefix planning for supported predicates |
-| Covering indexes | Experimental | INCLUDE metadata and covered-read planning |
-| Partial indexes | Experimental | Exact normalized predicate matching |
-| Expression indexes | Experimental | Deterministic expression matching |
-| Full-text indexes | Stable | Cassie inverted index and BM25 support |
-| Vector indexes | Stable | Declared exact, HNSW and IVFFlat candidate/reranking contracts; no pgvector extension ABI promise |
-| Time-series indexes | Stable | Fixed positive minute/hour/day UTC widths, bucket-native membership, authoritative fallback, diagnostics and restart-safe metadata |
-| Column-batch indexes | Stable | Covered scans, segment pruning, aggregate acceleration |
-| Retention policies | Experimental | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
+| Area | Guarantee |
+| --- | --- |
+| Primary key indexes | Identity, point lookup, duplicate rejection, catalog metadata |
+| Unique constraints | Duplicate rejection over supported keys |
+| NOT NULL | Write-time validation |
+| CHECK | Deterministic scalar validation |
+| DEFAULT | Default value application on supported write paths |
+| Foreign keys | Projection validation with documented limits |
+| Generated columns | Generated value support with documented limits |
+| Secondary scalar indexes | Equality and range acceleration |
+| Composite indexes | Left-prefix planning for supported predicates |
+| Covering indexes | INCLUDE metadata and covered-read planning |
+| Partial indexes | Exact normalized predicate matching |
+| Expression indexes | Deterministic expression matching |
+| Full-text indexes | Cassie inverted index and BM25 support |
+| Vector indexes | Declared exact, HNSW and IVFFlat candidate/reranking contracts; no pgvector extension ABI promise |
+| Time-series indexes | Fixed positive minute/hour/day UTC widths, bucket-native membership, authoritative fallback, diagnostics and restart-safe metadata |
+| Column-batch indexes | Covered scans, segment pruning, aggregate acceleration |
+| Retention policies | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
 
 ## Support by storage mode
 
 Every table is either row-authoritative or column-authoritative (see the
 [columnar table contract](columnar-table-contract.md)). Constraints and derived
 indexes are built and maintained from authoritative field values in both modes;
-status in the table above applies to both.
+behavior in the table above applies to both.
 
 | Feature | Row table | Column table |
 | --- | --- | --- |
@@ -78,8 +78,7 @@ Cassie is predeployment. This repair selects canonical keys directly; no legacy
 record migration or compatibility reader is required. The application validation
 fallback remains in place, and broader constraint ingress/integration acceptance
 remains tracked by #769. The namespace/backing repair is tracked by #953;
-executed results are recorded in [Validation](testing/validation.md). Support
-classification remains Experimental.
+executed results are recorded in [Validation](testing/validation.md). The repair does not establish the broader constraint acceptance criteria.
 
 ## Scalar and Composite Indexes
 
@@ -258,7 +257,7 @@ Current HNSW support:
 - Compatible unfiltered top-k vector-distance searches use the graph candidate path, then fetch row
   vectors and re-rank exactly before returning SQL or REST-visible rows.
 - Document writes and deletes refresh graph state for affected collections under a per-collection
-  write gate. HNSW is Stable within the declared candidate-selection and source-row reranking
+  write gate. HNSW implements the declared candidate-selection and source-row reranking
   contract. Missing, stale, incompatible, empty or unsupported graph shapes fall back to the
   exact row/vector path with a deterministic fallback reason. Exact candidate reranking does
   not promise globally exact ANN top-k; recall evidence remains a separate contract.
@@ -270,7 +269,7 @@ Current IVFFlat support:
 - SQL and REST top-k searches over compatible L2 vector-distance shapes probe trained lists, then
   fetch row vectors and re-rank exactly before returning visible rows.
 - Document writes and deletes refresh IVFFlat training state for affected collections. IVFFlat
-  is Stable within the declared candidate-selection and source-row reranking contract;
+  implements the declared candidate-selection and source-row reranking contract;
   unsupported shapes fall back to the exact row/vector path. Candidate exhaustion, resource
   bounds and recall retain their [Performance Contracts](performance-contracts.md) requirements.
 
@@ -390,10 +389,10 @@ Foreign key DDL lifecycle:
 
 ## Benchmark Expectations
 
-Performance-sensitive index work should include benchmark or metrics evidence before being called production-ready.
+Production deployment claims for performance-sensitive index work require benchmark or metrics evidence.
 
 | Area | Good | Excellent |
-| --- | ---: | ---: |
+| --- | --- | --- |
 | Primary-key point lookup | `<200 us` | `<100 us` |
 | Indexed filter 10k | `<700 us` | `<400 us` |
 | Range query 10k | `<800 us` | `<600 us` |

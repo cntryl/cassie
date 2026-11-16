@@ -11,7 +11,6 @@ workspace = true
 
 [features]
 replay-benchmark-observation = []
-graph-client-qualification = []
 
 [dependencies]
 num-traits = "0.2.19"
@@ -269,12 +268,6 @@ resolver = "2"
 
 [workspace.lints.clippy]
 pedantic = "warn"
-
-[[bench]]
-name = "qualification_graph_psycopg"
-path = "benches/qualification_graph_psycopg.rs"
-harness = false
-required-features = ["graph-client-qualification"]
 
 [[bench]]
 name = "tier5_scaling_graph"

@@ -4,7 +4,7 @@ Cassie replay is a local read-model ingestion contract. The source event stream,
 
 This surface is Cassie-specific and part of the local projection lifecycle in
 [Feature Support](feature-support.md). The selected atomic replay change is
-not yet qualified by the historical Stable lifecycle evidence. Issue #1270
+not yet qualified by the historical lifecycle evidence. Issue #1270
 tracks its complete local, recovery and hosted qualification; deployment-level
 production readiness remains separate.
 
@@ -282,4 +282,4 @@ Do not swap an active projection version after a failed replay solely because a 
 - `src/midge/adapter/statement_read/tests/replay_process_crash.rs` covers strict and buffered local child-process kill-and-reopen at a precommit boundary and after acknowledgement, including recovered row, scalar index, ledger, checkpoint and same-batch retry assertions. These cases passed on the same head. Process death does not establish power-loss or cloud-cache-loss recovery.
 - Feature-gated replay policy tests passed on the same head and observe the first native commit policy and per-policy attempts, including simulated background and strict cloud configuration. Simulated provider policy selection does not qualify real provider acknowledgement or cloud-cache loss recovery.
 - The local strict-versus-buffered diagnostic benchmark on the same head observed additional strict foreground commit attempts in every buffered run. Replay's selected commit is followed before return by column-batch and projection-hash maintenance and time-series index rebuilds; debt cleanup uses strict write options. Engine-wide WAL and ledger counters may include background work and omit some filesystem syncs, so they cannot attribute every physical sync to replay. Broader workload measurements and maintenance-barrier work remain under [#1271](https://github.com/cntryl/cassie/issues/1271).
-- `docs/production-readiness.md` records the Stable local projection lifecycle promotion and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that promotion.
+- `docs/production-readiness.md` records the local projection lifecycle contract and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that evidence.

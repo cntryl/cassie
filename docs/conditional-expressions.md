@@ -68,7 +68,7 @@ Schema-qualified conditional names, VARIADIC arguments, unconstrained parameter
 signature inference and additional PostgreSQL implicit-cast rules are not
 qualified by this slice. Existing query cancellation, memory and result limits
 still apply; adding these expressions does not qualify new operator kernels or
-promote their enclosing Experimental query families.
+qualify their enclosing query families.
 
 The coherent bundle also corrects mixed-numeric COALESCE promotion tracked in
 [#850](https://github.com/cntryl/cassie/issues/850). Its selected value enters the

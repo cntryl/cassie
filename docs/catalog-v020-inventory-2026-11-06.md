@@ -12,8 +12,8 @@ identity/lifecycle rules before implementing dependent catalog rows.
 | Relation | Current finite fields and owning source | Open boundary |
 | --- | --- | --- |
 | `pg_type` | `oid`, `typname`, `typnamespace`, `typlen`, `typbyval`, `typtype`, `typcategory`, `typelem`, `typarray`, `typbasetype`, `typrelid`; `virtual_views_pg::type_schema` and `pg_type` | #818 uses built-in type identity. #828 must select persisted composite/domain identities, base and relation links, and ownership before advertising such types. #843/#844 must select extension type identity without fabricating installed capabilities. |
-| `pg_namespace` | `oid`, `nspname`, `nspowner`, `nspacl`; `virtual_views_pg::namespace_schema` | `oid` and `nspname` now describe OID (26) and NAME (19), respectively. `nspowner` remains experimental INT and `nspacl` experimental TEXT; neither claims PostgreSQL owner or ACL semantics. #818 name/OID resolution and current-database scope; #843 schema placement and transactional lifecycle. |
-| `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions`; `virtual_views_pg::class_schema` | #818 relation identity; #828 relation row types depend on #826. Existing `relnamespace` is a TEXT name with the OID exposed separately as `relnamespace_oid`; do not silently rewrite this established experimental shape. |
+| `pg_namespace` | `oid`, `nspname`, `nspowner`, `nspacl`; `virtual_views_pg::namespace_schema` | `oid` and `nspname` now describe OID (26) and NAME (19), respectively. `nspowner` remains INT and `nspacl` TEXT; neither claims PostgreSQL owner or ACL semantics. #818 name/OID resolution and current-database scope; #843 schema placement and transactional lifecycle. |
+| `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions`; `virtual_views_pg::class_schema` | #818 relation identity; #828 relation row types depend on #826. Existing `relnamespace` is a TEXT name with the OID exposed separately as `relnamespace_oid`; do not silently rewrite this established shape. |
 | `pg_attribute` | `attrelid`, `attrelid_oid`, `attname`, `attnum`, `atttypid`, `attnotnull`, `atttypmod`, `atthasdef`, `attisdropped`, `attidentity`, `attgenerated`, `attcollation`; `virtual_views_pg::attribute_schema` | #828 field identity/order and relation lifecycle. Existing `attrelid` is a TEXT relation name with `attrelid_oid` separately; do not claim native OID descriptor parity. |
 | `pg_enum` | Empty registry schema `oid`, `enumtypid`, `enumsortorder`, `enumlabel`; `virtual_views_empty` | v0.2.0 baseline only. Under the v0.4.0 contract (#827, authored, pending the assembler gate) `pg_enum` lists real member rows and is no longer an empty registry. |
 
@@ -39,7 +39,7 @@ replace its obsolete expectation rather than claiming it passes unchanged.
 
 ## Materialized view vector identity increment
 
-The existing experimental scalar vector registry derives synthetic `vector(n)`
+The existing scalar vector registry derives synthetic `vector(n)`
 rows only for dimensions referenced in the current database. Ordinary view
 output schemas participate, and `pg_class`/`pg_attribute` also expose SQL
 materialized views. An unpopulated materialized view can be the only published
@@ -73,7 +73,7 @@ A local PostgreSQL 18.6 oracle returned NULL for `NULL::oid`,
 `unknown (OID=0)` for `0::oid`, `unknown (OID=4294967295)` for both the
 maximum OID and integer `-1`, and the actual login name for its existing role.
 The temporary isolated oracle was stopped. PostgreSQL returns NAME OID 19 for
-this function; Cassie's existing experimental function retains its TEXT result
+this function; Cassie's existing function retains its TEXT result
 descriptor (OID 25), so this increment does not claim descriptor ABI parity.
 The authored root/NULL/unknown and autocommit create/drop regressions were
 written before implementation and **have not been executed**. Role lookup uses

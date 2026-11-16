@@ -1,11 +1,10 @@
 # v0.6.0 graph qualification
 
-Decision recorded on 2026-11-16: **graph traversal remains Experimental**. The
+Qualification recorded on 2026-11-16: **correctness checks passed; timing limits remain**. The
 finite mapped-graph and native-path contract has implementation and qualification
 evidence below. Local correctness and client qualification do not establish
 production capacity, an SLA, SQL/PGQ conformance, a release publication, or a
-trustworthy performance regression baseline. The overall Production Candidate
-classification is unchanged.
+trustworthy performance regression baseline. Cassie remains a pre-release project.
 
 ## Source and local checks
 
@@ -130,7 +129,7 @@ all-nine smoke passed. Two observed Clippy integration failures (fixture config
 initialization; duplicate module/dead imports in the tracker probe) were repaired
 and the full strict invocation passed; no lint was silenced.
 
-## Acceptance map and remaining promotion work
+## Acceptance map and remaining qualification work
 
 | Requirement | Evidence |
 | --- | --- |
@@ -142,9 +141,9 @@ and the full strict invocation passed; no lint was silenced.
 | Native/fallback EXPLAIN and measured read bounds | [Fast-read owners](../tests/graph_table/fast_reads.rs) passed, including fallback ANALYZE counters |
 | Benchmarks registered across kernels, algorithms, representatives and topology axes | 20 executed scenario rows; registry and source-contract diagnostics passed |
 | Read-model user guide | [Graph guide](graph-guide.md); all 11 guide tests passed |
-| Conditional promotion decision | Experimental retained; local correctness is separate from failed/noisy timing quality |
+| Qualification boundary | Local correctness is separate from failed/noisy timing quality |
 
-A future graph-promotion decision must resolve the failed timing-quality
+Future graph performance qualification must resolve the failed timing-quality
 evidence against a named deployment-profile baseline. Production latency and
 capacity claims separately need representative operational evidence. Native
 Linux disk-backed measurements and a complete release-suite artifact are not

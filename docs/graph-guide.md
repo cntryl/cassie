@@ -1782,7 +1782,7 @@ Other limits to keep in mind:
 - Every graph query reads the mapped tables of the labels it uses, so cost grows with the size
   of the tables that those labels cover and with the number of repeated edges, not only with
   the neighbourhood of the start vertex. This release has no adjacency index. Read-bound
-  evidence is tracked in the [graph qualification record](graph-v060-gap-analysis.md#promotion-evidence).
+  evidence is tracked in the [graph qualification record](graph-v060-gap-analysis.md#qualification-evidence).
 - Bounds do not make every pattern cheap. Finite `TRAIL`, `ACYCLIC` and `SIMPLE` results can still be
   exponentially numerous on a dense graph. The query memory budget stops such a query with `54000`.
 - A graph covers one database. All mapped tables must be ordinary tables of that database.
@@ -1800,7 +1800,7 @@ Other limits to keep in mind:
 
 <!-- world: legacy -->
 
-Earlier builds had a different, Experimental graph feature: `CREATE GRAPH`, two fixed backing
+Earlier builds had a different graph feature: `CREATE GRAPH`, two fixed backing
 tables (`<name>_nodes` and `<name>_edges`), and the positional functions `graph_neighbors`,
 `graph_expand` and `graph_shortest_path`. That feature was removed in v0.6.0 without
 conversion. A store that still holds a legacy definition ignores it and deletes the stored

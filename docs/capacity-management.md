@@ -151,7 +151,7 @@ the resulting numbers are themselves a production objective. See `threshold_evid
 ## Production Evidence Backlog Checklist
 
 Close the remaining production evidence blockers by recording evidence, not by changing runtime
-behavior in this guide. The checklist is a backlog for future validation work and is not a production-ready promotion.
+behavior in this guide. The checklist is a backlog for future validation work and is not production deployment qualification.
 
 - larger fixture runs: execute the relevant benchmark owners against the next declared fixture
   scale, record p50/p95/p99, throughput, fallback counters, capacity bytes, host CPU/memory/disk
@@ -163,7 +163,7 @@ behavior in this guide. The checklist is a backlog for future validation work an
   scale, `CASSIE_STORAGE_PATH`, runtime threshold overrides, rollback/fallback evidence, and the
   owner allowed to compare future runs against the profile.
 - Non-goals for this backlog: do not implement capacity-based admission control, automatic disk movement,
-  replication, disk rebalancing, quorum reads, or production-ready promotion as part of evidence
+  replication, disk rebalancing, quorum reads, or production deployment qualification as part of evidence
   closure.
 
 ## Current Limits

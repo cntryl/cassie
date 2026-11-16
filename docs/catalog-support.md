@@ -1,9 +1,9 @@
 # Catalog Support
 
 Cassie's virtual catalogs describe Cassie objects for documented read-model workflows. They are
-not PostgreSQL system catalogs, and PostgreSQL-internal catalog parity is not claimed. Only the two
-views below are Stable. Every other `information_schema` or `pg_catalog` view remains Experimental
-and may add or change columns before 1.0.
+not PostgreSQL system catalogs, and PostgreSQL-internal catalog parity is not claimed. The two views below have a named-client contract. Other `information_schema` or
+`pg_catalog` views have the finite column and behavior boundaries documented here.
+Cassie is pre-release; catalog compatibility may change before 1.0.
 
 Several dated checkpoints below preserve issue references from the former
 PostgreSQL 18 full-parity program. #791–#793 are closed as superseded; those
@@ -160,7 +160,7 @@ implemented-pending-gate, not executed evidence. The exact
 extension field shapes and the pinned PostgreSQL 18.6 observations are also
 recorded in the [extension compatibility contract](extension-compatibility-contract-2026-11-09.md).
 
-## Stable named-client subset
+## Named-client subset
 
 ### `information_schema.tables`
 
@@ -196,7 +196,7 @@ unaliased joins remains open under [#780](https://github.com/cntryl/cassie/issue
 | `datetime_precision` | Declared timestamp precision where applicable, or null. |
 
 Rows are scoped to the connected database and reflect create, rename, drop, and restart hydration.
-Repository ORM metadata tests cover the complete supported column shape. Named-client promotion is
+Repository ORM metadata tests cover the complete supported column shape. Named-client qualification is
 limited to the read-model discovery performed by sqlx 0.8.3 and Diesel 2.2.6; it does not certify
 migration generation or PostgreSQL catalog introspection beyond these columns.
 
@@ -227,7 +227,7 @@ OID compatibility, or hosted PostgreSQL behavior.
   metadata for an unavailable relation. The same error contract applies to unavailable virtual
   catalogs.
 - Broader native pgAdmin-shaped queries remain deterministic repository tests, but pgAdmin and
-  DBeaver certification remains separately tracked and is not promoted by this contract.
+  DBeaver certification remains separately tracked and is not qualified by this contract.
 
 ## Selected catalog read-model checkpoint (2026-10-16)
 
@@ -240,7 +240,7 @@ rows describe the absence of these objects in Cassie's current catalog; they do
 not implement their DDL or advertise the corresponding capability. Keep native
 catalog/domain result OIDs and opaque type codecs outside this selected #817
 read-model batch; #793 was a superseded parent specification. Existing logical
-carriers remain explicit experimental descriptors. Do not
+carriers remain explicit descriptors. Do not
 weaken retained tests that require native type identities.
 
 Table/view/sequence discovery reads real current-database catalog objects.
@@ -258,7 +258,7 @@ are selected by this batch.
 object names. Their owner fields remain NULL because relation ownership is not
 stored. `pg_constraint.conenforced` is true for the constraints Cassie stores;
 generated primary-key and NOT NULL names follow PostgreSQL's catalog naming
-convention, while explicit names are preserved. The rest of its experimental catalog columns retain their current logical
+convention, while explicit names are preserved. The rest of its catalog columns retain their current logical
 carriers. `pg_proc` exposes the pinned built-in routine name, OID, and result
 type rows used by the selected introspection helpers; it does not advertise
 user-defined SQL routine identities. Built-in `pg_get_function_arguments`,
@@ -268,7 +268,7 @@ not implied by this helper. `pg_my_temp_schema()` returns OID 0 and
 `pg_is_other_temp_schema(oid)` returns false because Cassie does not create
 temporary schemas.
 
-For scalar indexes, `pg_index.indpred` retains Cassie's experimental TEXT
+For scalar indexes, `pg_index.indpred` retains Cassie's TEXT
 (OID 25) descriptor. It returns SQL NULL when an index has no partial
 predicate and the stored predicate text for a partial index. This qualifies
 NULL/value semantics only; it does not expose PostgreSQL's `pg_node_tree`
@@ -288,15 +288,15 @@ legacy CREATE SEQUENCE's integer default or claim PostgreSQL's bigint default.
 Unknown owners remain NULL, and view definitions expose stored SQL rather than
 claiming PostgreSQL's pretty-print rendering.
 
-This checkpoint does not promote a catalog to Stable or complete #817. Native
+This checkpoint does not establish full catalog compatibility or complete #817. Native
 catalog-domain OIDs/codecs, ownership, pretty-printed definitions, system-object
 rows, and broad OID/reg* lifecycle remain unqualified; current issue criteria
 define active follow-up. Selected SQL materialized-view relation identity is
-documented separately under Feature Support and does not promote this catalog
+documented separately under Feature Support and does not qualify this catalog
 or the broader OID/reg* surface.
 Native column names and selected values are independent pinned observations;
 logical-carrier descriptors do not establish PostgreSQL descriptor ABI parity.
-The experimental `pg_type.typarray` value links only scalar types whose array
+The `pg_type.typarray` value links only scalar types whose array
 OIDs are present in Cassie's finite built-in array registry; array types and
 types without a registered built-in array report zero. This supports the
 selected registered-array TypeInfo/COPY path and does not add custom array
@@ -563,7 +563,7 @@ Relation-owner dependencies and other shared dependency families remain
 unimplemented and are not fabricated. This slice changes no persistent
 metadata format or public Rust API.
 
-## Experimental scalar catalog helpers (2026-10-17)
+## scalar catalog helpers (2026-10-17)
 
 `pg_size_bytes(text)` parses signed decimal/exponent inputs and the native
 bytes/B/kB/MB/GB/TB/PB units, using exact decimal multiplication and halfway
@@ -599,10 +599,9 @@ the selected cancellation witness checks already-canceled execution and does
 not establish interruption inside a long parser loop.
 
 Current executed checks and remaining failures are recorded in
-[validation](testing/validation.md). These helpers remain Experimental and do
-not close a compatibility owner.
+[validation](testing/validation.md). These helpers cover only the documented cases and do not close a compatibility owner.
 
-## Experimental runtime information (2026-10-17)
+## runtime information (2026-10-17)
 
 `pg_is_in_recovery()`, `pg_jit_available()` and `pg_numa_available()` report
 false for Cassie's current ready single-node profile: archive/standby recovery,
@@ -626,7 +625,7 @@ ABI support. Compiled plans rebuild at epoch 16. No stored format changes.
 These checks leave complete system-information, native catalog ABI and resource
 qualification open. See [validation](testing/validation.md).
 
-## Experimental option expansion (2026-10-17)
+## option expansion (2026-10-17)
 
 `FROM pg_options_to_table(text[])` expands selected one-dimensional logical
 TEXT arrays into `option_name` and `option_value` TEXT columns. Splitting uses
@@ -653,7 +652,7 @@ owners on errors. Compiled plans rebuild at epoch 17; stored formats do not
 change. Full resource/restart and owner qualification remain open. See
 [validation](testing/validation.md).
 
-## Experimental statement text (2026-10-17)
+## statement text (2026-10-17)
 
 `current_query()` and `pg_catalog.current_query()` return the original executing
 SQL as TEXT (OID 25, length/typmod -1) in text and binary formats. Simple Query

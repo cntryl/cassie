@@ -16,11 +16,11 @@
 > Current state (2026-11-15): mapped property graphs, `GRAPH_TABLE`, the `cassie_graph` path
 > types and `graph_weighted_paths` are implemented on exact reads, the legacy benchmark is
 > replaced by mapped-graph benchmarks at tiers 1 to 3, and the [graph guide](graph-guide.md)
-> exists. The gaps in the tables below are historical; the [promotion
-> evidence](#promotion-evidence) section at the end lists what is proven and what is open.
+> exists. The gaps in the tables below are historical; the [qualification
+> evidence](#qualification-evidence) section at the end lists what is proven and what is open.
 
 Milestone: [v0.6.0 Fast, Idiomatic Graphs](https://github.com/cntryl/cassie/milestone/13).
-Baseline: `main` at `e949a6689` (2026-11-13). Status today: graph traversal is **Experimental**
+Baseline: `main` at `e949a6689` (2026-11-13). The historical baseline predates the mapped-graph implementation
 ([feature support](feature-support.md)). This document lists the gaps between the current
 implementation and a fast, ergonomic, idiomatic graph capability. It is the input for the
 milestone backlog. It does not select contracts. Each decision gate below goes to Jev or the owner
@@ -95,7 +95,7 @@ Severity: **P0** blocks "fast" or causes wrong results; **P1** is a core ergonom
 | D2 | Node type compares case-insensitively and node ID compares case-sensitively, and edge type is folded. These rules are implicit and should be one documented identity contract, which interacts with B6. | P1 |
 | D3 | Rows with a missing endpoint or type are silently skipped as non-edges, and negative weights error only on the strict path. Contracts are needed for invalid edges at write time versus read time. | P1 |
 | D4 | The `expand` stop reason reports `"limit"` whenever any edge was expanded, even when traversal ended because it was exhausted. | P2 |
-| D5 | Promotion from Experimental to Stable needs [experimental-promotion-criteria](experimental-promotion-criteria.md) evidence: oracle comparisons, resources, lifecycle and benchmarks. | P1 |
+| D5 | Feature qualification needs [qualification](feature-qualification.md) evidence: oracle comparisons, resources, lifecycle and benchmarks. | P1 |
 
 ## Decision gates (resolve before dependent implementation)
 
@@ -132,13 +132,13 @@ Gates 3 (completeness proof) and 4 (algorithm semantics) are decided inside the 
 | 6 | [#1257](https://github.com/cntryl/cassie/issues/1257) Enhancement: Execute graph patterns with node-visited traversal, heap Dijkstra and deterministic k-shortest paths | A4-A7, D1, D4, B3 | 2, 5 |
 | 7 | [#1258](https://github.com/cntryl/cassie/issues/1258) Enhancement: Replace legacy graph table functions with a named-argument weighted path function | B1, B9, C3 | 1, 6 |
 | 8 | [#1259](https://github.com/cntryl/cassie/issues/1259) Enhancement: Batch graph traversal across LATERAL rows and push predicates into traversal | A8, A9, A10 | 6 |
-| 9 | [#1260](https://github.com/cntryl/cassie/issues/1260) Documentation/readiness: Qualify graph traversal for Stable with benchmarks, EXPLAIN evidence and a user guide | A12, B11, B12, D5 | 2-8 |
+| 9 | [#1260](https://github.com/cntryl/cassie/issues/1260) Documentation/readiness: Qualify graph traversal with benchmarks, EXPLAIN evidence and a user guide | A12, B11, B12, D5 | 2-8 |
 
 Out of milestone (gap kept here only): C2 `WITH RECURSIVE` acceleration and C4 graph algorithms.
 
-## Promotion evidence
+## Qualification evidence
 
-**Decision (2026-11-16): graph traversal stays Experimental.** The
+**Qualification review (2026-11-16): correctness checks passed; timing limits remain.** The
 [executed closeout record](graph-v060-qualification.md) retains two native-driver
 workflows, whole-path and clone/reference evidence, weighted routes at 100,000
 mapped rows under the 64 MiB query budget, the nine topology points and their
@@ -147,11 +147,11 @@ five-sample release-profile timing rows failed quality; these observations do
 not establish a trustworthy regression baseline or production capacity.
 The second-driver and weighted-size correctness blockers below are resolved;
 SQLx native composite discovery remains a named unsupported workflow. Future
-promotion must evaluate the remaining timing/deployment evidence without
+performance qualification must evaluate the remaining timing/deployment evidence without
 inventing an external-adoption requirement.
 
 This section collects the evidence for that decision
-([promotion criteria](experimental-promotion-criteria.md)). Each entry below is a source
+([qualification criteria](feature-qualification.md)). Each entry below is a source
 claim backed by a test or a document; none is a performance claim.
 
 ### Proven by tests and documents
@@ -225,4 +225,4 @@ endpoint indexes reports full-row reads and retains its query results.
 The repaired nine-point smoke and all-nine shared artifact summary passed on
 `051af760`; public Psycopg passed all five invariants on `9b3aabae`. The
 qualification record preserves earlier failures and the later green results.
-Graph traversal remains Experimental under the recorded timing-quality limits.
+The recorded timing-quality limits still constrain performance claims.

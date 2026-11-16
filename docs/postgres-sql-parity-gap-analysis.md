@@ -49,7 +49,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | **Query clauses** | | |
 | INNER/LEFT/RIGHT/FULL/CROSS/LATERAL joins, aliases | Supported | — |
 | NATURAL JOIN, JOIN USING | Absent | #800 |
-| Qualified relation wildcard `t.*` | Experimental for base tables, CTEs and derived relations; unknown qualifiers fail binding and existing wildcard identity rules apply | #761 |
+| Qualified relation wildcard `t.*` | Implemented for base tables, CTEs and derived relations; unknown qualifiers fail binding and existing wildcard identity rules apply | #761 |
 | UNION [ALL], INTERSECT, EXCEPT | Supported | — |
 | INTERSECT ALL, EXCEPT ALL | Selected integer/text/NULL multiplicity qualified, including VALUES branches and explicit DISTINCT; wider coercions pending | #800 |
 | VALUES relations, row constructors, tuple comparison | Absent | #800 |
@@ -67,7 +67,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | Window functions (row_number, rank, dense_rank, lag, lead, first/last_value) | Partial | #806 (rest of family, named WINDOW, aggregates OVER, frame qualification) |
 | **Expressions and operators** | | |
 | CASE, CAST, `::`, IS [NOT] NULL, IN list, BETWEEN, LIKE | Supported | — |
-| IS [NOT] DISTINCT FROM | Experimental | #798 |
+| IS [NOT] DISTINCT FROM | Selected implementation; see the owning evidence | #798 |
 | Chained casts, type modifiers, multi-word type names, typed literals | Partial | #796 |
 | `\|\|`, `%`, `^`, bitwise, BETWEEN SYMMETRIC, IS TRUE/UNKNOWN, `E''`, `U&''`, dollar quotes, COLLATE | Absent | #796 |
 | ILIKE, NOT LIKE, SIMILAR TO, POSIX regex, LIKE ESCAPE | Absent | #799 |

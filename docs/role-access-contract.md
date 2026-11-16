@@ -67,7 +67,7 @@ a fabricated success. Comma-separated supported table privileges return true
 when the role holds at least one requested privilege, matching
 [PostgreSQL 18](https://www.postgresql.org/docs/18/functions-info.html).
 `pg_namespace.nspacl`
-and `pg_class.relacl` remain experimental TEXT carriers and report only direct
+and `pg_class.relacl` remain TEXT carriers and report only direct
 selected grants in a PostgreSQL-readable ACL string: schema USAGE is `U`,
 table SELECT/INSERT/UPDATE/DELETE is `r`, `a`, `w`, `d`, and `root` is the
 grantor. Entries are sorted by grantee and privileges use `arwd` order; no

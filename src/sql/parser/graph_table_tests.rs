@@ -116,7 +116,7 @@ fn should_parse_an_anonymous_vertex() {
 
     // Assert
     assert!(parsed.path.start.variable.is_none());
-    assert!(parsed.path.start.labels.is_empty());
+    assert_eq!(parsed.path.start.labels.len(), 0);
     assert!(parsed.path.start.filter.is_none());
 }
 
@@ -193,7 +193,7 @@ fn should_parse_an_anonymous_edge() {
 
     // Assert
     assert!(edge.variable.is_none());
-    assert!(edge.labels.is_empty());
+    assert_eq!(edge.labels.len(), 0);
     assert!(edge.filter.is_none());
 }
 

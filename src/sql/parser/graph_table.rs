@@ -81,6 +81,7 @@ fn parse_body(body: &str) -> Result<GraphTable, SqlError> {
         selector,
         filter,
         columns: parse_columns(columns)?,
+        binding: None,
     })
 }
 

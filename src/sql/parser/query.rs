@@ -15,6 +15,8 @@ mod query_select;
 #[path = "relation_alias.rs"]
 mod relation_alias;
 
+#[path = "graph_table_source.rs"]
+mod graph_table_source;
 #[path = "json_table_columns.rs"]
 mod json_table_columns;
 #[path = "json_table_source.rs"]
@@ -836,6 +838,9 @@ fn parse_parenthesized_query_source(raw: &str, lateral: bool) -> Result<QuerySou
 }
 
 fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, SqlError> {
+    if let Some(source) = graph_table_source::parse(raw, lateral)? {
+        return Ok(source);
+    }
     if let Some(source) = set_function_source::parse(raw)? {
         return Ok(source);
     }

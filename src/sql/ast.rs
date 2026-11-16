@@ -40,7 +40,7 @@ mod ast_graph_table;
 pub use ast_graph_table::{
     GraphColumn, GraphEdgeDirection, GraphEdgePattern, GraphPathMode, GraphPathPattern,
     GraphPathStep, GraphQuantifier, GraphSelector, GraphSelectorKind, GraphTable,
-    GraphVertexPattern,
+    GraphTableBinding, GraphVariableBinding, GraphVariableKind, GraphVertexPattern,
 };
 #[path = "ast_object_comment.rs"]
 mod ast_object_comment;

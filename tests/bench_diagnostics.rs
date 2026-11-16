@@ -6,3 +6,6 @@ mod replay_mode;
 
 #[path = "bench_diagnostics/graph_topology.rs"]
 mod graph_topology;
+
+#[path = "../benches/support/performance_benchmarks.rs"]
+pub mod performance_benchmarks;

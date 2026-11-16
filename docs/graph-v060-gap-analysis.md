@@ -197,3 +197,27 @@ claim backed by a test or a document; none is a performance claim.
   declared argument type, as it does for `graph_weighted_paths`; the earlier blocker (the
   legacy inference had no database in scope) does not apply to the fold in
   `src/sql/parameters/fold_graph_functions.rs`.
+
+## Additional client and scaling probes (authored)
+
+The explicit [Psycopg qualification](graph-psycopg-qualification.md) supplies a
+second client workflow with ordinary registered composite and array adapters.
+Its entrypoint is `qualification_graph_psycopg`; it is separate from the Cargo
+correctness suite and requires its pinned Python environment. This adds a
+reproducible probe, not a passing receipt or an expansion of SQLx discovery.
+
+`tier5_scaling_graph` adds three independent three-point rooted-tree curves:
+out-degree 16/64/256 at one hop, depth 2/4/8 at fanout one, and fanout 2/4/8 at
+three hops. Every fixture uses memory storage and the same 64 MiB query budget.
+Results record actual mapped rows, fanout, depth, expected leaf cardinality,
+setup duration, an indexed `EXPLAIN ANALYZE` preflight and runtime read counters.
+The correctness oracle is the number of leaves of the generated rooted tree;
+there are no performance timing assertions. These bounded curves complement,
+and do not replace, the 100k-row Tier 3 representatives or five-sample release
+measurements. The new analyzed fallback regression checks that a graph without
+endpoint indexes reports full-row reads and retains its query results.
+
+All additions in this section are authored/not run until the assembler records
+its exact frozen source and outcomes. Stable promotion remains subject to the
+existing complete promotion evidence, including successful real-client and
+benchmark execution and any recorded remaining limitations.

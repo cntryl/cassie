@@ -391,10 +391,16 @@ Not implemented, and therefore not claimed:
   process death, not power loss. The tests use a 2 second writer lease and
   remove a stale `.midge_leader.lock` the way an operator would (see
   [local diagnostics](local-diagnostics-contract.md)).
-- **Cloud and performance evidence.** The native write policy chosen for each
-  storage mode is unit-tested, including that configured cloud-strict is never
-  downgraded. No run against a cloud endpoint (real or emulated) and no
-  benchmark was done for the SQL mode; #1271 owns those.
+- **Cloud policy evidence.** Against simulated cloud storage
+  (`src/app/projection_sql_durability_tests.rs`, built with the
+  `replay-benchmark-observation` feature), a declared replayable transaction's
+  first native commit uses lazy `cloud_async` on a background-cloud
+  configuration and stays `cloud_strict` on a cloud-strict one, and a mixed
+  transaction is promoted to `cloud_strict` on a background-cloud
+  configuration. This is the policy selected for the commit, not an upload or
+  cloud-loss test.
+- **Performance evidence.** No benchmark was run for the SQL mode; #1271 owns
+  that and the workload comparison.
 - **Retirement.** Implemented under #1290: COMMIT does not wait, so there is no
   cancellation-while-waiting case; retirement is owner-checked, and
   ReadyForQuery reports failed to other threads while a COMMIT owns the

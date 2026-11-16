@@ -64,6 +64,10 @@
         "file": "tests/expression_index_upsert.rs"
       },
       {
+        "name": "graph_table",
+        "file": "tests/graph_table.rs"
+      },
+      {
         "name": "json_writes",
         "file": "tests/json_writes.rs"
       },
@@ -164,11 +168,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1718,
-    "rust_files": 1681,
-    "rust_test_declarations": 10198,
+    "files": 1720,
+    "rust_files": 1683,
+    "rust_test_declarations": 10202,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10204,
+    "registered_rust_instances": 10208,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -65699,6 +65703,130 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_describe_declared_column_types_in_row_description",
+      "name": "should_describe_declared_column_types_in_row_description",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 44,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_describe_declared_column_types_in_row_description"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_describe_a_wildcard_over_a_graph_table",
+      "name": "should_describe_a_wildcard_over_a_graph_table",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 75,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_describe_a_wildcard_over_a_graph_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_infer_a_parameter_type_from_an_inline_predicate",
+      "name": "should_infer_a_parameter_type_from_an_inline_predicate",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 94,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_infer_a_parameter_type_from_an_inline_predicate"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_report_unavailable_execution_after_describing",
+      "name": "should_report_unavailable_execution_after_describing",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 113,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_report_unavailable_execution_after_describing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -317007,8 +317135,8 @@
       "current_file": "tests/Cargo.toml",
       "role": "fixture_data",
       "action": "keep",
-      "lines": 207,
-      "sha256": "fa0aaf8302ccb90ff441022c5dbb4b2828118c3aed418938887806eea1e29cd0",
+      "lines": 211,
+      "sha256": "11a20460dd4324b34ef86493e51c283f51d7b640886dd5c960fd8281b4472386",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [
@@ -323689,6 +323817,36 @@
         "tests/fixtures/sqlx_probe/src/main.rs"
       ],
       "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/wire.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 125,
+      "sha256": "8b86bbd5a91fd1e52d6664a16f202c0230206733afef1aa485a521c435f0e53d",
+      "test_declarations": 4,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/wire.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table.rs",
+      "role": "cargo_target",
+      "action": "keep",
+      "lines": 8,
+      "sha256": "c19f39f500351da6cbefd4f1d2600ed7bc85ef00ea8a18b21224c52df3f62493",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table.rs"
+      ],
+      "line_limit": 12000
     },
     {
       "current_file": "tests/json_writes/contracts/errors.rs",

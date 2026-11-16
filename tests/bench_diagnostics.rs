@@ -9,3 +9,6 @@ mod graph_topology;
 
 #[path = "../benches/support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
+
+#[path = "../benches/support/stress_runtime_contract.rs"]
+pub mod stress_runtime_contract;

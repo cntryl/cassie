@@ -316,6 +316,8 @@ pub(super) fn append_data_row_frame_in(
                 let format_code = result_format_for_index(result_formats, index);
                 let bytes = if let Some(enum_column) = columns[index].enum_column() {
                     super::codecs::enum_value::encode(other, enum_column, format_code)?
+                } else if let Some(descriptor) = columns[index].record_array() {
+                    super::codecs::record_array::encode(other, descriptor, format_code, session)?
                 } else if format_code == 0 {
                     if postgres_array_text_columns.binary_search(&index).is_ok() {
                         super::codecs::value_to_postgres_array_text_in(

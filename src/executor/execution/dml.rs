@@ -109,12 +109,20 @@ pub(super) fn value_to_json_for_field(
     }
 
     if (matches!(data_type, DataType::Composite(_))
+        || crate::executor::scan::composite_array_descriptor(data_type).is_some()
         || crate::types::enum_type::is_enum_family(data_type))
         && !matches!(value, Value::Null)
     {
-        let assigned = match data_type {
-            DataType::Composite(descriptor) => {
+        let assigned = match (data_type, value) {
+            (DataType::Composite(descriptor), _) => {
                 crate::executor::filter::assign_record(value, descriptor)?
+            }
+            // A value read back from a row (`EXCLUDED.col`, `SET a = b`) is the
+            // stored array document; it is retyped, not parsed as array text.
+            (DataType::Array(_), Value::Json(document))
+                if crate::executor::scan::composite_array_descriptor(data_type).is_some() =>
+            {
+                crate::executor::scan::try_json_to_typed_value(document, data_type)?
             }
             _ => crate::executor::filter::cast_value(value, data_type)?,
         };

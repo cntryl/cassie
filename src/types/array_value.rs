@@ -318,6 +318,12 @@ impl SqlArray {
                 Value::Typed(crate::types::typed::TypedValue::Enum(value)) => {
                     serde_json::to_value(Value::Json(value.to_storage_json()))
                 }
+                // A record element is stored as its document, never with its descriptor.
+                Value::Typed(crate::types::typed::TypedValue::Record(record)) => {
+                    serde_json::to_value(Value::Json(
+                        crate::types::composite::record_to_storage_json(record),
+                    ))
+                }
                 other => serde_json::to_value(other),
             })
             .collect::<Result<Vec<_>, _>>()
@@ -667,7 +673,14 @@ fn scalar_from_json(value: &JsonValue, data_type: &DataType) -> Result<Value, St
                 .map(|enum_value| Value::Typed(crate::types::typed::TypedValue::Enum(enum_value)))
                 .ok_or_else(|| "invalid enum array element".to_string());
         }
-        Type::Array(_) | Type::Composite(_) | Type::Domain(_) | Type::Null => None,
+        // Record text stays text and a stored record stays its document; the
+        // executor converts both to a typed record with the field casts.
+        Type::Composite(_) => match value {
+            JsonValue::String(text) => Some(Value::String(text.clone())),
+            JsonValue::Object(_) => Some(Value::Json(value.clone())),
+            _ => None,
+        },
+        Type::Array(_) | Type::Domain(_) | Type::Null => None,
     }
     .ok_or_else(|| {
         format!(

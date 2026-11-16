@@ -82,7 +82,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | Enum types | Partial: named enums authored under #827 per the v0.4.0 contract (not yet qualified); `DROP TYPE ... CASCADE` with dependents, enum composite fields/domain bases, COPY and enum ranges are `0A000` | #827 |
 | Range and multirange types | Absent | #905 |
 | Collations, including ICU | Absent | #796 |
-| Composite, record, domain types | Partial: composite types, relation row types, ROW and domains authored under #828 (not yet qualified); ranges and arrays of composites/domains absent; enums as composite fields or domain bases are `0A000` | #828 |
+| Composite, record, domain types | Partial: composite types, relation row types, ROW and domains authored under #828 (not yet qualified); arrays of named composites supported (#1268); ranges and arrays of domains absent; enums as composite fields or domain bases are `0A000` | #828 |
 | bit / varbit | Absent | #816 |
 | inet, cidr, macaddr, macaddr8 | Absent | #816, #793 |
 | tsvector, tsquery | Absent | #799, #793 |

@@ -16,7 +16,7 @@ use crate::types::Value;
 
 /// The enum description of each parameter slot whose OID names an enum type.
 /// Empty when the catalog has no enum types.
-pub(super) fn enum_columns(
+fn enum_columns(
     cassie: &Cassie,
     session: &CassieSession,
     parameter_types: &[i32],
@@ -39,8 +39,45 @@ pub(super) fn enum_columns(
 /// The `(values, formats, declared OIDs)` triple of a `Bind` message.
 pub(super) type WireParameters<'a> = (&'a [Option<Vec<u8>>], &'a [i16], &'a [i32]);
 
-/// The session's vector OID and the enum description of each parameter slot.
-pub(super) type SpecialParameterTypes<'a> = (Option<i32>, &'a [Option<EnumColumn>]);
+/// A parameter slot typed by a user-range OID, which has no builtin codec.
+#[derive(Debug, Clone)]
+pub(super) enum UserParameter {
+    Enum(EnumColumn),
+    Record(super::record_parameters::RecordParameter),
+}
+
+/// The session's vector OID and the user-type description of each parameter slot.
+pub(super) type SpecialParameterTypes<'a> = (Option<i32>, &'a [Option<UserParameter>]);
+
+/// The user-type description of each parameter slot: an enum, a composite or
+/// an array of either. Empty when no slot names such a type.
+pub(super) fn user_parameters(
+    cassie: &Cassie,
+    session: &CassieSession,
+    parameter_types: &[i32],
+) -> Vec<Option<UserParameter>> {
+    let enums = enum_columns(cassie, session, parameter_types);
+    let records = super::record_parameters::for_slots(cassie, session, parameter_types);
+    if enums.is_empty() && records.is_empty() {
+        return Vec::new();
+    }
+    (0..parameter_types.len())
+        .map(|index| {
+            enums
+                .get(index)
+                .copied()
+                .flatten()
+                .map(UserParameter::Enum)
+                .or_else(|| {
+                    records
+                        .get(index)
+                        .cloned()
+                        .flatten()
+                        .map(UserParameter::Record)
+                })
+        })
+        .collect()
+}
 
 /// Decodes every bound parameter. `wire` is the `(values, formats, declared
 /// OIDs)` triple of the `Bind` message; `special` is the session's vector OID
@@ -51,14 +88,25 @@ pub(super) fn decode(
     special: SpecialParameterTypes<'_>,
 ) -> Result<(Vec<Value>, Vec<QueryMemoryReservation>), ExtendedQueryError> {
     let (parameters, parameter_formats, parameter_types) = wire;
-    let (vector_oid, enum_columns) = special;
+    let (vector_oid, user_parameters) = special;
     let decoded_parameters = parameters
         .iter()
         .enumerate()
         .map(|(index, parameter)| {
             let format = format_for_index(parameter_formats, index);
-            if let Some(column) = enum_columns.get(index).copied().flatten() {
-                return decode_enum(parameter.as_deref(), format, column);
+            match user_parameters.get(index).and_then(Option::as_ref) {
+                Some(UserParameter::Enum(column)) => {
+                    return decode_enum(parameter.as_deref(), format, *column);
+                }
+                Some(UserParameter::Record(record)) => {
+                    return super::record_parameters::decode(
+                        parameter.as_deref(),
+                        format,
+                        record,
+                        index,
+                    );
+                }
+                None => {}
             }
             decode_parameter_with_vector(
                 parameter.as_deref(),

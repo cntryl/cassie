@@ -18,7 +18,12 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 mod character_arrays;
+mod composite_arrays;
 mod controlled_source;
+pub(crate) use composite_arrays::{
+    element_descriptor as composite_array_descriptor, from_text as composite_array_from_text,
+    typed_records as composite_array_records,
+};
 mod enum_values;
 pub(crate) use character_arrays::{
     hydrate_row as hydrate_character_arrays, hydrate_value as hydrate_character_array_value,
@@ -789,6 +794,9 @@ pub(crate) fn try_json_to_typed_value(
     if enum_values::is_enum_column(data_type) {
         return enum_values::from_storage(value, data_type);
     }
+    if let Some(descriptor) = composite_arrays::element_descriptor(data_type) {
+        return composite_arrays::from_storage(value, descriptor);
+    }
     let DataType::Composite(descriptor) = data_type else {
         return Ok(json_to_typed_value(value, data_type));
     };
@@ -821,6 +829,12 @@ pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataTyp
         // infallible entry point serves callers that cannot report an error.
         return try_json_to_typed_value(value, data_type).unwrap_or_else(|error| {
             tracing::error!(%error, "stored composite value does not match its column descriptor");
+            Value::Null
+        });
+    }
+    if let Some(descriptor) = composite_arrays::element_descriptor(data_type) {
+        return composite_arrays::from_storage(value, descriptor).unwrap_or_else(|error| {
+            tracing::error!(%error, "stored composite array does not match its column descriptor");
             Value::Null
         });
     }

@@ -61,6 +61,27 @@ fn expression(
     failure.map_or(Ok(()), Err)
 }
 
+/// Rewrites the outer references of a `GRAPH_TABLE` expression. A pattern variable shadows an
+/// outer relation of the same name, so references it owns stay as written.
+fn graph_expression(
+    expr: &mut Expr,
+    source: &QuerySource,
+    outer: &[Namespace],
+    owned: &std::collections::HashSet<String>,
+) -> Result<(), CassieError> {
+    if let Expr::Column(name) = expr {
+        let path = ColumnIdentifierPath::parse(name).map_err(CassieError::Planner)?;
+        if path
+            .namespace_qualifier()
+            .is_some_and(|qualifier| owned.contains(&qualifier))
+        {
+            return Ok(());
+        }
+        return expression(expr, source, outer);
+    }
+    expr.try_visit_children_mut(|child| graph_expression(child, source, outer, owned))
+}
+
 pub(super) fn query(select: &mut SelectStatement, outer: &[Namespace]) -> Result<(), CassieError> {
     let scope = select.source.clone();
     source(&mut select.source, &scope, outer)?;
@@ -147,10 +168,20 @@ fn source(
         QuerySource::TableFunction {
             function,
             lateral: true,
+            form,
             ..
         } => {
             for expr in function.expressions_mut() {
                 expression(expr, scope, outer)?;
+            }
+            if let Some(table) = form.as_deref_mut().and_then(|form| form.graph_table_mut()) {
+                let owned = table
+                    .variable_names()
+                    .map(str::to_owned)
+                    .collect::<std::collections::HashSet<_>>();
+                for expr in table.expressions_mut() {
+                    graph_expression(expr, scope, outer, &owned)?;
+                }
             }
         }
         QuerySource::Aliased { source, .. } => self::source(source, scope, outer)?,

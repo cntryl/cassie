@@ -48,6 +48,8 @@ enum Node<'a> {
     Item(&'a ast::SelectItem),
     Expr(&'a ast::Expr),
     Function(&'a ast::FunctionCall),
+    /// The expressions of a `GRAPH_TABLE`, which see its pattern variables.
+    Graph(&'a ast::GraphTable),
     FunctionModifiers(&'a ast::FunctionCall),
     Expressions(&'a [ast::Expr]),
     Items(&'a [ast::SelectItem]),
@@ -165,6 +167,23 @@ impl<'a, 'c> Fold<'a, 'c> {
                 }
             }
         }
+        if let Node::Graph(table) = node {
+            let mut fields = self.contexts.values[context].fields.clone();
+            fields.extend(crate::sql::binder::graph_table_property_types(
+                table,
+                self.catalog,
+            ));
+            let source = self.contexts.values[context].source;
+            context = self.contexts.values.len();
+            self.contexts.try_push(
+                Context {
+                    fields,
+                    source,
+                    target_start: self.targets.values.len(),
+                },
+                self.controls,
+            )?;
+        }
         if let Node::Select(select) = node {
             context = self.contexts.values.len();
             // Source metadata discovery is the existing catalog-input boundary.
@@ -239,6 +258,10 @@ impl<'a, 'c> Fold<'a, 'c> {
                 output
             }
             Node::Query(_) => self.subquery_query_summary(frame),
+            Node::Graph(_) => {
+                self.contexts.values.pop();
+                None
+            }
             Node::Source(_)
             | Node::Expressions(_)
             | Node::Items(_)

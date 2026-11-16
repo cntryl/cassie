@@ -376,6 +376,8 @@ enum Node<'a> {
     Cte(&'a ast::CteQuery),
     Expr(&'a ast::Expr),
     Function(&'a ast::FunctionCall),
+    /// The expressions of a `GRAPH_TABLE`.
+    Graph(&'a ast::GraphTable),
     Expressions(&'a [ast::Expr]),
     Items(&'a [ast::SelectItem]),
     Orders(&'a [ast::OrderExpr]),
@@ -423,8 +425,8 @@ impl Node<'_> {
             Self::Source(source) => match source {
                 ast::QuerySource::Values { .. }
                 | ast::QuerySource::Aliased { .. }
-                | ast::QuerySource::TableFunction { .. }
                 | ast::QuerySource::Subquery { .. } => 1,
+                ast::QuerySource::TableFunction { .. } => 2,
                 ast::QuerySource::Join { .. } => 3,
                 ast::QuerySource::TableSample { repeatable, .. } => {
                     2 + usize::from(repeatable.is_some())
@@ -444,6 +446,7 @@ impl Node<'_> {
             },
             Self::Expr(expr) => expr_children(expr),
             Self::Function(_) => 3,
+            Self::Graph(table) => table.expression_slots(),
             Self::Expressions(values) => values.len(),
             Self::Items(values) => values.len(),
             Self::Orders(values) => values.len(),
@@ -481,6 +484,7 @@ impl Node<'_> {
                 1 => function.filter.as_deref().map(Self::Expr),
                 _ => Some(Self::Orders(&function.order_by)),
             },
+            Self::Graph(table) => table.expression_at(index).map(Self::Expr),
             Self::Expressions(values) => values.get(index).map(Self::Expr),
             Self::Items(values) => values.get(index).map(Self::Item),
             Self::Orders(values) => values.get(index).map(|order| Self::Expr(&order.expr)),
@@ -693,7 +697,13 @@ fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
             1 => Node::Expr(rate),
             _ => Node::Expr(repeatable.as_ref()?),
         }),
-        ast::QuerySource::TableFunction { function, .. } => Some(Node::Function(function)),
+        ast::QuerySource::TableFunction { function, form, .. } => match index {
+            0 => Some(Node::Function(function)),
+            _ => form
+                .as_deref()
+                .and_then(|form| form.graph_table())
+                .map(Node::Graph),
+        },
         ast::QuerySource::Subquery { select, .. } => Some(Node::Select(select)),
         ast::QuerySource::Join {
             left, right, on, ..

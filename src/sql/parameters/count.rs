@@ -146,7 +146,15 @@ fn parameter_count_query_source(source: &ast::QuerySource) -> usize {
         ast::QuerySource::Collection(_)
         | ast::QuerySource::Cte(_)
         | ast::QuerySource::SingleRow => 0,
-        ast::QuerySource::TableFunction { function, .. } => parameter_count_function(function),
+        ast::QuerySource::TableFunction { function, form, .. } => {
+            parameter_count_function(function).max(
+                form.iter()
+                    .flat_map(|form| form.graph_expressions())
+                    .map(parameter_count_expr)
+                    .max()
+                    .unwrap_or(0),
+            )
+        }
         ast::QuerySource::Subquery { select, .. } => parameter_count_select(select),
         ast::QuerySource::Join {
             left, right, on, ..

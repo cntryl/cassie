@@ -295,6 +295,10 @@ pub(super) fn bind(
     lateral_fields: &HashSet<String>,
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
+    if matches!(&source, QuerySource::TableFunction { function, .. } if crate::sql::table_sources::is_graph_table(&function.name))
+    {
+        return super::graph_table::bind(source, catalog, lateral_fields, context);
+    }
     let QuerySource::TableFunction {
         name,
         mut function,

@@ -51,6 +51,9 @@ impl Fold<'_, '_> {
         if let Some(summary) = self.json_source(function, frame)? {
             return Ok(Some(summary));
         }
+        if crate::sql::functions::graph_weighted::is_weighted_paths(&function.name) {
+            return self.weighted_paths_source(function, frame).map(Some);
+        }
         if !table_sources::is_series(&function.name) {
             return Ok(None);
         }
@@ -95,6 +98,41 @@ impl Fold<'_, '_> {
         Ok(Some(Summary::known(
             i32::try_from(signature.output.type_oid()).unwrap_or(705),
         )))
+    }
+
+    /// `graph_weighted_paths` has one signature, so each untyped argument takes its declared
+    /// input type (text, `graph_element_ref`, integer, `text[]`, numeric).
+    fn weighted_paths_source(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        let reference = self
+            .scope
+            .and_then(|scope| self.catalog.graph_descriptors(scope.database))
+            .and_then(|descriptors| i32::try_from(descriptors.element_ref.oid).ok());
+        // graph, source, target, weight_property, max_hops, direction, edge_labels, max_cost, k
+        let declared = [
+            Some(25),
+            reference,
+            reference,
+            Some(25),
+            Some(23),
+            Some(25),
+            Some(1009),
+            Some(1700),
+            Some(23),
+        ];
+        for (summary, target) in self.summaries.values[frame.start..]
+            .iter_mut()
+            .take(function.args.len())
+            .zip(declared)
+        {
+            if let (true, Some(target)) = (matches!(summary.oid, 0 | 705), target) {
+                self.occurrences.coerce(summary, target, false)?;
+            }
+        }
+        Ok(Summary::unqualified())
     }
 
     /// JSON document sources: element expansion, record-returning functions and `JSON_TABLE`.

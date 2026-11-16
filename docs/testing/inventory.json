@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1753,
-    "rust_files": 1716,
-    "rust_test_declarations": 10425,
+    "files": 1760,
+    "rust_files": 1723,
+    "rust_test_declarations": 10461,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10450,
+    "registered_rust_instances": 10486,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -64881,6 +64881,130 @@
       }
     },
     {
+      "id": "tests/graph_table/cancellation.rs::should_cancel_a_traversal_paused_inside_the_search_loop",
+      "name": "should_cancel_a_traversal_paused_inside_the_search_loop",
+      "current_file": "tests/graph_table/cancellation.rs",
+      "line": 38,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cancellation::should_cancel_a_traversal_paused_inside_the_search_loop"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "cancellation",
+        "directory": "tests/graph_table/cancellation",
+        "file": "tests/graph_table/cancellation/cancellation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cancellation.rs::should_release_query_memory_after_a_budget_failure",
+      "name": "should_release_query_memory_after_a_budget_failure",
+      "current_file": "tests/graph_table/cancellation.rs",
+      "line": 74,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cancellation::should_release_query_memory_after_a_budget_failure"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "cancellation",
+        "directory": "tests/graph_table/cancellation",
+        "file": "tests/graph_table/cancellation/cancellation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cancellation.rs::should_release_query_memory_after_a_pre_traversal_cancellation",
+      "name": "should_release_query_memory_after_a_pre_traversal_cancellation",
+      "current_file": "tests/graph_table/cancellation.rs",
+      "line": 98,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cancellation::should_release_query_memory_after_a_pre_traversal_cancellation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "cancellation",
+        "directory": "tests/graph_table/cancellation",
+        "file": "tests/graph_table/cancellation/cancellation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cancellation.rs::should_cancel_a_selection_paused_before_its_final_sort",
+      "name": "should_cancel_a_selection_paused_before_its_final_sort",
+      "current_file": "tests/graph_table/cancellation.rs",
+      "line": 119,
+      "end_line": 154,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cancellation::should_cancel_a_selection_paused_before_its_final_sort"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "cancellation",
+        "directory": "tests/graph_table/cancellation",
+        "file": "tests/graph_table/cancellation/cancellation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/composition.rs::should_filter_a_graph_table_with_an_outer_where",
       "name": "should_filter_a_graph_table_with_an_outer_where",
       "current_file": "tests/graph_table/composition.rs",
@@ -67578,6 +67702,68 @@
       }
     },
     {
+      "id": "tests/graph_table/tie_order.rs::should_repeat_tied_selector_choices_after_a_restart",
+      "name": "should_repeat_tied_selector_choices_after_a_restart",
+      "current_file": "tests/graph_table/tie_order.rs",
+      "line": 121,
+      "end_line": 132,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "tie_order::should_repeat_tied_selector_choices_after_a_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "ordering",
+        "directory": "tests/graph_table/ordering",
+        "file": "tests/graph_table/ordering/tie_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/tie_order.rs::should_choose_the_same_tied_paths_whatever_the_insertion_order",
+      "name": "should_choose_the_same_tied_paths_whatever_the_insertion_order",
+      "current_file": "tests/graph_table/tie_order.rs",
+      "line": 135,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "tie_order::should_choose_the_same_tied_paths_whatever_the_insertion_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "ordering",
+        "directory": "tests/graph_table/ordering",
+        "file": "tests/graph_table/ordering/tie_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/transactions.rs::should_see_own_uncommitted_inserts",
       "name": "should_see_own_uncommitted_inserts",
       "current_file": "tests/graph_table/transactions.rs",
@@ -68725,6 +68911,440 @@
       }
     },
     {
+      "id": "tests/graph_types/driver.rs::should_describe_the_graph_types_as_composites_through_the_driver",
+      "name": "should_describe_the_graph_types_as_composites_through_the_driver",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 158,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_describe_the_graph_types_as_composites_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver.rs::should_round_trip_key_parts_of_every_shape_through_the_driver",
+      "name": "should_round_trip_key_parts_of_every_shape_through_the_driver",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 188,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_round_trip_key_parts_of_every_shape_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver.rs::should_round_trip_a_key_part_array_with_a_null_element_through_the_driver",
+      "name": "should_round_trip_a_key_part_array_with_a_null_element_through_the_driver",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 227,
+      "end_line": 252,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_round_trip_a_key_part_array_with_a_null_element_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver.rs::should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver",
+      "name": "should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 255,
+      "end_line": 293,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver.rs::should_round_trip_a_zero_hop_path_through_the_driver",
+      "name": "should_round_trip_a_zero_hop_path_through_the_driver",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 309,
+      "end_line": 326,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_round_trip_a_zero_hop_path_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver.rs::should_round_trip_a_one_hop_path_through_the_driver",
+      "name": "should_round_trip_a_one_hop_path_through_the_driver",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 329,
+      "end_line": 346,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_round_trip_a_one_hop_path_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver.rs::should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_the_driver",
+      "name": "should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_the_driver",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 349,
+      "end_line": 368,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver.rs::should_report_the_driver_parameter_type_of_a_path_function_argument",
+      "name": "should_report_the_driver_parameter_type_of_a_path_function_argument",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 371,
+      "end_line": 389,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_report_the_driver_parameter_type_of_a_path_function_argument"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_pass_a_text_path_parameter_to_path_to_jsonb",
+      "name": "should_pass_a_text_path_parameter_to_path_to_jsonb",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 81,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_pass_a_text_path_parameter_to_path_to_jsonb"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_pass_a_binary_path_parameter_to_path_to_jsonb",
+      "name": "should_pass_a_binary_path_parameter_to_path_to_jsonb",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 94,
+      "end_line": 104,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_pass_a_binary_path_parameter_to_path_to_jsonb"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_pass_a_text_path_parameter_to_path_steps",
+      "name": "should_pass_a_text_path_parameter_to_path_steps",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 107,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_pass_a_text_path_parameter_to_path_steps"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_pass_a_binary_path_parameter_to_path_steps",
+      "name": "should_pass_a_binary_path_parameter_to_path_steps",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 126,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_pass_a_binary_path_parameter_to_path_steps"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_pass_a_text_reference_parameter_to_key_parts",
+      "name": "should_pass_a_text_reference_parameter_to_key_parts",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 145,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_pass_a_text_reference_parameter_to_key_parts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/parameter_functions.rs::should_pass_a_binary_reference_parameter_to_key_parts",
+      "name": "should_pass_a_binary_reference_parameter_to_key_parts",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 164,
+      "end_line": 180,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_pass_a_binary_reference_parameter_to_key_parts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_types/paths.rs::should_reject_a_path_with_the_wrong_vertex_count_with_22023",
       "name": "should_reject_a_path_with_the_wrong_vertex_count_with_22023",
       "current_file": "tests/graph_types/paths.rs",
@@ -69079,6 +69699,37 @@
         {
           "suite": "graph_types",
           "name": "paths::should_order_forward_before_reverse_paths_with_order_by"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/paths.rs::should_fail_with_22003_when_a_cumulative_cost_overflows_numeric",
+      "name": "should_fail_with_22003_when_a_cumulative_cost_overflows_numeric",
+      "current_file": "tests/graph_types/paths.rs",
+      "line": 213,
+      "end_line": 239,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "paths::should_fail_with_22003_when_a_cumulative_cost_overflows_numeric"
         }
       ],
       "attributes": [
@@ -71267,6 +71918,130 @@
       }
     },
     {
+      "id": "tests/graph_weighted/arguments.rs::should_accept_a_numeric_literal_max_cost_inclusively",
+      "name": "should_accept_a_numeric_literal_max_cost_inclusively",
+      "current_file": "tests/graph_weighted/arguments.rs",
+      "line": 243,
+      "end_line": 253,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "arguments::should_accept_a_numeric_literal_max_cost_inclusively"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/arguments.rs::should_convert_a_float_max_cost_through_numeric",
+      "name": "should_convert_a_float_max_cost_through_numeric",
+      "current_file": "tests/graph_weighted/arguments.rs",
+      "line": 256,
+      "end_line": 267,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "arguments::should_convert_a_float_max_cost_through_numeric"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/arguments.rs::should_reject_a_non_finite_or_negative_max_cost_with_22023",
+      "name": "should_reject_a_non_finite_or_negative_max_cost_with_22023",
+      "current_file": "tests/graph_weighted/arguments.rs",
+      "line": 270,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "arguments::should_reject_a_non_finite_or_negative_max_cost_with_22023"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/arguments.rs::should_apply_the_float_to_numeric_digit_rule_to_a_float_max_cost",
+      "name": "should_apply_the_float_to_numeric_digit_rule_to_a_float_max_cost",
+      "current_file": "tests/graph_weighted/arguments.rs",
+      "line": 290,
+      "end_line": 306,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "arguments::should_apply_the_float_to_numeric_digit_rule_to_a_float_max_cost"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_weighted/binding.rs::should_apply_the_defaults_for_omitted_trailing_arguments",
       "name": "should_apply_the_defaults_for_omitted_trailing_arguments",
       "current_file": "tests/graph_weighted/binding.rs",
@@ -71633,6 +72408,37 @@
         "category": "semantics",
         "directory": "tests/graph_weighted/semantics",
         "file": "tests/graph_weighted/semantics/matrix.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/mixed_mappings.rs::should_order_mixed_mapping_ties_by_the_shared_reference_order",
+      "name": "should_order_mixed_mapping_ties_by_the_shared_reference_order",
+      "current_file": "tests/graph_weighted/mixed_mappings.rs",
+      "line": 196,
+      "end_line": 242,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "mixed_mappings::should_order_mixed_mapping_ties_by_the_shared_reference_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/mixed_mappings.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -72259,6 +73065,192 @@
       }
     },
     {
+      "id": "tests/graph_weighted/prepared.rs::should_describe_the_weighted_call_parameters_with_the_declared_types",
+      "name": "should_describe_the_weighted_call_parameters_with_the_declared_types",
+      "current_file": "tests/graph_weighted/prepared.rs",
+      "line": 153,
+      "end_line": 172,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "prepared::should_describe_the_weighted_call_parameters_with_the_declared_types"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/prepared.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/prepared.rs::should_execute_a_positional_call_with_text_parameters",
+      "name": "should_execute_a_positional_call_with_text_parameters",
+      "current_file": "tests/graph_weighted/prepared.rs",
+      "line": 175,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "prepared::should_execute_a_positional_call_with_text_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/prepared.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/prepared.rs::should_execute_a_positional_call_with_binary_integer_parameters",
+      "name": "should_execute_a_positional_call_with_binary_integer_parameters",
+      "current_file": "tests/graph_weighted/prepared.rs",
+      "line": 188,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "prepared::should_execute_a_positional_call_with_binary_integer_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/prepared.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/prepared.rs::should_execute_a_named_call_with_parameters",
+      "name": "should_execute_a_named_call_with_parameters",
+      "current_file": "tests/graph_weighted/prepared.rs",
+      "line": 201,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "prepared::should_execute_a_named_call_with_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/prepared.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/prepared.rs::should_reject_a_null_parameter_for_a_required_argument_with_22004",
+      "name": "should_reject_a_null_parameter_for_a_required_argument_with_22004",
+      "current_file": "tests/graph_weighted/prepared.rs",
+      "line": 214,
+      "end_line": 225,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "prepared::should_reject_a_null_parameter_for_a_required_argument_with_22004"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/prepared.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/prepared.rs::should_reject_a_parameter_that_is_not_a_valid_direction_with_22023",
+      "name": "should_reject_a_parameter_that_is_not_a_valid_direction_with_22023",
+      "current_file": "tests/graph_weighted/prepared.rs",
+      "line": 228,
+      "end_line": 239,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "prepared::should_reject_a_parameter_that_is_not_a_valid_direction_with_22023"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/prepared.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_weighted/resources.rs::should_enforce_the_measured_peak_as_the_budget_boundary",
       "name": "should_enforce_the_measured_peak_as_the_budget_boundary",
       "current_file": "tests/graph_weighted/resources.rs",
@@ -72334,6 +73326,130 @@
         {
           "suite": "graph_weighted",
           "name": "resources::should_stop_a_canceled_search_with_57014"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "resources",
+        "directory": "tests/graph_weighted/resources",
+        "file": "tests/graph_weighted/resources/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/resources.rs::should_cancel_a_search_paused_inside_the_search_loop",
+      "name": "should_cancel_a_search_paused_inside_the_search_loop",
+      "current_file": "tests/graph_weighted/resources.rs",
+      "line": 116,
+      "end_line": 149,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "resources::should_cancel_a_search_paused_inside_the_search_loop"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "resources",
+        "directory": "tests/graph_weighted/resources",
+        "file": "tests/graph_weighted/resources/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/resources.rs::should_release_query_memory_after_a_budget_failure",
+      "name": "should_release_query_memory_after_a_budget_failure",
+      "current_file": "tests/graph_weighted/resources.rs",
+      "line": 152,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "resources::should_release_query_memory_after_a_budget_failure"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "resources",
+        "directory": "tests/graph_weighted/resources",
+        "file": "tests/graph_weighted/resources/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/resources.rs::should_release_query_memory_after_a_pre_search_cancellation",
+      "name": "should_release_query_memory_after_a_pre_search_cancellation",
+      "current_file": "tests/graph_weighted/resources.rs",
+      "line": 169,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "resources::should_release_query_memory_after_a_pre_search_cancellation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "resources",
+        "directory": "tests/graph_weighted/resources",
+        "file": "tests/graph_weighted/resources/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/resources.rs::should_count_every_selected_edge_row_in_the_weight_validation_scan",
+      "name": "should_count_every_selected_edge_row_in_the_weight_validation_scan",
+      "current_file": "tests/graph_weighted/resources.rs",
+      "line": 202,
+      "end_line": 221,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "resources::should_count_every_selected_edge_row_in_the_weight_validation_scan"
         }
       ],
       "attributes": [
@@ -330805,6 +331921,21 @@
       "line_limit": 12000
     },
     {
+      "current_file": "tests/graph_table/cancellation.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 154,
+      "sha256": "5ab7c2f3ff2f1104a7d767e9725acf12a51d2b9dd277c195a2ac3605b624a8af",
+      "test_declarations": 4,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/cancellation/cancellation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/composition.rs",
       "role": "test_module",
       "action": "split_by_contract",
@@ -330944,6 +332075,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/tie_order.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 144,
+      "sha256": "878923cc421e02cc2d75b9d6d79e818afd5ee23995176eeb5dfeb9010f54a89b",
+      "test_declarations": 2,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/ordering/tie_order.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/transactions.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -331007,8 +332153,8 @@
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 49,
-      "sha256": "6de6d268b9df07fc897cf7817b8974a5bc1f3558a8f12a262175bb4e5871353f",
+      "lines": 55,
+      "sha256": "315a871acd8720e0684035b2b48902fb1ae1a593a8e7ef855de0de2756282842",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"
@@ -331049,6 +332195,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_types/driver.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 389,
+      "sha256": "8babf02a524636f02c904f7fc30b2ff4403e9731300d369e0d5511ce1516d724",
+      "test_declarations": 8,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/driver.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_types/fixture.rs",
       "role": "test_support",
       "action": "keep",
@@ -331064,12 +332225,27 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 180,
+      "sha256": "d012a1a14ef50e3a35edc430e988bc8ad896fff6fc8d0c8a3c0ab8586190cce9",
+      "test_declarations": 6,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/routines/parameter_functions.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_types/paths.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 210,
-      "sha256": "634346967f9ead6bb581506da841693ed667cf8c332a881cd8f0a5a55f55fc4c",
-      "test_declarations": 12,
+      "lines": 239,
+      "sha256": "a5f51ab58afdecd8b8b97fa5f91b4a9b2b1393cb842635cdd1ebbe3cbe3666c9",
+      "test_declarations": 13,
       "registered_suites": [
         "graph_types"
       ],
@@ -331090,6 +332266,21 @@
       ],
       "destinations": [
         "tests/graph_types/semantics/projected_paths.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/record_codec.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 171,
+      "sha256": "363b374678120b39987eafa2074c396ad98c33a5f2eb5a557c3c2120c2686712",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/record_codec.rs"
       ],
       "line_limit": 1000
     },
@@ -331157,8 +332348,8 @@
       "current_file": "tests/graph_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 32,
-      "sha256": "16d1b14ecaefd33df2353dec13461f901bf21997daad7986cd8826a87b29a741",
+      "lines": 41,
+      "sha256": "29d25b1b7af8cd4e1eed56cb21d21dcd152e724f9d915f99e5754ba5be2b445a",
       "test_declarations": 0,
       "registered_suites": [
         "graph_types"
@@ -331172,9 +332363,9 @@
       "current_file": "tests/graph_weighted/arguments.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 230,
-      "sha256": "a3a4185e57cc929ec45123465cc7778ea8bd257f19d577f0164bbac62a72bb85",
-      "test_declarations": 12,
+      "lines": 306,
+      "sha256": "97eff1822c6dde10400abf12a06f99d7cde0353ca39ed649adac2efb3ace8cbe",
+      "test_declarations": 16,
       "registered_suites": [
         "graph_weighted"
       ],
@@ -331214,6 +332405,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_weighted/mixed_mappings.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 242,
+      "sha256": "29d05359fe1aacd8fd6a607d5178dee80da86d328f033dba14fbaf2c1eeca3f4",
+      "test_declarations": 1,
+      "registered_suites": [
+        "graph_weighted"
+      ],
+      "destinations": [
+        "tests/graph_weighted/semantics/mixed_mappings.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_weighted/oracle.rs",
       "role": "test_module",
       "action": "split_by_contract",
@@ -331230,12 +332436,27 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_weighted/prepared.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 239,
+      "sha256": "e118e34c8ab67aafa6a7214071c0fdc1771fb025c4f006c353ccf1b1f47ee433",
+      "test_declarations": 6,
+      "registered_suites": [
+        "graph_weighted"
+      ],
+      "destinations": [
+        "tests/graph_weighted/semantics/prepared.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_weighted/resources.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 107,
-      "sha256": "88654a4d1e276edc605c7cdfc34640d452083a69f8b6e26ae33f32d944e1c160",
-      "test_declarations": 3,
+      "lines": 221,
+      "sha256": "077d5c8829ba6765db4d48c64c220818c91e67a85d580ab3d4ea457c8340639d",
+      "test_declarations": 7,
       "registered_suites": [
         "graph_weighted"
       ],
@@ -331279,7 +332500,7 @@
       "role": "test_support",
       "action": "keep",
       "lines": 464,
-      "sha256": "2d0e6064aaa18abefedfe7dca2ad70f3eee3d0b4838be9e41cc10ecd20d64a84",
+      "sha256": "d3c7c2b8ac9ce1e2c3aefd69862e29ce9915e4e7e556114bb32e2f60a90fee44",
       "test_declarations": 0,
       "registered_suites": [
         "graph_weighted"
@@ -331293,8 +332514,8 @@
       "current_file": "tests/graph_weighted.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 33,
-      "sha256": "e24519cabe7da13416060620a7a1980095af143c2f4e4b9e9db0faf0f346f0e4",
+      "lines": 39,
+      "sha256": "b64f9d4d2bd7820fcd1027aee921900fe40098f1195854864327aa36efca32e7",
       "test_declarations": 0,
       "registered_suites": [
         "graph_weighted"

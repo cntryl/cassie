@@ -14,7 +14,7 @@ use super::eval::{element_entries, Evaluator};
 use super::plan::{Plan, Source};
 use super::store::Store;
 use super::{QueryError, SourceExecutionEnv};
-use crate::runtime::QueryMemoryReservation;
+use crate::runtime::{QueryMemoryReservation, QueryScoringTestBoundary};
 use crate::sql::ast::{GraphEdgeDirection, GraphPathMode};
 
 struct Hop {
@@ -109,6 +109,9 @@ impl<'a> Walk<'a> {
     fn search(&mut self) -> Result<(), QueryError> {
         let mut stack = vec![self.frame(0, 0, false, false)?];
         while let Some(top) = stack.len().checked_sub(1) {
+            self.env
+                .controls
+                .scored_candidate(QueryScoringTestBoundary::GraphTraversal)?;
             self.env.controls.check_interruption()?;
             let (step, hops) = (stack[top].step, stack[top].hops);
             if !stack[top].closed {

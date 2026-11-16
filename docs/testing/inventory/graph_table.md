@@ -4,6 +4,10 @@ Generated from `inventory.json`. Selected destinations record the reviewed physi
 
 | Test | Current source | Selected destination | Registration | Ignored | Instances | Placement review |
 | --- | --- | --- | --- | --- | ---: | --- |
+| `should_cancel_a_traversal_paused_inside_the_search_loop` | [tests/graph_table/cancellation.rs:38](../../../tests/graph_table/cancellation.rs#L38) | `tests/graph_table/cancellation/cancellation.rs` | registered | no | 1 | recommended |
+| `should_release_query_memory_after_a_budget_failure` | [tests/graph_table/cancellation.rs:74](../../../tests/graph_table/cancellation.rs#L74) | `tests/graph_table/cancellation/cancellation.rs` | registered | no | 1 | recommended |
+| `should_release_query_memory_after_a_pre_traversal_cancellation` | [tests/graph_table/cancellation.rs:98](../../../tests/graph_table/cancellation.rs#L98) | `tests/graph_table/cancellation/cancellation.rs` | registered | no | 1 | recommended |
+| `should_cancel_a_selection_paused_before_its_final_sort` | [tests/graph_table/cancellation.rs:119](../../../tests/graph_table/cancellation.rs#L119) | `tests/graph_table/cancellation/cancellation.rs` | registered | no | 1 | recommended |
 | `should_filter_a_graph_table_with_an_outer_where` | [tests/graph_table/composition.rs:18](../../../tests/graph_table/composition.rs#L18) | `tests/graph_table/semantics/composition.rs` | registered | no | 1 | recommended |
 | `should_join_a_graph_table_with_an_ordinary_table` | [tests/graph_table/composition.rs:32](../../../tests/graph_table/composition.rs#L32) | `tests/graph_table/semantics/composition.rs` | registered | no | 1 | recommended |
 | `should_correlate_a_lateral_graph_table_per_outer_row` | [tests/graph_table/composition.rs:46](../../../tests/graph_table/composition.rs#L46) | `tests/graph_table/semantics/composition.rs` | registered | no | 1 | recommended |
@@ -91,6 +95,8 @@ Generated from `inventory.json`. Selected destinations record the reviewed physi
 | `should_count_a_path_once_across_adjacent_quantified_steps` | [tests/graph_table/semantics.rs:479](../../../tests/graph_table/semantics.rs#L479) | `tests/graph_table/semantics/semantics.rs` | registered | no | 1 | recommended |
 | `should_evaluate_an_edge_predicate_that_reads_another_variable` | [tests/graph_table/semantics.rs:497](../../../tests/graph_table/semantics.rs#L497) | `tests/graph_table/semantics/semantics.rs` | registered | no | 1 | recommended |
 | `should_return_each_binding_of_a_named_vertex_between_quantified_steps` | [tests/graph_table/semantics.rs:519](../../../tests/graph_table/semantics.rs#L519) | `tests/graph_table/semantics/parameters.rs` | registered | no | 1 | recommended |
+| `should_repeat_tied_selector_choices_after_a_restart` | [tests/graph_table/tie_order.rs:121](../../../tests/graph_table/tie_order.rs#L121) | `tests/graph_table/ordering/tie_order.rs` | registered | no | 1 | recommended |
+| `should_choose_the_same_tied_paths_whatever_the_insertion_order` | [tests/graph_table/tie_order.rs:135](../../../tests/graph_table/tie_order.rs#L135) | `tests/graph_table/ordering/tie_order.rs` | registered | no | 1 | recommended |
 | `should_see_own_uncommitted_inserts` | [tests/graph_table/transactions.rs:35](../../../tests/graph_table/transactions.rs#L35) | `tests/graph_table/transactions/transactions.rs` | registered | no | 1 | recommended |
 | `should_hide_uncommitted_writes_from_another_session_until_commit` | [tests/graph_table/transactions.rs:55](../../../tests/graph_table/transactions.rs#L55) | `tests/graph_table/transactions/transactions.rs` | registered | no | 1 | recommended |
 | `should_see_an_own_update_that_changes_an_inline_predicate` | [tests/graph_table/transactions.rs:74](../../../tests/graph_table/transactions.rs#L74) | `tests/graph_table/transactions/transactions.rs` | registered | no | 1 | recommended |

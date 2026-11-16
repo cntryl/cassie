@@ -30,3 +30,12 @@ mod wire;
 
 #[path = "graph_types/projected_paths.rs"]
 mod projected_paths;
+
+#[path = "graph_types/parameter_functions.rs"]
+mod parameter_functions;
+
+#[path = "graph_types/record_codec.rs"]
+mod record_codec;
+
+#[path = "graph_types/driver.rs"]
+mod driver;

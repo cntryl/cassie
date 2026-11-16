@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1753 |
-| Rust files | 1716 |
-| Rust test declarations | 10425 |
+| Files under `tests/` | 1760 |
+| Rust files | 1723 |
+| Rust test declarations | 10461 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10450 |
+| Static Rust registration instances | 10486 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -42,9 +42,9 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [graph_guide](inventory/graph_guide.md) | 11 | 0 |
-| [graph_table](inventory/graph_table.md) | 118 | 0 |
-| [graph_types](inventory/graph_types.md) | 76 | 0 |
-| [graph_weighted](inventory/graph_weighted.md) | 57 | 0 |
+| [graph_table](inventory/graph_table.md) | 124 | 0 |
+| [graph_types](inventory/graph_types.md) | 91 | 0 |
+| [graph_weighted](inventory/graph_weighted.md) | 72 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
 | [metrics](inventory/metrics.md) | 58 | 0 |
 | [null_safe_predicates](inventory/null_safe_predicates.md) | 65 | 0 |

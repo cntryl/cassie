@@ -1,8 +1,8 @@
 //! Memory budget and cancellation of a weighted search.
 
-use crate::world::{fast, vertex, Wg};
+use crate::world::{fast, slow, vertex, Wg};
 use cassie::config::CassieRuntimeConfig;
-use cassie::runtime::QueryCancellationHandle;
+use cassie::runtime::{QueryCancellationHandle, QueryScoringTestBoundary};
 
 fn complete(count: i64) -> Wg {
     Wg::new(count, &links(count))
@@ -104,4 +104,118 @@ fn should_stop_a_canceled_search_with_57014() {
         Ok(_) => panic!("a canceled search returns no rows"),
         Err(error) => assert_eq!(error.sql_state(), "57014"),
     }
+}
+
+fn live_reservations(world: &Wg) -> u64 {
+    world.fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+        .as_u64()
+        .expect("current accounted memory")
+}
+
+#[test]
+fn should_cancel_a_search_paused_inside_the_search_loop() {
+    // Arrange
+    let world = complete(5);
+    let mut cancellation = QueryCancellationHandle::new();
+    let (selected, resume) =
+        cancellation.pause_after_scored_candidate(QueryScoringTestBoundary::GraphWeightedSearch);
+    let statement = call(5);
+
+    // Act
+    let outcome = std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            world.fixture.cassie.execute_sql_with_cancellation(
+                &world.fixture.session,
+                &statement,
+                vec![],
+                &cancellation,
+            )
+        });
+        selected
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("the search loop reaches its first iteration");
+        cancellation.cancel();
+        resume.send(()).expect("resume the search");
+        worker.join().expect("worker finishes")
+    });
+
+    // Assert
+    let state = match outcome {
+        Ok(_) => panic!("a canceled search returns no rows"),
+        Err(error) => error.sql_state().to_owned(),
+    };
+    assert_eq!(state, "57014");
+    assert_eq!(live_reservations(&world), 0);
+}
+
+#[test]
+fn should_release_query_memory_after_a_budget_failure() {
+    // Arrange
+    let world = limited(6, 4 * 1024);
+
+    // Act
+    let outcome = world.fixture.execute(&call(6));
+
+    // Assert
+    let state = match outcome {
+        Ok(_) => panic!("a statement over its budget returned rows"),
+        Err(error) => error.sql_state().to_owned(),
+    };
+    assert_eq!(state, "54000");
+    assert_eq!(live_reservations(&world), 0);
+}
+
+#[test]
+fn should_release_query_memory_after_a_pre_search_cancellation() {
+    // Arrange
+    let world = complete(5);
+    let cancellation = QueryCancellationHandle::new();
+    cancellation.cancel();
+
+    // Act
+    let outcome = world.fixture.cassie.execute_sql_with_cancellation(
+        &world.fixture.session,
+        &call(5),
+        vec![],
+        &cancellation,
+    );
+
+    // Assert
+    assert!(outcome.is_err());
+    assert_eq!(live_reservations(&world), 0);
+}
+
+fn validated(world: &Wg, rest: &str) -> usize {
+    let cancellation = QueryCancellationHandle::new();
+    let statement = Wg::select(&format!("'wg', {}, {}, {rest}", vertex(1), vertex(2)));
+    let outcome = world.fixture.cassie.execute_sql_with_cancellation(
+        &world.fixture.session,
+        &statement,
+        vec![],
+        &cancellation,
+    );
+    assert!(outcome.is_ok());
+    cancellation.graph_weight_validation_rows()
+}
+
+#[test]
+fn should_count_every_selected_edge_row_in_the_weight_validation_scan() {
+    // Arrange
+    let world = Wg::new(
+        3,
+        &[
+            fast(1, 1, 2, 1),
+            fast(2, 2, 3, 1),
+            fast(3, 1, 3, 1),
+            slow(1, 3, 1, 1),
+            slow(2, 2, 1, 1),
+        ],
+    );
+
+    // Act
+    let everything = validated(&world, "'weight', 1, 'out', NULL, NULL, 1");
+    let fast_only = validated(&world, "'weight', 1, 'out', ARRAY['fast'], NULL, 1");
+
+    // Assert
+    assert_eq!((everything, fast_only), (5, 3));
 }

@@ -11,6 +11,7 @@ pub struct QueryCancellationHandle(
     Option<Arc<super::QueryTestPause>>,
     tokio::sync::watch::Sender<bool>,
     Option<Arc<super::aggregate_test_pause::QueryAggregateTestPause>>,
+    Arc<AtomicUsize>,
 );
 
 impl Default for QueryCancellationHandle {
@@ -23,6 +24,7 @@ impl Default for QueryCancellationHandle {
                 .or_else(super::regex_test_pause::take_next_query_pause),
             cancellation_signal,
             None,
+            Arc::new(AtomicUsize::new(0)),
         )
     }
 }
@@ -59,6 +61,14 @@ impl QueryCancellationHandle {
         let (pause, selected, resume) = super::scoring_test_pause::ScoringTestPause::new(boundary);
         self.2 = Some(Arc::new(super::QueryTestPause::Scoring(pause)));
         (selected, resume)
+    }
+
+    /// Edge rows the `graph_weighted_paths` weight validation scan has read for this request.
+    /// Clones of a handle share the figure.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn graph_weight_validation_rows(&self) -> usize {
+        self.5.load(Ordering::Acquire)
     }
 
     pub fn cancel(&self) {
@@ -288,6 +298,11 @@ impl QueryExecutionControls {
             pause.reach(boundary)?;
         }
         Ok(())
+    }
+
+    /// Counts edge rows read by the weighted-path weight validation scan.
+    pub(crate) fn count_graph_weight_validation(&self, rows: usize) {
+        self.cancellation.5.fetch_add(rows, Ordering::AcqRel);
     }
 
     pub(crate) fn check_interruption(&self) -> Result<(), CassieError> {

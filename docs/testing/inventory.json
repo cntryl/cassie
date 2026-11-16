@@ -326153,7 +326153,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 345,
-      "sha256": "260212dc112059300c37714c95d5395fc3bc58c474b6714000569753b174ae19",
+      "sha256": "c21e046399c157d5496877130f92d8a3a3a584dbf1922a7ea3c29b097f8f9f89",
       "test_declarations": 9,
       "registered_suites": [
         "compatibility"

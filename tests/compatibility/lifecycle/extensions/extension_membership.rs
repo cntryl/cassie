@@ -139,7 +139,7 @@ fn should_allocate_fresh_member_identities_when_extension_is_recreated() {
 
         // Assert
         assert_eq!(first.len(), 2);
-        assert!(dropped.is_empty());
+        assert_eq!(dropped, Vec::<u32>::new());
         assert_eq!(second.len(), 2);
         assert!(second.iter().all(|oid| !first.contains(oid)));
         drop(client);
@@ -170,8 +170,8 @@ fn should_roll_back_extension_members_with_create_extension() {
 
         // Assert
         assert_eq!(own.len(), 2);
-        assert!(other.is_empty());
-        assert!(after.is_empty());
+        assert_eq!(other, Vec::<u32>::new());
+        assert_eq!(after, Vec::<u32>::new());
         drop(reader);
         drop(client);
         reader_connection.abort();
@@ -206,7 +206,7 @@ fn should_restore_extension_members_after_drop_extension_rollback() {
 
         // Assert
         assert_eq!(before.len(), 2);
-        assert!(during.is_empty());
+        assert_eq!(during, Vec::<u32>::new());
         assert_eq!(after, before);
         drop(client);
         server.shutdown(connection).await;
@@ -313,7 +313,7 @@ fn should_isolate_extension_members_between_databases() {
 
     // Assert
     assert_eq!(in_postgres.len(), 2);
-    assert!(in_tenant.is_empty());
+    assert_eq!(in_tenant, Vec::<Vec<Value>>::new());
     assert_eq!(tenant_installed.len(), 2);
     assert_ne!(tenant_installed, in_postgres);
     assert_eq!(tenant_after_drop, tenant_installed);

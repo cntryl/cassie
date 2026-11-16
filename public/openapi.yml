@@ -690,6 +690,7 @@ components:
             - indexes
             - udfs
             - procedures
+            - property_graphs
         label:
           type: string
         items:
@@ -698,7 +699,7 @@ components:
             $ref: '#/components/schemas/QuerySchemaItem'
     QuerySchemaItem:
       type: object
-      description: SQL-accessible catalog object. Labels use canonical `database.schema.name` values when scope is available.
+      description: SQL-accessible catalog object. Labels use canonical `database.schema.name` values when scope is available. A `property_graph` item lists a mapped property graph only when the session may read every table it maps; its `columns` entries are the vertex and edge mappings (name is the mapping alias, `data_type` is `vertex on schema.table` or `edge on schema.table`) and `metadata` counts the mapped vertex and edge tables.
       required:
         - id
         - kind
@@ -718,6 +719,7 @@ components:
             - index
             - udf
             - procedure
+            - property_graph
         label:
           type: string
         database:

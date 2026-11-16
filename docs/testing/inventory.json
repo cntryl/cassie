@@ -168,11 +168,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1720,
-    "rust_files": 1683,
-    "rust_test_declarations": 10202,
+    "files": 1733,
+    "rust_files": 1696,
+    "rust_test_declarations": 10270,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10208,
+    "registered_rust_instances": 10276,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -65706,11 +65706,1468 @@
       }
     },
     {
+      "id": "tests/graph_table/composition.rs::should_filter_a_graph_table_with_an_outer_where",
+      "name": "should_filter_a_graph_table_with_an_outer_where",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 18,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_filter_a_graph_table_with_an_outer_where"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/composition.rs::should_join_a_graph_table_with_an_ordinary_table",
+      "name": "should_join_a_graph_table_with_an_ordinary_table",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 32,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_join_a_graph_table_with_an_ordinary_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/composition.rs::should_correlate_a_lateral_graph_table_per_outer_row",
+      "name": "should_correlate_a_lateral_graph_table_per_outer_row",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 46,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_correlate_a_lateral_graph_table_per_outer_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/composition.rs::should_aggregate_over_a_graph_table",
+      "name": "should_aggregate_over_a_graph_table",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 62,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_aggregate_over_a_graph_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "aggregates/core",
+        "directory": "tests/graph_table/aggregates/core",
+        "file": "tests/graph_table/aggregates/core/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/composition.rs::should_use_a_graph_table_inside_exists",
+      "name": "should_use_a_graph_table_inside_exists",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 76,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_use_a_graph_table_inside_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/composition.rs::should_read_a_graph_table_through_a_derived_table",
+      "name": "should_read_a_graph_table_through_a_derived_table",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 92,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_read_a_graph_table_through_a_derived_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/composition.rs::should_read_a_view_over_a_graph_table",
+      "name": "should_read_a_view_over_a_graph_table",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 106,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_read_a_view_over_a_graph_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/composition.rs::should_bind_parameters_in_a_prepared_graph_table",
+      "name": "should_bind_parameters_in_a_prepared_graph_table",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 129,
+      "end_line": 153,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_bind_parameters_in_a_prepared_graph_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/composition.rs::should_reevaluate_a_lateral_parameter_for_each_outer_row",
+      "name": "should_reevaluate_a_lateral_parameter_for_each_outer_row",
+      "current_file": "tests/graph_table/composition.rs",
+      "line": 156,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "composition::should_reevaluate_a_lateral_parameter_for_each_outer_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/exact_reads.rs::should_exclude_an_edge_whose_endpoint_vertex_is_missing",
+      "name": "should_exclude_an_edge_whose_endpoint_vertex_is_missing",
+      "current_file": "tests/graph_table/exact_reads.rs",
+      "line": 29,
+      "end_line": 40,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "exact_reads::should_exclude_an_edge_whose_endpoint_vertex_is_missing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/exact_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/exact_reads.rs::should_show_a_dangling_edge_once_its_endpoint_is_inserted",
+      "name": "should_show_a_dangling_edge_once_its_endpoint_is_inserted",
+      "current_file": "tests/graph_table/exact_reads.rs",
+      "line": 43,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "exact_reads::should_show_a_dangling_edge_once_its_endpoint_is_inserted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/exact_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/exact_reads.rs::should_select_several_mappings_that_share_a_label",
+      "name": "should_select_several_mappings_that_share_a_label",
+      "current_file": "tests/graph_table/exact_reads.rs",
+      "line": 62,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "exact_reads::should_select_several_mappings_that_share_a_label"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/exact_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/exact_reads.rs::should_not_cross_endpoint_mappings_of_an_edge",
+      "name": "should_not_cross_endpoint_mappings_of_an_edge",
+      "current_file": "tests/graph_table/exact_reads.rs",
+      "line": 80,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "exact_reads::should_not_cross_endpoint_mappings_of_an_edge"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/exact_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/exact_reads.rs::should_count_a_mapping_carrying_both_listed_labels_once",
+      "name": "should_count_a_mapping_carrying_both_listed_labels_once",
+      "current_file": "tests/graph_table/exact_reads.rs",
+      "line": 103,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "exact_reads::should_count_a_mapping_carrying_both_listed_labels_once"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/exact_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/exact_reads.rs::should_leave_out_an_edge_with_a_null_endpoint_component",
+      "name": "should_leave_out_an_edge_with_a_null_endpoint_component",
+      "current_file": "tests/graph_table/exact_reads.rs",
+      "line": 129,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "exact_reads::should_leave_out_an_edge_with_a_null_endpoint_component"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/exact_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/resources.rs::should_fail_with_the_resource_limit_when_the_budget_is_exhausted",
+      "name": "should_fail_with_the_resource_limit_when_the_budget_is_exhausted",
+      "current_file": "tests/graph_table/resources.rs",
+      "line": 41,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "resources::should_fail_with_the_resource_limit_when_the_budget_is_exhausted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "resources",
+        "directory": "tests/graph_table/resources",
+        "file": "tests/graph_table/resources/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/resources.rs::should_enforce_the_measured_peak_as_the_budget_boundary",
+      "name": "should_enforce_the_measured_peak_as_the_budget_boundary",
+      "current_file": "tests/graph_table/resources.rs",
+      "line": 69,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "resources::should_enforce_the_measured_peak_as_the_budget_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "resources",
+        "directory": "tests/graph_table/resources",
+        "file": "tests/graph_table/resources/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/resources.rs::should_cancel_a_traversal_at_an_inline_predicate_boundary",
+      "name": "should_cancel_a_traversal_at_an_inline_predicate_boundary",
+      "current_file": "tests/graph_table/resources.rs",
+      "line": 87,
+      "end_line": 120,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "resources::should_cancel_a_traversal_at_an_inline_predicate_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "resources",
+        "directory": "tests/graph_table/resources",
+        "file": "tests/graph_table/resources/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_match_oracle_for_single_hop_edges",
+      "name": "should_match_oracle_for_single_hop_edges",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 46,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_match_oracle_for_single_hop_edges"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_return_every_vertex_for_a_vertex_only_pattern",
+      "name": "should_return_every_vertex_for_a_vertex_only_pattern",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 62,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_return_every_vertex_for_a_vertex_only_pattern"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_honour_inclusive_bounds_of_two_to_three_hops",
+      "name": "should_honour_inclusive_bounds_of_two_to_three_hops",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 75,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_honour_inclusive_bounds_of_two_to_three_hops"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_bind_both_endpoints_of_a_zero_hop_path_to_one_vertex",
+      "name": "should_bind_both_endpoints_of_a_zero_hop_path_to_one_vertex",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 94,
+      "end_line": 107,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_bind_both_endpoints_of_a_zero_hop_path_to_one_vertex"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_require_both_endpoint_predicates_on_a_zero_hop_vertex",
+      "name": "should_require_both_endpoint_predicates_on_a_zero_hop_vertex",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 110,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_require_both_endpoint_predicates_on_a_zero_hop_vertex"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_apply_inline_predicates_before_selection_unlike_the_graph_where",
+      "name": "should_apply_inline_predicates_before_selection_unlike_the_graph_where",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 128,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_apply_inline_predicates_before_selection_unlike_the_graph_where"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_distinguish_simple_from_acyclic_on_a_two_cycle",
+      "name": "should_distinguish_simple_from_acyclic_on_a_two_cycle",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 169,
+      "end_line": 194,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_distinguish_simple_from_acyclic_on_a_two_cycle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_enumerate_bounded_walks_like_the_oracle",
+      "name": "should_enumerate_bounded_walks_like_the_oracle",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 197,
+      "end_line": 210,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_enumerate_bounded_walks_like_the_oracle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_enumerate_unbounded_trails_like_the_oracle",
+      "name": "should_enumerate_unbounded_trails_like_the_oracle",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 213,
+      "end_line": 228,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_enumerate_unbounded_trails_like_the_oracle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/resources.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_traverse_an_undirected_self_loop_once",
+      "name": "should_traverse_an_undirected_self_loop_once",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 231,
+      "end_line": 248,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_traverse_an_undirected_self_loop_once"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_follow_edges_against_their_direction_like_the_oracle",
+      "name": "should_follow_edges_against_their_direction_like_the_oracle",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 251,
+      "end_line": 267,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_follow_edges_against_their_direction_like_the_oracle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_follow_undirected_edges_in_both_orientations_like_the_oracle",
+      "name": "should_follow_undirected_edges_in_both_orientations_like_the_oracle",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 270,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_follow_undirected_edges_in_both_orientations_like_the_oracle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_keep_parallel_edges_as_distinct_matches",
+      "name": "should_keep_parallel_edges_as_distinct_matches",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 290,
+      "end_line": 304,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_keep_parallel_edges_as_distinct_matches"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_choose_the_path_through_the_lower_edge_on_a_shortest_tie",
+      "name": "should_choose_the_path_through_the_lower_edge_on_a_shortest_tie",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 307,
+      "end_line": 328,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_choose_the_path_through_the_lower_edge_on_a_shortest_tie"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_return_the_k_lowest_tied_paths_per_endpoint_pair",
+      "name": "should_return_the_k_lowest_tied_paths_per_endpoint_pair",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 331,
+      "end_line": 359,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_return_the_k_lowest_tied_paths_per_endpoint_pair"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_apply_an_inline_edge_predicate_to_each_group_edge",
+      "name": "should_apply_an_inline_edge_predicate_to_each_group_edge",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 362,
+      "end_line": 386,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_apply_an_inline_edge_predicate_to_each_group_edge"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_bind_a_repeated_variable_to_one_vertex",
+      "name": "should_bind_a_repeated_variable_to_one_vertex",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 389,
+      "end_line": 410,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_bind_a_repeated_variable_to_one_vertex"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_reject_a_predicate_that_is_not_true",
+      "name": "should_reject_a_predicate_that_is_not_true",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 413,
+      "end_line": 422,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_reject_a_predicate_that_is_not_true"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/errors.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_agree_with_the_oracle_across_key_shapes",
+      "name": "should_agree_with_the_oracle_across_key_shapes",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 425,
+      "end_line": 449,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_agree_with_the_oracle_across_key_shapes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_agree_with_the_oracle_on_columnar_tables",
+      "name": "should_agree_with_the_oracle_on_columnar_tables",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 452,
+      "end_line": 476,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_agree_with_the_oracle_on_columnar_tables"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_count_a_path_once_across_adjacent_quantified_steps",
+      "name": "should_count_a_path_once_across_adjacent_quantified_steps",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 479,
+      "end_line": 494,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_count_a_path_once_across_adjacent_quantified_steps"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/semantics.rs::should_evaluate_an_edge_predicate_that_reads_another_variable",
+      "name": "should_evaluate_an_edge_predicate_that_reads_another_variable",
+      "current_file": "tests/graph_table/semantics.rs",
+      "line": 497,
+      "end_line": 516,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "semantics::should_evaluate_an_edge_predicate_that_reads_another_variable"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/transactions.rs::should_see_own_uncommitted_inserts",
+      "name": "should_see_own_uncommitted_inserts",
+      "current_file": "tests/graph_table/transactions.rs",
+      "line": 35,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "transactions::should_see_own_uncommitted_inserts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "transactions",
+        "directory": "tests/graph_table/transactions",
+        "file": "tests/graph_table/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/transactions.rs::should_hide_uncommitted_writes_from_another_session_until_commit",
+      "name": "should_hide_uncommitted_writes_from_another_session_until_commit",
+      "current_file": "tests/graph_table/transactions.rs",
+      "line": 55,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "transactions::should_hide_uncommitted_writes_from_another_session_until_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "transactions",
+        "directory": "tests/graph_table/transactions",
+        "file": "tests/graph_table/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/transactions.rs::should_see_an_own_update_that_changes_an_inline_predicate",
+      "name": "should_see_an_own_update_that_changes_an_inline_predicate",
+      "current_file": "tests/graph_table/transactions.rs",
+      "line": 74,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "transactions::should_see_an_own_update_that_changes_an_inline_predicate"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "transactions",
+        "directory": "tests/graph_table/transactions",
+        "file": "tests/graph_table/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/transactions.rs::should_see_own_deletes",
+      "name": "should_see_own_deletes",
+      "current_file": "tests/graph_table/transactions.rs",
+      "line": 98,
+      "end_line": 115,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "transactions::should_see_own_deletes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "transactions",
+        "directory": "tests/graph_table/transactions",
+        "file": "tests/graph_table/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/transactions.rs::should_follow_repeated_mutation_of_one_element",
+      "name": "should_follow_repeated_mutation_of_one_element",
+      "current_file": "tests/graph_table/transactions.rs",
+      "line": 118,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "transactions::should_follow_repeated_mutation_of_one_element"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "transactions",
+        "directory": "tests/graph_table/transactions",
+        "file": "tests/graph_table/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/transactions.rs::should_roll_back_to_a_savepoint",
+      "name": "should_roll_back_to_a_savepoint",
+      "current_file": "tests/graph_table/transactions.rs",
+      "line": 149,
+      "end_line": 171,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "transactions::should_roll_back_to_a_savepoint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "transactions",
+        "directory": "tests/graph_table/transactions",
+        "file": "tests/graph_table/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/transactions.rs::should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit",
+      "name": "should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit",
+      "current_file": "tests/graph_table/transactions.rs",
+      "line": 174,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "transactions::should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "transactions",
+        "directory": "tests/graph_table/transactions",
+        "file": "tests/graph_table/transactions/transactions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/wire.rs::should_describe_declared_column_types_in_row_description",
       "name": "should_describe_declared_column_types_in_row_description",
       "current_file": "tests/graph_table/wire.rs",
-      "line": 44,
-      "end_line": 72,
+      "line": 45,
+      "end_line": 73,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65740,8 +67197,8 @@
       "id": "tests/graph_table/wire.rs::should_describe_a_wildcard_over_a_graph_table",
       "name": "should_describe_a_wildcard_over_a_graph_table",
       "current_file": "tests/graph_table/wire.rs",
-      "line": 75,
-      "end_line": 91,
+      "line": 76,
+      "end_line": 92,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65771,8 +67228,8 @@
       "id": "tests/graph_table/wire.rs::should_infer_a_parameter_type_from_an_inline_predicate",
       "name": "should_infer_a_parameter_type_from_an_inline_predicate",
       "current_file": "tests/graph_table/wire.rs",
-      "line": 94,
-      "end_line": 110,
+      "line": 95,
+      "end_line": 111,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65799,11 +67256,11 @@
       }
     },
     {
-      "id": "tests/graph_table/wire.rs::should_report_unavailable_execution_after_describing",
-      "name": "should_report_unavailable_execution_after_describing",
+      "id": "tests/graph_table/wire.rs::should_return_the_matching_row_after_describing",
+      "name": "should_return_the_matching_row_after_describing",
       "current_file": "tests/graph_table/wire.rs",
-      "line": 113,
-      "end_line": 125,
+      "line": 114,
+      "end_line": 127,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -65811,7 +67268,69 @@
       "instances": [
         {
           "suite": "graph_table",
-          "name": "wire::should_report_unavailable_execution_after_describing"
+          "name": "wire::should_return_the_matching_row_after_describing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_execute_with_a_bound_parameter_over_the_wire",
+      "name": "should_execute_with_a_bound_parameter_over_the_wire",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 130,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_execute_with_a_bound_parameter_over_the_wire"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/wire.rs::should_emit_no_row_of_a_graph_table_that_fails_during_evaluation",
+      "name": "should_emit_no_row_of_a_graph_table_that_fails_during_evaluation",
+      "current_file": "tests/graph_table/wire.rs",
+      "line": 149,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "wire::should_emit_no_row_of_a_graph_table_that_fails_during_evaluation"
         }
       ],
       "attributes": [
@@ -311297,6 +312816,595 @@
       }
     },
     {
+      "id": "tests/support/graph_oracle/tests.rs::should_differ_between_inline_versus_post_selection_predicates",
+      "name": "should_differ_between_inline_versus_post_selection_predicates",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 90,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_differ_between_inline_versus_post_selection_predicates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_select_two_hop_path_with_bounds_two_to_three",
+      "name": "should_select_two_hop_path_with_bounds_two_to_three",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 126,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_select_two_hop_path_with_bounds_two_to_three"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_bind_one_vertex_for_zero_hop_paths",
+      "name": "should_bind_one_vertex_for_zero_hop_paths",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 143,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_bind_one_vertex_for_zero_hop_paths"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_distinguish_simple_from_acyclic_on_two_cycle",
+      "name": "should_distinguish_simple_from_acyclic_on_two_cycle",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 169,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_distinguish_simple_from_acyclic_on_two_cycle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_treat_undirected_self_loop_as_one_step",
+      "name": "should_treat_undirected_self_loop_as_one_step",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 189,
+      "end_line": 201,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_treat_undirected_self_loop_as_one_step"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_record_reverse_direction_for_undirected_non_loop_edge",
+      "name": "should_record_reverse_direction_for_undirected_non_loop_edge",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 204,
+      "end_line": 219,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_record_reverse_direction_for_undirected_non_loop_edge"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_keep_parallel_edges_as_distinct_paths",
+      "name": "should_keep_parallel_edges_as_distinct_paths",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 222,
+      "end_line": 233,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_keep_parallel_edges_as_distinct_paths"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_match_label_alternatives_once",
+      "name": "should_match_label_alternatives_once",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 236,
+      "end_line": 250,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_match_label_alternatives_once"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_break_equal_length_tie_by_path_order",
+      "name": "should_break_equal_length_tie_by_path_order",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 253,
+      "end_line": 274,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_break_equal_length_tie_by_path_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_select_shortest_k_per_endpoint_pair",
+      "name": "should_select_shortest_k_per_endpoint_pair",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 277,
+      "end_line": 299,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_select_shortest_k_per_endpoint_pair"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_exclude_edges_with_absent_endpoint",
+      "name": "should_exclude_edges_with_absent_endpoint",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 302,
+      "end_line": 311,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_exclude_edges_with_absent_endpoint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_order_zero_hop_path_before_closing_cycle",
+      "name": "should_order_zero_hop_path_before_closing_cycle",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 314,
+      "end_line": 327,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_order_zero_hop_path_before_closing_cycle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_reject_unbounded_walk_but_allow_unbounded_trail",
+      "name": "should_reject_unbounded_walk_but_allow_unbounded_trail",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 330,
+      "end_line": 343,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_reject_unbounded_walk_but_allow_unbounded_trail"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_reject_inverted_bounds_or_zero_k",
+      "name": "should_reject_inverted_bounds_or_zero_k",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 346,
+      "end_line": 358,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_reject_inverted_bounds_or_zero_k"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_fail_whole_call_for_hidden_negative_weight",
+      "name": "should_fail_whole_call_for_hidden_negative_weight",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 361,
+      "end_line": 376,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_fail_whole_call_for_hidden_negative_weight"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_reject_null_missing_or_non_finite_weights",
+      "name": "should_reject_null_missing_or_non_finite_weights",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 379,
+      "end_line": 404,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_reject_null_missing_or_non_finite_weights"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_ignore_weights_of_dangling_edges",
+      "name": "should_ignore_weights_of_dangling_edges",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 407,
+      "end_line": 418,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_ignore_weights_of_dangling_edges"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_return_zero_hop_then_closing_cycle_for_zero_cost_two_cycle",
+      "name": "should_return_zero_hop_then_closing_cycle_for_zero_cost_two_cycle",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 421,
+      "end_line": 444,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_return_zero_hop_then_closing_cycle_for_zero_cost_two_cycle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/graph_oracle/tests.rs::should_rank_cheapest_paths_by_tie_order_within_cost_limit",
+      "name": "should_rank_cheapest_paths_by_tie_order_within_cost_limit",
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "line": 447,
+      "end_line": 471,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "graph_oracle::tests::should_rank_cheapest_paths_by_tie_order_within_cost_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support/graph_oracle",
+        "file": "tests/support/graph_oracle/tests.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
       "id": "tests/support/relational_qualification.rs::seed_array_tests::should_require_seed_array_shape_with_sql_null_slots",
       "name": "should_require_seed_array_shape_with_sql_null_slots",
       "current_file": "tests/support/relational_qualification.rs",
@@ -323819,12 +325927,91 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/composition.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 169,
+      "sha256": "14c5c407e40e52ac0b452ec8b962d1ab44ee7fcece086ed39b4d1c9ab23d1cec",
+      "test_declarations": 9,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/aggregates/core/composition.rs",
+        "tests/graph_table/semantics/composition.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/exact_reads.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 152,
+      "sha256": "d1c4313cb69f297f1edf122cf7c87c2382337bd5b5db497d0c2db80b896d63f2",
+      "test_declarations": 6,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/exact_reads.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/resources.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 120,
+      "sha256": "7d1a977d5243e5aba019b1b926ef9925537e137b809dfd27863d21815d8edbac",
+      "test_declarations": 3,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/resources/resources.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/semantics.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 516,
+      "sha256": "2cec2ea92a6b905080c7b8a12bd486adb645b89950e8339adb06c1fa53ca2039",
+      "test_declarations": 22,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/errors.rs",
+        "tests/graph_table/semantics/parameters.rs",
+        "tests/graph_table/semantics/resources.rs",
+        "tests/graph_table/semantics/semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/transactions.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 197,
+      "sha256": "c67d75e9090b5e6ef7724fb1f4b6fe4115808332abccea43271b248eed82981b",
+      "test_declarations": 7,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/transactions/transactions.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/wire.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 125,
-      "sha256": "8b86bbd5a91fd1e52d6664a16f202c0230206733afef1aa485a521c435f0e53d",
-      "test_declarations": 4,
+      "lines": 170,
+      "sha256": "164f16df75e8c4340da5de7c2dbca962b4924cb4dffb59e41dc0bde1ca7ab002",
+      "test_declarations": 6,
       "registered_suites": [
         "graph_table"
       ],
@@ -323834,11 +326021,26 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/world.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 343,
+      "sha256": "be247260c744bbeadd2cab106ad069fa90eca3c338dbfcc038b1184afb75330e",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/world.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 8,
-      "sha256": "c19f39f500351da6cbefd4f1d2600ed7bc85ef00ea8a18b21224c52df3f62493",
+      "lines": 31,
+      "sha256": "ef09be987bccd32f7064436895c6faca0f336e387e2edf4f52f76fd787059275",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"
@@ -341269,6 +343471,111 @@
       ],
       "destinations": [
         "tests/support/graph_neighbors.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/graph_oracle/enumerate.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 106,
+      "sha256": "8ff3359069895efdca7671c7c100a138d4dd3d46d58d38e5dc43b891c3ab5a97",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/support/graph_oracle/enumerate.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/graph_oracle/mod.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 19,
+      "sha256": "086ca66488499f079b575fdee91536c4f10b038db6ab8fbc1c0e9e59462d0853",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/support/graph_oracle/mod.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/graph_oracle/model.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 298,
+      "sha256": "1b1688927a17f814e4e025e1f3d813ddcd194c467f5eec0f1dd3d9b88a98a810",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/support/graph_oracle/model.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/graph_oracle/pattern.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 236,
+      "sha256": "42ca153f6415f4b40d07c59453e5d88cafe521401941371e7e5f0ecbd3188b0c",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/support/graph_oracle/pattern.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/graph_oracle/select.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 57,
+      "sha256": "ceb5ceaaeda48ff12f2410e40db53be63b4b9ff8d319c2c2f7c964e3080f530c",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/support/graph_oracle/select.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/graph_oracle/tests.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 471,
+      "sha256": "433fd914ccd8870881f33c323a00618fe3ee9baaaa143bc6239a3a4bf0bdb81f",
+      "test_declarations": 19,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/support/graph_oracle/tests.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/graph_oracle/weighted.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 123,
+      "sha256": "ae22842437ed68c05079c0efba1ea291240b6f144ad9a5c30ed56258498d9645",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/support/graph_oracle/weighted.rs"
       ],
       "line_limit": 1000
     },

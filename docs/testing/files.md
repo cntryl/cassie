@@ -454,8 +454,14 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/fixtures/sqlx_probe/Cargo.lock` | external_client_fixture | 1518 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.lock` |
 | `tests/fixtures/sqlx_probe/Cargo.toml` | external_client_fixture | 11 | 0 | — | keep | `tests/fixtures/sqlx_probe/Cargo.toml` |
 | `tests/fixtures/sqlx_probe/src/main.rs` | external_client_fixture | 159 | 0 | — | keep | `tests/fixtures/sqlx_probe/src/main.rs` |
-| `tests/graph_table/wire.rs` | test_module | 125 | 4 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
-| `tests/graph_table.rs` | cargo_target | 8 | 0 | graph_table | keep | `tests/graph_table.rs` |
+| `tests/graph_table/composition.rs` | test_module | 169 | 9 | graph_table | split_by_contract | `tests/graph_table/aggregates/core/composition.rs`; `tests/graph_table/semantics/composition.rs` |
+| `tests/graph_table/exact_reads.rs` | test_module | 152 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/exact_reads.rs` |
+| `tests/graph_table/resources.rs` | test_module | 120 | 3 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |
+| `tests/graph_table/semantics.rs` | test_module | 516 | 22 | graph_table | split_by_contract | `tests/graph_table/semantics/errors.rs`; `tests/graph_table/semantics/parameters.rs`; `tests/graph_table/semantics/resources.rs`; `tests/graph_table/semantics/semantics.rs` |
+| `tests/graph_table/transactions.rs` | test_module | 197 | 7 | graph_table | move_with_module_alias | `tests/graph_table/transactions/transactions.rs` |
+| `tests/graph_table/wire.rs` | test_module | 170 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
+| `tests/graph_table/world.rs` | test_support | 343 | 0 | graph_table | keep | `tests/graph_table/world.rs` |
+| `tests/graph_table.rs` | cargo_target | 31 | 0 | graph_table | keep | `tests/graph_table.rs` |
 | `tests/json_writes/contracts/errors.rs` | test_module | 34 | 2 | json_writes | keep | `tests/json_writes/contracts/errors.rs` |
 | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` | test_module | 94 | 2 | json_writes | keep | `tests/json_writes/contracts/nulls_apply_check_constraints_to_json_null_values.rs` |
 | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` | test_module | 806 | 15 | json_writes | keep | `tests/json_writes/contracts/nulls_distinguish_json_document_null_from_sql_null.rs` |
@@ -1619,6 +1625,13 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/graph.rs` | shared_support | 24 | 0 | domain_models | keep | `tests/support/graph.rs` |
 | `tests/support/graph_evidence.rs` | shared_support | 134 | 0 | query_scan_controls | keep | `tests/support/graph_evidence.rs` |
 | `tests/support/graph_neighbors.rs` | shared_support | 15 | 0 | domain_models | keep | `tests/support/graph_neighbors.rs` |
+| `tests/support/graph_oracle/enumerate.rs` | shared_support | 106 | 0 | graph_table | keep | `tests/support/graph_oracle/enumerate.rs` |
+| `tests/support/graph_oracle/mod.rs` | shared_support | 19 | 0 | graph_table | keep | `tests/support/graph_oracle/mod.rs` |
+| `tests/support/graph_oracle/model.rs` | shared_support | 298 | 0 | graph_table | keep | `tests/support/graph_oracle/model.rs` |
+| `tests/support/graph_oracle/pattern.rs` | shared_support | 236 | 0 | graph_table | keep | `tests/support/graph_oracle/pattern.rs` |
+| `tests/support/graph_oracle/select.rs` | shared_support | 57 | 0 | graph_table | keep | `tests/support/graph_oracle/select.rs` |
+| `tests/support/graph_oracle/tests.rs` | shared_support | 471 | 19 | graph_table | keep | `tests/support/graph_oracle/tests.rs` |
+| `tests/support/graph_oracle/weighted.rs` | shared_support | 123 | 0 | graph_table | keep | `tests/support/graph_oracle/weighted.rs` |
 | `tests/support/local_storage.rs` | shared_support | 5 | 0 | sql_mutations, storage_indexes | keep | `tests/support/local_storage.rs` |
 | `tests/support/metrics.rs` | shared_support | 8 | 0 | metrics, planner_controls | keep | `tests/support/metrics.rs` |
 | `tests/support/mixed_numeric.rs` | shared_support | 24 | 0 | pgwire_types, sql_queries | keep | `tests/support/mixed_numeric.rs` |

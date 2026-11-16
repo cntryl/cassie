@@ -621,28 +621,32 @@ prefix tie rule. This is an oracle requirement, not current implementation.
 
 ## Access, recovery and resources
 
-The source tables remain authoritative, and until the fast-reads step every
-graph read is an exact read of them in the statement's snapshot and overlay.
-Once derived adjacency exists it is transactionally
-maintained and is never allowed to silently omit or add an edge. The fast-path
-design must state its integrity assumptions, proof, atomicity, snapshot and
-recovery behavior against the published Midge API. The existing whole-graph
-verifier protects a demonstrated missing-member case; a generation or count
-alone is not evidence of completeness. Correlated damage to adjacency and its
-certificate is a required case under any claimed corruption model. If fast
-admission cannot prove a correct answer, use an exact controlled fallback or fail explicitly. Prove missing,
-substituted, extra and stale members, interrupted updates, rollback and restart.
+The source tables remain authoritative. Graph reads are exact reads of them in the
+statement's snapshot and overlay. The fast path (#1253, #1254, #1259) does not add a
+derived adjacency sidecar, certificate or verifier: it expands lazily from the frontier
+over the transactional indexes the product already maintains, and its design, integrity
+model, fallback rules and read bounds are specified in `docs/performance-contracts.md`
+("Graph Reads").
 
-An exact local completeness proof is impossible under arbitrary correlated loss
-of all derived entries and certificates without an independent trusted
-authority: two snapshots can expose identical local derived bytes while one has
-an additional unvisited authoritative incident edge. The current published
-Midge transaction API has not been shown to supply authenticated predicate
-completeness. A practical intermediate candidate verifies once per pinned
-statement snapshot and reuses the result across hops, reducing repeated scans
-without claiming cold O(degree) reads. It requires proof that every read uses
-the same Data transaction and own-write overlay; current graph scans open their
-own transactions. Missing proof leaves the existing exact verifier in place.
+- A vertex is fetched by the unique key that backs its mapping.
+- Incident edges are fetched through an ordinary scalar index on the edge table's endpoint
+  columns when one exists. An edge mapping without a usable index on a needed endpoint side
+  falls back to the exact full read of that mapping for the statement; a partial
+  neighborhood is never used.
+- Start vertices use point lookups only when the start pattern's inline predicate fixes the
+  complete key by equality with constants or parameters; otherwise the start mapping is read
+  exactly.
+- Integrity is the integrity of every indexed SQL query: rows, scalar index entries and
+  unique reservations are key prefixes of one Midge column family and commit atomically
+  together, and index reads happen in the statement's snapshot with the transaction overlay
+  merged. Arbitrary storage corruption of an index is out of the model, exactly as for
+  indexed SQL queries; graph reads claim no stronger detection.
+- `graph_weighted_paths` keeps its full controlled validation scan of the selected edges and
+  is O(selected edges) by contract.
+- Read counts are tested by varying total graph size independently of selected degree and by
+  characterizing fallback separately. The O(degree) claim is conditional on the endpoint
+  index existing and on an anchored start; fallback and unanchored starts are stated
+  separately.
 
 Resource accounting covers frontier, visited and retained path state, edge
 decoding and output. Exhausting the query budget fails with `54000`; cancellation
@@ -659,8 +663,7 @@ that this is feasible with existing portal lifecycle, cancellation and memory
 controls; until then this is a prerequisite, not a claim of current behavior.
 Read-count tests vary total
 graph size independently of selected degree, and characterize high fan-out and
-multi-hop work. The fast-path guarantee is conditional on an actually verified
-complete sidecar, not a claim that damaged-state fallback is also O(degree).
+multi-hop work.
 
 ## Compatibility, delivery and exit
 

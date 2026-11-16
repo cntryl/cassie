@@ -164,7 +164,7 @@ pub(super) struct Resolved {
     pub(super) target_mapping: usize,
     pub(super) vertex_list: Vec<usize>,
     pub(super) edge_list: Vec<usize>,
-    /// The weight column of each selected edge mapping, by mapping index.
+    /// `(edge mapping index, weight column)` of each selected edge mapping.
     pub(super) columns: Vec<(usize, String)>,
 }
 

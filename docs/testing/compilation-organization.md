@@ -55,7 +55,8 @@ comparison or an attribution of runtime cost.
 
 The explicit `tier4_pgwire_fixture_profile` benchmark measures fresh memory
 fixture/startup, listener/connect, real password authentication, eight query
-cycles and teardown separately. Run it with the correctness fixture profile:
+cycles and socket/listener stop separately. Accepted connection tasks and runtime
+destruction are outside the listener-stop timer. Run it with the correctness fixture profile:
 
 ```sh
 cargo bench --locked -p cassie-integration-tests --bench tier4_pgwire_fixture_profile --profile test

@@ -8,7 +8,7 @@ fn main() {
         value.parse::<usize>().expect("positive sample count")
     });
     assert!(samples > 0, "sample count must be positive");
-    println!("sample,fixture_us,listener_connect_us,authentication_us,cycles_us,teardown_us");
+    println!("sample,fixture_us,listener_connect_us,authentication_us,cycles_us,listener_stop_us");
     for sample in 0..samples {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -41,14 +41,14 @@ fn main() {
             drop(reader);
             drop(writer);
             server.stop().await;
-            let teardown = started.elapsed();
+            let listener_stop = started.elapsed();
             println!(
                 "{sample},{},{},{},{},{}",
                 fixture.as_micros(),
                 connection.as_micros(),
                 authentication.as_micros(),
                 cycles.as_micros(),
-                teardown.as_micros()
+                listener_stop.as_micros()
             );
         });
     }

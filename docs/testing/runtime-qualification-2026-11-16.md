@@ -17,7 +17,7 @@ cargo bench --locked -p cassie-integration-tests --bench tier4_pgwire_fixture_pr
 The integration package owns this explicit benchmark because it consumes the
 same compiled fixture library as the four wire correctness targets. It runs
 eight separate memory databases, owned bound listeners, real root password
-startup, eight `SELECT 1` cycles per connection, and fixture teardown. Each
+startup, eight `SELECT 1` cycles per connection, and socket/listener stop. Each
 query checks its returned row. `CASSIE_FIXTURE_PROFILE_SAMPLES` changes the
 sample count. Timings are diagnostics, never correctness thresholds.
 
@@ -34,7 +34,13 @@ scheduling were not isolated, and the samples show substantial variation.
 | Bound listener and TCP connect | 170.5 | 186 |
 | Password authentication through ReadyForQuery | 39,461.5 | 43,375 |
 | Eight query/result cycles | 51,079.5 | 20,486.5 |
-| Connection drop and server stop | 34 | 31 |
+| Socket-half drop and accept-loop stop | 34 | 31 |
+
+Accepted connection-task cleanup, runtime construction/destruction and engine
+background-thread cleanup are outside the phase timers. In particular, listener
+stop aborts/awaits only the accept loop, not each accepted connection. These
+measurements do not establish complete fixture teardown cost. Timer and
+assertion overhead is included in the measured phases.
 
 These are separate medians, not an additive end-to-end median or a speedup
 comparison. The harness is a small shared-fixture witness; it does not execute

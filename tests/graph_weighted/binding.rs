@@ -40,7 +40,9 @@ fn should_apply_the_defaults_for_omitted_trailing_arguments() {
 fn should_bind_named_arguments_in_any_order() {
     // Arrange
     let world = world();
-    let positional = world.call(1, 3, "'weight', 2, 'out', NULL, NULL, 2").expect("call succeeds");
+    let positional = world
+        .call(1, 3, "'weight', 2, 'out', NULL, NULL, 2")
+        .expect("call succeeds");
     let named = format!(
         "k => 2, max_hops => 2, target => {}, source => {}, graph => 'wg', weight_property => 'weight'",
         vertex(3),
@@ -59,7 +61,9 @@ fn should_bind_named_arguments_in_any_order() {
 fn should_bind_positional_arguments_followed_by_named_ones() {
     // Arrange
     let world = world();
-    let expected = world.call(1, 3, "'weight', 2, 'both', NULL, NULL, 2").expect("call succeeds");
+    let expected = world
+        .call(1, 3, "'weight', 2, 'both', NULL, NULL, 2")
+        .expect("call succeeds");
     let mixed = format!(
         "'wg', {}, {}, 'weight', 2, k => 2, direction => 'both'",
         vertex(1),
@@ -89,7 +93,10 @@ fn should_distinguish_an_explicit_null_from_an_omitted_named_argument() {
     let null_cost = outcome(&world, &format!("{base}, max_cost => NULL"));
 
     // Assert
-    assert_eq!((omitted.as_str(), null_k.as_str(), null_cost.as_str()), ("success", "22004", "success"));
+    assert_eq!(
+        (omitted.as_str(), null_k.as_str(), null_cost.as_str()),
+        ("success", "22004", "success")
+    );
 }
 
 #[test]
@@ -177,7 +184,10 @@ fn should_reject_an_unknown_argument_name_with_42883() {
 fn should_reject_a_call_without_a_required_argument_with_42883() {
     // Arrange
     let world = world();
-    let missing = format!("graph => 'wg', source => {}, weight_property => 'weight', max_hops => 1", vertex(1));
+    let missing = format!(
+        "graph => 'wg', source => {}, weight_property => 'weight', max_hops => 1",
+        vertex(1)
+    );
     let short = format!("'wg', {}, {}, 'weight'", vertex(1), vertex(2));
 
     // Act
@@ -191,7 +201,11 @@ fn should_reject_a_call_without_a_required_argument_with_42883() {
 fn should_reject_more_than_nine_positional_arguments_with_42883() {
     // Arrange
     let world = world();
-    let call = format!("'wg', {}, {}, 'weight', 1, 'out', NULL, NULL, 1, 7", vertex(1), vertex(2));
+    let call = format!(
+        "'wg', {}, {}, 'weight', 1, 'out', NULL, NULL, 1, 7",
+        vertex(1),
+        vertex(2)
+    );
 
     // Act
     let result = outcome(&world, &call);

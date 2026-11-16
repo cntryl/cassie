@@ -37,14 +37,18 @@ fn should_deny_a_role_without_select_on_the_mapped_tables_with_42501() {
 }
 
 #[test]
-fn should_answer_the_same_for_a_missing_and_a_present_element_without_select() {
+fn should_deny_a_present_or_missing_element_alike_without_select() {
     // Arrange
     let world = Wg::new(3, &[fast(1, 1, 2, 1)]);
     let session = reader(&world);
 
     // Act
     let present = state(&world, &session, &sql(1, 2, "'weight', 1"));
-    let absent = state(&world, &session, &sql(1, 3, "'weight', 1, 'out', NULL, NULL, 1"));
+    let absent = state(
+        &world,
+        &session,
+        &sql(1, 3, "'weight', 1, 'out', NULL, NULL, 1"),
+    );
 
     // Assert
     assert_eq!((present.as_str(), absent.as_str()), ("42501", "42501"));
@@ -60,7 +64,11 @@ fn should_require_select_only_on_the_tables_of_the_selected_labels() {
     world.run_as_root("GRANT SELECT ON TABLE public.fast TO reader");
 
     // Act
-    let allowed = state(&world, &session, &sql(1, 2, "'weight', 1, 'out', ARRAY['fast']"));
+    let allowed = state(
+        &world,
+        &session,
+        &sql(1, 2, "'weight', 1, 'out', ARRAY['fast']"),
+    );
     let denied = state(&world, &session, &sql(1, 2, "'weight', 1"));
 
     // Assert

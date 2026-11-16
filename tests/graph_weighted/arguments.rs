@@ -3,7 +3,13 @@
 use crate::world::{fast_edge, vertex, Wg};
 
 fn world() -> Wg {
-    Wg::new(3, &[crate::world::fast(1, 1, 2, 1), crate::world::slow(2, 2, 3, 2)])
+    Wg::new(
+        3,
+        &[
+            crate::world::fast(1, 1, 2, 1),
+            crate::world::slow(2, 2, 3, 2),
+        ],
+    )
 }
 
 /// SQLSTATE of the call `'wg', source 1, target 2, <rest>`.
@@ -35,7 +41,10 @@ fn should_reject_a_null_required_argument_with_22004() {
     ];
 
     // Act
-    let states = calls.iter().map(|call| state_of_arguments(&world, call)).collect::<Vec<_>>();
+    let states = calls
+        .iter()
+        .map(|call| state_of_arguments(&world, call))
+        .collect::<Vec<_>>();
 
     // Assert
     assert_eq!(states, vec!["22004"; 5]);
@@ -67,7 +76,7 @@ fn should_reject_a_null_element_in_the_label_array_with_22004() {
 }
 
 #[test]
-fn should_reject_invalid_bounds_and_direction_with_22023() {
+fn should_reject_invalid_bounds_or_direction_with_22023() {
     // Arrange
     let world = world();
     let calls = [
@@ -81,7 +90,10 @@ fn should_reject_invalid_bounds_and_direction_with_22023() {
     ];
 
     // Act
-    let states = calls.iter().map(|rest| state(&world, rest)).collect::<Vec<_>>();
+    let states = calls
+        .iter()
+        .map(|rest| state(&world, rest))
+        .collect::<Vec<_>>();
 
     // Assert
     assert_eq!(states, vec!["22023"; calls.len()]);
@@ -98,7 +110,10 @@ fn should_reject_an_edge_reference_as_source_or_target_with_22023() {
     ];
 
     // Act
-    let states = calls.iter().map(|call| state_of_arguments(&world, call)).collect::<Vec<_>>();
+    let states = calls
+        .iter()
+        .map(|call| state_of_arguments(&world, call))
+        .collect::<Vec<_>>();
 
     // Assert
     assert_eq!(states, vec!["22023"; 2]);
@@ -125,7 +140,10 @@ fn should_reject_a_reference_to_another_graph_with_42704() {
     let other = "cassie_graph.vertex_ref('other', 'n', ARRAY[cassie_graph.key_part(1::bigint)])";
 
     // Act
-    let result = state_of_arguments(&world, &format!("'wg', {other}, {}, 'weight', 1", vertex(2)));
+    let result = state_of_arguments(
+        &world,
+        &format!("'wg', {other}, {}, 'weight', 1", vertex(2)),
+    );
 
     // Assert
     assert_eq!(result, "42704");
@@ -159,7 +177,10 @@ fn should_reject_an_unknown_weight_property_with_42703() {
     let missing_on_one_mapping = state(&world, "'extra', 1");
 
     // Assert
-    assert_eq!((unknown.as_str(), missing_on_one_mapping.as_str()), ("42703", "42703"));
+    assert_eq!(
+        (unknown.as_str(), missing_on_one_mapping.as_str()),
+        ("42703", "42703")
+    );
 }
 
 #[test]
@@ -199,7 +220,10 @@ fn should_reject_wrongly_typed_arguments_with_42804() {
     ];
 
     // Act
-    let states = calls.iter().map(|call| state_of_arguments(&world, call)).collect::<Vec<_>>();
+    let states = calls
+        .iter()
+        .map(|call| state_of_arguments(&world, call))
+        .collect::<Vec<_>>();
 
     // Assert
     assert_eq!(states, vec!["42804"; 3]);

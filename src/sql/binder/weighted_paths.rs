@@ -44,7 +44,10 @@ pub(super) fn bind(
         .map(|descriptors| {
             let columns = graph_weighted::columns(Some(DataType::Composite(descriptors.path)));
             Box::new(TableFunctionForm::Typed(
-                columns.into_iter().map(|(_, data_type)| data_type).collect(),
+                columns
+                    .into_iter()
+                    .map(|(_, data_type)| data_type)
+                    .collect(),
             ))
         });
     QuerySource::TableFunction {

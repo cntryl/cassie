@@ -10,7 +10,7 @@ const NUMERIC_OID: i32 = 1700;
 const NUMERIC_ARRAY_OID: i32 = 1231;
 
 #[test]
-fn should_see_an_own_uncommitted_edge_and_hide_it_from_another_session() {
+fn should_hide_an_uncommitted_edge_from_another_session() {
     // Arrange
     let world = Wg::new(3, &[fast(1, 1, 2, 1)]);
     let reader = world.fixture.cassie.create_session("tester", None);
@@ -41,7 +41,7 @@ fn should_discard_an_uncommitted_edge_on_rollback() {
     let rows = world.call(1, 3, "'weight', 2").expect("call succeeds");
 
     // Assert
-    assert!(rows.is_empty());
+    assert_eq!(rows.len(), 0);
 }
 
 #[test]
@@ -86,7 +86,10 @@ fn should_feed_the_result_to_path_to_jsonb() {
     let rows = world.fixture.rows(&sql);
 
     // Assert
-    assert_eq!(rows, vec![vec![Value::String("1".to_owned()), Value::Int64(1)]]);
+    assert_eq!(
+        rows,
+        vec![vec![Value::String("1".to_owned()), Value::Int64(1)]]
+    );
 }
 
 #[test]
@@ -95,7 +98,9 @@ fn should_return_every_row_in_rank_order_with_matching_path_lengths() {
     let world = Wg::new(3, &[fast(1, 1, 2, 1), fast(2, 2, 3, 1), fast(3, 1, 3, 2)]);
 
     // Act
-    let rows = world.call(1, 3, "'weight', 2, 'out', NULL, NULL, 2").expect("call succeeds");
+    let rows = world
+        .call(1, 3, "'weight', 2, 'out', NULL, NULL, 2")
+        .expect("call succeeds");
 
     // Assert
     let ranks = rows.iter().map(|row| row.rank).collect::<Vec<_>>();

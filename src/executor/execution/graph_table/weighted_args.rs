@@ -74,7 +74,10 @@ fn element(value: &Value, name: &str) -> Result<ElementRef, QueryError> {
     let reference = ElementRef::from_record(record)
         .map_err(|error| diagnostic("22023", error.message().to_owned()))?;
     if reference.kind == ElementKind::Edge {
-        return Err(diagnostic("22023", format!("{name} must be a vertex reference")));
+        return Err(diagnostic(
+            "22023",
+            format!("{name} must be a vertex reference"),
+        ));
     }
     Ok(reference)
 }
@@ -153,12 +156,7 @@ impl Request {
             "out" => Way::Out,
             "in" => Way::In,
             "both" => Way::Both,
-            _ => {
-                return Err(diagnostic(
-                    "22023",
-                    "direction must be out, in or both",
-                ))
-            }
+            _ => return Err(diagnostic("22023", "direction must be out, in or both")),
         };
         let max_hops = bounded(integer(hops, "max_hops")?, "max_hops", 0)?;
         let k = bounded(integer(k, "k")?, "k", 1)?;

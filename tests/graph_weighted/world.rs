@@ -48,7 +48,10 @@ fn started(config: Option<cassie::config::CassieRuntimeConfig>, setup: &[&str]) 
     let session = cassie.create_session("tester", None);
     for sql in setup {
         if let Err(error) = cassie.execute_sql(&session, sql, vec![]) {
-            panic!("a setup statement failed with SQLSTATE {}", error.sql_state());
+            panic!(
+                "a setup statement failed with SQLSTATE {}",
+                error.sql_state()
+            );
         }
     }
     Fixture { session, cassie }
@@ -107,8 +110,6 @@ pub struct Wg {
     pub fixture: Fixture,
     pub graph: Graph,
     vertex_mapping: u128,
-    fast_mapping: u128,
-    slow_mapping: u128,
 }
 
 /// One result row reduced to what the contract specifies.
@@ -123,7 +124,9 @@ pub struct Row {
 }
 
 fn micro_of(text: &str) -> i128 {
-    let (negative, digits) = text.strip_prefix('-').map_or((false, text), |rest| (true, rest));
+    let (negative, digits) = text
+        .strip_prefix('-')
+        .map_or((false, text), |rest| (true, rest));
     let (whole, fraction) = digits.split_once('.').unwrap_or((digits, ""));
     let mut padded = fraction.to_owned();
     padded.truncate(6);
@@ -233,13 +236,15 @@ impl Wg {
         let vertex_mapping = id(&defined.vertices[0].mapping_id);
         let fast_mapping = id(&defined.edges[0].mapping_id);
         let slow_mapping = id(&defined.edges[1].mapping_id);
-        let graph = Self::oracle_graph(vertices, links, [vertex_mapping, fast_mapping, slow_mapping]);
+        let graph = Self::oracle_graph(
+            vertices,
+            links,
+            [vertex_mapping, fast_mapping, slow_mapping],
+        );
         Self {
             fixture,
             graph,
             vertex_mapping,
-            fast_mapping,
-            slow_mapping,
         }
     }
 
@@ -265,8 +270,15 @@ impl Wg {
                         Scalar::Int(i64::try_from(micro / SCALE).expect("small weight"))
                     }
                 };
-                Edge::new(alias, mapping, vec![KeyPart::BigInt(link.id)], &[label], &from, &to)
-                    .prop("weight", weight)
+                Edge::new(
+                    alias,
+                    mapping,
+                    vec![KeyPart::BigInt(link.id)],
+                    &[label],
+                    &from,
+                    &to,
+                )
+                .prop("weight", weight)
             })
             .collect();
         Graph {
@@ -305,7 +317,7 @@ impl Wg {
     /// The SQLSTATE of a failing call.
     pub fn call_with(&self, arguments: &str) -> Result<Vec<Row>, String> {
         match self.fixture.execute(&Self::select(arguments)) {
-            Ok(result) => Ok(result.rows().iter().map(row_of).collect()),
+            Ok(result) => Ok(result.rows().iter().map(|row| row_of(row)).collect()),
             Err(error) => Err(error.sql_state().to_owned()),
         }
     }
@@ -323,7 +335,10 @@ impl Wg {
     ) -> Result<Vec<Row>, String> {
         let (source, target) = (self.oracle_vertex(from), self.oracle_vertex(to));
         let call = query(&source, &target);
-        let labels = call.labels.as_deref().map(|l| l.iter().map(String::as_str).collect::<Vec<_>>());
+        let labels = call
+            .labels
+            .as_deref()
+            .map(|l| l.iter().map(String::as_str).collect::<Vec<_>>());
         let query = WeightedQuery {
             source: &source,
             target: &target,
@@ -335,24 +350,8 @@ impl Wg {
             k: call.k,
         };
         crate::graph_oracle::weighted::weighted_paths(&self.graph, &query)
-            .map(|paths| paths.iter().map(|path| self.oracle_row(path)).collect())
+            .map(|paths| paths.iter().map(oracle_row).collect())
             .map_err(|error| format!("{error:?}"))
-    }
-
-    fn oracle_row(&self, found: &WeightedPath) -> Row {
-        Row {
-            rank: found.rank,
-            cost: found.cost,
-            edge_costs: found.edge_costs.clone(),
-            vertices: found.path.vertices.iter().map(id_of).collect(),
-            edges: found.path.edges.iter().map(|e| (e.mapping_id, id_of(e))).collect(),
-            directions: found.path.directions.clone(),
-        }
-    }
-
-    /// Mapping identities, for building expected rows by hand.
-    pub fn mappings(&self) -> (u128, u128) {
-        (self.fast_mapping, self.slow_mapping)
     }
 
     /// Statements that must succeed.
@@ -367,14 +366,6 @@ impl Wg {
         let root = self.fixture.cassie.create_session("root", None);
         if let Err(error) = self.fixture.cassie.execute_sql(&root, sql, vec![]) {
             panic!("statement failed with SQLSTATE {}", error.sql_state());
-        }
-    }
-
-    /// The SQLSTATE of a statement that must fail.
-    pub fn state(&self, sql: &str) -> String {
-        match self.fixture.execute(sql) {
-            Ok(_) => panic!("a statement that should fail succeeded"),
-            Err(error) => error.sql_state().to_owned(),
         }
     }
 }
@@ -400,6 +391,22 @@ impl OracleCall {
     }
 }
 
+fn oracle_row(found: &WeightedPath) -> Row {
+    Row {
+        rank: found.rank,
+        cost: found.cost,
+        edge_costs: found.edge_costs.clone(),
+        vertices: found.path.vertices.iter().map(id_of).collect(),
+        edges: found
+            .path
+            .edges
+            .iter()
+            .map(|e| (e.mapping_id, id_of(e)))
+            .collect(),
+        directions: found.path.directions.clone(),
+    }
+}
+
 fn id_of(element: &ElementRef) -> i64 {
     match element.key[0] {
         KeyPart::BigInt(number) => number,
@@ -422,7 +429,7 @@ fn number(entry: &serde_json::Value) -> i64 {
         .expect("integer key")
 }
 
-fn row_of(row: &Vec<Value>) -> Row {
+fn row_of(row: &[Value]) -> Row {
     let rank = match &row[0] {
         Value::Int64(rank) => u64::try_from(*rank).expect("positive rank"),
         _ => panic!("rank is an integer"),
@@ -455,4 +462,3 @@ fn row_of(row: &Vec<Value>) -> Row {
             .collect(),
     }
 }
-

@@ -52,7 +52,10 @@ impl Candidate {
                         .sum::<usize>()
             })
             .sum::<usize>();
-        let costs = mul(self.edge_costs.len() + 1, size_of::<Numeric>() + NUMERIC_HEAP)?;
+        let costs = mul(
+            self.edge_costs.len() + 1,
+            size_of::<Numeric>() + NUMERIC_HEAP,
+        )?;
         let shape = add(
             mul(elements, size_of::<ElementRef>())?,
             self.path.directions.len(),
@@ -163,7 +166,12 @@ impl<'a, 'e> Search<'a, 'e> {
         })
     }
 
-    fn element(&self, kind: ElementKind, mapping: Uuid, key: &[super::keys::KeyPart]) -> ElementRef {
+    fn element(
+        &self,
+        kind: ElementKind,
+        mapping: Uuid,
+        key: &[super::keys::KeyPart],
+    ) -> ElementRef {
         ElementRef {
             database_id: self.query.database_id,
             graph_id: self.query.graph_id,
@@ -185,7 +193,9 @@ impl<'a, 'e> Search<'a, 'e> {
 
     fn edge_ref(&self, id: usize) -> ElementRef {
         let record = self.store.edges[id];
-        let loaded = self.store.edge_maps[record.mapping].as_ref().expect("loaded");
+        let loaded = self.store.edge_maps[record.mapping]
+            .as_ref()
+            .expect("loaded");
         self.element(
             ElementKind::Edge,
             self.query.edge_mappings[record.mapping],
@@ -232,7 +242,11 @@ impl<'a, 'e> Search<'a, 'e> {
     /// Keeps the path ending with `hop` (or the zero-hop path) when it can be among the `k`
     /// best.
     fn offer(&mut self, cost: &Numeric, hop: Option<&Hop>) -> Result<(), QueryError> {
-        if self.query.max_cost.is_some_and(|limit| cost.compare(limit) == Ordering::Greater) {
+        if self
+            .query
+            .max_cost
+            .is_some_and(|limit| cost.compare(limit) == Ordering::Greater)
+        {
             return Ok(());
         }
         let full = self.best.len() >= self.query.k;
@@ -244,8 +258,16 @@ impl<'a, 'e> Search<'a, 'e> {
         {
             return Ok(());
         }
-        let mut vertices = self.vertices.iter().map(|id| self.vertex_ref(*id)).collect::<Vec<_>>();
-        let mut edges = self.edges.iter().map(|id| self.edge_ref(*id)).collect::<Vec<_>>();
+        let mut vertices = self
+            .vertices
+            .iter()
+            .map(|id| self.vertex_ref(*id))
+            .collect::<Vec<_>>();
+        let mut edges = self
+            .edges
+            .iter()
+            .map(|id| self.edge_ref(*id))
+            .collect::<Vec<_>>();
         let mut directions = self.directions.clone();
         let mut edge_costs = self
             .edges

@@ -12,12 +12,12 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
+use super::super::super::{finalize_source_batches, SourceExecution};
 use super::keys::{key_part, KeyPart as StoredKey};
 use super::store::Store;
 use super::weighted_args::{diagnostic, Request};
 use super::weighted_search::{Candidate, Query, Search};
 use super::{batch, BatchRow, QueryError, SourceExecutionEnv};
-use super::super::super::{finalize_source_batches, SourceExecution};
 use crate::catalog::property_graphs::{GraphEdgeMeta, GraphLabelMeta, PropertyGraphMeta};
 use crate::catalog::Catalog;
 use crate::executor::retained_memory::{add, value_clone_bytes};
@@ -53,11 +53,18 @@ fn vertex_mapping(
 }
 
 fn carries(label: &GraphLabelMeta, wanted: Option<&[String]>) -> bool {
-    wanted.is_none_or(|labels| labels.iter().any(|name| name.eq_ignore_ascii_case(&label.name)))
+    wanted.is_none_or(|labels| {
+        labels
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(&label.name))
+    })
 }
 
 /// The edge mappings carrying a requested label. An unknown label is `42704`.
-fn selected_edges(graph: &PropertyGraphMeta, labels: Option<&[String]>) -> Result<Vec<usize>, QueryError> {
+fn selected_edges(
+    graph: &PropertyGraphMeta,
+    labels: Option<&[String]>,
+) -> Result<Vec<usize>, QueryError> {
     for requested in labels.unwrap_or_default() {
         let known = graph
             .edges
@@ -72,7 +79,12 @@ fn selected_edges(graph: &PropertyGraphMeta, labels: Option<&[String]>) -> Resul
         }
     }
     Ok((0..graph.edges.len())
-        .filter(|index| graph.edges[*index].labels.iter().any(|label| carries(label, labels)))
+        .filter(|index| {
+            graph.edges[*index]
+                .labels
+                .iter()
+                .any(|label| carries(label, labels))
+        })
         .collect())
 }
 
@@ -166,22 +178,25 @@ fn weight(value: Option<&Value>) -> Result<Numeric, QueryError> {
 }
 
 fn uuids(ids: impl Iterator<Item = Option<String>>) -> Vec<Uuid> {
-    ids.map(|id| id.and_then(|id| Uuid::parse_str(&id).ok()).unwrap_or_default())
-        .collect()
+    ids.map(|id| {
+        id.and_then(|id| Uuid::parse_str(&id).ok())
+            .unwrap_or_default()
+    })
+    .collect()
 }
 
-/// Runs `graph_weighted_paths`; `outer_row` supplies the correlated columns of a `LATERAL`
-/// source.
-pub(in super::super) fn execute(
-    env: &SourceExecutionEnv<'_>,
-    name: &str,
-    function: &FunctionCall,
-    outer_row: Option<&BatchRow>,
-    qualify: bool,
-) -> SourceExecution {
-    env.controls.check_interruption()?;
-    let args = super::super::super::graph::evaluate_args(env, function, outer_row)?;
-    let request = Request::parse(&args)?;
+/// What a request resolves to in the catalog, with authority already checked.
+struct Resolved {
+    graph: PropertyGraphMeta,
+    source_mapping: usize,
+    target_mapping: usize,
+    vertex_list: Vec<usize>,
+    edge_list: Vec<usize>,
+    columns: Vec<(usize, String)>,
+}
+
+/// Graph, references, labels, read authority and weight property, in that order.
+fn resolve(env: &SourceExecutionEnv<'_>, request: &Request) -> Result<Resolved, QueryError> {
     let session = env
         .session
         .ok_or_else(|| diagnostic("XX000", "graph_weighted_paths requires a session"))?;
@@ -209,7 +224,12 @@ pub(in super::super) fn execute(
             &graph.edges[edge].source.vertex_alias,
             &graph.edges[edge].destination.vertex_alias,
         ] {
-            vertex_list.extend(graph.vertices.iter().position(|vertex| &vertex.alias == alias));
+            vertex_list.extend(
+                graph
+                    .vertices
+                    .iter()
+                    .position(|vertex| &vertex.alias == alias),
+            );
         }
     }
     vertex_list.sort_unstable();
@@ -219,7 +239,11 @@ pub(in super::super) fn execute(
     let mut tables = vertex_list
         .iter()
         .map(|index| graph.vertices[*index].table.as_str())
-        .chain(edge_list.iter().map(|index| graph.edges[*index].table.as_str()))
+        .chain(
+            edge_list
+                .iter()
+                .map(|index| graph.edges[*index].table.as_str()),
+        )
         .collect::<Vec<_>>();
     tables.sort_unstable();
     tables.dedup();
@@ -228,6 +252,36 @@ pub(in super::super) fn execute(
             .map_err(QueryError::Cassie)?;
     }
     let columns = weight_columns(&graph, &edge_list, labels, &request.property)?;
+    Ok(Resolved {
+        graph,
+        source_mapping,
+        target_mapping,
+        vertex_list,
+        edge_list,
+        columns,
+    })
+}
+
+/// Runs `graph_weighted_paths`; `outer_row` supplies the correlated columns of a `LATERAL`
+/// source.
+pub(in super::super) fn execute(
+    env: &SourceExecutionEnv<'_>,
+    name: &str,
+    function: &FunctionCall,
+    outer_row: Option<&BatchRow>,
+    qualify: bool,
+) -> SourceExecution {
+    env.controls.check_interruption()?;
+    let args = super::super::super::graph::evaluate_args(env, function, outer_row)?;
+    let request = Request::parse(&args)?;
+    let Resolved {
+        graph,
+        source_mapping,
+        target_mapping,
+        vertex_list,
+        edge_list,
+        columns,
+    } = resolve(env, &request)?;
     let descriptors = crate::executor::filter::graph_functions::descriptors_of(env.session)?;
 
     let mut output = env.controls.reserve_query_memory(0)?;

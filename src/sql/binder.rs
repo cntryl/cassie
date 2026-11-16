@@ -40,12 +40,12 @@ mod string_operators;
 mod symmetric_between;
 #[path = "binder/table_functions.rs"]
 mod table_functions;
-#[path = "binder/weighted_paths.rs"]
-mod weighted_paths;
 #[path = "binder/unary_numeric.rs"]
 pub(crate) mod unary_numeric;
 #[path = "binder/values.rs"]
 pub(crate) mod values;
+#[path = "binder/weighted_paths.rs"]
+mod weighted_paths;
 pub(crate) use coalesce_coercion::has_float_domain as coalesce_has_float_domain;
 mod coalesce_coercion;
 mod result_coercion;

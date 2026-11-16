@@ -1,6 +1,6 @@
 //! Argument validation of `graph_weighted_paths`, with the contract's SQLSTATEs.
 
-use crate::world::{fast_edge, vertex, Wg};
+use crate::world::{fast, fast_edge, vertex, Wg};
 
 fn world() -> Wg {
     Wg::new(
@@ -227,4 +227,77 @@ fn should_reject_wrongly_typed_arguments_with_42804() {
 
     // Assert
     assert_eq!(states, vec!["42804"; 3]);
+}
+
+fn cost_world() -> Wg {
+    Wg::new(3, &[fast(1, 1, 2, 2), fast(2, 2, 3, 3), fast(3, 1, 3, 6)])
+}
+
+fn with_max_cost(world: &Wg, limit: &str) -> Result<usize, String> {
+    world
+        .call(1, 3, &format!("'weight', 2, 'out', NULL, {limit}, 5"))
+        .map(|rows| rows.len())
+}
+
+#[test]
+fn should_accept_a_numeric_literal_max_cost_inclusively() {
+    // Arrange
+    let world = cost_world();
+
+    // Act
+    let at = with_max_cost(&world, "5.0");
+    let below = with_max_cost(&world, "4.999999");
+
+    // Assert
+    assert_eq!((at, below), (Ok(1), Ok(0)));
+}
+
+#[test]
+fn should_convert_a_float_max_cost_through_numeric() {
+    // Arrange
+    let world = cost_world();
+
+    // Act
+    let exact = with_max_cost(&world, "5::double precision");
+    let fractional = with_max_cost(&world, "5.5::double precision");
+    let real = with_max_cost(&world, "5.5::real");
+
+    // Assert
+    assert_eq!((exact, fractional, real), (Ok(1), Ok(1), Ok(1)));
+}
+
+#[test]
+fn should_reject_a_non_finite_or_negative_max_cost_with_22023() {
+    // Arrange
+    let world = cost_world();
+
+    // Act
+    let states = [
+        with_max_cost(&world, "'NaN'::double precision"),
+        with_max_cost(&world, "'Infinity'::double precision"),
+        with_max_cost(&world, "-1.5::double precision"),
+        with_max_cost(&world, "-1"),
+    ];
+
+    // Assert
+    assert_eq!(states, ["22023", "22023", "22023", "22023"].map(|state| Err(state.to_owned())));
+}
+
+#[test]
+fn should_apply_the_float_to_numeric_digit_rule_to_a_float_max_cost() {
+    // Arrange
+    let world = Wg::new(2, &[crate::world::fast_micro(1, 1, 2, 100_000)]);
+    let call = |limit: &str| {
+        world
+            .call(1, 2, &format!("'weight', 1, 'out', NULL, {limit}, 1"))
+            .map(|rows| rows.len())
+    };
+
+    // Act
+    let double = call("0.1::double precision");
+    let real = call("0.1::real");
+    let below = call("0.09999::double precision");
+
+    // Assert
+    assert_eq!((double, real, below), (Ok(1), Ok(1), Ok(0)));
 }

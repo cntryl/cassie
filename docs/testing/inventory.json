@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1768,
-    "rust_files": 1731,
-    "rust_test_declarations": 10505,
+    "files": 1770,
+    "rust_files": 1733,
+    "rust_test_declarations": 10517,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10530,
+    "registered_rust_instances": 10542,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -66493,6 +66493,37 @@
       }
     },
     {
+      "id": "tests/graph_table/fast_reads.rs::should_report_full_row_reads_given_an_explain_analyze_without_endpoint_indexes",
+      "name": "should_report_full_row_reads_given_an_explain_analyze_without_endpoint_indexes",
+      "current_file": "tests/graph_table/fast_reads.rs",
+      "line": 671,
+      "end_line": 689,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "fast_reads::should_report_full_row_reads_given_an_explain_analyze_without_endpoint_indexes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/fast_reads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/matrix.rs::should_agree_with_the_oracle_for_every_mode_direction_bound_selector",
       "name": "should_agree_with_the_oracle_for_every_mode_direction_bound_selector",
       "current_file": "tests/graph_table/matrix.rs",
@@ -69618,6 +69649,254 @@
         "category": "semantics",
         "directory": "tests/graph_types/semantics",
         "file": "tests/graph_types/semantics/driver_sqlx.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver_sqlx.rs::should_read_the_ordered_steps_of_a_path_as_scalars_through_sqlx",
+      "name": "should_read_the_ordered_steps_of_a_path_as_scalars_through_sqlx",
+      "current_file": "tests/graph_types/driver_sqlx.rs",
+      "line": 103,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver_sqlx::should_read_the_ordered_steps_of_a_path_as_scalars_through_sqlx"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver_sqlx.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver_sqlx.rs::should_read_the_typed_key_of_an_element_through_sqlx",
+      "name": "should_read_the_typed_key_of_an_element_through_sqlx",
+      "current_file": "tests/graph_types/driver_sqlx.rs",
+      "line": 129,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver_sqlx::should_read_the_typed_key_of_an_element_through_sqlx"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver_sqlx.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver_sqlx.rs::should_export_the_versioned_jsonb_document_of_a_path_through_sqlx",
+      "name": "should_export_the_versioned_jsonb_document_of_a_path_through_sqlx",
+      "current_file": "tests/graph_types/driver_sqlx.rs",
+      "line": 168,
+      "end_line": 187,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver_sqlx::should_export_the_versioned_jsonb_document_of_a_path_through_sqlx"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver_sqlx.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver_sqlx.rs::should_keep_a_bigint_key_exact_through_a_sqlx_bound_parameter",
+      "name": "should_keep_a_bigint_key_exact_through_a_sqlx_bound_parameter",
+      "current_file": "tests/graph_types/driver_sqlx.rs",
+      "line": 190,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver_sqlx::should_keep_a_bigint_key_exact_through_a_sqlx_bound_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver_sqlx.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver_sqlx.rs::should_render_a_whole_path_in_composite_text_form_through_sqlx",
+      "name": "should_render_a_whole_path_in_composite_text_form_through_sqlx",
+      "current_file": "tests/graph_types/driver_sqlx.rs",
+      "line": 215,
+      "end_line": 235,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver_sqlx::should_render_a_whole_path_in_composite_text_form_through_sqlx"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver_sqlx.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/images.rs::should_not_resolve_a_source_graph_in_a_distinct_database_clone",
+      "name": "should_not_resolve_a_source_graph_in_a_distinct_database_clone",
+      "current_file": "tests/graph_types/images.rs",
+      "line": 49,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "images::should_not_resolve_a_source_graph_in_a_distinct_database_clone"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/images.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/images.rs::should_give_a_distinct_clone_fresh_identities",
+      "name": "should_give_a_distinct_clone_fresh_identities",
+      "current_file": "tests/graph_types/images.rs",
+      "line": 66,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "images::should_give_a_distinct_clone_fresh_identities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/images.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/images.rs::should_keep_the_source_identities_after_a_clone_is_taken",
+      "name": "should_keep_the_source_identities_after_a_clone_is_taken",
+      "current_file": "tests/graph_types/images.rs",
+      "line": 88,
+      "end_line": 99,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "images::should_keep_the_source_identities_after_a_clone_is_taken"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/images.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -183369,6 +183648,99 @@
         "category": "transactions",
         "directory": "tests/pgwire_extended/transactions",
         "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs::should_not_leak_a_declared_mode_to_the_next_transaction_on_a_reused_connection",
+      "name": "should_not_leak_a_declared_mode_to_the_next_transaction_on_a_reused_connection",
+      "current_file": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs",
+      "line": 27,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "replayable_mode_reuse::should_not_leak_a_declared_mode_to_the_next_transaction_on_a_reused_connection"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs::should_clear_a_declared_mode_when_the_block_fails_and_rolls_back",
+      "name": "should_clear_a_declared_mode_when_the_block_fails_and_rolls_back",
+      "current_file": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs",
+      "line": 57,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "replayable_mode_reuse::should_clear_a_declared_mode_when_the_block_fails_and_rolls_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs::should_reject_a_declaration_through_the_extended_protocol_outside_a_block",
+      "name": "should_reject_a_declaration_through_the_extended_protocol_outside_a_block",
+      "current_file": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs",
+      "line": 81,
+      "end_line": 99,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "replayable_mode_reuse::should_reject_a_declaration_through_the_extended_protocol_outside_a_block"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -333364,9 +333736,9 @@
       "current_file": "tests/graph_table/fast_reads.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 668,
-      "sha256": "a75b6d6f9a949b7e08a6e9f1c9dd837fb991625ca0bb05f7908c0a7a07d65a85",
-      "test_declarations": 20,
+      "lines": 689,
+      "sha256": "91ede06df209b1f5ace0416aa32a1857842dca6a5508a612137855f99c5ff4da",
+      "test_declarations": 21,
       "registered_suites": [
         "graph_table"
       ],
@@ -333607,9 +333979,9 @@
       "current_file": "tests/graph_types/driver_sqlx.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 81,
-      "sha256": "0986e98ffe0391b46f1dd772069268a2ff7831642d808bc2db885763362ed61c",
-      "test_declarations": 1,
+      "lines": 235,
+      "sha256": "cdbcb97bdb0e0d6bb878aa417f68ce6a12465a8d85638d22dbc4b8b93b1e99a2",
+      "test_declarations": 6,
       "registered_suites": [
         "graph_types"
       ],
@@ -333630,6 +334002,21 @@
       ],
       "destinations": [
         "tests/graph_types/fixture.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/images.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 99,
+      "sha256": "701a4233437e298a68f1a9a2371aa9222f322b8edbb4b98db54bbcf6aa4ea78c",
+      "test_declarations": 3,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/images.rs"
       ],
       "line_limit": 1000
     },
@@ -333772,8 +334159,8 @@
       "current_file": "tests/graph_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 47,
-      "sha256": "0d7dec07d233c3b8157ae81c8adbb9f2ab3d1fe1b4e9518ce536ded39bc3708a",
+      "lines": 50,
+      "sha256": "ceec04f3cf0c3af60068468da89f31eacd13c8868b06b74c3864eb910df467ee",
       "test_declarations": 0,
       "registered_suites": [
         "graph_types"
@@ -340947,6 +341334,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/transactions/replayable_mode_reuse.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 99,
+      "sha256": "f12fd073191db781ec71471db95b674b3708faf2c77477aae09544ee3ac12c6f",
+      "test_declarations": 3,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/transactions/replayable_mode_reuse.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/transactions/transaction_boundaries/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -344051,8 +344453,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 232,
-      "sha256": "f052eac899590041d24e86d828432b47bbe0ba19c0883ccdf22632278e8990a7",
+      "lines": 235,
+      "sha256": "a02d4106208ba693ba49c239392de830a3d9214ac090287d767a702e4a570486",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

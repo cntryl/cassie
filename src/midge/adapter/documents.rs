@@ -982,7 +982,7 @@ impl Midge {
                 }
             }
         }
-        Ok(())
+        crate::executor::filter::graph_validation::validate_stored_fields(schema, map)
     }
 }
 

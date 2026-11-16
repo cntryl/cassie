@@ -263,3 +263,44 @@ fn should_give_a_restored_database_its_own_reserved_schema() {
         .expect("restored type");
     assert_ne!(source.object_id, target.object_id);
 }
+
+#[test]
+fn should_block_every_other_object_kind_in_the_reserved_schema() {
+    // Arrange
+    let fixture = started(
+        "graph_reserved_objects",
+        &[
+            "CREATE TABLE plain (id bigint PRIMARY KEY, name text)",
+            "CREATE TABLE links (id bigint PRIMARY KEY, a bigint NOT NULL, b bigint NOT NULL)",
+        ],
+    );
+    let statements = [
+        "CREATE VIEW cassie_graph.v AS SELECT id FROM plain",
+        "CREATE MATERIALIZED VIEW cassie_graph.mv AS SELECT id FROM plain",
+        "CREATE SEQUENCE cassie_graph.s",
+        "CREATE FUNCTION cassie_graph.key_part(x INT) RETURNS INT AS \"x\"",
+        "CREATE FUNCTION cassie_graph.mine(x INT) RETURNS INT AS \"x\"",
+        "CREATE PROCEDURE cassie_graph.p() AS \"SELECT id FROM plain\"",
+        "CREATE TABLE cassie_graph.copy AS SELECT id FROM plain",
+        "ALTER TABLE plain RENAME TO cassie_graph.plain",
+        "CREATE PROPERTY GRAPH cassie_graph.g \
+           VERTEX TABLES (plain AS p KEY (id) LABEL p PROPERTIES (name)) \
+           EDGE TABLES (links AS l KEY (id) \
+             SOURCE KEY (a) REFERENCES p (id) DESTINATION KEY (b) REFERENCES p (id) \
+             LABEL l PROPERTIES (id))",
+        "COMMENT ON TYPE cassie_graph.graph_path IS 'mine'",
+        "ALTER TYPE cassie_graph.graph_key_part DROP ATTRIBUTE text_value",
+        "ALTER TYPE cassie_graph.graph_key_part ALTER ATTRIBUTE type_tag TYPE int",
+        "ALTER TYPE cassie_graph.graph_path SET SCHEMA public",
+    ];
+
+    // Act
+    let accepted = statements
+        .iter()
+        .filter(|statement| fixture.execute(statement).is_ok())
+        .copied()
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(accepted, Vec::<&str>::new());
+}

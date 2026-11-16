@@ -170,9 +170,9 @@
     ],
     "files": 1727,
     "rust_files": 1690,
-    "rust_test_declarations": 10262,
+    "rust_test_declarations": 10265,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10268,
+    "registered_rust_instances": 10271,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -67287,6 +67287,37 @@
       }
     },
     {
+      "id": "tests/graph_types/reserved.rs::should_block_every_other_object_kind_in_the_reserved_schema",
+      "name": "should_block_every_other_object_kind_in_the_reserved_schema",
+      "current_file": "tests/graph_types/reserved.rs",
+      "line": 268,
+      "end_line": 306,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reserved::should_block_every_other_object_kind_in_the_reserved_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/reserved.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_types/storage.rs::should_restore_stored_graph_values_after_a_restart",
       "name": "should_restore_stored_graph_values_after_a_restart",
       "current_file": "tests/graph_types/storage.rs",
@@ -67362,6 +67393,68 @@
         {
           "suite": "graph_types",
           "name": "storage::should_reject_an_invalid_value_written_by_update"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/storage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/storage.rs::should_validate_reserved_values_written_by_projector_replay",
+      "name": "should_validate_reserved_values_written_by_projector_replay",
+      "current_file": "tests/graph_types/storage.rs",
+      "line": 123,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "storage::should_validate_reserved_values_written_by_projector_replay"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/storage.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/storage.rs::should_validate_a_reserved_value_nested_in_a_user_type",
+      "name": "should_validate_a_reserved_value_nested_in_a_user_type",
+      "current_file": "tests/graph_types/storage.rs",
+      "line": 149,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "storage::should_validate_a_reserved_value_nested_in_a_user_type"
         }
       ],
       "attributes": [
@@ -325757,9 +325850,9 @@
       "current_file": "tests/graph_types/reserved.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 265,
-      "sha256": "eec2c067dd943e4b1c9e951636913ff358cd015f579b154d0b85d0ed730abef5",
-      "test_declarations": 15,
+      "lines": 306,
+      "sha256": "7e2f7ac0e487e2a3811eb27c812740094b74835821d1b4e2f47b12050db117bf",
+      "test_declarations": 16,
       "registered_suites": [
         "graph_types"
       ],
@@ -325772,9 +325865,9 @@
       "current_file": "tests/graph_types/storage.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 86,
-      "sha256": "a95d7ed47fee74b1f78d075f9905fb2ab75e1ab22391be3604bee1623d21868d",
-      "test_declarations": 3,
+      "lines": 176,
+      "sha256": "08080c9345bcf28e552b7edcddc8a8da1f2dc279178b86c0f3086cfcc6706f90",
+      "test_declarations": 5,
       "registered_suites": [
         "graph_types"
       ],

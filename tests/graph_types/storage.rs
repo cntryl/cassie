@@ -84,3 +84,93 @@ fn should_reject_an_invalid_value_written_by_update() {
     // Assert
     assert_eq!(state, "22023");
 }
+
+fn replay_key_part(
+    cassie: &cassie::app::Cassie,
+    document_id: &str,
+    fields: serde_json::Value,
+) -> Result<u64, cassie::app::CassieError> {
+    let oid = match run(
+        cassie,
+        "SELECT oid::text FROM pg_type WHERE typname = 'graph_key_part'",
+    )
+    .first()
+    .and_then(|row| row.first())
+    {
+        Some(Value::String(text)) => text.parse::<u32>().expect("type OID"),
+        _ => panic!("graph_key_part has no pg_type row"),
+    };
+    cassie
+        .replay_projection_batch(cassie::app::ProjectionReplayBatch {
+            projection: cassie.midge.canonical_collection_name("replayed_parts"),
+            source_identity: "parts".to_owned(),
+            batch_id: format!("batch-{document_id}"),
+            lag: 0,
+            events: vec![cassie::app::ProjectionReplayEvent {
+                event_id: format!("event-{document_id}"),
+                checkpoint: format!("checkpoint-{document_id}"),
+                position: None,
+                document_id: document_id.to_owned(),
+                payload: Some(serde_json::json!({
+                    "part": { "$cassie_record_v1": { "oid": oid, "fields": fields } }
+                })),
+            }],
+        })
+        .map(|report| report.applied_event_count)
+}
+
+#[test]
+fn should_validate_reserved_values_written_by_projector_replay() {
+    // Arrange
+    let config = cassie::config::CassieRuntimeConfig::default();
+    let cassie = cassie::app::Cassie::new_in_memory_with_config(config).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    run(
+        &cassie,
+        "CREATE TABLE replayed_parts (part cassie_graph.graph_key_part)",
+    );
+
+    // Act
+    let valid = replay_key_part(&cassie, "ok", serde_json::json!([3, 7, null, null]));
+    let wrong_slot = replay_key_part(&cassie, "slot", serde_json::json!([3, null, "seven", null]));
+    let two_slots = replay_key_part(&cassie, "two", serde_json::json!([3, 7, "seven", null]));
+    let unknown_tag = replay_key_part(&cassie, "tag", serde_json::json!([9, 7, null, null]));
+    let stored = run(&cassie, "SELECT count(*)::text FROM replayed_parts");
+
+    // Assert
+    assert_eq!(valid.ok(), Some(1));
+    assert!(wrong_slot.is_err());
+    assert!(two_slots.is_err());
+    assert!(unknown_tag.is_err());
+    assert_eq!(stored, vec![vec![Value::String("1".to_owned())]]);
+}
+
+#[test]
+fn should_validate_a_reserved_value_nested_in_a_user_type() {
+    // Arrange
+    let fixture = crate::fixture::started(
+        "graph_types_nested",
+        &[
+            "CREATE TYPE tagged AS (label text, part cassie_graph.graph_key_part)",
+            "CREATE TABLE tagged_rows (id int PRIMARY KEY, item tagged, parts cassie_graph.graph_key_part[])",
+        ],
+    );
+
+    // Act
+    let nested_cast = fixture.sqlstate("SELECT ROW('x', ROW(3, NULL, 'seven', NULL))::tagged");
+    let nested_insert = fixture
+        .sqlstate("INSERT INTO tagged_rows VALUES (1, ROW('x', ROW(9, 7, NULL, NULL)), NULL)");
+    let array_insert = fixture.sqlstate(
+        "INSERT INTO tagged_rows VALUES (2, NULL, ARRAY[ROW(3, 7, 'seven', NULL)::cassie_graph.graph_key_part])",
+    );
+    let valid = fixture.execute(
+        "INSERT INTO tagged_rows VALUES (3, ROW('x', cassie_graph.key_part(7::bigint)), \
+         ARRAY[cassie_graph.key_part('seven'::text)])",
+    );
+
+    // Assert
+    assert_eq!(nested_cast, "22023");
+    assert_eq!(nested_insert, "22023");
+    assert_eq!(array_insert, "22023");
+    assert!(valid.is_ok());
+}

@@ -249,8 +249,8 @@ allocation probes qualify the selected rows. Ordinary column identity and
 generation fields report NO/NULL/NEVER. Empty stand-ins for dependency,
 rewrite, statistics, operator-family or built-in text-search catalogs are
 omitted: implemented objects require their actual semantic rows. The finite
-`pg_depend` sequence-ownership rows and `pg_shdepend` database CONNECT grant
-rows documented below are derived only from existing catalog metadata.
+`pg_depend` sequence-ownership and extension-membership rows and `pg_shdepend`
+database CONNECT grant rows documented below are derived only from existing catalog metadata.
 Compiled plans rebuild at epoch 14. No persistent metadata or layout changes
 are selected by this batch.
 
@@ -495,11 +495,61 @@ rows for sequences with a valid `OWNED BY` table column. SERIAL and explicit
 sequence ownership use dependency type `a`; identity sequences use `i`. The
 referenced table OID and one-based column position come from the current
 catalog schema, and sequence/table OIDs use their existing `pg_class` identities.
-Unowned sequences produce no dependency row. Other dependency families remain
+Unowned sequences produce no dependency row. Other dependency families, except the selected
+[extension membership](#extension-membership-dependencies-1273) rows, remain
 unimplemented and are not represented by empty or fabricated rows. This read
 model slice changes no persistent metadata or public Rust API.
 The selected native index flag probes cover pre/post-create states, not this
 unimplemented post-drop law.
+
+### Extension membership dependencies (#1273)
+
+Selected contract, recorded before implementation. It is bounded catalog
+introspection for the two built-in profiles; it is not general PostgreSQL
+dependency or extension ABI parity.
+
+Membership. `pg_depend` publishes one `deptype = 'e'` row per member object of
+an extension installed in the session's database:
+
+| Extension | Members (`classid` catalog) |
+|-----------|----------------------------|
+| `pgcrypto` | both SHA-256 `digest` overloads (`pg_proc`, 1255): the TEXT and the BYTEA identities |
+| `vector` | the `vector` type (`pg_type`, 1247) and the `<->`, `<#>` and `<=>` operators (`pg_operator`, 2617) |
+
+Only objects Cassie already publishes in `pg_proc`, `pg_type` or `pg_operator`
+are listed, from the same stored identities, so `objid` always joins that
+catalog row. Excluded and not claimed: vector access methods, operator
+families, operator classes and `pg_amop` rows, extension-owned tables or
+configuration relations, `pg_cast` entries, schema or namespace membership, and
+any `deptype` other than `e` for extensions. Views that depend on `digest` keep
+their separate stored-identity dependency and are not `pg_depend` rows.
+
+Columns. `classid` is the catalog relation OID of the member (`pg_proc` 1255,
+`pg_type` 1247, `pg_operator` 2617, the pinned PostgreSQL 18.6 values in
+`builtin_identity/pg_class.tsv`), `objid` the member OID, `objsubid` 0,
+`refclassid` the `pg_extension` relation OID 3079, `refobjid` the installed
+extension's `pg_extension.oid`, `refobjsubid` 0, `deptype` `e`. Rows are ordered
+by `refobjid`, `classid`, `objid` after the sequence-ownership rows.
+
+OID stability. Member and extension OIDs are the persisted object identities
+allocated by `CREATE EXTENSION`; they are the OIDs already shown by `pg_proc`,
+`pg_type`, `pg_operator` and `pg_extension`. They survive `ALTER EXTENSION ...
+SET SCHEMA` (only the namespace changes), transaction rollback of any of the
+statements below, and restart. `DROP EXTENSION` removes the rows; a later
+`CREATE EXTENSION` allocates new identities and never reuses the dropped ones.
+
+Lifecycle. `CREATE EXTENSION` publishes the rows with the extension row in the
+same transaction (invisible to other sessions until commit, removed by
+rollback); `DROP EXTENSION` removes them and `ROLLBACK` restores the identical
+rows; `ALTER EXTENSION ... SET SCHEMA` leaves them unchanged. The rows are
+derived from the persisted extension metadata, so restart recovery needs no new
+persistent format and no metadata or plan-cache epoch changes.
+
+Authorization and isolation. The rows follow the existing `pg_extension` and
+`pg_proc` visibility: any session that can read `pg_catalog` views sees them,
+with no per-object privilege filtering. A session sees only the extensions
+installed in its own database; another database's installation, or a database
+without the extension, contributes no rows.
 
 ### Shared database grant dependencies (2026-10-24)
 

@@ -20,8 +20,10 @@ fn bind_side(column: &mut Expr, other: &Expr, types: &ResultTypes) {
         return;
     };
     let sibling = Expr::Column(format!("{name}_oid"));
-    if types.expression_type(other) != Some(DataType::ObjectId(ObjectIdKind::RegClass))
-        || types.expression_type(column) != Some(DataType::Text)
+    if !matches!(
+        types.expression_type(other),
+        Some(DataType::ObjectId(ObjectIdKind::RegClass | ObjectIdKind::Oid))
+    ) || types.expression_type(column) != Some(DataType::Text)
     {
         return;
     }

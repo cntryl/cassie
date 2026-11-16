@@ -813,5 +813,5 @@ fn should_type_tokio_postgres_type_introspection_parameters() {
     // Assert
     assert_eq!(outcomes[0], Ok(vec![26]));
     assert_eq!(outcomes[1], Ok(vec![26]));
-    assert!(outcomes[2].is_ok());
+    assert_eq!(outcomes[2], Ok(vec![26]));
 }

@@ -50,8 +50,8 @@ requirements remain part of each contract.
 - External-provider behavior remains tied to the selected provider contract and failure modes.
 
 Future work cites this document for evidence requirements and changes only the
-selected behavior. Feature qualification does not require a per-feature
-availability flag or a maturity-promotion decision.
+selected behavior. Feature qualification follows these evidence requirements under the
+project's pre-release posture.
 
 ## Adaptive Evaluation Profiles
 

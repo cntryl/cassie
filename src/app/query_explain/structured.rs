@@ -13,13 +13,14 @@ use super::{
 pub(crate) fn structured_plan(
     cassie: &Cassie,
     physical: &PhysicalPlan,
+    graph: &[String],
     controls: &QueryExecutionControls,
 ) -> Result<QueryExplainPlan, CassieError> {
     QueryExplainPlan::try_build(controls, |allocation| {
         Ok(PlanData {
             format_version: PLAN_FORMAT_VERSION,
             summary: plan_summary(cassie, physical, allocation)?,
-            nodes: super::nodes::plan_nodes(cassie, physical, allocation)?,
+            nodes: super::nodes::plan_nodes(cassie, physical, graph, allocation)?,
             attributes: plan_attributes(cassie, physical, allocation)?,
             estimates: plan_estimates(physical, allocation)?,
             features: plan_features(cassie, physical, allocation)?,

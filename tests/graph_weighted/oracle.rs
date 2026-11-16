@@ -387,3 +387,24 @@ fn should_ignore_the_weight_of_an_edge_whose_endpoint_does_not_exist() {
         .expect("oracle accepts");
     assert_eq!(rows.expect("call succeeds"), expected);
 }
+
+#[test]
+fn should_count_the_validation_scan_apart_from_traversal_reads() {
+    // Arrange
+    let world = Wg::new(3, &[fast(1, 1, 2, 1), fast(2, 2, 3, 1), fast(3, 1, 3, 5)]);
+    let counter = |name: &str| {
+        world.fixture.cassie.metrics()["read_paths"][name]
+            .as_u64()
+            .expect("counter")
+    };
+    let (validation, full) = (counter("graph_validation_rows"), counter("graph_full_rows"));
+
+    // Act
+    let rows = world.call(1, 3, "'weight', 2");
+
+    // Assert
+    assert!(rows.is_ok());
+    assert_eq!(counter("graph_validation_rows") - validation, 3);
+    // The vertex rows of the selected mappings are read in full, apart from the validation.
+    assert_eq!(counter("graph_full_rows") - full, 3);
+}

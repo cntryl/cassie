@@ -76,6 +76,7 @@ mod projection_metrics;
 pub(crate) mod query_cache;
 #[path = "runtime/read_path_metrics.rs"]
 mod read_path_metrics;
+pub use read_path_metrics::GraphReadCounts;
 #[path = "runtime/retention_metrics.rs"]
 mod retention_metrics;
 #[path = "runtime/rollup_metrics.rs"]
@@ -197,6 +198,7 @@ pub struct RuntimeState {
     active_query_permits: AtomicU64,
     active_operator_workers: AtomicU64,
     pgwire_backends: pgwire_state::PgwireBackendRegistry,
+    graph_exact_reads: std::sync::atomic::AtomicBool,
 }
 
 impl RuntimeState {
@@ -224,6 +226,7 @@ impl RuntimeState {
             active_query_permits: AtomicU64::new(0),
             active_operator_workers: AtomicU64::new(0),
             pgwire_backends: pgwire_state::PgwireBackendRegistry::default(),
+            graph_exact_reads: std::sync::atomic::AtomicBool::new(false),
         }
     }
 

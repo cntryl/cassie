@@ -4,6 +4,7 @@
 mod graph_table;
 
 use super::{finalize_source_batches, BatchRow, QuerySource, SourceExecution, SourceExecutionEnv};
+pub(crate) use graph_table::explain_sources as explain_graph_sources;
 
 pub(super) fn execute(
     env: &SourceExecutionEnv<'_>,

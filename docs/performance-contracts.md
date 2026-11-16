@@ -219,6 +219,189 @@ Remote embedding providers expose controlled document and query methods. Each re
 
 Time-series index records and column metadata and summaries are latest-only derived sidecars. Startup audits their version, generation, counts, checksums, and source membership as applicable and rebuilds the complete sidecar when state is missing, malformed, old, or inconsistent. Cassie does not read incompatible derived formats through a compatibility branch; authoritative Midge row records remain the recovery source.
 
+## Graph Reads (v0.6.0 fast reads, #1253, #1254, #1259)
+
+Mapped property graph reads (`GRAPH_TABLE`) expand lazily from a frontier over the
+transactional indexes the product already maintains. There is no derived adjacency
+sidecar, certificate or verifier: the source tables are the only authority, and the
+indexes consulted are the ones every indexed SQL query already trusts.
+
+### Access design
+
+- **Vertex by key.** Every mapped key is backed by a primary key, unique constraint or
+  non-partial unique scalar index on exactly the key columns (enforced by
+  `CREATE PROPERTY GRAPH` and guarded against drops). A vertex is fetched with an
+  equality scan on that unique scalar index (`scan_scalar_index_controlled`) followed by a
+  point read of the row it names.
+- **Incident edges.** The edges leaving or entering a vertex are fetched with an equality
+  scan on an ordinary non-partial, non-expression scalar index of the edge table whose
+  leading columns are the endpoint columns (source columns for outgoing, destination
+  columns for incoming, both for undirected), followed by point reads of the named rows.
+  Every candidate row is re-checked against the exact key comparison before use.
+- **Start vertices.** When the start vertex pattern (an anchored end pattern, which would
+  need a backward search, is not implemented) has an inline predicate that is exactly a conjunction of `key_column = constant or
+  parameter` terms covering the whole key of a mapping, the start set is fetched with point
+  lookups. Any other predicate shape, an unconvertible constant, or a partial key reads the
+  start vertex mapping exactly, as before. Predicates containing other terms are never used
+  to prune, so evaluation errors of the exact path cannot be lost.
+- **Dangling edges.** An incident edge is used only when its far endpoint exists in the
+  statement's view; this costs one counted vertex fetch per incident edge.
+- **Fallback, per mapping.** An edge mapping that has no usable index on a needed endpoint
+  side is read in full for the statement through the ordinary statement scan and indexed in
+  memory by endpoint key. A partial neighborhood is never returned. Vertex mappings are
+  always fetched through their unique key. The reason is named in `EXPLAIN`:
+  `no_endpoint_index`, or the statement forcing the exact path.
+- **Exact switch.** `Cassie::set_graph_exact_reads(true)` (a runtime control, not a SQL
+  setting) forces every mapping onto the exact full read of the previous implementation. It
+  exists so tests compare both paths on the same data and is the escape hatch for
+  operators.
+- **`graph_weighted_paths`.** The function must validate every graph-visible edge of the
+  selected mappings before any result, so it keeps the full controlled scan. Its cost is
+  O(selected edges) by contract and is not claimed O(degree). Those rows are counted under
+  `graph_validation_rows`, separately from traversal reads.
+
+### Integrity model
+
+Rows, their scalar index entries and unique reservations are key prefixes in the
+database's single Midge column family, written by one read-write transaction. Midge
+documents (`docs/transactions-and-mvcc.md` of `cntryl-midge` 0.5.2) that all operations of
+a commit become visible atomically, that a commit is one WAL `TxnBatch` frame that recovery
+applies all-or-nothing, that a transaction reads a fixed snapshot taken at its start, and
+that a transaction is scoped to one column family. These are the only engine guarantees the
+graph read relies on: an indexed read therefore sees an index entry if and only if the row
+version it names was committed in the same snapshot.
+
+- **Statement view.** Index scans and point reads take the statement's data snapshot when
+  the statement has one (`begin_database_readonly_tx`), so edges, vertices and their index
+  entries come from one snapshot. Repeatable-read sessions additionally require the index
+  to be visible in the transaction's catalog snapshot (`transaction_index_visible`); an
+  index that is not selects the exact path for that mapping.
+- **Own writes.** A transaction's uncommitted writes live in the session overlay, not in
+  the engine. The existing index read paths decline when a table has session changes
+  (`src/executor/execution/index_read.rs:175`, `src/executor/scan.rs:306`). The graph read
+  merges the overlay itself: committed index hits whose row id has a pending change are
+  discarded, pending upserts are re-checked against the key, and every pending change of the
+  table is examined once per lookup. Savepoint rollback and statement forks are exact
+  because the overlay is read through `collection_changes_matching`.
+- **Concurrent writers.** A reader keeps its snapshot. A concurrent committed write is not
+  visible to a running statement or repeatable-read transaction.
+- **In the model:** committed rows and indexes written by Cassie, process crash and
+  restart (Midge recovery is all-or-nothing), rollback, savepoints, snapshot isolation.
+- **Out of the model:** arbitrary storage corruption, for example a flipped or deleted
+  index entry with an intact row. This is exactly the model of every indexed SQL query in
+  the product (`WHERE indexed_col = $1` is equally wrong in that case); graph reads add no
+  separate defence and no claim of detecting it. Operators repair indexes with the existing
+  rebuild commands.
+
+### Read bounds
+
+Reads are counted, never timed. Counters: `graph_index_entries` (scalar index entries
+returned), `graph_row_fetches` (point row reads), `graph_full_rows` (rows of a full mapping
+read), `graph_overlay_changes` (pending session changes examined), `graph_cache_hits`,
+`graph_validation_rows` (weighted-path validation scan) and the per-statement
+`graph_frontier_peak`.
+
+- **Indexed expansion of one visited vertex:** O(d) index entries plus O(d) row fetches
+  (edges) plus at most d far-endpoint lookups, where d is the number of incident edges of
+  that vertex in the selected mappings and direction. This does not depend on the total
+  number of edges. With pending own writes: plus the number of pending changes of the
+  table.
+- **Whole traversal:** O(sum of d over visited vertices), where a vertex is visited once per
+  statement because neighborhoods and vertices are cached for the statement.
+- **Start set:** anchored: O(|keys|) lookups; otherwise O(rows of the start mapping), read
+  exactly. A pattern whose start is not anchored is not claimed O(degree).
+- **Fallback mapping:** O(rows of the edge mapping) once per statement, stated separately
+  and recorded by `graph_full_rows`.
+- **Repeated evaluation (`LATERAL`):** neighborhoods, vertices and fallback mappings
+  fetched by one outer row are reused by the following rows of the same statement, so N
+  outer rows reading overlapping neighborhoods cost at most the union of those neighborhoods.
+  Cached rows are accounted against the query budget and released at statement end.
+- **Pushdown into traversal.** Only the inline start anchor is used, because it is part of
+  the pattern: selecting the start vertices by key equality returns exactly the vertices the
+  predicate accepts, with the same labels, multiplicity and ordering (results are totally
+  ordered by key, not by enumeration). Outer `WHERE`, `LIMIT` and `ORDER BY` are not pushed
+  into traversal: a selector ranks within start/end pairs and the pattern `WHERE` runs after
+  selection, so stopping early would change which ties or shortest paths are kept, and
+  filtering early would hide evaluation errors the exact path raises.
+
+### Observability
+
+`EXPLAIN` names, for each `GRAPH_TABLE`, the access path of every mapping in the plan line
+and as a `graph` node of the structured plan: `graph_table=<graph>
+vertex[<alias>]=point_lookup(index=<name>),start=anchored|scan edge[<alias>]=indexed(index=out:<name>|in:<name>)`
+or `exact(reason=no_endpoint_index|no_key_index|exact_reads_forced)`. `EXPLAIN ANALYZE`
+appends `graph_reads=index_entries:N,row_fetches:N,full_rows:N,overlay_changes:N,cache_hits:N,validation_rows:N,frontier_peak:N`
+for the statement, where `cache_hits` is the reuse across `LATERAL` rows. The structured
+plan's analyze block does not carry the graph counters; the text plan and the
+`read_paths.graph_*` runtime metrics do.
+
+### Implementation notes
+
+- The scalar index scan and the point row read both open their transaction through
+  `begin_database_readonly_tx_for`, which returns the statement's captured data snapshot
+  whenever the statement has one (`src/midge/adapter/transactions.rs:939`), so an index
+  entry and the row it names come from one snapshot. Neither merges the session overlay;
+  `src/executor/execution/graph_table/lazy.rs` does, per lookup.
+- A lookup never trusts the index alone: every row it returns is re-checked against the
+  exact key comparison of the exact path, and a constant that is NULL or not representable in
+  the key type reads the mapping exactly.
+- Edges are ordered by key inside a neighborhood and results by the documented path order,
+  so enumeration order is not observable.
+
+### Resources
+
+Frontier, visited vertices, fetched rows, cached neighborhoods and result paths are accounted
+against the query budget (`54000` on exhaustion). Cancellation and deadlines are checked at
+every index scan, row fetch and expansion and return no partial rows. The graph result is
+still materialized completely before the first page is emitted.
+
+## Graph benchmarks
+
+Mapped property graphs have benchmarks at tiers 1 to 3. Each fixture maps ordinary tables that
+are loaded with `INSERT ... SELECT`, and every query result is checked against an independent
+Rust computation of the expected cardinality. The graph workload family `graph` is a required
+workload family again. These benchmarks establish that the workloads run and that their
+results are correct. This document records no timing figure for them: gate-quality
+numbers need the release profile with at least five measured samples and have not been recorded.
+
+| Scenario | Owner | Workload | Fixture |
+| --- | --- | --- | --- |
+| `perf.kernel.graph_path_value` | `tier1_hotpath_graph_paths` | Build the `graph_path` record of 16 three-edge paths and validate it. | Kernel, no storage |
+| `perf.kernel.graph_path_order` | `tier1_hotpath_graph_paths` | Compare neighbouring paths in the total path order. | Kernel, no storage |
+| `perf.kernel.graph_key_normalization` | `tier1_hotpath_graph_paths` | Encode a five-type key tuple as `graph_key_part` records and decode it back. | Kernel, no storage |
+| `perf.graph.binding.64` | `tier2_subsystem_graph` | Bind four representative `GRAPH_TABLE` patterns (one hop, bounded, unbounded `ACYCLIC`, path projection). | 64 vertices, 128 edges, memory storage |
+| `perf.graph.one_hop.64` | `tier2_subsystem_graph` | One-hop expansion from one vertex. | same |
+| `perf.graph.bounded_expansion.64` | `tier2_subsystem_graph` | `{1,3}` expansion from one vertex. | same |
+| `perf.graph.weighted_paths.64` | `tier2_subsystem_graph` | `graph_weighted_paths` for three paths with named arguments. | same |
+| `perf.graph.authorization_reachability.100k` | `tier3_system_graph` | Documents reachable by a user through at most one membership edge and one grant. | 20,000 principals, 20,000 resources, 40,000 memberships, 20,000 grants (100,000 mapped rows) |
+| `perf.graph.hierarchy_ancestry.100k` | `tier3_system_graph` | All ancestors of the deepest node with `+` and `ACYCLIC`. | 50,000 nodes, 49,999 edges (99,999 mapped rows) |
+| `perf.graph.friends_of_friends.100k` | `tier3_system_graph` | `{2,2}` expansion from one person. | 30,000 people, 70,000 edges (100,000 mapped rows) |
+| `perf.graph.weighted_routes.100k` | `tier3_system_graph` | Three cheapest simple routes within four hops. | its own instance: 5,000 people, 10,000 edges (15,000 mapped rows) |
+
+The tier 3 fixtures use memory storage, a 2 GiB native storage budget with a 512 MiB memtable
+(separate from the query budget), and the 64 MiB analytical query-memory profile described
+above. Rows are written through the document write path in batches of 1,000.
+
+**Scale.** The three `GRAPH_TABLE` scenarios map about 100,000 rows and run under the
+64 MiB profile. Their edge tables carry ordinary indexes on the endpoint columns and their
+start vertex is fixed by key, so the plan reads neighborhoods through those indexes (see
+[Graph Reads](#graph-reads-v060-fast-reads-1253-1254-1259)); the owner reads the access path
+from the `EXPLAIN` graph node and records `graph_table_indexed_read` with
+`graph_access_path_source=reported`. Without endpoint indexes the same queries read the mapped
+tables in full and exceeded the 64 MiB budget (`54000`) from about 30,000 mapped rows.
+
+**Open finding: weighted routes do not fit at 100k.** `graph_weighted_paths` validates every
+edge weight of the selected mappings on each call, as the contract requires, and holds the
+selected mappings in memory while it searches. The scenario keeps the `.100k` contract class
+and id but maps 15,000 rows in a separate instance, recorded as `graph_mapped_rows`, with the
+access path `graph_table_exact_read` declared (the function has no graph plan node). Running it
+at 100,000 rows under 64 MiB needs a streaming validation scan and a search over the indexed
+store, which are not implemented.
+
+Run one owner with, for example,
+`cargo bench --locked --bench tier2_subsystem_graph -- --profile smoke`; a smoke run is
+a diagnostic and not a gate.
+
 ## Storage Layout and Amplification
 
 Query-hot Cassie records use the `cassie-midge-layout-v1-0.1.0` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
@@ -423,7 +606,7 @@ Execution-result caching is disabled for every benchmark owner except the dedica
 
 Dynamic SQL values always use bound parameters in benchmarks and their fixtures. SQL formatting is limited to identifiers chosen by a closed, validated helper. Parameterization tests prove that boundary without adding hostile-input examples to benchmark fixtures.
 
-Successful 100k analytical cases use and record the explicit 64 MiB benchmark-only query-memory profile. The legacy graph representative and its 128 MiB profile were removed in v0.6.0 with the legacy graph feature; a mapped-graph benchmark is delivered separately. This replaces proportional column-batch memory overrides and does not change the 10 MiB runtime default.
+Successful 100k analytical cases use and record the explicit 64 MiB benchmark-only query-memory profile. The legacy graph representative and its 128 MiB profile were removed in v0.6.0 with the legacy graph feature. The mapped-graph representatives described under [Graph benchmarks](#graph-benchmarks) use the same 64 MiB profile; no dedicated larger graph profile exists. This replaces proportional column-batch memory overrides and does not change the 10 MiB runtime default.
 The Tier 5 250k analytical curve records a separate 100 MiB benchmark-only profile; it remains a
 hard bound and uses a 120-second per-query timeout so the curve measures completion rather than the
 30-second runtime default. Neither setting widens runtime defaults or the 100k representative

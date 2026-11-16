@@ -35,7 +35,7 @@ impl Fixture {
     }
 }
 
-fn started(config: Option<cassie::config::CassieRuntimeConfig>, setup: &[&str]) -> Fixture {
+pub fn started(config: Option<cassie::config::CassieRuntimeConfig>, setup: &[&str]) -> Fixture {
     let mut config = match config {
         Some(config) => config,
         None => cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),

@@ -261,6 +261,7 @@ fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
             ast::QuerySource::Aliased { .. } | ast::QuerySource::Subquery { .. } => 1,
             ast::QuerySource::TableFunction { function, form, .. } => usize::from(
                 crate::sql::table_sources::is_generated(&function.name)
+                    || crate::sql::functions::graph_weighted::is_weighted_paths(&function.name)
                     || form
                         .as_deref()
                         .is_some_and(|form| form.graph_table().is_some()),
@@ -405,8 +406,9 @@ fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
             if let Some(table) = form.as_deref().and_then(|form| form.graph_table()) {
                 return Some(Node::Graph(table));
             }
-            crate::sql::table_sources::is_generated(&function.name)
-                .then_some(Node::Function(function))
+            (crate::sql::table_sources::is_generated(&function.name)
+                || crate::sql::functions::graph_weighted::is_weighted_paths(&function.name))
+            .then_some(Node::Function(function))
         }
         ast::QuerySource::Collection(_)
         | ast::QuerySource::Cte(_)

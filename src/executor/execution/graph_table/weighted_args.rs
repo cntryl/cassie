@@ -105,6 +105,8 @@ fn max_cost(value: &Value) -> Result<Option<Numeric>, QueryError> {
         Value::Int64(number) => Numeric::from_i64(*number),
         Value::Float64(number) => Numeric::from_f64(*number)
             .map_err(|_| diagnostic("22023", "max_cost must be finite and non-negative"))?,
+        Value::Typed(TypedValue::Real(number)) => Numeric::from_f32(*number)
+            .map_err(|_| diagnostic("22023", "max_cost must be finite and non-negative"))?,
         Value::Typed(TypedValue::Numeric(numeric)) => numeric.clone(),
         _ => return Err(diagnostic("42804", "max_cost must be numeric")),
     };

@@ -1,8 +1,20 @@
 import type { QueryExplainPlan, QueryResultValue } from "@/adapters";
 
-export type QuerySchemaSectionId = "tables" | "views" | "indexes" | "udfs" | "procedures";
+export type QuerySchemaSectionId =
+  | "tables"
+  | "views"
+  | "indexes"
+  | "udfs"
+  | "procedures"
+  | "property_graphs";
 
-export type QuerySchemaItemKind = "table" | "view" | "index" | "udf" | "procedure";
+export type QuerySchemaItemKind =
+  | "table"
+  | "view"
+  | "index"
+  | "udf"
+  | "procedure"
+  | "property_graph";
 
 export interface QuerySchemaColumn {
   id: string;

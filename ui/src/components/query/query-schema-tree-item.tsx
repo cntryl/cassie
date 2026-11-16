@@ -17,6 +17,7 @@ import {
   KeyRoundIcon,
   TableIcon,
   TerminalSquareIcon,
+  WaypointsIcon,
 } from "@askrjs/lucide";
 
 import type { QuerySchemaItem, QuerySchemaItemKind } from "@/features/query/query-models";
@@ -33,6 +34,7 @@ const KIND_ICONS: Record<QuerySchemaItemKind, (props: IconProps) => JSXElement> 
   index: KeyRoundIcon,
   udf: FunctionSquareIcon,
   procedure: TerminalSquareIcon,
+  property_graph: WaypointsIcon,
 };
 
 const EXPANDABLE_KINDS: ReadonlySet<QuerySchemaItemKind> = new Set(["table", "view"]);

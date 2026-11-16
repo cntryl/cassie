@@ -41,10 +41,32 @@ fn dependency_error(subject: &str, graphs: &[PropertyGraphMeta], cascade: bool) 
     QueryError::Cassie(diagnostic.with_detail(dependent_detail(graphs)).into())
 }
 
+/// Whether a stored mapping table name and `canonical` name the same table. An instance
+/// that does not enforce database scoping stores names unqualified, so both are compared
+/// in canonical form.
+fn same_table(cassie: &Cassie, stored: &str, canonical: &str) -> bool {
+    cassie
+        .midge
+        .canonical_collection_name(stored)
+        .eq_ignore_ascii_case(canonical)
+}
+
+/// The graphs that map `table`, with the table's name as those graphs store it.
 fn graphs_on(cassie: &Cassie, table: &str) -> (String, Vec<PropertyGraphMeta>) {
     let canonical = cassie.midge.canonical_collection_name(table);
-    let graphs = cassie.catalog.property_graphs_mapping_table(&canonical);
-    (canonical, graphs)
+    let mut stored = None;
+    let mut graphs = cassie.catalog.list_property_graphs();
+    graphs.retain(|graph| {
+        let mapped = graph
+            .mapped_tables()
+            .into_iter()
+            .find(|mapped| same_table(cassie, mapped, &canonical))
+            .map(str::to_owned);
+        let maps = mapped.is_some();
+        stored = stored.take().or(mapped);
+        maps
+    });
+    (stored.unwrap_or(canonical), graphs)
 }
 
 /// Whether a mapping of `table` reads `column` as a key, endpoint or property.
@@ -230,7 +252,14 @@ pub(super) fn rename_table(
     let next = cassie.midge.canonical_collection_name(next_table);
     update_graphs(cassie, |graph| {
         rewrite_tables(graph, |mapped| {
-            mapped.eq_ignore_ascii_case(&current).then(|| next.clone())
+            same_table(cassie, mapped, &current).then(|| {
+                // Keep the form the definition already uses.
+                if mapped.eq_ignore_ascii_case(&current) {
+                    next.clone()
+                } else {
+                    crate::catalog::local_name(&next)
+                }
+            })
         })
     })
 }
@@ -252,7 +281,7 @@ pub(super) fn rename_column(
     update_graphs(cassie, |graph| {
         let mut changed = false;
         for vertex in &mut graph.vertices {
-            if !vertex.table.eq_ignore_ascii_case(&canonical) {
+            if !same_table(cassie, &vertex.table, &canonical) {
                 continue;
             }
             for key in &mut vertex.key {
@@ -267,7 +296,7 @@ pub(super) fn rename_column(
             }
         }
         for edge in &mut graph.edges {
-            if !edge.table.eq_ignore_ascii_case(&canonical) {
+            if !same_table(cassie, &edge.table, &canonical) {
                 continue;
             }
             for key in &mut edge.key {

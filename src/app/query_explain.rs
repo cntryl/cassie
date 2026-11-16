@@ -172,11 +172,23 @@ pub(crate) use text_owner::PlanText;
 pub(super) fn plan_line(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
+    graph: &[String],
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<PlanText, super::CassieError> {
     PlanText::try_build(controls, |allocation| {
-        text::plan_line(cassie, physical, allocation)
+        text::plan_line(cassie, physical, graph, allocation)
     })
+}
+
+/// The access path of every mapping of every `GRAPH_TABLE` the statement reads.
+pub(super) fn graph_lines(
+    cassie: &Cassie,
+    session: Option<&super::CassieSession>,
+    physical: &crate::planner::physical::PhysicalPlan,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    crate::executor::explain_graph_sources(cassie, session, &physical.logical.source, &mut lines);
+    lines
 }
 
 fn selected_estimated_rows(physical: &crate::planner::physical::PhysicalPlan) -> u64 {

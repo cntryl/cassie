@@ -375,6 +375,20 @@ pub struct ReadPathSnapshot {
     pub last_index_scan_mode: String,
     pub last_ordered_scan_collection: String,
     pub last_ordered_scan_mode: String,
+    /// Scalar index entries returned to graph reads.
+    pub graph_index_entries: u64,
+    /// Point row reads of graph reads.
+    pub graph_row_fetches: u64,
+    /// Rows of whole mappings read by graph reads (fallback and unanchored starts).
+    pub graph_full_rows: u64,
+    /// Pending session changes examined by graph reads.
+    pub graph_overlay_changes: u64,
+    /// Neighborhoods, vertices and mappings served from the statement cache.
+    pub graph_cache_hits: u64,
+    /// Rows of the `graph_weighted_paths` validation scan.
+    pub graph_validation_rows: u64,
+    /// Frontier peak (vertices with a fetched neighborhood) of the latest graph read.
+    pub graph_last_frontier_peak: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

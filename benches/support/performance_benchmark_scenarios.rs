@@ -13,6 +13,7 @@ pub const REQUIRED_WORKLOAD_FAMILIES: &[&str] = &[
     "search",
     "vector",
     "hybrid",
+    "graph",
     "time_series",
     "pgwire",
     "http",

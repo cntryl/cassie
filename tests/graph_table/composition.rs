@@ -15,7 +15,7 @@ const PAIRS: &str = "GRAPH_TABLE (g MATCH (s IS node) -[IS link]-> (t IS node) \
                      COLUMNS (s.num AS src, t.num AS dst)) AS p";
 
 #[test]
-fn should_filter_a_graph_table_with_an_outer_where() {
+pub(crate) fn should_filter_a_graph_table_with_an_outer_where() {
     // Arrange
     let world = world();
 
@@ -29,7 +29,7 @@ fn should_filter_a_graph_table_with_an_outer_where() {
 }
 
 #[test]
-fn should_join_a_graph_table_with_an_ordinary_table() {
+pub(crate) fn should_join_a_graph_table_with_an_ordinary_table() {
     // Arrange
     let world = world();
 
@@ -43,7 +43,7 @@ fn should_join_a_graph_table_with_an_ordinary_table() {
 }
 
 #[test]
-fn should_correlate_a_lateral_graph_table_per_outer_row() {
+pub(crate) fn should_correlate_a_lateral_graph_table_per_outer_row() {
     // Arrange
     let world = world();
 
@@ -59,7 +59,7 @@ fn should_correlate_a_lateral_graph_table_per_outer_row() {
 }
 
 #[test]
-fn should_aggregate_over_a_graph_table() {
+pub(crate) fn should_aggregate_over_a_graph_table() {
     // Arrange
     let world = world();
 
@@ -73,7 +73,7 @@ fn should_aggregate_over_a_graph_table() {
 }
 
 #[test]
-fn should_use_a_graph_table_inside_exists() {
+pub(crate) fn should_use_a_graph_table_inside_exists() {
     // Arrange
     let world = world();
 
@@ -89,7 +89,7 @@ fn should_use_a_graph_table_inside_exists() {
 }
 
 #[test]
-fn should_read_a_graph_table_through_a_derived_table() {
+pub(crate) fn should_read_a_graph_table_through_a_derived_table() {
     // Arrange
     let world = world();
 
@@ -103,7 +103,7 @@ fn should_read_a_graph_table_through_a_derived_table() {
 }
 
 #[test]
-fn should_read_a_view_over_a_graph_table() {
+pub(crate) fn should_read_a_view_over_a_graph_table() {
     // Arrange
     let world = world();
     world
@@ -126,7 +126,7 @@ fn should_read_a_view_over_a_graph_table() {
 }
 
 #[test]
-fn should_bind_parameters_in_a_prepared_graph_table() {
+pub(crate) fn should_bind_parameters_in_a_prepared_graph_table() {
     // Arrange
     let world = world();
     let sql = "SELECT t.dst FROM GRAPH_TABLE (g MATCH (a IS node WHERE a.num = $1) \
@@ -156,7 +156,7 @@ fn should_bind_parameters_in_a_prepared_graph_table() {
 }
 
 #[test]
-fn should_reevaluate_a_lateral_parameter_for_each_outer_row() {
+pub(crate) fn should_reevaluate_a_lateral_parameter_for_each_outer_row() {
     // Arrange
     let world = world();
 

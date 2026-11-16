@@ -820,8 +820,10 @@ impl Cassie {
             parameter_type_oids,
         )?;
         crate::executor::check_plan_constants(&physical.logical, controls)?;
-        let mut plan = super::query_explain::plan_line(self, &physical, controls)?;
-        let mut structured = super::query_explain::structured_plan(self, &physical, controls)?;
+        let graph = super::query_explain::graph_lines(self, Some(session), &physical);
+        let mut plan = super::query_explain::plan_line(self, &physical, &graph, controls)?;
+        let mut structured =
+            super::query_explain::structured_plan(self, &physical, &graph, controls)?;
 
         if analyze {
             let report = self.run_explain_analyze(
@@ -833,6 +835,11 @@ impl Cassie {
                 &before.expect("analyze snapshot"),
             )?;
             append_explain_analyze(&mut plan, &physical, &report, controls)?;
+            if !graph.is_empty() {
+                plan.try_append(controls, |allocation| {
+                    allocation.format(format_args!(" graph_reads={}", report.deltas.graph.text()))
+                })?;
+            }
             structured = structured.try_with_analyze_with(controls, |allocation| {
                 structured_analyze(&physical, &report, allocation)
             })?;

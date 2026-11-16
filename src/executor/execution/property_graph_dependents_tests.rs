@@ -431,3 +431,34 @@ fn should_reject_dropping_a_primary_key_that_keeps_a_mapped_key_not_null() {
     // Assert
     assert_eq!(nullable, "2BP01");
 }
+
+#[test]
+fn should_guard_mapped_tables_in_an_instance_that_was_not_started() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
+    let session = cassie.create_session("tester", None);
+    for sql in tables("") {
+        run(&cassie, &session, &sql).expect("table");
+    }
+    run(&cassie, &session, SOCIAL).expect("graph");
+
+    // Act
+    let drop_table = state(&cassie, &session, "DROP TABLE follows");
+    let drop_column = state(
+        &cassie,
+        &session,
+        "ALTER TABLE follows DROP COLUMN follower_id",
+    );
+    run(&cassie, &session, "ALTER TABLE people RENAME TO persons").expect("rename");
+    let renamed = cassie
+        .catalog
+        .list_property_graphs()
+        .first()
+        .map(|graph| crate::catalog::local_name(&graph.vertices[0].table));
+
+    // Assert
+    assert_eq!(drop_table, "2BP01");
+    assert_eq!(drop_column, "2BP01");
+    assert_eq!(renamed.as_deref(), Some("persons"));
+}

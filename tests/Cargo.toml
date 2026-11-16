@@ -95,6 +95,10 @@ name = "graph_weighted"
 path = "graph_weighted.rs"
 
 [[test]]
+name = "graph_guide"
+path = "graph_guide.rs"
+
+[[test]]
 name = "domain_types"
 path = "domain_types.rs"
 

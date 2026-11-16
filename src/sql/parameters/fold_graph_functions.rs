@@ -41,6 +41,11 @@ impl Fold<'_, '_> {
             return Ok(None);
         }
         let declared = self.graph_argument_oids(&function.name).unwrap_or_default();
+        if declared.is_empty() || declared.len() != function.args.len() {
+            // A database without the graph schema, or a call of the wrong arity, keeps the
+            // generic admission and its diagnostics.
+            return Ok(None);
+        }
         for (summary, target) in self.summaries.values[frame.start..]
             .iter_mut()
             .take(function.args.len())

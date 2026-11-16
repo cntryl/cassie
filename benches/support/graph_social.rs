@@ -19,6 +19,23 @@ pub fn run(cassie: &Cassie, session: &CassieSession, sql: &str) {
     }
 }
 
+const INSERT_CHUNK: i64 = 5_000;
+
+/// `INSERT ... SELECT` statements that load `total` generated rows in chunks, so that one
+/// statement never holds more rows than the standard query-memory profile allows.
+#[must_use]
+pub fn chunked_inserts(table: &str, columns: &str, total: i64) -> Vec<String> {
+    (1..=total)
+        .step_by(usize::try_from(INSERT_CHUNK).expect("chunk size"))
+        .map(|first| {
+            let last = (first + INSERT_CHUNK - 1).min(total);
+            format!(
+                "INSERT INTO {table} SELECT {columns} FROM generate_series({first}, {last}) AS g(k)"
+            )
+        })
+        .collect()
+}
+
 pub struct Social {
     people: i64,
     edges: i64,
@@ -67,19 +84,22 @@ impl Social {
     #[must_use]
     pub fn setup(&self) -> Vec<String> {
         let (people, edges) = (self.people, self.edges);
-        vec![
+        let mut statements = vec![
             "CREATE TABLE bench_person (id BIGINT PRIMARY KEY, name TEXT)".to_owned(),
             "CREATE TABLE bench_knows (id BIGINT PRIMARY KEY, src BIGINT NOT NULL, \
              dst BIGINT NOT NULL, weight INT NOT NULL)"
                 .to_owned(),
-            format!(
-                "INSERT INTO bench_person SELECT g.k, 'person' FROM generate_series(1, {people}) AS g(k)"
+        ];
+        statements.extend(chunked_inserts("bench_person", "g.k, 'person'", people));
+        statements.extend(chunked_inserts(
+            "bench_knows",
+            &format!(
+                "g.k, ((g.k - 1) % {people}) + 1, ((g.k * {MULTIPLIER}) % {people}) + 1, \
+                 (g.k % {WEIGHT_CLASSES}) + 1"
             ),
-            format!(
-                "INSERT INTO bench_knows SELECT g.k, ((g.k - 1) % {people}) + 1, \
-                 ((g.k * {MULTIPLIER}) % {people}) + 1, (g.k % {WEIGHT_CLASSES}) + 1 \
-                 FROM generate_series(1, {edges}) AS g(k)"
-            ),
+            edges,
+        ));
+        statements.push(
             "CREATE PROPERTY GRAPH bench_social \
              VERTEX TABLES (bench_person AS person KEY (id) LABEL person PROPERTIES (id, name)) \
              EDGE TABLES (bench_knows AS knows KEY (id) \
@@ -87,7 +107,8 @@ impl Social {
                DESTINATION KEY (dst) REFERENCES person (id) \
                LABEL knows PROPERTIES (weight))"
                 .to_owned(),
-        ]
+        );
+        statements
     }
 
     /// Out-edges by source vertex: `(destination, weight)` in edge-key order.

@@ -78,6 +78,10 @@ fn main() {
     let setup_time_ns = setup_started.elapsed().as_nanos().max(1).to_string();
 
     if runner.is_enabled(&binding) {
+        let context = binder::BindingContext::scoped(
+            session.current_database().unwrap_or("postgres"),
+            vec!["public".to_owned()],
+        );
         let parsed = BINDING_SQL
             .iter()
             .map(|sql| parse_statement(sql).expect("graph benchmark SQL parses"))
@@ -87,7 +91,8 @@ fn main() {
                 .iter()
                 .cloned()
                 .map(|statement| {
-                    binder::bind(statement, &cassie.catalog).expect("graph benchmark SQL binds")
+                    binder::bind_with_context(statement, &cassie.catalog, &context)
+                        .expect("graph benchmark SQL binds")
                 })
                 .collect::<Vec<_>>();
             std::hint::black_box(&bound);

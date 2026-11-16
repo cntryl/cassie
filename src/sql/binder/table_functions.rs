@@ -144,6 +144,24 @@ fn literal_string_arg(function: &FunctionCall, index: usize) -> Option<String> {
     }
 }
 
+/// Records the database's `graph_element_ref` type on a `path_steps` call so its `vertex` and
+/// `edge` columns have that type (#1256). Other calls keep their form.
+fn graph_element_form(
+    function: &FunctionCall,
+    form: Option<Box<TableFunctionForm>>,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Option<Box<TableFunctionForm>> {
+    if form.is_some() || !crate::sql::functions::graph_types::has_element_columns(&function.name) {
+        return form;
+    }
+    catalog.graph_descriptors(&context.database).map(|graph| {
+        Box::new(TableFunctionForm::GraphElements(DataType::Composite(
+            graph.element_ref,
+        )))
+    })
+}
+
 pub(super) fn graph_table_function_columns() -> Vec<(String, DataType)> {
     vec![
         ("depth".to_string(), DataType::BigInt),
@@ -208,6 +226,13 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
         || name.eq_ignore_ascii_case("jsonb_path_query_tz")
     {
         return vec![("value".to_string(), DataType::Jsonb)];
+    }
+    if let Some(TableFunctionForm::GraphElements(element)) = form.as_deref() {
+        if let Some(columns) =
+            crate::sql::functions::graph_types::table_columns_typed(name, element)
+        {
+            return columns;
+        }
     }
     if let Some(columns) = crate::sql::functions::catalog_table_columns(name) {
         return columns;
@@ -313,6 +338,7 @@ pub(super) fn bind(
         unreachable!("table function binding requires a table function");
     };
     validate_graph_table_function(&function, form.as_deref(), lateral_fields)?;
+    let form = graph_element_form(&function, form, catalog, context);
     if crate::sql::table_sources::is_generated(&function.name) {
         return Ok(QuerySource::TableFunction {
             name,

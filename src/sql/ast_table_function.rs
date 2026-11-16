@@ -16,6 +16,10 @@ pub enum TableFunctionForm {
     /// A `GRAPH_TABLE(...)` pattern. Its expressions live in the table itself, so the
     /// call's `function.args` stay empty.
     GraphTable(Box<super::GraphTable>),
+    /// The resolved `cassie_graph.graph_element_ref` type of the `vertex` and `edge` columns
+    /// of `cassie_graph.path_steps` and `weighted_path_steps`. The binder records it because
+    /// the descriptor is per database and the static column list has no catalog (#1256).
+    GraphElements(DataType),
 }
 
 impl TableFunctionForm {

@@ -18,6 +18,14 @@ const OWNER: &str = "tier5_scaling_graph";
 const BUDGET: usize = 64 * 1024 * 1024;
 
 fn main() {
+    if let Some(profile) =
+        std::env::var_os("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID").filter(|profile| !profile.is_empty())
+    {
+        assert_eq!(
+            profile, "local-dev-graph-topology-memory-64m",
+            "graph topology fixtures require their actual memory deployment profile"
+        );
+    }
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier5, OWNER);
     for (workload, points) in [
         (

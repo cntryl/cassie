@@ -895,3 +895,14 @@ Scaling preflight uses plain `EXPLAIN` to validate the indexed access path.
 It must not execute or warm the timed query. Measured executions supply graph
 read counters through `runtime_evidence`; `EXPLAIN ANALYZE` remains appropriate
 for separate correctness/diagnostic evidence, not this timing preflight.
+
+The registered `local-dev-graph-topology-memory-64m` deployment profile names
+these topology-axis fixtures explicitly, uses in-memory Midge, and records the
+fixed 64 MiB query budget. Its fixture scale is `graph-topology-axes`, not a
+synthetic 10k/100k row label. Default scenario-to-profile selection uses this
+profile only for a valid Tier 5/Batch/Scaling scenario matching one of the nine
+exact owner/workload/scale/mapped-row tuples above; existing generic profile
+selection stays unchanged. The graph owner rejects any explicit deployment
+profile other than this one, so a forced-memory run cannot emit disk-profile
+metadata. The assembler must summarize all nine emitted scenario artifacts as
+well as running them before claiming the artifact contract passed.

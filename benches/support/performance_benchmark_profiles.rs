@@ -32,6 +32,19 @@ const NATIVE_LINUX_PROFILE_NON_GOALS: &[&str] = &[
 
 pub const DEPLOYMENT_PROFILES: &[DeploymentProfile] = &[
     DeploymentProfile {
+        profile_id: "local-dev-graph-topology-memory-64m",
+        host_shape: "local developer workstation; record actual host in artifacts",
+        storage_mode: "in_memory_midge_fallback",
+        data_shape: "rooted trees: nine exact degree/depth/fanout points; 64 MiB query memory",
+        workload_mix: "tier5_scaling_graph topology-axis queries",
+        fixture_scale: "graph-topology-axes",
+        benchmark_command: "cargo bench --locked --bench tier5_scaling_graph",
+        cache_evidence: "execution result cache disabled; plan_cache.entries",
+        metrics_captured: STANDARD_METRICS_CAPTURED,
+        known_non_goals: LOCAL_PROFILE_NON_GOALS,
+        default_manual: true,
+    },
+    DeploymentProfile {
         profile_id: "workstation-apple-m5-arm64-apfs",
         host_shape: "Apple M5 workstation, arm64, APFS",
         storage_mode: "midge_disk_apfs",
@@ -136,6 +149,17 @@ pub fn deployment_profile_for_id(profile_id: &str) -> Option<&'static Deployment
 pub fn deployment_profile_for_scenario(
     benchmark: &PerformanceBenchmarkScenario,
 ) -> Option<&'static DeploymentProfile> {
+    if super::validate_scenario_contract(benchmark).is_ok()
+        && super::performance_graph_topology::is_graph_topology_fixture(
+            benchmark.benchmark,
+            benchmark.workload,
+            benchmark.fixture_scale,
+            benchmark.fixture_rows,
+            benchmark.fixture_class == super::FixtureClass::Scaling,
+        )
+    {
+        return deployment_profile_for_id("local-dev-graph-topology-memory-64m");
+    }
     DEPLOYMENT_PROFILES
         .iter()
         .find(|profile| profile.fixture_scale == benchmark.fixture_scale)

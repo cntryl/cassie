@@ -10,7 +10,7 @@ use super::keys::{key_of, KeyPart};
 use super::plan::Plan;
 use super::BatchRow;
 use super::{batch, source_collection, QueryError, SourceExecutionEnv};
-use crate::catalog::GraphKeyColumn;
+use crate::catalog::{GraphKeyColumn, PropertyGraphMeta};
 use crate::executor::retained_memory::{add, mul};
 use crate::runtime::QueryMemoryReservation;
 use crate::types::DataType;
@@ -127,9 +127,27 @@ impl Store {
         plan: &Plan<'_>,
         memory: &mut QueryMemoryReservation,
     ) -> Result<Self, QueryError> {
-        let graph = &plan.graph;
+        Self::load_mappings(
+            env,
+            &plan.graph,
+            (&plan.vertex_mappings_read(), &plan.edge_mappings_read()),
+            memory,
+        )
+    }
+
+    /// [`Store::load`] for explicit `(vertex, edge)` mapping indexes of `graph`.
+    ///
+    /// # Errors
+    ///
+    /// Storage, cancellation and memory-budget errors of the underlying scans.
+    pub(super) fn load_mappings(
+        env: &SourceExecutionEnv<'_>,
+        graph: &PropertyGraphMeta,
+        (vertex_list, edge_list): (&[usize], &[usize]),
+        memory: &mut QueryMemoryReservation,
+    ) -> Result<Self, QueryError> {
         let mut vertex_maps = (0..graph.vertices.len()).map(|_| None).collect::<Vec<_>>();
-        for index in plan.vertex_mappings_read() {
+        for &index in vertex_list {
             let mapping = &graph.vertices[index];
             let mut loaded = load_mapping(
                 env,
@@ -149,7 +167,7 @@ impl Store {
             vertex_maps[index] = Some(loaded);
         }
         let mut edge_maps = (0..graph.edges.len()).map(|_| None).collect::<Vec<_>>();
-        for index in plan.edge_mappings_read() {
+        for &index in edge_list {
             let mapping = &graph.edges[index];
             edge_maps[index] = Some(load_mapping(
                 env,
@@ -171,7 +189,7 @@ impl Store {
             edge_rank: Vec::new(),
         };
         store.number_vertices(memory)?;
-        store.connect(env, plan, memory)?;
+        store.connect(env, graph, edge_list, memory)?;
         store.rank(memory)?;
         Ok(store)
     }
@@ -206,23 +224,22 @@ impl Store {
 
     fn endpoint(
         &self,
-        plan: &Plan<'_>,
+        graph: &PropertyGraphMeta,
         edge: usize,
         source: bool,
         row: &BatchRow,
     ) -> Option<usize> {
-        let meta = &plan.graph.edges[edge];
+        let meta = &graph.edges[edge];
         let endpoint = if source {
             &meta.source
         } else {
             &meta.destination
         };
-        let mapping = plan
-            .graph
+        let mapping = graph
             .vertices
             .iter()
             .position(|vertex| vertex.alias == endpoint.vertex_alias)?;
-        let types = key_types(&plan.graph.vertices[mapping].key).1;
+        let types = key_types(&graph.vertices[mapping].key).1;
         let key = key_of(|column| row.get(column), &endpoint.columns, &types)?;
         let loaded = self.vertex_maps[mapping].as_ref()?;
         let position = *loaded.index.get(&key)?;
@@ -232,10 +249,11 @@ impl Store {
     fn connect(
         &mut self,
         env: &SourceExecutionEnv<'_>,
-        plan: &Plan<'_>,
+        graph: &PropertyGraphMeta,
+        edge_list: &[usize],
         memory: &mut QueryMemoryReservation,
     ) -> Result<(), QueryError> {
-        for index in plan.edge_mappings_read() {
+        for &index in edge_list {
             let count = self.edge_maps[index].as_ref().map_or(0, |l| l.rows.len());
             memory.try_grow(mul(
                 count,
@@ -246,8 +264,8 @@ impl Store {
                 let found = {
                     let loaded = self.edge_maps[index].as_ref().expect("edge mapping read");
                     let data = &loaded.rows[row];
-                    self.endpoint(plan, index, true, data)
-                        .zip(self.endpoint(plan, index, false, data))
+                    self.endpoint(graph, index, true, data)
+                        .zip(self.endpoint(graph, index, false, data))
                 };
                 let Some((source, destination)) = found else {
                     continue;

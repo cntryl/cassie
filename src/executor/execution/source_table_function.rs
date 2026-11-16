@@ -74,6 +74,9 @@ pub(super) fn execute(
     if crate::sql::functions::is_identify_object(&function.name) {
         return super::source_identify_object::execute(env, name, function, outer, qualify, ctes);
     }
+    if crate::sql::functions::graph_weighted::is_weighted_paths(&function.name) {
+        return super::source_graph_table::execute_weighted(env, name, function, outer, qualify);
+    }
     if let Some(result) = source_graph_types::dispatch(env, name, function, outer, qualify) {
         return result;
     }

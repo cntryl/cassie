@@ -13,3 +13,13 @@ pub(super) fn execute(
 ) -> SourceExecution {
     graph_table::execute(env, source, outer_row, qualify)
 }
+
+pub(super) fn execute_weighted(
+    env: &SourceExecutionEnv<'_>,
+    name: &str,
+    function: &crate::sql::ast::FunctionCall,
+    outer_row: Option<&BatchRow>,
+    qualify: bool,
+) -> SourceExecution {
+    graph_table::execute_weighted(env, name, function, outer_row, qualify)
+}

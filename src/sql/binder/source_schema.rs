@@ -22,10 +22,12 @@ pub(crate) fn derived_source_schema(
 }
 
 /// Table functions whose output columns are typed in result metadata: the generated
-/// sources and the `cassie_graph` step and key-part relations (#1256).
+/// sources, the `cassie_graph` step and key-part relations (#1256) and
+/// `graph_weighted_paths` (#1258).
 fn described_source(name: &str) -> bool {
     crate::sql::table_sources::is_generated(name)
         || crate::sql::functions::graph_types::is_table_function(name)
+        || crate::sql::functions::graph_weighted::is_weighted_paths(name)
 }
 
 pub(crate) fn derived_source_schema_with_parameters(

@@ -25,6 +25,9 @@ fn validate_graph_table_function(
     if crate::sql::table_sources::is_series(&function.name) {
         return validate_series(function, lateral_fields);
     }
+    if crate::sql::functions::graph_weighted::is_weighted_paths(&function.name) {
+        return super::weighted_paths::validate(function, lateral_fields);
+    }
     if crate::sql::table_sources::is_unnest(&function.name) {
         if function.args.is_empty() || function.has_modifiers() {
             return Err(CassieError::Execution(
@@ -215,6 +218,9 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
     if let Some(json) = crate::sql::table_sources::json_element_source(&function.name) {
         return crate::sql::table_sources::json_element_columns(json, *with_ordinality);
     }
+    if crate::sql::functions::graph_weighted::is_weighted_paths(&function.name) {
+        return super::weighted_paths::columns(form.as_deref());
+    }
     if let Some(columns) = crate::sql::table_sources::record_output_columns(
         function,
         *with_ordinality,
@@ -347,6 +353,19 @@ pub(super) fn bind(
             with_ordinality,
             form,
         });
+    }
+    if crate::sql::functions::graph_weighted::is_weighted_paths(&function.name) {
+        return Ok(super::weighted_paths::bind(
+            QuerySource::TableFunction {
+                name,
+                function,
+                lateral,
+                with_ordinality,
+                form,
+            },
+            catalog,
+            context,
+        ));
     }
     if crate::sql::functions::is_options_table(&function.name) {
         bind_options_argument(&mut function.args[0])?;

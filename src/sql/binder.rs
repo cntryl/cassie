@@ -44,6 +44,8 @@ mod table_functions;
 pub(crate) mod unary_numeric;
 #[path = "binder/values.rs"]
 pub(crate) mod values;
+#[path = "binder/weighted_paths.rs"]
+mod weighted_paths;
 pub(crate) use coalesce_coercion::has_float_domain as coalesce_has_float_domain;
 mod coalesce_coercion;
 mod result_coercion;

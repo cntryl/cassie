@@ -126,6 +126,9 @@ fn parse_arguments(name: &str, raw: &str) -> Result<(String, Vec<super::Expr>), 
     if let Some(arguments) = parse_variadic_json_path_arguments(name, raw)? {
         return Ok((name.to_owned(), arguments));
     }
+    if let Some(arguments) = super::graph_weighted_call::arguments(name, raw)? {
+        return Ok((name.to_owned(), arguments));
+    }
     if let Some(call) = super::pattern_function_call::arguments(name, raw)? {
         return Ok(call);
     }

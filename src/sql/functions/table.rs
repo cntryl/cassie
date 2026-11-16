@@ -10,6 +10,7 @@ pub(crate) fn is_catalog_table(name: &str) -> bool {
         || is_pg_input_error_info(name)
         || super::object_identity::is_identify_object(name)
         || super::graph_types::is_table_function(name)
+        || super::graph_weighted::is_weighted_paths(name)
 }
 
 pub(crate) fn is_pg_input_error_info(name: &str) -> bool {
@@ -25,6 +26,9 @@ pub(crate) fn catalog_table_columns(name: &str) -> Option<Vec<(String, DataType)
     }
     if let Some(columns) = super::graph_types::table_columns(name) {
         return Some(columns);
+    }
+    if super::graph_weighted::is_weighted_paths(name) {
+        return Some(super::graph_weighted::columns(None));
     }
     if is_pg_input_error_info(name) {
         return Some(

@@ -88,11 +88,10 @@ fn answers(case: &Case) -> Vec<Answer> {
         .collect()
 }
 
-fn ok(rows: &[&[&str]]) -> Answer {
-    Ok(rows
-        .iter()
+fn ok(rows: &[&[&str]]) -> Vec<Vec<String>> {
+    rows.iter()
         .map(|row| row.iter().map(|text| (*text).to_owned()).collect())
-        .collect())
+        .collect()
 }
 
 fn nullable_endpoint(workers: usize, extra_edge: &'static str) -> Case {
@@ -126,7 +125,7 @@ fn should_ignore_an_invalid_weight_on_an_edge_with_a_null_endpoint_under_every_r
     let all = answers(&case);
 
     // Assert
-    let expected = ok(&[&["1", "2", "{1,1}"]]);
+    let expected: Answer = Ok(ok(&[&["1", "2", "{1,1}"]]));
     assert!(all.iter().all(|found| *found == expected));
 }
 
@@ -154,7 +153,7 @@ fn should_answer_the_same_when_the_parallel_scan_falls_back_to_reading_in_full()
 
     // Assert
     assert_eq!(one, two);
-    assert_eq!(two[0], ok(&[&["1", "2", "{1,1}"]]));
+    assert_eq!(two[0], Ok(ok(&[&["1", "2", "{1,1}"]])));
 }
 
 #[test]
@@ -205,7 +204,7 @@ fn should_ignore_an_invalid_weight_toward_a_missing_composite_vertex_under_every
     let all = answers(&case);
 
     // Assert
-    let expected = ok(&[&["1", "2", "{1,1}"]]);
+    let expected: Answer = Ok(ok(&[&["1", "2", "{1,1}"]]));
     assert!(all.iter().all(|found| *found == expected));
 }
 
@@ -256,7 +255,7 @@ fn should_answer_identically_for_quoted_mixed_case_columns_under_every_read_path
     let all = answers(&case);
 
     // Assert
-    let expected = ok(&[&["1", "2", "{1,1}"]]);
+    let expected: Answer = Ok(ok(&[&["1", "2", "{1,1}"]]));
     assert!(all.iter().all(|found| *found == expected));
 }
 

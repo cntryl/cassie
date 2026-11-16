@@ -36,14 +36,14 @@ pub(super) struct Counts {
 /// The rows of one table, streamed when the statement's read path can stream them and read
 /// in full otherwise.
 enum Rows<'a> {
-    Stream(Cursor<'a>),
+    Stream(Box<Cursor<'a>>),
     Full(std::vec::IntoIter<BatchRow>),
 }
 
 impl<'a> Rows<'a> {
     fn open(env: &SourceExecutionEnv<'a>, table: &str) -> Result<Self, QueryError> {
         match Cursor::open(env, table, false, RowTraversal::CompleteSource)? {
-            Some(cursor) => Ok(Self::Stream(cursor)),
+            Some(cursor) => Ok(Self::Stream(Box::new(cursor))),
             None => Ok(Self::Full(read_rows(env, table)?.into_iter())),
         }
     }

@@ -21,8 +21,8 @@ struct Server {
 fn state(error: &sqlx::Error) -> String {
     error
         .as_database_error()
-        .and_then(|database| database.code())
-        .map_or_else(|| "none".to_owned(), |code| code.into_owned())
+        .and_then(sqlx::error::DatabaseError::code)
+        .map_or_else(|| "none".to_owned(), std::borrow::Cow::into_owned)
 }
 
 /// The value of a step that must succeed; a failure reports only its step and SQLSTATE.

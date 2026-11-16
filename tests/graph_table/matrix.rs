@@ -61,7 +61,7 @@ fn world() -> World {
 }
 
 #[test]
-fn should_agree_with_the_oracle_for_every_mode_direction_bound_selector() {
+pub(crate) fn should_agree_with_the_oracle_for_every_mode_direction_bound_selector() {
     // Arrange
     let world = world();
     let mut compared = 0_usize;
@@ -101,7 +101,7 @@ fn should_agree_with_the_oracle_for_every_mode_direction_bound_selector() {
 }
 
 #[test]
-fn should_agree_with_the_oracle_for_unbounded_quantifiers_under_finite_modes() {
+pub(crate) fn should_agree_with_the_oracle_for_unbounded_quantifiers_under_finite_modes() {
     // Arrange
     let world = world();
     let mut mismatches = Vec::new();

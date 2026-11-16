@@ -104,3 +104,49 @@ pub(super) fn execute(
     let batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
     finalize_source_batches(env, batches, text_fields, qualify, name)
 }
+
+/// The `EXPLAIN` description of every `GRAPH_TABLE` source reachable from `source`: its
+/// graph and the access path of each mapping.
+pub(crate) fn explain_sources(
+    cassie: &crate::app::Cassie,
+    session: Option<&crate::app::CassieSession>,
+    source: &QuerySource,
+    out: &mut Vec<String>,
+) {
+    match source {
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            explain_sources(cassie, session, source, out);
+        }
+        QuerySource::Join { left, right, .. } => {
+            explain_sources(cassie, session, left, out);
+            explain_sources(cassie, session, right, out);
+        }
+        QuerySource::Subquery { select, .. } => {
+            explain_sources(cassie, session, &select.source, out);
+        }
+        QuerySource::TableFunction {
+            form: Some(form), ..
+        } => {
+            let TableFunctionForm::GraphTable(table) = form.as_ref() else {
+                return;
+            };
+            let Some(graph) = table
+                .binding
+                .as_ref()
+                .and_then(|binding| cassie.catalog.get_property_graph(&binding.graph))
+            else {
+                return;
+            };
+            let name = graph.name.clone();
+            let Ok(plan) = plan::Plan::build(table, graph) else {
+                return;
+            };
+            let access = access::Access::choose(cassie, session, &plan);
+            out.push(format!(
+                "graph_table={name} {}",
+                access::describe(&access, &plan, &plan.graph)
+            ));
+        }
+        _ => {}
+    }
+}

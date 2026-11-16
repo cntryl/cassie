@@ -26,7 +26,7 @@ fn count(world: &World, sql: &str) -> usize {
 }
 
 #[test]
-fn should_exclude_an_edge_whose_endpoint_vertex_is_missing() {
+pub(crate) fn should_exclude_an_edge_whose_endpoint_vertex_is_missing() {
     // Arrange
     let world = World::simple(&[node(1), node(2)], &[link(1, 1, 2), link(2, 1, 9)]);
     let sql = "SELECT * FROM GRAPH_TABLE (g MATCH (s IS node) -[e IS link]-> (t IS node) \
@@ -40,7 +40,7 @@ fn should_exclude_an_edge_whose_endpoint_vertex_is_missing() {
 }
 
 #[test]
-fn should_show_a_dangling_edge_once_its_endpoint_is_inserted() {
+pub(crate) fn should_show_a_dangling_edge_once_its_endpoint_is_inserted() {
     // Arrange
     let world = World::simple(&[node(1), node(2)], &[link(1, 1, 2), link(2, 1, 9)]);
     let sql = "SELECT * FROM GRAPH_TABLE (g MATCH (s IS node) -[e IS link]-> (t IS node) \
@@ -59,7 +59,7 @@ fn should_show_a_dangling_edge_once_its_endpoint_is_inserted() {
 }
 
 #[test]
-fn should_select_several_mappings_that_share_a_label() {
+pub(crate) fn should_select_several_mappings_that_share_a_label() {
     // Arrange
     let fixture = sql_fixture("graph-shared-label", &ENTITY_SETUP);
 
@@ -77,7 +77,7 @@ fn should_select_several_mappings_that_share_a_label() {
 }
 
 #[test]
-fn should_not_cross_endpoint_mappings_of_an_edge() {
+pub(crate) fn should_not_cross_endpoint_mappings_of_an_edge() {
     // Arrange
     let fixture = sql_fixture("graph-endpoint-mapping", &ENTITY_SETUP);
 
@@ -100,7 +100,7 @@ fn should_not_cross_endpoint_mappings_of_an_edge() {
 }
 
 #[test]
-fn should_count_a_mapping_carrying_both_listed_labels_once() {
+pub(crate) fn should_count_a_mapping_carrying_both_listed_labels_once() {
     // Arrange
     let fixture = sql_fixture(
         "graph-label-alternatives",
@@ -126,7 +126,7 @@ fn should_count_a_mapping_carrying_both_listed_labels_once() {
 }
 
 #[test]
-fn should_leave_out_an_edge_with_a_null_endpoint_component() {
+pub(crate) fn should_leave_out_an_edge_with_a_null_endpoint_component() {
     // Arrange
     let fixture = sql_fixture(
         "graph-null-endpoint",

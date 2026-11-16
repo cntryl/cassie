@@ -20,6 +20,13 @@ impl Cassie {
         })
     }
 
+    /// Forces every `GRAPH_TABLE` read onto the exact full read of its mapped tables instead
+    /// of the lazy indexed expansion. Both return identical results; equivalence tests and
+    /// operators use this to compare them.
+    pub fn set_graph_exact_reads(&self, exact: bool) {
+        self.runtime.set_graph_exact_reads(exact);
+    }
+
     #[must_use]
     pub fn metrics(&self) -> serde_json::Value {
         let snapshot = self.runtime.snapshot();

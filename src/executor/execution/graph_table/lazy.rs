@@ -85,9 +85,7 @@ fn pending_of(
     let pending = Arc::new(pending);
     with_cache(env, |cache| {
         cache.admit(bytes)?;
-        cache
-            .pending
-            .insert(table.to_owned(), Arc::clone(&pending));
+        cache.pending.insert(table.to_owned(), Arc::clone(&pending));
         Ok(())
     })?;
     Ok(pending)
@@ -110,10 +108,10 @@ fn lookup_rows(
         equality_prefix: index.probe(key),
         ..ScalarIndexScanRequest::default()
     };
-    let hits = env
-        .cassie
-        .midge
-        .scan_scalar_index_controlled(&index.index, &request, env.controls)?;
+    let hits =
+        env.cassie
+            .midge
+            .scan_scalar_index_controlled(&index.index, &request, env.controls)?;
     let (hits, _hits_memory) = hits.into_parts();
     reads.index_entries += hits.len() as u64;
     let schema = env.cassie.catalog.get_schema(table);
@@ -186,7 +184,11 @@ impl Store {
             .edges
             .iter()
             .enumerate()
-            .map(|(mapping, meta)| access.edge[mapping].is_some().then(|| empty(&meta.mapping_id)))
+            .map(|(mapping, meta)| {
+                access.edge[mapping]
+                    .is_some()
+                    .then(|| empty(&meta.mapping_id))
+            })
             .collect();
         let lazy = Lazy {
             scanned: vec![false; graph.vertices.len()],
@@ -248,9 +250,7 @@ impl Store {
         }
         let meta = &graph.vertices[mapping];
         let cache_key = (graph.name.clone(), mapping);
-        let known = with_cache(env, |cache| {
-            Ok(cache.vertex_scans.get(&cache_key).cloned())
-        })?;
+        let known = with_cache(env, |cache| Ok(cache.vertex_scans.get(&cache_key).cloned()))?;
         let rows = if let Some(rows) = known {
             self.reads.cache_hits += 1;
             rows
@@ -409,10 +409,7 @@ impl Store {
         let near = vertex_mapping_of(graph, &endpoint.vertex_alias)
             .ok_or_else(|| super::failure("edge endpoint mapping is missing"))?;
         let (_, near_types) = key_types(&graph.vertices[near].key);
-        let index = self
-            .lazy_state()
-            .access
-            .edge[edge]
+        let index = self.lazy_state().access.edge[edge]
             .as_ref()
             .filter(|access| access.indexed())
             .and_then(|access| access.index(side))
@@ -587,7 +584,14 @@ impl Store {
         hood: &[Keyed],
     ) -> Result<(), QueryError> {
         let meta = &graph.edges[edge];
-        let far = endpoint_of(meta, if side == Side::Source { Side::Destination } else { Side::Source });
+        let far = endpoint_of(
+            meta,
+            if side == Side::Source {
+                Side::Destination
+            } else {
+                Side::Source
+            },
+        );
         let far_mapping = vertex_mapping_of(graph, &far.vertex_alias)
             .ok_or_else(|| super::failure("edge endpoint mapping is missing"))?;
         let (_, far_types) = key_types(&graph.vertices[far_mapping].key);
@@ -612,7 +616,9 @@ impl Store {
             let id = match known {
                 Some(id) => id,
                 None => {
-                    let bytes = keyed_bytes(edge_key, row)? + size_of::<EdgeRecord>() + 4 * size_of::<usize>();
+                    let bytes = keyed_bytes(edge_key, row)?
+                        + size_of::<EdgeRecord>()
+                        + 4 * size_of::<usize>();
                     let id = self.edges.len();
                     let lazy = self.lazy_state();
                     lazy.memory.try_grow(bytes)?;

@@ -23,6 +23,33 @@ pub enum Storage {
     Columnar,
 }
 
+/// How a world reads its graph: through the lazy indexed store or forced onto the exact full
+/// read, and whether the edge table carries indexes on its endpoint columns.
+#[derive(Clone, Copy, Default)]
+pub struct Variant {
+    pub exact: bool,
+    pub endpoint_indexes: bool,
+}
+
+thread_local! {
+    static VARIANT: std::cell::Cell<Variant> = std::cell::Cell::new(Variant::default());
+}
+
+/// Builds every world of the current test with `variant` until the guard drops.
+pub struct VariantGuard(Variant);
+
+impl VariantGuard {
+    pub fn set(variant: Variant) -> Self {
+        Self(VARIANT.with(|cell| cell.replace(variant)))
+    }
+}
+
+impl Drop for VariantGuard {
+    fn drop(&mut self) {
+        VARIANT.with(|cell| cell.set(self.0));
+    }
+}
+
 pub struct Node {
     pub num: i64,
     pub name: &'static str,
@@ -192,6 +219,17 @@ impl World {
                 link.weight
             ));
         }
+        let variant = VARIANT.with(std::cell::Cell::get);
+        if variant.endpoint_indexes {
+            setup.push(format!(
+                "CREATE INDEX link_src ON link ({})",
+                keys.endpoint(true)
+            ));
+            setup.push(format!(
+                "CREATE INDEX link_dst ON link ({})",
+                keys.endpoint(false)
+            ));
+        }
         setup.push(format!(
             "CREATE PROPERTY GRAPH g \
              VERTEX TABLES (node AS n KEY ({key}) LABEL node PROPERTIES (num, name, score)) \
@@ -208,6 +246,7 @@ impl World {
             Some(config) => sql_fixture_with_config("graph-world", &statements, config),
             None => sql_fixture("graph-world", &statements),
         };
+        fixture.cassie.set_graph_exact_reads(variant.exact);
         let graph = Self::oracle_graph(keys, nodes, links);
         Self { fixture, graph }
     }

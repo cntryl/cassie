@@ -267,12 +267,8 @@ impl<'a> Walk<'a> {
         }
         let direction = place.direction;
         let from = *self.vertices.last().expect("path has a vertex");
-        self.store.expand(
-            self.env,
-            &plan.graph,
-            from,
-            (direction, &place.selection),
-        )?;
+        self.store
+            .expand(self.env, &plan.graph, from, (direction, &place.selection))?;
         let store = &*self.store;
         let mut choices = Vec::new();
         if direction != GraphEdgeDirection::Incoming {

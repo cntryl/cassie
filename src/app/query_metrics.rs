@@ -75,6 +75,7 @@ pub(crate) struct ExplainAnalyzeReport {
 
 pub(crate) struct ExplainAnalyzeDeltas {
     pub(crate) runtime: RuntimeFeedbackDeltas,
+    pub(crate) graph: GraphReadDeltas,
     pub(crate) plan_cache_hits: u64,
     pub(crate) plan_cache_misses: u64,
     pub(crate) parallel_aggregations: u64,
@@ -89,6 +90,59 @@ pub(crate) struct ExplainAnalyzeDeltas {
     pub(crate) operator_switch_fallbacks: u64,
 }
 
+/// Counted graph reads of one statement.
+pub(crate) struct GraphReadDeltas {
+    pub(crate) index_entries: u64,
+    pub(crate) row_fetches: u64,
+    pub(crate) full_rows: u64,
+    pub(crate) overlay_changes: u64,
+    pub(crate) cache_hits: u64,
+    pub(crate) validation_rows: u64,
+    pub(crate) frontier_peak: u64,
+}
+
+impl GraphReadDeltas {
+    fn from_snapshots(
+        before: &crate::runtime::RuntimeMetricsSnapshot,
+        after: &crate::runtime::RuntimeMetricsSnapshot,
+    ) -> Self {
+        let (before, after) = (&before.read_paths, &after.read_paths);
+        Self {
+            index_entries: after
+                .graph_index_entries
+                .saturating_sub(before.graph_index_entries),
+            row_fetches: after
+                .graph_row_fetches
+                .saturating_sub(before.graph_row_fetches),
+            full_rows: after.graph_full_rows.saturating_sub(before.graph_full_rows),
+            overlay_changes: after
+                .graph_overlay_changes
+                .saturating_sub(before.graph_overlay_changes),
+            cache_hits: after
+                .graph_cache_hits
+                .saturating_sub(before.graph_cache_hits),
+            validation_rows: after
+                .graph_validation_rows
+                .saturating_sub(before.graph_validation_rows),
+            frontier_peak: after.graph_last_frontier_peak,
+        }
+    }
+
+    /// The `graph_reads=` payload of the analyzed plan text.
+    pub(crate) fn text(&self) -> String {
+        format!(
+            "index_entries:{},row_fetches:{},full_rows:{},overlay_changes:{},cache_hits:{},validation_rows:{},frontier_peak:{}",
+            self.index_entries,
+            self.row_fetches,
+            self.full_rows,
+            self.overlay_changes,
+            self.cache_hits,
+            self.validation_rows,
+            self.frontier_peak
+        )
+    }
+}
+
 impl ExplainAnalyzeDeltas {
     pub(crate) fn from_snapshots(
         before: &crate::runtime::RuntimeMetricsSnapshot,
@@ -96,6 +150,7 @@ impl ExplainAnalyzeDeltas {
     ) -> Self {
         Self {
             runtime: RuntimeFeedbackDeltas::from_snapshots(before, after),
+            graph: GraphReadDeltas::from_snapshots(before, after),
             plan_cache_hits: after.plan_cache.hits.saturating_sub(before.plan_cache.hits),
             plan_cache_misses: after
                 .plan_cache

@@ -147,7 +147,7 @@ fn sorted_shapes(paths: &[Path]) -> Vec<Vec<i64>> {
 }
 
 #[test]
-fn should_bind_a_projected_path_to_the_graph_path_type() {
+pub(crate) fn should_bind_a_projected_path_to_the_graph_path_type() {
     // Arrange
     let world = World::simple(&nodes(2), &[link(1, 1, 2)]);
 
@@ -163,7 +163,7 @@ fn should_bind_a_projected_path_to_the_graph_path_type() {
 }
 
 #[test]
-fn should_project_the_contract_path_example() {
+pub(crate) fn should_project_the_contract_path_example() {
     // Arrange
     let setup = [
         "CREATE TABLE people (id BIGINT PRIMARY KEY, name TEXT)",
@@ -227,7 +227,7 @@ FROM GRAPH_TABLE (
 }
 
 #[test]
-fn should_project_a_zero_hop_path_with_one_vertex_without_edges() {
+pub(crate) fn should_project_a_zero_hop_path_with_one_vertex_without_edges() {
     // Arrange
     let world = World::simple(&nodes(1), &[]);
 
@@ -242,7 +242,7 @@ fn should_project_a_zero_hop_path_with_one_vertex_without_edges() {
 }
 
 #[test]
-fn should_carry_the_durable_identities_of_the_graph_elements() {
+pub(crate) fn should_carry_the_durable_identities_of_the_graph_elements() {
     // Arrange
     let world = World::simple(&nodes(2), &[link(7, 1, 2)]);
     let identities = rows_of(
@@ -278,7 +278,7 @@ fn should_carry_the_durable_identities_of_the_graph_elements() {
 }
 
 #[test]
-fn should_carry_composite_keys_in_key_order() {
+pub(crate) fn should_carry_composite_keys_in_key_order() {
     // Arrange
     let world = World::new(Keys::Composite, Storage::Row, &nodes(2), &[link(1, 1, 2)]);
 
@@ -298,7 +298,7 @@ fn should_carry_composite_keys_in_key_order() {
 }
 
 #[test]
-fn should_carry_uuid_keys_as_uuid_parts() {
+pub(crate) fn should_carry_uuid_keys_as_uuid_parts() {
     // Arrange
     let world = World::new(Keys::Uuid, Storage::Row, &nodes(2), &[link(1, 1, 2)]);
 
@@ -312,7 +312,7 @@ fn should_carry_uuid_keys_as_uuid_parts() {
 }
 
 #[test]
-fn should_preserve_the_declared_width_of_integer_keys() {
+pub(crate) fn should_preserve_the_declared_width_of_integer_keys() {
     // Arrange
     let setup = [
         "CREATE TABLE small_node (k SMALLINT PRIMARY KEY)",
@@ -341,7 +341,7 @@ fn should_preserve_the_declared_width_of_integer_keys() {
 }
 
 #[test]
-fn should_record_reverse_plus_undirected_directions_like_the_oracle_does() {
+pub(crate) fn should_record_reverse_plus_undirected_directions_like_the_oracle_does() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 3, 2), link(3, 3, 3)]);
     let undirected = Pattern::new(any_node()).step(
@@ -379,7 +379,7 @@ fn should_record_reverse_plus_undirected_directions_like_the_oracle_does() {
 }
 
 #[test]
-fn should_match_the_oracle_for_variable_length_projected_paths() {
+pub(crate) fn should_match_the_oracle_for_variable_length_projected_paths() {
     // Arrange
     let world = World::simple(
         &nodes(4),
@@ -398,7 +398,7 @@ fn should_match_the_oracle_for_variable_length_projected_paths() {
 }
 
 #[test]
-fn should_choose_the_tied_shortest_path_by_the_contract_total_order() {
+pub(crate) fn should_choose_the_tied_shortest_path_by_the_contract_total_order() {
     // Arrange
     let world = World::simple(
         &nodes(4),
@@ -433,7 +433,7 @@ fn should_choose_the_tied_shortest_path_by_the_contract_total_order() {
 }
 
 #[test]
-fn should_choose_the_k_lowest_tied_paths_by_the_contract_total_order() {
+pub(crate) fn should_choose_the_k_lowest_tied_paths_by_the_contract_total_order() {
     // Arrange
     let world = World::simple(
         &nodes(3),
@@ -461,7 +461,7 @@ fn should_choose_the_k_lowest_tied_paths_by_the_contract_total_order() {
 }
 
 #[test]
-fn should_export_a_projected_path_to_jsonb_without_rounding_bigint_keys() {
+pub(crate) fn should_export_a_projected_path_to_jsonb_without_rounding_bigint_keys() {
     // Arrange
     let nodes = [
         Node {
@@ -493,7 +493,7 @@ fn should_export_a_projected_path_to_jsonb_without_rounding_bigint_keys() {
 }
 
 #[test]
-fn should_list_the_steps_of_a_projected_path() {
+pub(crate) fn should_list_the_steps_of_a_projected_path() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 2, 3)]);
 
@@ -517,7 +517,7 @@ fn should_list_the_steps_of_a_projected_path() {
 }
 
 #[test]
-fn should_read_back_a_projected_path_stored_in_a_graph_path_column() {
+pub(crate) fn should_read_back_a_projected_path_stored_in_a_graph_path_column() {
     // Arrange
     let world = World::simple(&nodes(2), &[link(1, 1, 2)]);
     rows_of(
@@ -548,7 +548,7 @@ fn should_read_back_a_projected_path_stored_in_a_graph_path_column() {
 }
 
 #[test]
-fn should_accept_a_projected_path_back_as_a_parameter() {
+pub(crate) fn should_accept_a_projected_path_back_as_a_parameter() {
     // Arrange
     let world = World::simple(&nodes(2), &[link(1, 1, 2)]);
     let projected = rows_of(
@@ -577,7 +577,7 @@ fn should_accept_a_projected_path_back_as_a_parameter() {
 }
 
 #[test]
-fn should_resolve_a_reference_constructor_like_the_pattern_source() {
+pub(crate) fn should_resolve_a_reference_constructor_like_the_pattern_source() {
     // Arrange
     let world = crate::world::World::simple(
         &[crate::world::node(1), crate::world::node(2)],

@@ -66,7 +66,10 @@ pub(super) fn key_types(key: &[GraphKeyColumn]) -> (Vec<String>, Vec<DataType>) 
     )
 }
 
-pub(super) fn read_rows(env: &SourceExecutionEnv<'_>, table: &str) -> Result<Vec<BatchRow>, QueryError> {
+pub(super) fn read_rows(
+    env: &SourceExecutionEnv<'_>,
+    table: &str,
+) -> Result<Vec<BatchRow>, QueryError> {
     let batches = source_collection::scan_collection(
         env,
         table,

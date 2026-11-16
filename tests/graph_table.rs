@@ -41,3 +41,9 @@ mod database_scope;
 
 #[path = "graph_table/persistence.rs"]
 mod persistence;
+
+#[path = "graph_table/variants.rs"]
+mod variants;
+
+#[path = "graph_table/fast_reads.rs"]
+mod fast_reads;

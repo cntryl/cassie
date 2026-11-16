@@ -38,11 +38,9 @@ fn key_json(part: &KeyPart) -> serde_json::Value {
         KeyPart::Integer(value) => serde_json::Value::from(*value),
         KeyPart::BigInt(value) => serde_json::Value::from(*value),
         KeyPart::Text(value) => serde_json::Value::String(value.clone()),
-        KeyPart::Uuid(bytes) => serde_json::Value::String(
-            uuid::Uuid::from_bytes(*bytes)
-                .hyphenated()
-                .to_string(),
-        ),
+        KeyPart::Uuid(bytes) => {
+            serde_json::Value::String(uuid::Uuid::from_bytes(*bytes).hyphenated().to_string())
+        }
     }
 }
 
@@ -55,38 +53,42 @@ pub(super) fn find_index(
     table: &str,
     columns: &[String],
 ) -> Option<KeyIndex> {
-    cassie.catalog.list_indexes(table).into_iter().find_map(|index| {
-        if index.kind != IndexKind::Scalar
-            || index.predicate.is_some()
-            || !index.expressions.is_empty()
-        {
-            return None;
-        }
-        let fields = index.normalized_fields();
-        if fields.len() != columns.len() {
-            return None;
-        }
-        let order = fields
-            .iter()
-            .map(|field| {
-                columns
-                    .iter()
-                    .position(|column| column.eq_ignore_ascii_case(field))
-            })
-            .collect::<Option<Vec<_>>>()?;
-        let mut seen = order.clone();
-        seen.sort_unstable();
-        seen.dedup();
-        if seen.len() != columns.len() {
-            return None;
-        }
-        if session
-            .is_some_and(|session| !session.transaction_index_visible(&index, &cassie.catalog))
-        {
-            return None;
-        }
-        Some(KeyIndex { index, order })
-    })
+    cassie
+        .catalog
+        .list_indexes(table)
+        .into_iter()
+        .find_map(|index| {
+            if index.kind != IndexKind::Scalar
+                || index.predicate.is_some()
+                || !index.expressions.is_empty()
+            {
+                return None;
+            }
+            let fields = index.normalized_fields();
+            if fields.len() != columns.len() {
+                return None;
+            }
+            let order = fields
+                .iter()
+                .map(|field| {
+                    columns
+                        .iter()
+                        .position(|column| column.eq_ignore_ascii_case(field))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let mut seen = order.clone();
+            seen.sort_unstable();
+            seen.dedup();
+            if seen.len() != columns.len() {
+                return None;
+            }
+            if session
+                .is_some_and(|session| !session.transaction_index_visible(&index, &cassie.catalog))
+            {
+                return None;
+            }
+            Some(KeyIndex { index, order })
+        })
 }
 
 /// Which endpoint columns of an edge mapping a lookup uses.
@@ -130,7 +132,11 @@ fn key_columns(key: &[GraphKeyColumn]) -> Vec<String> {
 }
 
 impl Access {
-    pub(super) fn choose(cassie: &Cassie, session: Option<&CassieSession>, plan: &Plan<'_>) -> Self {
+    pub(super) fn choose(
+        cassie: &Cassie,
+        session: Option<&CassieSession>,
+        plan: &Plan<'_>,
+    ) -> Self {
         let graph = &plan.graph;
         let forced_exact = cassie.runtime.graph_exact_reads();
         let vertex_list = plan.vertex_mappings_read();
@@ -269,9 +275,9 @@ pub(super) fn constant_part(value: &Value, key: &GraphKeyColumn) -> Option<KeyPa
 pub(super) fn describe(access: &Access, plan: &Plan<'_>, graph: &PropertyGraphMeta) -> String {
     let mut parts = Vec::new();
     let start = |mapping: usize| {
-        plan.positions[0].selection[mapping].as_ref().map(|columns| {
-            start_anchor(plan, &graph.vertices[mapping].key, columns).is_some()
-        })
+        plan.positions[0].selection[mapping]
+            .as_ref()
+            .map(|columns| start_anchor(plan, &graph.vertices[mapping].key, columns).is_some())
     };
     for (mapping, meta) in graph.vertices.iter().enumerate() {
         if !access.vertex_read[mapping] {

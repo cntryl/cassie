@@ -65,10 +65,7 @@ impl Cache {
 
 /// Bytes a retained row and its key tuple occupy.
 pub(super) fn keyed_bytes(key: &[KeyPart], row: &BatchRow) -> Result<usize, QueryError> {
-    let mut bytes = add(
-        size_of::<BatchRow>(),
-        mul(key.len(), size_of::<KeyPart>())?,
-    )?;
+    let mut bytes = add(size_of::<BatchRow>(), mul(key.len(), size_of::<KeyPart>())?)?;
     bytes = add(bytes, key.iter().map(KeyPart::heap_bytes).sum::<usize>())?;
     for (name, value) in row.entries() {
         bytes = add(bytes, size_of::<(String, crate::types::Value)>())?;

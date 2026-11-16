@@ -32,7 +32,7 @@ fn other_session(world: &World) -> CassieSession {
 }
 
 #[test]
-fn should_see_own_uncommitted_inserts() {
+pub(crate) fn should_see_own_uncommitted_inserts() {
     // Arrange
     let world = base();
     let session = &world.fixture.session;
@@ -52,7 +52,7 @@ fn should_see_own_uncommitted_inserts() {
 }
 
 #[test]
-fn should_hide_uncommitted_writes_from_another_session_until_commit() {
+pub(crate) fn should_hide_uncommitted_writes_from_another_session_until_commit() {
     // Arrange
     let world = base();
     let writer = &world.fixture.session;
@@ -71,7 +71,7 @@ fn should_hide_uncommitted_writes_from_another_session_until_commit() {
 }
 
 #[test]
-fn should_see_an_own_update_that_changes_an_inline_predicate() {
+pub(crate) fn should_see_an_own_update_that_changes_an_inline_predicate() {
     // Arrange
     let world = base();
     let session = &world.fixture.session;
@@ -95,7 +95,7 @@ fn should_see_an_own_update_that_changes_an_inline_predicate() {
 }
 
 #[test]
-fn should_see_own_deletes() {
+pub(crate) fn should_see_own_deletes() {
     // Arrange
     let world = World::simple(
         &[node(1), node(2), node(3)],
@@ -115,7 +115,7 @@ fn should_see_own_deletes() {
 }
 
 #[test]
-fn should_follow_repeated_mutation_of_one_element() {
+pub(crate) fn should_follow_repeated_mutation_of_one_element() {
     // Arrange
     let world = base();
     let session = &world.fixture.session;
@@ -146,7 +146,7 @@ fn should_follow_repeated_mutation_of_one_element() {
 }
 
 #[test]
-fn should_roll_back_to_a_savepoint() {
+pub(crate) fn should_roll_back_to_a_savepoint() {
     // Arrange
     let world = base();
     let session = &world.fixture.session;
@@ -171,7 +171,7 @@ fn should_roll_back_to_a_savepoint() {
 }
 
 #[test]
-fn should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit() {
+pub(crate) fn should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit() {
     // Arrange
     let world = base();
     let reader = &world.fixture.session;

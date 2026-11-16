@@ -1,6 +1,6 @@
 # Transaction authority within Midge as published
 
-Status: **selected design; sections 1, 3 and 4 and three increments of section 2 implemented; the per-transaction cell and reserved-key documentation are not**. This document selects how the
+Status: **selected design; sections 1, 3 and 4 and three increments of section 2 implemented and the session-state inventory recorded; the per-transaction cell itself and reserved-key documentation are not**. This document selects how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
 [#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
@@ -143,11 +143,30 @@ Cancellation while COMMIT waits does not arise: COMMIT never waits. It seals,
 submits and finishes, and cancellation is honoured only before submission.
 
 Jev's adversarial probability that a hazard remains through state that cannot
-live in the cell is 0.59, so this is the main proof obligation. Session-level
-state that outlives a transaction (session `SET` values, the search path, the
-`currval` cache, prepared statements and holdable cursors) must be inventoried
-field by field, and each one given a rule: owned by the cell, or changed only
-through an operation that is checked against the current cell.
+live in the cell is 0.59, so this is the main proof obligation.
+
+**Session state inventory (source-checked, not re-judged by Jev).** Every field
+of `CassieSession` has one of three rules. None of them needs a cell to be safe
+today; the table records why, so a later change cannot silently break it.
+
+| Field | Rule | Guard |
+| --- | --- | --- |
+| `transaction` | Owned by the transaction. | Reset and cleaned under its own mutex at COMMIT and ROLLBACK; operations use generation, rollback epoch, failure authority and the COMMIT seal. |
+| `schema_context` | Owned by the transaction. | Retired under the transaction mutex; lock order is transaction mutex, then schema context. |
+| `session_objects` (cursors, prepared statements) | Owned by the transaction where transactional. | `end_transaction_objects` runs under the transaction mutex; savepoints roll back to a cursor mark. |
+| `transaction_unique_waits` | Owned by the transaction. | Keyed by the transaction's unique-owner id, released at retirement. |
+| `transaction_clock` | Owned by the transaction. | Keyed by generation, so a later transaction never reads an earlier timestamp. |
+| `search_path`, `settings` | Session-owned, restored by the transaction. | Snapshotted at BEGIN under the mutex; ROLLBACK restores all, COMMIT restores only `SET LOCAL` names. A `SET` from another clone racing a ROLLBACK is overwritten by the restore. PostgreSQL has one statement at a time per session and no such schedule, so this is accepted and not tested. |
+| `sequence_values` (`currval`, `lastval`) | Session-owned. | Survives ROLLBACK as in PostgreSQL. `DISCARD` clears the cache inside the transaction mutex's status check, so it is ordered against BEGIN and retirement. |
+| `random` | Session-owned. | No transaction meaning. |
+| `procedure_calls` | Owned by the statement fork. | Copied at fork; a recursion guard, not transaction state. |
+
+The residual hazard is therefore not state that escapes the cell but an
+operation that outlives its transaction, which generation, epoch, failure
+authority and the COMMIT seal already stop. A cell would make that structural
+instead of checked; it would not remove a schedule that is currently reachable.
+Building it is a large refactor of every session accessor, and this document
+does not select it ahead of the evidence work above.
 
 ### 3. COMMIT seals; it does not drain (#1279) (1.00)
 

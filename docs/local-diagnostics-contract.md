@@ -47,6 +47,24 @@ request's cancellation handle and absolute deadline. A recovery-required respons
 that the earlier operation's outcome is uncertain and this new operation was not submitted;
 recover the engine and reconcile the earlier outcome before retrying work.
 
+#### Operator guidance while storage is fenced
+
+The latch is cleared only by reopening the store, which means restarting the Cassie
+process; nothing in a running instance clears it. Until then every read, write and `BEGIN`
+returns `58030` without being submitted, and `ROLLBACK` is accepted. Midge never retries an
+unknown commit and cannot cancel an admitted one, so Cassie does not either.
+
+1. Stop sending traffic and do not retry the statement that returned `58030`. Its
+   transaction ended on that session and its effect is unknown, not failed.
+2. Restart the process. Midge recovery makes the interrupted transaction present in full
+   or absent in full; there is no partial state.
+3. Reconcile through data the transaction itself wrote. A projector that writes its
+   checkpoint in the same transaction reads the checkpoint after restart: if it advanced,
+   the commit applied; if not, replay from the retained source. Do not infer the outcome
+   from the error, from a timeout, or from replica or cache state.
+4. Writes are accepted again once the store reopens. A client pool may reuse its
+   connections, because the failed transaction left each session idle.
+
 ## Metrics
 
 `GET /metrics` requires the normal authenticated admin boundary. `Cassie::metrics()` returns the

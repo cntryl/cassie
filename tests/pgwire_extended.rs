@@ -3,6 +3,9 @@
 #[path = "pgwire_extended/transactions/repeatable_own_views.rs"]
 mod repeatable_own_views;
 
+#[path = "pgwire_extended/transactions/replayable_mode_reuse.rs"]
+mod replayable_mode_reuse;
+
 #[path = "pgwire_extended/transactions/transaction_owned_sequences.rs"]
 mod transaction_owned_sequences;
 

@@ -1,6 +1,6 @@
 //! COMMIT seals its transaction instead of draining statement forks.
 
-use super::CassieSession;
+use super::{CassieSession, SessionTransactionStatus};
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
 use crate::types::Value;
@@ -270,5 +270,66 @@ fn should_not_refuse_transaction_control_on_the_committing_thread() {
     // Assert
     assert!(!own_thread);
     assert!(other_thread);
+    run(&cassie, &session, "ROLLBACK");
+}
+
+#[test]
+fn should_ignore_a_direct_rollback_from_another_thread_while_a_commit_is_sealed() {
+    // Arrange
+    let (cassie, session) = fixture();
+    run(&cassie, &session, "BEGIN");
+    let seal = session.seal_transaction_for_commit();
+    let clone = session.clone();
+
+    // Act: pgwire error handling rolls back through the session, not through SQL.
+    std::thread::spawn(move || clone.rollback_transaction())
+        .join()
+        .unwrap();
+    let still_sealed = session.is_sealed_for_commit();
+    let still_active = session.is_transaction_active();
+    drop(seal);
+
+    // Assert
+    assert!(still_sealed);
+    assert!(still_active);
+    run(&cassie, &session, "ROLLBACK");
+}
+
+#[test]
+fn should_roll_back_on_the_committing_thread_while_sealed() {
+    // Arrange
+    let (cassie, session) = fixture();
+    run(&cassie, &session, "BEGIN");
+    let seal = session.seal_transaction_for_commit();
+
+    // Act
+    session.rollback_transaction();
+    drop(seal);
+
+    // Assert
+    assert!(!session.is_transaction_active());
+    assert!(!session.is_sealed_for_commit());
+}
+
+#[test]
+fn should_report_a_failed_ready_status_to_other_threads_while_a_commit_is_sealed() {
+    // Arrange
+    let (cassie, session) = fixture();
+    run(&cassie, &session, "BEGIN");
+    let seal = session.seal_transaction_for_commit();
+    let clone = session.clone();
+
+    // Act
+    let committing_thread = session.ready_for_query_status();
+    let other_thread = std::thread::spawn(move || clone.ready_for_query_status())
+        .join()
+        .unwrap();
+    drop(seal);
+    let after_release = session.ready_for_query_status();
+
+    // Assert
+    assert_eq!(committing_thread, SessionTransactionStatus::InTransaction);
+    assert_eq!(other_thread, SessionTransactionStatus::Failed);
+    assert_eq!(after_release, SessionTransactionStatus::InTransaction);
     run(&cassie, &session, "ROLLBACK");
 }

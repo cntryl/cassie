@@ -542,7 +542,7 @@ async fn write_ready_for_query_inner(
     session: &CassieSession,
     after_snapshot: impl FnOnce(),
 ) -> io::Result<()> {
-    let status = match session.transaction_status_snapshot() {
+    let status = match session.ready_for_query_status() {
         crate::app::SessionTransactionStatus::Idle => b'I',
         crate::app::SessionTransactionStatus::InTransaction => b'T',
         crate::app::SessionTransactionStatus::Failed => b'E',

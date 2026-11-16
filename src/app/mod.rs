@@ -131,6 +131,7 @@ mod documents;
 mod embeddings;
 mod existing_constraint_checks;
 mod foreign_key_checks;
+mod graph_schema;
 mod hydration;
 mod lifecycle;
 mod operational;

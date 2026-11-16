@@ -7,6 +7,7 @@ pub mod char_text;
 pub mod composite;
 pub mod domain;
 pub mod enum_type;
+pub mod graph;
 pub mod extended;
 pub(crate) mod float_input;
 pub(crate) mod float_text;

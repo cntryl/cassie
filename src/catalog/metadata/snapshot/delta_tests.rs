@@ -28,6 +28,7 @@ fn namespace(name: &str, description: &str) -> NamespaceMeta {
         name: name.to_owned(),
         description: Some(description.to_owned()),
         object_id: 17,
+        system_owner: None,
     }
 }
 

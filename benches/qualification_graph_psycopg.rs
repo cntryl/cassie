@@ -15,8 +15,10 @@ fn main() {
 async fn qualify() {
     let python = std::env::var_os("CASSIE_GRAPH_PYTHON")
         .expect("set CASSIE_GRAPH_PYTHON to the pinned qualification venv's Python");
-    let mut config = CassieRuntimeConfig::default();
-    config.password = uuid::Uuid::new_v4().to_string();
+    let config = CassieRuntimeConfig {
+        password: uuid::Uuid::new_v4().to_string(),
+        ..CassieRuntimeConfig::default()
+    };
     let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("memory fixture");
     cassie.startup().expect("fixture startup");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

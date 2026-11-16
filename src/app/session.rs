@@ -122,6 +122,9 @@ struct SessionTransactionState {
     sealed_for_commit: bool,
     /// The thread running that COMMIT. Only it may fail the sealed transaction.
     commit_thread: Option<std::thread::ThreadId>,
+    /// A failure another thread reported while COMMIT owned the transaction.
+    /// It applies only if COMMIT leaves the transaction open (#1290).
+    deferred_failure: bool,
 }
 
 impl SessionTransactionState {
@@ -130,6 +133,19 @@ impl SessionTransactionState {
     /// refused `ROLLBACK`) must not change the outcome the COMMIT will report.
     fn may_be_failed_by_current_thread(&self) -> bool {
         !self.sealed_for_commit || self.commit_thread == Some(std::thread::current().id())
+    }
+
+    /// Fails an open transaction, or remembers the failure for the end of the
+    /// COMMIT when another thread owns the transaction.
+    fn fail_or_defer(&mut self) {
+        if self.status != SessionTransactionStatus::InTransaction {
+            return;
+        }
+        if self.may_be_failed_by_current_thread() {
+            self.status = SessionTransactionStatus::Failed;
+        } else {
+            self.deferred_failure = true;
+        }
     }
 }
 
@@ -302,6 +318,7 @@ impl CassieSession {
                 projection_write: Arc::default(),
                 sealed_for_commit: false,
                 commit_thread: None,
+                deferred_failure: false,
             })),
             transaction_unique_waits: Arc::default(),
             owns_transaction_lifecycle: true,
@@ -539,11 +556,7 @@ impl CassieSession {
 
     pub(crate) fn mark_transaction_failed(&self) {
         let mut transaction = self.transaction.lock();
-        if transaction.status == SessionTransactionStatus::InTransaction
-            && transaction.may_be_failed_by_current_thread()
-        {
-            transaction.status = SessionTransactionStatus::Failed;
-        }
+        transaction.fail_or_defer();
     }
 
     pub(crate) fn preflight_transaction_collections(

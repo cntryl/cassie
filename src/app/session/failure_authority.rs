@@ -104,11 +104,9 @@ impl FailureAuthority {
     pub(crate) fn mark_failed_if_current(&self, session: &CassieSession) {
         let mut transaction = session.transaction.lock();
         if self.matches_root(session)
-            && transaction.status == SessionTransactionStatus::InTransaction
-            && transaction.may_be_failed_by_current_thread()
             && *self.owner.lock() == Some((transaction.unique_owner_id, transaction.rollback_epoch))
         {
-            transaction.status = SessionTransactionStatus::Failed;
+            transaction.fail_or_defer();
         }
     }
 }

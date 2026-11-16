@@ -333,3 +333,45 @@ fn should_report_a_failed_ready_status_to_other_threads_while_a_commit_is_sealed
     assert_eq!(after_release, SessionTransactionStatus::InTransaction);
     run(&cassie, &session, "ROLLBACK");
 }
+
+#[test]
+fn should_record_a_failure_from_another_thread_when_commit_leaves_the_transaction_open() {
+    // Arrange
+    let (cassie, session) = fixture();
+    run(&cassie, &session, "BEGIN");
+    let seal = session.seal_transaction_for_commit();
+    let clone = session.clone();
+
+    // Act
+    std::thread::spawn(move || clone.mark_transaction_failed())
+        .join()
+        .unwrap();
+    let failed_while_sealed = session.is_transaction_failed();
+    drop(seal);
+
+    // Assert
+    assert!(!failed_while_sealed);
+    assert!(session.is_transaction_failed());
+    run(&cassie, &session, "ROLLBACK");
+}
+
+#[test]
+fn should_discard_a_deferred_failure_when_commit_retires_the_transaction() {
+    // Arrange
+    let (cassie, session) = fixture();
+    run(&cassie, &session, "BEGIN");
+    let mut seal = session.seal_transaction_for_commit();
+    let clone = session.clone();
+    std::thread::spawn(move || clone.mark_transaction_failed())
+        .join()
+        .unwrap();
+
+    // Act
+    seal.retire_committed();
+    drop(seal);
+    run(&cassie, &session, "BEGIN");
+
+    // Assert
+    assert!(!session.is_transaction_failed());
+    run(&cassie, &session, "ROLLBACK");
+}

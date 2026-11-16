@@ -231,3 +231,65 @@ fn should_promote_a_mixed_sql_projection_to_cloud_strict_on_background_cloud() {
     // Assert
     assert_eq!(policy, Some("cloud_strict"));
 }
+
+/// Runs a declared transaction whose deferred `ON CONFLICT DO UPDATE` loses to
+/// a concurrent committed row. `resolve_with_sequence` makes the conflict
+/// resolution advance a sequence.
+fn commit_after_losing_upsert_race(
+    resolve_with_sequence: bool,
+) -> crate::midge::adapter::NativeCommitObservation {
+    let (cassie, session) = sql_fixture();
+    let other = cassie.create_session("other", None);
+    let assignment = if resolve_with_sequence {
+        "nextval('replay_sql_upsert_sequence')"
+    } else {
+        "excluded.value"
+    };
+    for sql in [
+        "CREATE TABLE replay_sql_upsert (email TEXT UNIQUE, value BIGINT)",
+        "CREATE SEQUENCE replay_sql_upsert_sequence",
+        "BEGIN",
+        "SET LOCAL cassie.projection_write_mode = 'replayable'",
+        &format!(
+            "INSERT INTO replay_sql_upsert (email, value) VALUES ('a', 1) \
+             ON CONFLICT (email) DO UPDATE SET value = {assignment}"
+        ),
+    ] {
+        execute(&cassie, &session, sql);
+    }
+    execute(
+        &cassie,
+        &other,
+        "INSERT INTO replay_sql_upsert (email, value) VALUES ('a', 9)",
+    );
+    let (result, writes) =
+        observe_native_commits(|| cassie.execute_sql(&session, "COMMIT", vec![]));
+    result.unwrap();
+    writes
+}
+
+#[test]
+fn should_keep_the_buffered_policy_for_a_lost_upsert_race_without_a_strict_effect() {
+    // Arrange
+    let resolve_with_sequence = false;
+
+    // Act
+    let writes = commit_after_losing_upsert_race(resolve_with_sequence);
+
+    // Assert
+    assert_eq!(writes.first_policy, Some("local_buffered"));
+    assert!(writes.primary_buffered_attempts >= 1);
+}
+
+#[test]
+fn should_select_strict_for_a_lost_upsert_race_resolved_with_a_sequence_effect() {
+    // Arrange
+    let resolve_with_sequence = true;
+
+    // Act
+    let writes = commit_after_losing_upsert_race(resolve_with_sequence);
+
+    // Assert
+    assert_eq!(writes.first_policy, Some("local_sync"));
+    assert_eq!(writes.primary_buffered_attempts, 0);
+}

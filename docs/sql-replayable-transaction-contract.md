@@ -391,6 +391,15 @@ Not implemented, and therefore not claimed:
   process death, not power loss. The tests use a 2 second writer lease and
   remove a stale `.midge_leader.lock` the way an operator would (see
   [local diagnostics](local-diagnostics-contract.md)).
+- **Unique-conflict resolution.** A declared transaction whose deferred
+  `INSERT ... ON CONFLICT DO UPDATE` loses to a concurrently committed row
+  resolves the conflict before native submission. Without a strict effect its
+  first native commit stays `local_buffered`; if the update expression advances
+  a sequence the transaction is promoted and its first native commit is
+  `local_sync` (`src/app/projection_sql_durability_tests.rs`). The retry path in
+  `statement_mutation.rs` re-selects the policy for the same reason; reaching it
+  needs a native-level unique conflict that the pre-submission resolution
+  already removes, so it has no separate witness.
 - **Cloud policy evidence.** Against simulated cloud storage
   (`src/app/projection_sql_durability_tests.rs`, built with the
   `replay-benchmark-observation` feature), a declared replayable transaction's

@@ -137,6 +137,7 @@ impl CassieSession {
             projection_write: Arc::clone(&current.projection_write),
             sealed_for_commit: false,
             commit_thread: None,
+            deferred_failure: false,
         })
     }
 

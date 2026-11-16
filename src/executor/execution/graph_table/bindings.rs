@@ -8,10 +8,10 @@ use super::store::Store;
 /// 2 reverse), and the hop count of each pattern step.
 #[derive(Clone)]
 pub(super) struct Candidate {
-    pub(super) vertices: Vec<u32>,
-    pub(super) edges: Vec<u32>,
+    pub(super) vertices: Vec<usize>,
+    pub(super) edges: Vec<usize>,
     pub(super) directions: Vec<u8>,
-    pub(super) step_hops: Vec<u32>,
+    pub(super) step_hops: Vec<usize>,
 }
 
 impl Candidate {
@@ -29,10 +29,7 @@ impl Candidate {
     /// Index into the path's vertices of the vertex at pattern `position`, or of the first
     /// edge of pattern step `position`.
     pub(super) fn offset(&self, position: usize) -> usize {
-        self.step_hops[..position]
-            .iter()
-            .map(|hops| *hops as usize)
-            .sum()
+        self.step_hops[..position].iter().copied().sum()
     }
 }
 
@@ -42,14 +39,15 @@ pub(super) fn scalar_entries(plan: &Plan<'_>, store: &Store, candidate: &Candida
     for variable in &plan.variables {
         match variable.source {
             Source::Vertex(position) => {
-                let (mapping, row) = store.vertex_row(candidate.vertices[candidate.offset(position)]);
-                if let Some(columns) = &plan.positions[position].selection[mapping as usize] {
+                let (mapping, row) =
+                    store.vertex_row(candidate.vertices[candidate.offset(position)]);
+                if let Some(columns) = &plan.positions[position].selection[mapping] {
                     entries.extend(element_entries(row, columns));
                 }
             }
             Source::Edge(step) => {
                 let (mapping, row) = store.edge_row(candidate.edges[candidate.offset(step)]);
-                if let Some(columns) = &plan.steps[step].selection[mapping as usize] {
+                if let Some(columns) = &plan.steps[step].selection[mapping] {
                     entries.extend(element_entries(row, columns));
                 }
             }
@@ -60,10 +58,9 @@ pub(super) fn scalar_entries(plan: &Plan<'_>, store: &Store, candidate: &Candida
 }
 
 /// The entries of one edge of a quantified step under its group variable's name.
-pub(super) fn group_entries(plan: &Plan<'_>, store: &Store, step: usize, edge: u32) -> Entries {
+pub(super) fn group_entries(plan: &Plan<'_>, store: &Store, step: usize, edge: usize) -> Entries {
     let (mapping, row) = store.edge_row(edge);
-    plan.steps[step].selection[mapping as usize]
+    plan.steps[step].selection[mapping]
         .as_ref()
-        .map(|columns| element_entries(row, columns))
-        .unwrap_or_default()
+        .map_or_default(|columns| element_entries(row, columns))
 }

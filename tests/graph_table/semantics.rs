@@ -4,7 +4,9 @@ use crate::graph_oracle::model::{Direction, Path, Scalar, Vertex};
 use crate::graph_oracle::pattern::{
     EdgePattern, Mode, Pattern, Quantifier, Selector, VertexPattern,
 };
-use crate::world::{ends, link, node, vertices, vertices_and_edges, Keys, Link, Node, Storage, World};
+use crate::world::{
+    ends, link, node, vertices, vertices_and_edges, Keys, Link, Node, Storage, World,
+};
 
 fn nodes(count: i64) -> Vec<Node> {
     (1..=count).map(node).collect()
@@ -43,10 +45,7 @@ fn first_middle_last(world: &World, path: &Path) -> Vec<i64> {
 #[test]
 fn should_match_oracle_for_single_hop_edges() {
     // Arrange
-    let world = World::simple(
-        &nodes(3),
-        &[link(1, 1, 2), link(2, 1, 3), link(3, 2, 3)],
-    );
+    let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 1, 3), link(3, 2, 3)]);
     let oracle = Pattern::new(any_node()).step(forward(Quantifier::one()), any_node());
 
     // Act
@@ -111,7 +110,8 @@ fn should_bind_both_endpoints_of_a_zero_hop_path_to_one_vertex() {
 fn should_require_both_endpoint_predicates_on_a_zero_hop_vertex() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2)]);
-    let oracle = Pattern::new(node_number(1)).step(forward(Quantifier::between(0, 1)), node_number(2));
+    let oracle =
+        Pattern::new(node_number(1)).step(forward(Quantifier::between(0, 1)), node_number(2));
 
     // Act
     let actual = world.query(
@@ -125,11 +125,17 @@ fn should_require_both_endpoint_predicates_on_a_zero_hop_vertex() {
 }
 
 #[test]
-fn should_apply_an_inline_vertex_predicate_before_selection_and_a_where_after_it() {
+fn should_apply_inline_predicates_before_selection_unlike_the_graph_where() {
     // Arrange
     let world = World::simple(
         &nodes(5),
-        &[link(1, 1, 2), link(2, 2, 4), link(3, 1, 3), link(4, 3, 5), link(5, 5, 4)],
+        &[
+            link(1, 1, 2),
+            link(2, 2, 4),
+            link(3, 1, 3),
+            link(4, 3, 5),
+            link(5, 5, 4),
+        ],
     );
     let inline = Pattern::new(node_number(1))
         .step(forward(Quantifier::one()), any_node().when(high_score))
@@ -139,11 +145,7 @@ fn should_apply_an_inline_vertex_predicate_before_selection_and_a_where_after_it
         .step(forward(Quantifier::one()), any_node())
         .step(forward(Quantifier::between(1, 3)), any_node())
         .select(Selector::AnyShortest)
-        .keep_where(|graph, path| {
-            graph
-                .vertex(&path.vertices[1])
-                .is_some_and(high_score)
-        });
+        .keep_where(|graph, path| graph.vertex(&path.vertices[1]).is_some_and(high_score));
 
     // Act
     let inline_rows = world.query(
@@ -192,30 +194,37 @@ fn should_distinguish_simple_from_acyclic_on_a_two_cycle() {
 }
 
 #[test]
-fn should_enumerate_walks_trails_and_unbounded_trails_like_the_oracle() {
+fn should_enumerate_bounded_walks_like_the_oracle() {
     // Arrange
-    let world = World::simple(
-        &nodes(3),
-        &[link(1, 1, 2), link(2, 2, 1), link(3, 2, 3)],
-    );
+    let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 2, 1), link(3, 2, 3)]);
     let walk = Pattern::new(any_node()).step(forward(Quantifier::between(1, 4)), any_node());
+
+    // Act
+    let rows = world.query(
+        "(s IS node) -[IS link]->{1,4} (t IS node)",
+        "s.num AS s, t.num AS t",
+    );
+
+    // Assert
+    assert_eq!(rows, world.oracle(&walk, ends));
+}
+
+#[test]
+fn should_enumerate_unbounded_trails_like_the_oracle() {
+    // Arrange
+    let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 2, 1), link(3, 2, 3)]);
     let trail = Pattern::new(any_node())
         .step(forward(Quantifier::star()), any_node())
         .mode(Mode::Trail);
 
     // Act
-    let walk_rows = world.query(
-        "(s IS node) -[IS link]->{1,4} (t IS node)",
-        "s.num AS s, t.num AS t",
-    );
-    let trail_rows = world.query(
+    let rows = world.query(
         "(s IS node) -[IS link]->* (t IS node) KEEP ALL TRAIL PATHS",
         "s.num AS s, t.num AS t",
     );
 
     // Assert
-    assert_eq!(walk_rows, world.oracle(&walk, ends));
-    assert_eq!(trail_rows, world.oracle(&trail, ends));
+    assert_eq!(rows, world.oracle(&trail, ends));
 }
 
 #[test]
@@ -239,31 +248,42 @@ fn should_traverse_an_undirected_self_loop_once() {
 }
 
 #[test]
-fn should_follow_incoming_and_undirected_edges_like_the_oracle() {
+fn should_follow_edges_against_their_direction_like_the_oracle() {
     // Arrange
     let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 3, 2)]);
     let incoming = Pattern::new(any_node()).step(
         EdgePattern::new(Direction::Backward).labeled(&["link"]),
         any_node(),
     );
+
+    // Act
+    let rows = world.query(
+        "(s IS node) <-[e IS link]- (t IS node)",
+        "s.num AS s, t.num AS t, e.num AS e",
+    );
+
+    // Assert
+    assert_eq!(rows, world.oracle(&incoming, vertices_and_edges));
+}
+
+#[test]
+fn should_follow_undirected_edges_in_both_orientations_like_the_oracle() {
+    // Arrange
+    let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 3, 2)]);
     let undirected = Pattern::new(any_node()).step(
         EdgePattern::new(Direction::Undirected).labeled(&["link"]),
         any_node(),
     );
 
     // Act
-    let incoming_rows = world.query(
-        "(s IS node) <-[e IS link]- (t IS node)",
-        "s.num AS s, t.num AS t, e.num AS e",
-    );
-    let undirected_rows = world.query(
+    let rows = world.query(
         "(s IS node) -[e IS link]- (t IS node)",
         "s.num AS s, t.num AS t, e.num AS e",
     );
 
     // Assert
-    assert_eq!(incoming_rows, world.oracle(&incoming, vertices_and_edges));
-    assert_eq!(undirected_rows, world.oracle(&undirected, vertices_and_edges));
+    assert_eq!(rows, world.oracle(&undirected, vertices_and_edges));
+    assert_eq!(rows.len(), 4);
 }
 
 #[test]
@@ -368,10 +388,7 @@ fn should_apply_an_inline_edge_predicate_to_each_group_edge() {
 #[test]
 fn should_bind_a_repeated_variable_to_one_vertex() {
     // Arrange
-    let world = World::simple(
-        &nodes(3),
-        &[link(1, 1, 2), link(2, 2, 1), link(3, 2, 3)],
-    );
+    let world = World::simple(&nodes(3), &[link(1, 1, 2), link(2, 2, 1), link(3, 2, 3)]);
     let oracle = Pattern::new(any_node())
         .step(forward(Quantifier::one()), any_node())
         .step(forward(Quantifier::one()), any_node());
@@ -398,13 +415,10 @@ fn should_reject_a_predicate_that_is_not_true() {
     let world = World::simple(&nodes(3), &[link(1, 1, 2)]);
 
     // Act
-    let rows = world.query(
-        "(s IS node WHERE s.num > NULL)",
-        "s.num AS s",
-    );
+    let rows = world.query("(s IS node WHERE s.num > NULL)", "s.num AS s");
 
     // Assert
-    assert!(rows.is_empty());
+    assert_eq!(rows.len(), 0);
 }
 
 #[test]
@@ -429,7 +443,7 @@ fn should_agree_with_the_oracle_across_key_shapes() {
 
     // Assert
     for (actual, expected) in results {
-        assert!(!expected.is_empty());
+        assert_ne!(expected.len(), 0);
         assert_eq!(actual, expected);
     }
 }
@@ -456,7 +470,7 @@ fn should_agree_with_the_oracle_on_columnar_tables() {
 
     // Assert
     for (actual, expected) in results {
-        assert!(!expected.is_empty());
+        assert_ne!(expected.len(), 0);
         assert_eq!(actual, expected);
     }
 }

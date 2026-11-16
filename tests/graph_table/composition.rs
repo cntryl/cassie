@@ -108,7 +108,9 @@ fn should_read_a_view_over_a_graph_table() {
     let world = world();
     world
         .fixture
-        .execute(&format!("CREATE VIEW pairs AS SELECT p.src, p.dst FROM {PAIRS}"))
+        .execute(&format!(
+            "CREATE VIEW pairs AS SELECT p.src, p.dst FROM {PAIRS}"
+        ))
         .expect("create view");
 
     // Act

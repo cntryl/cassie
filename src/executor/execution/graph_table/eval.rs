@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
+use super::BatchRow;
 use super::{QueryError, SourceExecutionEnv};
 use crate::executor::filter::{evaluate_source_argument, EvaluationMemory};
 use crate::executor::retained_memory::{add, value_clone_bytes};
-use super::BatchRow;
 use crate::sql::ast::Expr;
 use crate::types::Value;
 
@@ -37,7 +37,9 @@ impl<'a> Evaluator<'a> {
     pub(super) fn value(&self, expr: &Expr, entries: Entries) -> Result<Value, QueryError> {
         let env = self.env;
         env.controls.check_interruption()?;
-        let _scratch = env.controls.reserve_query_memory(entries_bytes(&entries)?)?;
+        let _scratch = env
+            .controls
+            .reserve_query_memory(entries_bytes(&entries)?)?;
         let mut row = BatchRow::new(entries);
         if let Some(outer) = &self.outer {
             row = row.with_outer_scope(Arc::clone(outer));
@@ -64,6 +66,11 @@ impl<'a> Evaluator<'a> {
 pub(super) fn element_entries(row: &BatchRow, columns: &[(String, String)]) -> Entries {
     columns
         .iter()
-        .map(|(entry, column)| (entry.clone(), row.get(column).cloned().unwrap_or(Value::Null)))
+        .map(|(entry, column)| {
+            (
+                entry.clone(),
+                row.get(column).cloned().unwrap_or(Value::Null),
+            )
+        })
         .collect()
 }

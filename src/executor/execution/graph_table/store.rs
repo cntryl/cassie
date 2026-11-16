@@ -8,10 +8,10 @@ use std::mem::size_of;
 
 use super::keys::{key_of, KeyPart};
 use super::plan::Plan;
+use super::BatchRow;
 use super::{batch, source_collection, QueryError, SourceExecutionEnv};
 use crate::catalog::GraphKeyColumn;
 use crate::executor::retained_memory::{add, mul};
-use super::BatchRow;
 use crate::runtime::QueryMemoryReservation;
 use crate::types::DataType;
 
@@ -20,15 +20,15 @@ pub(super) struct Loaded {
     pub(super) rows: Vec<BatchRow>,
     pub(super) keys: Vec<Vec<KeyPart>>,
     /// Row position by key tuple; filled for vertex mappings.
-    pub(super) index: HashMap<Vec<KeyPart>, u32>,
+    pub(super) index: HashMap<Vec<KeyPart>, usize>,
 }
 
 #[derive(Clone, Copy)]
 pub(super) struct EdgeRecord {
-    pub(super) mapping: u32,
-    pub(super) row: u32,
-    pub(super) source: u32,
-    pub(super) destination: u32,
+    pub(super) mapping: usize,
+    pub(super) row: usize,
+    pub(super) source: usize,
+    pub(super) destination: usize,
 }
 
 pub(super) struct Store {
@@ -36,14 +36,14 @@ pub(super) struct Store {
     pub(super) vertex_maps: Vec<Option<Loaded>>,
     pub(super) edge_maps: Vec<Option<Loaded>>,
     /// `(mapping, row)` of each dense vertex id.
-    pub(super) vertices: Vec<(u32, u32)>,
+    pub(super) vertices: Vec<(usize, usize)>,
     vertex_base: Vec<usize>,
     /// Only edges whose endpoints both exist in this view.
     pub(super) edges: Vec<EdgeRecord>,
-    pub(super) outgoing: Vec<Vec<u32>>,
-    pub(super) incoming: Vec<Vec<u32>>,
-    pub(super) vertex_rank: Vec<u32>,
-    pub(super) edge_rank: Vec<u32>,
+    pub(super) outgoing: Vec<Vec<usize>>,
+    pub(super) incoming: Vec<Vec<usize>>,
+    pub(super) vertex_rank: Vec<usize>,
+    pub(super) edge_rank: Vec<usize>,
 }
 
 fn key_types(key: &[GraphKeyColumn]) -> (Vec<String>, Vec<DataType>) {
@@ -53,10 +53,7 @@ fn key_types(key: &[GraphKeyColumn]) -> (Vec<String>, Vec<DataType>) {
     )
 }
 
-fn read_rows(
-    env: &SourceExecutionEnv<'_>,
-    table: &str,
-) -> Result<Vec<BatchRow>, QueryError> {
+fn read_rows(env: &SourceExecutionEnv<'_>, table: &str) -> Result<Vec<BatchRow>, QueryError> {
     let batches = source_collection::scan_collection(
         env,
         table,
@@ -89,7 +86,10 @@ fn load_mapping(
             heap,
             add(
                 size_of::<BatchRow>(),
-                add(size_of::<Vec<KeyPart>>(), mul(tuple.len(), size_of::<KeyPart>())?)?,
+                add(
+                    size_of::<Vec<KeyPart>>(),
+                    mul(tuple.len(), size_of::<KeyPart>())?,
+                )?,
             )?,
         )?)?;
         keys.push(tuple);
@@ -103,12 +103,15 @@ fn load_mapping(
     })
 }
 
-fn rank_of(count: usize, mut order_before: impl FnMut(u32, u32) -> std::cmp::Ordering) -> Vec<u32> {
-    let mut order = (0..count as u32).collect::<Vec<_>>();
+fn rank_of(
+    count: usize,
+    mut order_before: impl FnMut(usize, usize) -> std::cmp::Ordering,
+) -> Vec<usize> {
+    let mut order = (0..count).collect::<Vec<_>>();
     order.sort_by(|left, right| order_before(*left, *right));
     let mut rank = vec![0; count];
     for (position, element) in order.into_iter().enumerate() {
-        rank[element as usize] = position as u32;
+        rank[element] = position;
     }
     rank
 }
@@ -128,15 +131,20 @@ impl Store {
         let mut vertex_maps = (0..graph.vertices.len()).map(|_| None).collect::<Vec<_>>();
         for index in plan.vertex_mappings_read() {
             let mapping = &graph.vertices[index];
-            let mut loaded =
-                load_mapping(env, &mapping.mapping_id, &mapping.table, &mapping.key, memory)?;
+            let mut loaded = load_mapping(
+                env,
+                &mapping.mapping_id,
+                &mapping.table,
+                &mapping.key,
+                memory,
+            )?;
             memory.try_grow(mul(
                 loaded.keys.len(),
-                add(size_of::<(Vec<KeyPart>, u32)>(), 2 * size_of::<usize>())?,
+                add(size_of::<(Vec<KeyPart>, usize)>(), 2 * size_of::<usize>())?,
             )?)?;
             for (row, key) in loaded.keys.iter().enumerate() {
                 env.controls.check_interruption()?;
-                loaded.index.insert(key.clone(), row as u32);
+                loaded.index.insert(key.clone(), row);
             }
             vertex_maps[index] = Some(loaded);
         }
@@ -175,12 +183,15 @@ impl Store {
             .flatten()
             .map(|loaded| loaded.rows.len())
             .sum::<usize>();
-        memory.try_grow(mul(total, 2 * size_of::<Vec<u32>>() + size_of::<(u32, u32)>())?)?;
+        memory.try_grow(mul(
+            total,
+            2 * size_of::<Vec<usize>>() + size_of::<(usize, usize)>(),
+        )?)?;
         self.vertices.reserve(total);
         for (mapping, loaded) in self.vertex_maps.iter().enumerate() {
             self.vertex_base.push(self.vertices.len());
             for row in 0..loaded.as_ref().map_or(0, |loaded| loaded.rows.len()) {
-                self.vertices.push((mapping as u32, row as u32));
+                self.vertices.push((mapping, row));
             }
         }
         self.outgoing = vec![Vec::new(); total];
@@ -189,8 +200,8 @@ impl Store {
     }
 
     /// The dense id of the vertex at `row` of vertex mapping `mapping`.
-    pub(super) fn vertex_id(&self, mapping: u32, row: u32) -> u32 {
-        (self.vertex_base[mapping as usize] + row as usize) as u32
+    pub(super) fn vertex_id(&self, mapping: usize, row: usize) -> usize {
+        self.vertex_base[mapping] + row
     }
 
     fn endpoint(
@@ -199,7 +210,7 @@ impl Store {
         edge: usize,
         source: bool,
         row: &BatchRow,
-    ) -> Option<u32> {
+    ) -> Option<usize> {
         let meta = &plan.graph.edges[edge];
         let endpoint = if source {
             &meta.source
@@ -215,7 +226,7 @@ impl Store {
         let key = key_of(|column| row.get(column), &endpoint.columns, &types)?;
         let loaded = self.vertex_maps[mapping].as_ref()?;
         let position = *loaded.index.get(&key)?;
-        Some(self.vertex_id(mapping as u32, position))
+        Some(self.vertex_id(mapping, position))
     }
 
     fn connect(
@@ -226,7 +237,10 @@ impl Store {
     ) -> Result<(), QueryError> {
         for index in plan.edge_mappings_read() {
             let count = self.edge_maps[index].as_ref().map_or(0, |l| l.rows.len());
-            memory.try_grow(mul(count, add(size_of::<EdgeRecord>(), 2 * size_of::<u32>())?)?)?;
+            memory.try_grow(mul(
+                count,
+                add(size_of::<EdgeRecord>(), 2 * size_of::<usize>())?,
+            )?)?;
             for row in 0..count {
                 env.controls.check_interruption()?;
                 let found = {
@@ -238,15 +252,15 @@ impl Store {
                 let Some((source, destination)) = found else {
                     continue;
                 };
-                let edge = self.edges.len() as u32;
+                let edge = self.edges.len();
                 self.edges.push(EdgeRecord {
-                    mapping: index as u32,
-                    row: row as u32,
+                    mapping: index,
+                    row,
                     source,
                     destination,
                 });
-                self.outgoing[source as usize].push(edge);
-                self.incoming[destination as usize].push(edge);
+                self.outgoing[source].push(edge);
+                self.incoming[destination].push(edge);
             }
         }
         Ok(())
@@ -255,7 +269,7 @@ impl Store {
     fn rank(&mut self, memory: &mut QueryMemoryReservation) -> Result<(), QueryError> {
         memory.try_grow(mul(
             self.vertices.len() + self.edges.len(),
-            size_of::<u32>(),
+            size_of::<usize>(),
         )?)?;
         self.vertex_rank = rank_of(self.vertices.len(), |a, b| {
             self.vertex_key(a).cmp(&self.vertex_key(b))
@@ -266,27 +280,27 @@ impl Store {
         Ok(())
     }
 
-    fn vertex_key(&self, id: u32) -> (&String, &Vec<KeyPart>) {
-        let (mapping, row) = self.vertices[id as usize];
-        let loaded = self.vertex_maps[mapping as usize].as_ref().expect("loaded");
-        (&loaded.id, &loaded.keys[row as usize])
+    fn vertex_key(&self, id: usize) -> (&String, &Vec<KeyPart>) {
+        let (mapping, row) = self.vertices[id];
+        let loaded = self.vertex_maps[mapping].as_ref().expect("loaded");
+        (&loaded.id, &loaded.keys[row])
     }
 
-    fn edge_key(&self, id: u32) -> (&String, &Vec<KeyPart>) {
-        let record = self.edges[id as usize];
-        let loaded = self.edge_maps[record.mapping as usize].as_ref().expect("loaded");
-        (&loaded.id, &loaded.keys[record.row as usize])
+    fn edge_key(&self, id: usize) -> (&String, &Vec<KeyPart>) {
+        let record = self.edges[id];
+        let loaded = self.edge_maps[record.mapping].as_ref().expect("loaded");
+        (&loaded.id, &loaded.keys[record.row])
     }
 
-    pub(super) fn vertex_row(&self, id: u32) -> (u32, &BatchRow) {
-        let (mapping, row) = self.vertices[id as usize];
-        let loaded = self.vertex_maps[mapping as usize].as_ref().expect("loaded");
-        (mapping, &loaded.rows[row as usize])
+    pub(super) fn vertex_row(&self, id: usize) -> (usize, &BatchRow) {
+        let (mapping, row) = self.vertices[id];
+        let loaded = self.vertex_maps[mapping].as_ref().expect("loaded");
+        (mapping, &loaded.rows[row])
     }
 
-    pub(super) fn edge_row(&self, id: u32) -> (u32, &BatchRow) {
-        let record = self.edges[id as usize];
-        let loaded = self.edge_maps[record.mapping as usize].as_ref().expect("loaded");
-        (record.mapping, &loaded.rows[record.row as usize])
+    pub(super) fn edge_row(&self, id: usize) -> (usize, &BatchRow) {
+        let record = self.edges[id];
+        let loaded = self.edge_maps[record.mapping].as_ref().expect("loaded");
+        (record.mapping, &loaded.rows[record.row])
     }
 }

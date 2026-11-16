@@ -32,7 +32,7 @@ fn other_session(world: &World) -> CassieSession {
 }
 
 #[test]
-fn should_see_own_uncommitted_vertex_and_edge_inserts() {
+fn should_see_own_uncommitted_inserts() {
     // Arrange
     let world = base();
     let session = &world.fixture.session;
@@ -40,7 +40,11 @@ fn should_see_own_uncommitted_vertex_and_edge_inserts() {
 
     // Act
     exec(&world, session, "INSERT INTO node VALUES (3, 'n', 3)");
-    exec(&world, session, "INSERT INTO link VALUES (2, 2, 3, TRUE, 1)");
+    exec(
+        &world,
+        session,
+        "INSERT INTO link VALUES (2, 2, 3, TRUE, 1)",
+    );
     let inside = run(&world, session, EDGES);
 
     // Assert
@@ -75,16 +79,23 @@ fn should_see_an_own_update_that_changes_an_inline_predicate() {
 
     // Act
     let before = run(&world, session, ACTIVE_EDGES);
-    exec(&world, session, "UPDATE link SET active = FALSE WHERE num = 1");
+    exec(
+        &world,
+        session,
+        "UPDATE link SET active = FALSE WHERE num = 1",
+    );
     let inside = run(&world, session, ACTIVE_EDGES);
     let outside = run(&world, &other_session(&world), ACTIVE_EDGES);
 
     // Assert
-    assert_eq!((before, inside, outside), (vec![vec![1]], vec![], vec![vec![1]]));
+    assert_eq!(
+        (before, inside, outside),
+        (vec![vec![1]], vec![], vec![vec![1]])
+    );
 }
 
 #[test]
-fn should_see_an_own_delete_of_an_edge_and_of_a_vertex() {
+fn should_see_own_deletes() {
     // Arrange
     let world = World::simple(
         &[node(1), node(2), node(3)],
@@ -115,12 +126,23 @@ fn should_follow_repeated_mutation_of_one_element() {
     let deleted = run(&world, session, EDGES);
     exec(&world, session, "INSERT INTO node VALUES (2, 'again', 2)");
     let reinserted = run(&world, session, EDGES);
-    exec(&world, session, "UPDATE link SET active = FALSE WHERE num = 1");
-    exec(&world, session, "UPDATE link SET active = TRUE WHERE num = 1");
+    exec(
+        &world,
+        session,
+        "UPDATE link SET active = FALSE WHERE num = 1",
+    );
+    exec(
+        &world,
+        session,
+        "UPDATE link SET active = TRUE WHERE num = 1",
+    );
     let restored = run(&world, session, ACTIVE_EDGES);
 
     // Assert
-    assert_eq!((deleted, reinserted, restored), (vec![], vec![vec![1]], vec![vec![1]]));
+    assert_eq!(
+        (deleted, reinserted, restored),
+        (vec![], vec![vec![1]], vec![vec![1]])
+    );
 }
 
 #[test]
@@ -132,13 +154,20 @@ fn should_roll_back_to_a_savepoint() {
     exec(&world, session, "SAVEPOINT before_edge");
 
     // Act
-    exec(&world, session, "INSERT INTO link VALUES (2, 2, 1, TRUE, 1)");
+    exec(
+        &world,
+        session,
+        "INSERT INTO link VALUES (2, 2, 1, TRUE, 1)",
+    );
     let inside = run(&world, session, EDGES);
     exec(&world, session, "ROLLBACK TO SAVEPOINT before_edge");
     let rolled_back = run(&world, session, EDGES);
 
     // Assert
-    assert_eq!((inside, rolled_back), (vec![vec![1], vec![2]], vec![vec![1]]));
+    assert_eq!(
+        (inside, rolled_back),
+        (vec![vec![1], vec![2]], vec![vec![1]])
+    );
 }
 
 #[test]
@@ -151,7 +180,11 @@ fn should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit() {
     let first = run(&world, reader, EDGES);
 
     // Act
-    exec(&world, &writer, "INSERT INTO link VALUES (2, 2, 1, TRUE, 1)");
+    exec(
+        &world,
+        &writer,
+        "INSERT INTO link VALUES (2, 2, 1, TRUE, 1)",
+    );
     let snapshot = run(&world, reader, EDGES);
     exec(&world, reader, "COMMIT");
     let fresh = run(&world, reader, EDGES);

@@ -1,7 +1,7 @@
 //! Exact reads of the mapped tables: dangling edges, shared labels and label alternatives.
 
 use crate::support_sql_fixture::sql_fixture;
-use crate::world::{link, node, ints, World};
+use crate::world::{ints, link, node, World};
 use cassie::types::Value;
 
 const ENTITY_SETUP: [&str; 9] = [
@@ -64,9 +64,8 @@ fn should_select_several_mappings_that_share_a_label() {
     let fixture = sql_fixture("graph-shared-label", &ENTITY_SETUP);
 
     // Act
-    let entities = fixture.rows(
-        "SELECT * FROM GRAPH_TABLE (org MATCH (a IS entity) COLUMNS (a.name AS name)) AS t",
-    );
+    let entities = fixture
+        .rows("SELECT * FROM GRAPH_TABLE (org MATCH (a IS entity) COLUMNS (a.name AS name)) AS t");
     let relations = fixture.rows(
         "SELECT * FROM GRAPH_TABLE (org MATCH (a IS entity) -[e IS rel]-> (b IS entity) \
          COLUMNS (e.id AS id)) AS t ORDER BY id",
@@ -117,12 +116,10 @@ fn should_count_a_mapping_carrying_both_listed_labels_once() {
     );
 
     // Act
-    let both = fixture.rows(
-        "SELECT * FROM GRAPH_TABLE (t MATCH (a IS alpha | beta) COLUMNS (a.id AS id)) AS g",
-    );
-    let single = fixture.rows(
-        "SELECT * FROM GRAPH_TABLE (t MATCH (a IS alpha) COLUMNS (a.id AS id)) AS g",
-    );
+    let both = fixture
+        .rows("SELECT * FROM GRAPH_TABLE (t MATCH (a IS alpha | beta) COLUMNS (a.id AS id)) AS g");
+    let single =
+        fixture.rows("SELECT * FROM GRAPH_TABLE (t MATCH (a IS alpha) COLUMNS (a.id AS id)) AS g");
 
     // Assert
     assert_eq!((both.len(), single.len()), (2, 2));

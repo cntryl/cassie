@@ -144,3 +144,27 @@ fn should_execute_with_a_bound_parameter_over_the_wire() {
     assert_eq!(fixture::data_row_payloads(&batches[0]).len(), 1);
     assert_eq!(fixture::data_row_payloads(&batches[1]).len(), 0);
 }
+
+#[test]
+fn should_emit_no_row_of_a_graph_table_that_fails_during_evaluation() {
+    // Arrange
+    let mut seeded = setup();
+    seeded.push(("INSERT INTO people VALUES (8, 'yan', 41)", Vec::new()));
+    let frames = vec![
+        wire::parse_frame(
+            "",
+            "SELECT g.q FROM GRAPH_TABLE (social MATCH (a IS person) \
+                          COLUMNS (10 / (a.id - 8) AS q)) AS g",
+        ),
+        wire::bind_frame("", "", &[]),
+        wire::execute_limited_frame("", 1),
+        wire::sync_frame(),
+    ];
+
+    // Act
+    let batches = fixture::run_cycles("graph-table-wire-partial", &seeded, vec![frames]);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22012"));
+    assert_eq!(fixture::data_row_payloads(&batches[0]).len(), 0);
+}

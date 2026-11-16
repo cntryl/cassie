@@ -33,8 +33,8 @@ pub(super) struct Step<'a> {
     pub(super) variable: Option<usize>,
     pub(super) group: bool,
     pub(super) direction: GraphEdgeDirection,
-    pub(super) min: u32,
-    pub(super) max: Option<u32>,
+    pub(super) min: usize,
+    pub(super) max: Option<usize>,
     pub(super) selection: Selection,
     pub(super) filter: Option<Filter<'a>>,
     /// An earlier unquantified step naming the same edge variable.
@@ -145,11 +145,11 @@ fn filter_of<'a>(
     Some(Filter { expr, local })
 }
 
-fn bounds(quantifier: Option<GraphQuantifier>) -> (u32, Option<u32>) {
+fn bounds(quantifier: Option<GraphQuantifier>) -> (usize, Option<usize>) {
     match quantifier {
         None => (1, Some(1)),
-        Some(GraphQuantifier::Exact(count)) => (count, Some(count)),
-        Some(GraphQuantifier::Range { min, max }) => (min, Some(max)),
+        Some(GraphQuantifier::Exact(count)) => (count as usize, Some(count as usize)),
+        Some(GraphQuantifier::Range { min, max }) => (min as usize, Some(max as usize)),
         Some(GraphQuantifier::ZeroOrMore) => (0, None),
         Some(GraphQuantifier::OneOrMore) => (1, None),
     }
@@ -185,8 +185,7 @@ impl<'a> Plan<'a> {
             .variables
             .iter()
             .find(|variable| variable.name == name)
-            .map(|variable| variable.properties.iter().map(|(n, _)| n.clone()).collect())
-            .unwrap_or_default()
+            .map_or_default(|variable| variable.properties.iter().map(|(n, _)| n.clone()).collect())
     }
 
     fn variable_index(&self, name: &str) -> Option<usize> {
@@ -206,7 +205,12 @@ impl<'a> Plan<'a> {
         self.variables.len() - 1
     }
 
-    fn vertex_selection(&self, labels: &[String], name: Option<&str>, props: &[String]) -> Selection {
+    fn vertex_selection(
+        &self,
+        labels: &[String],
+        name: Option<&str>,
+        props: &[String],
+    ) -> Selection {
         select(
             self.graph.vertices.len(),
             |mapping| self.graph.vertices[mapping].labels.clone(),
@@ -246,9 +250,7 @@ impl<'a> Plan<'a> {
                 };
                 self.declare(name, source)
             });
-            let properties = name
-                .map(|name| Self::property_names(binding, name))
-                .unwrap_or_default();
+            let properties = name.map_or_default(|name| Self::property_names(binding, name));
             let repeat_of = variable.and_then(|variable| {
                 self.steps
                     .iter()
@@ -285,9 +287,7 @@ impl<'a> Plan<'a> {
     ) {
         let name = vertex.variable.as_deref();
         let variable = name.map(|name| self.declare(name, Source::Vertex(index)));
-        let properties = name
-            .map(|name| Self::property_names(binding, name))
-            .unwrap_or_default();
+        let properties = name.map_or_default(|name| Self::property_names(binding, name));
         let repeat_of = variable.and_then(|variable| {
             self.positions
                 .iter()

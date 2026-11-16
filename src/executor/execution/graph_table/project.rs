@@ -6,10 +6,10 @@ use super::bindings::{scalar_entries, Candidate};
 use super::eval::Evaluator;
 use super::plan::Plan;
 use super::store::Store;
+use super::BatchRow;
 use super::QueryError;
 use super::SourceExecutionEnv;
 use crate::executor::retained_memory::{add, value_clone_bytes};
-use super::BatchRow;
 use crate::runtime::QueryMemoryReservation;
 
 /// One output row per selected path whose pattern `WHERE` is TRUE.
@@ -43,7 +43,10 @@ pub(super) fn rows(
         let mut bytes = size_of::<BatchRow>() + 64;
         for (name, column) in names.iter().zip(&table.columns) {
             let value = eval.value(&column.expr, entries.clone())?;
-            bytes = add(bytes, add(name.capacity() + 64, value_clone_bytes(&value)?)?)?;
+            bytes = add(
+                bytes,
+                add(name.capacity() + 64, value_clone_bytes(&value)?)?,
+            )?;
             values.push((name.clone(), value));
         }
         memory.try_grow(bytes)?;

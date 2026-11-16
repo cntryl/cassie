@@ -119,7 +119,7 @@ fn should_differ_between_inline_versus_post_selection_predicates() {
         inline_result.iter().map(vids).collect::<Vec<_>>(),
         vec![vec![A, C, B]]
     );
-    assert!(post_result.is_empty());
+    assert_eq!(post_result.len(), 0);
 }
 
 #[test]
@@ -162,7 +162,7 @@ fn should_bind_one_vertex_for_zero_hop_paths() {
         vec![vec![A], vec![A, B]]
     );
     assert!(result[0].edges.is_empty() && result[0].directions.is_empty());
-    assert!(mismatch.is_empty());
+    assert_eq!(mismatch.len(), 0);
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn should_distinguish_simple_from_acyclic_on_two_cycle() {
         simple.iter().map(vids).collect::<Vec<_>>(),
         vec![vec![A, B, A]]
     );
-    assert!(acyclic.is_empty());
+    assert_eq!(acyclic.len(), 0);
 }
 
 #[test]
@@ -435,7 +435,7 @@ fn should_return_zero_hop_then_closing_cycle_for_zero_cost_two_cycle() {
         result.iter().map(|r| vids(&r.path)).collect::<Vec<_>>(),
         vec![vec![A], vec![A, B, A]]
     );
-    assert!(result[0].edge_costs.is_empty());
+    assert_eq!(result[0].edge_costs.len(), 0);
     assert_eq!(result[1].edge_costs, vec![0, 0]);
     assert_eq!(
         result.iter().map(|r| r.rank).collect::<Vec<_>>(),

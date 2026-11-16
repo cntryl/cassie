@@ -18,14 +18,14 @@ use crate::runtime::QueryMemoryReservation;
 use crate::sql::ast::{GraphEdgeDirection, GraphPathMode};
 
 struct Hop {
-    edge: u32,
+    edge: usize,
     direction: u8,
-    to: u32,
+    to: usize,
 }
 
 struct Frame {
     step: usize,
-    hops: u32,
+    hops: usize,
     closed: bool,
     /// Entered by taking a hop: pop its path elements when done.
     pushed: bool,
@@ -44,13 +44,13 @@ pub(super) struct Walk<'a> {
     memory: &'a mut QueryMemoryReservation,
     mode: GraphPathMode,
     /// Result of each element-local inline predicate, by pattern slot and element.
-    cache: HashMap<(u32, u32), bool>,
-    vertices: Vec<u32>,
-    edges: Vec<u32>,
+    cache: HashMap<(usize, usize), bool>,
+    vertices: Vec<usize>,
+    edges: Vec<usize>,
     directions: Vec<u8>,
-    step_hops: Vec<u32>,
+    step_hops: Vec<usize>,
     found: Vec<Candidate>,
-    seen: HashSet<Vec<u32>>,
+    seen: HashSet<Vec<usize>>,
 }
 
 impl<'a> Walk<'a> {
@@ -86,7 +86,7 @@ impl<'a> Walk<'a> {
     /// Every path matching labels, inline predicates, quantifier bounds and the mode, before
     /// any selector or graph-pattern `WHERE`.
     pub(super) fn run(mut self) -> Result<Vec<Candidate>, QueryError> {
-        for start in 0..self.store.vertices.len() as u32 {
+        for start in 0..self.store.vertices.len() {
             self.env.controls.check_interruption()?;
             if !self.vertex_ok(0, start)? {
                 continue;
@@ -157,7 +157,7 @@ impl<'a> Walk<'a> {
     fn frame(
         &mut self,
         step: usize,
-        hops: u32,
+        hops: usize,
         pushed: bool,
         via_close: bool,
     ) -> Result<Frame, QueryError> {
@@ -177,7 +177,7 @@ impl<'a> Walk<'a> {
 
     /// Closes `step` after `hops` hops when its end vertex satisfies the declared vertex
     /// pattern. Returns whether the search continues into the next step.
-    fn close(&mut self, step: usize, hops: u32) -> Result<bool, QueryError> {
+    fn close(&mut self, step: usize, hops: usize) -> Result<bool, QueryError> {
         if hops < self.plan.steps[step].min {
             return Ok(false);
         }
@@ -194,41 +194,40 @@ impl<'a> Walk<'a> {
     }
 
     fn offset(&self, position: usize) -> usize {
-        self.step_hops[..position]
-            .iter()
-            .map(|hops| *hops as usize)
-            .sum()
+        self.step_hops[..position].iter().copied().sum()
     }
 
     /// A repeated variable binds the same vertex at each of its positions.
-    fn repeats_vertex(&self, position: usize, vertex: u32) -> bool {
+    fn repeats_vertex(&self, position: usize, vertex: usize) -> bool {
         self.plan.positions[position]
             .repeat_of
             .is_none_or(|earlier| self.vertices[self.offset(earlier)] == vertex)
     }
 
-    fn vertex_ok(&mut self, position: usize, vertex: u32) -> Result<bool, QueryError> {
+    fn vertex_ok(&mut self, position: usize, vertex: usize) -> Result<bool, QueryError> {
         let place = &self.plan.positions[position];
         let (mapping, row) = self.store.vertex_row(vertex);
-        let Some(columns) = &place.selection[mapping as usize] else {
+        let Some(columns) = &place.selection[mapping] else {
             return Ok(false);
         };
         let Some(filter) = place.filter.as_ref().filter(|filter| filter.local) else {
             return Ok(true);
         };
-        let key = (position as u32, vertex);
+        let key = (position, vertex);
         if let Some(known) = self.cache.get(&key) {
             return Ok(*known);
         }
-        let holds = self.eval.holds(filter.expr, element_entries(row, columns))?;
+        let holds = self
+            .eval
+            .holds(filter.expr, element_entries(row, columns))?;
         self.remember(key, holds)?;
         Ok(holds)
     }
 
-    fn edge_ok(&mut self, step: usize, edge: u32) -> Result<bool, QueryError> {
+    fn edge_ok(&mut self, step: usize, edge: usize) -> Result<bool, QueryError> {
         let place = &self.plan.steps[step];
         let (mapping, row) = self.store.edge_row(edge);
-        let Some(columns) = &place.selection[mapping as usize] else {
+        let Some(columns) = &place.selection[mapping] else {
             return Ok(false);
         };
         if let Some(earlier) = place.repeat_of {
@@ -239,31 +238,33 @@ impl<'a> Walk<'a> {
         let Some(filter) = place.filter.as_ref().filter(|filter| filter.local) else {
             return Ok(true);
         };
-        let key = ((self.plan.positions.len() + step) as u32, edge);
+        let key = ((self.plan.positions.len() + step), edge);
         if let Some(known) = self.cache.get(&key) {
             return Ok(*known);
         }
-        let holds = self.eval.holds(filter.expr, element_entries(row, columns))?;
+        let holds = self
+            .eval
+            .holds(filter.expr, element_entries(row, columns))?;
         self.remember(key, holds)?;
         Ok(holds)
     }
 
-    fn remember(&mut self, key: (u32, u32), holds: bool) -> Result<(), QueryError> {
+    fn remember(&mut self, key: (usize, usize), holds: bool) -> Result<(), QueryError> {
         self.memory
-            .try_grow(size_of::<((u32, u32), bool)>() + 2 * size_of::<usize>())?;
+            .try_grow(size_of::<((usize, usize), bool)>() + 2 * size_of::<usize>())?;
         self.cache.insert(key, holds);
         Ok(())
     }
 
     /// The traversal choices leaving the path's last vertex in `step`, when another hop is
     /// allowed. A self-loop is one step under an undirected edge, recorded as direction 1.
-    fn hops_of(&mut self, step: usize, hops: u32) -> Result<Vec<Hop>, QueryError> {
+    fn hops_of(&mut self, step: usize, hops: usize) -> Result<Vec<Hop>, QueryError> {
         let place = &self.plan.steps[step];
         if place.max.is_some_and(|max| hops >= max) {
             return Ok(Vec::new());
         }
         let direction = place.direction;
-        let from = *self.vertices.last().expect("path has a vertex") as usize;
+        let from = *self.vertices.last().expect("path has a vertex");
         let store = self.store;
         let mut choices = Vec::new();
         if direction != GraphEdgeDirection::Incoming {
@@ -271,14 +272,15 @@ impl<'a> Walk<'a> {
                 choices.push(Hop {
                     edge: *edge,
                     direction: 1,
-                    to: store.edges[*edge as usize].destination,
+                    to: store.edges[*edge].destination,
                 });
             }
         }
         if direction != GraphEdgeDirection::Outgoing {
             for edge in &store.incoming[from] {
-                let record = store.edges[*edge as usize];
-                if direction == GraphEdgeDirection::Undirected && record.source == record.destination
+                let record = store.edges[*edge];
+                if direction == GraphEdgeDirection::Undirected
+                    && record.source == record.destination
                 {
                     continue;
                 }
@@ -300,7 +302,7 @@ impl<'a> Walk<'a> {
     }
 
     /// Whether adding `edge` and the vertex it reaches keeps the path inside the mode.
-    fn mode_allows(&self, edge: u32, to: u32) -> bool {
+    fn mode_allows(&self, edge: usize, to: usize) -> bool {
         match self.mode {
             GraphPathMode::Walk => true,
             GraphPathMode::Trail => !self.edges.contains(&edge),
@@ -314,7 +316,7 @@ impl<'a> Walk<'a> {
     }
 
     /// Records the path ending the last step after `hops` hops.
-    fn emit(&mut self, hops: u32) -> Result<(), QueryError> {
+    fn emit(&mut self, hops: usize) -> Result<(), QueryError> {
         let mut step_hops = self.step_hops.clone();
         if !self.plan.steps.is_empty() {
             step_hops.push(hops);
@@ -331,7 +333,7 @@ impl<'a> Walk<'a> {
         if self.plan.may_duplicate {
             let mut key = candidate.vertices.clone();
             key.extend(&candidate.edges);
-            key.extend(candidate.directions.iter().map(|d| u32::from(*d)));
+            key.extend(candidate.directions.iter().map(|d| usize::from(*d)));
             self.memory
                 .try_grow(key.capacity() * 4 + 2 * size_of::<usize>())?;
             if !self.seen.insert(key) {
@@ -367,7 +369,7 @@ impl<'a> Walk<'a> {
                 continue;
             }
             let first = candidate.offset(index);
-            let last = first + candidate.step_hops[index] as usize;
+            let last = first + candidate.step_hops[index];
             for edge in &candidate.edges[first..last] {
                 self.env.controls.check_interruption()?;
                 let mut entries = scalars.clone();

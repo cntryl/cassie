@@ -1,7 +1,9 @@
 //! Builds a tiny mapped graph in SQL and the equivalent oracle graph, so a `GRAPH_TABLE`
 //! query and the independent oracle can be compared as multisets.
 
-use crate::graph_oracle::model::{vertex_ref, Edge, ElementRef, Graph, KeyPart, Path, Scalar, Vertex};
+use crate::graph_oracle::model::{
+    vertex_ref, Edge, ElementRef, Graph, KeyPart, Path, Scalar, Vertex,
+};
 use crate::graph_oracle::pattern::Pattern;
 use crate::graph_oracle::select::match_paths;
 use crate::support_sql_fixture::{sql_fixture, sql_fixture_with_config, SqlFixture};
@@ -102,10 +104,8 @@ impl Keys {
 
     fn endpoint(self, from: bool) -> &'static str {
         match (self, from) {
-            (Keys::BigInt, true) => "src",
-            (Keys::BigInt, false) => "dst",
-            (Keys::Uuid, true) => "src",
-            (Keys::Uuid, false) => "dst",
+            (Keys::BigInt | Keys::Uuid, true) => "src",
+            (Keys::BigInt | Keys::Uuid, false) => "dst",
             (Keys::Composite, true) => "src_tenant, src_seq",
             (Keys::Composite, false) => "dst_tenant, dst_seq",
         }

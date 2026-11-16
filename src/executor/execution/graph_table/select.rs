@@ -15,16 +15,15 @@ use crate::sql::ast::GraphSelectorKind;
 pub(super) fn order(store: &Store, left: &Candidate, right: &Candidate) -> Ordering {
     let shared = left.vertices.len().min(right.vertices.len());
     for index in 0..shared {
-        let by_vertex = store.vertex_rank[left.vertices[index] as usize]
-            .cmp(&store.vertex_rank[right.vertices[index] as usize]);
+        let by_vertex =
+            store.vertex_rank[left.vertices[index]].cmp(&store.vertex_rank[right.vertices[index]]);
         if by_vertex != Ordering::Equal {
             return by_vertex;
         }
         if index >= left.edges.len() || index >= right.edges.len() {
             break;
         }
-        let by_edge = store.edge_rank[left.edges[index] as usize]
-            .cmp(&store.edge_rank[right.edges[index] as usize]);
+        let by_edge = store.edge_rank[left.edges[index]].cmp(&store.edge_rank[right.edges[index]]);
         if by_edge != Ordering::Equal {
             return by_edge;
         }
@@ -58,11 +57,14 @@ pub(super) fn apply(
         GraphSelectorKind::AnyShortest => 1,
         GraphSelectorKind::Shortest(count) => count as usize,
     };
-    let mut pairs = HashMap::<(u32, u32), Vec<usize>>::new();
+    let mut pairs = HashMap::<(usize, usize), Vec<usize>>::new();
     for (index, path) in candidates.iter().enumerate() {
         env.controls.check_interruption()?;
         let end = *path.vertices.last().expect("path has a vertex");
-        pairs.entry((path.vertices[0], end)).or_default().push(index);
+        pairs
+            .entry((path.vertices[0], end))
+            .or_default()
+            .push(index);
     }
     let mut chosen = Vec::new();
     for (_, mut group) in pairs {

@@ -13,7 +13,8 @@ fn complete(count: i64) -> (Vec<Node>, Vec<Link>) {
     for from in 1..=count {
         for to in 1..=count {
             if from != to {
-                links.push(link(links.len() as i64 + 1, from, to));
+                let number = i64::try_from(links.len()).expect("few links") + 1;
+                links.push(link(number, from, to));
             }
         }
     }
@@ -54,20 +55,23 @@ fn should_fail_with_the_resource_limit_when_the_budget_is_exhausted() {
     assert_eq!(error.sql_state(), "54000");
 }
 
-
 fn peak(world: &World) -> usize {
     let metrics = world.fixture.cassie.metrics();
-    usize::try_from(metrics["query"]["peak_accounted_memory_bytes"].as_u64().expect("peak"))
-        .expect("peak fits")
+    usize::try_from(
+        metrics["query"]["peak_accounted_memory_bytes"]
+            .as_u64()
+            .expect("peak"),
+    )
+    .expect("peak fits")
 }
 
 #[test]
-fn should_fail_one_byte_below_the_measured_peak_and_pass_at_it() {
+fn should_enforce_the_measured_peak_as_the_budget_boundary() {
     // Arrange
     let query = "SELECT * FROM GRAPH_TABLE (g MATCH (s IS node) -[IS link]->{1,2} (t IS node) \
                  COLUMNS (s.num AS s, t.num AS t)) AS t";
     let measured = limited(6, 64 * 1024 * 1024);
-    measured.fixture.rows(query);
+    let measured_rows = measured.fixture.rows(query).len();
     let needed = peak(&measured);
 
     // Act
@@ -76,7 +80,7 @@ fn should_fail_one_byte_below_the_measured_peak_and_pass_at_it() {
 
     // Assert
     assert_eq!(below.sql_state(), "54000");
-    assert_eq!(at, 180);
+    assert_eq!((measured_rows, at), (180, 180));
 }
 
 #[test]
@@ -93,10 +97,12 @@ fn should_cancel_a_traversal_at_an_inline_predicate_boundary() {
     // Act
     let outcome = std::thread::scope(|scope| {
         let worker = scope.spawn(|| {
-            world
-                .fixture
-                .cassie
-                .execute_sql_with_cancellation(&world.fixture.session, sql, vec![], &cancellation)
+            world.fixture.cassie.execute_sql_with_cancellation(
+                &world.fixture.session,
+                sql,
+                vec![],
+                &cancellation,
+            )
         });
         selected
             .recv_timeout(std::time::Duration::from_secs(10))

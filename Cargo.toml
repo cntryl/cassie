@@ -95,6 +95,11 @@ harness = false
 path = "benches/tier1_hotpath_bm25.rs"
 
 [[bench]]
+name = "tier1_hotpath_graph_paths"
+harness = false
+path = "benches/tier1_hotpath_graph_paths.rs"
+
+[[bench]]
 name = "tier2_subsystem_sql_planning"
 harness = false
 path = "benches/tier2_subsystem_sql_planning.rs"
@@ -155,6 +160,11 @@ harness = false
 path = "benches/tier2_subsystem_ingest.rs"
 
 [[bench]]
+name = "tier2_subsystem_graph"
+harness = false
+path = "benches/tier2_subsystem_graph.rs"
+
+[[bench]]
 name = "tier3_replay_durability"
 harness = false
 path = "benches/tier3_replay_durability.rs"
@@ -164,6 +174,11 @@ required-features = ["replay-benchmark-observation"]
 name = "tier3_system_query"
 harness = false
 path = "benches/tier3_system_query.rs"
+
+[[bench]]
+name = "tier3_system_graph"
+harness = false
+path = "benches/tier3_system_graph.rs"
 
 [[bench]]
 name = "tier3_system_storage_modes"

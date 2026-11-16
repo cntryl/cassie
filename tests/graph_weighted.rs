@@ -38,7 +38,6 @@ mod mixed_mappings;
 #[path = "graph_weighted/prepared.rs"]
 mod prepared;
 
-// Registered by the batch A coder; the assembler owns registration order and inventories.
 #[path = "graph_weighted/variants.rs"]
 mod variants;
 
@@ -47,3 +46,6 @@ mod lazy_reads;
 
 #[path = "graph_weighted/transactions.rs"]
 mod transactions;
+
+#[path = "graph_weighted/validation_equivalence.rs"]
+mod validation_equivalence;

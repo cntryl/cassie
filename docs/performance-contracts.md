@@ -259,7 +259,10 @@ indexes consulted are the ones every indexed SQL query already trusts.
   edge weight of the selected mappings before any result, and it does so with one streaming
   scan: each row of each selected edge mapping is read once through the statement's own read
   path (session overlay, savepoints and snapshot included), judged and dropped, so nothing
-  but a counter is retained. The scan is counted under `graph_validation_rows` (rows whose
+  but a counter is retained. The exception is a statement whose read path cannot stream
+  (`parallel_scan_workers` above 1): the mapping is then read in full through the
+  statement's controlled read, so the scan materializes the whole edge mapping (accounted,
+  O(E) memory, and able to fail with `54000`) before judging its rows. The scan is counted under `graph_validation_rows` (rows whose
   edge key is not NULL), separately from traversal reads, and its cost is O(selected edges)
   by contract. An edge is graph-visible only when both endpoint vertices exist and no
   endpoint component is NULL; that is decided only for an edge whose weight is invalid (a
@@ -417,8 +420,9 @@ streaming scan that retains no rows and searches the lazy indexed store (see
 [Graph Reads](#graph-reads-v060-fast-reads-1253-1254-1259)), so the route scenario shares the
 social graph of the friends-of-friends scenario at 100,000 mapped rows and the 64 MiB profile,
 and no separate smaller instance remains. The function has no graph plan node, so the owner
-declares the indexed read (`graph_access_path_source=declared`), which the fixture's endpoint
-indexes serve. Whether the route query fits the 64 MiB budget at this size has not been
+classifies its read path from one counted preflight execution (`graph_access_path_source=counted`):
+the path is `indexed` when the call moved `graph_index_entries` and left `graph_full_rows`
+unchanged, which the fixture's endpoint indexes should produce (authored, not run). Whether the route query fits the 64 MiB budget at this size has not been
 measured: the change is authored and not yet run, and this document records no timing figure.
 
 Run one owner with, for example,

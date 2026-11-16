@@ -96,9 +96,8 @@ fn open_fixture() -> Fixture {
 }
 
 /// Reads the access path from the graph node of `EXPLAIN`. A plan without that node (the
-/// weighted path function) declares the indexed read: the function validates its weights with
-/// one streaming scan and searches the lazy indexed store, which the fixture's endpoint
-/// indexes serve.
+/// weighted path function) is classified by one counted execution: the read is `indexed`
+/// when it read index entries and no full rows.
 fn preflight(fixture: &Fixture, sql: &str, params: &[Value]) -> (String, &'static str) {
     let plan = fixture
         .cassie
@@ -111,7 +110,7 @@ fn preflight(fixture: &Fixture, sql: &str, params: &[Value]) -> (String, &'stati
     // The graph node names the access path of each mapping: every edge mapping indexed
     // means neighborhoods are read through endpoint indexes; any exact mapping is a full read.
     if !text.contains("graph_table=") {
-        return (INDEXED_READ_PATH.to_owned(), "declared");
+        return counted_path(fixture, sql, params);
     }
     let path = if text.contains("=indexed(") && !text.contains("=exact(") {
         INDEXED_READ_PATH
@@ -119,6 +118,29 @@ fn preflight(fixture: &Fixture, sql: &str, params: &[Value]) -> (String, &'stati
         EXACT_READ_PATH
     };
     (path.to_owned(), "reported")
+}
+
+/// Runs `sql` once and classifies its read path from the graph read counters it moved.
+fn counted_path(fixture: &Fixture, sql: &str, params: &[Value]) -> (String, &'static str) {
+    let counter = |name: &str| {
+        fixture.cassie.metrics()["read_paths"][name]
+            .as_u64()
+            .unwrap_or_else(|| panic!("graph read counter {name} is missing"))
+    };
+    let (entries, full) = (counter("graph_index_entries"), counter("graph_full_rows"));
+    fixture
+        .cassie
+        .execute_sql(&fixture.session, sql, params.to_vec())
+        .unwrap_or_else(|error| {
+            panic!("graph preflight failed with SQLSTATE {}", error.sql_state())
+        });
+    let indexed = counter("graph_index_entries") > entries && counter("graph_full_rows") == full;
+    let path = if indexed {
+        INDEXED_READ_PATH
+    } else {
+        EXACT_READ_PATH
+    };
+    (path.to_owned(), "counted")
 }
 
 fn evidenced(

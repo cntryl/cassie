@@ -182,9 +182,9 @@
     ],
     "files": 1771,
     "rust_files": 1734,
-    "rust_test_declarations": 10523,
+    "rust_test_declarations": 10525,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10548,
+    "registered_rust_instances": 10550,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -6179,11 +6179,73 @@
       }
     },
     {
+      "id": "tests/bench_diagnostics/graph_topology.rs::should_register_all_topology_fixtures_without_reusing_an_owner_scale_identity",
+      "name": "should_register_all_topology_fixtures_without_reusing_an_owner_scale_identity",
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "line": 10,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "graph_topology::should_register_all_topology_fixtures_without_reusing_an_owner_scale_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/graph_topology.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/graph_topology.rs::should_reject_legacy_bare_scales_for_graph_topology_fixtures",
+      "name": "should_reject_legacy_bare_scales_for_graph_topology_fixtures",
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "line": 40,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "graph_topology::should_reject_legacy_bare_scales_for_graph_topology_fixtures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/graph_topology.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/bench_diagnostics/graph_topology.rs::should_admit_only_the_declared_graph_topology_points",
       "name": "should_admit_only_the_declared_graph_topology_points",
       "current_file": "tests/bench_diagnostics/graph_topology.rs",
-      "line": 7,
-      "end_line": 42,
+      "line": 64,
+      "end_line": 99,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -6213,8 +6275,8 @@
       "id": "tests/bench_diagnostics/graph_topology.rs::should_reject_changes_to_the_topology_owner_workload_scale_or_class",
       "name": "should_reject_changes_to_the_topology_owner_workload_scale_or_class",
       "current_file": "tests/bench_diagnostics/graph_topology.rs",
-      "line": 45,
-      "end_line": 84,
+      "line": 102,
+      "end_line": 141,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -6244,8 +6306,8 @@
       "id": "tests/bench_diagnostics/graph_topology.rs::should_resolve_a_memory_profile_for_every_registered_topology_scenario",
       "name": "should_resolve_a_memory_profile_for_every_registered_topology_scenario",
       "current_file": "tests/bench_diagnostics/graph_topology.rs",
-      "line": 87,
-      "end_line": 107,
+      "line": 144,
+      "end_line": 164,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -6275,8 +6337,8 @@
       "id": "tests/bench_diagnostics/graph_topology.rs::should_reject_invalid_topology_catalog_contracts_without_relabeling_other_scales",
       "name": "should_reject_invalid_topology_catalog_contracts_without_relabeling_other_scales",
       "current_file": "tests/bench_diagnostics/graph_topology.rs",
-      "line": 110,
-      "end_line": 162,
+      "line": 167,
+      "end_line": 219,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -327817,9 +327879,9 @@
       "current_file": "tests/bench_diagnostics/graph_topology.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 162,
-      "sha256": "21e96fd158ee352f291ea24becb3b1b2ef51cb2c89a7a6fc8551602124666f98",
-      "test_declarations": 4,
+      "lines": 219,
+      "sha256": "eeb0c37e7c90ccda5097e549f6c1120fc691934a4dbc2778fecb58d69c9d072d",
+      "test_declarations": 6,
       "registered_suites": [
         "bench_diagnostics"
       ],

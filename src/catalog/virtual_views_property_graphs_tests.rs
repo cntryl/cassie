@@ -19,24 +19,15 @@ const SETUP: [&str; 3] = [
 ];
 
 fn fixture() -> (Cassie, CassieSession) {
-<<<<<<< HEAD
-    let config = CassieRuntimeConfig {
-        password: "root-secret".to_owned(),
-=======
     let password = uuid::Uuid::new_v4().to_string();
     let config = CassieRuntimeConfig {
         password: password.clone(),
->>>>>>> origin/main
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).expect("memory fixture");
     cassie.startup().expect("startup");
     let root = cassie
-<<<<<<< HEAD
-        .authenticate_role("root", Some("root-secret"), None)
-=======
         .authenticate_role("root", Some(&password), None)
->>>>>>> origin/main
         .expect("root login");
     for sql in SETUP {
         cassie.execute_sql(&root, sql, vec![]).expect("setup");

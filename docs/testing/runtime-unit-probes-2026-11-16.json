@@ -1,12 +1,12 @@
 {
   "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
-  "source_before_inventory_commit": "45c3e8852c3ff494c0f7257fab6bc811136a1f7f",
-  "tree_before_inventory_commit": "173079282299a2768b4759af655c490ae52b9693",
+  "source_before_inventory_commit": "932fce4edc9b225571259d572ffd7e1c269cf0b4",
+  "tree_before_inventory_commit": "d3d95121c296266cf0d096db1944d324e61b4858",
   "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
-  "file_count": 32,
-  "declaration_count": 244,
-  "added_in_file": 99,
+  "file_count": 33,
+  "declaration_count": 247,
+  "added_in_file": 102,
   "modified_in_file": 19,
   "retained_in_file": 126,
   "files": [
@@ -2345,15 +2345,15 @@
     },
     {
       "file": "src/app/session_sequences/history_owner_tests.rs",
-      "sha256": "23e555177d5efc7e3af57b2b919f1a7726d1799f1ce46590e701078e48112663",
-      "lines": 121,
+      "sha256": "7f2e54171e628824e7a8e936b723e910f5ab1ecb9c9d8fff202c159742176ce2",
+      "lines": 120,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
           "name": "should_preserve_b_history_after_an_admitted_a_sequence_effect_finishes",
           "inline_modules": [],
-          "line": 21,
-          "end_line": 88,
+          "line": 20,
+          "end_line": 87,
           "attributes": [
             "#[test]"
           ],
@@ -2364,12 +2364,56 @@
         {
           "name": "should_publish_sequence_history_for_its_current_owner",
           "inline_modules": [],
-          "line": 91,
-          "end_line": 121,
+          "line": 90,
+          "end_line": 120,
           "attributes": [
             "#[test]"
           ],
           "body_sha256": "f23093e99c659680a8eec5f876b9677afc83a7fd9acffede56f1e7ae694df4f3",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/statement_mutation_retry_policy_tests.rs",
+      "sha256": "6a3815db03089149745de71120abd12ea431a253c7386cca70f42c8c459b469d",
+      "lines": 404,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_promote_a_real_unique_failure_resolver_sequence_to_a_strict_data_retry",
+          "inline_modules": [],
+          "line": 351,
+          "end_line": 354,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c309e144842f3b614f45c32643b2aba81a1ed57b04452b35956ed993bfac9b4f",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_a_real_unique_failure_without_an_independent_effect_buffered_on_retry",
+          "inline_modules": [],
+          "line": 357,
+          "end_line": 360,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "676dcee7b2292f4aefe3f71d8d85a92932efc274a9160fe0a940a991c961a168",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fence_an_unknown_response_after_native_data_success_without_resolving_or_retrying",
+          "inline_modules": [],
+          "line": 363,
+          "end_line": 404,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5dd8fbd33b9809d75850f5520736ee9309baff9b198c014757ccf3d1347295cf",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         }
@@ -2796,15 +2840,15 @@
     },
     {
       "file": "src/pgwire/connection/extended/registry_publication_tests.rs",
-      "sha256": "c8051efaa7f9ba71b76be70ef76ea096ac4b974046112ddc9990162c1dec3e9b",
-      "lines": 308,
+      "sha256": "3204d84940c36482bf2517c6758b8f53817e2352ec068cd1dadfdecc7ff568a8",
+      "lines": 311,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
           "name": "should_not_publish_named_or_unnamed_parse_after_registry_owner_replacement",
           "inline_modules": [],
-          "line": 75,
-          "end_line": 122,
+          "line": 78,
+          "end_line": 125,
           "attributes": [
             "#[test]"
           ],
@@ -2815,8 +2859,8 @@
         {
           "name": "should_not_publish_close_or_remove_portals_after_registry_owner_replacement",
           "inline_modules": [],
-          "line": 125,
-          "end_line": 163,
+          "line": 128,
+          "end_line": 166,
           "attributes": [
             "#[test]"
           ],
@@ -2827,8 +2871,8 @@
         {
           "name": "should_publish_parse_and_close_for_the_current_frame_owner",
           "inline_modules": [],
-          "line": 166,
-          "end_line": 204,
+          "line": 169,
+          "end_line": 207,
           "attributes": [
             "#[test]"
           ],
@@ -2839,8 +2883,8 @@
         {
           "name": "should_keep_b_portals_and_registry_when_an_a_close_reaches_the_shared_leaf",
           "inline_modules": [],
-          "line": 207,
-          "end_line": 262,
+          "line": 210,
+          "end_line": 265,
           "attributes": [
             "#[test]"
           ],
@@ -2851,8 +2895,8 @@
         {
           "name": "should_not_remove_b_portals_for_an_a_portal_close",
           "inline_modules": [],
-          "line": 265,
-          "end_line": 308,
+          "line": 268,
+          "end_line": 311,
           "attributes": [
             "#[test]"
           ],

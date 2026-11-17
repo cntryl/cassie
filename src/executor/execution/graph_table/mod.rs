@@ -94,6 +94,7 @@ pub(super) fn execute(
         "before_graph_output_metadata",
         output.bytes(),
     );
+    output.try_grow(project::metadata_bytes(&binding.output, rows.len())?)?;
     #[cfg(test)]
     crate::executor::execution::graph_memory_test_observer::record(
         "copy_graph_output_metadata",

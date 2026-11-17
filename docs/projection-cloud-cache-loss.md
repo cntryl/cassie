@@ -30,6 +30,15 @@ storage error as retryable. The existing cloud fixtures retain their 300-second
 TTL. Acknowledgement is synchronized through a framed child marker; no startup
 sleep chooses the crash boundary.
 
+Before the child starts, the baseline must prove exclusive adapter ownership and
+successfully call the published mutable `Engine::shutdown` with a 30-second
+deadline. Cassie's runtime shutdown alone does not supply that assertion.
+The adapter's existing drop path attempts native shutdown for five seconds but
+only warns on failure; a failed close can fall through to detached engine
+cleanup. The fixture must instead fail on an extra owner, native Busy, timeout,
+durability error or other shutdown error. This is an owned fixture handoff,
+not an engine-wide WAL-quiescence API or a fix for #1188.
+
 The destructive fixture helper also has deterministic ownership controls. It
 refuses foreign, unowned and symlinked cache roots before deletion, preflights
 nested entries, and preserves both the full remote tree and an outside-cache

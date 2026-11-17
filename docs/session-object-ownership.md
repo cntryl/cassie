@@ -20,9 +20,14 @@ receives root status from the guard instead of recursively acquiring the root.
 Transaction retirement keeps its existing caller-under-root cleanup.
 
 Protocol registration and close validate a scoped operation at their actual
-shared-namespace write. Unscoped connection cleanup preserves its current
+shared-namespace write. Scoped registry writes run through the existing owned
+blocking boundary so root contention does not block the async connection.
+Unscoped connection cleanup preserves its current
 wire-ID check and current-connection meaning. Named prepared statements retain
 their connection lifetime; SQL WITH HOLD cursors retain their existing lifetime.
+While COMMIT is sealed, a detached fork cannot enter shared-object mutation even
+on the committing thread; only the lifecycle-owning committing root retains its
+existing owned permission.
 
 DISCARD ALL validates its owner before any destruction and retains output
 admission before resetting state. Its final reset takes sequence history then

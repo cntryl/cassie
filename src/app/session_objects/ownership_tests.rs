@@ -278,3 +278,36 @@ fn should_publish_and_fetch_shared_objects_through_a_current_detached_owner() {
     assert!(session.has_sql_prepared("fork_prepared"));
     session.with_session_objects(|objects| assert!(objects.cursor("fork_cursor").is_none()));
 }
+
+#[test]
+fn should_refuse_a_sealed_fork_while_preserving_the_committing_root() {
+    // Arrange
+    let (cassie, session) = fixture();
+    execute(&cassie, &session, "BEGIN");
+    execute(&cassie, &session, "PREPARE kept AS SELECT 7");
+    let authority = FailureAuthority::capture(&session);
+    let operation = session.with_operation_failure_authority(Some(&authority));
+    let batch = cassie
+        .new_statement_batch(Some(&operation))
+        .expect("fork before seal");
+    let seal = session.seal_transaction_for_commit();
+    // Act
+    let fork = batch.session().with_owned_session_objects(|objects, _, _| {
+        objects.clear_prepared();
+        Ok(())
+    });
+    let kept = session.has_sql_prepared("kept");
+    let root = operation.with_owned_session_objects(|objects, _, _| {
+        objects.clear_prepared();
+        Ok(())
+    });
+    drop(seal);
+    // Assert
+    assert_eq!(
+        fork.expect_err("fork cannot enter sealed root").sql_state(),
+        "25000"
+    );
+    assert!(kept);
+    root.expect("committing root retains its owned permission");
+    assert!(!session.has_sql_prepared("kept"));
+}

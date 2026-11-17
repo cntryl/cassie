@@ -185,7 +185,9 @@ impl CassieSession {
                 return Err(super::sequence_effect::changed());
             }
         }
-        if transaction.sealed_for_commit && !transaction.may_be_failed_by_current_thread() {
+        if transaction.sealed_for_commit
+            && (!self.owns_transaction_lifecycle || !transaction.may_be_failed_by_current_thread())
+        {
             return Err(super::sequence_effect::changed());
         }
         operation(transaction.status, transaction.implicit)

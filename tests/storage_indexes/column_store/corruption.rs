@@ -219,6 +219,141 @@ fn cassie_encoded_text(text: &str) -> Vec<u8> {
 }
 
 #[test]
+fn should_reject_an_int_field_outside_its_declared_width_with_the_correct_tag() {
+    // Arrange
+    let env = seeded();
+    let mut minimum = vec![0x02];
+    minimum.extend_from_slice(&i64::from(i32::MIN).to_be_bytes());
+    let mut maximum = vec![0x02];
+    maximum.extend_from_slice(&i64::from(i32::MAX).to_be_bytes());
+    raw_put(&env, &env.field_key(TABLE, ID_FIELD, "row-a"), &minimum);
+    raw_put(&env, &env.field_key(TABLE, ID_FIELD, "row-b"), &maximum);
+    let accepted_minimum = env.cassie.midge.get_document(TABLE, "row-a");
+    let accepted_maximum = env.cassie.midge.get_document(TABLE, "row-b");
+    let mut outside = vec![0x02];
+    outside.extend_from_slice(&(i64::from(i32::MAX) + 1).to_be_bytes());
+
+    // Act
+    raw_put(&env, &env.field_key(TABLE, ID_FIELD, "row-c"), &outside);
+    let point = env.cassie.midge.get_document(TABLE, "row-c");
+    let scan = env
+        .cassie
+        .execute_sql(&env.session, "SELECT id FROM victims", vec![]);
+    let verifier = env
+        .cassie
+        .midge
+        .verify_column_store_for_diagnostics(TABLE)
+        .expect("verifier");
+
+    // Assert
+    let minimum = accepted_minimum
+        .expect("valid minimum")
+        .expect("minimum row");
+    let maximum = accepted_maximum
+        .expect("valid maximum")
+        .expect("maximum row");
+    assert_eq!(minimum.payload["id"].as_i64(), Some(i64::from(i32::MIN)));
+    assert_eq!(maximum.payload["id"].as_i64(), Some(i64::from(i32::MAX)));
+    assert_corruption(&point.expect_err("declared INT width is checked"), "row-c");
+    assert_corruption(
+        &scan.expect_err("projection checks declared width"),
+        "row-c",
+    );
+    assert_eq!(verifier.len(), 1, "{verifier:?}");
+    assert!(verifier[0].contains("row-c"), "{verifier:?}");
+}
+
+#[test]
+fn should_reject_an_extended_field_encoded_with_another_declared_type_oid() {
+    // Arrange
+    let env = env();
+    env.run("CREATE TABLE victims (id INT, name NUMERIC) USING columnar");
+    env.cassie
+        .midge
+        .put_document(
+            TABLE,
+            Some("row-a".to_owned()),
+            serde_json::json!({"id": 1, "name": "12.50"}),
+        )
+        .expect("seed declared NUMERIC through the real writer");
+    let key = env.field_key(TABLE, NAME_FIELD, "row-a");
+    let valid_bytes = env
+        .cassie
+        .midge
+        .raw_get(StorageFamily::Data, &key)
+        .expect("encoded NUMERIC")
+        .expect("stored NUMERIC field");
+    let valid_point = env.cassie.midge.get_document(TABLE, "row-a");
+    let valid_scan = env.rows("SELECT name FROM victims");
+    // The same extended tag, but a REAL OID and a valid REAL binary payload.
+    let foreign_type = [0x0e, 0, 0, 0x02, 0xbc, 0x3f, 0xc0, 0, 0];
+
+    // Act
+    raw_put(&env, &key, &foreign_type);
+    let point = env.cassie.midge.get_document(TABLE, "row-a");
+    let scan = env
+        .cassie
+        .execute_sql(&env.session, "SELECT name FROM victims", vec![]);
+    let verifier = env
+        .cassie
+        .midge
+        .verify_column_store_for_diagnostics(TABLE)
+        .expect("verifier");
+
+    // Assert
+    assert_eq!(valid_bytes[..5], [0x0e, 0, 0, 0x06, 0xa4]);
+    assert!(valid_point.expect("valid declared value").is_some());
+    assert_eq!(valid_scan.len(), 1);
+    assert_corruption(&point.expect_err("declared OID is checked"), "row-a");
+    assert_corruption(&scan.expect_err("projection checks declared OID"), "row-a");
+    assert_eq!(verifier.len(), 1, "{verifier:?}");
+    assert!(verifier[0].contains("row-a"), "{verifier:?}");
+}
+
+#[test]
+fn should_reject_trailing_bytes_after_json_sql_null_without_rejecting_valid_nulls() {
+    // Arrange
+    let env = env();
+    env.run("CREATE TABLE victims (id JSONB) USING columnar");
+    for (row, payload) in [
+        ("row-a", serde_json::json!({})),
+        ("row-b", serde_json::json!({"id": null})),
+        ("row-c", serde_json::json!({})),
+    ] {
+        env.cassie
+            .midge
+            .put_document(TABLE, Some(row.to_owned()), payload)
+            .expect("seed NULL twins");
+    }
+    let sql_null = env.cassie.midge.get_document(TABLE, "row-a");
+    let json_null = env.cassie.midge.get_document(TABLE, "row-b");
+    let valid_scan = env.rows("SELECT count(*) FROM victims WHERE id IS NULL");
+
+    // Act
+    raw_put(&env, &env.field_key(TABLE, ID_FIELD, "row-c"), &[0, 0xff]);
+    let point = env.cassie.midge.get_document(TABLE, "row-c");
+    let scan = env
+        .cassie
+        .execute_sql(&env.session, "SELECT id FROM victims", vec![]);
+    let verifier = env
+        .cassie
+        .midge
+        .verify_column_store_for_diagnostics(TABLE)
+        .expect("verifier");
+
+    // Assert
+    let sql_null = sql_null.expect("valid SQL NULL").expect("SQL NULL row");
+    let json_null = json_null.expect("valid JSON null").expect("JSON null row");
+    assert!(sql_null.payload.get("id").is_none());
+    assert_eq!(json_null.payload.get("id"), Some(&serde_json::Value::Null));
+    assert_eq!(valid_scan, vec![vec![cassie::types::Value::Int64(2)]]);
+    assert_corruption(&point.expect_err("SQL NULL framing is exact"), "row-c");
+    assert_corruption(&scan.expect_err("projection checks NULL framing"), "row-c");
+    assert_eq!(verifier.len(), 1, "{verifier:?}");
+    assert!(verifier[0].contains("row-c"), "{verifier:?}");
+}
+
+#[test]
 fn should_fail_a_full_scan_when_a_field_has_no_live_marker() {
     // Arrange
     let env = seeded();

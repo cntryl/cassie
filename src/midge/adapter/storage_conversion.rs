@@ -6,10 +6,27 @@
 //! storage overlay, so the rewrite commits or rolls back with that transaction.
 use super::column_store::validation::{decode_deleted_marker, decode_marker_parts};
 use super::{
-    collect_scan, decode_row, encode_row, key_encoding, CassieError, CollectionStorageMode, Midge,
-    Query, RowSchema,
+    decode_row, encode_row, key_encoding, CassieError, CollectionStorageMode, Midge, Query,
+    RowSchema,
 };
 use std::collections::HashSet;
+
+#[cfg(test)]
+mod tests;
+
+fn collect_conversion_scan(
+    scan: cntryl_midge::ScanIterator<'_>,
+    _charge: RewriteCharge<'_>,
+) -> Result<Vec<super::RawStorageEntry>, CassieError> {
+    #[cfg(test)]
+    {
+        tests::collect_observed_scan(scan)
+    }
+    #[cfg(not(test))]
+    {
+        super::collect_scan(scan)
+    }
+}
 
 /// Budget callback: invoked with the retained byte estimate of each rewritten row.
 pub(crate) type RewriteCharge<'a> = &'a mut dyn FnMut(usize) -> Result<(), CassieError>;
@@ -117,9 +134,10 @@ impl Midge {
             Self::row_prefix(row_schema.relation_id),
             Self::doc_prefix(collection),
         ] {
-            let entries = collect_scan(
+            let entries = collect_conversion_scan(
                 tx.scan(&Query::new().prefix(prefix.clone().into()))
                     .map_err(CassieError::from)?,
+                charge,
             )?;
             for (key, raw) in entries {
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
@@ -154,9 +172,10 @@ impl Midge {
         self.validate_column_store_field_markers(tx, collection, row_schema, || charge(0))?;
         let mut highest_revision = row_schema.column_revision_floor;
         let live_prefix = Self::column_store_row_prefix(row_schema.relation_id);
-        let live = collect_scan(
+        let live = collect_conversion_scan(
             tx.scan(&Query::new().prefix(live_prefix.clone().into()))
                 .map_err(CassieError::from)?,
+            charge,
         )?;
         let mut converted = 0usize;
         for (key, raw) in live {
@@ -203,9 +222,10 @@ impl Midge {
         // Remove every column-family key (live markers, fields, tombstones) so
         // the row table has no residue in the column layout.
         let family_prefix = Self::column_store_collection_prefix(row_schema.relation_id);
-        let residue = collect_scan(
+        let residue = collect_conversion_scan(
             tx.scan(&Query::new().prefix(family_prefix.into()))
                 .map_err(CassieError::from)?,
+            charge,
         )?;
         let deleted_prefix = Self::column_store_deleted_prefix(row_schema.relation_id);
         for (key, raw) in residue {

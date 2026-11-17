@@ -3,7 +3,9 @@
 Issue [#1279](https://github.com/cntryl/cassie/issues/1279) adds an explicit
 transaction-local projector mode. This document records the implemented interface and its remaining qualification
 boundaries. Source and tests are identified below; their presence alone does not
-qualify the current commit.
+qualify the current commit. The [qualification record](evidence/runtime-closeout-2026-11-17/README.md) distinguishes actual
+`843500f8` default/feature passes, later mechanical changes and affected gates,
+fresh SQL diagnostics, and final publication-head hosted outcomes.
 
 ## SQL interface
 
@@ -306,8 +308,9 @@ ordinary statement admission. An outcome-unknown, fenced or otherwise
 indeterminate result is not a known abort and must not be blindly retried. A
 more conservative alternative is to classify every possible deferred expression
 strict before the first submission; it preserves safety but may downgrade the
-performance benefit when that branch never executes. Neither design has been
-implemented or tested.
+performance benefit when that branch never executes. The monotonic production
+path is implemented; its focused phase/submission witnesses passed in the
+feature-enabled controls at `843500f8`.
 
 Jev selected monotonic promotion (.98) over conservative preclassification (.02),
 flagging deferred sequence effects (.95), typed-abort handling (.91) and commit
@@ -402,13 +405,23 @@ Evidence and remaining boundaries:
   [local diagnostics](local-diagnostics-contract.md)).
 - **Unique-conflict resolution.** A declared transaction whose deferred
   `INSERT ... ON CONFLICT DO UPDATE` loses to a concurrently committed row
-  resolves the conflict before native submission. Without a strict effect its
-  first native commit stays `local_buffered`; if the update expression advances
-  a sequence the transaction is promoted and its first native commit is
-  `local_sync` (`src/app/projection_sql_durability_tests.rs`). The retry path in
-  `statement_mutation.rs` re-selects the policy for the same reason; reaching it
-  needs a native-level unique conflict that the pre-submission resolution
-  already removes, so it has no separate witness.
+  reaches the actual initial adapter proposal in `statement_mutation.rs`.
+  Unique-reservation validation can return a typed `UniqueViolation` before the
+  owning Data native `transaction.commit` is called: this is no Data submission,
+  not a native commit returning a uniqueness failure. The real resolver then
+  evaluates the deferred assignment. A sequence effect promotes the re-selected
+  retry options to strict; the matched no-effect retry remains buffered.
+  `src/app/statement_mutation_retry_policy_tests.rs` records the actual initial
+  result/options and zero Data submissions before resolution, actual resolver
+  cursor changes, retry options and one successful owning Data attempt. Its
+  unknown-response control arms the existing adapter response simulation only
+  inside the Data callback after native success, then requires no resolver/retry
+  and recovery quarantine. Native success and returned adapter outcome are
+  distinct observations; this is not an engine crash or global-no-effect proof.
+  The three focused retry witnesses passed at `843500f8`, alongside the
+  `projection_sql_durability_tests.rs` aggregate policy controls. The adapter
+  unique-failure and post-native-success unknown-response seams remain
+  distinct from native-engine uniqueness or crash/power-loss tests.
 - **Cloud policy evidence.** Against simulated cloud storage
   (`src/app/projection_sql_durability_tests.rs`, built with the
   `replay-benchmark-observation` feature), a declared replayable transaction's
@@ -424,3 +437,125 @@ Evidence and remaining boundaries:
   cancellation-while-waiting case; retirement is owner-checked, and
   ReadyForQuery reports failed to other threads while a COMMIT owns the
   transaction.
+
+### Sequence assignment boundary
+
+`setval(sequence, value, false)` changes the persisted sequence cursor while
+leaving `currval`/`lastval` unchanged. It therefore requires the same sticky
+strict classification as the other sequence assignments. The focused
+`should_select_strict_policy_after_setval_without_currval_assignment` regression
+observes the native Data policy and preserves the sequence-history semantics.
+It was authored before the corresponding branch repair and passed in the
+feature-enabled controls at `843500f8`; no instrumented baseline RED was observed.
+
+The sequential setval repair alone did not establish concurrent admission
+safety: its baseline performed native updates before recording strictness.
+The following operation-owned pre-native admission repair replaces that ordering.
+Its synchronized controls passed in the default and feature-enabled gates at
+`843500f8`; moving a void current-session marker would not satisfy the ownership
+requirement.
+
+The selected repair carries the existing operation's failure authority on its
+execution-only session clone and detached forks. Before a native sequence or
+default update, admission verifies that authority's root, transaction UUID and
+rollback epoch under the root transaction mutex. It also checks the fork's
+projection authority is the root's authority. The strict marker is set before
+releasing that mutex. COMMIT uses the same mutex to seal and snapshot policy:
+an already admitted independent sequence update may finish later, but its Data
+transaction is already strict; an update reaching admission after sealing or
+retirement is refused before native submission. The lifecycle-owning COMMIT
+thread retains its existing deferred-conflict sequence resolution path; a
+detached fork does not acquire that exception merely by using the same thread.
+There is no wait or root lock held across storage work. A failed native sequence
+attempt may conservatively leave strictness sticky. This is not cancellation
+of an already admitted native update or a bound on its completion time.
+
+### Outer wire failure ownership
+
+Each simple statement, extended message and streamed COPY has an execution-only
+session clone with its own deferred failure authority. Capturing the authority
+after the existing worker admission shares it with the outer output/error path;
+own BEGIN and savepoint adoption update that same owner. A rejection before
+admission returns the existing admission error promptly without changing a
+transaction. This is an intentional narrow behavior change: an operation that
+never acquired authority cannot fail or roll back a block. Jev selected this
+contract at probability 1.0, rather than blocking on transaction capture ahead
+of an already exhausted worker limit.
+
+Protocol errors that occur outside query admission obtain contemporaneous
+authority in a blocking worker before performing cleanup. Completion never
+recaptures a new owner after an admitted operation failed. Matching explicit
+errors mark Failed; matching implicit errors retire only their own transaction
+under the root mutex. Portal cleanup filters immutable transaction UUID and
+generation tokens, adopting only an exact own-start receipt. Current-lifetime
+reconciliation uses a root try-lock. On contention the async wire path retains its
+bounded portals for a later cleanup/connection close instead of blocking the
+reactor or clearing another generation's state. Quarantine terminal cleanup is
+also owner-checked; a later error converter with no authority performs no
+transaction mutation. No root-session mutable current-command slot is added.
+
+An operation refused because its captured transaction was replaced, restored
+to another savepoint epoch, or sealed by another owner returns `25000`
+(`InvalidState`), rather than an internal server error. A matching current
+failed block retains `25P02`. SQL ROLLBACK and cleanup through CTAS or modifying
+CTEs use the same captured owner; a stale command cannot retire a newer block
+or report a successful rollback of that block. The sequence-admission checks
+also compare generation when the captured owner is idle, so an idle capture
+does not become valid again after an intervening transaction ends.
+
+The root mutation contract supersedes the earlier failure-only increments:
+captured UUID, rollback epoch and generation must match under the very mutex
+that mutates root state. A stale `ROLLBACK TO`, SAVEPOINT, RELEASE or BEGIN is
+`25000` before it changes the newer block; the old tests retain their schedules
+and now require no stale mutation. A current failed block can still recover
+through its own `ROLLBACK TO`. An uncaptured wire context may adopt only the
+implicit stage it actually creates under that mutex. A terminal operation's
+recorded own retirement permits its `AND CHAIN` start; an unrelated retirement
+does not grant that permission. Jev selected this stronger contract at 1.0.
+
+SQL session-setting leaves follow the same captured-owner rule: ordinary SET,
+search_path SET/RESET, RESET ALL and transaction-local restoration bookkeeping
+validate immediately under the root-to-settings/search_path lock order before
+their actual in-memory write. The dispatcher is not locked across calls to
+other transaction helpers. Existing direct public setters on an unscoped
+session retain their current-session behavior. Existing SET LOCAL search_path
+behavior is preserved; this ownership repair adds no PostgreSQL parity claim.
+
+Portal execution carries the immutable Bind owner into admission. Lifetime compares
+transaction UUID and generation, while operation admission also checks the current
+rollback epoch. A mismatching portal never captures failure authority for its
+replacement transaction. The check occurs under the implicit-start root lock before
+creating a stage, and again after worker admission. An exact own idle-to-active
+start receipt adopts surviving preparation portals for either implicit or explicit
+BEGIN; unrelated starts cannot adopt them. Named preparation portals survive their
+own Simple Query BEGIN, with existing unnamed Query destruction unchanged.
+Connection reconciliation reads actual current lifetime nonblockingly and filters
+portal ownership without changing failure authority or transaction state.
+
+A later generic admission rejection preserves an already captured operation owner,
+including its own-start adoption receipt. Only a never-captured context becomes
+admission-rejected. This gives an established protocol origin its existing cleanup
+rights, while all UUID/epoch/generation checks still reject replacement ownership.
+An uncaptured saturated rejection remains immediate and performs no root mutation.
+
+Independent native sequence completion and session history publication are distinct.
+After successful native nextval/setval/default assignment, currval/lastval publication
+locks sequence values before the actual root, validates the captured owner, then
+writes history. A stale result returns 25000 and does not repopulate a replacement's
+history. The already admitted native effect remains applied: its global catalog
+cursor is published before propagating the history error, without undo or retry.
+The existing lifecycle-root exact-own-retirement receipt is retained only where
+shared state already allows it; detached forks do not gain that exception.
+
+### Actual wire COPY policy probe
+
+The local-memory native-policy controls stage real pgwire COPY rows and a checkpoint
+inside an explicit transaction, prove both remain private to that transaction,
+then observe the actual COMMIT worker. Test-only worker observation is armed after
+staging. The Data submission hook runs inside the native row-publication callback,
+after publication permission and outside suppressed/staged paths; it records the
+actual native result. Its first owning Data attempt is asserted independently from
+aggregate first policy, schema-epoch work and maintenance counters. Cases cover
+default strict, declared replayable buffered, and replayable COPY sequence-default
+strict promotion. All three real-wire policy controls passed at `843500f8`;
+policy selection in memory mode is not a persistence or crash-durability proof.

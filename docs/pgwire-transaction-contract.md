@@ -393,6 +393,27 @@ cascade, or disconnect. Suspended portals may resume within that owner. Clients
 paging across Sync must use explicit BEGIN; preserve the original snapshot and
 cumulative resource limits. Explicit Sync retains live transaction portals.
 
+The selected owner repair for #1290 stamps wire portals with their transaction
+UUID and generation, or the captured idle preparation segment. Bind publication
+validates its captured UUID, generation and rollback epoch under the transaction
+mutex before replacing any portal or publishing its read view. A changed or busy
+owner returns `25000` without `BindComplete`. This check does not wait on the
+async connection thread. Additional owner metadata and its retained names use the
+connection's portal memory tracker and are released on close, cascade and disconnect; the additional
+retained ownership can reject a tight budget with `54000`.
+
+Only that operation's recorded idle-to-active BEGIN may adopt idle preparation portals
+into its new transaction. A generation change alone never grants adoption.
+Retirement removes only the matching owner's portals, preserving a replacement
+transaction's portals and named prepared statements. Portal lifetime comparisons
+ignore rollback epoch: `ROLLBACK TO` does not end the owning transaction, while
+publication still validates the captured epoch. SQL `DECLARE ... WITH HOLD`
+cursors use a separate session namespace and retain their existing semantics.
+These repairs and their focused controls passed in the default suite at
+`843500f8`. The [qualification record](evidence/runtime-closeout-2026-11-17/README.md) preserves later
+mechanical/name-only changes, affected checks and publication-head hosted
+qualification separately.
+
 Cancellation, deadlines, serialization/output-shape failures and resource errors
 follow the same origin-specific failure rules. Release rows, cursor/snapshot,
 reservations, cancellation registration and worker ownership promptly; stale

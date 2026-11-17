@@ -16,6 +16,7 @@ impl CassieSession {
         validate: impl FnOnce(&mut SessionTransactionState) -> Result<(), CassieError>,
     ) -> Result<StatementMutationBatch, CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status == SessionTransactionStatus::Failed {
             return Err(CassieError::failed_transaction());
         }
@@ -23,6 +24,12 @@ impl CassieSession {
         validate(&mut transaction)?;
         let base_transaction_active = transaction.status == SessionTransactionStatus::InTransaction;
         let working_state = self.statement_fork_state(&transaction)?;
+        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
+        let schema_context = self.schema_context.fork_with_controls(controls.as_ref())?;
+        let operation_failure_authority = self.operation_failure_authority.clone().or_else(|| {
+            self.owns_transaction_lifecycle
+                .then(|| super::FailureAuthority::captured_from_state(self, &transaction))
+        });
         drop(transaction);
         let base_generation = working_state.generation;
         let base_rollback_epoch = working_state.rollback_epoch;
@@ -37,10 +44,11 @@ impl CassieSession {
         let base_conflict_intent_count = conflict_intents.len();
         let session = Self {
             statement_text: self.statement_text.clone(),
+            operation_failure_authority,
             user: self.user.clone(),
             database: self.database.clone(),
             access: self.access,
-            schema_context: Arc::clone(&self.schema_context),
+            schema_context,
             search_path: Arc::new(Mutex::new(self.search_path())),
             settings: Arc::new(Mutex::new(self.settings.lock().clone())),
             backend_pid: Arc::clone(&self.backend_pid),
@@ -147,6 +155,7 @@ impl CassieSession {
     ) -> Result<(), CassieError> {
         let delta = batch.delta()?;
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Err(CassieError::Execution(
                 "statement mutation requires an active transaction".to_string(),

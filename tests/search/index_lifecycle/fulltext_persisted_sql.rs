@@ -509,51 +509,133 @@ fn should_overlay_transaction_mutations_on_fulltext_fallback() {
         .expect("rollback transaction");
 }
 
+// Only fixture writes use ordinary executor controls. The scoring request below
+// still enters execute_sql on the same Cassie configured with exactly 1024 bytes.
+fn scoring_fixture_setup(cassie: &Cassie, sql: &str, parameters: Vec<Value>) {
+    let plan = cassie
+        .compile_sql_physical_plan_for_diagnostics(sql)
+        .expect("compile scoring fixture setup");
+    let controls = cassie::runtime::QueryExecutionControls::from_limits(
+        &cassie::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let output = cassie::executor::run_with_controls(cassie, &plan, parameters, &controls)
+        .expect("execute scoring fixture setup");
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
 #[test]
 fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
     // Arrange
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = 1_024;
+    config.limits.execution_result_cache_enabled =
+        cassie::config::ExecutionResultCacheEnabled::disabled();
     let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
     let session = cassie.create_session("tester", None);
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE TABLE persisted_memory_docs (body TEXT)",
-            vec![],
-        )
-        .expect("create memory table");
+    scoring_fixture_setup(
+        &cassie,
+        "CREATE TABLE persisted_memory_docs (body TEXT)",
+        vec![],
+    );
     for index in 0..20 {
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO persisted_memory_docs (body) VALUES ($1)",
-                vec![Value::String(format!(
-                    "alpha fixture token number {index} with bounded candidate statistics"
-                ))],
-            )
-            .expect("insert memory row");
+        scoring_fixture_setup(
+            &cassie,
+            "INSERT INTO persisted_memory_docs (body) VALUES ($1)",
+            vec![Value::String(format!(
+                "alpha fixture token number {index} with bounded candidate statistics"
+            ))],
+        );
     }
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX persisted_memory_body_idx ON persisted_memory_docs USING fulltext (body)",
-            vec![],
-        )
-        .expect("create memory index");
+    scoring_fixture_setup(
+        &cassie,
+        "CREATE INDEX persisted_memory_body_idx ON persisted_memory_docs USING fulltext (body)",
+        vec![],
+    );
 
-    // Act
+    let query = "SELECT id, search_score(body, $1) AS score FROM persisted_memory_docs WHERE search(body, $1) ORDER BY score DESC LIMIT 5";
+    let plan = cassie
+        .compile_sql_physical_plan_for_diagnostics(query)
+        .expect("compile persisted scoring control");
+    let controls = cassie::runtime::QueryExecutionControls::from_limits(
+        &cassie::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let positive_scan_before = cassie.midge.query_scan_entries_for_diagnostics();
+    let positive_before = cassie.metrics();
+    let positive = cassie::executor::run_with_controls(
+        &cassie,
+        &plan,
+        vec![Value::String("alpha".to_string())],
+        &controls,
+    )
+    .expect("ordinary control reaches persisted scoring");
+    assert_eq!(positive.rows().len(), 5);
+    assert!(cassie.midge.query_scan_entries_for_diagnostics() > positive_scan_before);
+    assert!(
+        cassie.metrics()["search"]["posting_reads_total"]
+            .as_u64()
+            .expect("persisted posting reads")
+            > positive_before["search"]["posting_reads_total"]
+                .as_u64()
+                .expect("baseline posting reads")
+    );
+    assert_eq!(
+        cassie.metrics()["search"]["row_scan_fallback_total"],
+        positive_before["search"]["row_scan_fallback_total"]
+    );
+    drop(positive);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act: the actual SQL request still owns its original 1024-byte admission budget.
     let error = cassie
-            .execute_sql(
-                &session,
-                "SELECT id, search_score(body, $1) AS score FROM persisted_memory_docs WHERE search(body, $1) ORDER BY score DESC LIMIT 5",
-                vec![Value::String("alpha".to_string())],
-            )
-            .expect_err("candidate statistics should exceed memory budget");
+        .execute_sql(&session, query, vec![Value::String("alpha".to_string())])
+        .expect_err("actual SQL request must reject its configured memory budget");
 
     // Assert
     assert!(matches!(error, CassieError::ResourceLimit(_)));
+    assert_eq!(
+        cassie.metrics()["query"]["current_accounted_memory_bytes"],
+        0
+    );
+
+    // Arrange: isolate persisted loading from the separately checked SQL admission.
+    let restricted_limits = cassie::config::CassieRuntimeLimits {
+        query_memory_budget_bytes: 1_024,
+        ..cassie::config::CassieRuntimeLimits::default()
+    };
+    let restricted = cassie::runtime::QueryExecutionControls::from_limits(
+        &restricted_limits,
+        std::time::Instant::now(),
+    );
+    let scan_before = cassie.midge.query_scan_entries_for_diagnostics();
+    let before = cassie.metrics();
+
+    // Act: the identical plan must reach real persisted work at the executor boundary.
+    let error = cassie::executor::run_with_controls(
+        &cassie,
+        &plan,
+        vec![Value::String("alpha".to_string())],
+        &restricted,
+    )
+    .expect_err("persisted fulltext loading must exceed the same 1024-byte budget");
+    let error = CassieError::from(error);
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(restricted.query_memory_budget_bytes, 1_024);
+    assert!(matches!(error, CassieError::ResourceLimit(_)), "{error}");
+    assert!(
+        cassie.midge.query_scan_entries_for_diagnostics() > scan_before,
+        "low-memory executor must reach persisted loading before rejecting"
+    );
+    assert_eq!(restricted.current_query_memory_bytes(), 0);
+    assert_eq!(after["search"]["count"], before["search"]["count"]);
+    assert_eq!(
+        after["search"]["row_scan_fallback_total"],
+        before["search"]["row_scan_fallback_total"]
+    );
 }
 
 #[test]

@@ -1,0 +1,1878 @@
+{
+  "scope": "Original local command receipts and selected historical diagnostics; actual failed outcomes retained. Full default and feature execution source843500 is distinct from final affected checks168527.",
+  "checks": [
+    {
+      "head": "23b78f612fc9b0c16ace68645d0b944ab481b424",
+      "tree": "2e3f2805090b39545895473e0562d3723e23d751",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T03:18:54.329359+00:00",
+      "ended_utc": "2026-11-17T03:19:26.205127+00:00",
+      "elapsed_seconds": 31.875424499999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "build-2.json"
+    },
+    {
+      "head": "42f863e48b4dea924879d59f2e74fdb1250821d7",
+      "tree": "c57b6a7aeeae94b817430f21777c779a5aeb8ed1",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T03:25:30.734803+00:00",
+      "ended_utc": "2026-11-17T03:25:37.366992+00:00",
+      "elapsed_seconds": 6.6317987910000005,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "build-3.json"
+    },
+    {
+      "head": "d1b9c1c630649ab5ffa9aed250260b979f556f71",
+      "tree": "6e0b234f62015b8c9ff1467f0244f052a10ad468",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T03:45:25.991440+00:00",
+      "ended_utc": "2026-11-17T03:45:33.185347+00:00",
+      "elapsed_seconds": 7.1936072079999995,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "build-4.json"
+    },
+    {
+      "head": "056872b4a57caf67d2b0222d3b05e9415a0c2609",
+      "tree": "0734ba55a20eceeb60b8b8761c66262209dbd48f",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T04:09:07.317701+00:00",
+      "ended_utc": "2026-11-17T04:09:21.060841+00:00",
+      "elapsed_seconds": 13.742804291,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "build-5.json"
+    },
+    {
+      "head": "3cf44b04b9998a2c939f3091008b35700e3af82f",
+      "tree": "2c8acf6c9d6adb3bde5fbd6e0144119e1b55567e",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T04:12:20.587155+00:00",
+      "ended_utc": "2026-11-17T04:12:20.732034+00:00",
+      "elapsed_seconds": 0.144526,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "build-6.json"
+    },
+    {
+      "head": "164776b2dfe8d81debdc9063bf010e7e759781c1",
+      "tree": "0af6eb1619c4c3922d46c88a97f4dfbe5a938159",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T04:27:05.181295+00:00",
+      "ended_utc": "2026-11-17T04:27:05.426674+00:00",
+      "elapsed_seconds": 0.245069083,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "build-7.json"
+    },
+    {
+      "head": "ec1e2d708f76896c551e105aad9d03170c40c1ef",
+      "tree": "46555613e133deb63e6408e6ba642d5724f8821e",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T04:40:27.476289+00:00",
+      "ended_utc": "2026-11-17T04:40:27.566220+00:00",
+      "elapsed_seconds": 0.089573917,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "build-8.json"
+    },
+    {
+      "head": "843500f857926f3f1986942ae634912eb692bfd2",
+      "tree": "6e0239e44c5fb4cff48ee90ef954f031bc47803e",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T05:00:43.855325+00:00",
+      "ended_utc": "2026-11-17T05:00:59.139518+00:00",
+      "elapsed_seconds": 15.283838542,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "build-9.json"
+    },
+    {
+      "head": "7a1e858d0cfeb1143be4983fcd6de3cde33552cf",
+      "tree": "bccdca23a4748f16946c629b7b3df52b4c90b7e3",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "started_utc": "2026-11-17T03:14:49.923394+00:00",
+      "ended_utc": "2026-11-17T03:15:05.984406+00:00",
+      "elapsed_seconds": 16.060650333,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "build.json"
+    },
+    {
+      "head": "f1427848eee9ee50113701f6ca24e7aa121ffaed",
+      "tree": "a67546a47b6109505d0389c8e2427da92394c823",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "started_utc": "2026-11-17T05:20:52.631479+00:00",
+      "ended_utc": "2026-11-17T05:21:21.979488+00:00",
+      "elapsed_seconds": 29.347613666,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "clippy-2.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "started_utc": "2026-11-17T05:23:33.289492+00:00",
+      "ended_utc": "2026-11-17T05:23:46.503910+00:00",
+      "elapsed_seconds": 13.214038083,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "clippy-3.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "started_utc": "2026-11-17T05:30:32.326663+00:00",
+      "ended_utc": "2026-11-17T05:30:39.432232+00:00",
+      "elapsed_seconds": 7.105219666,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "clippy-4.json"
+    },
+    {
+      "head": "843500f857926f3f1986942ae634912eb692bfd2",
+      "tree": "6e0239e44c5fb4cff48ee90ef954f031bc47803e",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "started_utc": "2026-11-17T05:17:21.779921+00:00",
+      "ended_utc": "2026-11-17T05:17:45.330244+00:00",
+      "elapsed_seconds": 23.549962082999997,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "clippy.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-17T05:30:59.636055+00:00",
+      "ended_utc": "2026-11-17T05:31:04.355600+00:00",
+      "elapsed_seconds": 4.719141917,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "fmt-2.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-11-17T05:24:14.809671+00:00",
+      "ended_utc": "2026-11-17T05:24:19.649719+00:00",
+      "elapsed_seconds": 4.839661292,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "fmt.json"
+    },
+    {
+      "head": "ec1e2d708f76896c551e105aad9d03170c40c1ef",
+      "tree": "46555613e133deb63e6408e6ba642d5724f8821e",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "started_utc": "2026-11-17T04:53:23.078403+00:00",
+      "ended_utc": "2026-11-17T04:53:46.702959+00:00",
+      "elapsed_seconds": 23.624196375,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "historical-ec1-clippy.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "/private/tmp/cassie-all-open-integration-20261116/target/inventory-venv/bin/python",
+        "tools/test_inventory.py",
+        "--check"
+      ],
+      "started_utc": "2026-11-17T05:31:19.533239+00:00",
+      "ended_utc": "2026-11-17T05:31:20.680636+00:00",
+      "elapsed_seconds": 1.147031708,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "inventory.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cargo",
+        "bench",
+        "--locked",
+        "--features",
+        "replay-benchmark-observation",
+        "--bench",
+        "tier3_replay_durability",
+        "--profile",
+        "test",
+        "--no-run"
+      ],
+      "started_utc": "2026-11-17T05:32:21.048791+00:00",
+      "ended_utc": "2026-11-17T05:34:39.882843+00:00",
+      "elapsed_seconds": 138.831954417,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "sql8-compile.json"
+    },
+    {
+      "head": "d1b9c1c630649ab5ffa9aed250260b979f556f71",
+      "tree": "6e0b234f62015b8c9ff1467f0244f052a10ad468",
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "started_utc": "2026-11-17T03:46:04.059793+00:00",
+      "ended_utc": "2026-11-17T03:53:57.376123+00:00",
+      "elapsed_seconds": 473.316348041,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "test-2.json"
+    },
+    {
+      "head": "056872b4a57caf67d2b0222d3b05e9415a0c2609",
+      "tree": "0734ba55a20eceeb60b8b8761c66262209dbd48f",
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "started_utc": "2026-11-17T04:09:31.606334+00:00",
+      "ended_utc": "2026-11-17T04:11:06.694300+00:00",
+      "elapsed_seconds": 95.0876755,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "test-3.json"
+    },
+    {
+      "head": "3cf44b04b9998a2c939f3091008b35700e3af82f",
+      "tree": "2c8acf6c9d6adb3bde5fbd6e0144119e1b55567e",
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "started_utc": "2026-11-17T04:12:23.815557+00:00",
+      "ended_utc": "2026-11-17T04:21:02.318688+00:00",
+      "elapsed_seconds": 518.503191542,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "test-4.json"
+    },
+    {
+      "head": "164776b2dfe8d81debdc9063bf010e7e759781c1",
+      "tree": "0af6eb1619c4c3922d46c88a97f4dfbe5a938159",
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "started_utc": "2026-11-17T04:27:08.521671+00:00",
+      "ended_utc": "2026-11-17T04:32:22.316559+00:00",
+      "elapsed_seconds": 313.79478745800003,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "test-5.json"
+    },
+    {
+      "head": "ec1e2d708f76896c551e105aad9d03170c40c1ef",
+      "tree": "46555613e133deb63e6408e6ba642d5724f8821e",
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "started_utc": "2026-11-17T04:40:32.089660+00:00",
+      "ended_utc": "2026-11-17T04:45:55.054021+00:00",
+      "elapsed_seconds": 322.964045209,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "test-6.json"
+    },
+    {
+      "head": "843500f857926f3f1986942ae634912eb692bfd2",
+      "tree": "6e0239e44c5fb4cff48ee90ef954f031bc47803e",
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "started_utc": "2026-11-17T05:01:20.972749+00:00",
+      "ended_utc": "2026-11-17T05:13:18.264642+00:00",
+      "elapsed_seconds": 717.287999041,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-7.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/bulk_ingest.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.262955+00:00",
+      "ended_utc": "2026-11-17T05:24:28.281892+00:00",
+      "elapsed_seconds": 0.018570125,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-01.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/projection_sql_durability_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.335139+00:00",
+      "ended_utc": "2026-11-17T05:24:28.340389+00:00",
+      "elapsed_seconds": 0.004900042,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-02.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_admission_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.393160+00:00",
+      "ended_utc": "2026-11-17T05:24:28.398664+00:00",
+      "elapsed_seconds": 0.005165042000000002,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-03.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_converted_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.451104+00:00",
+      "ended_utc": "2026-11-17T05:24:28.456337+00:00",
+      "elapsed_seconds": 0.004887290999999995,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-04.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_savepoint_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.510131+00:00",
+      "ended_utc": "2026-11-17T05:24:28.515008+00:00",
+      "elapsed_seconds": 0.004535582999999996,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-05.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_watchdog.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.567489+00:00",
+      "ended_utc": "2026-11-17T05:24:28.571553+00:00",
+      "elapsed_seconds": 0.003717208999999999,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-06.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_watchdog/output.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.623906+00:00",
+      "ended_utc": "2026-11-17T05:24:28.627945+00:00",
+      "elapsed_seconds": 0.003696374999999995,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-07.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_prepared/authority_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.680415+00:00",
+      "ended_utc": "2026-11-17T05:24:28.686824+00:00",
+      "elapsed_seconds": 0.006059500000000002,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-08.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/roles.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.739314+00:00",
+      "ended_utc": "2026-11-17T05:24:28.743626+00:00",
+      "elapsed_seconds": 0.003979499999999997,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-09.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/copy_owner_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.796066+00:00",
+      "ended_utc": "2026-11-17T05:24:28.806379+00:00",
+      "elapsed_seconds": 0.006427291000000002,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-10.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/savepoint_fork_epoch_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.858632+00:00",
+      "ended_utc": "2026-11-17T05:24:28.864172+00:00",
+      "elapsed_seconds": 0.005182458000000001,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-11.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/sequence_effect_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.916400+00:00",
+      "ended_utc": "2026-11-17T05:24:28.921388+00:00",
+      "elapsed_seconds": 0.004626541999999997,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-12.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/shared_setting_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:28.974005+00:00",
+      "ended_utc": "2026-11-17T05:24:28.978613+00:00",
+      "elapsed_seconds": 0.004219208000000002,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-13.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/temporal_context/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.031490+00:00",
+      "ended_utc": "2026-11-17T05:24:29.036437+00:00",
+      "elapsed_seconds": 0.004412625000000003,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-14.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/transaction_control.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.088964+00:00",
+      "ended_utc": "2026-11-17T05:24:29.094084+00:00",
+      "elapsed_seconds": 0.004769542000000002,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-15.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/truncate_owner_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.146554+00:00",
+      "ended_utc": "2026-11-17T05:24:29.150681+00:00",
+      "elapsed_seconds": 0.003785666,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-16.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/wire_failure_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.202846+00:00",
+      "ended_utc": "2026-11-17T05:24:29.209567+00:00",
+      "elapsed_seconds": 0.006353167,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-17.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session_objects/ownership_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.261780+00:00",
+      "ended_utc": "2026-11-17T05:24:29.267209+00:00",
+      "elapsed_seconds": 0.005087583,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-18.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session_schema/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.320895+00:00",
+      "ended_utc": "2026-11-17T05:24:29.326215+00:00",
+      "elapsed_seconds": 0.004911208,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-19.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/bulk_ingest.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:09.773295+00:00",
+      "ended_utc": "2026-11-17T05:31:09.777895+00:00",
+      "elapsed_seconds": 0.004214291000000002,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-01.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/projection_sql_durability_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:09.830449+00:00",
+      "ended_utc": "2026-11-17T05:31:09.835641+00:00",
+      "elapsed_seconds": 0.0048395000000000035,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-02.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_admission_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:09.888925+00:00",
+      "ended_utc": "2026-11-17T05:31:09.894177+00:00",
+      "elapsed_seconds": 0.004895833000000002,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-03.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_converted_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:09.946503+00:00",
+      "ended_utc": "2026-11-17T05:31:09.951621+00:00",
+      "elapsed_seconds": 0.004752209,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-04.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_savepoint_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.003673+00:00",
+      "ended_utc": "2026-11-17T05:31:10.008519+00:00",
+      "elapsed_seconds": 0.004473958,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-05.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_watchdog.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.060318+00:00",
+      "ended_utc": "2026-11-17T05:31:10.064349+00:00",
+      "elapsed_seconds": 0.003669500000000006,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-06.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_failure_watchdog/output.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.116642+00:00",
+      "ended_utc": "2026-11-17T05:31:10.120676+00:00",
+      "elapsed_seconds": 0.0036822920000000037,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-07.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/query_prepared/authority_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.172594+00:00",
+      "ended_utc": "2026-11-17T05:31:10.179078+00:00",
+      "elapsed_seconds": 0.006118583999999996,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-08.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/roles.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.231141+00:00",
+      "ended_utc": "2026-11-17T05:31:10.235484+00:00",
+      "elapsed_seconds": 0.003992042000000001,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-09.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/copy_owner_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.288060+00:00",
+      "ended_utc": "2026-11-17T05:31:10.294827+00:00",
+      "elapsed_seconds": 0.006384125000000004,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-10.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/savepoint_fork_epoch_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.347950+00:00",
+      "ended_utc": "2026-11-17T05:31:10.353183+00:00",
+      "elapsed_seconds": 0.004871082999999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-11.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/sequence_effect_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.405400+00:00",
+      "ended_utc": "2026-11-17T05:31:10.410300+00:00",
+      "elapsed_seconds": 0.004528667,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-12.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/shared_setting_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.462755+00:00",
+      "ended_utc": "2026-11-17T05:31:10.466814+00:00",
+      "elapsed_seconds": 0.003715583999999994,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-13.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/temporal_context/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.519239+00:00",
+      "ended_utc": "2026-11-17T05:31:10.524092+00:00",
+      "elapsed_seconds": 0.004488291999999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-14.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/transaction_control.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.576599+00:00",
+      "ended_utc": "2026-11-17T05:31:10.581727+00:00",
+      "elapsed_seconds": 0.004777957999999999,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-15.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/truncate_owner_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.633933+00:00",
+      "ended_utc": "2026-11-17T05:31:10.638095+00:00",
+      "elapsed_seconds": 0.0038037500000000016,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-16.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session/wire_failure_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.690693+00:00",
+      "ended_utc": "2026-11-17T05:31:10.697405+00:00",
+      "elapsed_seconds": 0.006352416999999999,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-17.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session_objects/ownership_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.750172+00:00",
+      "ended_utc": "2026-11-17T05:31:10.755351+00:00",
+      "elapsed_seconds": 0.004835832999999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-18.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session_schema/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.808538+00:00",
+      "ended_utc": "2026-11-17T05:31:10.813311+00:00",
+      "elapsed_seconds": 0.004410833000000003,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-19.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session_sequences/discard_restart_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.867574+00:00",
+      "ended_utc": "2026-11-17T05:31:10.873142+00:00",
+      "elapsed_seconds": 0.005182459,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-20.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session_sequences/history_owner_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.925606+00:00",
+      "ended_utc": "2026-11-17T05:31:10.929653+00:00",
+      "elapsed_seconds": 0.003705625000000004,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-21.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/statement_mutation_retry_policy_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:10.982020+00:00",
+      "ended_utc": "2026-11-17T05:31:10.986210+00:00",
+      "elapsed_seconds": 0.0038294999999999996,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-22.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/midge/adapter/schema_ops/copy_identity_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.038179+00:00",
+      "ended_utc": "2026-11-17T05:31:11.042932+00:00",
+      "elapsed_seconds": 0.004350707999999995,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-23.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/blocking/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.094590+00:00",
+      "ended_utc": "2026-11-17T05:31:11.099101+00:00",
+      "elapsed_seconds": 0.004152165999999999,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-24.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/binding_authority_accounting_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.151631+00:00",
+      "ended_utc": "2026-11-17T05:31:11.156786+00:00",
+      "elapsed_seconds": 0.004811957999999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-25.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/diagnostic_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.209274+00:00",
+      "ended_utc": "2026-11-17T05:31:11.213659+00:00",
+      "elapsed_seconds": 0.004028583000000002,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-26.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/native_policy_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.266127+00:00",
+      "ended_utc": "2026-11-17T05:31:11.270355+00:00",
+      "elapsed_seconds": 0.003882249999999997,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-27.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/origin_failure_authority_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.323111+00:00",
+      "ended_utc": "2026-11-17T05:31:11.327320+00:00",
+      "elapsed_seconds": 0.003853124999999999,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-28.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/outer_failure_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.379531+00:00",
+      "ended_utc": "2026-11-17T05:31:11.383574+00:00",
+      "elapsed_seconds": 0.0036890829999999958,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-29.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/extended/bind/ownership_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.436199+00:00",
+      "ended_utc": "2026-11-17T05:31:11.440452+00:00",
+      "elapsed_seconds": 0.003917041000000003,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-30.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/extended/registry_publication_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.492904+00:00",
+      "ended_utc": "2026-11-17T05:31:11.497514+00:00",
+      "elapsed_seconds": 0.004242083000000001,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-31.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/idle_portal_snapshot_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.549350+00:00",
+      "ended_utc": "2026-11-17T05:31:11.554438+00:00",
+      "elapsed_seconds": 0.004696834000000004,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-32.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/state/portal_owners/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.606378+00:00",
+      "ended_utc": "2026-11-17T05:31:11.610700+00:00",
+      "elapsed_seconds": 0.003978583000000001,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-33.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/state/portal_ownership_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.663401+00:00",
+      "ended_utc": "2026-11-17T05:31:11.667715+00:00",
+      "elapsed_seconds": 0.003952499999999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-34.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/wire_failure_boundary_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.719615+00:00",
+      "ended_utc": "2026-11-17T05:31:11.724788+00:00",
+      "elapsed_seconds": 0.004817709000000003,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-35.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/worker_lease/network_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.776859+00:00",
+      "ended_utc": "2026-11-17T05:31:11.780930+00:00",
+      "elapsed_seconds": 0.003720666999999997,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-36.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/worker_lease/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.833660+00:00",
+      "ended_utc": "2026-11-17T05:31:11.837874+00:00",
+      "elapsed_seconds": 0.003865874999999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-37.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/query_scan_controls/scans/vector_ann_concurrency.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.890742+00:00",
+      "ended_utc": "2026-11-17T05:31:11.896195+00:00",
+      "elapsed_seconds": 0.0050925419999999985,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-38.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/rest/queries/vector_memory_controls.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:11.949020+00:00",
+      "ended_utc": "2026-11-17T05:31:11.954252+00:00",
+      "elapsed_seconds": 0.004863416999999995,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-39.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/search/index_lifecycle/fulltext_persisted_sql.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:12.006845+00:00",
+      "ended_utc": "2026-11-17T05:31:12.012464+00:00",
+      "elapsed_seconds": 0.005243792000000004,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-40.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/support/retrieval.rs"
+      ],
+      "started_utc": "2026-11-17T05:31:12.064563+00:00",
+      "ended_utc": "2026-11-17T05:31:12.068427+00:00",
+      "elapsed_seconds": 0.0035166250000000024,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-2-41.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session_sequences/discard_restart_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.379724+00:00",
+      "ended_utc": "2026-11-17T05:24:29.385103+00:00",
+      "elapsed_seconds": 0.005027916,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-20.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/session_sequences/history_owner_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.437074+00:00",
+      "ended_utc": "2026-11-17T05:24:29.441149+00:00",
+      "elapsed_seconds": 0.0037265000000000006,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-21.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/app/statement_mutation_retry_policy_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.496450+00:00",
+      "ended_utc": "2026-11-17T05:24:29.500414+00:00",
+      "elapsed_seconds": 0.003637833,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-22.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/midge/adapter/schema_ops/copy_identity_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.553076+00:00",
+      "ended_utc": "2026-11-17T05:24:29.557704+00:00",
+      "elapsed_seconds": 0.004283958000000004,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-23.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/blocking/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.610127+00:00",
+      "ended_utc": "2026-11-17T05:24:29.614694+00:00",
+      "elapsed_seconds": 0.0042313750000000025,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-24.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/binding_authority_accounting_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.667224+00:00",
+      "ended_utc": "2026-11-17T05:24:29.672531+00:00",
+      "elapsed_seconds": 0.0049662499999999984,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-25.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/diagnostic_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.725474+00:00",
+      "ended_utc": "2026-11-17T05:24:29.729805+00:00",
+      "elapsed_seconds": 0.004002040999999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-26.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/native_policy_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.783349+00:00",
+      "ended_utc": "2026-11-17T05:24:29.787283+00:00",
+      "elapsed_seconds": 0.003588374999999998,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-27.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/origin_failure_authority_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.839909+00:00",
+      "ended_utc": "2026-11-17T05:24:29.844535+00:00",
+      "elapsed_seconds": 0.004283124999999999,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-28.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/copy/outer_failure_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.897234+00:00",
+      "ended_utc": "2026-11-17T05:24:29.901675+00:00",
+      "elapsed_seconds": 0.004106749999999999,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-29.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/extended/bind/ownership_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:29.954093+00:00",
+      "ended_utc": "2026-11-17T05:24:29.958265+00:00",
+      "elapsed_seconds": 0.003841375000000001,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-30.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/extended/registry_publication_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.010606+00:00",
+      "ended_utc": "2026-11-17T05:24:30.015494+00:00",
+      "elapsed_seconds": 0.004509208000000001,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-31.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/idle_portal_snapshot_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.070193+00:00",
+      "ended_utc": "2026-11-17T05:24:30.075131+00:00",
+      "elapsed_seconds": 0.004583250000000004,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-32.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/state/portal_owners/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.128006+00:00",
+      "ended_utc": "2026-11-17T05:24:30.135152+00:00",
+      "elapsed_seconds": 0.004361625000000001,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-33.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/state/portal_ownership_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.187250+00:00",
+      "ended_utc": "2026-11-17T05:24:30.191541+00:00",
+      "elapsed_seconds": 0.003925249999999998,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-34.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/wire_failure_boundary_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.244114+00:00",
+      "ended_utc": "2026-11-17T05:24:30.249337+00:00",
+      "elapsed_seconds": 0.004844500000000002,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-35.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/worker_lease/network_tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.302276+00:00",
+      "ended_utc": "2026-11-17T05:24:30.306833+00:00",
+      "elapsed_seconds": 0.003895833999999994,
+      "status": "failed",
+      "exit_code": 1,
+      "dirty": "",
+      "receipt": "test-policy-36.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "src/pgwire/connection/worker_lease/tests.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.359649+00:00",
+      "ended_utc": "2026-11-17T05:24:30.363890+00:00",
+      "elapsed_seconds": 0.003896958000000006,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-37.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/query_scan_controls/scans/vector_ann_concurrency.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.416077+00:00",
+      "ended_utc": "2026-11-17T05:24:30.421042+00:00",
+      "elapsed_seconds": 0.004632500000000005,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-38.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/rest/queries/vector_memory_controls.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.475736+00:00",
+      "ended_utc": "2026-11-17T05:24:30.480893+00:00",
+      "elapsed_seconds": 0.004817708000000004,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-39.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/search/index_lifecycle/fulltext_persisted_sql.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.533449+00:00",
+      "ended_utc": "2026-11-17T05:24:30.538681+00:00",
+      "elapsed_seconds": 0.004875500000000005,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-40.json"
+    },
+    {
+      "head": "28677a1f5c2830759030e31c7cd5c44b2bf49958",
+      "tree": "e17eefdd1eb0eb093c344edb0fea5c213ab30786",
+      "command": [
+        "cntryl-tools",
+        "validate-tests",
+        "-f",
+        "tests/support/retrieval.rs"
+      ],
+      "started_utc": "2026-11-17T05:24:30.591298+00:00",
+      "ended_utc": "2026-11-17T05:24:30.595247+00:00",
+      "elapsed_seconds": 0.0035892910000000014,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "test-policy-41.json"
+    },
+    {
+      "head": "42f863e48b4dea924879d59f2e74fdb1250821d7",
+      "tree": "c57b6a7aeeae94b817430f21777c779a5aeb8ed1",
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "started_utc": "2026-11-17T03:26:57.885532+00:00",
+      "ended_utc": "2026-11-17T03:29:18.484167+00:00",
+      "elapsed_seconds": 140.59825395800002,
+      "status": "failed",
+      "exit_code": 101,
+      "dirty": "",
+      "receipt": "test.json"
+    },
+    {
+      "head": "168527ec5804b47511a3a662484984a935be5c11",
+      "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+      "command": [
+        "/private/tmp/cassie-all-open-integration-20261116/target/inventory-venv/bin/python",
+        "target/assembly-line/runtime-closeout/check_unit_probe_manifest.py"
+      ],
+      "started_utc": "2026-11-17T05:31:47.696291+00:00",
+      "ended_utc": "2026-11-17T05:31:47.758281+00:00",
+      "elapsed_seconds": 0.06164575,
+      "status": "passed",
+      "exit_code": 0,
+      "dirty": "",
+      "receipt": "unit-inventory.json"
+    }
+  ]
+}

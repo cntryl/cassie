@@ -3,11 +3,22 @@ use super::support_retrieval_provider::CountingEmbeddingProvider;
 use cassie::app::CassieError;
 use cassie::embeddings::EmbeddingProvider;
 
+fn assert_bruteforce_index(cassie: &cassie::app::Cassie, metric: &str) {
+    let index = cassie
+        .midge
+        .get_vector_index("docs", "embedding")
+        .expect("read fixture vector index")
+        .expect("fixture index exists");
+    assert_eq!(index.metadata.metric.as_str(), metric);
+    assert_eq!(index.metadata.index_type.as_str(), "bruteforce");
+}
+
 #[test]
 fn should_reject_rest_vector_search_under_the_same_budget_as_sql() {
     // Arrange
     let cassie = circle_fixture("rest_vector_budget", 64, 1024);
     create_index(&cassie, "index_type = bruteforce");
+    assert_bruteforce_index(&cassie, "l2");
     cassie.startup().expect("start in-memory vector fixture");
     let session = cassie.create_session("tester", None);
     let before = cassie.metrics();
@@ -37,6 +48,7 @@ fn should_preserve_zero_limit_with_a_tiny_rest_vector_budget() {
     // Arrange
     let mut denied = circle_fixture("rest_vector_zero_budget_denied", 3, 640);
     create_index(&denied, "index_type = bruteforce");
+    assert_bruteforce_index(&denied, "l2");
     denied
         .startup()
         .expect("start denied in-memory vector fixture");
@@ -70,6 +82,7 @@ fn should_preserve_zero_limit_with_a_tiny_rest_vector_budget() {
     // A separate small admitted budget qualifies empty success without vector work.
     let mut cassie = circle_fixture("rest_vector_zero_budget_admitted", 3, 4 * 1024);
     create_index(&cassie, "index_type = bruteforce");
+    assert_bruteforce_index(&cassie, "l2");
     cassie
         .startup()
         .expect("start admitted in-memory vector fixture");
@@ -217,8 +230,7 @@ fn should_enforce_actual_rest_vector_result_rows_without_rejecting_a_larger_requ
 }
 
 fn cosine_index(cassie: &cassie::app::Cassie) {
-    cassie.execute_sql(&cassie.create_session("tester", None),
-            "CREATE INDEX docs_vector ON docs USING vector (embedding) WITH (source_field = content, metric = cosine, index_type = bruteforce)", vec![]).expect("cosine index");
+    super::support_retrieval::create_index_with_metric(cassie, "cosine", "index_type = bruteforce");
 }
 
 fn add_wide_payloads(cassie: &cassie::app::Cassie, rows: u32) {
@@ -252,6 +264,7 @@ fn should_reject_cold_normalized_rest_search_without_success_metrics_given_low_m
     // Arrange
     let cassie = circle_fixture("rest_normalized_cold_budget", 64, 640);
     cosine_index(&cassie);
+    assert_bruteforce_index(&cassie, "cosine");
     let before = cassie.metrics();
 
     // Act

@@ -21,6 +21,7 @@ enum Action {
     Contention {
         observed: SyncSender<()>,
         expire_deadline: bool,
+        resume: Option<Receiver<()>>,
     },
     AfterAdmission {
         observed: SyncSender<()>,
@@ -100,14 +101,6 @@ pub(crate) fn install_after_worker_result(
     install(cassie, session, Action::WorkerResult { observed })
 }
 
-pub(crate) fn install_on_capture_contention(
-    cassie: &Cassie,
-    session: &CassieSession,
-    observed: SyncSender<()>,
-) -> Guard {
-    install_capture_interruption(cassie, session, observed, false)
-}
-
 pub(crate) fn install_capture_interruption(
     cassie: &Cassie,
     session: &CassieSession,
@@ -120,6 +113,24 @@ pub(crate) fn install_capture_interruption(
         Action::Contention {
             observed,
             expire_deadline,
+            resume: None,
+        },
+    )
+}
+
+pub(crate) fn install_paused_capture_contention(
+    cassie: &Cassie,
+    session: &CassieSession,
+    observed: SyncSender<()>,
+    resume: Receiver<()>,
+) -> Guard {
+    install(
+        cassie,
+        session,
+        Action::Contention {
+            observed,
+            expire_deadline: false,
+            resume: Some(resume),
         },
     )
 }
@@ -219,10 +230,12 @@ pub(super) fn on_capture_contended(
     controls: &mut QueryExecutionControls,
 ) {
     if let Some(Hook {
-        action: Action::Contention {
-            observed,
-            expire_deadline,
-        },
+        action:
+            Action::Contention {
+                observed,
+                expire_deadline,
+                resume,
+            },
         ..
     }) = take_if(cassie, session, |action| {
         matches!(action, Action::Contention { .. })
@@ -231,6 +244,11 @@ pub(super) fn on_capture_contended(
             controls.deadline = Some(Instant::now());
         }
         observed.send(()).expect("actual capture contention");
+        if let Some(resume) = resume {
+            resume
+                .recv_timeout(Duration::from_secs(5))
+                .expect("resume contended capture");
+        }
     }
 }
 

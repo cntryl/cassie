@@ -1,0 +1,15 @@
+{
+  "head": "168527ec5804b47511a3a662484984a935be5c11",
+  "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+  "cells": 8,
+  "samples": 4400,
+  "source_profile": "test + replay-benchmark-observation;64MiB/120000ms",
+  "summary_math": "All lane raw/log SHA, individual median/p95/min/max,foreground sums,global deltas,throughput,CSV fields and rawgzip records independently match.",
+  "archive_sha256": "20851f66fb56e59d6883f4dfb793fb3a2477dfff2e295e07b3a7c464d6a4ff27",
+  "archive_files": 17,
+  "archive_bytes": 89343,
+  "archive_verification": "Every archived original byte matches current8logs+8rawJSON+matrix; only archive metadata normalized.",
+  "command_seconds_sum": 1378.667854333,
+  "correction": "SQL lanes have no replay API applied/skipped report; derivedsummary now explicitly marksnotapplicable,checksactualtransactionResults+finalstate. Rawbytesunchanged.",
+  "scope": "Finite embedded SQL diagnostic; onefreshstore/cell, no speedup/variance/per-requestfsync/nativequiescence/crash/power/cloudloss claim. C owns timedread/indexexecutionattestation."
+}

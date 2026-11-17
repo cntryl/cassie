@@ -1,0 +1,8 @@
+{
+  "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "tree": "d051222b580d48266b3ed604f588928bd443e660",
+  "finding": "Late derived-evidence wording correction: A apply summary labels SQL per_batch_report_count_assertions passed and skipped0, but sourceSQLbranch checksResult only. Report applied/skipped assertions occur only replay-API branch.",
+  "scope": "Exactly16SQLlanesinA32applymatrix;API16applyandAPIaux16retain their actual replayreportassertions. Rawrecords/logs/archives/sourceandhistoricalmodeljudgmentsunchanged.",
+  "action": "CorrectderivedSQLverificationfields toexplicitnotapplicable/null +actualtransactionResult/finalrows/buckets/checkpoint/cleanreopen wording. Labelaslateevidencecorrection;donotrewritethepriorAacceptancereceipt orclaimSQLreportswererun.",
+  "qualification": "Original successfulSQLtransactions and finalstate/reopen checks remainexecuted;thisisnotanewruntimefailure."
+}

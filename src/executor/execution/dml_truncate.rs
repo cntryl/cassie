@@ -41,7 +41,7 @@ pub(in crate::executor::execution) fn execute_truncate(
         }
         check_timeout(controls)?;
         if statement.restart_identity {
-            let working_cassie = cassie.with_statement_metadata_writer(batch.session());
+            let working_cassie = cassie.with_statement_metadata_writer(batch.session())?;
             restart_owned_sequences(&working_cassie, session, batch.session(), &tables)?;
         }
         cassie
@@ -220,7 +220,7 @@ fn restart_owned_sequences(
                         working
                             .current_database()
                             .unwrap_or(&cassie.default_database),
-                        working.transaction_storage_overlay(),
+                        working.transaction_storage_overlay()?,
                         true,
                     )
                     .map_err(QueryError::from)?,
@@ -228,6 +228,10 @@ fn restart_owned_sequences(
         } else {
             None
         };
+        #[cfg(test)]
+        if staged {
+            restart_pause::after_overlay_capture();
+        }
         let ((), updated) = cassie
             .midge
             .update_sequence(&sequence, |metadata| {
@@ -239,7 +243,7 @@ fn restart_owned_sequences(
             .map_err(QueryError::from)?;
         if transactional && !private {
             working
-                .transaction_storage_overlay()
+                .transaction_storage_overlay()?
                 .lock()
                 .mark_sequence_restarted(updated.object_id);
         }
@@ -254,3 +258,48 @@ fn restart_owned_sequences(
 #[cfg(test)]
 #[path = "dml_truncate_restart_tests.rs"]
 mod restart_tests;
+
+#[cfg(test)]
+impl Cassie {
+    pub(crate) fn pause_truncate_restart_after_overlay_capture_for_test(
+        entered: std::sync::mpsc::SyncSender<()>,
+        resume: std::sync::mpsc::Receiver<()>,
+    ) -> restart_pause::Guard {
+        restart_pause::install(entered, resume)
+    }
+}
+
+#[cfg(test)]
+mod restart_pause {
+    use std::cell::RefCell;
+    use std::sync::mpsc::{Receiver, SyncSender};
+    use std::time::Duration;
+
+    thread_local! {
+        static NEXT: RefCell<Option<(SyncSender<()>, Receiver<()>)>> = const { RefCell::new(None) };
+    }
+
+    pub(crate) struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            NEXT.with(|slot| {
+                slot.borrow_mut().take();
+            });
+        }
+    }
+
+    pub(super) fn install(entered: SyncSender<()>, resume: Receiver<()>) -> Guard {
+        NEXT.with(|slot| assert!(slot.replace(Some((entered, resume))).is_none()));
+        Guard
+    }
+
+    pub(super) fn after_overlay_capture() {
+        if let Some((entered, resume)) = NEXT.with(|slot| slot.borrow_mut().take()) {
+            entered.send(()).expect("restart overlay captured");
+            resume
+                .recv_timeout(Duration::from_secs(10))
+                .expect("resume restart");
+        }
+    }
+}

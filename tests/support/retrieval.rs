@@ -53,14 +53,24 @@ fn new_circle_fixture(budget: usize, max_result_rows: usize) -> Cassie {
     cassie
 }
 
+// Setup has an ordinary independent executor budget. Requests still enter the
+// configured Cassie (including its unchanged tiny REST/SQL memory limit).
 pub fn create_index(cassie: &Cassie, options: &str) {
-    cassie
-        .execute_sql(
-            &cassie.create_session("tester", None),
-            &format!(
-                "CREATE INDEX docs_vector ON docs USING vector (embedding) WITH (source_field = content, metric = l2, {options})"
-            ),
-            vec![],
-        )
-        .expect("create vector index");
+    create_index_with_metric(cassie, "l2", options);
+}
+
+pub fn create_index_with_metric(cassie: &Cassie, metric: &str, options: &str) {
+    let plan = cassie
+        .compile_sql_physical_plan_for_diagnostics(&format!(
+            "CREATE INDEX docs_vector ON docs USING vector (embedding) WITH (source_field = content, metric = {metric}, {options})"
+        ))
+        .expect("compile fixture vector index");
+    let controls = cassie::runtime::QueryExecutionControls::from_limits(
+        &cassie::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let output = cassie::executor::run_with_controls(cassie, &plan, vec![], &controls)
+        .expect("create vector index under setup controls");
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }

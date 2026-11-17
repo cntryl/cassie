@@ -26,6 +26,8 @@ impl Cassie {
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
         self.execute_pgwire_query(session, cancellation, |controls, authority| {
+            let operation_session = session.with_operation_failure_authority(authority);
+            let session = &operation_session;
             let (parsed, sql) = statement;
             if let Some(result) =
                 self.quarantined_statement_result(session, &parsed.statement, controls)
@@ -51,6 +53,8 @@ impl Cassie {
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
         self.execute_pgwire_query(session, cancellation, |controls, authority| {
+            let operation_session = session.with_operation_failure_authority(authority);
+            let session = &operation_session;
             let (sql, frontend_sql) = query;
             if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
                 return result;
@@ -99,6 +103,7 @@ impl Cassie {
         ) -> Result<QueryResult, CassieError>,
     ) -> Result<QueryResult, CassieError> {
         let query_started = Instant::now();
+        session.note_operation_worker_started();
         let recovery_required = self.check_storage_recovery_required().is_err();
         #[cfg(test)]
         if !recovery_required {
@@ -108,15 +113,13 @@ impl Cassie {
             None
         } else if let Some(guard) = self.runtime.try_begin_running_query() {
             Some(guard)
+        } else if self.check_storage_recovery_required().is_err() {
+            None
         } else {
-            match self.check_storage_recovery_required() {
-                Err(_) => None,
-                Ok(()) => {
-                    return Err(CassieError::Execution(
-                        "query admission exhausted".to_string(),
-                    ))
-                }
-            }
+            session.reject_operation_admission();
+            return Err(CassieError::Execution(
+                "query admission exhausted".to_string(),
+            ));
         };
         let mut controls = QueryExecutionControls::with_cancellation(
             &self.runtime.limits(),
@@ -129,17 +132,26 @@ impl Cassie {
             authority_test_hooks::after_admission(self, session);
         }
         #[cfg(test)]
-        let authority = running_guard.as_ref().map(|_| {
-            super::FailureAuthority::capture_with_contention(session, || {
+        let authority = Some({
+            super::FailureAuthority::capture_for_operation_with_contention(session, || {
                 authority_test_hooks::on_capture_contended(self, session, &mut controls);
             })
         });
         #[cfg(not(test))]
-        let authority = running_guard
-            .as_ref()
-            .map(|_| super::FailureAuthority::capture(session));
+        let authority = Some(super::FailureAuthority::capture_for_operation(session));
+        #[cfg(test)]
+        if let Some(authority) = authority.as_ref() {
+            super::query_lifecycle::authority_test_hooks::after_root_capture(
+                self, session, authority,
+            );
+        }
         self.runtime.record_query_memory(&controls);
-        let result = execute(&controls, authority.as_ref());
+        let result = authority
+            .as_ref()
+            .map_or(Ok(()), |authority| {
+                CassieSession::ensure_admitted_operation_owner(authority)
+            })
+            .and_then(|()| execute(&controls, authority.as_ref()));
         #[cfg(test)]
         authority_test_hooks::after_worker_result(self, session, authority.as_ref(), &result);
         let elapsed = query_started.elapsed();
@@ -153,8 +165,6 @@ impl Cassie {
                 self.runtime.record_query_error(elapsed, error);
                 if let Some(authority) = authority.as_ref() {
                     authority.mark_failed_if_current(session);
-                } else if session.is_transaction_active() {
-                    session.mark_transaction_failed();
                 }
             }
         }

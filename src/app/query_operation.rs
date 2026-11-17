@@ -27,9 +27,10 @@ impl Cassie {
         parameter_type_oids: &[i32],
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
+        let operation_session = session.with_operation_failure_authority(scope.1);
         crate::executor::run_with_session_parameter_oids_for_operation(
             self,
-            Some(session),
+            Some(&operation_session),
             physical,
             params,
             parameter_type_oids,

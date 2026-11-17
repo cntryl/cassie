@@ -207,6 +207,7 @@ async fn prepare_transaction_view(
     let cancellation = registration.begin_query();
     let handle = cancellation.handle();
     let session = request.session.clone();
+    session.note_operation_worker_started();
     let parsed = parsed.clone();
     run_pgwire_blocking(
         Arc::clone(cassie),

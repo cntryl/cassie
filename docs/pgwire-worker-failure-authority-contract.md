@@ -1,11 +1,24 @@
 # Pgwire worker failure authority (#1297)
 
+## Current integrated contract
+
+The worker-only increment below is historical. The integrated #1290 repair now
+carries operation ownership through outer simple, extended and COPY handlers,
+terminal retirement, quarantine and portal publication/cleanup. Retained worker
+leases and metadata reservations follow the actual last owner. See the
+[transaction authority contract](transaction-authority-midge-contract.md) and
+[qualification record](evidence/runtime-closeout-2026-11-17/README.md) for exact source identities, actual gates and remaining
+published-Midge limits.
+
+## Historical worker-only increment
+
 This child of #1295 / PR #1296 covers only failure completion inside
 `execute_pgwire_query`. The parent merged as
 `42a819108c8fcd6d7e4447ec3ef4e088fb283abe`. The full locked suite passed at
 `11da367a`; affected worker tests, strict Clippy, formatting, touched-test policy
 and inventory passed at `01c39ea5` after test-only semicolon corrections.
-Final-head hosted qualification is pending.
+Hosted qualification was pending in that increment's original record; current
+publication-head outcomes are tracked in the integrated qualification record.
 
 A healthy request retains the existing nonblocking running-query admission,
 including its recovery recheck when the slot is unavailable. The operation

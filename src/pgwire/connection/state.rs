@@ -3,6 +3,14 @@ use crate::pgwire::protocol::{Portal, PreparedStatement};
 use crate::runtime::{QueryExecutionControls, RuntimeState};
 use std::collections::HashMap;
 
+#[path = "state/portal_owners.rs"]
+mod portal_owners;
+use portal_owners::PortalOwners;
+
+#[cfg(test)]
+#[path = "state/portal_ownership_tests.rs"]
+mod portal_ownership_tests;
+
 #[derive(Debug)]
 pub(super) enum HandshakeState {
     AwaitStartup,
@@ -82,6 +90,7 @@ pub(super) struct SessionState {
     pub(super) prepared_result_descriptors:
         HashMap<u64, std::sync::Arc<crate::pgwire::protocol::PreparedResultDescriptor>>,
     pub(super) portals: HashMap<String, Portal>,
+    pub(super) portal_owners: PortalOwners,
     pub(super) portal_cursors: HashMap<String, crate::midge::adapter::MidgeRowCursor>,
     pub(super) portal_memory_controls: QueryExecutionControls,
     pub(super) portal_reads: super::portal_reads::PortalReadOwners,
@@ -90,6 +99,7 @@ pub(super) struct SessionState {
     pub(super) prepared_wire_epoch: u64,
     pub(super) backend_registration: Option<crate::runtime::PgwireBackendRegistration>,
     pub(super) invalidate_portals_on_sync: bool,
+    pub(super) portal_invalidation_owner: Option<crate::app::FailureAuthority>,
     pub(super) extended_cycle: super::transactions::ExtendedCycle,
 }
 
@@ -111,6 +121,7 @@ impl SessionState {
             prepared_statements: HashMap::new(),
             prepared_result_descriptors: HashMap::new(),
             portals: HashMap::new(),
+            portal_owners: PortalOwners::default(),
             portal_cursors: HashMap::new(),
             portal_memory_controls,
             portal_reads: super::portal_reads::PortalReadOwners::default(),
@@ -118,6 +129,7 @@ impl SessionState {
             prepared_wire_epoch: 0,
             backend_registration: None,
             invalidate_portals_on_sync: false,
+            portal_invalidation_owner: None,
             extended_cycle: super::transactions::ExtendedCycle::default(),
         }
     }
@@ -145,7 +157,96 @@ impl SessionState {
     pub(super) fn remove_portal(&mut self, name: &str) -> Option<Portal> {
         self.clear_portal_execution(name);
         self.portal_reads.remove(name);
+        self.portal_owners.remove(name);
         self.portals.remove(name)
+    }
+
+    /// Called only inside the captured Bind owner's publication guard.
+    pub(super) fn publish_bound_portal(
+        &mut self,
+        portal: Portal,
+        identity: crate::app::FailureAuthorityIdentity,
+        read_view: Option<std::sync::Arc<crate::app::BoundReadView>>,
+        runtime: &RuntimeState,
+        limit: usize,
+    ) -> Result<(), crate::app::CassieError> {
+        let replaced = self.portals.contains_key(&portal.name);
+        if !replaced && self.portals.len() >= limit {
+            return Err(crate::app::CassieError::ResourceLimit(
+                "portal limit exceeded".to_owned(),
+            ));
+        }
+        let owner =
+            self.portal_owners
+                .prepare(&portal.name, identity, &self.portal_memory_controls)?;
+        if let Some(read_view) = read_view {
+            if let Err(error) =
+                self.portal_reads
+                    .insert(&portal.name, read_view, &self.portal_memory_controls)
+            {
+                self.portal_owners.release_empty();
+                return Err(error);
+            }
+        } else {
+            self.portal_reads.remove(&portal.name);
+        }
+        self.clear_portal_execution(&portal.name);
+        self.portal_owners.publish(owner);
+        self.portals.insert(portal.name.clone(), portal);
+        if !replaced {
+            runtime.record_pgwire_portal_delta(1);
+        }
+        Ok(())
+    }
+
+    pub(super) fn adopt_operation_portals(&mut self, authority: &crate::app::FailureAuthority) {
+        if let Some((before, after)) = authority.portal_adoption() {
+            self.portal_owners.adopt(before, after);
+        }
+    }
+
+    pub(super) fn portal_owner_identity(
+        &self,
+        name: &str,
+    ) -> Option<crate::app::FailureAuthorityIdentity> {
+        self.portal_owners.identity(name)
+    }
+
+    pub(super) fn reconcile_portals(
+        &mut self,
+        identity: crate::app::FailureAuthorityIdentity,
+        runtime: &RuntimeState,
+    ) {
+        let removed = self
+            .portals
+            .keys()
+            .filter(|name| !self.portal_owners.belongs_to(name, identity))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.remove_owned_portal_names(&removed, runtime);
+    }
+
+    pub(super) fn clear_portals_owned_by(
+        &mut self,
+        identity: crate::app::FailureAuthorityIdentity,
+        runtime: &RuntimeState,
+    ) {
+        let removed = self
+            .portals
+            .keys()
+            .filter(|name| self.portal_owners.belongs_to(name, identity))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.remove_owned_portal_names(&removed, runtime);
+    }
+
+    fn remove_owned_portal_names(&mut self, names: &[String], runtime: &RuntimeState) {
+        for name in names {
+            self.remove_portal(name);
+        }
+        record_negative_delta(names.len(), |delta| {
+            runtime.record_pgwire_portal_delta(delta);
+        });
     }
 
     pub(super) fn remove_portals_for_prepared_id(&mut self, prepared_id: u64) -> usize {
@@ -228,6 +329,7 @@ impl SessionState {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn clear_all_portals(&mut self, runtime: &RuntimeState) {
         record_negative_delta(self.portals.len(), |delta| {
             runtime.record_pgwire_portal_delta(delta);

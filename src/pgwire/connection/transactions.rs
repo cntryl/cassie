@@ -5,30 +5,79 @@
 pub(super) mod portal_snapshot_test_hooks;
 
 use super::state::SessionState;
-use crate::app::{Cassie, CassieError, CassieSession, SessionTransactionStatus};
+#[cfg(test)]
+use crate::app::SessionTransactionStatus;
+use crate::app::{Cassie, CassieError, CassieSession};
 use crate::runtime::RuntimeState;
 use crate::sql::ast::{ParsedStatement, QueryStatement, StatementFamily};
 use std::sync::Arc;
 use tokio::io::AsyncWrite;
 
-pub(super) fn fail_query(
+/// Protocol-local failures capture contemporaneously on a blocking worker.
+pub(super) async fn capture_protocol_owner(session: &CassieSession) {
+    if !session.may_capture_protocol_owner() {
+        return;
+    }
+    let session = session.clone();
+    let _ = super::worker_lease::spawn_owned_blocking(move || {
+        crate::app::FailureAuthority::capture_for_operation(&session)
+    })
+    .await;
+}
+
+#[cfg(test)]
+pub(super) fn observe_portal_cleanup(session: &CassieSession) {
+    portal_snapshot_test_hooks::after_snapshot(session, session.transaction_status_snapshot());
+}
+
+pub(super) async fn capture_and_validate_protocol_owner(
+    session: &CassieSession,
+) -> Result<(), CassieError> {
+    let session = session.clone();
+    super::worker_lease::spawn_owned_blocking(move || {
+        let authority = crate::app::FailureAuthority::capture_for_operation(&session);
+        CassieSession::ensure_admitted_operation_owner(&authority)
+    })
+    .await
+    .map_err(|error| CassieError::Execution(format!("protocol owner worker failed: {error}")))?
+}
+
+pub(super) async fn fail_owned_transaction(session: &CassieSession) {
+    let session = session.clone();
+    let _ = super::worker_lease::spawn_owned_blocking(move || session.fail_operation_transaction())
+        .await;
+}
+
+pub(super) async fn fail_owned_query(
     runtime: &RuntimeState,
     state: &mut SessionState,
     session: &CassieSession,
 ) {
-    if session.is_implicit_transaction() {
-        session.rollback_transaction();
-    } else {
-        session.mark_transaction_failed();
-    }
-    clear_idle_portals(runtime, state, session);
+    fail_owned_transaction(session).await;
+    clear_owned_idle_portals(runtime, state, session);
 }
 
+pub(super) fn clear_owned_idle_portals(
+    runtime: &RuntimeState,
+    state: &mut SessionState,
+    session: &CassieSession,
+) {
+    if let Some(authority) = session.operation_failure_authority() {
+        state.adopt_operation_portals(authority);
+    }
+    session.try_with_retired_operation_owner(|owner| state.clear_portals_owned_by(owner, runtime));
+    session.try_with_current_portal_lifetime(|current| state.reconcile_portals(current, runtime));
+}
+
+#[cfg(test)]
 pub(super) fn clear_idle_portals(
     runtime: &RuntimeState,
     state: &mut SessionState,
     session: &CassieSession,
 ) {
+    if let Some(authority) = session.operation_failure_authority() {
+        state.adopt_operation_portals(authority);
+    }
     let status = session.transaction_status_snapshot();
     #[cfg(test)]
     portal_snapshot_test_hooks::after_snapshot(session, status);
@@ -44,7 +93,7 @@ pub(super) async fn finish_query(
     state: &mut SessionState,
     session: &CassieSession,
 ) -> Result<(), std::io::Error> {
-    if session.is_implicit_transaction() {
+    if !session.operation_was_rejected() && session.is_implicit_transaction() {
         let transaction_session = session.clone();
         if let Err(error) =
             super::run_pgwire_blocking(cassie, "pgwire_implicit_commit", move |cassie| {
@@ -52,11 +101,11 @@ pub(super) async fn finish_query(
             })
             .await
         {
-            session.rollback_transaction();
+            fail_owned_transaction(session).await;
             super::write_error_response(write_half, &super::cassie_pg_error(&error)).await?;
         }
     }
-    clear_idle_portals(runtime, state, session);
+    clear_owned_idle_portals(runtime, state, session);
     super::writers::write_changed_parameter_statuses(
         write_half,
         session,

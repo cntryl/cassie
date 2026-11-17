@@ -62,6 +62,8 @@ impl Cassie {
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         let (controls, authority) = scope;
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {
@@ -110,6 +112,8 @@ impl Cassie {
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         let (controls, authority) = scope;
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {
@@ -150,6 +154,8 @@ impl Cassie {
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         let (controls, authority) = scope;
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {
@@ -157,7 +163,7 @@ impl Cassie {
         }
         // Every statement enters here, including CTAS, which returns before the
         // bound-statement path below.
-        session.note_statement_projection_effect(&parsed.statement);
+        session.note_statement_projection_effect(&parsed.statement)?;
         if let QueryStatement::CreateTable(statement) = &parsed.statement {
             if statement.as_query.is_some() {
                 self.ensure_session_database_access(session)?;
@@ -273,7 +279,7 @@ impl Cassie {
         let _storage_scope = if transaction_active {
             Some(self.midge.enter_transactional_ddl_scope(
                 session.current_database().unwrap_or(&self.default_database),
-                session.transaction_storage_overlay(),
+                session.transaction_storage_overlay()?,
                 catalog_statement,
             )?)
         } else {

@@ -306,13 +306,13 @@ impl Cassie {
         let _storage_scope = if transactional {
             Some(self.midge.enter_transactional_ddl_scope(
                 session.current_database().unwrap_or(&self.default_database),
-                staging.transaction_storage_overlay(),
+                staging.transaction_storage_overlay()?,
                 false,
             )?)
         } else {
             None
         };
-        let working = self.with_statement_metadata_writer(staging);
+        let working = self.with_statement_metadata_writer(staging)?;
         let mut references = super::foreign_key_checks::ForeignKeyReferences::default();
         let schema = self.catalog.get_schema(&statement.table);
         let mut seen_ids = BTreeSet::new();

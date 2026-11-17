@@ -2,32 +2,21 @@ use std::sync::{Arc, Barrier};
 
 use cassie::app::Cassie;
 use cassie::config::{
-    CassieRuntimeConfig, EmbeddingsRuntimeConfig, ExecutionResultCacheEnabled, LocalRuntimeConfig,
+    CassieRuntimeConfig, CassieRuntimeLimits, EmbeddingsRuntimeConfig, ExecutionResultCacheEnabled,
+    LocalRuntimeConfig,
 };
 
 const TABLE: &str = "ann_concurrent_source";
 const QUERY: &str = "SELECT id, vector_distance(embedding, '[0,0,0]') AS distance FROM ann_concurrent_source ORDER BY distance ASC LIMIT 5";
 
 fn fixture(index_type: &str) -> Arc<Cassie> {
-    fixture_with_memory_budget(index_type, None)
+    fixture_before_index(index_type, |_| {})
 }
 
-fn fixture_with_memory_budget(
-    index_type: &str,
-    query_memory_budget_bytes: Option<usize>,
-) -> Arc<Cassie> {
-    fixture_before_index(index_type, query_memory_budget_bytes, |_| {})
-}
-
-fn fixture_before_index(
-    index_type: &str,
-    query_memory_budget_bytes: Option<usize>,
-    before_index: impl FnOnce(&Cassie),
-) -> Arc<Cassie> {
+fn fixture_before_index(index_type: &str, before_index: impl FnOnce(&Cassie)) -> Arc<Cassie> {
+    // Setup uses its ordinary creation budget. Loading probes narrow only the
+    // actual executor controls, after the table/index and plan exist.
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    if let Some(query_memory_budget_bytes) = query_memory_budget_bytes {
-        config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
-    }
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
         model: "deterministic-test".to_string(),
@@ -82,7 +71,7 @@ fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
     let mut expected = None;
-    let cassie = fixture_before_index("hnsw", None, |cassie| {
+    let cassie = fixture_before_index("hnsw", |cassie| {
         expected = Some(
             cassie
                 .execute_sql(&cassie.create_session("baseline", None), QUERY, vec![])
@@ -176,7 +165,7 @@ fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
     let mut expected = None;
-    let cassie = fixture_before_index("ivfflat", None, |cassie| {
+    let cassie = fixture_before_index("ivfflat", |cassie| {
         expected = Some(
             cassie
                 .execute_sql(&cassie.create_session("baseline", None), QUERY, vec![])
@@ -375,16 +364,43 @@ fn should_cancel_ivfflat_membership_loading_without_publishing_success_metrics()
 fn should_reject_hnsw_loading_when_query_memory_is_exhausted() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    let cassie = fixture_with_memory_budget("hnsw", Some(1_024));
+    let cassie = fixture("hnsw");
+    let plan = cassie
+        .compile_sql_physical_plan_for_diagnostics(QUERY)
+        .expect("compile ANN plan under creation budget");
+    let ordinary_limits = CassieRuntimeLimits::default();
+    let ordinary = cassie::runtime::QueryExecutionControls::from_limits(
+        &ordinary_limits,
+        std::time::Instant::now(),
+    );
+    let baseline = cassie.metrics();
+    let positive = cassie::executor::run_with_controls(&cassie, &plan, vec![], &ordinary)
+        .expect("same executor plan selects ANN with ordinary controls");
+    assert_eq!(positive.rows().len(), 5);
+    assert_eq!(
+        cassie.metrics()["vector"]["hnsw_executions"].as_u64(),
+        baseline["vector"]["hnsw_executions"]
+            .as_u64()
+            .map(|count| count + 1)
+    );
+    drop(positive);
+    assert_eq!(ordinary.current_query_memory_bytes(), 0);
+    let mut restricted_limits = ordinary_limits;
+    restricted_limits.query_memory_budget_bytes = 1_024;
+    let restricted = cassie::runtime::QueryExecutionControls::from_limits(
+        &restricted_limits,
+        std::time::Instant::now(),
+    );
     let before = cassie.metrics();
 
-    // Act
-    let error = cassie
-        .execute_sql(&cassie.create_session("reader", None), QUERY, vec![])
+    // Act: this is the executor-loading resource boundary, not end-to-end SQL admission.
+    let error = cassie::executor::run_with_controls(&cassie, &plan, vec![], &restricted)
         .expect_err("accounted HNSW state should exceed the low query budget");
     let after = cassie.metrics();
 
     // Assert
+    assert_eq!(restricted.query_memory_budget_bytes, 1_024);
+    assert_eq!(restricted.current_query_memory_bytes(), 0);
     assert!(
         error.to_string().contains("query memory budget"),
         "unexpected memory error: {error}"
@@ -440,16 +456,43 @@ fn should_publish_hnsw_metrics_only_after_selecting_the_ann_path() {
 fn should_reject_ivfflat_loading_when_query_memory_is_exhausted() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    let cassie = fixture_with_memory_budget("ivfflat", Some(1_024));
+    let cassie = fixture("ivfflat");
+    let plan = cassie
+        .compile_sql_physical_plan_for_diagnostics(QUERY)
+        .expect("compile ANN plan under creation budget");
+    let ordinary_limits = CassieRuntimeLimits::default();
+    let ordinary = cassie::runtime::QueryExecutionControls::from_limits(
+        &ordinary_limits,
+        std::time::Instant::now(),
+    );
+    let baseline = cassie.metrics();
+    let positive = cassie::executor::run_with_controls(&cassie, &plan, vec![], &ordinary)
+        .expect("same executor plan selects ANN with ordinary controls");
+    assert_eq!(positive.rows().len(), 5);
+    assert_eq!(
+        cassie.metrics()["vector"]["ivfflat_executions"].as_u64(),
+        baseline["vector"]["ivfflat_executions"]
+            .as_u64()
+            .map(|count| count + 1)
+    );
+    drop(positive);
+    assert_eq!(ordinary.current_query_memory_bytes(), 0);
+    let mut restricted_limits = ordinary_limits;
+    restricted_limits.query_memory_budget_bytes = 1_024;
+    let restricted = cassie::runtime::QueryExecutionControls::from_limits(
+        &restricted_limits,
+        std::time::Instant::now(),
+    );
     let before = cassie.metrics();
 
-    // Act
-    let error = cassie
-        .execute_sql(&cassie.create_session("reader", None), QUERY, vec![])
+    // Act: this is the executor-loading resource boundary, not end-to-end SQL admission.
+    let error = cassie::executor::run_with_controls(&cassie, &plan, vec![], &restricted)
         .expect_err("accounted IVFFlat state should exceed the low query budget");
     let after = cassie.metrics();
 
     // Assert
+    assert_eq!(restricted.query_memory_budget_bytes, 1_024);
+    assert_eq!(restricted.current_query_memory_bytes(), 0);
     assert!(
         error.to_string().contains("query memory budget"),
         "unexpected memory error: {error}"

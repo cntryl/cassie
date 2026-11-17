@@ -11,6 +11,7 @@ use crate::sql::ast::TransactionModes;
 impl CassieSession {
     /// Observe root status under the transaction mutex. Detached forks have
     /// their own mutex and must not be mistaken for the root's authority.
+    #[cfg(test)]
     pub(crate) fn with_root_transaction_status_locked<T>(
         &self,
         operation: impl FnOnce(Option<SessionTransactionStatus>) -> T,
@@ -98,6 +99,7 @@ impl CassieSession {
             ));
         }
         let mut transaction = self.transaction.lock();
+        self.ensure_begin_operation_current_locked(&transaction, authority)?;
         // Snapshot under the transaction mutex. Retirement restores session
         // state under the same mutex, so a new transaction never captures the
         // previous transaction's `SET LOCAL` values.
@@ -136,6 +138,7 @@ impl CassieSession {
                 requested_modes.deferrable.or(transaction.modes.deferrable);
             return Ok(());
         }
+        let before = super::FailureAuthorityIdentity::from_transaction(&transaction);
         transaction.status = SessionTransactionStatus::InTransaction;
         transaction.implicit = implicit;
         transaction.isolation = isolation;
@@ -160,13 +163,14 @@ impl CassieSession {
         transaction.commit_thread = None;
         transaction.deferred_failure = DeferredFailure::None;
         if let Some(authority) = authority {
-            authority.adopt_start(self, &transaction);
+            authority.adopt_start(self, &transaction, before);
         }
         Ok(())
     }
 
     pub(crate) fn set_transaction_isolation(&self, value: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status == SessionTransactionStatus::Idle || transaction.implicit {
             // The bounded #819 profile keeps this a deterministic 0A000 rejection;
             // PostgreSQL's 25P01 warning-and-no-op form is not selected.
@@ -231,6 +235,9 @@ impl CassieSession {
 
     pub(crate) fn mark_transaction_query(&self) {
         let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
         if transaction.status == SessionTransactionStatus::InTransaction {
             transaction.has_query = true;
         }
@@ -254,6 +261,7 @@ impl CassieSession {
     ) -> Result<(), CassieError> {
         let read_only = {
             let mut transaction = self.transaction.lock();
+            self.ensure_operation_current_locked(&transaction)?;
             if transaction.status == SessionTransactionStatus::Idle {
                 // Settings have their own lock; an idle check must not later
                 // fail a transaction started by another session clone.
@@ -295,6 +303,7 @@ impl CassieSession {
     pub(super) fn set_transaction_read_only(&self, value: &str) -> Result<String, CassieError> {
         let read_only = crate::app::session_settings::parse_bool(value)?;
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if !read_only
             && transaction.modes.read_only == Some(true)
             && (transaction.has_query
@@ -374,6 +383,7 @@ impl CassieSession {
         &self,
         mut transaction: parking_lot::MutexGuard<'_, super::SessionTransactionState>,
     ) {
+        self.note_owned_retirement_locked(&transaction);
         let unique_owner_id = transaction.unique_owner_id;
         transaction.status = SessionTransactionStatus::Idle;
         transaction.implicit = false;
@@ -421,8 +431,30 @@ impl CassieSession {
     /// and declared projection write mode cannot change through a statement
     /// fork or a new declaration. The seal is released when the returned guard
     /// drops, which matters only if COMMIT fails and leaves the transaction open.
+    #[cfg(test)]
     pub(crate) fn seal_transaction_for_commit(&self) -> CommitSeal<'_> {
-        let mut transaction = self.transaction.lock();
+        self.seal_transaction_locked(self.transaction.lock())
+    }
+
+    pub(crate) fn seal_transaction_for_operation(&self) -> Result<CommitSeal<'_>, CassieError> {
+        let transaction = self.transaction.lock();
+        if let Some(authority) = self.operation_failure_authority.as_ref() {
+            let owner = authority.owner.lock();
+            if !authority.matches_root(self)
+                || !owner.captured
+                || owner.admission_rejected
+                || owner.identity != Some((transaction.unique_owner_id, transaction.rollback_epoch))
+            {
+                return Err(super::sequence_effect::changed());
+            }
+        }
+        Ok(self.seal_transaction_locked(transaction))
+    }
+
+    fn seal_transaction_locked(
+        &self,
+        mut transaction: parking_lot::MutexGuard<'_, super::SessionTransactionState>,
+    ) -> CommitSeal<'_> {
         let sealed = transaction.status == SessionTransactionStatus::InTransaction
             && !transaction.sealed_for_commit;
         if sealed {
@@ -442,7 +474,26 @@ impl CassieSession {
         if super::is_projection_write_mode(name) {
             return self.set_projection_write_mode(Some(value));
         }
-        let mut transaction = self.transaction.lock();
+        self.with_owned_setting_transaction(|transaction| {
+            if self.owns_transaction_lifecycle {
+                self.set_local_setting_locked(transaction, name, value)
+            } else if transaction.status == SessionTransactionStatus::InTransaction {
+                // Statement forks retain private settings. Their restoration
+                // keys must stay with that same private payload, while the
+                // actual-root guard still fences the whole mutation.
+                self.set_local_setting_locked(&mut self.transaction.lock(), name, value)
+            } else {
+                Ok(())
+            }
+        })
+    }
+
+    fn set_local_setting_locked(
+        &self,
+        transaction: &mut super::SessionTransactionState,
+        name: &str,
+        value: &str,
+    ) -> Result<(), CassieError> {
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Ok(());
         }
@@ -450,7 +501,8 @@ impl CassieSession {
         if !transaction.local_settings.contains(&name) {
             transaction.local_settings.push(name.clone());
         }
-        drop(transaction);
+        #[cfg(test)]
+        self.observe_local_setting_write_for_test();
         self.settings.lock().set(&name, value).map(|_| ())
     }
 
@@ -468,13 +520,24 @@ impl CassieSession {
     }
 
     pub(crate) fn rollback_transaction(&self) {
-        let mut transaction = self.transaction.lock();
+        if let Some(authority) = self.operation_failure_authority.as_ref() {
+            authority.rollback_if_current(self);
+            return;
+        }
+        self.rollback_transaction_locked(self.transaction.lock());
+    }
+
+    pub(super) fn rollback_transaction_locked(
+        &self,
+        mut transaction: parking_lot::MutexGuard<'_, super::SessionTransactionState>,
+    ) {
         if !transaction.may_be_failed_by_current_thread() {
             // A COMMIT on another thread owns the transaction and retires it
             // itself once its native outcome is known. Midge cannot cancel an
             // admitted commit, so this rollback must not end it underneath.
             return;
         }
+        self.note_owned_retirement_locked(&transaction);
         let unique_owner_id = transaction.unique_owner_id;
         let session_state = transaction.session_state.take();
         transaction.status = SessionTransactionStatus::Idle;

@@ -27,14 +27,27 @@ impl Cassie {
         sql: &str,
         controls: &QueryExecutionControls,
     ) -> Option<Result<QueryResult, CassieError>> {
+        self.quarantined_sql_result_with_authority(session, sql, controls)
+            .map(|(result, _)| result)
+    }
+
+    pub(super) fn quarantined_sql_result_with_authority(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        controls: &QueryExecutionControls,
+    ) -> Option<(Result<QueryResult, CassieError>, super::FailureAuthority)> {
         let error = self.check_storage_recovery_required().err()?;
-        Some(
+        let authority = super::FailureAuthority::capture_for_operation(session);
+        let operation = session.with_operation_failure_authority(Some(&authority));
+        Some((
             if let Some(statement) = crate::sql::parser::parse_terminal_transaction_control(sql) {
-                Self::quarantined_end_result(session, &statement, controls, error)
+                Self::quarantined_end_result(&operation, &statement, controls, error)
             } else {
                 Err(error)
             },
-        )
+            authority,
+        ))
     }
 
     pub(super) fn quarantined_statement_result(
@@ -61,7 +74,10 @@ impl Cassie {
             statement.action,
             TransactionAction::Commit | TransactionAction::Rollback
         ) {
-            session.rollback_transaction();
+            let authority = super::FailureAuthority::capture_for_operation(session);
+            if !authority.rollback_if_current(session) {
+                return Err(error);
+            }
             if matches!(statement.action, TransactionAction::Rollback) && !statement.chain {
                 let mut result = QueryResult::try_builder(controls)?;
                 result.try_set_command("ROLLBACK")?;

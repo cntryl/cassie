@@ -89,6 +89,7 @@ impl CassieSession {
             _memory: memory,
         });
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status != SessionTransactionStatus::InTransaction
             || transaction.generation != generation
             || transaction.isolation != Some(TransactionIsolation::RepeatableRead)
@@ -127,6 +128,7 @@ impl CassieSession {
 
     pub(crate) fn take_repeatable_row_fence(&self) -> Option<Box<RetainedRowFence>> {
         let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction).ok()?;
         let owner = transaction.repeatable_read.as_ref()?;
         let fence = owner.fence.lock().take();
         fence
@@ -163,6 +165,7 @@ impl CassieSession {
         controls: &QueryExecutionControls,
     ) -> Result<Option<Arc<StatementDataRead>>, CassieError> {
         let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let Some(owner) = transaction.repeatable_read.as_ref() else {
             return Ok(None);
         };
@@ -189,6 +192,7 @@ impl CassieSession {
         database: &str,
     ) -> Result<Option<Arc<StatementDataRead>>, CassieError> {
         let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let Some(owner) = transaction.repeatable_read.as_ref() else {
             return Ok(None);
         };

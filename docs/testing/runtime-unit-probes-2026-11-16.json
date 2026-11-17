@@ -1,0 +1,3530 @@
+{
+  "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
+  "source_before_inventory_commit": "003e2dd301ff5a56d95a37531d694e5cd082a283",
+  "tree_before_inventory_commit": "bab0c654a1bfadf00175e317aff8e32d37851760",
+  "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
+  "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
+  "file_count": 37,
+  "declaration_count": 263,
+  "added_in_file": 103,
+  "modified_in_file": 21,
+  "retained_in_file": 139,
+  "files": [
+    {
+      "file": "src/app/bulk_ingest.rs",
+      "sha256": "d772040a5787506688319d3cf420978dde976f39d28feeea7c84e5e90d6c37c2",
+      "lines": 969,
+      "cfg_attributes_in_file": [
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]"
+      ],
+      "test_declarations": [
+        {
+          "name": "should_parse_copy_csv_quoted_newlines",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 908,
+          "end_line": 923,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b20aefd4fb311d34d1c864a6144ec8e82f9a529623557e89fe12cdf29b843369",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_parse_copy_csv_escaped_quotes",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 926,
+          "end_line": 935,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c31214175f775902ce2694c35daa78bc39f1e5f0a287e84017212823f98f90a0",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_treat_quoted_copy_null_marker_as_literal",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 938,
+          "end_line": 950,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "46efbce8b8d56a479e3a3f1c10de9bbc295b667012f8bc117e0dee0fb344c0e9",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_parse_unquoted_empty_csv_fields_as_null_in_every_position",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 953,
+          "end_line": 968,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1821fe1c27f41823c3ed3b48a23f9b1a19dd674962c46758c47034efc8d87558",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/projection_sql_durability_tests.rs",
+      "sha256": "3f8494df7fd9c9d6a48f6e810b49283a97b42745e726ad498b4497e331fd20ec",
+      "lines": 358,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_use_buffered_wal_for_declared_sql_projection_transaction",
+          "inline_modules": [],
+          "line": 23,
+          "end_line": 72,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ea7984912bfb6ef1a3c89274dea47518f32d01c07cd9e727bec5c35ae12b3d8f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_use_strict_policy_for_mixed_projection_transaction",
+          "inline_modules": [],
+          "line": 75,
+          "end_line": 105,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ac3754c5364d57b4a2e63bd7d81a2b7e0d688bbef1ef81ff57476612f1e66157",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_select_strict_policy_after_setval_without_currval_assignment",
+          "inline_modules": [],
+          "line": 108,
+          "end_line": 145,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5591c64dc02c761290e964dd34cde2a4f41c71697c1ca40372e6254e44638bb2",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_restore_default_policy_after_savepoint_rollback",
+          "inline_modules": [],
+          "line": 148,
+          "end_line": 173,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9a966431f6198c2f47a61e67f5367f2311a61156c0f131410536cdae7829fa34",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_sequence_effect_classification_after_savepoint_rollback",
+          "inline_modules": [],
+          "line": 176,
+          "end_line": 204,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "387f626086e6f55a93578cdaae6a741e390c4270d606334ac8374392abdd233c",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_the_buffered_policy_for_a_data_modifying_cte_row_write",
+          "inline_modules": [],
+          "line": 207,
+          "end_line": 227,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d90616c10145092d1f4420586b6ef447e3ef71b15b22aa9dafac796047c8fa97",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_use_lazy_cloud_upload_for_declared_sql_projection_on_background_cloud",
+          "inline_modules": [],
+          "line": 263,
+          "end_line": 272,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "963f8bde418d98e15d8a8359ce81ff033d544f89d752672d2d521e0882e48f95",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_downgrade_configured_cloud_strict_for_declared_sql_projection",
+          "inline_modules": [],
+          "line": 275,
+          "end_line": 284,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "dd60604c7656da89a0fccb585f56dc1c09e289e5c01fd7e73770277d6db788ce",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_promote_a_mixed_sql_projection_to_cloud_strict_on_background_cloud",
+          "inline_modules": [],
+          "line": 287,
+          "end_line": 296,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "211555aa59914dd94b8dff44a97ae04300ca5c4a4a94d9bf1f5fd4a6d10b9acd",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_the_buffered_policy_for_a_lost_upsert_race_without_a_strict_effect",
+          "inline_modules": [],
+          "line": 335,
+          "end_line": 345,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f9ebcaf6d9e314b4685522593d3fb6baab45d0ae985ae7d99233edf06c1183bb",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_select_strict_for_a_lost_upsert_race_resolved_with_a_sequence_effect",
+          "inline_modules": [],
+          "line": 348,
+          "end_line": 358,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a7faf7919e3c5394a5d500b570a8618fb7200d582e96cd337f753c0be6529859",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/query_failure_admission_tests.rs",
+      "sha256": "bf4e909b5e4cb8b2d7bb0987a360b04bfa803aaef616ce080c309b27a391450a",
+      "lines": 486,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_reject_saturated_query_before_waiting_for_transaction_lock",
+          "inline_modules": [],
+          "line": 78,
+          "end_line": 93,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "348116b6a6a065e73a0b85f6a4599d519b7398c818acaa24025027b48abf828d",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_saturated_admission_error_when_request_is_canceled",
+          "inline_modules": [],
+          "line": 96,
+          "end_line": 109,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "70ab8af4f8a75afb87f8794aabee9bb87586f6c8b066032fd2dd5684fff6a856",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 224,
+          "end_line": 237,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "929e9dad8060169db68ccc3e332c04f2b09d8b9bc3624c7af83efd665af65d90",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_when_capture_wait_exceeds_deadline",
+          "inline_modules": [],
+          "line": 240,
+          "end_line": 253,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "97e4c4b85e8aec770ac14229204eb44509ff9d5f8484aeeed76bfd45e880b37e",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_unsupported_error_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 256,
+          "end_line": 266,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7ce0308eb5711c1f3f777c60e43547b7b74b0b4037911352c9baae86344b6495",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_empty_user_error_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 269,
+          "end_line": 279,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7ad9c87098052f9ef2862aa49831b9c74b1526a11569994b3543af03036b3b8f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_missing_database_error_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 282,
+          "end_line": 292,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "acf3aae56a7fdc104d26e97b8503b42ae541d3861e44e3eb590fa6bb60177251",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_inner_recovery_error_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 295,
+          "end_line": 305,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e6db7d9ff1542ff2a3af5b5df1e2822c5ccd4ed4311aca51b576611b9847dd5c",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_prefer_cancellation_when_capture_wait_also_exceeds_deadline",
+          "inline_modules": [],
+          "line": 308,
+          "end_line": 318,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "835506acfbe569fb65403f5946937789cd54af43af6c4ceeda1d4f76b8e6e6b3",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_capture_current_owner_after_query_admission",
+          "inline_modules": [],
+          "line": 321,
+          "end_line": 390,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "249b8da7b2583d4a7d1a0a6101be6aca3d412f1902eb5863c6c8409628935608",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_disabled_explain_timeout_during_capture_wait",
+          "inline_modules": [],
+          "line": 463,
+          "end_line": 473,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ab525319c18399812f39ab015c90faed7145bd5fb4d84d13f4f562788146679f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_enabled_explain_timeout_during_capture_wait",
+          "inline_modules": [],
+          "line": 476,
+          "end_line": 486,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "452d9381c6841603fb7f917146d5f0d11e36f2409bb2ef644dff04875a4ae522",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/query_failure_converted_tests.rs",
+      "sha256": "816a3119f62e7fbc161eb71df444c4c782794ee037d16e8f9835cc79ce58a4f4",
+      "lines": 477,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_keep_replacement_healthy_after_old_explain_conversion_fails",
+          "inline_modules": [],
+          "line": 18,
+          "end_line": 64,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f4c02fbb8f7e8d45218ad4f0f813309394dfe248ee3fa321a6437e3d49405b85",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_transaction_after_explain_conversion_error",
+          "inline_modules": [],
+          "line": 67,
+          "end_line": 90,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "96664b5fb6bbd24988af28f36d1d7bbb7b7cdbde57874c4a1ff54b684eb9f5b3",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_independent_implicit_owner_after_old_begin_promotes",
+          "inline_modules": [],
+          "line": 93,
+          "end_line": 152,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5b53f37701315b381a85b70b71bdd6663e1557b396aaa4c580d2144188466f7a",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_replacement_healthy_after_old_copy_predicate_is_canceled",
+          "inline_modules": [],
+          "line": 155,
+          "end_line": 198,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5d977034989d336778bbac4214d545ec94a6f588a9aac6bf20abfaef34dd07d9",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_transaction_after_copy_predicate_cancellation",
+          "inline_modules": [],
+          "line": 201,
+          "end_line": 223,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f370551612cb7fc71118e2cc902fa59acec292ca9c6060ae8fc7af04776eba57",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_operations_distinct_when_cancellation_handle_is_reused",
+          "inline_modules": [],
+          "line": 226,
+          "end_line": 293,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e68541ff66ca21ed9f55e57fee973a25e4eb4cc08b9a7b9bd89924a2a889a236",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_newer_operation_healthy_when_shared_handle_outlives_old_query",
+          "inline_modules": [],
+          "line": 296,
+          "end_line": 357,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "06be9b3819837765ef292b3da782b341ea017ed4da8b3c0ca789e991246641ca",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_transaction_after_prepared_conversion_error",
+          "inline_modules": [],
+          "line": 360,
+          "end_line": 386,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "330d78b7b71771c2bd4e572f9d37c24f30367b8bd9aa2d80f655f07e924181ce",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_transaction_after_prepared_body_error",
+          "inline_modules": [],
+          "line": 389,
+          "end_line": 413,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8e274fc5f68748450b4f180c0dfc38c1d3c1e00ecae91311024242f39c125f04",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_replacement_healthy_after_old_cursor_conversion_error",
+          "inline_modules": [],
+          "line": 416,
+          "end_line": 477,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "3fd3e1e496c7658bb989ea1e0e5c15a1cba5ffaca0e7209a4c1955bd58880dd9",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/query_failure_savepoint_tests.rs",
+      "sha256": "3ac79c446f749d96b55550e8c1c014b1f01891fedc1246acb8514d56c769d062",
+      "lines": 433,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_keep_recovered_savepoint_healthy_after_old_conversion_fails",
+          "inline_modules": [],
+          "line": 21,
+          "end_line": 80,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "4c78899e2647b315d0efb38e25b509d27ce29241d40f7c0b55bce57b6d604351",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_after_own_savepoint_conversion_error",
+          "inline_modules": [],
+          "line": 83,
+          "end_line": 109,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "2316b010e356be0005484d09000f670d6b09a89b18105ee26d5fb020ab8719eb",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_epoch_when_savepoint_does_not_exist",
+          "inline_modules": [],
+          "line": 112,
+          "end_line": 136,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9ff1cc25a5581765ba52c1f52871ffb56ac0080d4619c514a3aed16324a7ff04",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_after_savepoint_restoration_error",
+          "inline_modules": [],
+          "line": 139,
+          "end_line": 197,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "3b3d25714bdc5ae27ed5e7172672f56d8efc6758937df5d5f2f1ad02fbafa5b4",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_restore_authority_when_savepoint_cursor_pruning_is_canceled",
+          "inline_modules": [],
+          "line": 200,
+          "end_line": 268,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9f8619241d411a14e578b6df8e9ef9fcd6288f1921f237d4b3d94f4b2cee65b9",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_later_recovery_after_old_savepoint_restoration_error",
+          "inline_modules": [],
+          "line": 271,
+          "end_line": 368,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "857654da2ee6c2709629b49cac0c1aa234d04435153abe7e35df358a61078352",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_readopt_epoch_when_stale_operation_rolls_back_to_savepoint",
+          "inline_modules": [],
+          "line": 371,
+          "end_line": 433,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "596c8e91861b2aa5015da48268de7b05f9a1be9c74cecec49e577237b3d6627e",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/query_failure_watchdog.rs",
+      "sha256": "0ca1880e54d71bc0d961b71dbbea422861911b0d9b46cd888e6c6d2826b1a6b0",
+      "lines": 204,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_reject_missing_retirement_watchdog_child",
+          "inline_modules": [],
+          "line": 194,
+          "end_line": 204,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "db60f61698d7f41e18cce87d405f2e48d3ae25c56300cc989b6311fc07d30e13",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/query_failure_watchdog/output.rs",
+      "sha256": "28d46042fc16616057c8c8b29cb6dba9c100fda1a144a1c1cc2960cf2f97147c",
+      "lines": 100,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_drain_child_diagnostics_with_a_bounded_retained_tail",
+          "inline_modules": [],
+          "line": 87,
+          "end_line": 100,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "27f2997ec93faa1cc9d9621117cb1884fb3b88261692b729d1cfa097f0b1fc6f",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/query_prepared/authority_tests.rs",
+      "sha256": "d4215dccdb0b3b11ff473de8878589aaad866245cd88ab31d4cb67dc996f8780",
+      "lines": 917,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_keep_replacement_healthy_after_old_worker_error",
+          "inline_modules": [],
+          "line": 37,
+          "end_line": 98,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "4d7e152431dd78dbb9444d67e698e0550b6ad2ef7c6b82574f9c3613ef7b5c83",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_after_worker_error",
+          "inline_modules": [],
+          "line": 101,
+          "end_line": 125,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f577e1fc3e46efac830c7959b98f88e86ef990abd961d6139e144ae265e2c19f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_transaction_started_by_worker_on_later_worker_error",
+          "inline_modules": [],
+          "line": 128,
+          "end_line": 147,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "268522ab4842156a42d7e4e50d2c0040f74f9c5db6958bbafd7ec76168a461e8",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_recovered_epoch_after_own_savepoint_rollback_error",
+          "inline_modules": [],
+          "line": 150,
+          "end_line": 187,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d1fab255fb425b4b12566342175aa908e6468ba35e673fcc10a5357de41792ce",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_recovered_epoch_healthy_after_old_worker_error",
+          "inline_modules": [],
+          "line": 190,
+          "end_line": 256,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7cbb6929faabb0ac6ab83a26bfb9a483abb12fc81517247dc5f3f051c25c6e54",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_independent_implicit_owner_after_worker_promotion",
+          "inline_modules": [],
+          "line": 259,
+          "end_line": 314,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ad94cdfd059bc4500739bae343cb07efe654ec70299eed5200659e0f1536feed",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_when_pgwire_worker_is_canceled",
+          "inline_modules": [],
+          "line": 317,
+          "end_line": 336,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "751cfe1a7beb0bec51c55520e97fc01f51a7b5715cc5225711d408ed775612e4",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_pgwire_admission_exhaustion_before_cancellation",
+          "inline_modules": [],
+          "line": 339,
+          "end_line": 369,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1aefd08e63d3191cfec0a717792e7a4a496c77e7d4c7362182f3580f5d2854a8",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_pgwire_quarantine_error_before_cancellation",
+          "inline_modules": [],
+          "line": 372,
+          "end_line": 394,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c44cbbfd4525a562c20736b2d276d91cb4b4f4488539dd6b4238504235a67ccd",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_replacement_after_text_pgwire_worker_error",
+          "inline_modules": [],
+          "line": 479,
+          "end_line": 493,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "912ee23ea2a16ecee5f78639a5d8e38f4f44d808d7e93cd235e10dfe881168a0",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_replacement_after_parsed_pgwire_worker_error",
+          "inline_modules": [],
+          "line": 496,
+          "end_line": 510,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e0b7501f0745681d0be1b7d0d7daccfaaa8067db9c03032250c3d9ce443ea426",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_after_text_pgwire_worker_error",
+          "inline_modules": [],
+          "line": 528,
+          "end_line": 533,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6a71caa7d2213e768f4a60e34c63282460015a62a48221fba38dc8538e963095",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_after_parsed_pgwire_worker_error",
+          "inline_modules": [],
+          "line": 536,
+          "end_line": 541,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b70b790a25d0b18707a964b4fe82beed6de3bf03873c6e825ba19fad7529a776",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_adopt_own_begin_in_real_pgwire_worker",
+          "inline_modules": [],
+          "line": 586,
+          "end_line": 593,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6c76cca6ff10ed8b13d41caa1c7cbd332bb6018e71b0208e0ad107f71d6b7e59",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_adopt_own_chain_in_real_pgwire_worker",
+          "inline_modules": [],
+          "line": 596,
+          "end_line": 603,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "4517ccbce189e672aa44f741e858dda92bbdf75b1a2e05d9fc751505bc93f06b",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_adopt_own_savepoint_restore_in_real_pgwire_worker",
+          "inline_modules": [],
+          "line": 606,
+          "end_line": 619,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "4553addb18357ce7d27b9ce97e3890ab3feb21b007d2062a06a938165b658624",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_forward_pgwire_authority_to_idle_procedure",
+          "inline_modules": [],
+          "line": 622,
+          "end_line": 649,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8273d29c3c6398c2b93b39d14ff0a4b1688476e78c9069104c2117848f3d2abc",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_procedure_call_in_active_transaction",
+          "inline_modules": [],
+          "line": 652,
+          "end_line": 678,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7650261077bd9bc12ef136c8a6fbe81c658707c740c79ae5eb7565c30974e30f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_disabled_pgwire_timeout_during_capture_wait",
+          "inline_modules": [],
+          "line": 751,
+          "end_line": 759,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "cbc95921c9090e53439c335f05ba55f6eeebf1bb471c221f2924bc7401d504a4",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_enabled_pgwire_timeout_during_capture_wait",
+          "inline_modules": [],
+          "line": 762,
+          "end_line": 770,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d7427ede62613c0e2077ca4dec6a0e567cbddb5ff644e7d77516de15e6cbc3f4",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_saturated_pgwire_worker_before_waiting_for_transaction_lock",
+          "inline_modules": [],
+          "line": 773,
+          "end_line": 831,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "aca061fcb580e98007b3a51ade412474803dead8e8df70e920ad9104959b7cb7",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_recheck_pgwire_recovery_when_saturated_after_healthy_check",
+          "inline_modules": [],
+          "line": 834,
+          "end_line": 885,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a4a940016b386f021fdcfe56361b62f8c115c81cca50f5e74d8aa6d5cc5c078a",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_forward_worker_authority_to_implicit_table_creation",
+          "inline_modules": [],
+          "line": 888,
+          "end_line": 917,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "bd3092879f5dcec001f8170c089ffcd5570de9dfd523d81fb1c3c1f60646338d",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/roles.rs",
+      "sha256": "4ff5d012a9d82c9a6fadd737919bc09d907bb00c3d286834945019d0a37a4e8a",
+      "lines": 551,
+      "cfg_attributes_in_file": [
+        "#[cfg(test)]"
+      ],
+      "test_declarations": [
+        {
+          "name": "should_reject_empty_password_given_login_role_creation",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 502,
+          "end_line": 517,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "66e7d447e4872a8f3dcaf17859fb270447ff8a4437b211e6bf28473116141f09",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_existing_password_given_empty_role_password_change",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 520,
+          "end_line": 535,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b41cdd1d9bc5755a3d30c6d2f1a4caf94f228afcef0b6d72b0e0fa87619afce7",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_bootstrap_password_given_empty_password_change",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 538,
+          "end_line": 550,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f758cd76449f3c7cec5bd294592044bba64523a7fc3758c68e560041d5829330",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session/copy_owner_tests.rs",
+      "sha256": "e34ff0ef055596c793c1c2eca58a682c412e7abdd5a3cb77e31302ecfdb0b829",
+      "lines": 873,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_reject_a_copy_owner_from_a_retired_transaction_generation",
+          "inline_modules": [],
+          "line": 47,
+          "end_line": 64,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9d7910a0accbe9997093303991ac073e3b3f1e62821860277b43bc54c6441909",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_storage_only_changes_before_copy_fork_capture",
+          "inline_modules": [],
+          "line": 67,
+          "end_line": 81,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c31f101aef46c144ab91b2dc3bc449256d374acade0bb6189f06d6f648132359",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_storage_only_changes_after_copy_fork_capture",
+          "inline_modules": [],
+          "line": 84,
+          "end_line": 101,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5468a065c97f5129e6729fdc418d2a929e0f48934ff92eee38a39d599516932b",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence",
+          "inline_modules": [],
+          "line": 104,
+          "end_line": 171,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "cfaf127eb4827a6522c73b117992fb6c3f6d10845522ad1b8fe19288c098203a",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_use_the_default_database_for_a_session_without_an_explicit_database",
+          "inline_modules": [],
+          "line": 174,
+          "end_line": 194,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5f49d9a2ef49fea583bb22c890b8c54cae4870262be428922e1c6604ebd68f5f",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_release_copy_owner_admission_when_the_owner_is_dropped",
+          "inline_modules": [],
+          "line": 197,
+          "end_line": 213,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "18f8bf19a8b66d83c810958d98cded66079b6d79c4ba98eecb50f625bb40bd0e",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_recreated_physical_target_with_an_identical_zero_id_catalog",
+          "inline_modules": [],
+          "line": 216,
+          "end_line": 250,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e4706f974b08d35bdb54d67497979193dad936f7aee277b67099595880090a8e",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_pair_old_copy_snapshot_with_recreated_physical_target",
+          "inline_modules": [],
+          "line": 253,
+          "end_line": 304,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "da8525f55e919aae9a1699b8b18f7da0a5ad534806c665bf356d6f32ebe00df5",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_a_recreated_copy_target_identity_in_the_staged_storage_overlay",
+          "inline_modules": [],
+          "line": 307,
+          "end_line": 393,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5308270db33378305f0657ff87e9b23d6bb55bac97f7ea8cf04e0d278c6963e5",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_punt_a_recreated_published_copy_target_under_repeatable_read",
+          "inline_modules": [],
+          "line": 396,
+          "end_line": 432,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ae503520fe7cf70b3bef4a36328c3a48ace92e3e227dc36482109c7a36df6c70",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_new_repeatable_read_copy_targets_supported",
+          "inline_modules": [],
+          "line": 435,
+          "end_line": 457,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "65831b2d392a238adb5017f9ddd478ca3b822315ba47d0b739c37fffd8c7c3fd",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_database_qualified_copy_target_without_retiring_the_transaction",
+          "inline_modules": [],
+          "line": 460,
+          "end_line": 478,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a256aeb96ef3ae799e4f84d96383cf80fe29b47f7c39a864c27915753a6ec1d8",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_admit_copy_search_path_snapshot_before_allocating",
+          "inline_modules": [],
+          "line": 481,
+          "end_line": 495,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "cb0cef8dd0de9ae9c75db3ec252f457655e4c4042d051fd3f40deb5a4ab34be5",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_admit_quote_heavy_copy_schema_canonicalization",
+          "inline_modules": [],
+          "line": 498,
+          "end_line": 510,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ff2a6ac020a68921af422ce7fa1502b8603b34d9e755461f38242a4833878cb7",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_cancel_copy_owner_check_while_waiting_for_session_lock",
+          "inline_modules": [],
+          "line": 513,
+          "end_line": 559,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b53e9a1542d13e0e520cea8ab451a3be08fa8d26ab0aa89a0601dc10d44f3a09",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_expire_copy_owner_check_while_waiting_for_session_lock",
+          "inline_modules": [],
+          "line": 562,
+          "end_line": 603,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7c2bded2b9205ebe0ced607afe2b97c51875595f5a790cfe74e44e5d7d61008b",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_cancel_copy_owner_check_after_acquiring_session_lock",
+          "inline_modules": [],
+          "line": 606,
+          "end_line": 630,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1ccabe0b5d98ded2249a14c3cb3a7f004da559093ae72e8665901ce9c549a4ff",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_copy_binding_when_savepoint_changes_between_owner_captures",
+          "inline_modules": [],
+          "line": 633,
+          "end_line": 675,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "23a53fdf12ed5d258de22dd5bebf11fb11b72283eccebc58a68f390632bec6cc",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_old_copy_owner_at_guarded_fork_after_savepoint_restore",
+          "inline_modules": [],
+          "line": 678,
+          "end_line": 697,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c79c30b72995a80c660eeace6b9ee4832e48b0d844b6d224034f379d6b34e5da",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_failed_transaction_precedence_at_copy_fork",
+          "inline_modules": [],
+          "line": 700,
+          "end_line": 723,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "be16e4c068b49df7dbe755f55bd1214b898ebb158bd48a938ad586b5629ab236",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_copy_owner_after_missing_savepoint",
+          "inline_modules": [],
+          "line": 726,
+          "end_line": 746,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5407430d585d268df0b715162a62362b4a112657b26eb7117d5352edc98947a0",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_copy_owner_after_savepoint_release",
+          "inline_modules": [],
+          "line": 749,
+          "end_line": 763,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1cedadc9a79bec5a657060ac738c505f070df9de87a787b1b87f678d5f0b1d82",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_copy_owner_when_savepoint_pruning_is_canceled",
+          "inline_modules": [],
+          "line": 766,
+          "end_line": 826,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f32981b2ec5f50d662abbbf9f44eb7f253afa453e41f048a87d776dfa442afd2",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_copy_target_binding_after_savepoint_restore",
+          "inline_modules": [],
+          "line": 829,
+          "end_line": 851,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f6415ecb2fe57c1a086653405253162e9c2faa44c3b23bf910db51eb5144a33a",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_report_stale_copy_target_binding_for_current_failed_owner",
+          "inline_modules": [],
+          "line": 854,
+          "end_line": 873,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9f09df19a7b0d078dea3bf23468db76562550bf83b60b68f6b81501c3267c31e",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session/savepoint_fork_epoch_tests.rs",
+      "sha256": "40d8f3b45c0a351f9fd66cf1d9991f4e24a3acc39ea5c81f26caa43e06a3656d",
+      "lines": 453,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_reject_detached_fork_after_identical_savepoint_restoration",
+          "inline_modules": [],
+          "line": 30,
+          "end_line": 58,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8490cdb24ea057cb73529ef75cf5699b6643c80f3324b5419edf1b8343b422c4",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_publish_fresh_fork_after_savepoint_restoration",
+          "inline_modules": [],
+          "line": 61,
+          "end_line": 79,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "15c4a0e669b1ea77177e40b5b46e03b5165713cf16ae4b4e057b46029a673bcd",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_fork_after_missing_savepoint_error",
+          "inline_modules": [],
+          "line": 82,
+          "end_line": 101,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f383d2dd930a8cc7ffd3264293990530b7ac0a0e79ccc12f578d77d7b039948a",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_leave_savepoint_unchanged_when_rollback_epoch_is_exhausted",
+          "inline_modules": [],
+          "line": 104,
+          "end_line": 123,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d97fa43ffd4b7e04742d69c4dc4d720d66395fb7fefa92899a2ce0bb26ed178f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_fork_when_savepoint_cursor_pruning_is_canceled",
+          "inline_modules": [],
+          "line": 165,
+          "end_line": 195,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a0751ed4581074c9905b3d74296d4f748219df8cafdf7693560c658f1d20d504",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_old_fork_when_owner_key_restore_fails_after_savepoint_restore",
+          "inline_modules": [],
+          "line": 198,
+          "end_line": 252,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "0f1bfb4d4a3714596b0f62eb9e13ee35728c37f873515eb7f4918c955ac670e7",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_fork_when_savepoint_cursor_pruning_lacks_controls",
+          "inline_modules": [],
+          "line": 255,
+          "end_line": 274,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "602fa2d696a21576db99daaaff809fa55c95db1b8ae70345440333b246b97970",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_old_fork_when_rollback_unwinds_after_sequence_prune",
+          "inline_modules": [],
+          "line": 277,
+          "end_line": 292,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b0b591b110af856e6990354236bc44cb117d066e30b390f853414f2d15e417e6",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_publish_nested_forks_in_the_current_savepoint_epoch",
+          "inline_modules": [],
+          "line": 295,
+          "end_line": 316,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c99cde981a12bf385843d76dd2248dfa344632ee6e8d1a79f79d8f76e958658d",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_successful_ctas_inside_explicit_transaction",
+          "inline_modules": [],
+          "line": 319,
+          "end_line": 350,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "0aff762f59612f5ea019eaaa7f6122076501b4ae64dca76134e800b094921a67",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retire_fork_when_failed_ctas_restores_its_internal_savepoint",
+          "inline_modules": [],
+          "line": 353,
+          "end_line": 389,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "84c07ae8c6d359f27d8b3f12561ae64b4a444217b32a26128b3660bd73b2fb41",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_recover_savepoint_epoch_after_full_transaction_rollback",
+          "inline_modules": [],
+          "line": 392,
+          "end_line": 430,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "59a6da0bbf9f9462eeb37b057b1c57aada286cbcc4a27b9d5edbc8cdb18c42da",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_savepoint_epoch_on_implicit_transaction_promotion",
+          "inline_modules": [],
+          "line": 433,
+          "end_line": 453,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d6e40fbf2c8f617b2e3d52f9e479828c682c77cd13e55b08b361b7cfafbb27cb",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session/sequence_effect_tests.rs",
+      "sha256": "b653748c74bec634b54f8856a43ed71d330e239953249289b1b08dd65acc6c62",
+      "lines": 260,
+      "cfg_attributes_in_file": [
+        "#[cfg(feature = \"replay-benchmark-observation\")]",
+        "#[cfg(feature = \"replay-benchmark-observation\")]"
+      ],
+      "test_declarations": [
+        {
+          "name": "should_reject_sequence_effects_captured_before_the_commit_seal",
+          "inline_modules": [],
+          "line": 27,
+          "end_line": 68,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "97af430b1690a0ea39ee623a7e8aafbdb15f1530449307615fa76e0bccde5bf6",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_a_sequence_effect_after_its_transaction_is_replaced",
+          "inline_modules": [],
+          "line": 71,
+          "end_line": 88,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5c49ce5017efb5eddb2505e07ed9eb552bf8e03fe9d72c71d35c932fdc583ee0",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_a_detached_sequence_effect_without_root_lineage",
+          "inline_modules": [],
+          "line": 91,
+          "end_line": 113,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c4573b78ca270302ec146f5aabc0b00ffe715d3b4fc75fae051c9053df96ae83",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_root_lineage_for_a_direct_sessions_statement_fork",
+          "inline_modules": [],
+          "line": 116,
+          "end_line": 130,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7745d4d72341f2a876a423f276ce80cedc49b9eb521bdd306a10a0079d807994",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_an_idle_sequence_owner_after_an_independent_begin",
+          "inline_modules": [],
+          "line": 133,
+          "end_line": 145,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9f3f610ada7e014817833ec6c08da7445927bc720ac16302a1958e5c056843a6",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_adopt_an_own_begin_before_sequence_admission",
+          "inline_modules": [],
+          "line": 148,
+          "end_line": 166,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5a21df2c10060295c2a2af9230a6f14d9f7a75cc8337b8ffc85a990633d28d20",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_allow_committing_root_sequence_resolution_but_reject_a_same_thread_fork",
+          "inline_modules": [],
+          "line": 169,
+          "end_line": 185,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "0a39e39f303bc97e97b6b722827cad3b2f41557ad15690783a1b9b33f5adfbac",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_a_sequence_effect_from_a_restored_savepoint_epoch",
+          "inline_modules": [],
+          "line": 188,
+          "end_line": 209,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7be1a7bbfb9442defab95ecf1b9f40e9b519ba968f4c577fa2d5d6d983ea655c",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_promote_data_policy_before_an_admitted_sequence_effect_reaches_storage",
+          "inline_modules": [],
+          "line": 213,
+          "end_line": 260,
+          "attributes": [
+            "#[test]",
+            "#[cfg(feature = \"replay-benchmark-observation\")]"
+          ],
+          "body_sha256": "4505226dbb07af9f538c00413dc001c382a9b3f9e767cefa06aa4cd9cd54b691",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session/shared_setting_tests.rs",
+      "sha256": "d9529ef24ed996748a255f6cf76f739aa3c560e3ac31bda93c21f2a9b5dbf16b",
+      "lines": 150,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_preserve_replacement_session_configuration_when_an_old_detached_leaf_resumes",
+          "inline_modules": [],
+          "line": 16,
+          "end_line": 72,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "bfb67181ebd084800d3d9a6dac5cbbbeeb19b8e65c5c27fbc88a3731bf0d6df8",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_current_fork_local_history_private_under_actual_root_validation",
+          "inline_modules": [],
+          "line": 75,
+          "end_line": 128,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "2544601d0aa02c332df5f5dccfb6a2725e088c525e054667f994da5de9c035fe",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_unscoped_public_setting_apis_current_session_meaning",
+          "inline_modules": [],
+          "line": 131,
+          "end_line": 150,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "2e603e629dd1801a23a9bd8bbf7110e0aa68398f50bea1117b55d6134885630c",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session/temporal_context/tests.rs",
+      "sha256": "366f24e00e6191d6b0726ac76f86161ca84b8608ef1ce0b6e5b51cd7bb2885d5",
+      "lines": 233,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_refuse_an_old_root_or_fork_clock_without_resetting_b_now",
+          "inline_modules": [],
+          "line": 49,
+          "end_line": 89,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "32a1702e1cd23d1333435f56bee60dec14b6e776cc1ba090d2b8deddf304b629",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_install_the_first_current_clock_under_root_then_clock_locks",
+          "inline_modules": [],
+          "line": 92,
+          "end_line": 125,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6e3e4859a5eb21c34e09c80a6bc3539b92673340ebfae9cbb971a4363aa1b9d9",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_idle_statement_start_separate_from_the_shared_transaction_clock",
+          "inline_modules": [],
+          "line": 128,
+          "end_line": 147,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "4f05be9fab7401d7253ebf6e6e0f4eb023371838505a68b64849e0b2084d192a",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_allow_only_the_own_retired_root_to_install_an_idle_statement_clock",
+          "inline_modules": [],
+          "line": 150,
+          "end_line": 178,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "41a670d49eaff1847ce9362eacc9df1e2b85a8ee7d64e726b4877c1e947cd39f",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_adopt_another_actors_commit_as_an_idle_clock_receipt",
+          "inline_modules": [],
+          "line": 181,
+          "end_line": 195,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b8e5651054c4cb06738d519d5e346b9f7224da4c9fe49b14d4ba5176cd63e83c",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_now_through_an_actual_nested_procedure_call",
+          "inline_modules": [],
+          "line": 198,
+          "end_line": 233,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "935650e4c2fda641c15cab9a138695ea0639c67f71111186e2eb077ba3e0abb3",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session/transaction_control.rs",
+      "sha256": "b2cbc3b25347e51f18e73be0f8974032f0c885627b9af6263ed036cde7af8ba4",
+      "lines": 888,
+      "cfg_attributes_in_file": [
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]"
+      ],
+      "test_declarations": [
+        {
+          "name": "should_preserve_replacement_after_read_only_write_check",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 688,
+          "end_line": 704,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "35f63a785265598a741f037a6cb271465191f943cfc0fb909f445fba8a144b75",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_new_transaction_after_idle_default_check",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 707,
+          "end_line": 725,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "2a7c49be8cf7f1ca4e36d3ddfbe3aa619acf556965e711e1bd6a2170af8c639a",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_read_only_transaction_on_write_check",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 728,
+          "end_line": 739,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "2f006794479e0f4ce8677cc8703affffe000641fe1f61a8360952a1c7c840498",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_allow_current_read_write_transaction_on_write_check",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 742,
+          "end_line": 753,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "65659484be9062decf23b49d71e46c80789bd583e557c18cfbffad8bdd17d73e",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_failed_read_only_write_check_result",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 756,
+          "end_line": 768,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f20aa408d7821f9010bd85073fd0ead80b3c3bac88ae0d10e7e2b6b4253cedac",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_failed_read_write_check_result",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 771,
+          "end_line": 783,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "017777377bdc40a37815bdf7f8ddcc496a9f897e5ab75118df9cc2b11995d6ca",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_implicit_read_only_transaction_on_write_check",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 786,
+          "end_line": 802,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "2e76b5804ba5dcfb090874a527349958b2d2fca60530d03ea369732e04dfe7e3",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_apply_idle_default_to_write_check",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 805,
+          "end_line": 820,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "69ffd6cda9128efa143858a708c069f74d51116788ac594ac17db8b9fa5819d3",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_read_only_mode_given_statement_fork_when_staged_write_is_attempted",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 823,
+          "end_line": 855,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "06773f85795121748c98229ef73740337384b05f02a9415ca8fd3b38e8955e49",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_restore_transaction_mode_given_savepoint_when_local_mode_change_is_rolled_back",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 858,
+          "end_line": 887,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "332a16b99ac27c40352227571b27c371c684ada24d1306da4afe7cdd581e804c",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session/truncate_owner_tests.rs",
+      "sha256": "91abaaeb515a1603b841cd4e94fdc8749e2febe16613c903d07a26ea7d6770e4",
+      "lines": 108,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_keep_a_detached_identity_restart_out_of_a_replacement_transaction",
+          "inline_modules": [],
+          "line": 14,
+          "end_line": 108,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5091a0c4ede8d9789dbb752c1f3d2e762f0e0de72cceb78ddfbfdeeaa3e4ecf0",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session/wire_failure_tests.rs",
+      "sha256": "a88cc3233a472e7cb54e2daddb667a6129f431c8db1996b65ae4d3bb01a2a56a",
+      "lines": 901,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_refuse_old_savepoint_commands_before_mutating_a_same_named_replacement",
+          "inline_modules": [],
+          "line": 9,
+          "end_line": 68,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b3ad8b8b998a451a44d752f61ad7932e86b6802af140075340ca85de6d6246ff",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_refuse_old_sql_setting_leaves_without_changing_the_replacement",
+          "inline_modules": [],
+          "line": 71,
+          "end_line": 126,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8b25617dc9cb16ad6bbe8bdbf11b5a9809f75b73180ed7d0e5b38304148f58a6",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_stale_root_mutations_without_changing_the_replacement",
+          "inline_modules": [],
+          "line": 129,
+          "end_line": 171,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "824aef86c955714f666e23e5fb0a14c39b316ae42cfc113dfa513ab98877b489",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_export_a_replacements_mutable_catalog_alias_to_an_old_operation",
+          "inline_modules": [],
+          "line": 174,
+          "end_line": 201,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "234b9a8d7b1eaa0281c325d6ce766735c84f9d9d14bca41e0442dd889bfe4763",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_apply_local_settings_atomically_under_the_root_lock",
+          "inline_modules": [],
+          "line": 248,
+          "end_line": 290,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "37fb10696896ed8acffa3c9c1877b2394bfbe611aadcff4020ac7548368e6373",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_restore_savepoint_session_state_before_releasing_the_root_mutex",
+          "inline_modules": [],
+          "line": 293,
+          "end_line": 327,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "fbf625fd8fb7fc82c41bfaadd202212731028369aae465f7680aa1ca3db7a3d8",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_retire_a_replacement_when_an_owning_nested_statement_fails",
+          "inline_modules": [],
+          "line": 330,
+          "end_line": 364,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "65774c1ea925dd6f81ead973b3354bae6f1aaa179ba83bde67e2589e552290ee",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_an_old_insert_before_it_can_fork_a_replacement_transaction",
+          "inline_modules": [],
+          "line": 367,
+          "end_line": 427,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c5fcbaab0aef93e1029cc807e886f7b06674e89918aad0fdde18927a03e1b12c",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_declare_projection_mode_on_a_replacement_through_an_old_operation",
+          "inline_modules": [],
+          "line": 430,
+          "end_line": 445,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8c5d2a734ed91010d7ece5098c31c36d8e6720545ac5181ec50f79b364aa6f37",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_refuse_an_old_sql_rollback_after_a_replacement_begins",
+          "inline_modules": [],
+          "line": 448,
+          "end_line": 486,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "93ba30a0a291fa8717feda10148bfd239971d5cf2786572df4939933676920bb",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_the_owned_block_after_a_quarantined_query_error",
+          "inline_modules": [],
+          "line": 489,
+          "end_line": 508,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "25ee3d6330170215285df2afd6e850dccf1150dc92e443ef134ae9739d7f3c02",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_the_captured_owner_when_recovery_latches_after_admission",
+          "inline_modules": [],
+          "line": 511,
+          "end_line": 585,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ff4cb07edf755d4416a4e3e94f86fc30727e6332d49825e146bae16930c92df2",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_fail_a_replacement_after_old_quarantine_conversion_fails",
+          "inline_modules": [],
+          "line": 588,
+          "end_line": 630,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e18662333aa111d897ce26b832c057fc04be9040b350f421bb4e01355fcf2f60",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_leave_a_block_healthy_when_wire_admission_rejects_before_capture",
+          "inline_modules": [],
+          "line": 633,
+          "end_line": 646,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "670671aa43e16d5e31b8f5f633fb349fa9f9631b82c7221024a4d423c4ebf1da",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_capture_a_protocol_owner_after_an_unowned_query_attempt",
+          "inline_modules": [],
+          "line": 649,
+          "end_line": 665,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6c461363ef55c927fedc2a791ed748a3008718d2732a860957880be701796d5e",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_a_replacement_after_an_admitted_wire_operation_fails",
+          "inline_modules": [],
+          "line": 668,
+          "end_line": 683,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d6c95c580213bf58008d3ccd1e82b58c567bc9454b1ee2386bb2cb963e16ef50",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_rollback_only_the_owned_implicit_wire_transaction",
+          "inline_modules": [],
+          "line": 686,
+          "end_line": 701,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "bb04cb83d60cd4d8148e6436c81fb9f750e7f47d075cf75a0a1624ee96f1529a",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_a_wire_operations_own_begin_after_adoption",
+          "inline_modules": [],
+          "line": 704,
+          "end_line": 722,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6fb2e7861d9260065f167f62b788c2b98ac71d76b496e26bbc38903fcdb1fcc5",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_clear_portals_for_a_replacement_after_owned_retirement",
+          "inline_modules": [],
+          "line": 725,
+          "end_line": 741,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "01f0c58af159e815f0b3e39d37ef5366de463a0ff2586a85ea1f43f2a9b565c1",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_refuse_a_stale_outer_commit_without_publishing_or_rolling_back_the_replacement",
+          "inline_modules": [],
+          "line": 744,
+          "end_line": 776,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ae02340db755f393bcc63fc918875ea6464b85afbae3907f6469da5577a04f5b",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_an_established_owner_when_later_admission_is_rejected",
+          "inline_modules": [],
+          "line": 779,
+          "end_line": 799,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "054117a5c13dbeedec5089756e55cb0024a3cb607a72e907fa5d5b427fa729a7",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_grant_an_established_rejected_operation_rights_over_a_replacement",
+          "inline_modules": [],
+          "line": 802,
+          "end_line": 822,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e56a20e49a5e16ce25c52964ba07d87ff46220906f146a1bd8c51d7034806a72",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_export_a_replacements_repeatable_read_alias_to_an_old_operation",
+          "inline_modules": [],
+          "line": 825,
+          "end_line": 875,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c4b8b2ece3ccbc8a31ff63c5abcfa846c73cf6380c9f605311128cac646411a5",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_detach_only_the_explicit_unscoped_cleanup_clone",
+          "inline_modules": [],
+          "line": 878,
+          "end_line": 901,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "636818112c71a45252a09fb501d9202c48459450a0312911a14587dad53a0fca",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session_objects/ownership_tests.rs",
+      "sha256": "2cc5369aefd62417c647bc032258c8b7f3b2c3c2477eb1d0779b03a52adaee65",
+      "lines": 403,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_preserve_replacement_object_state_when_an_old_leaf_resumes",
+          "inline_modules": [],
+          "line": 63,
+          "end_line": 113,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "21784bedc704800c9fa87bd7651ff0b785f0f7cc99a64288bda3edef422cbd5a",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_replacement_session_state_from_old_discard",
+          "inline_modules": [],
+          "line": 116,
+          "end_line": 147,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8022904ae86c5e45a80c4811c390fcffcbd33c8f5295b57b796fab435b04c166",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_admit_discard_output_before_destroying_same_owner_state",
+          "inline_modules": [],
+          "line": 150,
+          "end_line": 183,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f432363e194a27eec4eab3edcf7aa9d6e5429c72a13dc02e4d301c4c2796f1ce",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fence_protocol_namespace_writes_by_owner",
+          "inline_modules": [],
+          "line": 186,
+          "end_line": 212,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "26d1e102cc9b0671de04a4ab227e65133c7e270e75f6c6b3a41be1a94d142b27",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_shared_object_mutation_from_a_fork_without_lineage",
+          "inline_modules": [],
+          "line": 215,
+          "end_line": 235,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "0f15867c53b6b0f4285b8e61ce494cd629b9b70e1fb97ceb3e66267b3666ea62",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_access_shared_objects_through_a_current_detached_owner",
+          "inline_modules": [],
+          "line": 238,
+          "end_line": 281,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "609a0e7c3e825a0e5ccd25b654b5ca11e975e1be96b207db0e1113381a220045",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_refuse_a_sealed_fork_while_preserving_the_committing_root",
+          "inline_modules": [],
+          "line": 284,
+          "end_line": 314,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "4d78248059a77b9e6ed378860b7860a9e17c67eae9d344045b0088398052f44e",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_publish_a_held_cursor_after_its_own_modifying_cte_commits",
+          "inline_modules": [],
+          "line": 317,
+          "end_line": 336,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "36ffbb70613169a1d0c1129e97228dead945c99b7fd324d7f63f897f2ea846db",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_revoke_an_owned_idle_receipt_after_an_independent_transaction",
+          "inline_modules": [],
+          "line": 339,
+          "end_line": 358,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "237bf3650700dda9f6cb4c195ecd2bd159caa87c9a048b91d1d4152421ee536b",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_treat_another_operations_commit_as_its_own_retirement",
+          "inline_modules": [],
+          "line": 361,
+          "end_line": 378,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "799363b1428f79ac7f7f9136d618c25253043933cc1255767d33706288357493",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_transfer_the_roots_idle_retirement_receipt_to_a_detached_fork",
+          "inline_modules": [],
+          "line": 381,
+          "end_line": 403,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "fd35ecf7ba4649302e8bf855ff10c6f11910fe1ed3a37d39a787dd60a5a2c3a6",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session_schema/tests.rs",
+      "sha256": "d06355df353c06622d3df9a7f4d1c62ae2debeeacfc1adc3d062b45a3b3fe839",
+      "lines": 419,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_keep_a_late_statement_fork_schema_attachment_out_of_the_replacement",
+          "inline_modules": [],
+          "line": 37,
+          "end_line": 94,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "0a9d48f03168d39d562c956c5f23c7c57e2ca10c99e1cf7fe6891f99c4a7d6ab",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_the_complete_fork_context_charge_until_its_last_clone_retires",
+          "inline_modules": [],
+          "line": 97,
+          "end_line": 140,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8d72add91759e9874887aef917669d8ffc9170ff50014cfa18f40db823823e41",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retire_the_schema_context_read_owner_at_transaction_end",
+          "inline_modules": [],
+          "line": 143,
+          "end_line": 183,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "42c21b8956bc8e320ba30428ec6c706b0ba123b55468c4589efd5cc60670d9c5",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_descriptor_metadata_during_sequence_mutations",
+          "inline_modules": [],
+          "line": 186,
+          "end_line": 258,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "81c66370f5b755d340badadc3a09e04530efef5390178305d2496a9c0d7af8f5",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_published_sequence_cursor_out_of_the_transaction_catalog_overlay",
+          "inline_modules": [],
+          "line": 261,
+          "end_line": 315,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9c58409945f3e2d637dcd457792e7fc3c75fd1a9a79fabc88afbba592c40c17b",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_once_only_upsert_defaults_before_the_working_fork",
+          "inline_modules": [],
+          "line": 318,
+          "end_line": 338,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9d8e7844bda269957b1c1411b115d63ef2ccef19532291799a6f5148bc069fbf",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_prepared_defaults_across_an_owner_wait",
+          "inline_modules": [],
+          "line": 341,
+          "end_line": 419,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "55811cee7023aef4706e99452e5e2bd5e2f7887aa380c54abfbd41d8d310bbb2",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session_sequences/discard_restart_tests.rs",
+      "sha256": "2d2b0e996171355cf1fddfd9ae2eac40eff8ae623d152b9c0a37bd8ae338b1a1",
+      "lines": 458,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_preserve_sequence_history_when_an_old_operation_cannot_reset_the_replacement",
+          "inline_modules": [],
+          "line": 11,
+          "end_line": 32,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8246c8eff7c61fa9777bc22c2e608195dc74b2a513fe32e542f79a837bcc14df",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_clear_owned_sequence_history_only_after_the_owned_reset_leaf_succeeds",
+          "inline_modules": [],
+          "line": 35,
+          "end_line": 63,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e33d53b421d33488b054b5f9fe3dd410e9113ac8f61dbd36e7608b56c352b0ed",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_restart_when_discarding_history_in_failed_transaction",
+          "inline_modules": [],
+          "line": 150,
+          "end_line": 176,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "782593803c7203b53d50a5af9a54665a40db2750cad2e05e726d64655f2eccd9",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_restart_when_discarding_history_in_implicit_transaction",
+          "inline_modules": [],
+          "line": 179,
+          "end_line": 202,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b8cb4b87569ee4935c8bb620d7668725f32fc89f6b8104da4e9c4960852ca054",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_make_progress_when_lastval_and_discard_share_sequence_state",
+          "inline_modules": [],
+          "line": 205,
+          "end_line": 256,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9f8904c30078301290bb5233c26f022e7d07682a84cfd3c254c7d2c9045bedd8",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_restore_identity_restart_after_discard_sequences_rollback",
+          "inline_modules": [],
+          "line": 259,
+          "end_line": 297,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c563d71fc0dc7d804e06500b580baf4f599872c2058e0c5e5104e1b6e812b4fe",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_identity_restart_after_discard_sequences_commit",
+          "inline_modules": [],
+          "line": 300,
+          "end_line": 337,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "0c0209dca53b07f9eb960cb70574151a0e2e1c7b67fb92bcdb872291bb9e1ee0",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_forget_sequence_history_without_rewinding_outside_transaction",
+          "inline_modules": [],
+          "line": 340,
+          "end_line": 358,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6f89db9621b3cfd806d9e5b9740b36379ed1d591370f890f25323dc3db77f1e0",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_restore_identity_restart_after_normal_rollback",
+          "inline_modules": [],
+          "line": 361,
+          "end_line": 395,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "624ed69572a317f26e81163d5924b015ed818e94fcfd61d1cca134c71f182122",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_discard_all_without_losing_restart_restoration",
+          "inline_modules": [],
+          "line": 398,
+          "end_line": 437,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "22d77a4681874bd0567640815f6f206196f802ef16cb6ec005e33c48f67d3142",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_forget_sequence_history_after_discard_all_outside_transaction",
+          "inline_modules": [],
+          "line": 440,
+          "end_line": 458,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "36adce1575708928338146e4beb2e223f896f88a82e64065abe8e49d8a179c9f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/session_sequences/history_owner_tests.rs",
+      "sha256": "c6f0f3738ea5fad5aea2adb80583a4984a9dc04352f4edef3d43e478ee342675",
+      "lines": 120,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_preserve_b_history_after_an_admitted_a_sequence_effect_finishes",
+          "inline_modules": [],
+          "line": 20,
+          "end_line": 87,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9a5bcd43694053183df0edf0d25662392009d5ed2e159dfbac077540dc16b420",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_publish_sequence_history_for_its_current_owner",
+          "inline_modules": [],
+          "line": 90,
+          "end_line": 120,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f23093e99c659680a8eec5f876b9677afc83a7fd9acffede56f1e7ae694df4f3",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/statement_mutation_retry_policy_tests.rs",
+      "sha256": "088aea5ca275f9932db6f38b87afcbf87969ae832b1326f3106202077a7eb085",
+      "lines": 406,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_promote_a_real_unique_failure_resolver_sequence_to_a_strict_data_retry",
+          "inline_modules": [],
+          "line": 353,
+          "end_line": 356,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c309e144842f3b614f45c32643b2aba81a1ed57b04452b35956ed993bfac9b4f",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_a_real_unique_failure_without_an_independent_effect_buffered_on_retry",
+          "inline_modules": [],
+          "line": 359,
+          "end_line": 362,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "676dcee7b2292f4aefe3f71d8d85a92932efc274a9160fe0a940a991c961a168",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fence_an_unknown_response_after_native_data_success_without_resolving_or_retrying",
+          "inline_modules": [],
+          "line": 365,
+          "end_line": 406,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5dd8fbd33b9809d75850f5520736ee9309baff9b198c014757ccf3d1347295cf",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/midge/adapter/schema_ops/copy_identity_tests.rs",
+      "sha256": "452b0198cf02262a597a238da7c7ab26e58c1fa508745f04f2c7a665e585b459",
+      "lines": 257,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_reclaim_only_retired_rows_after_a_recreated_target_commits",
+          "inline_modules": [],
+          "line": 101,
+          "end_line": 198,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6c2ee90225d15481db570d27745d54aa4e3f11d59aea1e545bab779cfa92ea38",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_replacement_publication_after_a_supported_concurrent_old_target_write",
+          "inline_modules": [],
+          "line": 201,
+          "end_line": 230,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "313551ccadb50d3b1630eb7b5c41f27dbc919ae571d299ac6e32074099ffd745",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_closed_for_a_legacy_row_descriptor_without_identity",
+          "inline_modules": [],
+          "line": 233,
+          "end_line": 242,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d5219e3a88aaa4660390bef5c4a2b2aaa8f7436ff9c324523d02df3dfd54a4ad",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_deny_identity_decode_over_query_budget",
+          "inline_modules": [],
+          "line": 245,
+          "end_line": 257,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "695a2c77a5160f98d848616250458aabfca816947a3da569e61be6a4ee629695",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/blocking/tests.rs",
+      "sha256": "ed98747b52046ab9feb5799ba1cac175f0b66074d2799ae6e2d7ee13fdc691d1",
+      "lines": 236,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_retire_worker_cleanup_off_the_reactor_for_every_outcome",
+          "inline_modules": [],
+          "line": 33,
+          "end_line": 71,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "83eed13386ebb9119379a0779b9519907d3a9ecbd3c45caa92f2e748a665c190",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_skip_native_cleanup_when_storage_requires_recovery",
+          "inline_modules": [],
+          "line": 74,
+          "end_line": 101,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "bd0b9c1eec8f368f6b20aa274ab8b127ef0ba27c6ebf7046cadc4ed91b3fe5fd",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_finish_started_worker_cleanup_after_its_awaiting_task_is_aborted",
+          "inline_modules": [],
+          "line": 104,
+          "end_line": 150,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a0675e35f72799ec97c7c80cfabf528c491fbd8c7a2c65d0fb852482c7b57470",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_leave_cleanup_debt_for_later_when_a_queued_worker_never_starts",
+          "inline_modules": [],
+          "line": 153,
+          "end_line": 216,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e57800a2b80d9ab86c0cd9089ef5df66e6a3d8f523e66931bb8a177480fc65ca",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_map_join_failures_to_retryable_storage_errors",
+          "inline_modules": [],
+          "line": 219,
+          "end_line": 236,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b5da2926b5935d64381a7499879a4a61aed12868ec586dab64391f15f615a19c",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/copy/binding_authority_accounting_tests.rs",
+      "sha256": "3b72216e75bec5745a12eafb446876fb89660be76c17cf4265bce431130e685d",
+      "lines": 493,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_retain_shared_copy_owner_memory_until_the_outer_operation_retires",
+          "inline_modules": [],
+          "line": 46,
+          "end_line": 73,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "0c38eab6dc9cfeddc601581b4a38cf7ad5e659fffe12a3acf6e5d4a969367119",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_shared_copy_owner_memory_after_the_awaiting_task_is_aborted",
+          "inline_modules": [],
+          "line": 76,
+          "end_line": 123,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d65fd4c7322f9ae40820f3e4ea25e7b661495243f8f375ca6379bc30e5285154",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_copy_binding_with_one_byte_less_than_authority_charge",
+          "inline_modules": [],
+          "line": 126,
+          "end_line": 161,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b6d5b1759eb9c10c50d133bc2f03701375747c5d0c7c3fccd23d3d580cd7c8be",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_copy_binding_authority_at_exact_remaining_budget",
+          "inline_modules": [],
+          "line": 164,
+          "end_line": 211,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f42c2a572f4301a5373341fe57f9d3fec8f2a330da74e582e163d1639d642159",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_force_column_error_before_authority_admission",
+          "inline_modules": [],
+          "line": 214,
+          "end_line": 237,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "06a4d14693ba783693be53de8dc6b51f944edda5773c7c800041801e1e598f25",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_prefer_post_validation_cancellation_to_authority_admission",
+          "inline_modules": [],
+          "line": 240,
+          "end_line": 262,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7904da833e948543355dad73b03923585c8f6357d76ee658d5e6d8b9c86e15e4",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_prefer_post_validation_deadline_to_authority_admission",
+          "inline_modules": [],
+          "line": 265,
+          "end_line": 283,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7b6836d7623f2796c8cb15bbda3b17d2a55e89546ee02483522b15dd9b2dfccc",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_report_malformed_payload_after_binding_is_admitted",
+          "inline_modules": [],
+          "line": 286,
+          "end_line": 313,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e6c911f4982a32d432464a6c95679630348e781375a7db64c5c9423bf6c10048",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_charge_binding_tracker_with_distinct_ambient_controls",
+          "inline_modules": [],
+          "line": 316,
+          "end_line": 353,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "df231c015549af62fa67e78404bef113aae32bb9a0f83b594e20c2a5be0e181d",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_copy_binding_charge_until_blocking_worker_finishes",
+          "inline_modules": [],
+          "line": 356,
+          "end_line": 441,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "0927ced26628019a53a317f56403e0bb956d3291ffa1289573855c17a6d4d4e1",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_copy_query_target_before_waiting_for_transaction_lock",
+          "inline_modules": [],
+          "line": 444,
+          "end_line": 493,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5b86aaeecb1c364b471e5e6e580c5c664f40cb1ca6f4bae058eeb70af84ac92d",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/copy/diagnostic_tests.rs",
+      "sha256": "ca0382a9ecedd6e69c65a7c48d01b153598aa9c691ea4a1928b7b084fb11f190",
+      "lines": 199,
+      "cfg_attributes_in_file": [
+        "#[cfg(debug_assertions)]"
+      ],
+      "test_declarations": [
+        {
+          "name": "should_close_copy_for_oversized_unknown_column_frame_without_writing",
+          "inline_modules": [],
+          "line": 14,
+          "end_line": 61,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "316935f2bd27ae6ac594c3e17fed782c67479f78238fd2824447bc25b132980b",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_close_copy_for_oversized_jsonb_diagnostic_without_writing",
+          "inline_modules": [],
+          "line": 64,
+          "end_line": 108,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c6ad38657647d7c52500f8559f59f8074d4122b8d1f94727c280dd19bc52009d",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_report_jsonb_frame_admission_with_cancellation_failures_with_fail_transaction",
+          "inline_modules": [],
+          "line": 111,
+          "end_line": 167,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7091a044bcff3a9027f20593272a6dc66bc0f42fd0f65825f487005dc20878f0",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_retryable_worker_failure_with_jsonb_copy_error_type",
+          "inline_modules": [],
+          "line": 171,
+          "end_line": 199,
+          "attributes": [
+            "#[cfg(debug_assertions)]",
+            "#[test]"
+          ],
+          "body_sha256": "d714bf9e4c40f48a15f32ae253e6a92e18d6afd1b8c926653b02911cc7a4e309",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/copy/native_policy_tests.rs",
+      "sha256": "9d26db5502e34f1c659d8797d3bc3938063e6e7d47f3de039670b7b0594f7412",
+      "lines": 136,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_use_strict_native_data_policy_for_default_wire_copy_transaction",
+          "inline_modules": [],
+          "line": 121,
+          "end_line": 124,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "254f81631c419a226e678fb01a6d57b595cfd4415b9da0ed14b11a49926d8b11",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_use_buffered_native_data_policy_for_replayable_wire_copy_transaction",
+          "inline_modules": [],
+          "line": 127,
+          "end_line": 130,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "965590b13c1b2f78a1c15740039c8ac66446a9eaac8bf249d27c1befa84a5f36",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_promote_replayable_wire_copy_with_a_sequence_default_to_strict_data_policy",
+          "inline_modules": [],
+          "line": 133,
+          "end_line": 136,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c35c63c582cd6be854de8959c36989f07223ef4bb5d6358626c030fa982901fa",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/copy/origin_failure_authority_tests.rs",
+      "sha256": "3f469b2a29d40f1885f90e56c14fded02fc9e54351741eccd37a4ad3e6c6ecdb",
+      "lines": 147,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_preserve_replacement_when_old_copy_predicate_fails",
+          "inline_modules": [],
+          "line": 32,
+          "end_line": 114,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ba4daf62fb46300efda2aaf6aad1ed1c01428dd0c487b1c9e0b88f053a25085c",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_origin_when_current_copy_predicate_fails",
+          "inline_modules": [],
+          "line": 117,
+          "end_line": 147,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "89fe1643801553a43a19264ac069088c8789996b371fcda2604ca653102f27a4",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/copy/outer_failure_tests.rs",
+      "sha256": "73eccc311bab657f65fde2dd64ebb4a18dcaa2235043118774cca19b35524706",
+      "lines": 63,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_keep_the_replacement_healthy_after_a_copy_worker_error",
+          "inline_modules": [],
+          "line": 5,
+          "end_line": 63,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1d670af03599619217083048fb92bc0cfc623e198334d8de14ce12e4cc7e09b0",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/extended/bind/ownership_tests.rs",
+      "sha256": "ca1adbfa0800bdb6ebe25181b6ed349698a819b5f54648cc251c3cb87b5b3d57",
+      "lines": 144,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_reject_stale_bind_without_replacing_a_newer_portal",
+          "inline_modules": [],
+          "line": 16,
+          "end_line": 91,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "bc08868f9876fdf02b466e5cf3bbb657e3d005bd436a362226d2d71bbd7bf43d",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_publish_an_idle_bind_without_starting_a_mutation_transaction",
+          "inline_modules": [],
+          "line": 94,
+          "end_line": 144,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8e6f93fbac4b21e1e5d578a287bcaedcad85f7b4cd769842a7769b8e24795bd1",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/extended/registry_publication_tests.rs",
+      "sha256": "1f9d7c107259e3cb644cb6c2018921128b3dca98993afa6a2acd31cbc63c20a6",
+      "lines": 311,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_not_publish_named_or_unnamed_parse_after_registry_owner_replacement",
+          "inline_modules": [],
+          "line": 78,
+          "end_line": 125,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ff30a05f80716ea1dc725fde731293fe22c03edeeb9f22e90e8c54dcc500c51e",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_publish_close_or_remove_portals_after_registry_owner_replacement",
+          "inline_modules": [],
+          "line": 128,
+          "end_line": 166,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "18188187bbfe51c1a99257ff2fa95473c251d2ff67bc5ef0d66c263ac06bea66",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_apply_prepared_namespace_changes_for_the_current_frame_owner",
+          "inline_modules": [],
+          "line": 169,
+          "end_line": 207,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "48a6a00d6e41ec2ec3fee2dd85eaa030dfc14be09b75ffb6e2a5f8a6cc6c8d0d",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_b_namespace_when_an_a_close_reaches_the_shared_leaf",
+          "inline_modules": [],
+          "line": 210,
+          "end_line": 265,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5fdf72e38e039784b6e4dc7f56990ec377143bc1019f64304785ab0f2a70d163",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_remove_b_portals_for_an_a_portal_close",
+          "inline_modules": [],
+          "line": 268,
+          "end_line": 311,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "5fbb272e31cdae0f90cb1dd0d8813cef19536444e315369ae9acbf611efae0d1",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/idle_portal_snapshot_tests.rs",
+      "sha256": "d023ddb20fdf207a5dc90d27773cfed4bda8e789d828287ed50b8094a764c188",
+      "lines": 402,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_retain_portal_after_direct_failed_snapshot",
+          "inline_modules": [],
+          "line": 211,
+          "end_line": 219,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a0f38a9302d3856491f5819cbff331a45ff80fe7c23636f536fcbd0a9564d26e",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_portal_after_extended_sync_failed_snapshot",
+          "inline_modules": [],
+          "line": 222,
+          "end_line": 230,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6abd860fb25ed1f236afea0c516867ea283ed0b6a6c73cd18ff2342ee57b9ebd",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_portal_after_recovery_error_failed_snapshot",
+          "inline_modules": [],
+          "line": 233,
+          "end_line": 241,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ac04f9d8497a1561fe9c462db368e77e890cece261f46789ed411313f5e04f40",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_portal_after_sync_wait_failed_snapshot",
+          "inline_modules": [],
+          "line": 244,
+          "end_line": 252,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "def774a5a24bda190cd9c880d8fee29f5660d9286592e193b3301bd3b976057d",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_clear_idle_portals_only_after_idle_snapshot",
+          "inline_modules": [],
+          "line": 255,
+          "end_line": 265,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "76b624aa7c5d7f38962664d16894e0e481fd3e116f981587f6f06246715b9885",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_portals_after_active_snapshot",
+          "inline_modules": [],
+          "line": 268,
+          "end_line": 281,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "acdbf76db4413987eb5a91bb3a2bbb9955c600248064ce31a82f8c2bf642b496",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_portals_after_failed_snapshot",
+          "inline_modules": [],
+          "line": 284,
+          "end_line": 298,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "14c5535c0fb4b157204e94270ec4c5603b13ceb5818f09b99db6d080f1eb0ea9",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_clear_portals_when_sync_invalidation_is_set",
+          "inline_modules": [],
+          "line": 301,
+          "end_line": 354,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "50fb21d6b2622ea5f8210a49a8620c7d5e2ab40919fe8251f428c270ac77fc7b",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_skip_recovery_portal_check_when_storage_is_healthy",
+          "inline_modules": [],
+          "line": 357,
+          "end_line": 402,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d0f900141dfb72d62fef63441c03a0326020698a455b5d7b963893a3ddd0c80a",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/state/portal_owners/tests.rs",
+      "sha256": "fa9c5d12b9b1bb7d7e01254b5d78bdb72616f05bf58e826930bcc4544433ab53",
+      "lines": 116,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_keep_transaction_portals_across_a_savepoint_epoch_change",
+          "inline_modules": [],
+          "line": 31,
+          "end_line": 45,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "fb8bfebc6bf1d11ba0b2cb859708239b83bb2f8e37e3255811e39e94c79460a9",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_adopt_only_the_recorded_idle_preparation_segment",
+          "inline_modules": [],
+          "line": 48,
+          "end_line": 68,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "fc35ba0d483419d0f38aa386aa6e6b4be63ca6157277c89c483e2f34f4087579",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_release_the_complete_owner_metadata_charge_when_the_last_portal_closes",
+          "inline_modules": [],
+          "line": 71,
+          "end_line": 92,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "102f5874968d1c8af00299e2b1931e6bb2a39a56c4d07658b703429465ac4fdb",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_the_previous_owner_when_a_replacement_cannot_be_admitted",
+          "inline_modules": [],
+          "line": 95,
+          "end_line": 116,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "dee045eb730cda8c24b602751d498760706ed4695f05730d2e7d5455b9681a26",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/state/portal_ownership_tests.rs",
+      "sha256": "c2d490137c62aac86c3252cc6b2838e74bda3b3922ec7b3ad720583ca5d318db",
+      "lines": 116,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_retire_old_portals_without_clearing_the_replacement_transaction",
+          "inline_modules": [],
+          "line": 33,
+          "end_line": 65,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "19fa9818bc7a629cb2dd1540f08354fdf3fc5c906f78b242bfc9c7ec4a283fea",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_idle_bound_portals_only_for_their_own_implicit_start",
+          "inline_modules": [],
+          "line": 68,
+          "end_line": 97,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f54d923e1f04bbe8d6b3861f16591005b0b8a0582aa2965e81cb6c8cec5359d5",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_release_portal_owner_metadata_when_a_prepared_statement_closes",
+          "inline_modules": [],
+          "line": 100,
+          "end_line": 116,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "162a0aa6d78b2c996e3d5a742bab0a316bbae44d23f666cfb901615da93ae315",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/wire_failure_boundary_tests.rs",
+      "sha256": "f2e03cc5cee1fb3fa4931b7ff8e2323b98db923fea8bcc5a5f49827f84ff232b",
+      "lines": 578,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_preserve_a_named_preparation_portal_across_its_own_explicit_begin",
+          "inline_modules": [],
+          "line": 76,
+          "end_line": 119,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d9c7d440bd256d79c241b81c0ec50770e9e7e03c42fb52477bfc2e3aa26cc88a",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_adopt_idle_bound_portals_only_for_their_own_implicit_execute",
+          "inline_modules": [],
+          "line": 122,
+          "end_line": 165,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a86b0e46a69c8ffb26bf55a23108278755c6513c2e452364de6ccb7d622234b9",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reject_a_bound_a_execute_without_failing_b_before_worker_capture",
+          "inline_modules": [],
+          "line": 168,
+          "end_line": 200,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "912b30c5dae6fcc8b88ca5f4c2650faf42992334d2b7ca2d7f75c033d85f31e0",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_a_bound_portal_alive_across_its_own_savepoint_epoch",
+          "inline_modules": [],
+          "line": 203,
+          "end_line": 249,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "dd45074f0e3d8c0d5c848f9e465aafd03085d825f553281367ee9050dfe40a53",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_finish_an_unsynced_implicit_write_on_empty_simple_query",
+          "inline_modules": [],
+          "line": 252,
+          "end_line": 306,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "dfe7b1cba791606b75aa5d4a5491a871b88dc8a7127b22a1a26d59a7f2cf154d",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_the_replacement_healthy_after_a_simple_worker_error",
+          "inline_modules": [],
+          "line": 336,
+          "end_line": 364,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1eee7e75935dbb90ddf20d1a43d20699392eb8ffb2a6431857e3e3e20688c445",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_the_replacement_healthy_after_an_extended_worker_error",
+          "inline_modules": [],
+          "line": 367,
+          "end_line": 443,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a7428a3ebb92122d6ce57ec4a5d8ce5d0842ddd1b3a527c55c9d305618180f43",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_cleanup_an_own_implicit_origin_when_the_worker_slot_is_saturated",
+          "inline_modules": [],
+          "line": 446,
+          "end_line": 484,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1dfccf0a384ea76d734d50b13a6f40bbac3af35f201ea02851d974c5e047263c",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_fail_b_when_a_captured_operation_later_hits_saturation",
+          "inline_modules": [],
+          "line": 487,
+          "end_line": 521,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6bf7f5a5da18ec2d2dd82137235ba3985470e857b0d592b9d5b7d896b840a454",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_return_an_uncaptured_saturation_error_while_the_root_is_contended",
+          "inline_modules": [],
+          "line": 524,
+          "end_line": 578,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "a94aa967d89de906853622a0d2c967ca2e1f7aaa8f37a271acb07faa8608a33e",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/worker_lease/network_tests.rs",
+      "sha256": "9ef1ae144fa4b9a4d4e0febb75a2fb21965d8ef8608dcf6328b3e0e3bc35cd17",
+      "lines": 144,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_retain_a_copy_where_connection_slot_until_worker_retirement",
+          "inline_modules": [],
+          "line": 48,
+          "end_line": 144,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b6fc084c6afda5121015491878cb6da7ee3fa160937809afdcae16a7b824c979",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/worker_lease/tests.rs",
+      "sha256": "077f2e0e98cfaa3a89cf898472b7668d1dc145bcb134bd23af4133902069556d",
+      "lines": 111,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_retain_the_connection_slot_after_await_abort_until_cleanup_retires",
+          "inline_modules": [],
+          "line": 17,
+          "end_line": 70,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "24df3837a6af8f6008fdac6dc2f40d6f468c901e51ac7b2b307a267274006097",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_release_a_never_started_workers_connection_lease_without_running_it",
+          "inline_modules": [],
+          "line": 73,
+          "end_line": 111,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "56367c6f98b0de7934c521aa5cb7b9338563b0008fa154f15f31716d5130b72e",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    }
+  ]
+}

@@ -138,11 +138,13 @@ impl Cassie {
                     authority,
                 )?;
             }
-            TransactionAction::Commit if failed_commit => session.rollback_transaction(),
+            TransactionAction::Commit if failed_commit => {
+                session.rollback_for_operation(authority)?;
+            }
             TransactionAction::Commit => {
                 self.commit_transaction_with_controls(session, controls)?;
             }
-            TransactionAction::Rollback => session.rollback_transaction(),
+            TransactionAction::Rollback => session.rollback_for_operation(authority)?,
             TransactionAction::Savepoint { name } => session.create_savepoint(name)?,
             TransactionAction::RollbackTo { name } => {
                 session.rollback_to_savepoint_for_operation(name, authority)?;
@@ -183,11 +185,17 @@ impl Cassie {
         held_publication: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
+        let authority = session
+            .operation_failure_authority()
+            .cloned()
+            .unwrap_or_else(|| super::FailureAuthority::capture(session));
+        let operation_session = session.with_operation_failure_authority(Some(&authority));
+        let session = &operation_session;
         let result = self.commit_transaction_inner(session, held_publication, controls);
         // PostgreSQL ends the block when COMMIT itself fails: nothing is
         // published and the session returns to idle without a ROLLBACK.
         if result.is_err() && (session.is_transaction_active() || session.is_transaction_failed()) {
-            session.rollback_transaction();
+            authority.rollback_if_current(session);
         }
         result
     }
@@ -195,7 +203,9 @@ impl Cassie {
     /// Rejects COMMIT when storage needs recovery or no healthy transaction is active.
     fn ensure_commit_admissible(&self, session: &CassieSession) -> Result<(), CassieError> {
         if let Err(error) = self.check_storage_recovery_required() {
-            session.rollback_transaction();
+            if let Some(authority) = session.operation_failure_authority() {
+                authority.rollback_if_current(session);
+            }
             return Err(error);
         }
         if session.is_transaction_failed() {
@@ -234,7 +244,7 @@ impl Cassie {
         self.ensure_commit_admissible(session)?;
         // Freeze the writes and declared mode COMMIT is about to capture. A
         // statement fork that finishes later is rejected, not waited for.
-        let mut commit_seal = session.seal_transaction_for_commit();
+        let mut commit_seal = session.seal_transaction_for_operation()?;
         let (storage_overlay, _sequence_buffers, _sequence_directory) = session
             .transaction_storage_overlay_snapshot()
             .with_sequence_cursors(controls)?;
@@ -275,7 +285,7 @@ impl Cassie {
         let index_guard =
             crate::midge::adapter::IndexCleanupCommitGuard::capture(&storage_overlay, controls)
                 .inspect_err(|_| session.mark_transaction_failed())?;
-        let (row_collections, referential) = self.transaction_commit_write_gates(session);
+        let (row_collections, referential) = self.transaction_commit_write_gates(session)?;
         let gate_names = if index_guard.is_empty() {
             None
         } else {

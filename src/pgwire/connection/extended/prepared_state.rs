@@ -55,28 +55,61 @@ pub(super) fn with_function_input_scope<R>(
 
 /// Registers `prepared` under its name, closing the portals of any statement
 /// it replaces.
-pub(super) fn store_prepared_statement(
+pub(super) async fn store_prepared_statement(
+    cassie: std::sync::Arc<Cassie>,
+    session: &CassieSession,
     runtime: &RuntimeState,
     state: &mut SessionState,
     prepared: PreparedStatement,
-) {
-    let replaced_prepared = state
-        .prepared_statements
-        .get(&prepared.name)
-        .map(|statement| statement.id);
-    if let Some(prepared_id) = replaced_prepared {
-        remove_portals_for_prepared_id(state, runtime, prepared_id);
-        state.prepared_result_descriptors.remove(&prepared_id);
+) -> Result<(), super::ExtendedQueryError> {
+    let cleanup_cassie = std::sync::Arc::clone(&cassie);
+    let cleanup_name = prepared.name.clone();
+    let registration_session = session.clone();
+    let name = prepared.name.clone();
+    let query = prepared.query.clone();
+    let id = prepared.id;
+    let connection_name = prepared.name.clone();
+    state.prepared_statements.try_reserve(1).map_err(|error| {
+        super::ExtendedQueryError::cassie(&crate::app::CassieError::ResourceLimit(format!(
+            "prepared statement directory allocation failed: {error}"
+        )))
+    })?;
+    super::run_pgwire_blocking(cassie, "pgwire_register_prepared", move |worker_cassie| {
+        #[cfg(not(test))]
+        drop(worker_cassie);
+        registration_session.register_wire_prepared(&name, id, &query)?;
+        #[cfg(test)]
+        registry_publication_tests::after_registry(&worker_cassie, &registration_session);
+        Ok(())
+    })
+    .await
+    .map_err(|error| super::ExtendedQueryError::cassie(&error))?;
+    let publication = session.try_with_current_operation_owner(|_| {
+        let replaced_prepared = state
+            .prepared_statements
+            .get(&prepared.name)
+            .map(|statement| statement.id);
+        if let Some(prepared_id) = replaced_prepared {
+            remove_portals_for_prepared_id(state, runtime, prepared_id);
+            state.prepared_result_descriptors.remove(&prepared_id);
+        }
+        state.prepared_statements.insert(connection_name, prepared);
+        if replaced_prepared.is_none() {
+            runtime.record_pgwire_prepared_delta(1);
+        }
+    });
+    if let Err(error) = publication {
+        if !cleanup_name.is_empty() {
+            let cleanup_session = session.without_operation_failure_authority();
+            super::run_pgwire_blocking(cleanup_cassie, "pgwire_forget_rejected_parse", move |_| {
+                cleanup_session.forget_wire_prepared(&cleanup_name, id)
+            })
+            .await
+            .map_err(|error| super::ExtendedQueryError::cassie(&error))?;
+        }
+        return Err(super::ExtendedQueryError::cassie(&error));
     }
-    if let Some(session) = state.session.as_ref() {
-        session.register_wire_prepared(&prepared.name, prepared.id, &prepared.query);
-    }
-    state
-        .prepared_statements
-        .insert(prepared.name.clone(), prepared);
-    if replaced_prepared.is_none() {
-        runtime.record_pgwire_prepared_delta(1);
-    }
+    Ok(())
 }
 
 pub(super) fn normalize_parameter_type_oids(parameter_type_oids: &[i32]) -> Vec<i32> {
@@ -85,3 +118,7 @@ pub(super) fn normalize_parameter_type_oids(parameter_type_oids: &[i32]) -> Vec<
         .map(|oid| if *oid == 0 { OID_UNKNOWN } else { *oid })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "registry_publication_tests.rs"]
+pub(super) mod registry_publication_tests;

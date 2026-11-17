@@ -86,7 +86,7 @@ impl ProjectionWriteAuthority {
         self.state.lock().mode = mode;
     }
 
-    fn note_effect(&self, strict: bool) {
+    pub(super) fn note_effect(&self, strict: bool) {
         let mut state = self.state.lock();
         state.effect_seen = true;
         state.strict_required |= strict;
@@ -149,26 +149,28 @@ impl CassieSession {
     /// block, `22023` for an unknown value and `25000` after the first write or
     /// independently durable effect of the transaction.
     pub(crate) fn set_projection_write_mode(&self, value: Option<&str>) -> Result<(), CassieError> {
-        let transaction = self.transaction.lock();
-        match transaction.status {
-            SessionTransactionStatus::InTransaction if !transaction.implicit => {}
-            SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
-            _ => {
-                return Err(CassieError::Transaction {
-                    kind: TransactionErrorKind::NoActiveTransaction,
-                    message: format!(
+        self.with_owned_setting_transaction(|transaction| {
+            match transaction.status {
+                SessionTransactionStatus::InTransaction if !transaction.implicit => {}
+                SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
+                _ => {
+                    return Err(CassieError::Transaction {
+                        kind: TransactionErrorKind::NoActiveTransaction,
+                        message: format!(
                         "SET LOCAL \"{PROJECTION_WRITE_MODE}\" requires an explicit transaction \
                          block"
                     ),
-                });
+                    });
+                }
             }
-        }
-        let mode = value.map_or(Ok(ProjectionWriteMode::Default), ProjectionWriteMode::parse)?;
-        let staged_effects = transaction.sealed_for_commit
-            || !transaction.writes.is_empty()
-            || transaction.catalog_overlay.is_some()
-            || !transaction.conflict_intents.is_empty();
-        transaction.projection_write.declare(mode, staged_effects)
+            let mode =
+                value.map_or(Ok(ProjectionWriteMode::Default), ProjectionWriteMode::parse)?;
+            let staged_effects = transaction.sealed_for_commit
+                || !transaction.writes.is_empty()
+                || transaction.catalog_overlay.is_some()
+                || !transaction.conflict_intents.is_empty();
+            transaction.projection_write.declare(mode, staged_effects)
+        })
     }
 
     /// Rejects every way of changing the mode other than `SET LOCAL`.
@@ -182,8 +184,10 @@ impl CassieSession {
     /// Records a write (`strict == false`) or an effect that requires the
     /// existing strict policy. Shared with every fork of this transaction.
     pub(crate) fn note_projection_effect(&self, strict: bool) {
-        let authority = std::sync::Arc::clone(&self.transaction.lock().projection_write);
-        authority.note_effect(strict);
+        let transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_ok() {
+            transaction.projection_write.note_effect(strict);
+        }
     }
 
     /// Classifies a statement at its execution boundary. Row DML is a
@@ -193,20 +197,25 @@ impl CassieSession {
     /// recorded. Everything else, including DDL, security, procedure calls and
     /// EXPLAIN (which may execute its statement), conservatively promotes a
     /// declared transaction to the strict policy.
-    pub(crate) fn note_statement_projection_effect(&self, statement: &QueryStatement) {
-        match statement {
+    pub(crate) fn note_statement_projection_effect(
+        &self,
+        statement: &QueryStatement,
+    ) -> Result<(), CassieError> {
+        let strict = match statement {
             QueryStatement::Select(_)
             | QueryStatement::Show(_)
             | QueryStatement::Set(_)
-            | QueryStatement::Transaction(_) => {}
+            | QueryStatement::Transaction(_) => return Ok(()),
             QueryStatement::Insert(_)
             | QueryStatement::Update(_)
             | QueryStatement::Delete(_)
-            | QueryStatement::Copy(_) => {
-                self.note_projection_effect(false);
-            }
-            _ => self.note_projection_effect(true),
-        }
+            | QueryStatement::Copy(_) => false,
+            _ => true,
+        };
+        let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        transaction.projection_write.note_effect(strict);
+        Ok(())
     }
 
     /// The policy for committing this transaction's own Data writes.

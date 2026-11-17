@@ -402,6 +402,8 @@ impl Cassie {
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         let (controls, authority) = scope;
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }

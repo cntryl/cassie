@@ -67,6 +67,8 @@ impl Cassie {
                 crate::sql::ast::TransactionModes::default(),
                 authority,
             )?;
+            #[cfg(test)]
+            CassieSession::observe_owned_transaction_start_for_test();
         } else if savepoint {
             session.create_savepoint(CTAS_SAVEPOINT_NAME)?;
         }

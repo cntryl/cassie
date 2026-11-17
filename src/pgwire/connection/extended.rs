@@ -13,6 +13,10 @@ use prepared_state::{
 mod parse;
 use parse::{handle_parse, ParseRequest};
 
+#[path = "extended/bind.rs"]
+mod bind;
+use bind::{handle_bind, BindRequest};
+
 #[path = "extended/bind_planning.rs"]
 mod bind_planning;
 #[path = "extended/parameter_errors.rs"]
@@ -80,86 +84,11 @@ use text_parameters::{decode_text_parameter, DecodedTextParameter};
 const OID_UNKNOWN: i32 = 705;
 const MAX_PORTALS_PER_CONNECTION: usize = 1_024;
 
-pub(super) async fn handle_frontend_message(
-    cassie: Arc<Cassie>,
-    runtime: &RuntimeState,
-    reader: &mut PgwireReader,
-    write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
-    awaiting_sync: &mut bool,
-    session: &CassieSession,
-) -> ConnectionStep {
-    let message = match read_frontend_message(reader).await {
-        Ok(message) => message,
-        Err(HandshakeError::Closed) => return ConnectionStep::Break,
-        Err(HandshakeError::Invalid(error)) => {
-            runtime.record_pgwire_protocol_error();
-            super::transactions::fail_query(runtime, state, session);
-            let _ = write_error_response(
-                write_half,
-                &PgWireError::protocol(format!("invalid frontend message: {error}")),
-            )
-            .await;
-            *awaiting_sync = true;
-            return ConnectionStep::Continue(HandshakeState::Ready);
-        }
-    };
+#[path = "extended/frontend.rs"]
+mod frontend;
+pub(super) use frontend::handle_frontend_message;
 
-    let invalidate_portals_on_error = matches!(
-        &message,
-        FrontendMessage::Parse { query, .. }
-            if query
-                .trim_start()
-                .get(..5)
-                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("copy "))
-    );
-    match dispatch_message(
-        Arc::clone(&cassie),
-        runtime,
-        write_half,
-        state,
-        session,
-        message,
-    )
-    .await
-    {
-        Ok(DispatchOutcome::Continue) => ConnectionStep::Continue(HandshakeState::Ready),
-        Ok(DispatchOutcome::Break) => ConnectionStep::Break,
-        Err(error) => {
-            if error.record_protocol_error {
-                runtime.record_pgwire_protocol_error();
-            }
-            if session.is_implicit_transaction() {
-                session.rollback_transaction();
-                state.clear_all_portals(runtime);
-            } else {
-                session.mark_transaction_failed();
-            }
-            if cassie.check_storage_recovery_required().is_err() {
-                super::transactions::clear_idle_portals(runtime, state, session);
-            }
-            if super::writers::write_changed_parameter_statuses(
-                write_half,
-                session,
-                &mut state.parameter_statuses,
-            )
-            .await
-            .is_err()
-            {
-                return ConnectionStep::Break;
-            }
-            let _ = write_error_response(write_half, error.pg_error.as_ref()).await;
-            state.invalidate_portals_on_sync |= invalidate_portals_on_error;
-            *awaiting_sync = true;
-            ConnectionStep::Continue(HandshakeState::Ready)
-        }
-    }
-}
-
-enum DispatchOutcome {
-    Continue,
-    Break,
-}
+use frontend::DispatchOutcome;
 
 async fn dispatch_message(
     cassie: Arc<Cassie>,
@@ -221,7 +150,7 @@ async fn dispatch_message(
         }
         FrontendMessage::Close { target, name } => {
             runtime.record_pgwire_message("close");
-            handle_close(runtime, write_half, (state, session), target, name).await?;
+            handle_close(cassie, runtime, write_half, (state, session), target, name).await?;
         }
         FrontendMessage::Flush => {
             runtime.record_pgwire_message("flush");
@@ -229,6 +158,8 @@ async fn dispatch_message(
         }
         FrontendMessage::Sync => {
             runtime.record_pgwire_message("sync");
+            #[cfg(test)]
+            super::transactions::observe_portal_cleanup(session);
             if session.is_implicit_transaction() {
                 let transaction_session = session.clone();
                 let committed =
@@ -237,14 +168,14 @@ async fn dispatch_message(
                     })
                     .await;
                 if let Err(error) = committed {
-                    session.rollback_transaction();
+                    super::transactions::fail_owned_transaction(session).await;
                     write_error_response(write_half, &super::errors::cassie_pg_error(&error))
                         .await
                         .map_err(|error| ExtendedQueryError::write_failed(&error))?;
                 }
-                state.clear_all_portals(runtime);
+                super::transactions::clear_owned_idle_portals(runtime, state, session);
             }
-            super::transactions::clear_idle_portals(runtime, state, session);
+            super::transactions::clear_owned_idle_portals(runtime, state, session);
             state.extended_cycle = super::transactions::ExtendedCycle::default();
             let _ = write_ready_for_query(write_half, session).await;
         }
@@ -269,118 +200,6 @@ async fn dispatch_message(
     }
 
     Ok(DispatchOutcome::Continue)
-}
-
-struct BindRequest {
-    portal: String,
-    statement: String,
-    parameter_formats: Vec<i16>,
-    parameters: Vec<Option<Vec<u8>>>,
-    result_formats: Vec<i16>,
-}
-
-async fn handle_bind(
-    cassie: Arc<Cassie>,
-    runtime: &RuntimeState,
-    write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
-    session: &CassieSession,
-    bind: BindRequest,
-) -> Result<(), ExtendedQueryError> {
-    let BindRequest {
-        portal,
-        statement,
-        parameter_formats,
-        parameters,
-        result_formats,
-    } = bind;
-    validate_format_codes(&parameter_formats, "parameter")?;
-    validate_format_codes(&result_formats, "result")?;
-    let prepared = state
-        .prepared_statements
-        .get(&statement)
-        .cloned()
-        .ok_or_else(|| missing_statement_error(&statement))?;
-    check_prepared_storage_admission(&cassie, &prepared)?;
-    let previous_descriptor = state.prepared_result_descriptors.get(&prepared.id).cloned();
-    let catalog_version = current_catalog_version(&cassie, session);
-    let descriptor_is_stale = previous_descriptor.as_ref().is_some_and(|descriptor| {
-        session.transaction_catalog_overlay().is_some()
-            || descriptor.catalog_version() != catalog_version
-    });
-    let columns = if !result_formats.is_empty() || descriptor_is_stale {
-        Some(describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?)
-    } else {
-        None
-    };
-    if let Some(columns) = columns.as_deref() {
-        validate_prepared_result_types(previous_descriptor.as_deref(), columns)?;
-        if let Some(descriptor) = previous_descriptor.as_ref() {
-            descriptor.set_catalog_version(catalog_version);
-        }
-    }
-    if !result_formats.is_empty() {
-        let columns = columns
-            .as_deref()
-            .expect("nonempty result formats describe the prepared statement");
-        validate_result_formats(columns, &result_formats)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    }
-    if parameters.len() != prepared.parameter_count {
-        return Err(ExtendedQueryError::protocol(format!(
-            "bind message supplies {} parameters, but prepared statement \"{}\" requires {}",
-            parameters.len(),
-            prepared.name,
-            prepared.parameter_count
-        )));
-    }
-    validate_format_count(parameter_formats.len(), parameters.len(), "parameter")?;
-
-    let vector_oid = session_vector_oid(&cassie, session);
-    let user_types = bind_parameters::user_parameters(&cassie, session, &prepared.parameter_types);
-    let (values, parameter_memory) = bind_parameters::decode(
-        (&parameters, &parameter_formats, &prepared.parameter_types),
-        &state.portal_memory_controls,
-        (vector_oid, &user_types),
-    )?;
-
-    let prepared_id = prepared.id;
-    let described = prepared.described;
-    let (values, read_view) =
-        bind_planning::validate(cassie, session, state, prepared, values).await?;
-
-    let replaced_portal = state.remove_portal(&portal).is_some();
-    if !replaced_portal && state.portals.len() >= MAX_PORTALS_PER_CONNECTION {
-        return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
-            "portal limit exceeded".to_string(),
-        )));
-    }
-    if let Some(owner) = read_view {
-        state
-            .portal_reads
-            .insert(&portal, owner, &state.portal_memory_controls)
-            .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    }
-    state.portals.insert(
-        portal.clone(),
-        Portal {
-            name: portal,
-            statement_name: statement,
-            prepared_id,
-            params: values,
-            parameter_memory,
-            result_formats,
-            described,
-            suspended: None,
-            completed_command: None,
-        },
-    );
-    if !replaced_portal {
-        runtime.record_pgwire_portal_delta(1);
-    }
-
-    let _ = write_bind_complete(write_half).await;
-    Ok(())
 }
 
 fn session_vector_oid(cassie: &Cassie, session: &CassieSession) -> Option<i32> {
@@ -494,6 +313,7 @@ async fn execute_prepared_portal(
     } = request;
     let notice = super::simple_execution::missing_relation_notice(&cassie, session, &parsed);
     let execution_session = session.clone();
+    session.note_operation_worker_started();
     let sql = prepared.query.clone();
     let params = portal.params.clone();
     let parameter_type_oids = prepared.parameter_types.clone();
@@ -533,7 +353,7 @@ async fn execute_prepared_portal(
         )
         .await
         {
-            session.rollback_transaction();
+            super::transactions::fail_owned_transaction(session).await;
             return Err(ExtendedQueryError::cassie(&error));
         }
     }
@@ -579,6 +399,7 @@ async fn execute_prepared_portal(
 }
 
 async fn handle_close(
+    cassie: Arc<Cassie>,
     runtime: &RuntimeState,
     write_half: &mut (impl AsyncWrite + Unpin),
     (state, session): (&mut SessionState, &CassieSession),
@@ -590,17 +411,47 @@ async fn handle_close(
     // and leaves the rest of the pipelined batch running.
     match target {
         DescribeTarget::Statement => {
-            if let Some(prepared) = state.prepared_statements.remove(&name) {
-                runtime.record_pgwire_prepared_delta(-1);
-                session.forget_wire_prepared(&name, prepared.id);
-                state.prepared_result_descriptors.remove(&prepared.id);
-                remove_portals_for_prepared_id(state, runtime, prepared.id);
+            if let Some(id) = state
+                .prepared_statements
+                .get(&name)
+                .map(|prepared| prepared.id)
+            {
+                let owned_session = session.clone();
+                let owned_name = name.clone();
+                run_pgwire_blocking(cassie, "pgwire_forget_prepared", move |worker_cassie| {
+                    #[cfg(not(test))]
+                    drop(worker_cassie);
+                    owned_session.forget_wire_prepared(&owned_name, id)?;
+                    #[cfg(test)]
+                    prepared_state::registry_publication_tests::after_registry(
+                        &worker_cassie,
+                        &owned_session,
+                    );
+                    Ok(())
+                })
+                .await
+                .map_err(|error| ExtendedQueryError::cassie(&error))?;
+                session
+                    .try_with_current_operation_owner(|_| {
+                        let prepared = state
+                            .prepared_statements
+                            .remove(&name)
+                            .expect("checked prepared statement");
+                        runtime.record_pgwire_prepared_delta(-1);
+                        state.prepared_result_descriptors.remove(&prepared.id);
+                        remove_portals_for_prepared_id(state, runtime, prepared.id);
+                    })
+                    .map_err(|error| ExtendedQueryError::cassie(&error))?;
             }
         }
         DescribeTarget::Portal => {
-            if state.remove_portal(&name).is_some() {
-                runtime.record_pgwire_portal_delta(-1);
-            }
+            session
+                .try_with_current_operation_owner(|_| {
+                    if state.remove_portal(&name).is_some() {
+                        runtime.record_pgwire_portal_delta(-1);
+                    }
+                })
+                .map_err(|error| ExtendedQueryError::cassie(&error))?;
         }
     }
     let _ = write_close_complete(write_half).await;

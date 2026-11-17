@@ -27,33 +27,24 @@ pub(super) async fn handle_parse(
         query,
         parameter_type_oids,
     } = request;
-    if let Err(error) = cassie.check_storage_recovery_required() {
-        if crate::sql::parser::parse_terminal_transaction_control(&query).is_none() {
-            return Err(ExtendedQueryError::cassie(&error));
-        }
-    }
+    admit_recovery_parse(&cassie, &query)?;
     validate_prepared_name(state, session, &name)?;
     let empty_query = super::super::simple_query::split_simple_query(&query)
         .is_ok_and(|statements| statements.is_empty());
     if empty_query {
-        let parameter_types = normalize_parameter_type_oids(&parameter_type_oids);
-        let id = state.next_prepared_id();
-        store_prepared_statement(
+        return store_empty_parse(
+            &cassie,
             runtime,
+            write_half,
             state,
-            PreparedStatement {
-                id,
+            session,
+            ParseRequest {
                 name,
                 query,
-                parsed: None,
-                sql_fingerprint: 0,
-                parameter_count: parameter_types.len(),
-                parameter_types,
-                described: false,
+                parameter_type_oids,
             },
-        );
-        let _ = write_parse_complete(write_half).await;
-        return Ok(());
+        )
+        .await;
     }
     if let Some(error) = unsupported_sql_error(&query) {
         if session.is_authenticated_read_only() {
@@ -80,21 +71,26 @@ pub(super) async fn handle_parse(
         let cancellation = registration.begin_query();
         let handle = cancellation.handle();
         let session = session.clone();
-        run_pgwire_blocking(cassie, "pgwire_parse_snapshot", move |cassie| {
-            let started = std::time::Instant::now();
-            let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
-                &cassie.runtime.limits(),
-                started,
-                handle,
-            );
-            session.apply_statement_timeout(&mut controls, started);
-            let result = (|| {
-                cassie.prepare_transaction_analysis_view(&session, &parsed, false, &controls)?;
-                admit(&cassie, &session, parsed, &parameter_type_oids, &controls)
-            })();
-            cassie.runtime.record_query_memory(&controls);
-            Ok(result)
-        })
+        run_pgwire_blocking(
+            Arc::clone(&cassie),
+            "pgwire_parse_snapshot",
+            move |cassie| {
+                let started = std::time::Instant::now();
+                let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
+                    &cassie.runtime.limits(),
+                    started,
+                    handle,
+                );
+                session.apply_statement_timeout(&mut controls, started);
+                let result = (|| {
+                    cassie
+                        .prepare_transaction_analysis_view(&session, &parsed, false, &controls)?;
+                    admit(&cassie, &session, parsed, &parameter_type_oids, &controls)
+                })();
+                cassie.runtime.record_query_memory(&controls);
+                Ok(result)
+            },
+        )
         .await
         .map_err(|error| ExtendedQueryError::cassie(&error))??
     } else {
@@ -104,6 +100,8 @@ pub(super) async fn handle_parse(
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let id = state.next_prepared_id();
     store_prepared_statement(
+        Arc::clone(&cassie),
+        session,
         runtime,
         state,
         PreparedStatement {
@@ -116,8 +114,49 @@ pub(super) async fn handle_parse(
             parameter_types,
             described: false,
         },
-    );
+    )
+    .await?;
 
+    let _ = write_parse_complete(write_half).await;
+    Ok(())
+}
+
+fn admit_recovery_parse(cassie: &Cassie, query: &str) -> Result<(), ExtendedQueryError> {
+    if let Err(error) = cassie.check_storage_recovery_required() {
+        if crate::sql::parser::parse_terminal_transaction_control(query).is_none() {
+            return Err(ExtendedQueryError::cassie(&error));
+        }
+    }
+    Ok(())
+}
+
+async fn store_empty_parse(
+    cassie: &Arc<Cassie>,
+    runtime: &RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
+    session: &CassieSession,
+    request: ParseRequest,
+) -> Result<(), ExtendedQueryError> {
+    let parameter_types = normalize_parameter_type_oids(&request.parameter_type_oids);
+    let id = state.next_prepared_id();
+    store_prepared_statement(
+        Arc::clone(cassie),
+        session,
+        runtime,
+        state,
+        PreparedStatement {
+            id,
+            name: request.name,
+            query: request.query,
+            parsed: None,
+            sql_fingerprint: 0,
+            parameter_count: parameter_types.len(),
+            parameter_types,
+            described: false,
+        },
+    )
+    .await?;
     let _ = write_parse_complete(write_half).await;
     Ok(())
 }

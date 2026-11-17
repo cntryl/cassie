@@ -18,8 +18,11 @@ Every store contains 100,000 expected rows. Batch size/count pairs are
 1,000 × 100 and 100 × 1,000. Each completed control checks the independent total
 row count, every title in all sixteen 6,250-row buckets, and the replay metadata
 or SQL checkpoint at position 100,000, before and after clean local reopen.
-Apply report counts are checked per batch; duplicate controls check every
-submitted event is skipped, and no-op controls submit no events after seeding.
+Replay-API apply report counts are checked per batch; SQL lanes instead require
+each transaction Result to succeed and verify the final state. SQL applied-event
+fields are driver workload metadata, not per-batch replay-API reports. API
+duplicate controls check every submitted event is skipped, and API no-op controls
+submit no events after seeding.
 Seed work is excluded from measured acknowledgements and submitted/applied counts.
 
 | Measured workload | Submitted events | Applied events | Verified duplicate skips | Calls |
@@ -102,3 +105,14 @@ CARGO_BUILD_JOBS=2 CASSIE_REPLAY_BENCH_SOURCE='58e6c96ea14c3466da17c256cb2fcaefb
 The source label is operator-provided; verify it against Git. `repeat` identifies
 fresh processes, not reused stores. Original storage paths are diagnostic
 identities; generated stores and input data are not committed.
+
+## Late derived-metadata clarification — 2026-11-17
+
+The sixteen SQL lanes in the apply summary now mark per-batch replay-API report
+checks and verified API skips as not applicable. The source at `58e6c96e` checks
+SQL transaction Results; applied/skipped report assertions belong to its API
+branch. All sixteen API apply lanes and sixteen API auxiliary lanes retain their
+original report assertions. Rows, title buckets, checkpoint and clean-reopen
+assertions remain passed. Raw results, logs, source identities, measurements and
+original review records are unchanged. The [runtime closeout](../runtime-closeout-2026-11-17/README.md)
+retains this correction's before/after summary hashes and independent source check.

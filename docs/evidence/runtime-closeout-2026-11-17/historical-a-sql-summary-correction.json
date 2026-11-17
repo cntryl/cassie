@@ -1,0 +1,24 @@
+{
+  "scope": "Late derived-metadata correction only; no runtime or measurement rerun, no raw receipt or original review change.",
+  "historical_source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "historical_tree": "d051222b580d48266b3ed604f588928bd443e660",
+  "corrected_sql_lanes": 16,
+  "unchanged_api_apply_lanes": 16,
+  "unchanged_api_auxiliary_lanes": 16,
+  "summary_before_sha256": "c8742579e821fbbc15af76df0a9d957433753533c0846dd07aeca8334e4c0e5f",
+  "summary_after_sha256": "a5f87efb253029b0ef69c374b200ec9a77a2a3d9cb5015cd4c98825e3e84317a",
+  "fields": [
+    "verification.per_batch_report_count_assertions",
+    "verification.per_batch_sql_transaction_results",
+    "verification.verified_skipped_duplicate_events"
+  ],
+  "raw_archive_manifest": {
+    "archive": "raw-receipts.tar.gz",
+    "sha256": "ee9b7b3d16a994d895c96025c29438bcf55c7aeeaa10afecae3e77624e30d813",
+    "bytes": 350201,
+    "files": 65,
+    "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+    "tree": "d051222b580d48266b3ed604f588928bd443e660",
+    "scope": "Original per-lane log and extracted JSON bytes plus the original matrix execution receipt; normalized archive metadata only."
+  }
+}

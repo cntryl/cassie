@@ -2,6 +2,8 @@ use super::{CassieSession, Catalog};
 
 #[path = "session_schema/object_identifier.rs"]
 mod object_identifier;
+mod owned_context;
+pub(super) use owned_context::OwnedSessionSchemaContext;
 
 #[derive(Clone)]
 pub(super) struct SessionSchemaContext {
@@ -51,15 +53,16 @@ pub(crate) fn resolved_search_path(
 impl CassieSession {
     /// Attaches the catalog and storage that session-evaluated functions such
     /// as `nextval` act on.
-    pub(crate) fn attach_schema_context(&self, app: &super::Cassie) {
-        *self.schema_context.lock() = Some(SessionSchemaContext {
-            catalog: app.catalog.clone(),
-            write_catalog: app.metadata_write_catalog.clone(),
-            publication_catalog: app.publication_catalog.clone(),
-            owner: app.catalog_owner.clone(),
-            default_database: app.default_database.clone(),
-            midge: std::sync::Arc::downgrade(&app.midge),
-        });
+    pub(crate) fn attach_schema_context(
+        &self,
+        app: &super::Cassie,
+    ) -> Result<(), super::CassieError> {
+        self.with_schema_attachment_guard(|| self.schema_context.replace_from(app))
+    }
+
+    /// Used only while a fresh session is constructed, before it is shared.
+    pub(crate) fn attach_initial_schema_context(&mut self, app: &super::Cassie) {
+        self.schema_context = std::sync::Arc::new(OwnedSessionSchemaContext::initial(app));
     }
 
     /// A transaction's private read aliases must not keep its catalog lease

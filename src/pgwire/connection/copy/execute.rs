@@ -48,6 +48,8 @@ pub(super) fn execute_copy_payload_for_operation(
     ),
 ) -> Result<CopyCompletion, filter::CopyWhereError> {
     let (owner, authority) = scope;
+    let operation_session = session.with_operation_failure_authority(authority);
+    let session = &operation_session;
     let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
         .ok_or_else(|| CassieError::Execution("COPY requires request controls".into()))?;
     let decoded_payload =

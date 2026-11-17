@@ -73,14 +73,16 @@ fn nextval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError
     let (_, _, midge) = session
         .sequence_context()
         .ok_or_else(|| CassieError::Execution("nextval requires storage".into()))?;
+    session.admit_sequence_projection_effect()?;
     let value = midge.with_sequence_update_gate(&sequence, || {
         let (value, updated) = midge.update_sequence_retrying(&sequence, |metadata| {
             metadata.advance().map_err(Into::into)
         })?;
-        session.record_sequence_value(&sequence, identity, value, true);
+        let history = session.record_sequence_value(&sequence, identity, value, true);
         if !midge.is_private_sequence(&updated)? {
             session.publish_sequence_metadata(&updated);
         }
+        history?;
         Ok(value)
     })?;
     Ok(Value::Int64(value))
@@ -120,16 +122,20 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
     let (_, _, midge) = session
         .sequence_context()
         .ok_or_else(|| CassieError::Execution("setval requires storage".into()))?;
+    session.admit_sequence_projection_effect()?;
     let value = midge.with_sequence_update_gate(&sequence, || {
         let (value, updated) = midge.update_sequence_retrying(&sequence, |metadata| {
             metadata.assign(value, is_called).map_err(Into::into)
         })?;
-        if is_called {
-            session.record_sequence_value(&sequence, identity, value, false);
-        }
+        let history = if is_called {
+            session.record_sequence_value(&sequence, identity, value, false)
+        } else {
+            Ok(())
+        };
         if !midge.is_private_sequence(&updated)? {
             session.publish_sequence_metadata(&updated);
         }
+        history?;
         Ok(value)
     })?;
     Ok(Value::Int64(value))

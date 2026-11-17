@@ -215,7 +215,7 @@ fn should_restore_authority_when_savepoint_cursor_pruning_is_canceled() {
             .midge
             .enter_transactional_ddl_scope(
                 &cassie.default_database,
-                session.transaction_storage_overlay(),
+                session.transaction_storage_overlay().unwrap(),
                 true,
             )
             .expect("private sequence scope");
@@ -418,14 +418,11 @@ fn should_not_readopt_epoch_when_stale_operation_rolls_back_to_savepoint() {
     let usable = cassie.execute_sql(&session, "SELECT 1", vec![]);
     session.rollback_transaction();
 
-    // Assert: the stale operation's own rollback advances the root epoch but
-    // must not adopt it and then fail the recovered transaction.
-    assert!(
-        matches!(result, Err(CassieError::Execution(ref message)) if message == "stale rollback conversion")
-    );
+    // Assert: stale rollback is rejected before another mutation or adoption.
+    assert_eq!(result.as_ref().unwrap_err().sql_state(), "25000");
     assert_eq!(current_owner, owner);
     assert_eq!(middle, before + 1);
-    assert_eq!(after, middle + 1);
+    assert_eq!(after, middle);
     assert!(healthy);
     assert!(usable.is_ok());
     drop(usable);

@@ -11,7 +11,17 @@ pub(crate) use publication_fence::PublicationFenceScope;
 mod command_catalog;
 pub(crate) use command_catalog::CommandCatalogScope;
 mod failure_authority;
-pub(crate) use failure_authority::FailureAuthority;
+mod sequence_effect;
+#[cfg(test)]
+mod sequence_effect_tests;
+#[cfg(test)]
+mod shared_setting_tests;
+#[cfg(test)]
+mod truncate_owner_tests;
+mod wire_failure;
+#[cfg(test)]
+mod wire_failure_tests;
+pub(crate) use failure_authority::{FailureAuthority, FailureAuthorityIdentity};
 mod savepoints;
 mod transaction_snapshot;
 use transaction_snapshot::TransactionReadSnapshot;
@@ -51,12 +61,15 @@ use uuid::Uuid;
 pub struct CassieSession {
     #[serde(skip)]
     statement_text: Option<Arc<statement_text::StatementText>>,
+    /// Execution-local lineage; independent commands install their own owner.
+    #[serde(skip)]
+    operation_failure_authority: Option<FailureAuthority>,
     pub user: String,
     pub database: Option<String>,
     #[serde(skip)]
     access: SessionAccess,
     #[serde(skip)]
-    pub(super) schema_context: Arc<Mutex<Option<super::session_schema::SessionSchemaContext>>>,
+    pub(super) schema_context: Arc<super::session_schema::OwnedSessionSchemaContext>,
     #[serde(skip)]
     search_path: Arc<Mutex<Vec<String>>>,
     #[serde(skip)]
@@ -295,10 +308,11 @@ impl CassieSession {
     fn with_access(user: String, database: Option<String>, access: SessionAccess) -> Self {
         Self {
             statement_text: None,
+            operation_failure_authority: None,
             user: normalize_role_name(user),
             database,
             access,
-            schema_context: Arc::new(Mutex::new(None)),
+            schema_context: Arc::new(super::session_schema::OwnedSessionSchemaContext::empty()),
             search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
             settings: Arc::new(Mutex::new(SessionSettings::default())),
             backend_pid: Arc::new(AtomicI32::new(0)),
@@ -399,6 +413,20 @@ impl CassieSession {
     }
 
     pub fn set_search_path(&self, path: Vec<String>) {
+        let _ = self.set_search_path_for_operation(path);
+    }
+
+    pub(crate) fn set_search_path_for_operation(
+        &self,
+        path: Vec<String>,
+    ) -> Result<(), CassieError> {
+        self.with_owned_setting_state(|| {
+            self.set_search_path_locked(path);
+            Ok(())
+        })
+    }
+
+    fn set_search_path_locked(&self, path: Vec<String>) {
         let normalized = if path.is_empty() {
             vec![DEFAULT_SCHEMA.to_string()]
         } else {
@@ -450,7 +478,7 @@ impl CassieSession {
             return self.set_transaction_read_only(value);
         }
         Self::reject_projection_write_mode_change(name)?;
-        self.settings.lock().set(name, value)
+        self.with_owned_setting_state(|| self.settings.lock().set(name, value))
     }
 
     pub(crate) fn set_backend_pid(&self, process_id: i32) {
@@ -471,6 +499,7 @@ impl CassieSession {
         renames: &[(String, String)],
     ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Ok(());
         }
@@ -500,6 +529,9 @@ impl CassieSession {
 
     pub(crate) fn rename_transaction_column(&self, collection: &str, current: &str, next: &str) {
         let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
         if transaction.status != SessionTransactionStatus::InTransaction {
             return;
         }
@@ -563,6 +595,10 @@ impl CassieSession {
     }
 
     pub(crate) fn mark_transaction_failed(&self) {
+        if let Some(authority) = self.operation_failure_authority.as_ref() {
+            authority.mark_failed_if_current(self);
+            return;
+        }
         let mut transaction = self.transaction.lock();
         transaction.fail_or_defer();
     }
@@ -610,6 +646,7 @@ impl CassieSession {
         self.ensure_transaction_writable()?;
         self.preflight_transaction_collections(&[collection.to_string()])?;
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let writes = Arc::make_mut(&mut transaction.writes);
         Arc::make_mut(writes.entry(collection.to_string()).or_default())
             .insert(id, TransactionRowChange::Upsert(payload));
@@ -624,6 +661,7 @@ impl CassieSession {
         self.ensure_transaction_writable()?;
         self.preflight_transaction_collections(&[collection.to_string()])?;
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let writes = Arc::make_mut(&mut transaction.writes);
         Arc::make_mut(writes.entry(collection.to_string()).or_default())
             .insert(id, TransactionRowChange::Delete);
@@ -733,7 +771,10 @@ impl CassieSession {
     }
 
     pub(crate) fn stage_conflict_intent(&self, intent: TransactionConflictIntent) {
-        self.transaction.lock().conflict_intents.push(intent);
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_ok() {
+            transaction.conflict_intents.push(intent);
+        }
     }
 
     pub(crate) fn transaction_conflict_intents(&self) -> Vec<TransactionConflictIntent> {
@@ -741,11 +782,17 @@ impl CassieSession {
     }
 
     pub(crate) fn clear_conflict_intents(&self) {
-        self.transaction.lock().conflict_intents.clear();
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_ok() {
+            transaction.conflict_intents.clear();
+        }
     }
 
     pub(crate) fn remove_document_change(&self, collection: &str, id: &str) {
         let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
         let transaction_writes = Arc::make_mut(&mut transaction.writes);
         let Some(writes) = transaction_writes.get_mut(collection) else {
             return;

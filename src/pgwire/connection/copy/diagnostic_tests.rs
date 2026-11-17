@@ -4,6 +4,12 @@ use crate::app::CassieSession;
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryExecutionControls;
 
+fn owned(session: &CassieSession) -> CassieSession {
+    let operation = session.with_new_wire_operation();
+    let _authority = crate::app::FailureAuthority::capture_for_operation(&operation);
+    operation
+}
+
 #[test]
 fn should_close_copy_for_oversized_unknown_column_frame_without_writing() {
     // Arrange
@@ -15,6 +21,8 @@ fn should_close_copy_for_oversized_unknown_column_frame_without_writing() {
     let above_limit_session = CassieSession::new("root".into(), None);
     at_limit_session.begin_transaction(None).expect("begin");
     above_limit_session.begin_transaction(None).expect("begin");
+    let at_limit_session = owned(&at_limit_session);
+    let above_limit_session = owned(&above_limit_session);
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let overhead =
@@ -63,6 +71,8 @@ fn should_close_copy_for_oversized_jsonb_diagnostic_without_writing() {
     let above_limit = CassieSession::new("root".into(), None);
     at_limit.begin_transaction(None).expect("begin");
     above_limit.begin_transaction(None).expect("begin");
+    let at_limit = owned(&at_limit);
+    let above_limit = owned(&above_limit);
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let maximum = super::super::writers::MAX_BACKEND_FRAME_BYTES - 21;
@@ -108,6 +118,8 @@ fn should_report_jsonb_frame_admission_with_cancellation_failures_with_fail_tran
     let canceled_session = CassieSession::new("root".into(), None);
     denied_session.begin_transaction(None).expect("begin");
     canceled_session.begin_transaction(None).expect("begin");
+    let denied_session = owned(&denied_session);
+    let canceled_session = owned(&canceled_session);
     let denied = QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {
             query_memory_budget_bytes: 0,

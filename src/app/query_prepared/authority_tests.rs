@@ -303,14 +303,12 @@ fn should_preserve_independent_implicit_owner_after_worker_promotion() {
         let explicit = !session.is_implicit_transaction();
         session.rollback_transaction();
 
-        // Assert: promotion itself remains existing behavior; only completion is scoped.
+        // Assert: stale promotion is rejected before B's origin changes.
         assert_eq!(captured, None);
-        assert!(
-            matches!(result, Err(CassieError::Execution(ref message)) if message == "after promotion")
-        );
+        assert_eq!(result.as_ref().unwrap_err().sql_state(), "25000");
         assert_eq!(current, owner);
         assert!(healthy);
-        assert!(explicit);
+        assert!(!explicit);
     }
     crate::app::query_failure_watchdog::complete_child(CASE);
 }
@@ -704,15 +702,17 @@ fn assert_timeout_snapshot_during_capture(initial: &str, changed: &str, expected
         .recv_timeout(Duration::from_secs(5))
         .expect("root mutex held");
     let (contended_tx, contended_rx) = mpsc::sync_channel(1);
+    let (capture_tx, capture_rx) = mpsc::sync_channel(1);
     let (deadline_tx, deadline_rx) = mpsc::sync_channel(1);
     let old_cassie = cassie.clone();
     let old_session = session.clone();
     let worker = std::thread::spawn(move || {
         // Future hook must signal on this capture's real failed try-lock.
-        let _hook = super::authority_test_hooks::install_on_capture_contention(
+        let _hook = super::authority_test_hooks::install_paused_capture_contention(
             &old_cassie,
             &old_session,
             contended_tx,
+            capture_rx,
         );
         old_cassie.execute_pgwire_query(
             &old_session,
@@ -729,11 +729,14 @@ fn assert_timeout_snapshot_during_capture(initial: &str, changed: &str, expected
         .recv_timeout(Duration::from_secs(5))
         .expect("actual capture contention");
     let still_held = held.load(Ordering::Acquire);
+    release_tx.send(()).expect("release root mutex");
+    holder.join().expect("holder");
     session
         .set_setting("statement_timeout", changed)
         .expect("change timeout");
-    release_tx.send(()).expect("release root mutex");
-    holder.join().expect("holder");
+    capture_tx
+        .send(())
+        .expect("resume capture after setting change");
     let actual_deadline = deadline_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("actual worker controls");

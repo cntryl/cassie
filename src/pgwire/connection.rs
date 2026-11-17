@@ -4,6 +4,11 @@ use std::str;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(test)]
+mod wire_failure_boundary_tests;
+#[cfg(test)]
+mod wire_failure_test_hooks;
+
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
@@ -54,6 +59,7 @@ mod tests;
 mod transactions;
 #[path = "connection/transport.rs"]
 mod transport;
+pub(crate) mod worker_lease;
 #[path = "connection/writers.rs"]
 mod writers;
 
@@ -441,7 +447,16 @@ async fn handle_ready(
         return ConnectionStep::Continue(HandshakeState::Ready);
     };
     if *awaiting_sync {
-        return handle_sync_wait(runtime, reader, write_half, state, awaiting_sync, &session).await;
+        return handle_sync_wait(
+            cassie,
+            runtime,
+            reader,
+            write_half,
+            state,
+            awaiting_sync,
+            &session,
+        )
+        .await;
     }
     if next_tag == b'Q' {
         return handle_simple_query(cassie, runtime, reader, write_half, state).await;
@@ -459,6 +474,7 @@ async fn handle_ready(
 }
 
 async fn handle_sync_wait(
+    cassie: Arc<Cassie>,
     runtime: &crate::runtime::RuntimeState,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
@@ -476,12 +492,25 @@ async fn handle_sync_wait(
             runtime.record_pgwire_message("sync");
             *awaiting_sync = false;
             state.extended_cycle = transactions::ExtendedCycle::default();
-            if std::mem::take(&mut state.invalidate_portals_on_sync) {
-                state.clear_all_portals(runtime);
-            } else {
-                transactions::clear_idle_portals(runtime, state, session);
+            #[cfg(test)]
+            if !state.invalidate_portals_on_sync {
+                transactions::observe_portal_cleanup(session);
             }
-            let _ = write_ready_for_query(write_half, session).await;
+            if std::mem::take(&mut state.invalidate_portals_on_sync) {
+                if let Some(owner) = state.portal_invalidation_owner.take() {
+                    if let Some(identity) = owner.identity() {
+                        state.clear_portals_owned_by(identity, runtime);
+                    }
+                }
+            }
+            let operation = session.with_new_wire_operation();
+            transactions::capture_protocol_owner(&operation).await;
+            if transactions::finish_query(cassie, runtime, write_half, state, &operation)
+                .await
+                .is_err()
+            {
+                return ConnectionStep::Break;
+            }
         }
         state::FrontendMessage::Terminate => return ConnectionStep::Break,
         state::FrontendMessage::Flush => runtime.record_pgwire_message("flush"),
@@ -573,7 +602,7 @@ async fn handle_simple_query(
         }
     };
 
-    if simple_execution::run_batch(
+    let Ok(operation) = simple_execution::run_batch(
         cassie.clone(),
         runtime,
         write_half,
@@ -583,12 +612,11 @@ async fn handle_simple_query(
         parsed,
     )
     .await
-    .is_err()
-    {
+    else {
         return ConnectionStep::Break;
-    }
+    };
 
-    if transactions::finish_query(cassie, runtime, write_half, state, &session)
+    if transactions::finish_query(cassie, runtime, write_half, state, &operation)
         .await
         .is_err()
     {
@@ -627,7 +655,9 @@ async fn write_simple_query_error(
     session: &CassieSession,
     error: PgWireError,
 ) -> ConnectionStep {
-    transactions::fail_query(runtime, state, session);
+    let operation = session.with_new_wire_operation();
+    transactions::capture_protocol_owner(&operation).await;
+    transactions::fail_owned_query(runtime, state, &operation).await;
     if writers::write_changed_parameter_statuses(write_half, session, &mut state.parameter_statuses)
         .await
         .is_err()
@@ -649,27 +679,24 @@ async fn execute_simple_statement(
     query: (String, Arc<str>),
     notice: Option<String>,
 ) -> Result<bool, ()> {
-    let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
-    let transaction_generation = session.transaction_generation();
     let registration = state.backend_registration.as_ref().ok_or(())?;
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
     let execution_session = session.clone();
-    let query_result = run_pgwire_blocking(cassie, "pgwire_simple_query", move |cassie| {
-        cassie.execute_pgwire_sql_with_cancellation(
-            &execution_session,
-            (&query.0, &query.1),
-            &cancellation_handle,
-        )
-    })
-    .await;
+    session.note_operation_worker_started();
+    let query_result =
+        run_pgwire_blocking(Arc::clone(&cassie), "pgwire_simple_query", move |cassie| {
+            cassie.execute_pgwire_sql_with_cancellation(
+                &execution_session,
+                (&query.0, &query.1),
+                &cancellation_handle,
+            )
+        })
+        .await;
+    #[cfg(test)]
+    wire_failure_test_hooks::after_worker(&cassie, session);
     drop(cancellation);
-    if was_in_transaction
-        && (transaction_generation != session.transaction_generation()
-            || !session.is_transaction_active() && !session.is_transaction_failed())
-    {
-        state.clear_all_portals(runtime);
-    }
+    transactions::clear_owned_idle_portals(runtime, state, session);
 
     match query_result {
         Ok(result) => {
@@ -690,7 +717,7 @@ async fn execute_simple_statement(
                     Ok(true)
                 }
                 Err(error) if writers::query_memory_error(&error).is_some() => {
-                    session.mark_transaction_failed();
+                    transactions::fail_owned_transaction(session).await;
                     let error = writers::query_memory_error(&error).expect("query memory error");
                     write_error_response(write_half, &cassie_pg_error(error))
                         .await
@@ -698,7 +725,7 @@ async fn execute_simple_statement(
                         .map_err(|_| ())
                 }
                 Err(error) if writers::is_backend_frame_too_large(&error) => {
-                    session.mark_transaction_failed();
+                    transactions::fail_owned_transaction(session).await;
                     let resource_limit = CassieError::ResourceLimit(error.to_string());
                     write_error_response(write_half, &cassie_pg_error(&resource_limit))
                         .await
@@ -706,7 +733,7 @@ async fn execute_simple_statement(
                         .map_err(|_| ())
                 }
                 Err(error) if writers::is_row_shape_mismatch(&error) => {
-                    session.mark_transaction_failed();
+                    transactions::fail_owned_transaction(session).await;
                     write_error_response(write_half, &PgWireError::internal(error.to_string()))
                         .await
                         .map(|()| false)

@@ -10,6 +10,10 @@ mod fetch_plan;
 mod prepared;
 pub(crate) use prepared::parameter_type_display;
 
+#[cfg(test)]
+#[path = "session_objects/ownership_tests.rs"]
+mod ownership_tests;
+
 use super::{Cassie, CassieError, CassieSession, QueryExecutionControls, QueryResult};
 use crate::runtime::ExecutionMode;
 use crate::sql::ast::SessionObjectStatement;

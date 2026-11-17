@@ -1,8 +1,10 @@
-//! Session-local sequence history for `currval` and `lastval`, and the
-//! sequence positions a rolled-back `TRUNCATE ... RESTART IDENTITY` restores.
+//! Session-local sequence history for `currval` and `lastval`.
 #[cfg(test)]
 #[path = "session_sequences/discard_restart_tests.rs"]
 mod discard_restart_tests;
+#[cfg(test)]
+#[path = "session_sequences/history_owner_tests.rs"]
+mod history_owner_tests;
 
 use std::collections::HashMap;
 
@@ -41,6 +43,24 @@ fn not_defined(message: String) -> CassieError {
 }
 
 impl CassieSession {
+    /// Keeps the established sequence-values -> actual-root order for reset.
+    pub(crate) fn with_owned_sequence_reset<T>(
+        &self,
+        reset: impl FnOnce(SessionTransactionStatus, bool) -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        let mut values = self.sequence_values.lock();
+        self.with_owned_shared_session_state(|status, implicit| {
+            let output = reset(status, implicit)?;
+            values.by_sequence.clear();
+            values.last = None;
+            Ok(output)
+        })
+    }
+
+    pub(crate) fn discard_sequence_values_for_operation(&self) -> Result<(), CassieError> {
+        self.with_owned_sequence_reset(|_, _| Ok(()))
+    }
+
     /// Records a value returned by `nextval` (or `setval`) for `sequence`.
     pub(crate) fn record_sequence_value(
         &self,
@@ -48,17 +68,19 @@ impl CassieSession {
         identity: u64,
         value: i64,
         from_nextval: bool,
-    ) {
-        // Sequence advances commit independently of the transaction's rows, so
-        // they keep the existing strict policy even after a savepoint rollback.
-        self.note_projection_effect(true);
+    ) -> Result<(), CassieError> {
+        #[cfg(test)]
+        history_owner_tests::after_native();
         let mut values = self.sequence_values.lock();
-        values
-            .by_sequence
-            .insert(sequence_identity(sequence, identity), value);
-        if from_nextval {
-            values.last = Some((sequence.to_ascii_lowercase(), identity));
-        }
+        self.with_owned_shared_session_state(|_, _| {
+            values
+                .by_sequence
+                .insert(sequence_identity(sequence, identity), value);
+            if from_nextval {
+                values.last = Some((sequence.to_ascii_lowercase(), identity));
+            }
+            Ok(())
+        })
     }
 
     /// `currval`.
@@ -85,21 +107,17 @@ impl CassieSession {
 
     /// `DISCARD SEQUENCES`: forgets this session's `currval`/`lastval`
     /// history without changing any sequence.
+    #[cfg(test)]
     pub(crate) fn discard_sequence_values(&self) {
         self.discard_sequence_values_inner(|| {}, |_| {});
     }
 
+    #[cfg(test)]
     fn discard_sequence_values_inner(
         &self,
         on_contended: impl FnOnce(),
         after_status: impl FnOnce(Option<SessionTransactionStatus>),
     ) {
-        #[cfg(not(test))]
-        let mut values = {
-            let _ = on_contended;
-            self.sequence_values.lock()
-        };
-        #[cfg(test)]
         let mut values = if let Some(values) = self.sequence_values.try_lock() {
             values
         } else {

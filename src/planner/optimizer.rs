@@ -4,6 +4,10 @@ use crate::sql::ast::{BinaryOp, Expr, JoinKind, QuerySource};
 use std::collections::{BTreeSet, HashMap};
 use std::hash::BuildHasher;
 
+#[cfg(test)]
+#[path = "optimizer/cost_observation_tests.rs"]
+mod cost_observation_tests;
+
 #[must_use]
 pub fn optimize(plan: LogicalPlan) -> LogicalPlan {
     optimize_with_stats(plan, &HashMap::new())

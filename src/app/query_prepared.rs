@@ -113,15 +113,13 @@ impl Cassie {
             None
         } else if let Some(guard) = self.runtime.try_begin_running_query() {
             Some(guard)
+        } else if self.check_storage_recovery_required().is_err() {
+            None
         } else {
-            if self.check_storage_recovery_required().is_err() {
-                None
-            } else {
-                session.reject_operation_admission();
-                return Err(CassieError::Execution(
-                    "query admission exhausted".to_string(),
-                ));
-            }
+            session.reject_operation_admission();
+            return Err(CassieError::Execution(
+                "query admission exhausted".to_string(),
+            ));
         };
         let mut controls = QueryExecutionControls::with_cancellation(
             &self.runtime.limits(),

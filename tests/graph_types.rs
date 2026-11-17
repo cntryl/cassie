@@ -48,3 +48,9 @@ mod images;
 
 #[path = "graph_types/driver_sqlx.rs"]
 mod driver_sqlx;
+
+#[path = "graph_types/argument_binding.rs"]
+mod argument_binding;
+
+#[path = "graph_types/reference_order.rs"]
+mod reference_order;

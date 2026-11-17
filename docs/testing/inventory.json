@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1773,
-    "rust_files": 1736,
-    "rust_test_declarations": 10545,
+    "files": 1780,
+    "rust_files": 1743,
+    "rust_test_declarations": 10565,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10570,
+    "registered_rust_instances": 10590,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -66401,6 +66401,68 @@
       }
     },
     {
+      "id": "tests/graph_table/endpoint_indexes.rs::should_use_a_leading_endpoint_index_when_its_trailing_fields_are_nonnull",
+      "name": "should_use_a_leading_endpoint_index_when_its_trailing_fields_are_nonnull",
+      "current_file": "tests/graph_table/endpoint_indexes.rs",
+      "line": 22,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "endpoint_indexes::should_use_a_leading_endpoint_index_when_its_trailing_fields_are_nonnull"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "indexes",
+        "directory": "tests/graph_table/indexes",
+        "file": "tests/graph_table/indexes/endpoint_indexes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/endpoint_indexes.rs::should_fall_back_when_a_nullable_index_tail_can_omit_matching_edges",
+      "name": "should_fall_back_when_a_nullable_index_tail_can_omit_matching_edges",
+      "current_file": "tests/graph_table/endpoint_indexes.rs",
+      "line": 56,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "endpoint_indexes::should_fall_back_when_a_nullable_index_tail_can_omit_matching_edges"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "indexes",
+        "directory": "tests/graph_table/indexes",
+        "file": "tests/graph_table/indexes/endpoint_indexes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/exact_reads.rs::should_exclude_an_edge_whose_endpoint_vertex_is_missing",
       "name": "should_exclude_an_edge_whose_endpoint_vertex_is_missing",
       "current_file": "tests/graph_table/exact_reads.rs",
@@ -67238,6 +67300,130 @@
       }
     },
     {
+      "id": "tests/graph_table/label_properties.rs::should_resolve_properties_in_the_order_of_requested_pattern_labels",
+      "name": "should_resolve_properties_in_the_order_of_requested_pattern_labels",
+      "current_file": "tests/graph_table/label_properties.rs",
+      "line": 14,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "label_properties::should_resolve_properties_in_the_order_of_requested_pattern_labels"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/label_properties.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/label_properties.rs::should_distinguish_a_quoted_label_from_its_lowercase_sibling",
+      "name": "should_distinguish_a_quoted_label_from_its_lowercase_sibling",
+      "current_file": "tests/graph_table/label_properties.rs",
+      "line": 44,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "label_properties::should_distinguish_a_quoted_label_from_its_lowercase_sibling"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/label_properties.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/label_properties.rs::should_resolve_a_quoted_key_column_without_selecting_its_lowercase_sibling",
+      "name": "should_resolve_a_quoted_key_column_without_selecting_its_lowercase_sibling",
+      "current_file": "tests/graph_table/label_properties.rs",
+      "line": 68,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "label_properties::should_resolve_a_quoted_key_column_without_selecting_its_lowercase_sibling"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/label_properties.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/label_properties.rs::should_resolve_a_property_whose_quoted_name_contains_a_dot",
+      "name": "should_resolve_a_property_whose_quoted_name_contains_a_dot",
+      "current_file": "tests/graph_table/label_properties.rs",
+      "line": 96,
+      "end_line": 117,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "label_properties::should_resolve_a_property_whose_quoted_name_contains_a_dot"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/label_properties.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/matrix.rs::should_agree_with_the_oracle_for_every_mode_direction_bound_selector",
       "name": "should_agree_with_the_oracle_for_every_mode_direction_bound_selector",
       "current_file": "tests/graph_table/matrix.rs",
@@ -67449,6 +67635,68 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/overlay_probes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/path_match_identity.rs::should_deduplicate_quantified_splits_that_bind_the_same_singleton_elements",
+      "name": "should_deduplicate_quantified_splits_that_bind_the_same_singleton_elements",
+      "current_file": "tests/graph_table/path_match_identity.rs",
+      "line": 22,
+      "end_line": 47,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "path_match_identity::should_deduplicate_quantified_splits_that_bind_the_same_singleton_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "sequences",
+        "directory": "tests/graph_table/sequences",
+        "file": "tests/graph_table/sequences/path_match_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/path_match_identity.rs::should_retain_quantified_splits_that_bind_different_singleton_elements",
+      "name": "should_retain_quantified_splits_that_bind_different_singleton_elements",
+      "current_file": "tests/graph_table/path_match_identity.rs",
+      "line": 50,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "path_match_identity::should_retain_quantified_splits_that_bind_different_singleton_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "sequences",
+        "directory": "tests/graph_table/sequences",
+        "file": "tests/graph_table/sequences/path_match_identity.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -68038,6 +68286,68 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/persistence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/portal_preflight.rs::should_reject_a_late_unencodable_graph_row_before_the_first_portal_page",
+      "name": "should_reject_a_late_unencodable_graph_row_before_the_first_portal_page",
+      "current_file": "tests/graph_table/portal_preflight.rs",
+      "line": 72,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "portal_preflight::should_reject_a_late_unencodable_graph_row_before_the_first_portal_page"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "portals",
+        "directory": "tests/graph_table/portals",
+        "file": "tests/graph_table/portals/portal_preflight.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/portal_preflight.rs::should_resume_a_valid_preflighted_graph_portal_with_one_description",
+      "name": "should_resume_a_valid_preflighted_graph_portal_with_one_description",
+      "current_file": "tests/graph_table/portal_preflight.rs",
+      "line": 115,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "portal_preflight::should_resume_a_valid_preflighted_graph_portal_with_one_description"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "portals",
+        "directory": "tests/graph_table/portals",
+        "file": "tests/graph_table/portals/portal_preflight.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -69718,6 +70028,99 @@
       }
     },
     {
+      "id": "tests/graph_table/view_dependencies.rs::should_reject_a_graph_rename_while_its_view_depends_on_the_old_name",
+      "name": "should_reject_a_graph_rename_while_its_view_depends_on_the_old_name",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 17,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_reject_a_graph_rename_while_its_view_depends_on_the_old_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/view_dependencies.rs::should_drop_the_transitive_graph_view_closure_with_its_schema_and_restore_it_on_rollback",
+      "name": "should_drop_the_transitive_graph_view_closure_with_its_schema_and_restore_it_on_rollback",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 46,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_drop_the_transitive_graph_view_closure_with_its_schema_and_restore_it_on_rollback"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/view_dependencies.rs::should_ignore_other_databases_when_checking_graph_view_dependencies",
+      "name": "should_ignore_other_databases_when_checking_graph_view_dependencies",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 84,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_ignore_other_databases_when_checking_graph_view_dependencies"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/wire.rs::should_describe_declared_column_types_in_row_description",
       "name": "should_describe_declared_column_types_in_row_description",
       "current_file": "tests/graph_table/wire.rs",
@@ -69898,6 +70301,99 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/argument_binding.rs::should_reject_explicit_text_arrays_as_graph_key_parts",
+      "name": "should_reject_explicit_text_arrays_as_graph_key_parts",
+      "current_file": "tests/graph_types/argument_binding.rs",
+      "line": 7,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "argument_binding::should_reject_explicit_text_arrays_as_graph_key_parts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "parameters",
+        "directory": "tests/graph_types/parameters",
+        "file": "tests/graph_types/parameters/argument_binding.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/argument_binding.rs::should_bind_computed_key_parts_inside_table_function_arguments",
+      "name": "should_bind_computed_key_parts_inside_table_function_arguments",
+      "current_file": "tests/graph_types/argument_binding.rs",
+      "line": 30,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "argument_binding::should_bind_computed_key_parts_inside_table_function_arguments"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "parameters",
+        "directory": "tests/graph_types/parameters",
+        "file": "tests/graph_types/parameters/argument_binding.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/argument_binding.rs::should_resolve_a_mapping_alias_without_folding_a_quoted_sibling",
+      "name": "should_resolve_a_mapping_alias_without_folding_a_quoted_sibling",
+      "current_file": "tests/graph_types/argument_binding.rs",
+      "line": 46,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "argument_binding::should_resolve_a_mapping_alias_without_folding_a_quoted_sibling"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "parameters",
+        "directory": "tests/graph_types/parameters",
+        "file": "tests/graph_types/parameters/argument_binding.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -70958,6 +71454,37 @@
       }
     },
     {
+      "id": "tests/graph_types/parameter_functions.rs::should_infer_graph_table_function_parameters_with_unquoted_uppercase_names",
+      "name": "should_infer_graph_table_function_parameters_with_unquoted_uppercase_names",
+      "current_file": "tests/graph_types/parameter_functions.rs",
+      "line": 255,
+      "end_line": 279,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "parameter_functions::should_infer_graph_table_function_parameters_with_unquoted_uppercase_names"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "routines",
+        "directory": "tests/graph_types/routines",
+        "file": "tests/graph_types/routines/parameter_functions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_types/paths.rs::should_reject_a_path_with_the_wrong_vertex_count_with_22023",
       "name": "should_reject_a_path_with_the_wrong_vertex_count_with_22023",
       "current_file": "tests/graph_types/paths.rs",
@@ -71634,6 +72161,99 @@
         "category": "semantics",
         "directory": "tests/graph_types/semantics",
         "file": "tests/graph_types/semantics/projected_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reference_order.rs::should_order_reference_keys_numerically_and_without_losing_bigint_precision",
+      "name": "should_order_reference_keys_numerically_and_without_losing_bigint_precision",
+      "current_file": "tests/graph_types/reference_order.rs",
+      "line": 7,
+      "end_line": 26,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reference_order::should_order_reference_keys_numerically_and_without_losing_bigint_precision"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "ordering",
+        "directory": "tests/graph_types/ordering",
+        "file": "tests/graph_types/ordering/reference_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reference_order.rs::should_compare_array_fields_of_ordinary_composites_using_sql_array_order",
+      "name": "should_compare_array_fields_of_ordinary_composites_using_sql_array_order",
+      "current_file": "tests/graph_types/reference_order.rs",
+      "line": 29,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reference_order::should_compare_array_fields_of_ordinary_composites_using_sql_array_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "ordering",
+        "directory": "tests/graph_types/ordering",
+        "file": "tests/graph_types/ordering/reference_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/reference_order.rs::should_agree_on_record_array_equality_grouping_and_distinct_for_nondefault_bounds",
+      "name": "should_agree_on_record_array_equality_grouping_and_distinct_for_nondefault_bounds",
+      "current_file": "tests/graph_types/reference_order.rs",
+      "line": 51,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "reference_order::should_agree_on_record_array_equality_grouping_and_distinct_for_nondefault_bounds"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "aggregates/grouping",
+        "directory": "tests/graph_types/aggregates/grouping",
+        "file": "tests/graph_types/aggregates/grouping/reference_order.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -334632,6 +335252,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/endpoint_indexes.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 82,
+      "sha256": "06e4b74bfb34374d8b19fc1043a56e1df894d86a86360c324e2820caa23fa0d8",
+      "test_declarations": 2,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/indexes/endpoint_indexes.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/exact_reads.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -334658,6 +335293,21 @@
       ],
       "destinations": [
         "tests/graph_table/semantics/fast_reads.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/label_properties.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 117,
+      "sha256": "40f245389b969b8cebdca121134966458e9304e15a590f51932bd0cbfd3b7ab6",
+      "test_declarations": 4,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/label_properties.rs"
       ],
       "line_limit": 1000
     },
@@ -334692,6 +335342,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/path_match_identity.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 70,
+      "sha256": "a39b5471e436a2ce4ccf1cc31877c752f83e9ad674ef51d760b2e94483449667",
+      "test_declarations": 2,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/sequences/path_match_identity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/paths.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -334718,6 +335383,21 @@
       ],
       "destinations": [
         "tests/graph_table/semantics/persistence.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/portal_preflight.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 137,
+      "sha256": "7dcd1b978b4243b7c1a892125dbcfe9c2ea8ade334f3633ef907f015f09e8c2e",
+      "test_declarations": 2,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/portals/portal_preflight.rs"
       ],
       "line_limit": 1000
     },
@@ -334800,6 +335480,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 113,
+      "sha256": "3e7bc0c01fbafebb9394162eb64d1c6801184aff52ad01798ecc84da34795703",
+      "test_declarations": 3,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/view_dependencies.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/wire.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -334833,8 +335528,8 @@
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 58,
-      "sha256": "accbe373085bef394e0fae29cd0b9eb44e2fa4ae39bd0821464bfe37d5a7393b",
+      "lines": 73,
+      "sha256": "dae5066a19c1cb4ffac42d50782b4818fa72dfd4175a4ba183ee8d19114aad80",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"
@@ -334843,6 +335538,21 @@
         "tests/graph_table.rs"
       ],
       "line_limit": 12000
+    },
+    {
+      "current_file": "tests/graph_types/argument_binding.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 72,
+      "sha256": "8675b7c8e70a182fb9d1e33c4c9f4b4835c43f2dd195097674e5484c9c808a47",
+      "test_declarations": 3,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/parameters/argument_binding.rs"
+      ],
+      "line_limit": 1000
     },
     {
       "current_file": "tests/graph_types/catalog.rs",
@@ -334938,9 +335648,9 @@
       "current_file": "tests/graph_types/parameter_functions.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 252,
-      "sha256": "2ed12bdc5369013d6310d9f51e46e36504ee5c1347f997fe85b835171f5bca0f",
-      "test_declarations": 10,
+      "lines": 279,
+      "sha256": "ab61080b92365e39d9d42e3a14974dab2e06db7d81454591f3aaf093067e952b",
+      "test_declarations": 11,
       "registered_suites": [
         "graph_types"
       ],
@@ -335010,6 +335720,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_types/reference_order.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 73,
+      "sha256": "9848dfa1489f81e4ffc5e3bede953fc4d961790d8a0b871aae52618aacb74b18",
+      "test_declarations": 3,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/aggregates/grouping/reference_order.rs",
+        "tests/graph_types/ordering/reference_order.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_types/refs.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -335073,8 +335799,8 @@
       "current_file": "tests/graph_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 50,
-      "sha256": "ceec04f3cf0c3af60068468da89f31eacd13c8868b06b74c3864eb910df467ee",
+      "lines": 56,
+      "sha256": "99c86c620e1cf37fb4c765bce428c034a238ddf67cdc087b63e817987c70ec4b",
       "test_declarations": 0,
       "registered_suites": [
         "graph_types"

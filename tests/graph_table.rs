@@ -56,3 +56,18 @@ mod tie_order;
 
 #[path = "graph_table/overlay_probes.rs"]
 mod overlay_probes;
+
+#[path = "graph_table/path_match_identity.rs"]
+mod path_match_identity;
+
+#[path = "graph_table/label_properties.rs"]
+mod label_properties;
+
+#[path = "graph_table/endpoint_indexes.rs"]
+mod endpoint_indexes;
+
+#[path = "graph_table/view_dependencies.rs"]
+mod view_dependencies;
+
+#[path = "graph_table/portal_preflight.rs"]
+mod portal_preflight;

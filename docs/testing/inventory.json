@@ -182,9 +182,9 @@
     ],
     "files": 1780,
     "rust_files": 1743,
-    "rust_test_declarations": 10565,
+    "rust_test_declarations": 10566,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10590,
+    "registered_rust_instances": 10591,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -70369,11 +70369,42 @@
       }
     },
     {
+      "id": "tests/graph_types/argument_binding.rs::should_bind_computed_graph_key_parts_inside_another_table_function",
+      "name": "should_bind_computed_graph_key_parts_inside_another_table_function",
+      "current_file": "tests/graph_types/argument_binding.rs",
+      "line": 46,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "argument_binding::should_bind_computed_graph_key_parts_inside_another_table_function"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "parameters",
+        "directory": "tests/graph_types/parameters",
+        "file": "tests/graph_types/parameters/argument_binding.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_types/argument_binding.rs::should_resolve_a_mapping_alias_without_folding_a_quoted_sibling",
       "name": "should_resolve_a_mapping_alias_without_folding_a_quoted_sibling",
       "current_file": "tests/graph_types/argument_binding.rs",
-      "line": 46,
-      "end_line": 72,
+      "line": 77,
+      "end_line": 103,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -335543,9 +335574,9 @@
       "current_file": "tests/graph_types/argument_binding.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 72,
-      "sha256": "8675b7c8e70a182fb9d1e33c4c9f4b4835c43f2dd195097674e5484c9c808a47",
-      "test_declarations": 3,
+      "lines": 103,
+      "sha256": "cf6722b0e712c6b551c99f8bc099d604e3fc1e4955e927b30144b9e326c27628",
+      "test_declarations": 4,
       "registered_suites": [
         "graph_types"
       ],

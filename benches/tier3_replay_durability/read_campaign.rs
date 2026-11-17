@@ -198,7 +198,7 @@ fn execute_read(
             {
                 return Err("unindexed equality did not attest actual collection scan".into());
             }
-        } else if result.rows() != &[vec![Value::Int64(100_000)]] || round_ids.len() != 100_000 {
+        } else if result.rows() != [vec![Value::Int64(100_000)]] || round_ids.len() != 100_000 {
             return Err(
                 "independent count and distinct round IDs must both be exactly 100000".into(),
             );
@@ -263,7 +263,7 @@ fn read_store(path: &Path, source: &VerifiedSource) -> Result<serde_json::Value>
                 vec![],
             )
             .map_err(|error| error.to_string())?;
-        if checkpoint.rows() != &[vec![Value::Int64(100_000)]] {
+        if checkpoint.rows() != [vec![Value::Int64(100_000)]] {
             return Err("SQL checkpoint mismatch".into());
         }
     } else {

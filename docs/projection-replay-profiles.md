@@ -36,11 +36,16 @@ relabel historical write measurements as final-reader measurements.
 
 Only recursively copied **closed stores** are opened. Before any copy, verify the
 producer exit-zero/clean-close receipt and its exact writer identity, storage path,
-raw result/log hashes, parameters and source-tree content fingerprint. Reject
+raw result/log hashes, parameters and source-tree content fingerprint. Canonicalize
+all original directories and reject aliases of an already selected source before
+any copy. Reject
 missing/foreign/mismatched receipts and symlinks. Create a fresh owned temporary
 directory; copy regular files by I/O, without hardlinks or symlinks. Verify the
 copied content fingerprint and the original fingerprint after copying and after
-the reader closes. Never open, delete a lease in, or write to an original store.
+the reader is dropped. This is a Cassie drop/graceful-close attempt; the adapter
+Drop can report a shutdown warning without proving native quiescence. The
+`after_reader_drop` fields attest original content, not native shutdown success.
+Never open, delete a lease in, or write to an original store.
 Lock-file absence is not closure proof. Negative controls exercise these ownership
 and provenance boundaries through the same pure helpers used by the campaign.
 
@@ -60,8 +65,11 @@ copying and warmup affect caches; no cold-cache or physical-I/O isolation is cla
 Family p50/p95 use individual samples; with only three count samples, count p95 is
 the observed maximum, not a stable population estimate.
 
-Each equality query must return exactly its complete 6,250-row bucket with the
-expected non-null title, and the independent count must be exactly 100,000. Indexed
+Each equality query selects `id, title` and must return exactly its complete
+6,250-row bucket with the expected non-null title and distinct non-null IDs.
+Each untimed/timed round must contain exactly 100,000 distinct IDs across its
+sixteen buckets; the independent count must also be exactly 100,000. ID checks
+and their round bookkeeping remain outside timers. Indexed
 profiles must attest the named scalar index in the public plan with no fallback,
 and actual per-query executor read-path counter/last-index evidence. Unindexed
 profiles must attest scan execution. A planner or execution fallback is an explicit

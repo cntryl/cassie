@@ -1,4 +1,6 @@
 //! Eight closed-store read profiles; provenance/copying and attestation are untimed.
+#[path = "read_campaign/read_oracle.rs"]
+mod read_oracle;
 #[path = "read_campaign/store_copy.rs"]
 mod store_copy;
 use cassie::app::{Cassie, CassieSession};
@@ -53,11 +55,10 @@ fn load_manifest(path: &Path) -> Result<(Manifest, Vec<VerifiedSource>)> {
     // Reject every missing/foreign closure receipt before any store is copied/opened.
     for files in &manifest.profiles {
         let source = store_copy::load_profile(files, &manifest.api_writer, &manifest.sql_writer)?;
-        if !cells.insert((source.result.mode.clone(), source.result.shape.clone()))
-            || !stores.insert(source.result.storage_path.clone())
-        {
-            return Err("duplicate mode/shape or original store in read campaign".into());
+        if !cells.insert((source.result.mode.clone(), source.result.shape.clone())) {
+            return Err("duplicate mode/shape in read campaign".into());
         }
+        store_copy::claim_original(&source.result.storage_path, &mut stores)?;
         profiles.push(source);
     }
     Ok((manifest, profiles))
@@ -138,10 +139,11 @@ fn execute_read(
     round: usize,
     bucket: Option<usize>,
     timed: bool,
+    round_ids: &mut BTreeSet<String>,
 ) -> Result<serde_json::Value> {
     let sql = bucket.map_or_else(
         || "SELECT COUNT(*) FROM replay_bench".to_owned(),
-        |bucket| format!("SELECT title FROM replay_bench WHERE title = 'title-{bucket}'"),
+        |bucket| format!("SELECT id, title FROM replay_bench WHERE title = 'title-{bucket}'"),
     );
     let plan = cassie
         .compile_sql_physical_plan_for_diagnostics(&sql)
@@ -169,16 +171,7 @@ fn execute_read(
         })?;
         let scans = delta(&before, &after, "collection_scans")?;
         if let Some(bucket) = bucket {
-            let title = format!("title-{bucket}");
-            if result.rows().len() != 6250
-                || result.rows().iter().any(
-                    |row| !matches!(row.as_slice(), [Value::String(actual)] if actual == &title),
-                )
-            {
-                return Err(format!(
-                    "bucket {bucket} must contain exactly 6250 matching non-null titles"
-                ));
-            }
+            read_oracle::validate_bucket(result.rows(), bucket, 6250, round_ids)?;
             if source.result.shape == "indexed" {
                 if plan
                     .read
@@ -205,10 +198,14 @@ fn execute_read(
             {
                 return Err("unindexed equality did not attest actual collection scan".into());
             }
-        } else if result.rows() != &[vec![Value::Int64(100_000)]] {
-            return Err("independent count must be exactly 100000".into());
+        } else if result.rows() != &[vec![Value::Int64(100_000)]] || round_ids.len() != 100_000 {
+            return Err(
+                "independent count and distinct round IDs must both be exactly 100000".into(),
+            );
         }
-        Ok(json!({"index_ops": index_ops, "collection_scans": scans}))
+        Ok(
+            json!({"index_ops": index_ops, "collection_scans": scans, "round_unique_ids": round_ids.len()}),
+        )
     })();
     let record = json!({"kind": if timed { "read_sample" } else { "untimed_warmup" }, "mode": source.result.mode, "shape": source.result.shape,
         "round": round, "family": if bucket.is_some() { "equality" } else { "count" }, "bucket": bucket, "sql": sql,
@@ -283,13 +280,24 @@ fn read_store(path: &Path, source: &VerifiedSource) -> Result<serde_json::Value>
             return Err("API checkpoint mismatch".into());
         }
     }
+    let mut warmup_ids = BTreeSet::new();
     for bucket in (0..16).map(Some).chain(std::iter::once(None)) {
-        execute_read(cassie, &session, source, 0, bucket, false)?;
+        execute_read(cassie, &session, source, 0, bucket, false, &mut warmup_ids)?;
     }
+    drop(warmup_ids);
     let mut samples = Vec::with_capacity(51);
     for round in 1..=3 {
+        let mut round_ids = BTreeSet::new();
         for bucket in (0..16).map(Some).chain(std::iter::once(None)) {
-            samples.push(execute_read(cassie, &session, source, round, bucket, true)?);
+            samples.push(execute_read(
+                cassie,
+                &session,
+                source,
+                round,
+                bucket,
+                true,
+                &mut round_ids,
+            )?);
         }
     }
     Ok(
@@ -320,13 +328,13 @@ pub(super) fn run(path: &Path) -> Result<()> {
     let mut failed = 0;
     for source in profiles {
         let mut verified_after_copy = false;
-        let mut verified_after_reader_close = false;
+        let mut verified_after_reader_drop = false;
         let outcome = (|| {
             let copy = OwnedCopy::prepare(&source)?;
             verified_after_copy = true;
             let result = read_store(copy.path(), &source);
             let unchanged = copy.verify_original();
-            verified_after_reader_close = unchanged.is_ok();
+            verified_after_reader_drop = unchanged.is_ok();
             match (result, unchanged) {
                 (Ok(result), Ok(())) => Ok(result),
                 (Err(error), Ok(())) | (Ok(_), Err(error)) => Err(error),
@@ -341,8 +349,9 @@ pub(super) fn run(path: &Path) -> Result<()> {
             json!({"kind": "read_profile", "mode": source.result.mode, "shape": source.result.shape,
             "reader": manifest.reader, "writer": source.writer, "producer_source_label": source.result.source, "receipts": source.files,
             "original_fingerprint_verified_after_copy": verified_after_copy,
-            "original_fingerprint_verified_after_reader_close": verified_after_reader_close,
-            "original_fingerprint_after_reader_close": if verified_after_reader_close { Some(&source.files.source_fingerprint) } else { None },
+            "original_fingerprint_verified_after_reader_drop": verified_after_reader_drop,
+            "reader_retirement_scope": "Cassie drop/graceful-close attempt; native quiescence not attested",
+            "original_fingerprint_after_reader_drop": if verified_after_reader_drop { Some(&source.files.source_fingerprint) } else { None },
             "query_memory_budget_bytes": 67108864, "query_timeout_ms": 120000, "execution_result_cache_enabled": false,
             "warmup_rounds": 1, "timed_rounds": 3, "status": if outcome.is_ok() { "passed" } else { "gap" },
             "result": outcome.as_ref().ok(), "error": outcome.as_ref().err(),

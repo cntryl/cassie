@@ -1,4 +1,6 @@
 //! The read campaign must never mutate/open its original fixture.
+#[path = "../../benches/tier3_replay_durability/read_campaign/read_oracle.rs"]
+mod read_oracle;
 #[path = "../../benches/tier3_replay_durability/read_campaign/store_copy.rs"]
 mod store_copy;
 use std::path::PathBuf;
@@ -224,4 +226,62 @@ fn should_reject_a_mismatched_raw_receipt_or_original_fingerprint() {
         std::fs::read(fixture.source.join("nested/data")).unwrap(),
         b"original"
     );
+}
+
+#[test]
+fn should_reject_duplicate_row_ids_even_when_bucket_titles_and_counts_match() {
+    // Arrange
+    use cassie::types::Value;
+    let rows = vec![
+        vec![
+            Value::String("same-id".into()),
+            Value::String("title-0".into()),
+        ],
+        vec![
+            Value::String("same-id".into()),
+            Value::String("title-0".into()),
+        ],
+    ];
+    let mut round_ids = std::collections::BTreeSet::new();
+
+    // Act
+    let duplicate = read_oracle::validate_bucket(&rows, 0, 2, &mut round_ids);
+
+    // Assert
+    assert!(duplicate.unwrap_err().contains("duplicate"));
+    let positive = vec![
+        vec![
+            Value::String("first".into()),
+            Value::String("title-0".into()),
+        ],
+        vec![
+            Value::String("second".into()),
+            Value::String("title-0".into()),
+        ],
+    ];
+    round_ids.clear();
+    read_oracle::validate_bucket(&positive, 0, 2, &mut round_ids).unwrap();
+    assert_eq!(round_ids.len(), 2);
+    let across_buckets = vec![vec![
+        Value::String("first".into()),
+        Value::String("title-1".into()),
+    ]];
+    assert!(read_oracle::validate_bucket(&across_buckets, 1, 1, &mut round_ids).is_err());
+}
+
+#[test]
+fn should_reject_alias_paths_reusing_the_same_original_before_copying() {
+    // Arrange
+    let fixture = fixture();
+    let before = fingerprint(&fixture.source).unwrap();
+    let mut stores = std::collections::BTreeSet::new();
+    store_copy::claim_original(&fixture.source, &mut stores).unwrap();
+
+    // Act
+    let alias = store_copy::claim_original(&fixture.source.join("nested/.."), &mut stores);
+
+    // Assert
+    assert!(alias.unwrap_err().contains("duplicate"));
+    assert_eq!(stores.len(), 1);
+    assert_eq!(fingerprint(&fixture.source).unwrap(), before);
 }

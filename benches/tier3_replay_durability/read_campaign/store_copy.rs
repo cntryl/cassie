@@ -202,6 +202,21 @@ fn hash_tree(root: &Path, directory: &Path, hash: &mut Sha256) -> Result<()> {
     Ok(())
 }
 
+/// Claim the actual original directory before copying any selected store.
+pub(crate) fn claim_original(
+    path: &Path,
+    originals: &mut std::collections::BTreeSet<PathBuf>,
+) -> Result<()> {
+    if !inspect(path)?.is_dir() {
+        return Err("original must be a directory".into());
+    }
+    let canonical = path.canonicalize().map_err(|error| error.to_string())?;
+    if !originals.insert(canonical) {
+        return Err("duplicate canonical original store".into());
+    }
+    Ok(())
+}
+
 /// Fingerprint relative paths, entry types, lengths and file bytes; not access times.
 pub(crate) fn fingerprint(root: &Path) -> Result<String> {
     if !inspect(root)?.is_dir() {

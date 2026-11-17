@@ -142,12 +142,27 @@ impl Midge {
         default_database: impl Into<String>,
         strict: bool,
     ) -> Result<Self, CassieError> {
+        Self::new_cloud_simulated_with_lease_for_test(
+            cache_path,
+            default_database,
+            strict,
+            std::time::Duration::from_secs(300),
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_cloud_simulated_with_lease_for_test(
+        cache_path: impl AsRef<Path>,
+        default_database: impl Into<String>,
+        strict: bool,
+        lease_ttl: std::time::Duration,
+    ) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::cloud_simulated(
             cache_path.as_ref(),
             "cassie-test",
             "startup",
         )
-        .lease_ttl(std::time::Duration::from_secs(300))
+        .lease_ttl(lease_ttl)
         .build()
         .map_err(CassieError::from)?;
         let write_policy = if strict {

@@ -62,10 +62,10 @@ impl Boundary {
     }
 }
 
-struct OwnedDataDir(PathBuf);
+pub(super) struct OwnedDataDir(pub(super) PathBuf);
 
 impl OwnedDataDir {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
             "cassie-replay-process-death-{}",
             uuid::Uuid::new_v4()
@@ -256,13 +256,15 @@ fn assert_recovered_state(cassie: &Cassie, projection: &str, expected_position: 
 
 fn emit_marker_and_wait(boundary: Boundary) -> ! {
     let token = std::env::var(CHILD_TOKEN).expect("child token");
-    let mut stdout = std::io::stdout().lock();
-    writeln!(
-        stdout,
+    wait_after_marker(&format!(
         "CASSIE_REPLAY_PROCESS_DEATH|{}|{token}|READY",
         boundary.label()
-    )
-    .expect("write framed child readiness");
+    ))
+}
+
+pub(super) fn wait_after_marker(marker: &str) -> ! {
+    let mut stdout = std::io::stdout().lock();
+    writeln!(stdout, "{marker}").expect("write framed child readiness");
     stdout.flush().expect("flush child readiness");
     drop(stdout);
     let mut byte = [0_u8; 1];
@@ -326,16 +328,25 @@ fn kill_at_boundary(path: &Path, boundary: Boundary) {
         "CASSIE_REPLAY_PROCESS_DEATH|{}|{token}|READY",
         boundary.label()
     );
+    kill_test_child(
+        boundary.test_name(),
+        &[
+            (CHILD_CASE, std::ffi::OsStr::new(boundary.label())),
+            (CHILD_PATH, path.as_os_str()),
+            (CHILD_TOKEN, std::ffi::OsStr::new(&token)),
+        ],
+        &marker,
+    );
+}
+
+pub(super) fn kill_test_child(
+    test_name: &str,
+    environment: &[(&str, &std::ffi::OsStr)],
+    marker: &str,
+) {
     let child = Command::new(std::env::current_exe().expect("current test executable"))
-        .args([
-            "--exact",
-            boundary.test_name(),
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .env(CHILD_CASE, boundary.label())
-        .env(CHILD_PATH, path)
-        .env(CHILD_TOKEN, &token)
+        .args(["--exact", test_name, "--nocapture", "--test-threads=1"])
+        .envs(environment.iter().copied())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -343,6 +354,7 @@ fn kill_at_boundary(path: &Path, boundary: Boundary) {
         .expect("spawn isolated replay child");
     let mut child = OwnedChild(child);
     let output = child.0.stdout.take().expect("child stdout");
+    let marker = marker.to_owned();
     let (sender, receiver) = mpsc::sync_channel(1);
     let reader = std::thread::spawn(move || {
         let found = BufReader::new(output.take(OUTPUT_LIMIT))
@@ -357,7 +369,7 @@ fn kill_at_boundary(path: &Path, boundary: Boundary) {
     assert_eq!(
         marker_seen,
         Ok(true),
-        "selected replay child did not reach {boundary:?}"
+        "selected replay child did not reach its acknowledgement/commit boundary"
     );
     assert!(
         was_running,

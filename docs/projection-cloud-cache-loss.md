@@ -16,8 +16,9 @@ reopening. No lease record is edited.
 
 Strict acknowledgement must recover position 2. Asynchronous acknowledgement
 may recover the complete position-1 or position-2 state. Rows, checkpoint and
-index contents must agree with that position. API event-ledger entries must
-agree as well. Recovery uses the retained source, starting after the recovered
+index contents must agree with that position: event 1 is always present, and
+event 2 is absent at checkpoint 1 or present at checkpoint 2. API event-ledger
+entries must agree as well; SQL has no event ledger in this fixture. Recovery uses the retained source, starting after the recovered
 checkpoint, to reach position 2 without skipping an event; retrying again must
 preserve the result. This is a complete-prefix assertion for these two events,
 not a bound on the amount or duration of possible loss.
@@ -28,6 +29,12 @@ known writer-lease-held error, without changing the lease or treating another
 storage error as retryable. The existing cloud fixtures retain their 300-second
 TTL. Acknowledgement is synchronized through a framed child marker; no startup
 sleep chooses the crash boundary.
+
+The destructive fixture helper also has deterministic ownership controls. It
+refuses foreign, unowned and symlinked cache roots before deletion, preflights
+nested entries, and preserves both the full remote tree and an outside-cache
+retained-source sentinel. These controls are separate from the four recovery
+cases and have not yet run.
 
 ## Evidence limits
 

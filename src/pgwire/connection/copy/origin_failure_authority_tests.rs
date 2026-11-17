@@ -100,7 +100,8 @@ fn should_preserve_replacement_when_old_copy_predicate_fails() {
     // Assert
     assert!(
         matches!(result, Err(filter::CopyWhereError::Cassie(ref error)) if error.sql_state() == "25000"),
-        "stale COPY must be rejected before evaluating its predicate: {result:?}"
+        "stale COPY must be rejected before evaluating its predicate; error: {:?}",
+        result.as_ref().err()
     );
     assert!(healthy);
     assert!(usable.is_ok());

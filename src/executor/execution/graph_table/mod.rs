@@ -13,6 +13,7 @@ mod cache;
 mod eval;
 mod keys;
 mod lazy;
+mod lazy_rows;
 mod path_value;
 mod plan;
 mod project;
@@ -70,7 +71,7 @@ pub(super) fn execute(
         .get_property_graph(&binding.graph)
         .ok_or_else(|| failure("the property graph of a GRAPH_TABLE no longer exists"))?;
     let plan = plan::Plan::build(table, graph)?;
-    let eval = eval::Evaluator::new(env, if *lateral { outer_row } else { None });
+    let eval = eval::Evaluator::new(env, if *lateral { outer_row } else { None })?;
     let mut output = env.controls.reserve_query_memory(0)?;
     let rows = {
         let mut traversal = env.controls.reserve_query_memory(0)?;

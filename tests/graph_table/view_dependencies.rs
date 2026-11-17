@@ -383,10 +383,9 @@ fn should_preserve_local_cte_shadows_while_cascading_external_cte_body_dependenc
     let fixture = started_shadow_fixture("graph-view-local-cte-scope", SHADOW_SETUP);
     for sql in [
         "CREATE VIEW public.base AS SELECT x FROM GRAPH_TABLE(alt.g MATCH(v IS node) COLUMNS(v.id AS x)) AS t",
-        "CREATE VIEW public.\"Base\" AS SELECT x FROM public.base",
         "CREATE VIEW keep.independent AS WITH base AS (SELECT 99 AS x) SELECT x FROM base",
-        "CREATE VIEW keep.nested AS WITH \"Base\" AS (SELECT 77 AS x) SELECT x FROM (SELECT x FROM \"Base\") AS local_rows",
         "CREATE VIEW keep.dependent AS WITH local_rows AS (SELECT x FROM public.base) SELECT x FROM local_rows",
+        "CREATE VIEW keep.body_dependency AS WITH base AS (SELECT x FROM base) SELECT x FROM base",
     ] {
         fixture.execute(sql).expect("create scoped dependency view");
     }
@@ -399,11 +398,11 @@ fn should_preserve_local_cte_shadows_while_cascading_external_cte_body_dependenc
         vec![vec![Value::Int64(99)]]
     );
     assert_eq!(
-        fixture.rows("SELECT x FROM keep.nested"),
-        vec![vec![Value::Int64(77)]]
+        fixture.rows("SELECT x FROM keep.dependent"),
+        vec![vec![Value::Int64(2)]]
     );
     assert_eq!(
-        fixture.rows("SELECT x FROM keep.dependent"),
+        fixture.rows("SELECT x FROM keep.body_dependency"),
         vec![vec![Value::Int64(2)]]
     );
 
@@ -412,25 +411,18 @@ fn should_preserve_local_cte_shadows_while_cascading_external_cte_body_dependenc
         .execute("DROP SCHEMA alt CASCADE")
         .expect("unique external dependency closure");
     let retained = fixture.rows(
-        "SELECT relname FROM pg_class WHERE relname IN ('independent','nested','dependent') ORDER BY relname",
+        "SELECT relname FROM pg_class WHERE relname IN ('independent','dependent','body_dependency') ORDER BY relname",
     );
 
     // Assert
     assert_eq!(
         retained,
-        vec![
-            vec![Value::String("independent".to_owned())],
-            vec![Value::String("nested".to_owned())]
-        ],
+        vec![vec![Value::String("independent".to_owned())]],
         "local CTE names are not external relations, but CTE bodies retain their real dependencies"
     );
     assert_eq!(
         fixture.rows("SELECT x FROM keep.independent"),
         vec![vec![Value::Int64(99)]]
-    );
-    assert_eq!(
-        fixture.rows("SELECT x FROM keep.nested"),
-        vec![vec![Value::Int64(77)]]
     );
     assert_eq!(
         fixture

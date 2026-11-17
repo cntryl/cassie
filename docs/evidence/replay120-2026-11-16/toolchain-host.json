@@ -1,0 +1,13 @@
+{
+  "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)\nbinary: rustc\ncommit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a\ncommit-date: 2026-11-09\nhost: aarch64-apple-darwin\nrelease: 1.100.0\nLLVM version: 23.1.5\n",
+  "cargo": "cargo 1.100.0 (3acc79c0c 2026-11-05)",
+  "cntryl_tools_install_entry": "cntryl-tools v0.1.0 (https://github.com/cntryl/tools?rev=bc2d07782cf6873e1a4962fe8fe91396daa81a24#bc2d0778):",
+  "cntryl_tools_binary_sha256": "b54895107d61df2e00a9605b9da1ef3c1b4312c8a52b6c92e97284eefe1c688b",
+  "cntryl_tools_version_flag": "unsupported (--version exits2); install entry and binary hash identify tool",
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "machine": "arm64",
+  "logical_cpus": 10,
+  "cargo_build_jobs": 2,
+  "cargo_profile": "test (benchmark targets); integration package opt-level0, production crate opt-level1 from Cargo.toml",
+  "isolation": "No concurrent owned Cargo compilation during matrix; other host activity uncontrolled"
+}

@@ -1,0 +1,9 @@
+{
+  "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "tree": "d051222b580d48266b3ed604f588928bd443e660",
+  "rows": 16,
+  "pairs": 8,
+  "paired_median_us": 53148.0,
+  "reported_stage_medians_recomputed": true,
+  "raw_log_sha256_matches": true
+}

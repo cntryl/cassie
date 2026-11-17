@@ -62,7 +62,9 @@ are reported harness durations, not the sum of per-test times. The run retained
 nine inherited ignores. Different source, test counts and uncontrolled runner
 conditions prevent treating the two runs as a speed comparison. The existing
 60-minute workflow limit is current operational context; increasing a deadline
-is not the fixture improvement requested by #1191, which remains open.
+is not the fixture improvement requested by #1191. The selected listener
+improvement, exact local evidence and final-head hosted outcomes are recorded
+in [PR #1332](https://github.com/cntryl/cassie/pull/1332).
 
 The explicit `tier4_pgwire_fixture_profile` benchmark measures fresh memory
 fixture/startup, listener/connect, real password authentication, eight query

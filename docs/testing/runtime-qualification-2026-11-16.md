@@ -2,7 +2,9 @@
 
 This finite diagnostic slice advances [#1191](https://github.com/cntryl/cassie/issues/1191)
 and records the unchanged [#1188](https://github.com/cntryl/cassie/issues/1188)
-dependency boundary. Both issues remain open. It adds a reproducible phase
+dependency boundary. The finite #1191 improvement and its exact-head validation
+are recorded in [PR #1332](https://github.com/cntryl/cassie/pull/1332); #1188
+retains its independent open requirement. This slice adds a reproducible phase
 profiler and enables both workspace packages to inherit the existing Clippy
 lint policy. It changes no database or wire behavior.
 
@@ -71,10 +73,10 @@ fixtures and 128 query-result assertions. No timing threshold is asserted.
 
 ### Selected bounded fixture improvement
 
-The ten startup helpers in `tests/pgwire_extended/{subqueries,types/json,
-simple_query,protocol,prepared_statements,portals}` that bind an ephemeral
-listener, drop it, ask `server::run` to bind again, and sleep 50 ms will instead
-transfer that same bound listener to `server::run_with_listener`. The bound
+Sixteen startup sites in ten fixture files under
+`tests/pgwire_extended/{subqueries,types/json,simple_query,protocol,prepared_statements,portals}`
+now transfer the same bound listener to `server::run_with_listener`, replacing
+their bound-port drop, rebind and fixed 50 ms startup wait. The bound
 socket already admits connections; the operating system queues them until the
 server task accepts. This removes the port-rebinding race and the fixed startup
 delay while retaining a fresh database, real authentication, framing assertions,
@@ -130,3 +132,30 @@ The two profiler runs passed all 128 query-result checks (16 fixtures, eight
 queries each). They are diagnostic execution evidence, separate from the
 complete ordered local gate and final-head hosted checks recorded in the PR.
 Clean execution or restart is not crash/power-loss or production qualification.
+
+## Frozen-source closeout
+
+Executable source `58e6c96ea14c3466da17c256cb2fcaefbd71f940` (tree
+`d051222b580d48266b3ed604f588928bd443e660`) passed the complete ordered local gate:
+14,366 tests passed, zero failed, nine inherited ignores; full strict workspace,
+all-target/all-feature Clippy, formatting, touched-test policies and pinned
+inventory checks passed. Build took 74.60s; the complete locked test command took
+986.88s including 9m00s compilation. These are local measurements with two build
+jobs and warm registry contents/fresh workspace artifacts.
+
+The four named local harnesses passed: catalogs 605 cases/4.55s, extended
+982/11.00s, grammar 1,233/9.91s and types 1,226/12.37s. Their 37.83s sum is not a
+controlled comparison with historical Linux hosted durations.
+
+The matched profiler passed eight alternating pairs, sixteen fresh fixtures and
+128 query-result assertions. Median listener/connect time was 53,260 microseconds
+for the legacy helper and 132 for the owned listener; the median paired delta
+was 53,148 microseconds, including the configured 50,000-microsecond legacy wait.
+Compilation took 0.55s and the command 2.18s. The accepted-task/runtime/engine
+cleanup exclusions remain unchanged. This demonstrates the selected startup
+mechanism, not authentication, full-target or complete-teardown improvement.
+
+[Raw CSV](../evidence/fixture-startup-2026-11-16/fixture-profile.csv) and
+[summary](../evidence/fixture-startup-2026-11-16/fixture-profile-summary.json) retain all
+pairs and stage medians. Final-head hosted status and authorized merge readback
+belong to the linked PR; no pending hosted check is reported passed here.

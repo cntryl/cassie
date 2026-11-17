@@ -60,3 +60,11 @@ inference over these virtual catalog joins is not qualified. Existing clone rest
 restored databases have fresh identities, graph definitions are recreated, and
 source references fail `42704`; identity-preserving restore/remapping is not an
 offered workflow (#1327).
+
+
+The moved example was explicitly rerun on executable source `58e6c96e` with
+`--profile test`: all five client invariants passed using Python 3.12.13,
+Psycopg 3.2.13 and libpq 17.6. [Actual command/log and registration evidence](evidence/replay120-2026-11-16/README.md)
+are retained separately from the earlier release-profile record. Cargo metadata
+confirms this target is example-only and the removed empty feature has no CI
+configuration callers.

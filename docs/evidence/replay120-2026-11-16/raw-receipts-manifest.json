@@ -1,0 +1,9 @@
+{
+  "archive": "raw-receipts.tar.gz",
+  "sha256": "ee9b7b3d16a994d895c96025c29438bcf55c7aeeaa10afecae3e77624e30d813",
+  "bytes": 350201,
+  "files": 65,
+  "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "tree": "d051222b580d48266b3ed604f588928bd443e660",
+  "scope": "Original per-lane log and extracted JSON bytes plus the original matrix execution receipt; normalized archive metadata only."
+}

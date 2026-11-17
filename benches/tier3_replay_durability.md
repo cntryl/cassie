@@ -49,7 +49,8 @@ The unique temporary data directory is printed for inspection and is not removed
 by the driver. Explicitly manage benchmark artifacts and disk capacity. This
 experiment is a local smoke comparison, not a buffered crash qualification,
 cloud-loss or power-failure proof, or a general speedup across workloads. The
-full 100k-row, indexed/unindexed and SQL comparison remains in #1271.
+finite local 100k-row comparison is recorded below; broader fault/cloud and
+production evidence remains in #1271.
 Performance comparisons include all differences between source versions and
 observation overhead; they cannot by themselves attribute a
 change solely to the removed commit barrier.
@@ -77,9 +78,9 @@ These are call attempts on the observing thread. They are not physical syncs,
 they exclude background threads and staged or suppressed commits, and one
 physical WAL sync can satisfy several of them.
 
-No run of these lanes is recorded here. The 100k-row matched comparison across
-batch sizes, the duplicate and no-op cases, recovery time, and any cloud
-profile remain open under #1271.
+The frozen local comparison below records these lanes across two batch sizes,
+including separate API duplicate/no-op controls and clean-reopen startup time.
+Crash, power-loss and cloud-cache-loss qualification remains separate in #1271.
 
 ## Separate duplicate/no-op lanes and clean recovery
 
@@ -108,10 +109,10 @@ verification excluded. It is not crash recovery, process-kill, power-loss or
 cloud-cache-loss latency. `verification_ns` is the first untimed verification.
 Neither interval enters acknowledgement samples or measured native counters.
 
-The additions are authored, not executed, until the assembler's frozen gate.
-#1271 remains open: repeated 100k-row measurements across profiles, shapes and
-batch sizes, crash recovery time, power-loss and cloud-cache-loss qualification,
-and production operator diagnostics are not established by adding these lanes.
+The additions passed the frozen local gate and the finite groups below.
+#1271 remains open for broader crash recovery, power-loss/cloud-cache-loss
+qualification and production operator diagnostics; completed local controls do
+not establish those properties.
 Existing #1271 historical measurements at `a9231cd09` remain a separate source
 identity. No speedup or bounded-loss claim follows from the driver.
 
@@ -148,7 +149,9 @@ extra rows with unknown or null titles; the total is never inferred by summing
 known buckets. All checkpoint and clean-reopen checks and the 64 MiB budget stay
 in place. Jev selected this finite verifier change at probability 0.98; its
 0.36 oracle-gap lead requires focused short/extra/wrong/null-result controls
-and actual 100k-row execution. Authored controls are not passing evidence.
+and actual 100k-row execution. All four negative controls passed in the
+complete frozen test gate, and the selected 100k-row groups below completed.
+Authorship alone is not passing evidence and no unobserved baseline RED is claimed.
 
 ## Bounded replay verification deadline
 
@@ -165,15 +168,34 @@ The earlier 30-second profile remains historical evidence: thirteen large
 controls passed, an unindexed SQL-default apply run failed during untimed
 verification of `title-10` with `57014`, and the final two controls were not run.
 The failure remains a failed query at that profile, not proof of a production
-runtime defect or a passing measurement. The selected finite next step is to
-rerun the failed control and the two remaining controls, plus needed targeted
-smoke coverage, on the new source with this bounded 120-second profile. Jev
-selected that step at probability 0.76; completion is subject to actual results.
+runtime defect or a passing measurement. Jev initially selected the bounded
+120-second diagnostic step at probability 0.76. A new uniform-profile group then
+completed all selected apply and auxiliary cells on the source below; the old
+failed or unrun controls keep their original status.
 
 Old 30-second successes and new 120-second runs must retain separate source and
 profile identities. Combining them does not establish a uniform matched 100k
-matrix or the repeated comparisons required by #1271. Uniform-profile reruns,
-repeated measurements and broader durability qualification remain follow-up
-work. The fixture keeps all rows, title-bucket, total-count, checkpoint and
+matrix. The new group independently completes two fresh apply repetitions
+per cell and one auxiliary store per cell. Broader durability qualification
+remains follow-up work. The fixture keeps all rows, title-bucket, total-count, checkpoint and
 reopen assertions; this profile change neither weakens them nor raises the
 memory budget. No global environment variable or production deadline is changed.
+
+## Executed local 100k-row groups
+
+On executable source `58e6c96ea14c3466da17c256cb2fcaefbd71f940`, all **32 apply
+controls and 16 API duplicate/no-op controls passed**, with 26,400 individual
+batch samples retained. Apply uses four modes × two shapes × two batch sizes ×
+two fresh repetitions. Auxiliary uses two API policies × two workloads × two
+shapes × two batch sizes, one fresh store per cell. Both use 100,000 expected
+rows, 64 MiB query memory and a 120-second per-query deadline.
+
+The [durable record](../docs/evidence/replay120-2026-11-16/README.md) contains exact
+source/profile/lane parameters, acknowledgement distributions, foreground
+attempt totals, engine counter deltas, checkpoint/title verification and clean
+reopen results. Original logs and JSON bytes are archived with SHA-256 receipts.
+The SQL lanes are embedded SQL measurements, not pgwire throughput. These local
+test-profile diagnostics do not establish stable timing quality or a universal
+speedup. In particular, primary buffered selection did not reduce engine-wide
+physical sync deltas in the first indexed matched controls; strict maintenance
+and other outside-maintenance calls remain observable.

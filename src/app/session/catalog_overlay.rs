@@ -13,7 +13,9 @@ pub(super) struct TransactionCatalogViews {
 
 impl CassieSession {
     pub(crate) fn transaction_catalog_overlay(&self) -> Option<Catalog> {
-        self.transaction.lock().catalog_overlay.clone()
+        let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction).ok()?;
+        transaction.catalog_overlay.clone()
     }
 
     pub(crate) fn transaction_catalog_version(&self) -> Option<u64> {

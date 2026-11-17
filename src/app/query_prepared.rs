@@ -149,7 +149,12 @@ impl Cassie {
             );
         }
         self.runtime.record_query_memory(&controls);
-        let result = execute(&controls, authority.as_ref());
+        let result = authority
+            .as_ref()
+            .map_or(Ok(()), |authority| {
+                session.ensure_admitted_operation_owner(authority)
+            })
+            .and_then(|()| execute(&controls, authority.as_ref()));
         #[cfg(test)]
         authority_test_hooks::after_worker_result(self, session, authority.as_ref(), &result);
         let elapsed = query_started.elapsed();

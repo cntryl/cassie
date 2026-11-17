@@ -39,6 +39,8 @@ pub(super) async fn handle_parse(
         let parameter_types = normalize_parameter_type_oids(&parameter_type_oids);
         let id = state.next_prepared_id();
         store_prepared_statement(
+            Arc::clone(&cassie),
+            session,
             runtime,
             state,
             PreparedStatement {
@@ -51,7 +53,8 @@ pub(super) async fn handle_parse(
                 parameter_types,
                 described: false,
             },
-        );
+        )
+        .await?;
         let _ = write_parse_complete(write_half).await;
         return Ok(());
     }
@@ -80,21 +83,26 @@ pub(super) async fn handle_parse(
         let cancellation = registration.begin_query();
         let handle = cancellation.handle();
         let session = session.clone();
-        run_pgwire_blocking(cassie, "pgwire_parse_snapshot", move |cassie| {
-            let started = std::time::Instant::now();
-            let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
-                &cassie.runtime.limits(),
-                started,
-                handle,
-            );
-            session.apply_statement_timeout(&mut controls, started);
-            let result = (|| {
-                cassie.prepare_transaction_analysis_view(&session, &parsed, false, &controls)?;
-                admit(&cassie, &session, parsed, &parameter_type_oids, &controls)
-            })();
-            cassie.runtime.record_query_memory(&controls);
-            Ok(result)
-        })
+        run_pgwire_blocking(
+            Arc::clone(&cassie),
+            "pgwire_parse_snapshot",
+            move |cassie| {
+                let started = std::time::Instant::now();
+                let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
+                    &cassie.runtime.limits(),
+                    started,
+                    handle,
+                );
+                session.apply_statement_timeout(&mut controls, started);
+                let result = (|| {
+                    cassie
+                        .prepare_transaction_analysis_view(&session, &parsed, false, &controls)?;
+                    admit(&cassie, &session, parsed, &parameter_type_oids, &controls)
+                })();
+                cassie.runtime.record_query_memory(&controls);
+                Ok(result)
+            },
+        )
         .await
         .map_err(|error| ExtendedQueryError::cassie(&error))??
     } else {
@@ -104,6 +112,8 @@ pub(super) async fn handle_parse(
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let id = state.next_prepared_id();
     store_prepared_statement(
+        Arc::clone(&cassie),
+        session,
         runtime,
         state,
         PreparedStatement {
@@ -116,7 +126,8 @@ pub(super) async fn handle_parse(
             parameter_types,
             described: false,
         },
-    );
+    )
+    .await?;
 
     let _ = write_parse_complete(write_half).await;
     Ok(())

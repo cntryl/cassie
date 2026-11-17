@@ -40,6 +40,7 @@ pub(super) struct OperationOwner {
     pub(super) captured: bool,
     pub(super) admission_rejected: bool,
     pub(super) worker_started: bool,
+    pub(super) expected_portal: Option<FailureAuthorityIdentity>,
     portal_adoption: Option<(FailureAuthorityIdentity, FailureAuthorityIdentity)>,
     pub(super) retired_generation: Option<u64>,
     shared_memory: Option<crate::runtime::QueryMemoryReservation>,
@@ -147,6 +148,7 @@ impl FailureAuthority {
                 captured: true,
                 admission_rejected: false,
                 worker_started: false,
+                expected_portal: None,
                 portal_adoption: None,
                 retired_generation: None,
                 shared_memory: None,
@@ -167,15 +169,15 @@ impl FailureAuthority {
     ) {
         if self.matches_root(session) {
             let mut owner = self.owner.lock();
-            owner.portal_adoption = (transaction.implicit && before.transaction.is_none())
-                .then_some((
-                    before,
-                    FailureAuthorityIdentity::from_transaction(transaction),
-                ));
+            owner.portal_adoption = before.transaction.is_none().then_some((
+                before,
+                FailureAuthorityIdentity::from_transaction(transaction),
+            ));
             owner.identity = Some((transaction.unique_owner_id, transaction.rollback_epoch));
             owner.generation = transaction.generation;
             owner.captured = true;
             owner.retired_generation = None;
+            owner.expected_portal = None;
         }
     }
 

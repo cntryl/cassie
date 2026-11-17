@@ -446,7 +446,16 @@ async fn handle_ready(
         return ConnectionStep::Continue(HandshakeState::Ready);
     };
     if *awaiting_sync {
-        return handle_sync_wait(runtime, reader, write_half, state, awaiting_sync, &session).await;
+        return handle_sync_wait(
+            cassie,
+            runtime,
+            reader,
+            write_half,
+            state,
+            awaiting_sync,
+            &session,
+        )
+        .await;
     }
     if next_tag == b'Q' {
         return handle_simple_query(cassie, runtime, reader, write_half, state).await;
@@ -464,6 +473,7 @@ async fn handle_ready(
 }
 
 async fn handle_sync_wait(
+    cassie: Arc<Cassie>,
     runtime: &crate::runtime::RuntimeState,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
@@ -483,14 +493,19 @@ async fn handle_sync_wait(
             state.extended_cycle = transactions::ExtendedCycle::default();
             if std::mem::take(&mut state.invalidate_portals_on_sync) {
                 if let Some(owner) = state.portal_invalidation_owner.take() {
-                    session
-                        .with_operation_failure_authority(Some(&owner))
-                        .try_with_owned_transaction(|| state.clear_all_portals(runtime));
+                    if let Some(identity) = owner.identity() {
+                        state.clear_portals_owned_by(identity, runtime);
+                    }
                 }
-            } else {
-                transactions::clear_idle_portals(runtime, state, session);
             }
-            let _ = write_ready_for_query(write_half, session).await;
+            let operation = session.with_new_wire_operation();
+            transactions::capture_protocol_owner(&operation).await;
+            if transactions::finish_query(cassie, runtime, write_half, state, &operation)
+                .await
+                .is_err()
+            {
+                return ConnectionStep::Break;
+            }
         }
         state::FrontendMessage::Terminate => return ConnectionStep::Break,
         state::FrontendMessage::Flush => runtime.record_pgwire_message("flush"),

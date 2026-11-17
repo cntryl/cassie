@@ -27,7 +27,8 @@ pub(super) fn prepare_execute(
     Ok((max_rows, first))
 }
 
-pub(super) fn admit_statement(
+pub(super) async fn admit_statement(
+    cassie: std::sync::Arc<Cassie>,
     state: &mut SessionState,
     session: &CassieSession,
     parsed: &ParsedStatement,
@@ -47,9 +48,12 @@ pub(super) fn admit_statement(
         && !session.is_transaction_failed()
         && super::super::transactions::eligible(parsed, catalog)
     {
-        session
-            .begin_implicit_transaction_for_operation(session.operation_failure_authority())
-            .map_err(|error| ExtendedQueryError::cassie(&error))?;
+        let session = session.clone();
+        super::run_pgwire_blocking(cassie, "pgwire_implicit_begin", move |_| {
+            session.begin_implicit_transaction_for_operation(session.operation_failure_authority())
+        })
+        .await
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
     }
     Ok(standalone)
 }

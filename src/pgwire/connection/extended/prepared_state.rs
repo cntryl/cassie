@@ -55,11 +55,22 @@ pub(super) fn with_function_input_scope<R>(
 
 /// Registers `prepared` under its name, closing the portals of any statement
 /// it replaces.
-pub(super) fn store_prepared_statement(
+pub(super) async fn store_prepared_statement(
+    cassie: std::sync::Arc<Cassie>,
+    session: &CassieSession,
     runtime: &RuntimeState,
     state: &mut SessionState,
     prepared: PreparedStatement,
-) {
+) -> Result<(), super::ExtendedQueryError> {
+    let registration_session = session.clone();
+    let name = prepared.name.clone();
+    let query = prepared.query.clone();
+    let id = prepared.id;
+    super::run_pgwire_blocking(cassie, "pgwire_register_prepared", move |_| {
+        registration_session.register_wire_prepared(&name, id, &query)
+    })
+    .await
+    .map_err(|error| super::ExtendedQueryError::cassie(&error))?;
     let replaced_prepared = state
         .prepared_statements
         .get(&prepared.name)
@@ -68,15 +79,13 @@ pub(super) fn store_prepared_statement(
         remove_portals_for_prepared_id(state, runtime, prepared_id);
         state.prepared_result_descriptors.remove(&prepared_id);
     }
-    if let Some(session) = state.session.as_ref() {
-        session.register_wire_prepared(&prepared.name, prepared.id, &prepared.query);
-    }
     state
         .prepared_statements
         .insert(prepared.name.clone(), prepared);
     if replaced_prepared.is_none() {
         runtime.record_pgwire_prepared_delta(1);
     }
+    Ok(())
 }
 
 pub(super) fn normalize_parameter_type_oids(parameter_type_oids: &[i32]) -> Vec<i32> {

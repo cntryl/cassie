@@ -150,7 +150,7 @@ async fn dispatch_message(
         }
         FrontendMessage::Close { target, name } => {
             runtime.record_pgwire_message("close");
-            handle_close(runtime, write_half, (state, session), target, name).await?;
+            handle_close(cassie, runtime, write_half, (state, session), target, name).await?;
         }
         FrontendMessage::Flush => {
             runtime.record_pgwire_message("flush");
@@ -397,6 +397,7 @@ async fn execute_prepared_portal(
 }
 
 async fn handle_close(
+    cassie: Arc<Cassie>,
     runtime: &RuntimeState,
     write_half: &mut (impl AsyncWrite + Unpin),
     (state, session): (&mut SessionState, &CassieSession),
@@ -408,9 +409,23 @@ async fn handle_close(
     // and leaves the rest of the pipelined batch running.
     match target {
         DescribeTarget::Statement => {
-            if let Some(prepared) = state.prepared_statements.remove(&name) {
+            if let Some(id) = state
+                .prepared_statements
+                .get(&name)
+                .map(|prepared| prepared.id)
+            {
+                let owned_session = session.clone();
+                let owned_name = name.clone();
+                run_pgwire_blocking(cassie, "pgwire_forget_prepared", move |_| {
+                    owned_session.forget_wire_prepared(&owned_name, id)
+                })
+                .await
+                .map_err(|error| ExtendedQueryError::cassie(&error))?;
+                let prepared = state
+                    .prepared_statements
+                    .remove(&name)
+                    .expect("checked prepared statement");
                 runtime.record_pgwire_prepared_delta(-1);
-                session.forget_wire_prepared(&name, prepared.id);
                 state.prepared_result_descriptors.remove(&prepared.id);
                 remove_portals_for_prepared_id(state, runtime, prepared.id);
             }

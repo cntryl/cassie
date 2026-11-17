@@ -31,13 +31,19 @@ impl FailureAuthority {
         };
         let mut owner = authority.owner.lock();
         if !owner.captured && !owner.admission_rejected {
-            owner.identity = match transaction.status {
-                SessionTransactionStatus::Idle => None,
-                SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed => {
-                    Some((transaction.unique_owner_id, transaction.rollback_epoch))
-                }
-            };
-            owner.generation = transaction.generation;
+            let current = super::FailureAuthorityIdentity::from_transaction(&transaction);
+            let captured = owner
+                .expected_portal
+                .take()
+                .filter(|expected| {
+                    expected.transaction != current.transaction
+                        || expected.generation != current.generation
+                })
+                .unwrap_or(current);
+            owner.identity = captured
+                .transaction
+                .map(|identity| (identity, captured.rollback_epoch));
+            owner.generation = captured.generation;
             owner.captured = true;
         }
         drop(owner);
@@ -174,6 +180,19 @@ impl CassieSession {
             return Ok(());
         };
         let owner = authority.owner.lock();
+        if let Some(expected) = owner.expected_portal {
+            let current = super::FailureAuthorityIdentity::from_transaction(transaction);
+            let own_chain = owner.captured
+                && owner.retired_generation == Some(current.generation)
+                && owner.generation == current.generation
+                && current.transaction.is_none();
+            if !own_chain
+                && (expected.transaction != current.transaction
+                    || expected.generation != current.generation)
+            {
+                return Err(super::sequence_effect::changed());
+            }
+        }
         let may_start = authority.matches_root(self)
             && !owner.admission_rejected
             && transaction.status == SessionTransactionStatus::Idle
@@ -230,13 +249,60 @@ impl CassieSession {
         operation
     }
 
+    pub(crate) fn expect_portal_owner(&self, identity: super::FailureAuthorityIdentity) {
+        if let Some(authority) = self.operation_failure_authority.as_ref() {
+            authority.owner.lock().expected_portal = Some(identity);
+        }
+    }
+
+    pub(crate) fn ensure_admitted_operation_owner(
+        &self,
+        authority: &FailureAuthority,
+    ) -> Result<(), super::CassieError> {
+        let root = authority
+            .root
+            .upgrade()
+            .ok_or_else(super::sequence_effect::changed)?;
+        let transaction = root.lock();
+        let owner = authority.owner.lock();
+        let current = super::FailureAuthorityIdentity::from_transaction(&transaction);
+        if !owner.captured
+            || owner.admission_rejected
+            || owner.generation != current.generation
+            || owner.identity
+                != current
+                    .transaction
+                    .map(|identity| (identity, current.rollback_epoch))
+        {
+            return Err(super::sequence_effect::changed());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn try_with_current_portal_lifetime(
+        &self,
+        inspect: impl FnOnce(super::FailureAuthorityIdentity),
+    ) {
+        if !self.owns_transaction_lifecycle {
+            return;
+        }
+        if let Some(transaction) = self.transaction.try_lock() {
+            inspect(super::FailureAuthorityIdentity::from_transaction(
+                &transaction,
+            ));
+        }
+    }
+
     pub(crate) fn operation_failure_authority(&self) -> Option<&FailureAuthority> {
         self.operation_failure_authority.as_ref()
     }
 
     pub(crate) fn reject_operation_admission(&self) {
         if let Some(authority) = self.operation_failure_authority.as_ref() {
-            authority.owner.lock().admission_rejected = true;
+            let mut owner = authority.owner.lock();
+            if !owner.captured {
+                owner.admission_rejected = true;
+            }
         }
     }
 

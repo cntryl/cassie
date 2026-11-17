@@ -165,6 +165,7 @@ impl CassieSession {
         controls: &QueryExecutionControls,
     ) -> Result<Option<Arc<StatementDataRead>>, CassieError> {
         let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let Some(owner) = transaction.repeatable_read.as_ref() else {
             return Ok(None);
         };
@@ -191,6 +192,7 @@ impl CassieSession {
         database: &str,
     ) -> Result<Option<Arc<StatementDataRead>>, CassieError> {
         let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let Some(owner) = transaction.repeatable_read.as_ref() else {
             return Ok(None);
         };

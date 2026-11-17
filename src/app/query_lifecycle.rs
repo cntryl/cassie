@@ -172,14 +172,17 @@ impl Cassie {
         authority_test_hooks::after_root_capture(self, session, &authority);
         self.runtime.record_query_memory(&controls);
         let mut rows = 0;
-        let result = self
-            .execute_sql_core_for_operation(
-                session,
-                sql,
-                params,
-                execution.0,
-                (&controls, Some(&authority)),
-            )
+        let result = session
+            .ensure_admitted_operation_owner(&authority)
+            .and_then(|()| {
+                self.execute_sql_core_for_operation(
+                    session,
+                    sql,
+                    params,
+                    execution.0,
+                    (&controls, Some(&authority)),
+                )
+            })
             .and_then(|result| {
                 rows = result.row_count();
                 convert(result, &controls)
@@ -223,8 +226,16 @@ impl Cassie {
         let authority = super::FailureAuthority::capture_for_operation(session);
         self.runtime.record_query_memory(&controls);
         let mut rows = 0;
-        let result = self
-            .explain_sql_core_for_operation(session, sql, params, (&controls, Some(&authority)))
+        let result = session
+            .ensure_admitted_operation_owner(&authority)
+            .and_then(|()| {
+                self.explain_sql_core_for_operation(
+                    session,
+                    sql,
+                    params,
+                    (&controls, Some(&authority)),
+                )
+            })
             .and_then(|output| {
                 rows = output.result().row_count();
                 convert(output, &controls)

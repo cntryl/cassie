@@ -170,6 +170,36 @@ fn should_reject_late_root_bookkeeping_and_staging_without_changing_the_replacem
     assert_eq!(transaction.isolation, None);
 }
 
+#[test]
+fn should_not_export_a_replacements_mutable_catalog_alias_to_an_old_operation() {
+    // Arrange
+    let cassie = crate::app::Cassie::new_in_memory_with_config(
+        crate::config::CassieRuntimeConfig::default(),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("catalog_alias_owner", None);
+    session.begin_transaction(None).unwrap();
+    let authority = FailureAuthority::capture(&session);
+    let operation = session.with_operation_failure_authority(Some(&authority));
+    session.rollback_transaction();
+    session.begin_transaction(None).unwrap();
+    let controls = crate::runtime::QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    session
+        .begin_transaction_catalog_overlay(&cassie.catalog, &controls)
+        .unwrap();
+
+    // Act
+    let stale_alias = operation.transaction_catalog_overlay();
+
+    // Assert
+    assert!(stale_alias.is_none());
+    assert!(session.transaction_catalog_overlay().is_some());
+}
+
 thread_local! {
     static OWN_START: RefCell<Option<(SyncSender<()>, Receiver<()>)>> = const { RefCell::new(None) };
     static SAVEPOINT_CLEANUP: RefCell<Option<SessionObserver>> = const { RefCell::new(None) };
@@ -731,4 +761,50 @@ fn should_refuse_a_stale_outer_commit_without_publishing_or_rolling_back_the_rep
     assert!(stale_commit.is_err());
     assert!(replacement_healthy);
     assert!(rows.rows().is_empty());
+}
+
+#[test]
+fn should_keep_an_established_owner_when_later_admission_is_rejected() {
+    // Arrange
+    let session = CassieSession::new("owned_rejection".into(), None);
+    let operation = session.with_new_wire_operation();
+    operation
+        .begin_implicit_transaction_for_operation(operation.operation_failure_authority())
+        .unwrap();
+    let owner = operation.operation_failure_authority().unwrap();
+    let receipt = owner.portal_adoption();
+
+    // Act
+    operation.reject_operation_admission();
+    let retained = owner.portal_adoption();
+    operation.fail_operation_transaction();
+
+    // Assert
+    assert!(receipt.is_some());
+    assert_eq!(retained, receipt);
+    assert!(!operation.operation_was_rejected());
+    assert!(!session.is_transaction_active());
+}
+
+#[test]
+fn should_not_grant_an_established_rejected_operation_rights_over_a_replacement() {
+    // Arrange
+    let session = CassieSession::new("replaced_rejection".into(), None);
+    session.begin_transaction(None).unwrap();
+    let operation = session.with_new_wire_operation();
+    let original = FailureAuthority::capture_for_operation(&operation).identity();
+    session.rollback_transaction();
+    session.begin_transaction(None).unwrap();
+
+    // Act
+    operation.reject_operation_admission();
+    operation.fail_operation_transaction();
+
+    // Assert
+    assert_eq!(
+        operation.operation_failure_authority().unwrap().identity(),
+        original
+    );
+    assert!(session.is_transaction_active());
+    assert!(!session.is_transaction_failed());
 }

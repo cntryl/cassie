@@ -505,3 +505,20 @@ their actual in-memory write. The dispatcher is not locked across calls to
 other transaction helpers. Existing direct public setters on an unscoped
 session retain their current-session behavior. Existing SET LOCAL search_path
 behavior is preserved; this ownership repair adds no PostgreSQL parity claim.
+
+Portal execution carries the immutable Bind owner into admission. Lifetime compares
+transaction UUID and generation, while operation admission also checks the current
+rollback epoch. A mismatching portal never captures failure authority for its
+replacement transaction. The check occurs under the implicit-start root lock before
+creating a stage, and again after worker admission. An exact own idle-to-active
+start receipt adopts surviving preparation portals for either implicit or explicit
+BEGIN; unrelated starts cannot adopt them. Named preparation portals survive their
+own Simple Query BEGIN, with existing unnamed Query destruction unchanged.
+Connection reconciliation reads actual current lifetime nonblockingly and filters
+portal ownership without changing failure authority or transaction state.
+
+A later generic admission rejection preserves an already captured operation owner,
+including its own-start adoption receipt. Only a never-captured context becomes
+admission-rejected. This gives an established protocol origin its existing cleanup
+rights, while all UUID/epoch/generation checks still reject replacement ownership.
+An uncaptured saturated rejection remains immediate and performs no root mutation.

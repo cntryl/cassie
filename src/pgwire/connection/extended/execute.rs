@@ -19,6 +19,9 @@ pub(super) async fn handle_execute(
     max_rows: i32,
 ) -> Result<(), ExtendedQueryError> {
     runtime.record_pgwire_extended_query();
+    if let Some(owner) = state.portal_owner_identity(&portal_name) {
+        session.expect_portal_owner(owner);
+    }
     let quarantined = admit_recovery_execute(&cassie, state, &portal_name)?;
     let (max_rows, first_execute) =
         transaction_boundary::prepare_execute(state, session, &portal_name, max_rows)?;
@@ -26,7 +29,9 @@ pub(super) async fn handle_execute(
         .ok_or_else(|| missing_portal_error(&portal_name))?;
 
     if let Some(suspended) = suspended.filter(|_| !quarantined) {
-        super::super::transactions::capture_protocol_owner(session).await;
+        super::super::transactions::capture_and_validate_protocol_owner(session)
+            .await
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
         return resume_suspended_portal(
             cassie,
             write_half,
@@ -42,7 +47,9 @@ pub(super) async fn handle_execute(
         .await;
     }
     if let Some(command) = portal.completed_command.as_deref().filter(|_| !quarantined) {
-        super::super::transactions::capture_protocol_owner(session).await;
+        super::super::transactions::capture_and_validate_protocol_owner(session)
+            .await
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
         return write_completed_portal(write_half, command, &state.portal_memory_controls).await;
     }
 
@@ -52,7 +59,9 @@ pub(super) async fn handle_execute(
         if session.transaction_catalog_overlay().is_some()
             || descriptor.catalog_version() != catalog_version
         {
-            super::super::transactions::capture_protocol_owner(session).await;
+            super::super::transactions::capture_and_validate_protocol_owner(session)
+                .await
+                .map_err(|error| ExtendedQueryError::cassie(&error))?;
             let columns =
                 describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
             validate_prepared_result_types(Some(&descriptor), &columns)?;
@@ -60,21 +69,31 @@ pub(super) async fn handle_execute(
         }
     }
     let Some(parsed) = prepared.parsed.clone() else {
-        super::super::transactions::capture_protocol_owner(session).await;
+        super::super::transactions::capture_and_validate_protocol_owner(session)
+            .await
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
         return write_empty_query_response(write_half)
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error));
     };
     let standalone = transaction_boundary::admit_statement(
+        Arc::clone(&cassie),
         state,
         session,
         &parsed,
         &cassie.catalog,
         first_execute,
-    )?;
+    )
+    .await?;
+    if let Some(authority) = session.operation_failure_authority() {
+        state.adopt_operation_portals(authority);
+    }
     if streamable_portal_query(&prepared, max_rows)
         && state.portal_reads.get(&portal_name).is_none()
     {
+        super::super::transactions::capture_and_validate_protocol_owner(session)
+            .await
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
         return execute_streaming_portal_page(
             cassie,
             write_half,
@@ -107,9 +126,7 @@ pub(super) async fn handle_execute(
         },
     )
     .await;
-    if quarantined {
-        state.clear_all_portals(runtime);
-    }
+    super::super::transactions::clear_owned_idle_portals(runtime, state, session);
     result
 }
 

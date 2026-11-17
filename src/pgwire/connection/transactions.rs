@@ -23,6 +23,18 @@ pub(super) async fn capture_protocol_owner(session: &CassieSession) {
     .await;
 }
 
+pub(super) async fn capture_and_validate_protocol_owner(
+    session: &CassieSession,
+) -> Result<(), CassieError> {
+    let session = session.clone();
+    tokio::task::spawn_blocking(move || {
+        let authority = crate::app::FailureAuthority::capture_for_operation(&session);
+        session.ensure_admitted_operation_owner(&authority)
+    })
+    .await
+    .map_err(|error| CassieError::Execution(format!("protocol owner worker failed: {error}")))?
+}
+
 pub(super) async fn fail_owned_transaction(session: &CassieSession) {
     let session = session.clone();
     let _ = tokio::task::spawn_blocking(move || session.fail_operation_transaction()).await;
@@ -42,14 +54,22 @@ pub(super) fn clear_owned_idle_portals(
     state: &mut SessionState,
     session: &CassieSession,
 ) {
-    session.try_with_owned_idle_transaction(|| state.clear_all_portals(runtime));
+    if let Some(authority) = session.operation_failure_authority() {
+        state.adopt_operation_portals(authority);
+    }
+    session.try_with_retired_operation_owner(|owner| state.clear_portals_owned_by(owner, runtime));
+    session.try_with_current_portal_lifetime(|current| state.reconcile_portals(current, runtime));
 }
 
+#[cfg(test)]
 pub(super) fn clear_idle_portals(
     runtime: &RuntimeState,
     state: &mut SessionState,
     session: &CassieSession,
 ) {
+    if let Some(authority) = session.operation_failure_authority() {
+        state.adopt_operation_portals(authority);
+    }
     let status = session.transaction_status_snapshot();
     #[cfg(test)]
     portal_snapshot_test_hooks::after_snapshot(session, status);

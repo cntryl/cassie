@@ -9,6 +9,9 @@ use cassie_test_support::support_type_metadata_contract;
 #[path = "support/graph_oracle/mod.rs"]
 mod graph_oracle;
 
+#[path = "support/graph_view_fixture.rs"]
+mod graph_view_fixture;
+
 #[path = "graph_table/world.rs"]
 mod world;
 

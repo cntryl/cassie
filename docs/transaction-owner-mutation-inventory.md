@@ -1,7 +1,9 @@
 # Transaction-owner mutation inventory
 
-This is the finite source inventory for #1290 and #1279. It describes candidate
-source under review; the focused controls and complete gates have not run.
+This is the finite source inventory for #1290 and #1279. The default suite and
+34 feature controls passed at `843500f8`. Later mechanical lint and test-name
+changes, their equivalence proofs and affected gates are recorded in the
+[qualification record](evidence/runtime-closeout-2026-11-17/README.md); publication-head hosted results remain a separate check.
 The selected contract is in
 [Replayable SQL transactions](sql-replayable-transaction-contract.md).
 
@@ -27,7 +29,7 @@ storage I/O. Admission of an independent sequence effect can precede COMMIT;
 that admission has already made Data strict before releasing the root lock.
 It does not cancel, undo or bound an admitted native update.
 
-## Remaining integration and review obligations
+## Implemented mutation and lifetime rules
 
 - Fork schema contexts use the selected execution-local owned clone: retain
   catalog/descriptor lease references and the Weak Midge link, while owning a
@@ -38,20 +40,20 @@ It does not cancel, undo or bound an admitted native update.
   context. Jev selected this isolation over shared-guard-only at 1.0. This is a
   metadata lifetime owner, not another storage abstraction or an allocator
   metadata claim. Source and executable qualification remain separate.
-- Per-portal owner metadata and guarded Bind publication are source-reviewed
-  in a separate coordinator increment. Actual Execute/Sync adoption and
-  cleanup wiring must be reviewed with this candidate; a generation-only
-  clear is not the selected rule. Portal lifetime uses transaction UUID and
+- Per-portal owner metadata and guarded Bind publication are integrated with
+  Execute/Sync adoption and owner-checked cleanup. A generation-only clear is
+  not the selected rule. Portal lifetime uses transaction UUID and
   generation, while operation admission also checks rollback epoch.
-- Shared SQL cursor/prepared/discard leaf mutations are being checked against
-  the same explicit lineage contract; root transaction guards alone are not
-  proof of ownership for a separate shared Arc.
-- Preserve the actual staged TRUNCATE/identity recovery assertions and add a
-  detached A-to-B restart-boundary control. The former compensator list is
-  gone; do not recreate it or infer a native/background quiescence guarantee.
+- Shared SQL cursor/prepared/discard leaf mutations validate the same explicit
+  lineage contract at their actual shared leaf; a root transaction guard alone
+  does not establish ownership of a separate shared Arc.
+- Staged TRUNCATE/identity recovery and detached A-to-B restart-boundary
+  controls passed in the default suite. The former compensator list is gone;
+  this does not establish native/background quiescence.
 
-All new regressions remain authored/not run until the assembler owns the
-frozen integrated bundle. The broader published-Midge/native/background
+The qualification record preserves authored-before-code versus later wrapper
+coverage, the absence of an instrumented baseline RED, observed failed gate
+attempts, and subsequent passes with their exact source identities. The broader published-Midge/native/background
 qualification blocker in #1188 remains separate; this inventory adds no engine
 capability and does not close that issue.
 
@@ -66,6 +68,6 @@ This runs after existing query admission and adds no early capture or native I/O
 An exact lifecycle-root own-retirement receipt may install an Idle temporal view,
 using statement_start without reading or writing transaction_clock; forks and
 unrelated/ABA retirement do not gain this exception. The receipt grants no active
-clock, staged-write, mode or settings mutation authority. Authored synchronized
-root/fork A→B, current first-clock, Idle, own-retirement and nested CALL controls
-remain unrun until the combined gate.
+clock, staged-write, mode or settings mutation authority. The six synchronized
+root/fork A→B, current first-clock, Idle, own-retirement and supported standalone
+nested CALL controls passed in the default suite at `843500f8`.

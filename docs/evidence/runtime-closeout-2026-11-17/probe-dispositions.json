@@ -1,0 +1,1962 @@
+{
+  "status": "Finite local B qualification addendum. All selected executable probes, strict affected checks and SQL8 passed; final documentation/head review and hosted qualification remain pending.",
+  "probe_groups": {
+    "wire_owner": {
+      "selectors": [
+        "app::query_failure_",
+        "app::query_prepared::authority_tests::",
+        "app::session::wire_failure_tests::",
+        "pgwire::connection::wire_failure_boundary_tests::",
+        "pgwire::connection::copy::origin_failure_authority_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 99,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "app::query_failure_admission_tests::should_capture_current_owner_after_query_admission",
+        "app::query_failure_admission_tests::should_fail_current_owner_when_capture_wait_exceeds_deadline",
+        "app::query_failure_admission_tests::should_fail_current_owner_when_capture_wait_is_canceled",
+        "app::query_failure_admission_tests::should_prefer_cancellation_when_capture_wait_also_exceeds_deadline",
+        "app::query_failure_admission_tests::should_preserve_disabled_explain_timeout_during_capture_wait",
+        "app::query_failure_admission_tests::should_preserve_empty_user_error_when_capture_wait_is_canceled",
+        "app::query_failure_admission_tests::should_preserve_enabled_explain_timeout_during_capture_wait",
+        "app::query_failure_admission_tests::should_preserve_inner_recovery_error_when_capture_wait_is_canceled",
+        "app::query_failure_admission_tests::should_preserve_missing_database_error_when_capture_wait_is_canceled",
+        "app::query_failure_admission_tests::should_preserve_saturated_admission_error_when_request_is_canceled",
+        "app::query_failure_admission_tests::should_preserve_unsupported_error_when_capture_wait_is_canceled",
+        "app::query_failure_admission_tests::should_reject_saturated_query_before_waiting_for_transaction_lock",
+        "app::query_failure_basic_tests::should_fail_current_transaction_after_conversion_cancellation",
+        "app::query_failure_basic_tests::should_fail_current_transaction_after_conversion_error",
+        "app::query_failure_basic_tests::should_fail_transaction_started_by_own_begin_after_conversion_error",
+        "app::query_failure_basic_tests::should_fail_transaction_started_by_own_chain_after_conversion_error",
+        "app::query_failure_basic_tests::should_keep_independent_transaction_healthy_after_idle_query_fails",
+        "app::query_failure_basic_tests::should_keep_replacement_transaction_healthy_after_old_conversion_fails",
+        "app::query_failure_basic_tests::should_preserve_transaction_authority_during_implicit_promotion",
+        "app::query_failure_converted_tests::should_fail_current_transaction_after_copy_predicate_cancellation",
+        "app::query_failure_converted_tests::should_fail_current_transaction_after_explain_conversion_error",
+        "app::query_failure_converted_tests::should_fail_current_transaction_after_prepared_body_error",
+        "app::query_failure_converted_tests::should_fail_current_transaction_after_prepared_conversion_error",
+        "app::query_failure_converted_tests::should_keep_newer_operation_healthy_when_shared_handle_outlives_old_query",
+        "app::query_failure_converted_tests::should_keep_operations_distinct_when_cancellation_handle_is_reused",
+        "app::query_failure_converted_tests::should_keep_replacement_healthy_after_old_copy_predicate_is_canceled",
+        "app::query_failure_converted_tests::should_keep_replacement_healthy_after_old_cursor_conversion_error",
+        "app::query_failure_converted_tests::should_keep_replacement_healthy_after_old_explain_conversion_fails",
+        "app::query_failure_converted_tests::should_preserve_independent_implicit_owner_after_old_begin_promotes",
+        "app::query_failure_quarantine_tests::should_preserve_admission_result_when_recovery_latches_after_check",
+        "app::query_failure_quarantine_tests::should_preserve_recovery_error_for_canceled_saturated_query",
+        "app::query_failure_savepoint_tests::should_fail_current_owner_after_own_savepoint_conversion_error",
+        "app::query_failure_savepoint_tests::should_fail_current_owner_after_savepoint_restoration_error",
+        "app::query_failure_savepoint_tests::should_keep_epoch_when_savepoint_does_not_exist",
+        "app::query_failure_savepoint_tests::should_keep_recovered_savepoint_healthy_after_old_conversion_fails",
+        "app::query_failure_savepoint_tests::should_not_readopt_epoch_when_stale_operation_rolls_back_to_savepoint",
+        "app::query_failure_savepoint_tests::should_preserve_later_recovery_after_old_savepoint_restoration_error",
+        "app::query_failure_savepoint_tests::should_restore_authority_when_savepoint_cursor_pruning_is_canceled",
+        "app::query_failure_watchdog::output::should_retain_the_bounded_tail_and_drain_all_child_diagnostics",
+        "app::query_failure_watchdog::should_reject_missing_retirement_watchdog_child",
+        "app::query_prepared::authority_tests::should_adopt_own_begin_in_real_pgwire_worker",
+        "app::query_prepared::authority_tests::should_adopt_own_chain_in_real_pgwire_worker",
+        "app::query_prepared::authority_tests::should_adopt_own_savepoint_restore_in_real_pgwire_worker",
+        "app::query_prepared::authority_tests::should_fail_current_owner_after_parsed_pgwire_worker_error",
+        "app::query_prepared::authority_tests::should_fail_current_owner_after_text_pgwire_worker_error",
+        "app::query_prepared::authority_tests::should_fail_current_owner_after_worker_error",
+        "app::query_prepared::authority_tests::should_fail_current_owner_when_pgwire_worker_is_canceled",
+        "app::query_prepared::authority_tests::should_fail_recovered_epoch_after_own_savepoint_rollback_error",
+        "app::query_prepared::authority_tests::should_fail_transaction_started_by_worker_on_later_worker_error",
+        "app::query_prepared::authority_tests::should_forward_pgwire_authority_to_idle_procedure",
+        "app::query_prepared::authority_tests::should_forward_worker_authority_to_implicit_table_creation",
+        "app::query_prepared::authority_tests::should_keep_recovered_epoch_healthy_after_old_worker_error",
+        "app::query_prepared::authority_tests::should_keep_replacement_healthy_after_old_worker_error",
+        "app::query_prepared::authority_tests::should_preserve_disabled_pgwire_timeout_during_capture_wait",
+        "app::query_prepared::authority_tests::should_preserve_enabled_pgwire_timeout_during_capture_wait",
+        "app::query_prepared::authority_tests::should_preserve_independent_implicit_owner_after_worker_promotion",
+        "app::query_prepared::authority_tests::should_preserve_pgwire_admission_exhaustion_before_cancellation",
+        "app::query_prepared::authority_tests::should_preserve_pgwire_quarantine_error_before_cancellation",
+        "app::query_prepared::authority_tests::should_preserve_replacement_after_parsed_pgwire_worker_error",
+        "app::query_prepared::authority_tests::should_preserve_replacement_after_text_pgwire_worker_error",
+        "app::query_prepared::authority_tests::should_recheck_pgwire_recovery_when_saturated_after_healthy_check",
+        "app::query_prepared::authority_tests::should_reject_procedure_call_in_active_transaction",
+        "app::query_prepared::authority_tests::should_reject_saturated_pgwire_worker_before_waiting_for_transaction_lock",
+        "app::session::wire_failure_tests::should_detach_only_the_explicit_unscoped_cleanup_clone",
+        "app::session::wire_failure_tests::should_fail_a_wire_operations_own_begin_after_adoption",
+        "app::session::wire_failure_tests::should_fail_the_owned_block_after_a_quarantined_query_error",
+        "app::session::wire_failure_tests::should_keep_an_established_owner_when_later_admission_is_rejected",
+        "app::session::wire_failure_tests::should_keep_local_setting_history_and_the_actual_write_under_one_root_lock",
+        "app::session::wire_failure_tests::should_leave_a_block_healthy_when_wire_admission_rejects_before_capture",
+        "app::session::wire_failure_tests::should_not_capture_a_protocol_owner_after_an_unowned_query_attempt",
+        "app::session::wire_failure_tests::should_not_clear_portals_for_a_replacement_after_owned_retirement",
+        "app::session::wire_failure_tests::should_not_declare_projection_mode_on_a_replacement_through_an_old_operation",
+        "app::session::wire_failure_tests::should_not_export_a_replacements_mutable_catalog_alias_to_an_old_operation",
+        "app::session::wire_failure_tests::should_not_export_a_replacements_repeatable_read_alias_to_an_old_operation",
+        "app::session::wire_failure_tests::should_not_fail_a_replacement_after_old_quarantine_conversion_fails",
+        "app::session::wire_failure_tests::should_not_grant_an_established_rejected_operation_rights_over_a_replacement",
+        "app::session::wire_failure_tests::should_not_retire_a_replacement_when_an_owning_nested_statement_fails",
+        "app::session::wire_failure_tests::should_preserve_a_replacement_after_an_admitted_wire_operation_fails",
+        "app::session::wire_failure_tests::should_preserve_the_captured_owner_when_recovery_latches_after_admission",
+        "app::session::wire_failure_tests::should_refuse_a_stale_outer_commit_without_publishing_or_rolling_back_the_replacement",
+        "app::session::wire_failure_tests::should_refuse_an_old_sql_rollback_after_a_replacement_begins",
+        "app::session::wire_failure_tests::should_refuse_old_savepoint_commands_before_mutating_a_same_named_replacement",
+        "app::session::wire_failure_tests::should_refuse_old_sql_setting_leaves_without_changing_the_replacement",
+        "app::session::wire_failure_tests::should_reject_an_old_insert_before_it_can_fork_a_replacement_transaction",
+        "app::session::wire_failure_tests::should_reject_late_root_bookkeeping_and_staging_without_changing_the_replacement",
+        "app::session::wire_failure_tests::should_restore_savepoint_settings_and_objects_before_releasing_the_root_mutex",
+        "app::session::wire_failure_tests::should_rollback_only_the_owned_implicit_wire_transaction",
+        "pgwire::connection::copy::origin_failure_authority_tests::should_fail_origin_when_current_copy_predicate_fails",
+        "pgwire::connection::copy::origin_failure_authority_tests::should_preserve_replacement_when_old_copy_predicate_fails",
+        "pgwire::connection::wire_failure_boundary_tests::should_adopt_idle_bound_portals_only_for_their_own_implicit_execute",
+        "pgwire::connection::wire_failure_boundary_tests::should_cleanup_an_own_implicit_origin_when_the_worker_slot_is_saturated",
+        "pgwire::connection::wire_failure_boundary_tests::should_finish_an_unsynced_implicit_write_on_empty_simple_query",
+        "pgwire::connection::wire_failure_boundary_tests::should_keep_a_bound_portal_alive_across_its_own_savepoint_epoch",
+        "pgwire::connection::wire_failure_boundary_tests::should_keep_the_replacement_healthy_after_a_simple_worker_error",
+        "pgwire::connection::wire_failure_boundary_tests::should_keep_the_replacement_healthy_after_an_extended_worker_error",
+        "pgwire::connection::wire_failure_boundary_tests::should_not_fail_b_when_a_captured_operation_later_hits_saturation",
+        "pgwire::connection::wire_failure_boundary_tests::should_preserve_a_named_preparation_portal_across_its_own_explicit_begin",
+        "pgwire::connection::wire_failure_boundary_tests::should_reject_a_bound_a_execute_without_failing_b_before_worker_capture",
+        "pgwire::connection::wire_failure_boundary_tests::should_return_an_uncaptured_saturation_error_while_the_root_is_contended"
+      ],
+      "feature_named_passes": [],
+      "action": "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "sequence": {
+      "selectors": [
+        "app::session::sequence_effect_tests::",
+        "app::session_sequences::history_owner_tests::",
+        "app::projection_sql_durability_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 10,
+      "feature_pass_count": 20,
+      "default_named_passes": [
+        "app::session::sequence_effect_tests::should_adopt_an_own_begin_before_sequence_admission",
+        "app::session::sequence_effect_tests::should_allow_committing_root_sequence_resolution_but_reject_a_same_thread_fork",
+        "app::session::sequence_effect_tests::should_keep_root_lineage_for_a_direct_sessions_statement_fork",
+        "app::session::sequence_effect_tests::should_reject_a_detached_sequence_effect_without_root_lineage",
+        "app::session::sequence_effect_tests::should_reject_a_sequence_effect_after_its_transaction_is_replaced",
+        "app::session::sequence_effect_tests::should_reject_a_sequence_effect_from_a_restored_savepoint_epoch",
+        "app::session::sequence_effect_tests::should_reject_an_idle_sequence_owner_after_an_independent_begin",
+        "app::session::sequence_effect_tests::should_reject_sequence_effects_captured_before_the_commit_seal",
+        "app::session_sequences::history_owner_tests::should_preserve_b_history_after_an_admitted_a_sequence_effect_finishes",
+        "app::session_sequences::history_owner_tests::should_publish_sequence_history_for_its_current_owner"
+      ],
+      "feature_named_passes": [
+        "app::projection_sql_durability_tests::should_keep_the_buffered_policy_for_a_data_modifying_cte_row_write",
+        "app::projection_sql_durability_tests::should_keep_the_buffered_policy_for_a_lost_upsert_race_without_a_strict_effect",
+        "app::projection_sql_durability_tests::should_not_downgrade_configured_cloud_strict_for_declared_sql_projection",
+        "app::projection_sql_durability_tests::should_promote_a_mixed_sql_projection_to_cloud_strict_on_background_cloud",
+        "app::projection_sql_durability_tests::should_restore_default_policy_after_savepoint_rollback",
+        "app::projection_sql_durability_tests::should_retain_sequence_effect_classification_after_savepoint_rollback",
+        "app::projection_sql_durability_tests::should_select_strict_for_a_lost_upsert_race_resolved_with_a_sequence_effect",
+        "app::projection_sql_durability_tests::should_select_strict_policy_after_setval_without_currval_assignment",
+        "app::projection_sql_durability_tests::should_use_buffered_wal_for_declared_sql_projection_transaction",
+        "app::projection_sql_durability_tests::should_use_lazy_cloud_upload_for_declared_sql_projection_on_background_cloud",
+        "app::projection_sql_durability_tests::should_use_strict_policy_for_mixed_projection_transaction",
+        "app::session::sequence_effect_tests::should_adopt_an_own_begin_before_sequence_admission",
+        "app::session::sequence_effect_tests::should_allow_committing_root_sequence_resolution_but_reject_a_same_thread_fork",
+        "app::session::sequence_effect_tests::should_keep_root_lineage_for_a_direct_sessions_statement_fork",
+        "app::session::sequence_effect_tests::should_promote_data_policy_before_an_admitted_sequence_effect_reaches_storage",
+        "app::session::sequence_effect_tests::should_reject_a_detached_sequence_effect_without_root_lineage",
+        "app::session::sequence_effect_tests::should_reject_a_sequence_effect_after_its_transaction_is_replaced",
+        "app::session::sequence_effect_tests::should_reject_a_sequence_effect_from_a_restored_savepoint_epoch",
+        "app::session::sequence_effect_tests::should_reject_an_idle_sequence_owner_after_an_independent_begin",
+        "app::session::sequence_effect_tests::should_reject_sequence_effects_captured_before_the_commit_seal"
+      ],
+      "action": "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "copy_memory": {
+      "selectors": [
+        "pgwire::connection::copy::binding_authority_accounting_tests::",
+        "app::session::copy_owner::tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 36,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "app::session::copy_owner::tests::should_admit_copy_search_path_snapshot_before_allocating",
+        "app::session::copy_owner::tests::should_admit_quote_heavy_copy_schema_canonicalization",
+        "app::session::copy_owner::tests::should_cancel_copy_owner_check_after_acquiring_session_lock",
+        "app::session::copy_owner::tests::should_cancel_copy_owner_check_while_waiting_for_session_lock",
+        "app::session::copy_owner::tests::should_expire_copy_owner_check_while_waiting_for_session_lock",
+        "app::session::copy_owner::tests::should_keep_a_recreated_copy_target_identity_in_the_staged_storage_overlay",
+        "app::session::copy_owner::tests::should_keep_new_repeatable_read_copy_targets_supported",
+        "app::session::copy_owner::tests::should_not_pair_old_copy_snapshot_with_recreated_physical_target",
+        "app::session::copy_owner::tests::should_preserve_copy_owner_after_missing_savepoint",
+        "app::session::copy_owner::tests::should_preserve_copy_owner_after_savepoint_release",
+        "app::session::copy_owner::tests::should_preserve_copy_owner_when_savepoint_pruning_is_canceled",
+        "app::session::copy_owner::tests::should_preserve_failed_transaction_precedence_at_copy_fork",
+        "app::session::copy_owner::tests::should_punt_a_recreated_published_copy_target_under_repeatable_read",
+        "app::session::copy_owner::tests::should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence",
+        "app::session::copy_owner::tests::should_reject_a_copy_owner_from_a_retired_transaction_generation",
+        "app::session::copy_owner::tests::should_reject_copy_binding_when_savepoint_changes_between_owner_captures",
+        "app::session::copy_owner::tests::should_reject_copy_target_binding_after_savepoint_restore",
+        "app::session::copy_owner::tests::should_reject_database_qualified_copy_target_without_retiring_the_transaction",
+        "app::session::copy_owner::tests::should_reject_old_copy_owner_at_guarded_fork_after_savepoint_restore",
+        "app::session::copy_owner::tests::should_reject_recreated_physical_target_with_an_identical_zero_id_catalog",
+        "app::session::copy_owner::tests::should_reject_storage_only_changes_after_copy_fork_capture",
+        "app::session::copy_owner::tests::should_reject_storage_only_changes_before_copy_fork_capture",
+        "app::session::copy_owner::tests::should_release_copy_owner_admission_when_the_owner_is_dropped",
+        "app::session::copy_owner::tests::should_report_stale_copy_target_binding_for_current_failed_owner",
+        "app::session::copy_owner::tests::should_use_the_default_database_for_a_session_without_an_explicit_database",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_charge_binding_tracker_with_distinct_ambient_controls",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_prefer_post_validation_cancellation_to_authority_admission",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_prefer_post_validation_deadline_to_authority_admission",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_preserve_force_column_error_before_authority_admission",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_reject_copy_binding_with_one_byte_less_than_authority_charge",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_reject_copy_query_target_before_waiting_for_transaction_lock",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_report_malformed_payload_after_binding_is_admitted",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_retain_copy_binding_authority_at_exact_remaining_budget",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_retain_copy_binding_charge_until_blocking_worker_finishes",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_retain_shared_copy_owner_memory_after_the_awaiting_task_is_aborted",
+        "pgwire::connection::copy::binding_authority_accounting_tests::should_retain_shared_copy_owner_memory_until_the_outer_operation_retires"
+      ],
+      "feature_named_passes": [],
+      "action": "COPY inline B-S and known shared owner payload use the same tracker; exact/one-byte-short and real awaiting-abort/worker/last-clone cases execute. Excludes allocator metadata and process RSS.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "portals": {
+      "selectors": [
+        "pgwire::connection::wire_failure_boundary_tests::",
+        "pgwire::connection::idle_portal_snapshot_tests::",
+        "pgwire::connection::extended::bind::ownership_tests::",
+        "pgwire::connection::extended::registry_publication_tests::",
+        "pgwire::connection::state::portal_owners::tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 25,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "pgwire::connection::extended::bind::ownership_tests::should_publish_an_idle_bind_without_starting_a_mutation_transaction",
+        "pgwire::connection::extended::bind::ownership_tests::should_reject_stale_bind_without_replacing_a_newer_portal",
+        "pgwire::connection::idle_portal_snapshot_tests::should_clear_idle_portals_only_after_idle_snapshot",
+        "pgwire::connection::idle_portal_snapshot_tests::should_clear_portals_when_sync_invalidation_is_set",
+        "pgwire::connection::idle_portal_snapshot_tests::should_retain_portal_after_direct_failed_snapshot",
+        "pgwire::connection::idle_portal_snapshot_tests::should_retain_portal_after_extended_sync_failed_snapshot",
+        "pgwire::connection::idle_portal_snapshot_tests::should_retain_portal_after_recovery_error_failed_snapshot",
+        "pgwire::connection::idle_portal_snapshot_tests::should_retain_portal_after_sync_wait_failed_snapshot",
+        "pgwire::connection::idle_portal_snapshot_tests::should_retain_portals_after_active_snapshot",
+        "pgwire::connection::idle_portal_snapshot_tests::should_retain_portals_after_failed_snapshot",
+        "pgwire::connection::idle_portal_snapshot_tests::should_skip_recovery_portal_check_when_storage_is_healthy",
+        "pgwire::connection::state::portal_owners::tests::should_adopt_only_the_recorded_idle_preparation_segment",
+        "pgwire::connection::state::portal_owners::tests::should_keep_the_previous_owner_when_a_replacement_cannot_be_admitted",
+        "pgwire::connection::state::portal_owners::tests::should_keep_transaction_portals_across_a_savepoint_epoch_change",
+        "pgwire::connection::state::portal_owners::tests::should_release_metadata_and_names_when_the_last_portal_closes",
+        "pgwire::connection::wire_failure_boundary_tests::should_adopt_idle_bound_portals_only_for_their_own_implicit_execute",
+        "pgwire::connection::wire_failure_boundary_tests::should_cleanup_an_own_implicit_origin_when_the_worker_slot_is_saturated",
+        "pgwire::connection::wire_failure_boundary_tests::should_finish_an_unsynced_implicit_write_on_empty_simple_query",
+        "pgwire::connection::wire_failure_boundary_tests::should_keep_a_bound_portal_alive_across_its_own_savepoint_epoch",
+        "pgwire::connection::wire_failure_boundary_tests::should_keep_the_replacement_healthy_after_a_simple_worker_error",
+        "pgwire::connection::wire_failure_boundary_tests::should_keep_the_replacement_healthy_after_an_extended_worker_error",
+        "pgwire::connection::wire_failure_boundary_tests::should_not_fail_b_when_a_captured_operation_later_hits_saturation",
+        "pgwire::connection::wire_failure_boundary_tests::should_preserve_a_named_preparation_portal_across_its_own_explicit_begin",
+        "pgwire::connection::wire_failure_boundary_tests::should_reject_a_bound_a_execute_without_failing_b_before_worker_capture",
+        "pgwire::connection::wire_failure_boundary_tests::should_return_an_uncaptured_saturation_error_while_the_root_is_contended"
+      ],
+      "feature_named_passes": [],
+      "action": "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "shared_objects": {
+      "selectors": [
+        "app::session_objects::ownership_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 11,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "app::session_objects::ownership_tests::should_admit_discard_output_before_destroying_same_owner_state",
+        "app::session_objects::ownership_tests::should_keep_newer_objects_and_cursor_position_when_an_old_leaf_resumes",
+        "app::session_objects::ownership_tests::should_keep_wire_id_cleanup_and_reject_stale_protocol_namespace_writes",
+        "app::session_objects::ownership_tests::should_not_transfer_the_roots_idle_retirement_receipt_to_a_detached_fork",
+        "app::session_objects::ownership_tests::should_not_treat_another_operations_commit_as_its_own_retirement",
+        "app::session_objects::ownership_tests::should_preserve_newer_objects_settings_and_sequence_history_from_old_discard",
+        "app::session_objects::ownership_tests::should_publish_a_held_cursor_after_its_own_modifying_cte_commits",
+        "app::session_objects::ownership_tests::should_publish_and_fetch_shared_objects_through_a_current_detached_owner",
+        "app::session_objects::ownership_tests::should_refuse_a_sealed_fork_while_preserving_the_committing_root",
+        "app::session_objects::ownership_tests::should_reject_shared_object_mutation_from_a_fork_without_lineage",
+        "app::session_objects::ownership_tests::should_revoke_an_owned_idle_receipt_after_an_independent_transaction"
+      ],
+      "feature_named_passes": [],
+      "action": "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "settings": {
+      "selectors": [
+        "app::session::shared_setting_tests::",
+        "app::session::wire_failure_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 27,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "app::session::shared_setting_tests::should_keep_current_fork_local_history_private_under_actual_root_validation",
+        "app::session::shared_setting_tests::should_keep_replacement_settings_and_mode_from_an_old_detached_leaf",
+        "app::session::shared_setting_tests::should_preserve_unscoped_public_setting_apis_current_session_meaning",
+        "app::session::wire_failure_tests::should_detach_only_the_explicit_unscoped_cleanup_clone",
+        "app::session::wire_failure_tests::should_fail_a_wire_operations_own_begin_after_adoption",
+        "app::session::wire_failure_tests::should_fail_the_owned_block_after_a_quarantined_query_error",
+        "app::session::wire_failure_tests::should_keep_an_established_owner_when_later_admission_is_rejected",
+        "app::session::wire_failure_tests::should_keep_local_setting_history_and_the_actual_write_under_one_root_lock",
+        "app::session::wire_failure_tests::should_leave_a_block_healthy_when_wire_admission_rejects_before_capture",
+        "app::session::wire_failure_tests::should_not_capture_a_protocol_owner_after_an_unowned_query_attempt",
+        "app::session::wire_failure_tests::should_not_clear_portals_for_a_replacement_after_owned_retirement",
+        "app::session::wire_failure_tests::should_not_declare_projection_mode_on_a_replacement_through_an_old_operation",
+        "app::session::wire_failure_tests::should_not_export_a_replacements_mutable_catalog_alias_to_an_old_operation",
+        "app::session::wire_failure_tests::should_not_export_a_replacements_repeatable_read_alias_to_an_old_operation",
+        "app::session::wire_failure_tests::should_not_fail_a_replacement_after_old_quarantine_conversion_fails",
+        "app::session::wire_failure_tests::should_not_grant_an_established_rejected_operation_rights_over_a_replacement",
+        "app::session::wire_failure_tests::should_not_retire_a_replacement_when_an_owning_nested_statement_fails",
+        "app::session::wire_failure_tests::should_preserve_a_replacement_after_an_admitted_wire_operation_fails",
+        "app::session::wire_failure_tests::should_preserve_the_captured_owner_when_recovery_latches_after_admission",
+        "app::session::wire_failure_tests::should_refuse_a_stale_outer_commit_without_publishing_or_rolling_back_the_replacement",
+        "app::session::wire_failure_tests::should_refuse_an_old_sql_rollback_after_a_replacement_begins",
+        "app::session::wire_failure_tests::should_refuse_old_savepoint_commands_before_mutating_a_same_named_replacement",
+        "app::session::wire_failure_tests::should_refuse_old_sql_setting_leaves_without_changing_the_replacement",
+        "app::session::wire_failure_tests::should_reject_an_old_insert_before_it_can_fork_a_replacement_transaction",
+        "app::session::wire_failure_tests::should_reject_late_root_bookkeeping_and_staging_without_changing_the_replacement",
+        "app::session::wire_failure_tests::should_restore_savepoint_settings_and_objects_before_releasing_the_root_mutex",
+        "app::session::wire_failure_tests::should_rollback_only_the_owned_implicit_wire_transaction"
+      ],
+      "feature_named_passes": [],
+      "action": "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "schema": {
+      "selectors": [
+        "app::session_schema::tests::",
+        "app::session::sequence_effect_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 15,
+      "feature_pass_count": 9,
+      "default_named_passes": [
+        "app::session::sequence_effect_tests::should_adopt_an_own_begin_before_sequence_admission",
+        "app::session::sequence_effect_tests::should_allow_committing_root_sequence_resolution_but_reject_a_same_thread_fork",
+        "app::session::sequence_effect_tests::should_keep_root_lineage_for_a_direct_sessions_statement_fork",
+        "app::session::sequence_effect_tests::should_reject_a_detached_sequence_effect_without_root_lineage",
+        "app::session::sequence_effect_tests::should_reject_a_sequence_effect_after_its_transaction_is_replaced",
+        "app::session::sequence_effect_tests::should_reject_a_sequence_effect_from_a_restored_savepoint_epoch",
+        "app::session::sequence_effect_tests::should_reject_an_idle_sequence_owner_after_an_independent_begin",
+        "app::session::sequence_effect_tests::should_reject_sequence_effects_captured_before_the_commit_seal",
+        "app::session_schema::tests::should_admit_fork_context_payload_and_database_bytes_until_its_last_clone_retires",
+        "app::session_schema::tests::should_keep_a_late_statement_fork_schema_attachment_out_of_the_replacement",
+        "app::session_schema::tests::should_keep_published_sequence_cursor_out_of_the_transaction_catalog_overlay",
+        "app::session_schema::tests::should_preserve_descriptor_metadata_during_sequence_mutations",
+        "app::session_schema::tests::should_preserve_once_only_upsert_defaults_before_the_working_fork",
+        "app::session_schema::tests::should_preserve_prepared_defaults_across_an_owner_wait",
+        "app::session_schema::tests::should_retire_the_schema_context_read_owner_at_transaction_end"
+      ],
+      "feature_named_passes": [
+        "app::session::sequence_effect_tests::should_adopt_an_own_begin_before_sequence_admission",
+        "app::session::sequence_effect_tests::should_allow_committing_root_sequence_resolution_but_reject_a_same_thread_fork",
+        "app::session::sequence_effect_tests::should_keep_root_lineage_for_a_direct_sessions_statement_fork",
+        "app::session::sequence_effect_tests::should_promote_data_policy_before_an_admitted_sequence_effect_reaches_storage",
+        "app::session::sequence_effect_tests::should_reject_a_detached_sequence_effect_without_root_lineage",
+        "app::session::sequence_effect_tests::should_reject_a_sequence_effect_after_its_transaction_is_replaced",
+        "app::session::sequence_effect_tests::should_reject_a_sequence_effect_from_a_restored_savepoint_epoch",
+        "app::session::sequence_effect_tests::should_reject_an_idle_sequence_owner_after_an_independent_begin",
+        "app::session::sequence_effect_tests::should_reject_sequence_effects_captured_before_the_commit_seal"
+      ],
+      "action": "Fork-local schema wrapper and stable aliases preserve captured descriptor/catalog references; known payload is admitted before allocation and reservation survives last clone. Actual stale fork attachment, exact budget and fake-lineage controls execute.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "workers": {
+      "selectors": [
+        "pgwire::connection::blocking::tests::",
+        "pgwire::connection::worker_lease::tests::",
+        "pgwire::connection::worker_lease::network_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 8,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "pgwire::connection::blocking::tests::should_finish_started_worker_cleanup_after_its_awaiting_task_is_aborted",
+        "pgwire::connection::blocking::tests::should_keep_cleanup_off_the_reactor_for_success_error_and_panic",
+        "pgwire::connection::blocking::tests::should_leave_cleanup_debt_for_later_when_a_queued_worker_never_starts",
+        "pgwire::connection::blocking::tests::should_map_join_failures_to_retryable_storage_errors",
+        "pgwire::connection::blocking::tests::should_skip_native_cleanup_when_storage_requires_recovery",
+        "pgwire::connection::worker_lease::network_tests::should_complete_max_one_copy_where_and_retain_its_slot_through_disconnect_and_shutdown",
+        "pgwire::connection::worker_lease::tests::should_release_a_never_started_workers_connection_lease_without_running_it",
+        "pgwire::connection::worker_lease::tests::should_retain_the_connection_slot_after_await_abort_until_cleanup_retires"
+      ],
+      "feature_named_passes": [],
+      "action": "One owned blocking boundary performs recovery-gated cleanup for normal/error/panic and started-await abort, with queued-never-started debt left for a later worker. Every production blocking spawn retains the configured listener connection lease through cleanup. Actual max-one COPY WHERE, disconnect/shutdown and last-lease release execute.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "clock": {
+      "selectors": [
+        "app::session::temporal_context::tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 6,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "app::session::temporal_context::tests::should_allow_only_the_own_retired_root_to_install_an_idle_statement_clock",
+        "app::session::temporal_context::tests::should_install_the_first_current_clock_under_root_then_clock_locks",
+        "app::session::temporal_context::tests::should_keep_idle_statement_start_separate_from_the_shared_transaction_clock",
+        "app::session::temporal_context::tests::should_not_adopt_another_actors_commit_as_an_idle_clock_receipt",
+        "app::session::temporal_context::tests::should_preserve_now_through_an_actual_nested_procedure_call",
+        "app::session::temporal_context::tests::should_refuse_an_old_root_or_fork_clock_without_resetting_b_now"
+      ],
+      "feature_named_passes": [],
+      "action": "Actual-root\u2192clock validation/publication executes stale root/fork, held-lock observer, idle/own-retirement versus fork/ABA negatives and supported standalone nested CALL controls. Initial explicit-transaction CALL fixture was unsupported and corrected without product parity change.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "truncate": {
+      "selectors": [
+        "app::session::truncate_owner_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 1,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "app::session::truncate_owner_tests::should_keep_a_detached_identity_restart_out_of_a_replacement_transaction"
+      ],
+      "feature_named_passes": [],
+      "action": "Actual detached TRUNCATE RESTART IDENTITY pauses after old overlay scope acquisition; A rollback/B begin then resume rejects25000 without B/cursor/object/row change, with fresh B COMMIT and ROLLBACK cases and nextval3 observer.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "retry": {
+      "selectors": [
+        "app::statement_mutation::retry_policy_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 0,
+      "feature_pass_count": 3,
+      "default_named_passes": [],
+      "feature_named_passes": [
+        "app::statement_mutation::retry_policy_tests::should_fence_an_unknown_response_after_native_data_success_without_resolving_or_retrying",
+        "app::statement_mutation::retry_policy_tests::should_keep_a_real_unique_failure_without_an_independent_effect_buffered_on_retry",
+        "app::statement_mutation::retry_policy_tests::should_promote_a_real_unique_failure_resolver_sequence_to_a_strict_data_retry"
+      ],
+      "action": "Real adapter UniqueViolation before native Data submission observes initial buffered options/Data0, actual resolver effect and strict retry versus no-effect buffered retry, plus actual nativeDataOk\u2192adapter unknown response no-retry/quarantine. Native engine uniqueness failure/global no-effects is not claimed.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "ann": {
+      "selectors": [
+        "vector_ann_concurrency::should_reject_hnsw_loading_when_query_memory_is_exhausted",
+        "vector_ann_concurrency::should_reject_ivfflat_loading_when_query_memory_is_exhausted"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 2,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "vector_ann_concurrency::should_reject_hnsw_loading_when_query_memory_is_exhausted",
+        "vector_ann_concurrency::should_reject_ivfflat_loading_when_query_memory_is_exhausted"
+      ],
+      "feature_named_passes": [],
+      "action": "Same compiled plan ordinary executor positive five rows and ANN success precedes exact1024 executor-loading ResourceLimit/no-new-success/tracker release. Actual query-load scope is explicit; setup uses ordinary budget.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "fulltext": {
+      "selectors": [
+        "fulltext_persisted_sql::should_enforce_memory_budget_during_persisted_fulltext_scoring"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 1,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "fulltext_persisted_sql::should_enforce_memory_budget_during_persisted_fulltext_scoring"
+      ],
+      "feature_named_passes": [],
+      "action": "Earlier actual SQL1024 ResourceLimit had scan0: .73/.39 lead confirmed. Selected two-boundary contract retains real SQL admission rejection/release and separately executes same-plan1024 persisted loading scan+/ResourceLimit/actual tracker0/no success/fallback, with ordinary five-row/posting-read positive.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "rest": {
+      "selectors": [
+        "vector_memory_controls::should_reject_rest_vector_search_under_the_same_budget_as_sql",
+        "vector_memory_controls::should_preserve_zero_limit_with_a_tiny_rest_vector_budget",
+        "vector_memory_controls::should_reject_cold_normalized_rest_search_without_success_metrics_given_low_memory"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 3,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "vector_memory_controls::should_preserve_zero_limit_with_a_tiny_rest_vector_budget",
+        "vector_memory_controls::should_reject_cold_normalized_rest_search_without_success_metrics_given_low_memory",
+        "vector_memory_controls::should_reject_rest_vector_search_under_the_same_budget_as_sql"
+      ],
+      "feature_named_passes": [],
+      "action": "Actual REST640/1024 and SQL1024 requests remain unchanged; only fixture creation uses ordinary controls. Native L2/cosine brute-force metadata, setup release, original denied/admitted-zero-limit/provider/scan/result/release oracles execute.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    },
+    "seal": {
+      "selectors": [
+        "app::session::transaction_control::commit_seal_tests::",
+        "app::session::wire_failure_tests::"
+      ],
+      "default_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "feature_source": "843500f857926f3f1986942ae634912eb692bfd2",
+      "default_pass_count": 39,
+      "feature_pass_count": 0,
+      "default_named_passes": [
+        "app::session::transaction_control::commit_seal_tests::should_discard_a_deferred_failure_when_commit_retires_the_transaction",
+        "app::session::transaction_control::commit_seal_tests::should_ignore_a_direct_rollback_from_another_thread_while_a_commit_is_sealed",
+        "app::session::transaction_control::commit_seal_tests::should_keep_the_transaction_usable_after_a_failed_commit_is_rolled_back",
+        "app::session::transaction_control::commit_seal_tests::should_not_refuse_transaction_control_on_the_committing_thread",
+        "app::session::transaction_control::commit_seal_tests::should_not_retire_a_later_transaction_when_the_committed_one_is_gone",
+        "app::session::transaction_control::commit_seal_tests::should_not_seal_twice_or_unseal_an_outer_seal",
+        "app::session::transaction_control::commit_seal_tests::should_record_a_failure_from_another_thread_when_commit_leaves_the_transaction_open",
+        "app::session::transaction_control::commit_seal_tests::should_refuse_transaction_control_while_a_commit_is_in_progress",
+        "app::session::transaction_control::commit_seal_tests::should_reject_a_projection_mode_declaration_after_the_seal",
+        "app::session::transaction_control::commit_seal_tests::should_reject_a_statement_fork_that_publishes_after_the_seal",
+        "app::session::transaction_control::commit_seal_tests::should_release_the_seal_when_commit_leaves_the_transaction_open",
+        "app::session::transaction_control::commit_seal_tests::should_report_a_failed_ready_status_to_other_threads_while_a_commit_is_sealed",
+        "app::session::transaction_control::commit_seal_tests::should_retire_the_committed_transaction_through_its_seal",
+        "app::session::transaction_control::commit_seal_tests::should_roll_back_on_the_committing_thread_while_sealed",
+        "app::session::transaction_control::commit_seal_tests::should_start_the_next_transaction_unsealed_after_commit",
+        "app::session::wire_failure_tests::should_detach_only_the_explicit_unscoped_cleanup_clone",
+        "app::session::wire_failure_tests::should_fail_a_wire_operations_own_begin_after_adoption",
+        "app::session::wire_failure_tests::should_fail_the_owned_block_after_a_quarantined_query_error",
+        "app::session::wire_failure_tests::should_keep_an_established_owner_when_later_admission_is_rejected",
+        "app::session::wire_failure_tests::should_keep_local_setting_history_and_the_actual_write_under_one_root_lock",
+        "app::session::wire_failure_tests::should_leave_a_block_healthy_when_wire_admission_rejects_before_capture",
+        "app::session::wire_failure_tests::should_not_capture_a_protocol_owner_after_an_unowned_query_attempt",
+        "app::session::wire_failure_tests::should_not_clear_portals_for_a_replacement_after_owned_retirement",
+        "app::session::wire_failure_tests::should_not_declare_projection_mode_on_a_replacement_through_an_old_operation",
+        "app::session::wire_failure_tests::should_not_export_a_replacements_mutable_catalog_alias_to_an_old_operation",
+        "app::session::wire_failure_tests::should_not_export_a_replacements_repeatable_read_alias_to_an_old_operation",
+        "app::session::wire_failure_tests::should_not_fail_a_replacement_after_old_quarantine_conversion_fails",
+        "app::session::wire_failure_tests::should_not_grant_an_established_rejected_operation_rights_over_a_replacement",
+        "app::session::wire_failure_tests::should_not_retire_a_replacement_when_an_owning_nested_statement_fails",
+        "app::session::wire_failure_tests::should_preserve_a_replacement_after_an_admitted_wire_operation_fails",
+        "app::session::wire_failure_tests::should_preserve_the_captured_owner_when_recovery_latches_after_admission",
+        "app::session::wire_failure_tests::should_refuse_a_stale_outer_commit_without_publishing_or_rolling_back_the_replacement",
+        "app::session::wire_failure_tests::should_refuse_an_old_sql_rollback_after_a_replacement_begins",
+        "app::session::wire_failure_tests::should_refuse_old_savepoint_commands_before_mutating_a_same_named_replacement",
+        "app::session::wire_failure_tests::should_refuse_old_sql_setting_leaves_without_changing_the_replacement",
+        "app::session::wire_failure_tests::should_reject_an_old_insert_before_it_can_fork_a_replacement_transaction",
+        "app::session::wire_failure_tests::should_reject_late_root_bookkeeping_and_staging_without_changing_the_replacement",
+        "app::session::wire_failure_tests::should_restore_savepoint_settings_and_objects_before_releasing_the_root_mutex",
+        "app::session::wire_failure_tests::should_rollback_only_the_owned_implicit_wire_transaction"
+      ],
+      "feature_named_passes": [],
+      "action": "Seal and matching owner checks reject late staged publication and preserve ReadyForQuery/retirement; deferred same-owner failure is applied if COMMIT leaves the block open or discarded on retirement. Direct rollback, owner mutation and replacement-survivor controls execute.",
+      "residual": "Finite synchronized/caller-domain evidence only; no universal absence of races, native cancellation, global quiescence or power-loss guarantee. Final publication-head hosted checks remain required."
+    }
+  },
+  "threshold_leads": [
+    {
+      "receipt": "authority",
+      "question_id": "outer_stale_error",
+      "question": "Does simple_execution::run_batch await an old execute_simple_statement failure then call fail_query without its captured FailureAuthority, permitting that outer wrapper to fail replacement transaction B after A rolled back, when B is not sealed?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.3
+      },
+      "probe_groups": [
+        "wire_owner",
+        "copy_memory",
+        "seal"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "COPY inline B-S and known shared owner payload use the same tracker; exact/one-byte-short and real awaiting-abort/worker/last-clone cases execute. Excludes allocator metadata and process RSS.",
+        "Seal and matching owner checks reject late staged publication and preserve ReadyForQuery/retirement; deferred same-owner failure is applied if COMMIT leaves the block open or discarded on retirement. Direct rollback, owner mutation and replacement-survivor controls execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "authority",
+      "question_id": "copy_stale_error",
+      "question": "Does write_copy_error/fail_copy_transaction lack the binding owner/epoch authority needed to ensure an old COPY error cannot fail or roll back a replacement unsealed transaction?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.78
+      },
+      "probe_groups": [
+        "wire_owner",
+        "copy_memory",
+        "seal"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "COPY inline B-S and known shared owner payload use the same tracker; exact/one-byte-short and real awaiting-abort/worker/last-clone cases execute. Excludes allocator metadata and process RSS.",
+        "Seal and matching owner checks reject late staged publication and preserve ReadyForQuery/retirement; deferred same-owner failure is applied if COMMIT leaves the block open or discarded on retirement. Direct rollback, owner mutation and replacement-survivor controls execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "blocking-cleanup-contract",
+      "question_id": "required_execution",
+      "question": "Must actual synchronizednormal/error/panic/recovery-skip/awaiting-abort cleanup-thread andretentioncontrols execute beforeclaiming1279asyncboundaryclosed, beyondsourceinspection?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.83
+      },
+      "probe_groups": [
+        "workers"
+      ],
+      "actual_action": [
+        "One owned blocking boundary performs recovery-gated cleanup for normal/error/panic and started-await abort, with queued-never-started debt left for a later worker. Every production blocking spawn retains the configured listener connection lease through cleanup. Actual max-one COPY WHERE, disconnect/shutdown and last-lease release execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "captured-admission-contract",
+      "question_id": "probe_required",
+      "question": "Probability focused actual own-start->saturation cleanup, uncaptured saturation with root held, and captured A->B saturation survivor tests are needed beyond helper source inspection.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.87
+      },
+      "probe_groups": [
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "clock-cd373e86",
+      "question_id": "probe_gap",
+      "question": "Probability supplied actualSQL stale root/fork plusatomiclockobserver and ownIdle/nestedCALL controls fail to establish selectedclock fence; executableoutcomespending.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.32
+      },
+      "probe_groups": [
+        "clock"
+      ],
+      "actual_action": [
+        "Actual-root\u2192clock validation/publication executes stale root/fork, held-lock observer, idle/own-retirement versus fork/ABA negatives and supported standalone nested CALL controls. Initial explicit-transaction CALL fixture was unsupported and corrected without product parity change."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "clock-idle-receipt",
+      "question_id": "probe_required",
+      "question": "Probability focused actualrootownCOMMIT\u2192idletemporal/nestedCALL positive plus unrelatedB/ABA/forkreceipt negatives andRootheldduringactiveclockpublication controls needed beforequalification.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.61
+      },
+      "probe_groups": [
+        "clock"
+      ],
+      "actual_action": [
+        "Actual-root\u2192clock validation/publication executes stale root/fork, held-lock observer, idle/own-retirement versus fork/ABA negatives and supported standalone nested CALL controls. Initial explicit-transaction CALL fixture was unsupported and corrected without product parity change."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "effect-admission",
+      "question_id": "setval_patch_gap",
+      "question": "Does the bounded sequentialsetvalfalse patch introduce a new functionalerror or misclaim concurrentadmission is solved, given it preserves currval/lastval and only addsstrictclassification for previouslyunmarked actualeffect?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.32
+      },
+      "probe_groups": [
+        "sequence"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "effect-admission",
+      "question_id": "epoch_need",
+      "question": "Must pre-native strict admission account for rollbackepoch as well as sharedauthoritygeneration to prevent an oldnot-yet-admitted fork from starting nativeeffects afterROLLBACKTO preserves UUID/authority?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.86
+      },
+      "probe_groups": [
+        "sequence"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "effect-e9a51b89",
+      "question_id": "missing_fork_lineage",
+      "question": "Can the missing-authority fallback capture a detachedfork as itsownroot and thereby bypass actualroot retirement/epoch/seal when its lineageNone, contrary toselectedcontract?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.83
+      },
+      "probe_groups": [
+        "sequence"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "effect-e9a51b89",
+      "question_id": "binding_accounting",
+      "question": "Does adding known sharedownerpayload plusArc counters to existinginlineBminusS COPYreservation preserve explicitknownretainedlayoutaccounting without claiming allocatoroverhead, assuming actualboundarytests updated and executed?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.75
+      },
+      "probe_groups": [
+        "copy_memory"
+      ],
+      "actual_action": [
+        "COPY inline B-S and known shared owner payload use the same tracker; exact/one-byte-short and real awaiting-abort/worker/last-clone cases execute. Excludes allocator metadata and process RSS."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "effect-f36791aa",
+      "question_id": "repair_gap",
+      "question": "Does newguard fail to eliminate theprevious missinglineagefallback defect or do focusedcontrolsmisrepresent the exactguard/adoption/committer distinction?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.46
+      },
+      "probe_groups": [
+        "sequence"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "explicit-begin-portal-contract",
+      "question_id": "actual_control_required",
+      "question": "Must actual idleBind->SimpleBEGIN->Execute/Sync andunrelatedBnegativecontrols execute, sincehelperadoptiontests alonewouldmisscallerreconciliation behavior?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.79
+      },
+      "probe_groups": [
+        "portals"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "explicit-lineage",
+      "question_id": "admitted_late_effect_contract",
+      "question": "Can an explicitly documented pre-native admission linearization safely allow that already-admitted independent sequence effect to finish after COMMIT/ROLLBACK, while late admissions and stagedforkpublication reject, provided Data strictness was atomically noted before COMMIT seal/policy and replacementUUIDepoch is protected? This is no undo or nativequiescenceclaim.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.78
+      },
+      "probe_groups": [
+        "sequence"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "explicit-lineage",
+      "question_id": "remaining_proof",
+      "question": "Does explicitlineage still require actual regressionproof for capturedidleNone ownertransition, directdefaultswithoutscope, forkrollbackepoch, ownBEGINadoption, committerretry and no currentstatefallback before it can justify1290/1279closure?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.82
+      },
+      "probe_groups": [
+        "sequence"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "increments-7c3-71ce-be2b-35d6",
+      "question_id": "history_gap",
+      "question": "Probability71ce source/caller ordering or actual synchronized three-route probes fail to preserve B history while publishing successfulnative catalog cursor.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.36
+      },
+      "probe_groups": [
+        "sequence"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "increments-7c3-71ce-be2b-35d6",
+      "question_id": "legacy_gap",
+      "question": "Probabilitybe2b test adaptation weakens existing schedule/assertion oracle rather than preserving regression with new ownership metadata.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.35
+      },
+      "probe_groups": [
+        "portals",
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "integrated-b-9d8cf088",
+      "question_id": "resource_integration_gap",
+      "question": "Probability cleanup+resourcelease+sharedpayload reservations combined lifetime releasesactualresources beforeworkercleanupretirement or blockreactor.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.38
+      },
+      "probe_groups": [
+        "wire_owner",
+        "sequence",
+        "copy_memory",
+        "portals",
+        "shared_objects",
+        "settings",
+        "schema",
+        "workers",
+        "clock",
+        "truncate",
+        "retry"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim.",
+        "COPY inline B-S and known shared owner payload use the same tracker; exact/one-byte-short and real awaiting-abort/worker/last-clone cases execute. Excludes allocator metadata and process RSS.",
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected.",
+        "Fork-local schema wrapper and stable aliases preserve captured descriptor/catalog references; known payload is admitted before allocation and reservation survives last clone. Actual stale fork attachment, exact budget and fake-lineage controls execute.",
+        "One owned blocking boundary performs recovery-gated cleanup for normal/error/panic and started-await abort, with queued-never-started debt left for a later worker. Every production blocking spawn retains the configured listener connection lease through cleanup. Actual max-one COPY WHERE, disconnect/shutdown and last-lease release execute.",
+        "Actual-root\u2192clock validation/publication executes stale root/fork, held-lock observer, idle/own-retirement versus fork/ABA negatives and supported standalone nested CALL controls. Initial explicit-transaction CALL fixture was unsupported and corrected without product parity change.",
+        "Actual detached TRUNCATE RESTART IDENTITY pauses after old overlay scope acquisition; A rollback/B begin then resume rejects25000 without B/cursor/object/row change, with fresh B COMMIT and ROLLBACK cases and nextval3 observer.",
+        "Real adapter UniqueViolation before native Data submission observes initial buffered options/Data0, actual resolver effect and strict retry versus no-effect buffered retry, plus actual nativeDataOk\u2192adapter unknown response no-retry/quarantine. Native engine uniqueness failure/global no-effects is not claimed."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "integrated-b-9d8cf088",
+      "question_id": "probe_contract_gap",
+      "question": "Probability authoredtestsorselectedexplicitfeaturecommands miss an originalnamed1290/1279 proofobligation requiringanotherfocusedprobe beforegates.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.56
+      },
+      "probe_groups": [
+        "wire_owner",
+        "sequence",
+        "copy_memory",
+        "portals",
+        "shared_objects",
+        "settings",
+        "schema",
+        "workers",
+        "clock",
+        "truncate",
+        "retry"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim.",
+        "COPY inline B-S and known shared owner payload use the same tracker; exact/one-byte-short and real awaiting-abort/worker/last-clone cases execute. Excludes allocator metadata and process RSS.",
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected.",
+        "Fork-local schema wrapper and stable aliases preserve captured descriptor/catalog references; known payload is admitted before allocation and reservation survives last clone. Actual stale fork attachment, exact budget and fake-lineage controls execute.",
+        "One owned blocking boundary performs recovery-gated cleanup for normal/error/panic and started-await abort, with queued-never-started debt left for a later worker. Every production blocking spawn retains the configured listener connection lease through cleanup. Actual max-one COPY WHERE, disconnect/shutdown and last-lease release execute.",
+        "Actual-root\u2192clock validation/publication executes stale root/fork, held-lock observer, idle/own-retirement versus fork/ABA negatives and supported standalone nested CALL controls. Initial explicit-transaction CALL fixture was unsupported and corrected without product parity change.",
+        "Actual detached TRUNCATE RESTART IDENTITY pauses after old overlay scope acquisition; A rollback/B begin then resume rejects25000 without B/cursor/object/row change, with fresh B COMMIT and ROLLBACK cases and nextval3 observer.",
+        "Real adapter UniqueViolation before native Data submission observes initial buffered options/Data0, actual resolver effect and strict retry versus no-effect buffered retry, plus actual nativeDataOk\u2192adapter unknown response no-retry/quarantine. Native engine uniqueness failure/global no-effects is not claimed."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "local-setting-contract",
+      "question_id": "same_lock_need",
+      "question": "Would checkingowneronlybeforethehistoryupdate still leave actualsettingswrite abletochangeB afterAretirement unlesswrite is atomicallyorderedwithretirement/BEGIN?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.91
+      },
+      "probe_groups": [
+        "settings"
+      ],
+      "actual_action": [
+        "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "objects-5503e523",
+      "question_id": "sealed_repair_gap",
+      "question": "Does5503predicate stillgrant same-thread detachedforkcommitterpermission ormisrepresentitsnewnegative/rootpositivecontrol?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.31
+      },
+      "probe_groups": [
+        "shared_objects",
+        "sequence"
+      ],
+      "actual_action": [
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "objects-5503e523",
+      "question_id": "discard_order_gap",
+      "question": "Doescombinedproposed5bbridge+5503discardpath acquire rootbeforesequence_values or recursivelycallrootlockingpublicsetters underroot, contrarytoselectedlockorder?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.35
+      },
+      "probe_groups": [
+        "shared_objects",
+        "sequence"
+      ],
+      "actual_action": [
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "objects-5503e523",
+      "question_id": "own_retirement_probe",
+      "question": "Does exactidentity-onlyguard leave a source-supportedpossible regression in finalWITHHOLDcursorpublicationafteritsownnestedqueryretiredanimplicittransaction, requiringactualpreservationprobe beforeclosure?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.76
+      },
+      "probe_groups": [
+        "shared_objects",
+        "sequence"
+      ],
+      "actual_action": [
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "own-retirement-objects-contract",
+      "question_id": "negative_aba_probe",
+      "question": "Must actualindependentBbegin+commit invalidation andforknegative controls accompanypositiveembeddedheldcursorpublication beforeconsideringtheexceptionqualified?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.83
+      },
+      "probe_groups": [
+        "shared_objects",
+        "sequence"
+      ],
+      "actual_action": [
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "own-retirement-objects-contract",
+      "question_id": "scope_limit",
+      "question": "Mustthisspecificsharedobjectreceipt permission NOT allownewstagedDatawrites,projectionmodechanges,nativesequenceadmissionorautomaticrepeatofalreadycommittedeffects?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.9
+      },
+      "probe_groups": [
+        "shared_objects",
+        "sequence"
+      ],
+      "actual_action": [
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "parse-publication-contract",
+      "question_id": "probe",
+      "question": "Probability actual after-registration-before-map Parse A->B with existing named/unnamed mappings and same-name newID survivor probes are required, rather than helper-only tests.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.76
+      },
+      "probe_groups": [
+        "portals"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "portal-owner-contract",
+      "question_id": "epoch_lifetime",
+      "question": "Would unconditional portalexpiration on every rollbackepochchange risk deleting portals that belong to samefulltransaction and should surviveROLLBACKTO, so operationadmissionepoch and transactionlifetimeidentity must be distinguished?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.9
+      },
+      "probe_groups": [
+        "portals",
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "portal-owner-contract",
+      "question_id": "required_controls",
+      "question": "Are synchronized actualBind/Execute controls required for idlepreparation->ownimplicit adoption, staleBindpublicationafterreplacement, delayedAcleanupvsBportal, explicitSync retention, namedpreparedsurvival/unnamedcleanup andsameUUIDsavepoint epoch, before declaring1290portalownership complete?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.73
+      },
+      "probe_groups": [
+        "portals"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "product-equivalence",
+      "question_id": "sequence_policy_gap",
+      "question": "Is there a source-supported strictness-classification gap when an independent sequence update succeeds before record_sequence_value marks strictness, or setval(...,false) skips that record, allowing declared replayable Data policy to remain buffered?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.56
+      },
+      "probe_groups": [
+        "sequence",
+        "seal"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim.",
+        "Seal and matching owner checks reject late staged publication and preserve ReadyForQuery/retirement; deferred same-owner failure is applied if COMMIT leaves the block open or discarded on retirement. Direct rollback, owner mutation and replacement-survivor controls execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "protocol-and-reconcile-contract",
+      "question_id": "origin_expected_owner",
+      "question": "Must expectedportal lifetime becheckedatomicallyatactualimplicitBEGIN/originmutation, aswellaspostqueryslotcapture, toavoidcreatinganimplicitstageforretiredAportalwithoutvalidownedcleanup?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.81
+      },
+      "probe_groups": [
+        "portals",
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "protocol-and-reconcile-contract",
+      "question_id": "failure_owner_poison",
+      "question": "WouldcapturingBfailureauthoritythenreturningexpectedportalA mismatch throughnormalfinisherriskfailingB, so mismatchmustpreserve/rejectexpectedAauthorityratherthangrantBownership?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.87
+      },
+      "probe_groups": [
+        "portals",
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "retained-worker-contract",
+      "question_id": "proof_gaps",
+      "question": "Probability explicit all-spawn caller census, max1 actual COPY WHERE+taskabort, disconnect/shutdown and cleanup-last lease release tests are required before asserting the retained connectionlease bounds actualworker lifetime.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.85
+      },
+      "probe_groups": [
+        "workers"
+      ],
+      "actual_action": [
+        "One owned blocking boundary performs recovery-gated cleanup for normal/error/panic and started-await abort, with queued-never-started debt left for a later worker. Every production blocking spawn retains the configured listener connection lease through cleanup. Actual max-one COPY WHERE, disconnect/shutdown and last-lease release execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "Worker bound is per configured listener (sum for fixed listeners); trusted direct run_connection callers outside listener scope are not covered by a runtime-global admission guarantee."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "retained-worker-plumbing",
+      "question_id": "census_required",
+      "question": "Probability tasklocalnoninheritance, allspawn directandchild, actualmax1COPYWHERE/networkdisconnect/shutdown and cleanup-lastretention must be probed beforeboundclaim.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.9
+      },
+      "probe_groups": [
+        "workers"
+      ],
+      "actual_action": [
+        "One owned blocking boundary performs recovery-gated cleanup for normal/error/panic and started-await abort, with queued-never-started debt left for a later worker. Every production blocking spawn retains the configured listener connection lease through cleanup. Actual max-one COPY WHERE, disconnect/shutdown and last-lease release execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "Worker bound is per configured listener (sum for fixed listeners); trusted direct run_connection callers outside listener scope are not covered by a runtime-global admission guarantee."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "schema-5b398b72",
+      "question_id": "fake_authority_gap",
+      "question": "Can detachedforkstill rebinda fakeprivateFailureAuthorityand bypassactualrootsequenceadmission, or does the newexplicitcheck/directrootcapture preserve intendedlineage?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.36
+      },
+      "probe_groups": [
+        "schema",
+        "sequence"
+      ],
+      "actual_action": [
+        "Fork-local schema wrapper and stable aliases preserve captured descriptor/catalog references; known payload is admitted before allocation and reservation survives last clone. Actual stale fork attachment, exact budget and fake-lineage controls execute.",
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "schema-context-contract",
+      "question_id": "resource_contract",
+      "question": "Does optionalretainedQueryMemoryReservation inside the sameownedArc correctly express knownforkcontextpayloadlifetime accounting, providedambientcontrols are usedbeforeallocation and actuallastclone/budgettests run, without inventingMidgecapabilities?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.69
+      },
+      "probe_groups": [
+        "schema"
+      ],
+      "actual_action": [
+        "Fork-local schema wrapper and stable aliases preserve captured descriptor/catalog references; known payload is admitted before allocation and reservation survives last clone. Actual stale fork attachment, exact budget and fake-lineage controls execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "schema-context-contract",
+      "question_id": "retirement_lock_guard",
+      "question": "Must rootretire_schema_context remain a caller-under-root-lock operation so addingrootvalidation to attach doesnot create recursive rootmutex acquisition orreversecontext->root order?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.76
+      },
+      "probe_groups": [
+        "schema"
+      ],
+      "actual_action": [
+        "Fork-local schema wrapper and stable aliases preserve captured descriptor/catalog references; known payload is admitted before allocation and reservation survives last clone. Actual stale fork attachment, exact budget and fake-lineage controls execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "scope-repair",
+      "question_id": "carrier",
+      "question": "Is the operation-local shared authority carrier, captured by admitted worker and reused by outer terminal wrappers with own-start/savepoint adoption, a bounded sound direction for old-worker/new-transaction failure ownership, provided all raw/current-state fallback paths and owner-checked implicit rollback/portal cleanup are explicitly addressed and tested?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.63
+      },
+      "probe_groups": [
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "sequence-history-contract",
+      "question_id": "actual_probe_required",
+      "question": "Probability actual post-native/pre-history A-retire/B-reset resume control, same-owner success, and lock-order control are needed beyond a direct helper stale-history test.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.77
+      },
+      "probe_groups": [
+        "sequence"
+      ],
+      "actual_action": [
+        "Pre-native UUID/epoch/generation/seal admission marks root Data strict before independent sequence effects; exact own-root committer exception and missing/fake lineage negatives execute. Post-native stale history returns25000 while native/catalog cursor remains published. No native undo claim."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "session-objects-contract",
+      "question_id": "preservation_controls",
+      "question": "Must actual same-owner PREPARE/EXECUTE/FETCH/MOVE/CLOSE/WITH HOLD/DEALLOCATE/DISCARD and stale A/B controls execute before complete1290 closure, beyond generic guard unit tests?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.68
+      },
+      "probe_groups": [
+        "shared_objects"
+      ],
+      "actual_action": [
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "session-setting-leaf-contract",
+      "question_id": "local_search_path_parity",
+      "question": "Should this slice deliberatelyavoidchangingexistingSETLOCALsearch_pathrollbackparity, which is aseparateSQLbehavior, while stillguardingactualstaleownerwrite?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.89
+      },
+      "probe_groups": [
+        "settings"
+      ],
+      "actual_action": [
+        "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "Existing SET LOCAL search_path rollback parity was deliberately preserved; this slice guards stale writes, not unrelated SQL feature parity."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "session-setting-leaf-contract",
+      "question_id": "actual_boundary_need",
+      "question": "Wouldentry-onlyauthorityvalidation failtoprotecttheactualwrite ifrootretirement/BEGINcaninterleavebetweenvalidationandsettings/searchpathmutation?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.77
+      },
+      "probe_groups": [
+        "settings"
+      ],
+      "actual_action": [
+        "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "settings-474f7691",
+      "question_id": "probe_gap",
+      "question": "Probability authored6staleforkroutes/currentforkCOMMITROLLBACKhistory/trustedAPItests fail to probe original actualroot sharedsetting escape.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.41
+      },
+      "probe_groups": [
+        "settings"
+      ],
+      "actual_action": [
+        "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "stale-root-contract",
+      "question_id": "lock_inventory",
+      "question": "Should implementation enumerate the finite root-mutating helper locks and apply ownerchecks at the actual same-lockmutation boundaries, including has_query/readstate changes, instead of relying only on an entry-time snapshot that can race aftervalidation?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.89
+      },
+      "probe_groups": [
+        "wire_owner",
+        "settings",
+        "shared_objects",
+        "seal"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected.",
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Seal and matching owner checks reject late staged publication and preserve ReadyForQuery/retirement; deferred same-owner failure is applied if COMMIT leaves the block open or discarded on retirement. Direct rollback, owner mutation and replacement-survivor controls execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "stale-root-contract",
+      "question_id": "same_owner_controls",
+      "question": "Are sameownerFailedROLLBACKTO, implicit->explicitpromotion and ownidleBEGIN adoption preservation controls required alongside oldA/newB rejection, rather than broadlyrejectingallconcurrency orfailure recovery?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.9
+      },
+      "probe_groups": [
+        "wire_owner",
+        "settings",
+        "shared_objects",
+        "seal"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "Actual-root validation preserves private statement-fork settings/history snapshots; ordinary root clones remain shared. Stale six-route controls and current private LOCAL history/terminal positives execute. Earlier mixed root-history/private-value defect was corrected.",
+        "Actual-root\u2192objects mutation guards and narrow lifecycle-root own-retirement receipt execute with PREPARE/cursor/held-CTE/discard positives plus stale/fork/ABA negatives. Receipt does not authorize new Data/mode/sequence effects.",
+        "Seal and matching owner checks reject late staged publication and preserve ReadyForQuery/retirement; deferred same-owner failure is applied if COMMIT leaves the block open or discarded on retirement. Direct rollback, owner mutation and replacement-survivor controls execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "transaction-clock-contract",
+      "question_id": "gap_probability",
+      "question": "Probability current source permits described actual sharedclock overwrite despite earlier entryownerchecks, requiring focused deterministic boundaryprobe beforequalification.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.81
+      },
+      "probe_groups": [
+        "clock"
+      ],
+      "actual_action": [
+        "Actual-root\u2192clock validation/publication executes stale root/fork, held-lock observer, idle/own-retirement versus fork/ABA negatives and supported standalone nested CALL controls. Initial explicit-transaction CALL fixture was unsupported and corrected without product parity change."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "truncate-4ff2e3e0",
+      "question_id": "hook_boundary_gap",
+      "question": "Does the test hook miss the actualstagedrestartboundary or requiremainthreadrootROLLBACK/BEGIN toacquirealockthatpausedworkerholds, makingthisa scheduling/deadlockfalseoracle ratherthanmeaningfulownershipprobe?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.35
+      },
+      "probe_groups": [
+        "truncate"
+      ],
+      "actual_action": [
+        "Actual detached TRUNCATE RESTART IDENTITY pauses after old overlay scope acquisition; A rollback/B begin then resume rejects25000 without B/cursor/object/row change, with fresh B COMMIT and ROLLBACK cases and nextval3 observer."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "truncate-4ff2e3e0",
+      "question_id": "assertion_scope_gap",
+      "question": "Do the assertednative/publishedcursoridentity,rows,Bhealth/UUIDandBcommit/rollback cases overclaim broadnativebackground/process-crash qualification beyond the suppliedfiniteprobe?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.7
+      },
+      "probe_groups": [
+        "truncate"
+      ],
+      "actual_action": [
+        "Actual detached TRUNCATE RESTART IDENTITY pauses after old overlay scope acquisition; A rollback/B begin then resume rejects25000 without B/cursor/object/row change, with fresh B COMMIT and ROLLBACK cases and nextval3 observer."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "Explicit scope limitation retained: staged ownership probe does not qualify native/background/power/cloud loss. Published0.5.2 lacks the selected nonterminal universal fencing surface; upstreamMidge1045 remains open source lead, not deterministic proof. #1188/#1271 remain open."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "truncate-restart-obligation",
+      "question_id": "midflight_probe_need",
+      "question": "Does existingcompleted-restart-before-rollback latertransactiontest leave theactualmidflightfork/scope-to-update replacementboundary unexercised, requiringfocusedprobe beforeclaiming1290complete?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.89
+      },
+      "probe_groups": [
+        "truncate"
+      ],
+      "actual_action": [
+        "Actual detached TRUNCATE RESTART IDENTITY pauses after old overlay scope acquisition; A rollback/B begin then resume rejects25000 without B/cursor/object/row change, with fresh B COMMIT and ROLLBACK cases and nextval3 observer."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "truncate-restart-obligation",
+      "question_id": "native_qualification_limit",
+      "question": "Must stagedrestartownershipproof remain distinctfrombroaderMidgebackground/nativequiescence1188andpower/cloudloss guarantees?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.88
+      },
+      "probe_groups": [
+        "truncate"
+      ],
+      "actual_action": [
+        "Actual detached TRUNCATE RESTART IDENTITY pauses after old overlay scope acquisition; A rollback/B begin then resume rejects25000 without B/cursor/object/row change, with fresh B COMMIT and ROLLBACK cases and nextval3 observer."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "Explicit scope limitation retained: staged ownership probe does not qualify native/background/power/cloud loss. Published0.5.2 lacks the selected nonterminal universal fencing surface; upstreamMidge1045 remains open source lead, not deterministic proof. #1188/#1271 remain open."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "wire-4759b5f7",
+      "question_id": "rollback_gap",
+      "question": "Does old captured-A SQL ROLLBACK still reach an unowned current-state rollback of replacement B in this actual source, unlike now ownerchecked COMMIT?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.49
+      },
+      "probe_groups": [
+        "wire_owner",
+        "copy_memory",
+        "seal"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "COPY inline B-S and known shared owner payload use the same tracker; exact/one-byte-short and real awaiting-abort/worker/last-clone cases execute. Excludes allocator metadata and process RSS.",
+        "Seal and matching owner checks reject late staged publication and preserve ReadyForQuery/retirement; deferred same-owner failure is applied if COMMIT leaves the block open or discarded on retirement. Direct rollback, owner mutation and replacement-survivor controls execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "wire-4759b5f7",
+      "question_id": "reservation_gap",
+      "question": "Does actual COPY sharedowner payloadreservation drop before last owner/worker clone or use a differenttracker from bindingcontrols, contrary to selected retainedmemorycontract?",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.4
+      },
+      "probe_groups": [
+        "copy_memory"
+      ],
+      "actual_action": [
+        "COPY inline B-S and known shared owner payload use the same tracker; exact/one-byte-short and real awaiting-abort/worker/last-clone cases execute. Excludes allocator metadata and process RSS."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "wire-ad403a0a",
+      "question_id": "origin_preservation_gap",
+      "question": "Probability own idle named Bind->explicitBEGIN/implicitExecute fails lifetime adoption or fresh same-owner savepoint epoch is incorrectly rejected.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.3
+      },
+      "probe_groups": [
+        "portals",
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "wire-ad403a0a",
+      "question_id": "registry_gap",
+      "question": "Probability changed Parse/Close offload publishes inconsistent session versus connection prepared state or blocks reactor with actual Root locks.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.33
+      },
+      "probe_groups": [
+        "portals",
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "wire-ad403a0a",
+      "question_id": "saturation_probe_gap",
+      "question": "Probability helper-only captured saturation tests fail to establish actual origin-start->worker-exhaustion cleanup and stale A->B survivor; require actual route probes.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.77
+      },
+      "probe_groups": [
+        "wire_owner",
+        "portals"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "wire-ad403a0a",
+      "question_id": "alias_probe_gap",
+      "question": "Probability new repeatable-read alias getter guards require focused stale-operation returned-alias regression beyond prior stale snapshot suite.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.74
+      },
+      "probe_groups": [
+        "portals",
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "wire-ce6abece",
+      "question_id": "saturation_gap",
+      "question": "Probability new actual own-origin exhaustion, stale A->B exhaustion and held-root uncaptured tests fail to exercise the required no-block/no-mutation boundaries.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.37
+      },
+      "probe_groups": [
+        "wire_owner",
+        "portals"
+      ],
+      "actual_action": [
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain.",
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "wire-ce6abece",
+      "question_id": "rr_alias_gap",
+      "question": "Probability dedicated getter tests do not establish new RR returned-alias fence at actual root before exposing B owner.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.49
+      },
+      "probe_groups": [
+        "portals",
+        "wire_owner"
+      ],
+      "actual_action": [
+        "Lifetime UUID/generation is distinct from operation epoch; exact actual Bind/Execute/Sync/Parse/Close and idle own implicit/explicit adoption controls execute, preserving B mappings and same-owner portals.",
+        "Captured/deferred operation owner is carried through actual workers, converters, terminal/error wrappers and own starts; stale errors cannot fail B. Actual no-owner/captured/own-origin saturation cases execute. Matching-owner failure/recovery positives remain."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "worker-e9d25826",
+      "question_id": "census_gap",
+      "question": "Probability sourcecensus/actual tests miss production childspawn tasklocal noninheritance or overlapping detachedworkers while sameconnectioncontinues.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.43
+      },
+      "probe_groups": [
+        "workers"
+      ],
+      "actual_action": [
+        "One owned blocking boundary performs recovery-gated cleanup for normal/error/panic and started-await abort, with queued-never-started debt left for a later worker. Every production blocking spawn retains the configured listener connection lease through cleanup. Actual max-one COPY WHERE, disconnect/shutdown and last-lease release execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "Worker bound is per configured listener (sum for fixed listeners); trusted direct run_connection callers outside listener scope are not covered by a runtime-global admission guarantee."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "worker-e9d25826",
+      "question_id": "network_probe_gap",
+      "question": "Probability authored actual max1COPYWHERE/disconnect/shutdown and abort/cleanup semaphore tests fail to probe selected exact perlistenerbound, not globalnativequiescence.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.44
+      },
+      "probe_groups": [
+        "workers"
+      ],
+      "actual_action": [
+        "One owned blocking boundary performs recovery-gated cleanup for normal/error/panic and started-await abort, with queued-never-started debt left for a later worker. Every production blocking spawn retains the configured listener connection lease through cleanup. Actual max-one COPY WHERE, disconnect/shutdown and last-lease release execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "Worker bound is per configured listener (sum for fixed listeners); trusted direct run_connection callers outside listener scope are not covered by a runtime-global admission guarantee."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "unique-retry-witness-contract",
+      "question_id": "new_probe_required",
+      "question": "Probability explicit initialtypedresult/options/zeroData andactualstrictretry/unknownno-retry evidence required beyond currentfinalfirst-policy tests.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.84
+      },
+      "probe_groups": [
+        "retry"
+      ],
+      "actual_action": [
+        "Real adapter UniqueViolation before native Data submission observes initial buffered options/Data0, actual resolver effect and strict retry versus no-effect buffered retry, plus actual nativeDataOk\u2192adapter unknown response no-retry/quarantine. Native engine uniqueness failure/global no-effects is not claimed."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "ann-loading-fixture-contract",
+      "question_id": "oracle_gap",
+      "question": "Probability proposed exactcontrols executorloading regression requires another focused assertion beyond exactbudget, actualtrackerrelease, typedmemoryerror/noANNsuccessmetrics andexistingpositiveANNexecutioncontrols.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.42
+      },
+      "probe_groups": [
+        "ann"
+      ],
+      "actual_action": [
+        "Same compiled plan ordinary executor positive five rows and ANN success precedes exact1024 executor-loading ResourceLimit/no-new-success/tracker release. Actual query-load scope is explicit; setup uses ordinary budget."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "fulltext-fixture-contract",
+      "question_id": "pre_scoring_false_positive",
+      "question": "Probability newlineageadmission couldyieldResourceLimitbeforeanypersistedcandidatework, so the proposed finalSQLscanincrement must actually execute beforecallingthisscoringqualification.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.73
+      },
+      "probe_groups": [
+        "fulltext"
+      ],
+      "actual_action": [
+        "Earlier actual SQL1024 ResourceLimit had scan0: .73/.39 lead confirmed. Selected two-boundary contract retains real SQL admission rejection/release and separately executes same-plan1024 persisted loading scan+/ResourceLimit/actual tracker0/no success/fallback, with ordinary five-row/posting-read positive."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "fulltext-two-boundaries-contract",
+      "question_id": "restricted_executor_gap",
+      "question": "Probabilityproposedrestrictedexecutorprobe couldstillreturnpre-persistedResourceLimitandmustactuallyexecuteitsnativescan+ assertionbeforeclaimingtargetcoverage.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.7
+      },
+      "probe_groups": [
+        "fulltext"
+      ],
+      "actual_action": [
+        "Earlier actual SQL1024 ResourceLimit had scan0: .73/.39 lead confirmed. Selected two-boundary contract retains real SQL admission rejection/release and separately executes same-plan1024 persisted loading scan+/ResourceLimit/actual tracker0/no success/fallback, with ordinary five-row/posting-read positive."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "rest-fixture-contract",
+      "question_id": "setup_attestation_gap",
+      "question": "Probability proposed setup needs a focused attestation beyond successfulactualDDL result, expectedindexmetadata presence+metric/type, setuptracker0, and existing unchangedrequestoracles.",
+      "typed_result": {
+        "type": "noul",
+        "noul": 0.65
+      },
+      "probe_groups": [
+        "rest"
+      ],
+      "actual_action": [
+        "Actual REST640/1024 and SQL1024 requests remain unchanged; only fixture creation uses ordinary controls. Native L2/cosine brute-force metadata, setup release, original denied/admitted-zero-limit/provider/scan/result/release oracles execute."
+      ],
+      "disposition": "Named focused probes executed and passed on843; exact later mechanical/rename equivalence and168 strict gates preserved. See named pass lists in probe_groups.",
+      "residual_scope": [
+        "No further confirmed source defect from this lead within the selected finite contract; final documentation/head review and hosted evidence remain pending."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    },
+    {
+      "receipt": "fixtures-5b069d41",
+      "question_id": "implementation_matches_selection/source_fix_required",
+      "typed_gap_probability": 0.39,
+      "probe_groups": [
+        "fulltext"
+      ],
+      "actual_action": "Earlier actual SQL1024 ResourceLimit had scan0: .73/.39 lead confirmed. Selected two-boundary contract retains real SQL admission rejection/release and separately executes same-plan1024 persisted loading scan+/ResourceLimit/actual tracker0/no success/fallback, with ordinary five-row/posting-read positive.",
+      "disposition": "Confirmed test6 pre-persisted SQL rejection; doc-first two-boundary correction then843 named fulltext pass.",
+      "residual_scope": [
+        "Does not claim actual SQL1024 itself enters scoring."
+      ],
+      "local_qualification_addendum": "Required named probes passed on843; strict checks/current metadata and freshSQL8 passed on168 after exact mechanical/rename equivalence. Original interim status above is historical. Final hosted publication-head qualification remains pending."
+    }
+  ],
+  "threshold_lead_count": 64,
+  "policy": "A high noul can endorse a required contract/scope limitation rather than diagnose a bug. Exact question text and typed result are retained; actions identify executed probes or preserved blockers without treating Jev as proof.",
+  "groups_overlap": true,
+  "overall_executed_counts": {
+    "default": {
+      "passed": 14460,
+      "failed": 0,
+      "ignored": 9,
+      "source": "843500f857926f3f1986942ae634912eb692bfd2"
+    },
+    "feature": {
+      "passed": 34,
+      "failed": 0,
+      "ignored": 0,
+      "source": "843500f857926f3f1986942ae634912eb692bfd2"
+    }
+  },
+  "affected_strict_source": {
+    "head": "168527ec5804b47511a3a662484984a935be5c11",
+    "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+    "strict_clippy": "passed",
+    "fmt": "passed",
+    "test_policy_commands": 41,
+    "policy_exit_codes": "all0",
+    "integration_inventory": "passed10529/10554",
+    "unit_manifest": "passed37files263declarations"
+  },
+  "sql8_source": {
+    "head": "168527ec5804b47511a3a662484984a935be5c11",
+    "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+    "passed": 8,
+    "failed": 0,
+    "samples": 4400,
+    "command_seconds": 1378.667854333,
+    "raw_archive_sha256": "20851f66fb56e59d6883f4dfb793fb3a2477dfff2e295e07b3a7c464d6a4ff27",
+    "raw_archive_original_files": 17
+  }
+}

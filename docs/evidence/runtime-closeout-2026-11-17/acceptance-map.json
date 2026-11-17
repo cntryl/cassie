@@ -1,0 +1,112 @@
+{
+  "status": "Finite local B scope accepted. Final documentation/head review and actual available hosted checks remain required before merge.",
+  "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
+  "default_feature_source": {
+    "head": "843500f857926f3f1986942ae634912eb692bfd2",
+    "tree": "6e0239e44c5fb4cff48ee90ef954f031bc47803e",
+    "default": {
+      "passed": 14460,
+      "failed": 0,
+      "ignored": 9,
+      "harnesses": 48
+    },
+    "feature": {
+      "passed": 34,
+      "failed": 0,
+      "ignored": 0,
+      "module_counts": [
+        11,
+        8,
+        9,
+        3,
+        3
+      ]
+    }
+  },
+  "affected_gate_source": {
+    "head": "168527ec5804b47511a3a662484984a935be5c11",
+    "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+    "strict_clippy": "passed fullworkspace/alltargets/allfeatures -Dwarnings -Dclippy::pedantic",
+    "fmt": "passed",
+    "test_policies": "41 individual commands exit0; one shared helper has no direct declarations",
+    "integration_inventory": "10529 declarations /10554 registered instances, passed",
+    "source_unit_manifest": "37files/263declarations, hashes/locations/attributes/bodies passed"
+  },
+  "intervening_diff_proof": "843\u2192168 only a late-recovery branch flatten, unit-return semicolon, default+1024 initializer form,17 test identifier renames and generated metadata. Source/oracle/selector equivalence reviewed; historical execution labels retained. Final hosted full suite must execute publication head.",
+  "acceptance_map": {
+    "1290": [
+      {
+        "criterion": "Atomically fail only the current operation owner, leaving replacement usable",
+        "evidence": "Default converted/prepared/simple/extended/COPY old-A/new-B completion, epoch, deferred carrier and no-owner saturation controls passed; same-owner failure/cancellation positives retained."
+      },
+      {
+        "criterion": "Authority acquired/adopted during execution across converted and prepared/pgwire paths",
+        "evidence": "Own BEGIN/savepoint/implicit origin and extended portal adoption; stale Bind/Execute/Parse/Close and empty Query schedules passed."
+      },
+      {
+        "criterion": "Deterministic failure/cancellation/start/recovery ordering",
+        "evidence": "Synchronized worker/converter/quarantine hooks, root contention timeout snapshots, matching58030 versus stale25000, current-generation failure and deferred sealed failure controls passed."
+      },
+      {
+        "criterion": "Unrelated behavior and complete source/local/hosted qualification",
+        "evidence": "14460default+34feature passed at843; exact mechanical/body/selector proof to168; full strict affected gates andSQL8 passed at168. Finaldocs/head/hosted pending."
+      }
+    ],
+    "1279": [
+      {
+        "criterion": "Precise setting/scope/effects/lock/savepoint/outcome contract before implementation",
+        "evidence": "Active SQL/transaction-owner contracts select staging+sealing and operation UUID/epoch/generation checks, preserving supported errors/mode scope and published Midge boundary."
+      },
+      {
+        "criterion": "Cloned/forked SET/COMMIT, nested CTAS/CALL, sequences/defaults, savepoint, mixed effects, pool/retry/cancel",
+        "evidence": "Actual root/fork/private-setting, seal/deferred-error, CTAS/modifyingCTE, staged TRUNCATE, shared objects, clock, workerlease and protocol regressions passed. Real adapter unique failure/retry and unknown response controls passed feature3."
+      },
+      {
+        "criterion": "Actual native policy local/cloud, strict overrides and WAL preservation",
+        "evidence": "FeatureSQL11/API8/sequence9 passed; actual pgwire worker owningDataCOPY3 proves localdefaultStrict/replayBuffered/sequenceDefaultStrict. Cloud simulation policy observations are selection evidence, not remote durability/cache-loss proof."
+      },
+      {
+        "criterion": "Persistent complete-or-absent rows/checkpoint and recovery/offset distinctions",
+        "evidence": "Default local clean-reopen/process-death regressions passed; no powerloss/cloudcacheloss/globalquiescence claim. Broader #1271/C campaign retains distinct obligations."
+      },
+      {
+        "criterion": "Representative matched persistent workload comparison and maintenance/barrier limits",
+        "evidence": "MergedA apply32+aux16 retains exacthistoricalsource. Corrected-source SQL8 passed all8cells/4400samples at168,100k/cell,2batchsizes,2shapes,1freshstore/cell; individualack distributions/global counters and final rows/buckets/checkpoint/cleanreopen verified. No general speedup/per-requestfsync claim."
+      },
+      {
+        "criterion": "Ordered local and final hosted checks",
+        "evidence": "Ordered full local qualification at843 plus reviewed mechanical/rename equivalence and affected full strict gates/SQL8 at168 are complete. Final publicationhead hostedfullsuite/availablechecks and finaldocreview required beforemerge."
+      }
+    ]
+  },
+  "limitations": [
+    "Per-transaction cell refactor is not implemented; selected source-backed staging/sealing/operation-owner contract supersedes that structural direction. Do not claim a cell was built.",
+    "Connection worker bound is per configured listener and persists to actual worker/cleanup retirement; trusted direct run_connection outside that scope is not a runtime-global admission guarantee.",
+    "Independent admitted native sequence effects may finish after retirement; stale history publication is refused, not native undo/cancel.",
+    "Initial retry failure is real adapter unique validation before nativeData submission, not nativeEnginecommitUnique/globalnoeffect proof.",
+    "Unknown test is actual nativeDataOk followed by adapter unknown-response simulation; aggregate native success and returned unknown are separate.",
+    "SQL8 is embedded SQL batch acknowledgement, not pgwire latency or production performance.",
+    "Global native WAL quiescence, physical powerloss and real-provider cloud qualification remain outside demonstrated scope; #1188/#1271 stay open.",
+    "COPY accounting proves the selected known inline/shared-owner payload through its last actual clone, excluding allocator metadata and process RSS; it is not a claim that every process/control allocation is metered."
+  ],
+  "pending": [
+    "Final documentation status reconciliation and exact affected-head review",
+    "Final publication-head available hosted checks/review and merge readback"
+  ],
+  "sql8": {
+    "head": "168527ec5804b47511a3a662484984a935be5c11",
+    "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49",
+    "cells": 8,
+    "samples": 4400,
+    "source_profile": "test + replay-benchmark-observation;64MiB/120000ms",
+    "summary_math": "All lane raw/log SHA, individual median/p95/min/max,foreground sums,global deltas,throughput,CSV fields and rawgzip records independently match.",
+    "archive_sha256": "20851f66fb56e59d6883f4dfb793fb3a2477dfff2e295e07b3a7c464d6a4ff27",
+    "archive_files": 17,
+    "archive_bytes": 89343,
+    "archive_verification": "Every archived original byte matches current8logs+8rawJSON+matrix; only archive metadata normalized.",
+    "command_seconds_sum": 1378.667854333,
+    "correction": "SQL lanes have no replay API applied/skipped report; derivedsummary now explicitly marksnotapplicable,checksactualtransactionResults+finalstate. Rawbytesunchanged.",
+    "scope": "Finite embedded SQL diagnostic; onefreshstore/cell, no speedup/variance/per-requestfsync/nativequiescence/crash/power/cloudloss claim. C owns timedread/indexexecutionattestation."
+  },
+  "tdd_scope": "Authored/unexecuted regressions were never labelled observed baseline RED. Intermediate compile/runtime/lint/policy failures and test-order disclosures remain in original handoffs/receipts. No historical failure/status is rewritten as passed."
+}

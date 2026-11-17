@@ -1,15 +1,15 @@
 # Transaction authority within Midge as published
 
-Status: **the finite staged-effect, sealing and operation-owner repairs are
-implemented in the current runtime bundle and await executable qualification.
-The session-state inventory and focused regressions are recorded. A separate
-per-transaction cell refactor is deferred; it is not an acceptance substitute.
-Shared settings and retained-worker cleanup/accounting remain in integration.**
-This document records how the
-remaining transaction-authority work
-([#1290](https://github.com/cntryl/cassie/issues/1290),
-[#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
-[#1279](https://github.com/cntryl/cassie/issues/1279)) is built so that Cassie
+Status: **the finite staged-effect, sealing, operation-owner, shared-setting and
+retained-worker lifetime repairs are implemented.** The full default suite and
+34 feature controls passed at `843500f8`; later mechanical lint and test-name
+changes have separate equivalence and affected-gate evidence in the [qualification record](evidence/runtime-closeout-2026-11-17/README.md).
+Final publication-head hosted qualification is recorded there separately. A
+per-transaction cell refactor remains deferred; it is not an acceptance substitute.
+This document records the transaction-authority work tracked by
+[#1290](https://github.com/cntryl/cassie/issues/1290),
+[#1302](https://github.com/cntryl/cassie/issues/1302) and
+[#1279](https://github.com/cntryl/cassie/issues/1279), so that Cassie
 works with published `cntryl-midge` 0.5.2 exactly as it is. It supersedes the
 admission-permit-and-drain and admission-lease-with-compensator directions
 recorded on those issues. Implementation boundaries are recorded in each section below.
@@ -163,7 +163,7 @@ today; the table records why, so a later change cannot silently break it.
 | `session_objects` (cursors, prepared statements) | Transactional lifetimes and existing named/with-hold session lifetimes are preserved. | Shared mutations validate the actual root authority before root→objects writes, including detached callers; own-retirement publication is restricted to the exact lifecycle-root receipt. |
 | `transaction_unique_waits` | Owned by the transaction. | Keyed by the transaction's unique-owner id, released at retirement. |
 | `transaction_clock` | Owned by the actual transaction root. | Validate failure authority (UUID, rollback epoch and generation) under root→clock order through shared clock read/publication; forks use their actual-root lineage. Idle uses statement start without touching the shared clock. Only the exact lifecycle-root own-retirement receipt permits that read-only Idle view; forks and ABA/unrelated retirement do not. See the [clock contract](transaction-owner-mutation-inventory.md#transaction-clock). |
-| `search_path`, `settings` | Session-owned, restored by the transaction. | BEGIN snapshots and terminal restoration run under the root mutex; scoped setting leaves and `SET LOCAL` restoration history must validate actual root ownership at the write. Detached shared-setting guards remain an explicit integration obligation. |
+| `search_path`, `settings` | Root clones share session payload and restoration history; detached forks own private copies of both. | BEGIN snapshots and terminal restoration run under the root mutex. Scoped leaves validate the actual root before changing the appropriate payload/history together. A fork's LOCAL restoration history never restores over an independent root SET; projection mode retains its actual-root transaction freeze. |
 | `sequence_values` (`currval`, `lastval`) | Session-owned; survives ROLLBACK. | Reset and successful-native history publication use sequence-values→actual-root order. A stale result cannot overwrite a replacement's history; the already applied independent native effect and global catalog cursor remain published. |
 | `random` | Session-owned. | No transaction meaning. |
 | `procedure_calls` | Owned by the statement fork. | Copied at fork; a recursion guard, not transaction state. |

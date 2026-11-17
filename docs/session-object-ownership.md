@@ -2,8 +2,9 @@
 
 This selected #1290/#1279 repair complements the
 [transaction authority contract](transaction-authority-midge-contract.md).
-The regression controls are authored; executable qualification remains deferred
-to the coherent runtime bundle.
+The regression controls passed in the default suite at `843500f8`. Later
+mechanical/name-only changes and affected gates are distinguished in the
+[qualification record](evidence/runtime-closeout-2026-11-17/README.md).
 
 SQL PREPARE, DECLARE, FETCH/MOVE, CLOSE and DEALLOCATE validate their operation's
 captured transaction UUID, rollback epoch and generation at the actual shared

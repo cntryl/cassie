@@ -1,7 +1,12 @@
 # Query failure and transaction authority
 
-Status: bounded #1295 converted-completion candidate passed local validation;
-final-head hosted checks are pending. Full #1290 remains incomplete. The full
+Current integrated source and actual qualification are recorded in the
+[qualification record](evidence/runtime-closeout-2026-11-17/README.md) and the [transaction authority contract](transaction-authority-midge-contract.md).
+
+## Historical converted-completion prerequisite
+
+The bounded #1295 increment below passed its recorded local validation. That
+increment did not complete #1290; its old blockers describe that earlier scope. The full
 locked suite and strict Clippy passed at `a59e7c65`; formatting, touched-test
 policy and inventory passed at `94e171a4` after test-only ordering and comment
 changes. No instrumented baseline RED was observed. Its preceding
@@ -701,8 +706,9 @@ Jev favored waiting rather than returning without owner attribution (1.0),
 while flagging changed timing (0.84), replacement before capture (0.95) and a
 possible new cyclic dependency (0.31). The request/response are in
 `target/1290-design/capture-wait-{request,response}.json`; all are source-review
-leads, not qualification. The unchanged quarantine path remains an explicit
-blocker to full #1290 and requires a separate owner-safe retirement design.
+leads, not qualification. At that capture-wait increment, the unchanged quarantine path remained a
+blocker to full #1290. The subsequent integrated carrier and owner-checked
+retirement repair supplies that separately reviewed design.
 
 COPY FROM binding first validates that the request names a table target. An
 invalid query target already returns `COPY FROM STDIN requires a table target`
@@ -725,5 +731,7 @@ replaced by B, the admitted-owner check rejects A with `25000` before entering
 the SQL core. That rejection must leave B healthy and retain its identity; it
 does not clear the storage fence. A subsequent operation on B still returns
 `58030`. This phase ordering is the selected source-backed Jev decision for the
-observed late-latch test mismatch, not a runtime pass. Current-owner quarantine
-controls and all three stale-entry routes must execute on the corrected source.
+observed late-latch test mismatch. Current-owner quarantine controls and all
+three stale-entry routes passed in the default suite at `843500f8`; exact
+subsequent mechanical changes and publication-head checks remain separately
+identified in the qualification record.

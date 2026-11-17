@@ -19,9 +19,10 @@ the canceled join remains an error. No fallback cleanup worker is spawned.
 
 Synchronized controls cover normal/error/panic operation results, recovery-latch
 skip, abort of the awaiting task, and cancellation before worker start. They are
-authored before implementation and remain unexecuted until the coherent runtime
-gate. This boundary alone does not establish the separate global admission
-bound for all started COPY or blocking workers.
+authored before implementation and passed in the default suite at `843500f8`.
+Observed fixture repairs and later name-only changes retain their exact evidence
+in the [qualification record](evidence/runtime-closeout-2026-11-17/README.md). This boundary alone does not
+establish a global admission bound for all started COPY or blocking workers.
 
 ## Retained worker admission
 

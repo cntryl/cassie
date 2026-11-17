@@ -286,9 +286,48 @@ Do not swap an active projection version after a failed replay solely because a 
 
 ## Evidence
 
-- `tests/analytics.rs` module `projection_lifecycle` covers idempotent duplicate skip, out-of-order failed freshness, duplicate event ids inside one batch, restart hydration, atomic rollback of rows with replay metadata, no-op checkpoint advancement, and retry after an uncertain commit. The full locked suite passed on `525e9a96c80dc2ad31e39e0665efbdcc6a44fbae`.
-- `src/midge/adapter/statement_read/tests.rs` covers a pinned Data-family snapshot for replay rows, scalar index entries, ledger, and stored checkpoint across a concurrent commit. The local-storage counterpart in `tests/replay_durable_snapshot.rs` also checks restart and retry. `src/app/statement_read_tests/replay_native_unknown.rs` covers two narrow adapter-seam simulations of `OutcomeUnknown`, before and after native commit, plus a post-commit metadata-read failure. These tests passed on the same head. They do not simulate every native failure mode.
-- `src/midge/adapter/statement_read/tests/replay_process_crash.rs` covers strict and buffered local child-process kill-and-reopen at a precommit boundary and after acknowledgement, including recovered row, scalar index, ledger, checkpoint and same-batch retry assertions. These cases passed on the same head. Process death does not establish power-loss or cloud-cache-loss recovery.
-- Feature-gated replay policy tests passed on the same head and observe the first native commit policy and per-policy attempts, including simulated background and strict cloud configuration. Simulated provider policy selection does not qualify real provider acknowledgement or cloud-cache loss recovery.
-- The local strict-versus-buffered diagnostic benchmark on the same head observed additional strict foreground commit attempts in every buffered run. Replay's selected commit is followed before return by column-batch and projection-hash maintenance and time-series index rebuilds; debt cleanup uses strict write options. Engine-wide WAL and ledger counters may include background work and omit some filesystem syncs, so they cannot attribute every physical sync to replay. Broader workload measurements and maintenance-barrier work remain under [#1271](https://github.com/cntryl/cassie/issues/1271).
-- `docs/production-readiness.md` records the local projection lifecycle contract and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that evidence.
+The current default-suite evidence below is from
+`843500f857926f3f1986942ae634912eb692bfd2`: 14,460 passed, zero failed and nine
+inherited ignores. The [runtime qualification record](evidence/runtime-closeout-2026-11-17/README.md)
+separates that executed source, subsequent mechanical/name-only changes and
+proofs, affected gates, benchmark source, and final publication-head hosted checks.
+
+- `tests/analytics.rs` module `projection_lifecycle` covers idempotent duplicate
+  skip, out-of-order failed freshness, duplicate event ids, restart hydration,
+  atomic rows/replay metadata, no-op checkpoints and uncertain-commit retry.
+  These passed at `843500f8`; the earlier `525e9a96` full-suite record remains
+  historical evidence rather than the identity of the current run.
+- `src/midge/adapter/statement_read/tests.rs` covers a pinned Data-family snapshot
+  for rows, scalar indexes, ledger and checkpoint across a concurrent commit.
+  The local-storage counterpart is
+  `src/midge/adapter/statement_read/tests/replay_durable_snapshot.rs`.
+  `src/app/statement_read_tests/replay_native_unknown.rs` covers narrow adapter
+  unknown-outcome seams before/after native commit and a post-commit metadata-read
+  failure. These cases passed in the default suite at `843500f8`; they do not
+  simulate every native failure mode.
+- `src/midge/adapter/statement_read/tests/replay_process_crash.rs` passed all five
+  controls at `843500f8`: one writer-lease retry control and four strict/buffered
+  local process-kill/reopen cases before commit or after acknowledgement. They
+  verify recovered rows, scalar index, ledger, checkpoint and same-batch retry.
+  Process death does not establish power-loss or cloud-cache-loss recovery.
+- All 34 selected feature-enabled controls passed at `843500f8`, including replay
+  API, SQL, pre-native sequence admission, actual wire COPY Data policy and typed
+  adapter-conflict retry. Simulated background/strict cloud policy observations
+  do not qualify provider acknowledgement, native faults or cloud-cache loss.
+- The [48-control replay record](evidence/replay120-2026-11-16/README.md) remains
+  historical source `58e6c96e`. Fresh eight-cell embedded-SQL diagnostics use
+  `168527ec5804b47511a3a662484984a935be5c11`, test profile, 64 MiB and a 120-second
+  per-query deadline. They cover default/replayable, both shapes and both batch
+  sizes with one fresh store per cell; they do not establish pgwire latency or
+  across-host variance. Their complete source, samples and counter accounting
+  are linked from the runtime qualification record.
+- Foreground maintenance remains part of acknowledgement: column/projection-hash
+  maintenance, time-series rebuild and debt cleanup can retain strict barriers.
+  Engine-wide WAL/ledger counters include background work and omit unaccounted
+  filesystem syncs. `wal_accounted_syncs` already includes successful WAL fsync
+  and ledger syncs; the fields are not added together. No universal physical-sync
+  reduction follows from selecting buffered primary policy. Broader qualification
+  remains tracked by [#1271](https://github.com/cntryl/cassie/issues/1271).
+- `docs/production-readiness.md` retains the lifecycle, refresh, verification and
+  repair contract. Deployment-profile alert thresholds are separate from this
+  replay evidence.

@@ -35,7 +35,9 @@ rejection and release that actual tracker. The same plan under ordinary controls
 must return five rows, increase persisted posting reads without row-scan fallback,
 and release its result tracker. Fixture writes use ordinary setup controls only;
 these probes neither raise the tested request limit nor claim that low-budget SQL
-admission itself reaches scoring.
+admission itself reaches scoring. This exact two-boundary regression passed at
+`843500f8`; the [qualification record](evidence/runtime-closeout-2026-11-17/README.md) preserves the earlier
+failed scan oracle, subsequent mechanical initializer change and source identities.
 
 Execution-result caching keeps its separate entry and serialized-payload byte limits. Immutable result payloads, resident keys and backing directories retain narrow reservations through their actual last owner. A distinct requesting query admits its own result exposure before a cache hit. [#766](https://github.com/cntryl/cassie/issues/766) owns current-surface qualification and closeout; [#849](https://github.com/cntryl/cassie/issues/849) retains final resource and restart qualification. Serialized cache limits do not measure retained capacity or process RSS.
 

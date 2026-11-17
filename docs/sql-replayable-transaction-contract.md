@@ -3,7 +3,9 @@
 Issue [#1279](https://github.com/cntryl/cassie/issues/1279) adds an explicit
 transaction-local projector mode. This document records the implemented interface and its remaining qualification
 boundaries. Source and tests are identified below; their presence alone does not
-qualify the current commit.
+qualify the current commit. The [qualification record](evidence/runtime-closeout-2026-11-17/README.md) distinguishes actual
+`843500f8` default/feature passes, later mechanical changes and affected gates,
+fresh SQL diagnostics, and final publication-head hosted outcomes.
 
 ## SQL interface
 
@@ -307,8 +309,8 @@ indeterminate result is not a known abort and must not be blindly retried. A
 more conservative alternative is to classify every possible deferred expression
 strict before the first submission; it preserves safety but may downgrade the
 performance benefit when that branch never executes. The monotonic production
-path is implemented; its focused phase/submission witnesses remain authored/not
-run until the coherent gate.
+path is implemented; its focused phase/submission witnesses passed in the
+feature-enabled controls at `843500f8`.
 
 Jev selected monotonic promotion (.98) over conservative preclassification (.02),
 flagging deferred sequence effects (.95), typed-abort handling (.91) and commit
@@ -416,8 +418,10 @@ Evidence and remaining boundaries:
   inside the Data callback after native success, then requires no resolver/retry
   and recovery quarantine. Native success and returned adapter outcome are
   distinct observations; this is not an engine crash or global-no-effect proof.
-  The focused witness is authored/not run until the coherent gate. The earlier
-  `projection_sql_durability_tests.rs` aggregate policy controls remain.
+  The three focused retry witnesses passed at `843500f8`, alongside the
+  `projection_sql_durability_tests.rs` aggregate policy controls. The adapter
+  unique-failure and post-native-success unknown-response seams remain
+  distinct from native-engine uniqueness or crash/power-loss tests.
 - **Cloud policy evidence.** Against simulated cloud storage
   (`src/app/projection_sql_durability_tests.rs`, built with the
   `replay-benchmark-observation` feature), a declared replayable transaction's
@@ -441,13 +445,15 @@ leaving `currval`/`lastval` unchanged. It therefore requires the same sticky
 strict classification as the other sequence assignments. The focused
 `should_select_strict_policy_after_setval_without_currval_assignment` regression
 observes the native Data policy and preserves the sequence-history semantics.
-It was authored before the corresponding branch repair and is not yet executed.
+It was authored before the corresponding branch repair and passed in the
+feature-enabled controls at `843500f8`; no instrumented baseline RED was observed.
 
 The sequential setval repair alone did not establish concurrent admission
 safety: its baseline performed native updates before recording strictness.
 The following operation-owned pre-native admission repair replaces that ordering.
-Its synchronized controls remain authored/not run until combined qualification;
-moving a void current-session marker would not satisfy the ownership requirement.
+Its synchronized controls passed in the default and feature-enabled gates at
+`843500f8`; moving a void current-session marker would not satisfy the ownership
+requirement.
 
 The selected repair carries the existing operation's failure authority on its
 execution-only session clone and detached forks. Before a native sequence or
@@ -551,5 +557,5 @@ after publication permission and outside suppressed/staged paths; it records the
 actual native result. Its first owning Data attempt is asserted independently from
 aggregate first policy, schema-epoch work and maintenance counters. Cases cover
 default strict, declared replayable buffered, and replayable COPY sequence-default
-strict promotion. These authored probes remain unrun until the combined gate;
+strict promotion. All three real-wire policy controls passed at `843500f8`;
 policy selection in memory mode is not a persistence or crash-durability proof.

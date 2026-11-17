@@ -1,0 +1,62 @@
+[
+  {
+    "file": "src/app/query_failure_watchdog/output.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "aed0969b47960a298cbac66ec2c063c4bc1dcd538442f6fac86989a4fc6a98b5",
+    "normalized_after_sha256": "aed0969b47960a298cbac66ec2c063c4bc1dcd538442f6fac86989a4fc6a98b5"
+  },
+  {
+    "file": "src/app/session/shared_setting_tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "0803e829056e99b3f899c3fc3adc6f28b10106ac2d18f1d885ab83e137c84e0a",
+    "normalized_after_sha256": "0803e829056e99b3f899c3fc3adc6f28b10106ac2d18f1d885ab83e137c84e0a"
+  },
+  {
+    "file": "src/app/session/wire_failure_tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "9b05e6252bfbc30de24e02b9b1c2f84521f1ab848ca212144d23689aa7f5dad0",
+    "normalized_after_sha256": "9b05e6252bfbc30de24e02b9b1c2f84521f1ab848ca212144d23689aa7f5dad0"
+  },
+  {
+    "file": "src/app/session_objects/ownership_tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "6ad12691a8ba86724465f21847e76f965a5025b3fc56f673f60bcb33d2293f7b",
+    "normalized_after_sha256": "6ad12691a8ba86724465f21847e76f965a5025b3fc56f673f60bcb33d2293f7b"
+  },
+  {
+    "file": "src/app/session_schema/tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "b89d901c8ffd9e7a51eaa83ada6ea75200aed57eff77a8e00bb24977b312cf6a",
+    "normalized_after_sha256": "b89d901c8ffd9e7a51eaa83ada6ea75200aed57eff77a8e00bb24977b312cf6a"
+  },
+  {
+    "file": "src/pgwire/connection/blocking/tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "a494225a713650c9803b6624ac49f7850c501b48c0084f4c36aea08ce52c8430",
+    "normalized_after_sha256": "a494225a713650c9803b6624ac49f7850c501b48c0084f4c36aea08ce52c8430"
+  },
+  {
+    "file": "src/pgwire/connection/copy/native_policy_tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "05450b67347fd9227bdb0f59b0977b5ff820c9d01a9dfdc8068f3c74aa83d4e6",
+    "normalized_after_sha256": "05450b67347fd9227bdb0f59b0977b5ff820c9d01a9dfdc8068f3c74aa83d4e6"
+  },
+  {
+    "file": "src/pgwire/connection/extended/registry_publication_tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "446814c333ce2f23d19148c7837028a3723cd02e780717053438b1f29ba9774e",
+    "normalized_after_sha256": "446814c333ce2f23d19148c7837028a3723cd02e780717053438b1f29ba9774e"
+  },
+  {
+    "file": "src/pgwire/connection/state/portal_owners/tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "37072969265ef7d70c939e50ce6f9fd229cd9ee30a382db2bd99d3604840a8e1",
+    "normalized_after_sha256": "37072969265ef7d70c939e50ce6f9fd229cd9ee30a382db2bd99d3604840a8e1"
+  },
+  {
+    "file": "src/pgwire/connection/worker_lease/network_tests.rs",
+    "entire_file_except_renamed_function_identifiers_byte_identical": true,
+    "before_sha256": "7a26c40545f03499c1ad9b198c0a954a9a7f498b0a36148c851a37fdf8176d20",
+    "normalized_after_sha256": "7a26c40545f03499c1ad9b198c0a954a9a7f498b0a36148c851a37fdf8176d20"
+  }
+]

@@ -240,9 +240,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "created scalar btree; planner use not independently forced or attested"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "created scalar btree; planner use not independently forced or attested",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "0643234506c2851a671912edac1f6b23378518ff1379880365b6f8e3c7322cd2"
     },
@@ -317,9 +318,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "created scalar btree; planner use not independently forced or attested"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "created scalar btree; planner use not independently forced or attested",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "3846d6a554996edcb201032e13ad9e80fa28d30afd2e9abb8f2639efd14938a5"
     },
@@ -548,9 +550,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "no scalar index"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "no scalar index",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "ba416b7f1fdb29af840577f925ad1cd08e6b3662d38e83d997812fa48c2937a3"
     },
@@ -625,9 +628,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "no scalar index"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "no scalar index",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "828c4c5f693a8c5477d58135b6cb6b07aaa08a2b6680022a9c01dca3e608145d"
     },
@@ -702,9 +706,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "created scalar btree; planner use not independently forced or attested"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "created scalar btree; planner use not independently forced or attested",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "728c0a3cd703fd1ecf05225af4f449f430acf4d78cdb9e8f6e7cc67c575739d5"
     },
@@ -779,9 +784,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "created scalar btree; planner use not independently forced or attested"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "created scalar btree; planner use not independently forced or attested",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "5e437679b171d03501ec8c46f20203ae9a2aa58a4657f5d5b865681a003e23df"
     },
@@ -1010,9 +1016,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "no scalar index"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "no scalar index",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "2465e03f7536c58f832c2d5af3268174c859d037c2e6367cc7c18eea973a3567"
     },
@@ -1087,9 +1094,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "no scalar index"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "no scalar index",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "4ee27ab79e293d4f575898c07706935bad2eefee69822ad79a5229b334c4e004"
     },
@@ -1472,9 +1480,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "created scalar btree; planner use not independently forced or attested"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "created scalar btree; planner use not independently forced or attested",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "50f2d07e82b21bf0455d5d45cdfc4e8b8aecec1e465903edcd0baf3fb87cf7c2"
     },
@@ -1549,9 +1558,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "created scalar btree; planner use not independently forced or attested"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "created scalar btree; planner use not independently forced or attested",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "f22237c07ca497ac29a3f6e08e6b8abc5a581c65a83da8f3c4f25a7ca7c74582"
     },
@@ -1780,9 +1790,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "no scalar index"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "no scalar index",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "ce680d0c457b4c1e384c20aff790ac2240f58f531066e34f38e453b4d96d26cf"
     },
@@ -1857,9 +1868,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "no scalar index"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "no scalar index",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "4cf9a2ae175aac3f446de20af51409bbb752baee0c28127e5fa9eefdecf8fcae"
     },
@@ -1934,9 +1946,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "created scalar btree; planner use not independently forced or attested"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "created scalar btree; planner use not independently forced or attested",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "05c8d22dec0467328e0ef696027ca794308e687fa12a504048c12850a3e98f05"
     },
@@ -2011,9 +2024,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "created scalar btree; planner use not independently forced or attested"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "created scalar btree; planner use not independently forced or attested",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "77f55b58ebf5c20fe64e5dc1eb8b538486e1475c3f924640e5f6e5730114949f"
     },
@@ -2242,9 +2256,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "no scalar index"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "no scalar index",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "f7a510640c9355c871e36d6a21ac88984240166f7ca50998b2f3bbb5719700f3"
     },
@@ -2319,9 +2334,10 @@
         "total_rows": 100000,
         "title_buckets": 16,
         "checkpoint_position": 100000,
-        "per_batch_report_count_assertions": "passed",
-        "verified_skipped_duplicate_events": 0,
-        "index_fixture": "no scalar index"
+        "per_batch_report_count_assertions": "not applicable: SQL transaction Results are checked; no replay API applied/skipped report",
+        "verified_skipped_duplicate_events": null,
+        "index_fixture": "no scalar index",
+        "per_batch_sql_transaction_results": "passed"
       },
       "raw_result_sha256": "249b78d20f9eb9f5f6aecf856950d944e67794b7b11d77d93eaf792ab1966fef"
     },

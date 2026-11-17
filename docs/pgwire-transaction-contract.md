@@ -409,8 +409,10 @@ transaction's portals and named prepared statements. Portal lifetime comparisons
 ignore rollback epoch: `ROLLBACK TO` does not end the owning transaction, while
 publication still validates the captured epoch. SQL `DECLARE ... WITH HOLD`
 cursors use a separate session namespace and retain their existing semantics.
-These repairs and their focused controls are pending the runtime bundle's
-source review and executable qualification.
+These repairs and their focused controls passed in the default suite at
+`843500f8`. The [qualification record](evidence/runtime-closeout-2026-11-17/README.md) preserves later
+mechanical/name-only changes, affected checks and publication-head hosted
+qualification separately.
 
 Cancellation, deadlines, serialization/output-shape failures and resource errors
 follow the same origin-specific failure rules. Release rows, cursor/snapshot,

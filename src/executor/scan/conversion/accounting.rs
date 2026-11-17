@@ -110,7 +110,7 @@ pub(super) fn projected_row_bytes(
     )
 }
 
-fn row_bytes(
+pub(super) fn row_bytes(
     document: &DocumentRef,
     schema: Option<&CollectionSchema>,
     shape: Shape<'_>,

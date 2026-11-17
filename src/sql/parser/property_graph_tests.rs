@@ -142,7 +142,7 @@ fn should_fold_unquoted_names_but_keep_quoted_ones() {
     assert_eq!(vertex.labels[0].name, "person");
     assert_eq!(
         vertex.labels[0].properties,
-        vec![property("Full Name", "name")]
+        vec![property("\"Full Name\"", "name")]
     );
     assert_eq!(graph.edges[0].source.vertex_alias, "Person");
 }

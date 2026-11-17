@@ -1,5 +1,8 @@
 //! Scalar call evaluation preserves argument order and context-owned scratch.
 #[cfg(test)]
+#[path = "array_constructor_memory_tests.rs"]
+mod array_constructor_memory_tests;
+#[cfg(test)]
 #[path = "json_object_keys_argument_tests.rs"]
 mod json_object_keys_argument_tests;
 
@@ -94,11 +97,11 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         return evaluate_user_defined_function(&name, row, context, args);
     }
 
-    reserve_argument_workspace(context, &args)?;
-
     if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
+        reserve_array_workspace(context, &args)?;
         return evaluate_array_constructor(function, row, args);
     }
+    reserve_argument_workspace(context, &args)?;
     if name == crate::sql::ast::ROW_CONSTRUCTOR_FUNCTION {
         return Ok(evaluate_row_constructor(args));
     }
@@ -152,12 +155,76 @@ fn reserve_argument_workspace(context: EvalContext<'_>, args: &[Value]) -> Resul
     Ok(())
 }
 
+/// ARRAY moves native values. Only flattening directories and dimensions need
+/// new backing; existing argument owners retain the moved element payloads.
+fn reserve_array_workspace(context: EvalContext<'_>, args: &[Value]) -> Result<(), QueryError> {
+    use crate::executor::retained_memory::{add, grown_capacity, mul};
+    use std::mem::size_of;
+
+    let Some(memory) = context.memory else {
+        return Ok(());
+    };
+    let mut rank = 0;
+    let mut elements = 0;
+    for value in args {
+        if let Value::Array(array) = value {
+            rank = rank.max(array.dimensions().len());
+            elements = add(elements, array.len())?;
+        }
+    }
+    let bytes = if rank == 0 {
+        // The scalar constructor reuses the already-admitted argument Vec.
+        size_of::<crate::types::ArrayDimension>()
+    } else {
+        // A replacement flattened Vec can overlap its old buffer. Dimensions
+        // similarly grow, with both retained and current child copies present.
+        add(
+            // Chunked extend can start from a non-power-of-two capacity. Old
+            // plus replacement backing stays below three times the final length.
+            mul(mul(elements.max(4), 3)?, size_of::<Value>())?,
+            mul(
+                add(mul(grown_capacity(add(rank, 1)?, 4)?, 2)?, mul(rank, 2)?)?,
+                size_of::<crate::types::ArrayDimension>(),
+            )?,
+        )?
+    };
+    memory.grow(bytes)
+}
+
 fn evaluate_argument_values<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     row: &R,
     context: EvalContext<'_>,
     name: &str,
 ) -> Result<Vec<Value>, QueryError> {
+    #[cfg(test)]
+    if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
+        let bytes = context
+            .memory
+            .map_or(0, super::super::evaluation::EvaluationMemory::bytes);
+        crate::executor::execution::graph_memory_test_observer::record(
+            "before_array_arguments",
+            bytes,
+        );
+    }
+    if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
+        if let Some(memory) = context.memory {
+            memory.grow(crate::executor::retained_memory::mul(
+                crate::executor::retained_memory::grown_capacity(function.args.len(), 4)?,
+                std::mem::size_of::<Value>(),
+            )?)?;
+        }
+    }
+    #[cfg(test)]
+    if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
+        let bytes = context
+            .memory
+            .map_or(0, super::super::evaluation::EvaluationMemory::bytes);
+        crate::executor::execution::graph_memory_test_observer::record(
+            "copy_array_arguments",
+            bytes,
+        );
+    }
     function
         .args
         .iter()

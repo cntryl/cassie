@@ -175,7 +175,22 @@ pub(super) async fn write_materialized_result(
     } else {
         result
     };
-    let row_description_sent = write_portal_page_frames(
+    let frames =
+        preflight_materialized_frames(&result, &portal.result_formats, cancellation.as_ref())
+            .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?;
+    let storage = frames.into_storage();
+    let (storage, mut frame_owner) = if remains_suspended {
+        let mut owner = state
+            .portal_frames
+            .prepare(portal_name, storage, &state.portal_memory_controls)
+            .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
+        (owner.take_frames(), Some(owner))
+    } else {
+        (storage, None)
+    };
+    let mut frames = QueryResultFrames::from_storage(&result, page_len, storage);
+    let row_description_sent = write_prepared_portal_page_frames(
         write_half,
         PortalPageFrames {
             result: &result,
@@ -185,9 +200,19 @@ pub(super) async fn write_materialized_result(
             row_description_already_sent: row_description_sent,
             remains_suspended,
         },
+        &mut frames,
     )
     .await
-    .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?;
+    .inspect_err(|_| {
+        clear_cancellation(state, cancellation.as_ref());
+        state.portal_frames.release_empty();
+    })?;
+    let storage = frames.into_storage();
+    if let Some(owner) = &mut frame_owner {
+        owner.restore_frames(storage);
+    } else {
+        drop(storage);
+    }
 
     let completion = result.clone();
     let suspended = remains_suspended.then_some(PortalSuspended {
@@ -206,6 +231,16 @@ pub(super) async fn write_materialized_result(
         completion.command(),
         suspended,
     );
+    if let Some(owner) = frame_owner {
+        if state
+            .portals
+            .get(portal_name)
+            .is_some_and(|portal| portal.suspended.is_some())
+        {
+            state.portal_frames.publish(owner);
+        }
+    }
+    state.portal_frames.release_empty();
     Ok(())
 }
 
@@ -230,50 +265,96 @@ pub(super) async fn write_suspended_result(
         max_rows,
         result_cap,
     } = request;
-    let window = PortalFetchWindow::new(result_cap, suspended.rows_emitted, max_rows);
-    let rows = suspended
-        .result
-        .rows()
-        .get(suspended.row_offset..)
-        .ok_or_else(|| ExtendedQueryError::protocol("invalid suspended portal row offset"))?;
-    if window.rejects_lookahead(rows.len() > window.page_rows()) {
-        clear_cancellation(state, suspended.cancellation.as_ref());
-        return Err(window.overflow_error());
-    }
-
-    let page_len = window.page_rows().min(rows.len());
-    let remains_suspended = page_len < rows.len();
-    let row_description_sent = write_portal_page_frames(
-        write_half,
-        PortalPageFrames {
-            result: &suspended.result,
-            row_offset: suspended.row_offset,
-            rows: &rows[..page_len],
-            result_formats: &portal.result_formats,
-            row_description_already_sent: suspended.row_description_sent,
-            remains_suspended,
-        },
-    )
-    .await
-    .inspect_err(|_| clear_cancellation(state, suspended.cancellation.as_ref()))?;
-
-    suspended.row_offset += page_len;
-    suspended.row_description_sent = row_description_sent;
-    suspended.rows_emitted = suspended.rows_emitted.saturating_add(page_len);
     let cancellation = suspended.cancellation.clone();
-    let completion = suspended.result.clone();
-    let suspended = remains_suspended.then_some(suspended);
-    store_portal_state(
-        state,
-        portal_name,
-        row_description_sent,
-        completion.command(),
-        suspended,
-    );
-    if !remains_suspended {
+    let mut frame_owner = state.portal_frames.take(portal_name);
+    let output = async {
+        let window = PortalFetchWindow::new(result_cap, suspended.rows_emitted, max_rows);
+        if frame_owner.is_none() {
+            suspended.result = suspended
+                .result
+                .try_clone_for_query(&state.portal_memory_controls)
+                .map_err(|error| ExtendedQueryError::cassie(&error))?;
+        }
+        let rows = suspended
+            .result
+            .rows()
+            .get(suspended.row_offset..)
+            .ok_or_else(|| ExtendedQueryError::protocol("invalid suspended portal row offset"))?;
+        if window.rejects_lookahead(rows.len() > window.page_rows()) {
+            return Err(window.overflow_error());
+        }
+        let page_len = window.page_rows().min(rows.len());
+        let remains_suspended = page_len < rows.len();
+        let mut frames = if let Some(owner) = &mut frame_owner {
+            QueryResultFrames::from_storage(&suspended.result, page_len, owner.take_frames())
+        } else {
+            let frames = preflight_materialized_frames(
+                &suspended.result,
+                &portal.result_formats,
+                cancellation.as_ref(),
+            )?;
+            let mut owner = state
+                .portal_frames
+                .prepare(
+                    portal_name,
+                    frames.into_storage(),
+                    &state.portal_memory_controls,
+                )
+                .map_err(|error| ExtendedQueryError::cassie(&error))?;
+            let storage = owner.take_frames();
+            frame_owner = Some(owner);
+            QueryResultFrames::from_storage(&suspended.result, page_len, storage)
+        };
+        let row_description_sent = write_prepared_portal_page_frames(
+            write_half,
+            PortalPageFrames {
+                result: &suspended.result,
+                row_offset: suspended.row_offset,
+                rows: &rows[..page_len],
+                result_formats: &portal.result_formats,
+                row_description_already_sent: suspended.row_description_sent,
+                remains_suspended,
+            },
+            &mut frames,
+        )
+        .await?;
+        frame_owner
+            .as_mut()
+            .expect("prepared owner")
+            .restore_frames(frames.into_storage());
+        suspended.row_offset += page_len;
+        suspended.row_description_sent = row_description_sent;
+        suspended.rows_emitted = suspended.rows_emitted.saturating_add(page_len);
+        let completion = suspended.result.clone();
+        let retained = remains_suspended.then_some(suspended);
+        store_portal_state(
+            state,
+            portal_name,
+            row_description_sent,
+            completion.command(),
+            retained,
+        );
+        if remains_suspended
+            && state
+                .portals
+                .get(portal_name)
+                .is_some_and(|portal| portal.suspended.is_some())
+        {
+            state
+                .portal_frames
+                .publish(frame_owner.take().expect("retained frame owner"));
+        }
+        if !remains_suspended {
+            clear_cancellation(state, cancellation.as_ref());
+        }
+        Ok(())
+    }
+    .await;
+    if output.is_err() {
         clear_cancellation(state, cancellation.as_ref());
     }
-    Ok(())
+    state.portal_frames.release_empty();
+    output
 }
 
 pub(super) struct StreamingPortalResult {
@@ -362,6 +443,35 @@ pub(super) async fn write_streaming_result(
     Ok(has_more)
 }
 
+fn preflight_materialized_frames<'a>(
+    result: &'a QueryResult,
+    formats: &[i16],
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+) -> Result<QueryResultFrames<'a>, ExtendedQueryError> {
+    ensure_row_widths(result.rows(), result.columns())
+        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+    let mut frames = QueryResultFrames::try_new(result, result.rows(), formats)
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    frames
+        .description(result.columns(), formats)
+        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+    for (index, row) in result.rows().iter().enumerate() {
+        if cancellation.is_some_and(crate::runtime::QueryCancellationHandle::is_canceled) {
+            return Err(ExtendedQueryError::cassie(&CassieError::QueryCanceled));
+        }
+        frames
+            .row(index, row, result.columns(), formats)
+            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+    }
+    frames
+        .completion(true)
+        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+    frames
+        .completion(false)
+        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+    Ok(frames)
+}
+
 struct PortalPageFrames<'a> {
     result: &'a QueryResult,
     /// Index of `rows[0]` within the result.
@@ -389,6 +499,35 @@ async fn write_portal_page_frames(
         .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     let mut frames = QueryResultFrames::try_new(result, rows, result_formats)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    write_prepared_portal_page_frames(
+        write_half,
+        PortalPageFrames {
+            result,
+            row_offset,
+            rows,
+            result_formats,
+            row_description_already_sent,
+            remains_suspended,
+        },
+        &mut frames,
+    )
+    .await
+}
+
+async fn write_prepared_portal_page_frames(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    page: PortalPageFrames<'_>,
+    frames: &mut QueryResultFrames<'_>,
+) -> Result<bool, ExtendedQueryError> {
+    let PortalPageFrames {
+        result,
+        row_offset,
+        rows,
+        result_formats,
+        row_description_already_sent,
+        remains_suspended,
+    } = page;
+    let columns = result.columns();
     let mut row_description_sent = row_description_already_sent;
     if !row_description_sent && !columns.is_empty() {
         frames

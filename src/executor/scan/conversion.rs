@@ -62,6 +62,13 @@ pub(crate) fn projected_row_bytes(
     accounting::projected_row_bytes(document, fields, schema)
 }
 
+pub(crate) fn full_row_bytes(
+    document: &DocumentRef,
+    schema: Option<&CollectionSchema>,
+) -> Result<usize, CassieError> {
+    accounting::row_bytes(document, schema, Shape::Full)
+}
+
 pub(super) fn projected_value_heap(
     document: &DocumentRef,
     field: &str,

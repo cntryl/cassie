@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use super::bindings::Candidate;
 use super::store::Store;
 use super::{QueryError, SourceExecutionEnv};
+use crate::executor::retained_memory::{add, grown_capacity, hash_table_bytes, mul};
 use crate::runtime::QueryScoringTestBoundary;
 use crate::sql::ast::GraphSelectorKind;
 
@@ -51,6 +52,9 @@ pub(super) fn apply(
     env.controls.check_interruption()?;
     let limit = match kind {
         GraphSelectorKind::All => {
+            let _sort_memory = env
+                .controls
+                .reserve_query_memory(mul(candidates.len(), std::mem::size_of::<Candidate>())?)?;
             selection_boundary(env)?;
             candidates.sort_by(|left, right| order(store, left, right));
             return Ok(candidates);
@@ -58,10 +62,43 @@ pub(super) fn apply(
         GraphSelectorKind::AnyShortest => 1,
         GraphSelectorKind::Shortest(count) => count as usize,
     };
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record(
+        "before_graph_selector",
+        env.controls.current_query_memory_bytes(),
+    );
+    // At most one endpoint group per candidate. Include every group's index vector,
+    // chosen-index backing, stable-sort scratch, and replacement candidate directory.
+    let count = candidates.len();
+    let bytes = add(
+        mul(hash_table_bytes::<((usize, usize), Vec<usize>)>(count)?, 2)?,
+        add(
+            mul(
+                count,
+                mul(
+                    grown_capacity(count.min(1), 4)?,
+                    std::mem::size_of::<usize>(),
+                )?,
+            )?,
+            mul(
+                count,
+                4 * std::mem::size_of::<usize>() + 2 * std::mem::size_of::<Candidate>(),
+            )?,
+        )?,
+    )?;
+    let _selection_memory = env.controls.reserve_query_memory(bytes)?;
     let mut pairs = HashMap::<(usize, usize), Vec<usize>>::new();
+    pairs
+        .try_reserve(count)
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
     for (index, path) in candidates.iter().enumerate() {
         env.controls.check_interruption()?;
         let end = *path.vertices.last().expect("path has a vertex");
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "copy_graph_selector",
+            env.controls.current_query_memory_bytes(),
+        );
         pairs
             .entry((path.vertices[0], end))
             .or_default()
@@ -101,5 +138,35 @@ fn empty() -> Candidate {
         edges: Vec::new(),
         directions: Vec::new(),
         step_hops: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use crate::executor::execution::graph_memory_test_observer as observer;
+
+    #[test]
+    fn should_admit_selector_groups_before_allocating_their_candidate_indices() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
+             KEEP SHORTEST 1 PATHS COLUMNS(b.id)) AS t",
+                vec![],
+            )
+            .expect("one shortest graph path");
+
+        // Assert
+        assert_eq!(result.row_count(), 1);
+        observer::assert_admitted(
+            "before_graph_selector",
+            "copy_graph_selector",
+            std::mem::size_of::<usize>(),
+        );
     }
 }

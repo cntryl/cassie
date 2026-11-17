@@ -82,18 +82,17 @@ pub(crate) fn property_types(table: &GraphTable, catalog: &Catalog) -> crate::sq
             for (property, data_type) in &variable.properties {
                 expr::insert_type(
                     &mut types,
-                    &format!("{}.{property}", variable.name),
+                    &expr::property_name(&variable.name, property),
                     data_type,
                 );
             }
         }
         return types;
     }
-    let wanted = table.graph.as_str().to_ascii_lowercase();
-    let mut matches = catalog.list_property_graphs().into_iter().filter(|graph| {
-        let name = graph.name.to_ascii_lowercase();
-        name == wanted || name.ends_with(&format!(".{wanted}"))
-    });
+    let mut matches = catalog
+        .list_property_graphs()
+        .into_iter()
+        .filter(|graph| crate::catalog::name_matches(&graph.name, table.graph.as_str()));
     let (Some(graph), None) = (matches.next(), matches.next()) else {
         return types;
     };
@@ -102,7 +101,7 @@ pub(crate) fn property_types(table: &GraphTable, catalog: &Catalog) -> crate::sq
             for (property, data_type) in scope::consistent_properties(variable) {
                 expr::insert_type(
                     &mut types,
-                    &format!("{}.{property}", variable.name),
+                    &expr::property_name(&variable.name, &property),
                     &data_type,
                 );
             }

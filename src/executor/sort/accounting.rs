@@ -104,6 +104,9 @@ fn ordinary_bytes(value: &Value) -> Result<usize, CassieError> {
         Value::Vector(vector) => mul(vector.values.len(), size_of::<u32>()),
         Value::Json(value) => json_string_bytes(value),
         Value::Float64(_) => Ok(64),
+        Value::Typed(crate::types::typed::TypedValue::Record(record)) => {
+            Ok(crate::types::composite::RecordKey::allocation_bound(record))
+        }
         Value::Typed(typed) => Ok(typed.heap_bytes().max(64)),
         Value::Array(_) => crate::executor::retained_memory::value_clone_bytes(value),
         Value::Null | Value::Bool(_) | Value::Int64(_) => Ok(0),
@@ -148,6 +151,9 @@ pub(crate) fn semantic_heap(value: &SemanticValue) -> Result<usize, CassieError>
     match value {
         SemanticValue::String(value) | SemanticValue::Json(value) => Ok(value.capacity()),
         SemanticValue::Vector(values) => mul(values.capacity(), size_of::<u32>()),
+        SemanticValue::Typed(crate::types::typed::TypedKey::Record(record)) => {
+            Ok(record.retained_bytes())
+        }
         SemanticValue::Array(values) => values.iter().try_fold(
             mul(values.capacity(), size_of::<SemanticValue>())?,
             |bytes, value| add(bytes, semantic_heap(value)?),

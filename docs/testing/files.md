@@ -460,36 +460,43 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/graph_table/cancellation.rs` | test_module | 154 | 4 | graph_table | move_with_module_alias | `tests/graph_table/cancellation/cancellation.rs` |
 | `tests/graph_table/composition.rs` | test_module | 172 | 9 | graph_table | split_by_contract | `tests/graph_table/aggregates/core/composition.rs`; `tests/graph_table/semantics/composition.rs` |
 | `tests/graph_table/database_scope.rs` | test_module | 150 | 4 | graph_table | move_with_module_alias | `tests/graph_table/ddl/database_scope.rs` |
+| `tests/graph_table/endpoint_indexes.rs` | test_module | 82 | 2 | graph_table | move_with_module_alias | `tests/graph_table/indexes/endpoint_indexes.rs` |
 | `tests/graph_table/exact_reads.rs` | test_module | 152 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/exact_reads.rs` |
 | `tests/graph_table/fast_reads.rs` | test_module | 689 | 21 | graph_table | move_with_module_alias | `tests/graph_table/semantics/fast_reads.rs` |
+| `tests/graph_table/label_properties.rs` | test_module | 117 | 4 | graph_table | move_with_module_alias | `tests/graph_table/semantics/label_properties.rs` |
 | `tests/graph_table/matrix.rs` | test_module | 136 | 2 | graph_table | move_with_module_alias | `tests/graph_table/semantics/matrix.rs` |
 | `tests/graph_table/overlay_probes.rs` | test_module | 237 | 5 | graph_table | move_with_module_alias | `tests/graph_table/semantics/overlay_probes.rs` |
+| `tests/graph_table/path_match_identity.rs` | test_module | 70 | 2 | graph_table | move_with_module_alias | `tests/graph_table/sequences/path_match_identity.rs` |
 | `tests/graph_table/paths.rs` | test_module | 615 | 16 | graph_table | move_with_module_alias | `tests/graph_table/semantics/paths.rs` |
 | `tests/graph_table/persistence.rs` | test_module | 109 | 3 | graph_table | move_with_module_alias | `tests/graph_table/semantics/persistence.rs` |
+| `tests/graph_table/portal_preflight.rs` | test_module | 137 | 2 | graph_table | move_with_module_alias | `tests/graph_table/portals/portal_preflight.rs` |
 | `tests/graph_table/resources.rs` | test_module | 145 | 4 | graph_table | move_with_module_alias | `tests/graph_table/resources/resources.rs` |
 | `tests/graph_table/semantics.rs` | test_module | 544 | 23 | graph_table | split_by_contract | `tests/graph_table/semantics/errors.rs`; `tests/graph_table/semantics/parameters.rs`; `tests/graph_table/semantics/resources.rs`; `tests/graph_table/semantics/semantics.rs` |
 | `tests/graph_table/tie_order.rs` | test_module | 144 | 2 | graph_table | move_with_module_alias | `tests/graph_table/ordering/tie_order.rs` |
 | `tests/graph_table/transactions.rs` | test_module | 197 | 7 | graph_table | move_with_module_alias | `tests/graph_table/transactions/transactions.rs` |
 | `tests/graph_table/variants.rs` | test_module | 506 | 18 | graph_table | move_with_module_alias | `tests/graph_table/semantics/variants.rs` |
+| `tests/graph_table/view_dependencies.rs` | test_module | 434 | 10 | graph_table | move_with_module_alias | `tests/graph_table/semantics/view_dependencies.rs` |
 | `tests/graph_table/wire.rs` | test_module | 170 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
 | `tests/graph_table/world.rs` | test_support | 382 | 0 | graph_table | keep | `tests/graph_table/world.rs` |
-| `tests/graph_table.rs` | cargo_target | 58 | 0 | graph_table | keep | `tests/graph_table.rs` |
+| `tests/graph_table.rs` | cargo_target | 76 | 0 | graph_table | keep | `tests/graph_table.rs` |
+| `tests/graph_types/argument_binding.rs` | test_module | 130 | 5 | graph_types | move_with_module_alias | `tests/graph_types/parameters/argument_binding.rs` |
 | `tests/graph_types/catalog.rs` | test_module | 100 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/catalog.rs` |
 | `tests/graph_types/constructors.rs` | test_module | 31 | 1 | graph_types | move_with_module_alias | `tests/graph_types/semantics/constructors.rs` |
 | `tests/graph_types/driver.rs` | test_module | 402 | 8 | graph_types | move_with_module_alias | `tests/graph_types/semantics/driver.rs` |
 | `tests/graph_types/driver_sqlx.rs` | test_module | 235 | 6 | graph_types | move_with_module_alias | `tests/graph_types/semantics/driver_sqlx.rs` |
 | `tests/graph_types/fixture.rs` | test_support | 113 | 0 | graph_types | keep | `tests/graph_types/fixture.rs` |
 | `tests/graph_types/images.rs` | test_module | 131 | 4 | graph_types | move_with_module_alias | `tests/graph_types/semantics/images.rs` |
-| `tests/graph_types/parameter_functions.rs` | test_module | 252 | 10 | graph_types | move_with_module_alias | `tests/graph_types/routines/parameter_functions.rs` |
+| `tests/graph_types/parameter_functions.rs` | test_module | 279 | 11 | graph_types | move_with_module_alias | `tests/graph_types/routines/parameter_functions.rs` |
 | `tests/graph_types/paths.rs` | test_module | 239 | 13 | graph_types | move_with_module_alias | `tests/graph_types/semantics/paths.rs` |
 | `tests/graph_types/projected_paths.rs` | test_module | 386 | 9 | graph_types | move_with_module_alias | `tests/graph_types/semantics/projected_paths.rs` |
 | `tests/graph_types/record_codec.rs` | test_support | 55 | 0 | graph_types | keep | `tests/graph_types/record_codec.rs` |
 | `tests/graph_types/record_frame.rs` | test_support | 186 | 0 | graph_types | keep | `tests/graph_types/record_frame.rs` |
+| `tests/graph_types/reference_order.rs` | test_module | 73 | 3 | graph_types | move_with_module_alias | `tests/graph_types/ordering/reference_order.rs` |
 | `tests/graph_types/refs.rs` | test_module | 335 | 19 | graph_types | move_with_module_alias | `tests/graph_types/semantics/refs.rs` |
 | `tests/graph_types/reserved.rs` | test_module | 306 | 16 | graph_types | move_with_module_alias | `tests/graph_types/semantics/reserved.rs` |
 | `tests/graph_types/storage.rs` | test_module | 180 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/storage.rs` |
 | `tests/graph_types/wire.rs` | test_module | 245 | 10 | graph_types | move_with_module_alias | `tests/graph_types/semantics/wire.rs` |
-| `tests/graph_types.rs` | cargo_target | 50 | 0 | graph_types | keep | `tests/graph_types.rs` |
+| `tests/graph_types.rs` | cargo_target | 56 | 0 | graph_types | keep | `tests/graph_types.rs` |
 | `tests/graph_weighted/arguments.rs` | test_module | 306 | 16 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/arguments.rs` |
 | `tests/graph_weighted/binding.rs` | test_module | 215 | 11 | graph_weighted | move_with_module_alias | `tests/graph_weighted/parameters/binding.rs` |
 | `tests/graph_weighted/lazy_reads.rs` | test_module | 176 | 5 | graph_weighted | move_with_module_alias | `tests/graph_weighted/semantics/lazy_reads.rs` |
@@ -1595,7 +1602,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_set_operations/set_operations/set_operation_widths.rs` | test_module | 61 | 2 | sql_set_operations | keep | `tests/sql_set_operations/set_operations/set_operation_widths.rs` |
 | `tests/sql_set_operations.rs` | cargo_target | 17 | 0 | sql_set_operations | keep | `tests/sql_set_operations.rs` |
 | `tests/storage_indexes/column_store/alter.rs` | test_module | 441 | 17 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/alter.rs` |
-| `tests/storage_indexes/column_store/corruption.rs` | test_module | 451 | 16 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/corruption.rs` |
+| `tests/storage_indexes/column_store/corruption.rs` | test_module | 615 | 19 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/corruption.rs` |
 | `tests/storage_indexes/column_store/images.rs` | test_module | 203 | 3 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/images.rs` |
 | `tests/storage_indexes/column_store/mod.rs` | module_registration | 133 | 0 | storage_indexes | keep | `tests/storage_indexes/column_store/mod.rs` |
 | `tests/storage_indexes/column_store/no_row_blob.rs` | test_module | 188 | 9 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/no_row_blob.rs` |
@@ -1672,6 +1679,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/graph_oracle/select.rs` | shared_support | 57 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/select.rs` |
 | `tests/support/graph_oracle/tests.rs` | shared_support | 471 | 19 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/tests.rs` |
 | `tests/support/graph_oracle/weighted.rs` | shared_support | 123 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/weighted.rs` |
+| `tests/support/graph_view_fixture.rs` | shared_support | 24 | 0 | graph_table | keep | `tests/support/graph_view_fixture.rs` |
 | `tests/support/local_storage.rs` | shared_support | 5 | 0 | sql_mutations, storage_indexes | keep | `tests/support/local_storage.rs` |
 | `tests/support/metrics.rs` | shared_support | 8 | 0 | metrics, planner_controls | keep | `tests/support/metrics.rs` |
 | `tests/support/mixed_numeric.rs` | shared_support | 24 | 0 | pgwire_types, sql_queries | keep | `tests/support/mixed_numeric.rs` |

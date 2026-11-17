@@ -119,14 +119,35 @@ implemented. Source schema/table/column renames preserve resolved identities and
 update displayed metadata atomically. Cross-schema graph moves, graph-definition
 alteration beyond rename, and graph mutation syntax return `0A000`.
 
+The 2026-11-17 source-backed Jev decision selects a finite view lifecycle:
+rename returns `2BP01` while a view in the graph's database depends on that
+graph. The rejected statement preserves the old graph and its views; rename
+without such dependents remains supported. A view in another database cannot
+block graph drop or rename. Names retain ordinary quoted identifier identity.
+Stored qualified references protect their precise same-database targets. Because
+view SQL retains unqualified names without a captured creation search path, an
+unqualified graph name potentially depends on every matching local graph identity
+in that database; drop and rename protect each potential target.
+
 The lifecycle guard covers every column a mapping reads: key, endpoint and
 exposed property columns reject `DROP COLUMN` and type change with `2BP01`, a
 key column also rejects `DROP NOT NULL`, and a constraint or index may be
 dropped only while another non-partial unique key still covers exactly the
 mapped key tuple. `DROP TABLE ... CASCADE`, `DROP COLUMN ... CASCADE` and a
 `DROP SCHEMA ... CASCADE` that would orphan a graph of another schema return
-`0A000`; a schema cascade drops the graphs the schema itself owns. Graph DDL is
+`0A000`; a schema cascade drops the graphs the schema itself owns and the
+same-database direct and transitive views that depend on those graphs, including
+views in other schemas. A qualified graph or transitive view reference stays
+precise. An ambiguous unqualified graph or relation reference refuses schema
+cascade with `0A000` before any graph, view or schema is
+mutated. Unique closures still cascade; unrelated views survive. View execution,
+stored SQL and formats retain their existing behavior. The schema, graphs and view
+closure are restored together on rollback. Graph DDL is
 transactional and, like other DDL, is reserved to administrators (`42501`).
+Dependency collection follows the binder's current lexical CTE lookup: each
+nonrecursive body sees prior definitions, the main query sees all local
+definitions, and a recursive arm sees itself. Qualified relation references
+remain catalog dependencies; real dependencies inside CTE bodies remain visible.
 
 Discovery uses the SQL/PGQ `information_schema` views `property_graphs`,
 `pg_element_tables`, `pg_element_table_key_columns`,
@@ -394,6 +415,14 @@ text and UUID semantics match their SQL types; equality and tie-breaking must
 agree with those semantics. Adding other key families requires an equivalent
 identity, ordering and index proof.
 
+The 2026-11-17 source-backed Jev decision uses structural SQL array keys for
+array fields of all native composite values, including graph references. Compare
+elements recursively with NULL after non-NULL, then element count, dimension
+rank, all dimension lengths, and finally all lower bounds. Integer components
+retain exact signed integer comparison. SQL comparison keys do not stringify
+native record arrays; the internal graph path tie order remains the order
+specified by this contract.
+
 Database, graph and mapping IDs are durable UUID logical identities, rather
 than SQL names or type OIDs: rename preserves them; a dropped and recreated object
 gets a new identity. An operation resolving a reference from a different
@@ -529,7 +558,10 @@ cassie_graph.path_to_jsonb(path cassie_graph.graph_path) -> jsonb
 `key_part` is overloaded on the five listed exact input types and rejects NULL;
 no implicit conversion changes the type tag. `graph` is an optionally
 schema-qualified graph name resolved in the current database; `mapping` is its
-mapping alias in the requested element kind. Constructors resolve the typed
+mapping alias in the requested element kind. Use the exact stored alias
+spelling supplied as `mapping` TEXT: `n` and `N` remain distinct after DDL
+identifier folding. Quotation marks inside that TEXT do not introduce a second
+identifier grammar. Constructors resolve the typed
 tuple in that mapping's current transaction view, check key arity and exact
 SQL types and require the element to exist and be readable. NULL required
 arguments return `22004`; wrong type or arity returns `42804`; an unknown graph,
@@ -630,7 +662,10 @@ model, fallback rules and read bounds are specified in `docs/performance-contrac
 
 - A vertex is fetched by the unique key that backs its mapping.
 - Incident edges are fetched through an ordinary scalar index on the edge table's endpoint
-  columns when one exists. An edge mapping without a usable index on a needed endpoint side
+  columns when one exists. Leading endpoint columns also qualify when every trailing
+  index column is provably `NOT NULL`; nullable suffixes require the exact fallback
+  because scalar indexes can omit those rows. An edge mapping without a usable index
+  on a needed endpoint side
   falls back to the exact full read of that mapping for the statement; a partial
   neighborhood is never used.
 - Start vertices use point lookups only when the start pattern's inline predicate fixes the
@@ -658,9 +693,13 @@ encoding error emits no page, and retention is accounted against the query
 budget. Later Execute calls page the already completed result, respecting
 cumulative portal limits. Cancellation or transport failure during later
 delivery can leave previously delivered pages visible; Cassie cannot retract
-bytes already sent, and the failed Execute emits no successful page. Prove
-that this is feasible with existing portal lifecycle, cancellation and memory
-controls; until then this is a prerequisite, not a claim of current behavior.
+bytes already sent, and the failed Execute emits no successful page. The
+2026-11-17 source-backed Jev decision selects retained preflight: admit reusable
+largest-frame storage against the materialized portal owner's tracker, encode
+every row with final formats and global row indices, and validate description
+and completion frames before first delivery. Retain that storage and its lease
+through suspension and reuse it for later pages. Qualification evidence belongs
+in the qualification record; this contract alone does not establish a pass.
 Read-count tests vary total
 graph size independently of selected degree, and characterize high fan-out and
 multi-hop work.

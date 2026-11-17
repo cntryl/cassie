@@ -180,7 +180,8 @@ fn execute_pg_input_error_info(
     outer_row: Option<&BatchRow>,
     qualify: bool,
 ) -> SourceExecution {
-    let args = evaluate_args(env, function, outer_row)?;
+    let arguments = evaluate_args(env, function, outer_row)?;
+    let args = &arguments.0;
     let input = args
         .first()
         .ok_or_else(|| QueryError::General("pg_input_error_info requires 2 arguments".into()))?;
@@ -239,22 +240,29 @@ pub(super) fn evaluate_args(
     env: &SourceExecutionEnv<'_>,
     function: &crate::sql::ast::FunctionCall,
     outer_row: Option<&BatchRow>,
-) -> Result<Vec<Value>, QueryError> {
+) -> Result<(Vec<Value>, crate::runtime::QueryMemoryReservation), QueryError> {
+    env.controls.check_interruption()?;
     let empty = BatchRow::new(Vec::new());
     let row = outer_row.unwrap_or(&empty);
-    function
-        .args
-        .iter()
-        .map(|arg| {
-            filter::evaluate_expr_value(
-                row,
-                arg,
-                env.params,
-                None,
-                env.user_functions,
-                env.session,
-                None,
-            )
-        })
-        .collect()
+    let memory = filter::EvaluationMemory::new(env.controls)?;
+    memory.grow(crate::executor::retained_memory::mul(
+        function.args.len(),
+        std::mem::size_of::<Value>(),
+    )?)?;
+    let mut arguments = Vec::new();
+    arguments
+        .try_reserve_exact(function.args.len())
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+    for argument in &function.args {
+        arguments.push(filter::evaluate_source_argument(
+            row,
+            argument,
+            env.params,
+            env.user_functions,
+            env.session,
+            env.controls,
+            &memory,
+        )?);
+    }
+    Ok((arguments, memory.into_reservation()))
 }

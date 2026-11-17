@@ -60,9 +60,9 @@ pub(super) fn key_of<'a>(
     columns: &[String],
     types: &[DataType],
 ) -> Option<Vec<KeyPart>> {
-    columns
-        .iter()
-        .zip(types)
-        .map(|(column, data_type)| key_part(value_of(column)?, data_type))
-        .collect()
+    let mut key = Vec::with_capacity(columns.len());
+    for (column, data_type) in columns.iter().zip(types) {
+        key.push(key_part(value_of(column)?, data_type)?);
+    }
+    Some(key)
 }

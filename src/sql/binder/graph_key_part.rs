@@ -15,6 +15,13 @@ use crate::sql::functions::graph_types::{
 };
 use crate::types::composite::CompositeRef;
 
+#[path = "graph_function_occurrences.rs"]
+mod graph_function_occurrences;
+
+pub(super) fn contains_graph_function(expression: &Expr) -> bool {
+    graph_function_occurrences::contains(expression)
+}
+
 /// The `type_tag` of an argument type, or `None` when it is not an overload.
 fn tag(data_type: &DataType) -> Option<i64> {
     match data_type.flattened() {
@@ -35,6 +42,41 @@ fn typed(function: FunctionCall, target: &CompositeRef) -> Expr {
         source_type: None,
         identity: CastIdentity::Scalar,
     }
+}
+
+/// Validate SQL array identity after nested overloads have been lowered. Runtime record
+/// text is a legitimate carrier only after binding proved `graph_key_part[]`.
+pub(super) fn validate_reference_arguments(
+    function: &FunctionCall,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    let Some(graph) = types.graph_types() else {
+        return Ok(());
+    };
+    let name = function.name.to_ascii_lowercase();
+    if !matches!(
+        name.as_str(),
+        VERTEX_REF | EDGE_REF | VERTEX_REF_TYPED | EDGE_REF_TYPED
+    ) {
+        return Ok(());
+    }
+    let Some(argument) = function.args.get(2) else {
+        return Ok(());
+    };
+    let Some(data_type) = types.expression_type(argument) else {
+        return Ok(());
+    };
+    if matches!(data_type, DataType::Null)
+        || matches!(data_type.flattened(), DataType::Array(element)
+            if matches!(element.flattened(), DataType::Composite(descriptor) if descriptor.oid == graph.key_part.oid))
+    {
+        return Ok(());
+    }
+    Err(DiagnosticError::new(
+        "42804",
+        "key parts must have type cassie_graph.graph_key_part[]",
+    )
+    .into())
 }
 
 /// Lowers a graph constructor call: `key_part` resolves its overload and the

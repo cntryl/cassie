@@ -3,13 +3,11 @@
 //! Conversion rewrites the table's authoritative rows in one Midge
 //! transaction (see `Midge::convert_collection_storage_mode`). The rewrite is
 //! bounded by the query memory budget, so an oversized table fails with
-//! `54000` before anything is written.
-use std::cell::RefCell;
-
+//! `54000` before any authoritative changes are committed.
 use super::{Cassie, QueryError};
 use crate::app::CassieError;
 use crate::catalog::collections::CollectionStorageMode;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::runtime::QueryExecutionControls;
 
 pub(super) fn set_access_method(
     cassie: &Cassie,
@@ -39,19 +37,13 @@ pub(super) fn set_access_method(
     }
     controls.check_interruption()?;
 
-    let reservations = RefCell::new(Vec::<QueryMemoryReservation>::new());
+    let mut reservation = controls.reserve_query_memory(0)?;
     let converted = cassie
         .midge
         .with_collection_gates(&[table.to_owned()], || {
             let mut charge = |bytes: usize| -> Result<(), CassieError> {
                 controls.check_interruption()?;
-                if bytes == 0 {
-                    return Ok(());
-                }
-                reservations
-                    .borrow_mut()
-                    .push(controls.reserve_query_memory(bytes)?);
-                Ok(())
+                reservation.try_grow(bytes)
             };
             cassie
                 .midge
@@ -61,7 +53,7 @@ pub(super) fn set_access_method(
         cassie.catalog.set_collection_storage_mode(table, target);
         cassie.bump_schema_epoch_and_invalidate_query_cache()?;
     }
-    drop(reservations);
+    drop(reservation);
     Ok(())
 }
 

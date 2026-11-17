@@ -13,7 +13,8 @@ use super::{
 // unary binding, FETCH pagination, set quantifiers, typed VALUES and explicit
 // Catalog read-model schemas and scalar helper signatures share this rebuildable compiled-plan cache epoch.
 // Exact admitted parameter OIDs and distinct JSONB semantics also namespace rebuildable plans.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 34;
+// Graph identifier binding and typed key-part argument admission require fresh bound plans.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 35;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,

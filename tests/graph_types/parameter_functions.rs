@@ -250,3 +250,30 @@ fn should_infer_the_reference_type_of_an_undeclared_parameter_given_key_parts() 
     // Assert
     assert_eq!(first_cell(&frames), "9007199254740993");
 }
+
+#[test]
+fn should_infer_graph_table_function_parameters_with_unquoted_uppercase_names() {
+    // Arrange
+    let path = body_of(&path_expression(), 0);
+    let reference = body_of(&crate::fixture::person(2), 0);
+
+    // Act
+    let steps = run_bound(
+        "param-fn-uppercase-steps",
+        "SELECT count(*)::text FROM cassie_graph.PATH_STEPS($1)",
+        0,
+        0,
+        &path,
+    );
+    let parts = run_bound(
+        "param-fn-uppercase-parts",
+        "SELECT k.integer_value::text FROM cassie_graph.KEY_PARTS($1) AS k",
+        0,
+        0,
+        &reference,
+    );
+
+    // Assert
+    assert_eq!(first_cell(&steps), "2");
+    assert_eq!(first_cell(&parts), "2");
+}

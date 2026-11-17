@@ -29,7 +29,7 @@ pub(crate) use character_arrays::{
     hydrate_row as hydrate_character_arrays, hydrate_value as hydrate_character_array_value,
 };
 mod conversion;
-pub(crate) use conversion::{projected_lookup_bytes, projected_row_bytes};
+pub(crate) use conversion::{full_row_bytes, projected_lookup_bytes, projected_row_bytes};
 mod ordered_projection_accounting;
 mod stream_open;
 mod typed;

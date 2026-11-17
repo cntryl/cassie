@@ -13,6 +13,7 @@ mod cache;
 mod eval;
 mod keys;
 mod lazy;
+mod lazy_rows;
 mod path_value;
 mod plan;
 mod project;
@@ -70,7 +71,7 @@ pub(super) fn execute(
         .get_property_graph(&binding.graph)
         .ok_or_else(|| failure("the property graph of a GRAPH_TABLE no longer exists"))?;
     let plan = plan::Plan::build(table, graph)?;
-    let eval = eval::Evaluator::new(env, if *lateral { outer_row } else { None });
+    let eval = eval::Evaluator::new(env, if *lateral { outer_row } else { None })?;
     let mut output = env.controls.reserve_query_memory(0)?;
     let rows = {
         let mut traversal = env.controls.reserve_query_memory(0)?;
@@ -88,6 +89,17 @@ pub(super) fn execute(
         rows
     };
     env.controls.check_interruption()?;
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record(
+        "before_graph_output_metadata",
+        output.bytes(),
+    );
+    output.try_grow(project::metadata_bytes(&binding.output, rows.len())?)?;
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record(
+        "copy_graph_output_metadata",
+        output.bytes(),
+    );
     let types = Arc::new(binding.output.clone());
     let lease = Arc::new(output);
     let rows = rows

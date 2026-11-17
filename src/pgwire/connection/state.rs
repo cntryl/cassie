@@ -92,6 +92,7 @@ pub(super) struct SessionState {
     pub(super) portals: HashMap<String, Portal>,
     pub(super) portal_owners: PortalOwners,
     pub(super) portal_cursors: HashMap<String, crate::midge::adapter::MidgeRowCursor>,
+    pub(super) portal_frames: super::result_frames::PortalFrameOwners,
     pub(super) portal_memory_controls: QueryExecutionControls,
     pub(super) portal_reads: super::portal_reads::PortalReadOwners,
     pub(super) next_prepared_id: u64,
@@ -123,6 +124,7 @@ impl SessionState {
             portals: HashMap::new(),
             portal_owners: PortalOwners::default(),
             portal_cursors: HashMap::new(),
+            portal_frames: super::result_frames::PortalFrameOwners::default(),
             portal_memory_controls,
             portal_reads: super::portal_reads::PortalReadOwners::default(),
             next_prepared_id: 1,
@@ -147,6 +149,7 @@ impl SessionState {
             .and_then(|portal| portal.suspended.take())
             .and_then(|suspended| suspended.cancellation);
         self.portal_cursors.remove(name);
+        self.portal_frames.remove(name);
         if let (Some(registration), Some(cancellation)) =
             (self.backend_registration.as_ref(), cancellation.as_ref())
         {

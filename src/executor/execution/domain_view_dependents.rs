@@ -17,6 +17,11 @@ use crate::sql::{
     parse_statement, with_domain_scope, with_enum_scope, with_type_scope, DomainResolver,
 };
 
+/// Stored names without a database part belong to the instance default database.
+pub(super) fn view_database(cassie: &Cassie, view: &ViewMeta) -> String {
+    relation_database_name(&view.name).unwrap_or_else(|| cassie.default_database.clone())
+}
+
 /// Whether the type name `raw` can denote `domain`: the same unqualified name,
 /// or the same name qualified by the domain's schema (and database).
 fn names_domain(raw: &str, domain: &DomainTypeMeta) -> bool {

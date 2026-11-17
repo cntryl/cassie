@@ -37,13 +37,6 @@ pub(super) struct Variable<'g> {
     pub(super) elements: Vec<Element<'g>>,
 }
 
-fn label_requested(requested: &[String], label: &GraphLabelMeta) -> bool {
-    requested.is_empty()
-        || requested
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(&label.name))
-}
-
 /// The mappings of one kind that carry any of `requested` (all mappings when empty).
 /// A mapping carrying several requested labels is one candidate.
 pub(super) fn select_elements<'g>(
@@ -70,11 +63,9 @@ pub(super) fn select_elements<'g>(
         }
     }
     for name in requested {
-        let known = candidates.iter().any(|(_, _, labels, _)| {
-            labels
-                .iter()
-                .any(|label| label.name.eq_ignore_ascii_case(name))
-        });
+        let known = candidates
+            .iter()
+            .any(|(_, _, labels, _)| labels.iter().any(|label| label.name == *name));
         if !known {
             let what = if kind == GraphVariableKind::Vertex {
                 "vertex"
@@ -90,10 +81,14 @@ pub(super) fn select_elements<'g>(
     Ok(candidates
         .into_iter()
         .filter_map(|(mapping_id, table, labels, endpoints)| {
-            let carried = labels
-                .iter()
-                .filter(|label| label_requested(requested, label))
-                .collect::<Vec<_>>();
+            let carried = if requested.is_empty() {
+                labels.iter().collect::<Vec<_>>()
+            } else {
+                requested
+                    .iter()
+                    .filter_map(|name| labels.iter().find(|label| label.name == *name))
+                    .collect()
+            };
             (!carried.is_empty()).then_some(Element {
                 mapping_id,
                 table,
@@ -217,7 +212,7 @@ pub(super) fn property_type(
             let Some(exposed) = label
                 .properties
                 .iter()
-                .find(|candidate| candidate.name.eq_ignore_ascii_case(property))
+                .find(|candidate| candidate.name == property)
             else {
                 return Err(diagnostic(
                     UNDEFINED_COLUMN,
@@ -265,10 +260,7 @@ pub(super) fn consistent_properties(variable: &Variable<'_>) -> Vec<(String, Dat
         .flat_map(|element| &element.labels)
         .flat_map(|label| &label.properties)
     {
-        if !names
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(&property.name))
-        {
+        if !names.iter().any(|name| *name == property.name) {
             names.push(&property.name);
         }
     }

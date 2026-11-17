@@ -388,10 +388,12 @@ pub(super) fn drop_schema_graphs(cassie: &Cassie, schema: &str) -> Result<(), Qu
         let subject = format!("schema {}", crate::catalog::local_name(schema));
         return Err(dependency_error(&subject, &outside, true));
     }
-    for graph in graphs
-        .iter()
+    let owned = graphs
+        .into_iter()
         .filter(|graph| object_in_schema(&graph.name, schema))
-    {
+        .collect::<Vec<_>>();
+    super::property_graph_views::drop_dependents(cassie, &owned)?;
+    for graph in owned {
         cassie
             .midge
             .delete_property_graph(&graph.name)

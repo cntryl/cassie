@@ -208,9 +208,9 @@ impl GraphColumn {
     pub fn output_name(&self) -> Option<String> {
         match (&self.alias, &self.expr) {
             (Some(alias), _) => Some(alias.clone()),
-            (None, Expr::Column(name)) => {
-                Some(name.rsplit('.').next().unwrap_or(name.as_str()).to_owned())
-            }
+            (None, Expr::Column(name)) => crate::sql::ColumnIdentifierPath::parse(name)
+                .ok()
+                .map(|path| path.implicit_output_label()),
             (None, _) => None,
         }
     }

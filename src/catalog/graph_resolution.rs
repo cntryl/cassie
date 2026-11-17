@@ -58,12 +58,12 @@ impl ResolvedMapping {
             ElementKind::Vertex => graph
                 .vertices
                 .iter()
-                .find(|mapping| mapping.alias.eq_ignore_ascii_case(alias))
+                .find(|mapping| mapping.alias == alias)
                 .map(|mapping| (&mapping.mapping_id, &mapping.table, &mapping.key)),
             ElementKind::Edge => graph
                 .edges
                 .iter()
-                .find(|mapping| mapping.alias.eq_ignore_ascii_case(alias))
+                .find(|mapping| mapping.alias == alias)
                 .map(|mapping| (&mapping.mapping_id, &mapping.table, &mapping.key)),
         };
         let (mapping_id, table, key) = found.ok_or_else(|| {

@@ -233,3 +233,58 @@ pub(super) fn lookup_rows(
     }
     Ok(rows)
 }
+
+#[cfg(test)]
+mod memory_tests {
+    use crate::executor::execution::graph_memory_test_observer as observer;
+
+    const QUERY: &str =
+        "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
+        COLUMNS(b.id)) AS t";
+
+    #[test]
+    fn should_admit_a_lazy_lookup_row_before_hydrating_its_copy() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, QUERY, vec![])
+            .expect("indexed graph query");
+
+        // Assert
+        assert_eq!(result.row_count(), 1);
+        observer::assert_admitted(
+            "before_lookup_row",
+            "copy_lookup_row",
+            std::mem::size_of::<super::BatchRow>(),
+        );
+    }
+
+    #[test]
+    fn should_admit_pending_row_identity_before_cloning_it_into_the_graph_cache() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        cassie
+            .execute_sql(&session, "BEGIN", vec![])
+            .expect("begin overlay");
+        cassie
+            .execute_sql(&session, "INSERT INTO e VALUES(2,1,2)", vec![])
+            .expect("pending edge");
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, QUERY, vec![])
+            .expect("merged graph query");
+
+        // Assert
+        assert_eq!(result.row_count(), 2);
+        observer::assert_admitted(
+            "before_pending",
+            "copy_pending",
+            std::mem::size_of::<String>() + std::mem::size_of::<super::BatchRow>(),
+        );
+    }
+}

@@ -307,9 +307,11 @@ fn element_bytes(element: &ElementRef) -> Result<usize, QueryError> {
     Ok(bytes)
 }
 
-/// Addition can align each operand to the largest scale and gain at most one
-/// binary carry per input. Four bytes per decimal place conservatively cover that
-/// alignment before arithmetic allocates; no formatted numeric string is required.
+/// Full coefficient bit width bounds decimal digit buffers without formatting.
+/// It also leaves room for native limb spare capacity; the separate four-slot
+/// workspace covers alignment, the previous clone and check_format's decimal
+/// conversion/division buffers. Four bytes per scale digit cover alignment,
+/// and one byte per input conservatively covers cumulative carries.
 fn numeric_bound(costs: &Value) -> Result<usize, QueryError> {
     let Value::Array(array) = costs else {
         return Ok(0);
@@ -321,7 +323,7 @@ fn numeric_bound(costs: &Value) -> Result<usize, QueryError> {
             _ => 0,
         };
         bytes = bytes.max(add(
-            value_clone_bytes(value)?,
+            mul(value_clone_bytes(value)?, 8)?,
             mul(usize::try_from(scale).unwrap_or(usize::MAX), 4)?,
         )?);
     }

@@ -219,55 +219,70 @@ fn cassie_encoded_text(text: &str) -> Vec<u8> {
 }
 
 #[test]
-fn should_reject_an_int_field_outside_its_declared_width_with_the_correct_tag() {
+fn should_reject_an_integer_field_outside_its_declared_width_with_the_correct_tag() {
     // Arrange
-    let env = seeded();
-    let mut minimum = vec![0x02];
-    minimum.extend_from_slice(&i64::from(i32::MIN).to_be_bytes());
-    let mut maximum = vec![0x02];
-    maximum.extend_from_slice(&i64::from(i32::MAX).to_be_bytes());
-    raw_put(&env, &env.field_key(TABLE, ID_FIELD, "row-a"), &minimum);
-    raw_put(&env, &env.field_key(TABLE, ID_FIELD, "row-b"), &maximum);
-    let accepted_minimum = env.cassie.midge.get_document(TABLE, "row-a");
-    let accepted_maximum = env.cassie.midge.get_document(TABLE, "row-b");
-    let mut outside = vec![0x02];
-    outside.extend_from_slice(&(i64::from(i32::MAX) + 1).to_be_bytes());
+    for (sql_type, minimum, maximum) in [
+        ("SMALLINT", i64::from(i16::MIN), i64::from(i16::MAX)),
+        ("INT", i64::from(i32::MIN), i64::from(i32::MAX)),
+        ("OID", 0, i64::from(u32::MAX)),
+    ] {
+        for outside in [minimum - 1, maximum + 1] {
+            let env = env();
+            env.run(&format!(
+                "CREATE TABLE victims (id {sql_type}, name TEXT) USING columnar"
+            ));
+            for (row, value) in [("row-a", minimum), ("row-b", maximum), ("row-c", 1)] {
+                env.cassie
+                    .midge
+                    .put_document(
+                        TABLE,
+                        Some(row.to_owned()),
+                        serde_json::json!({"id": value, "name": row}),
+                    )
+                    .expect("seed declared-width positive twins");
+            }
+            let accepted_minimum = env.cassie.midge.get_document(TABLE, "row-a");
+            let accepted_maximum = env.cassie.midge.get_document(TABLE, "row-b");
+            let mut corrupt = vec![0x02];
+            corrupt.extend_from_slice(&outside.to_be_bytes());
 
-    // Act
-    raw_put(&env, &env.field_key(TABLE, ID_FIELD, "row-c"), &outside);
-    let point = env.cassie.midge.get_document(TABLE, "row-c");
-    let scan = env
-        .cassie
-        .execute_sql(&env.session, "SELECT id FROM victims", vec![]);
-    let verifier = env
-        .cassie
-        .midge
-        .verify_column_store_for_diagnostics(TABLE)
-        .expect("verifier");
+            // Act
+            raw_put(&env, &env.field_key(TABLE, ID_FIELD, "row-c"), &corrupt);
+            let point = env.cassie.midge.get_document(TABLE, "row-c");
+            let scan = env
+                .cassie
+                .execute_sql(&env.session, "SELECT id FROM victims", vec![]);
+            let verifier = env
+                .cassie
+                .midge
+                .verify_column_store_for_diagnostics(TABLE)
+                .expect("verifier");
 
-    // Assert
-    let minimum = accepted_minimum
-        .expect("valid minimum")
-        .expect("minimum row");
-    let maximum = accepted_maximum
-        .expect("valid maximum")
-        .expect("maximum row");
-    assert_eq!(minimum.payload["id"].as_i64(), Some(i64::from(i32::MIN)));
-    assert_eq!(maximum.payload["id"].as_i64(), Some(i64::from(i32::MAX)));
-    assert_corruption(&point.expect_err("declared INT width is checked"), "row-c");
-    assert_corruption(
-        &scan.expect_err("projection checks declared width"),
-        "row-c",
-    );
-    assert_eq!(verifier.len(), 1, "{verifier:?}");
-    assert!(verifier[0].contains("row-c"), "{verifier:?}");
+            // Assert
+            let lower = accepted_minimum
+                .expect("valid minimum")
+                .expect("minimum row");
+            let upper = accepted_maximum
+                .expect("valid maximum")
+                .expect("maximum row");
+            assert_eq!(lower.payload["id"].as_i64(), Some(minimum));
+            assert_eq!(upper.payload["id"].as_i64(), Some(maximum));
+            assert_corruption(&point.expect_err("declared width is checked"), "row-c");
+            assert_corruption(
+                &scan.expect_err("projection checks declared width"),
+                "row-c",
+            );
+            assert_eq!(verifier.len(), 1, "{verifier:?}");
+            assert!(verifier[0].contains("row-c"), "{verifier:?}");
+        }
+    }
 }
 
 #[test]
 fn should_reject_an_extended_field_encoded_with_another_declared_type_oid() {
     // Arrange
     let env = env();
-    env.run("CREATE TABLE victims (id INT, name NUMERIC) USING columnar");
+    env.run("CREATE TABLE victims (id INT, name NUMERIC(5, 2)) USING columnar");
     env.cassie
         .midge
         .put_document(
@@ -284,7 +299,7 @@ fn should_reject_an_extended_field_encoded_with_another_declared_type_oid() {
         .expect("encoded NUMERIC")
         .expect("stored NUMERIC field");
     let valid_point = env.cassie.midge.get_document(TABLE, "row-a");
-    let valid_scan = env.rows("SELECT name FROM victims");
+    let valid_scan = env.rows("SELECT name FROM victims WHERE id = 1");
     // The same extended tag, but a REAL OID and a valid REAL binary payload.
     let foreign_type = [0x0e, 0, 0, 0x02, 0xbc, 0x3f, 0xc0, 0, 0];
 

@@ -122,19 +122,17 @@ impl Fixture {
             )
             .expect("collection");
         for id in ["a", "b", "c"] {
-            if live_rows {
-                midge
-                    .put_document(
-                        "conversion_admission",
-                        Some(id.to_owned()),
-                        serde_json::json!({"body": id}),
-                    )
-                    .expect("seed row");
-            } else {
-                let key = Midge::column_store_deleted_key(relation_id, id);
-                midge
-                    .raw_put(StorageFamily::Data, &key, &7u64.to_be_bytes())
-                    .expect("seed deleted marker");
+            midge
+                .put_document(
+                    "conversion_admission",
+                    Some(id.to_owned()),
+                    serde_json::json!({"body": id}),
+                )
+                .expect("seed row");
+            if !live_rows {
+                assert!(midge
+                    .delete_document("conversion_admission", id)
+                    .expect("retain a real deleted marker"));
             }
         }
         Self { midge, relation_id }

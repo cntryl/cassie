@@ -199,7 +199,7 @@ fn evaluate_argument_values<R: RowAccess + ?Sized>(
 ) -> Result<Vec<Value>, QueryError> {
     #[cfg(test)]
     if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
-        let bytes = context.memory.map_or(0, super::EvaluationMemory::bytes);
+        let bytes = context.memory.map_or(0, |memory| memory.bytes());
         crate::executor::execution::graph_memory_test_observer::record(
             "before_array_arguments",
             bytes,
@@ -215,7 +215,7 @@ fn evaluate_argument_values<R: RowAccess + ?Sized>(
     }
     #[cfg(test)]
     if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
-        let bytes = context.memory.map_or(0, super::EvaluationMemory::bytes);
+        let bytes = context.memory.map_or(0, |memory| memory.bytes());
         crate::executor::execution::graph_memory_test_observer::record(
             "copy_array_arguments",
             bytes,

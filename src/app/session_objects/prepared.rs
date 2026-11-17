@@ -17,12 +17,12 @@ impl Cassie {
         raw_sql: &str,
         call: SessionObjectCall<'_>,
     ) -> Result<QueryResult, CassieError> {
-        let (exists, count) = session.with_session_objects(|objects| {
-            (
+        let (exists, count) = session.with_owned_session_objects(|objects, _, _| {
+            Ok((
                 objects.prepared(&prepare.name).is_some(),
                 objects.prepared_count(),
-            )
-        });
+            ))
+        })?;
         if exists {
             return Err(SessionObjectError::duplicate_prepared(&prepare.name).into());
         }
@@ -63,19 +63,26 @@ impl Cassie {
             )?
         };
         let output = command_result("PREPARE", call.controls)?;
-        session.with_session_objects(|objects| {
-            objects.insert_prepared(
-                prepare.name.clone(),
-                SessionPrepared {
-                    statement_text: raw_sql.to_string(),
-                    body_sql: prepare.statement_sql.clone(),
-                    parameter_types,
-                    result_types: columns.into_iter().map(|column| column.data_type).collect(),
-                    wire_id: None,
-                    prepare_time: crate::types::extended::temporal::session::current_timestamp(),
-                },
-            );
-        });
+        let prepared = SessionPrepared {
+            statement_text: raw_sql.to_string(),
+            body_sql: prepare.statement_sql.clone(),
+            parameter_types,
+            result_types: columns.into_iter().map(|column| column.data_type).collect(),
+            wire_id: None,
+            prepare_time: crate::types::extended::temporal::session::current_timestamp(),
+        };
+        session.with_owned_session_objects(|objects, _, _| {
+            if objects.prepared(&prepare.name).is_some() {
+                return Err(SessionObjectError::duplicate_prepared(&prepare.name).into());
+            }
+            if objects.prepared_count() >= MAX_PREPARED_PER_SESSION {
+                return Err(CassieError::ResourceLimit(
+                    "prepared statement limit exceeded".to_owned(),
+                ));
+            }
+            objects.insert_prepared(prepare.name.clone(), prepared);
+            Ok(())
+        })?;
         Ok(output)
     }
 
@@ -125,7 +132,7 @@ impl Cassie {
             },
             controls,
         )?;
-        session.with_session_objects(|objects| {
+        session.with_owned_session_objects(|objects, _, _| {
             let Some(name) = name else {
                 objects.clear_prepared();
                 return Ok(());
@@ -133,7 +140,7 @@ impl Cassie {
             objects
                 .remove_prepared(name)
                 .map(|_| ())
-                .ok_or_else(|| SessionObjectError::missing_prepared(name))
+                .ok_or_else(|| CassieError::from(SessionObjectError::missing_prepared(name)))
         })?;
         Ok(output)
     }

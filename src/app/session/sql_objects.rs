@@ -10,8 +10,9 @@
 
 use std::collections::BTreeMap;
 
-use super::CassieSession;
+use super::{CassieError, CassieSession, FailureAuthorityIdentity, SessionTransactionStatus};
 use crate::executor::QueryResult;
+use std::sync::Arc;
 
 /// Most cursors one session may hold open at once.
 pub(crate) const MAX_CURSORS_PER_SESSION: usize = 256;
@@ -149,6 +150,106 @@ impl SessionObjects {
 }
 
 impl CassieSession {
+    /// Only bounded in-memory leaves run here; scoped forks validate their real root.
+    pub(crate) fn with_owned_shared_session_state<T>(
+        &self,
+        operation: impl FnOnce(SessionTransactionStatus, bool) -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        let authority = self.operation_failure_authority.as_ref();
+        let root = if let Some(authority) = authority {
+            if self.owns_transaction_lifecycle && !authority.matches_root(self) {
+                return Err(super::sequence_effect::changed());
+            }
+            authority
+                .root
+                .upgrade()
+                .ok_or_else(super::sequence_effect::changed)?
+        } else if self.owns_transaction_lifecycle {
+            Arc::clone(&self.transaction)
+        } else {
+            return Err(super::sequence_effect::changed());
+        };
+        let transaction = root.lock();
+        if let Some(authority) = authority {
+            if authority.identity()
+                != Some(FailureAuthorityIdentity::from_transaction(&transaction))
+            {
+                return Err(super::sequence_effect::changed());
+            }
+            if !Arc::ptr_eq(&root, &self.transaction)
+                && !Arc::ptr_eq(
+                    &transaction.projection_write,
+                    &self.transaction.lock().projection_write,
+                )
+            {
+                return Err(super::sequence_effect::changed());
+            }
+        }
+        if transaction.sealed_for_commit && !transaction.may_be_failed_by_current_thread() {
+            return Err(super::sequence_effect::changed());
+        }
+        operation(transaction.status, transaction.implicit)
+    }
+
+    pub(crate) fn with_owned_session_objects<T>(
+        &self,
+        operation: impl FnOnce(
+            &mut SessionObjects,
+            SessionTransactionStatus,
+            bool,
+        ) -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        self.with_owned_shared_session_state(|status, implicit| {
+            if status == SessionTransactionStatus::Failed {
+                return Err(CassieError::failed_transaction());
+            }
+            operation(&mut self.session_objects.lock(), status, implicit)
+        })
+    }
+
+    pub(crate) fn validate_discard_all_owner(&self) -> Result<(), CassieError> {
+        self.with_owned_shared_session_state(Self::validate_discard_all_state)
+    }
+
+    fn validate_discard_all_state(
+        status: SessionTransactionStatus,
+        implicit: bool,
+    ) -> Result<(), CassieError> {
+        if status == SessionTransactionStatus::Failed {
+            return Err(CassieError::failed_transaction());
+        }
+        if status == SessionTransactionStatus::InTransaction && !implicit {
+            return Err(CassieError::Transaction {
+                kind: crate::app::TransactionErrorKind::ActiveTransaction,
+                message: "DISCARD ALL cannot run inside a transaction block".to_owned(),
+            });
+        }
+        Ok(())
+    }
+
+    pub(crate) fn discard_all_owned_state(&self) -> Result<(), CassieError> {
+        self.with_owned_sequence_reset(|status, implicit| {
+            Self::validate_discard_all_state(status, implicit)?;
+            let mut objects = self.session_objects.lock();
+            objects.clear_cursors();
+            objects.clear_prepared();
+            let mut settings = self.settings.lock();
+            settings.reset_all();
+            let search_path = settings
+                .get_ref("search_path")
+                .expect("registered search_path")
+                .to_owned();
+            drop(settings);
+            self.set_search_path_locked(
+                search_path
+                    .split(',')
+                    .map(|name| name.trim().to_owned())
+                    .collect(),
+            );
+            Ok(())
+        })
+    }
+
     pub(crate) fn with_session_objects<T>(
         &self,
         operation: impl FnOnce(&mut SessionObjects) -> T,
@@ -182,36 +283,67 @@ impl CassieSession {
     }
 
     /// Registers a named protocol-level statement in the shared namespace.
-    pub(crate) fn register_wire_prepared(&self, name: &str, id: u64, query: &str) {
+    pub(crate) fn register_wire_prepared(
+        &self,
+        name: &str,
+        id: u64,
+        query: &str,
+    ) -> Result<(), CassieError> {
         if name.is_empty() {
-            return;
+            return Ok(());
         }
-        self.session_objects.lock().prepared.insert(
-            name.to_string(),
-            SessionPrepared {
-                statement_text: query.to_string(),
-                body_sql: query.to_string(),
-                parameter_types: vec![
-                    String::new();
-                    crate::sql::parser::max_positional_parameter(query)
-                ],
-                result_types: Vec::new(),
-                wire_id: Some(id),
-                prepare_time: crate::types::extended::temporal::session::current_timestamp(),
-            },
-        );
+        let prepared = SessionPrepared {
+            statement_text: query.to_string(),
+            body_sql: query.to_string(),
+            parameter_types: vec![
+                String::new();
+                crate::sql::parser::max_positional_parameter(query)
+            ],
+            result_types: Vec::new(),
+            wire_id: Some(id),
+            prepare_time: crate::types::extended::temporal::session::current_timestamp(),
+        };
+        if self.operation_failure_authority.is_none() && self.owns_transaction_lifecycle {
+            self.session_objects
+                .lock()
+                .prepared
+                .insert(name.to_owned(), prepared);
+            return Ok(());
+        }
+        self.with_owned_shared_session_state(|_, _| {
+            let mut objects = self.session_objects.lock();
+            if objects.prepared(name).is_some() {
+                return Err(crate::app::SessionObjectError::duplicate_prepared(name).into());
+            }
+            if objects.prepared_count() >= MAX_PREPARED_PER_SESSION {
+                return Err(CassieError::ResourceLimit(
+                    "prepared statement limit exceeded".to_owned(),
+                ));
+            }
+            objects.insert_prepared(name.to_owned(), prepared);
+            Ok(())
+        })
     }
 
     /// Forgets a protocol-level statement its connection closed.
-    pub(crate) fn forget_wire_prepared(&self, name: &str, id: u64) {
-        let mut objects = self.session_objects.lock();
-        if objects
-            .prepared
-            .get(name)
-            .is_some_and(|prepared| prepared.wire_id == Some(id))
-        {
-            objects.prepared.remove(name);
+    pub(crate) fn forget_wire_prepared(&self, name: &str, id: u64) -> Result<(), CassieError> {
+        let forget = |objects: &mut SessionObjects| {
+            if objects
+                .prepared
+                .get(name)
+                .is_some_and(|prepared| prepared.wire_id == Some(id))
+            {
+                objects.prepared.remove(name);
+            }
+        };
+        if self.operation_failure_authority.is_none() && self.owns_transaction_lifecycle {
+            forget(&mut self.session_objects.lock());
+            return Ok(());
         }
+        self.with_owned_shared_session_state(|_, _| {
+            forget(&mut self.session_objects.lock());
+            Ok(())
+        })
     }
 
     pub(super) fn end_transaction_objects(&self, committed: bool) {

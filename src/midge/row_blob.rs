@@ -4,12 +4,17 @@ use crate::app::CassieError;
 use crate::types::{ArrayDimension, DataType, FieldSchema, Schema, SqlArray, Value};
 use uuid::Uuid;
 
+mod compact;
 mod composite;
 mod domain;
 mod encoding;
 mod enum_value;
 
+use self::compact::{decode_directory_value, expected_type_tag};
 use self::encoding::encode_value;
+pub(crate) use compact::{
+    decode_compact_field_value, encode_compact_sql_null, encode_compact_value,
+};
 
 const MAGIC: &[u8; 4] = b"CRB1";
 const FORMAT_VERSION: u8 = 1;
@@ -34,54 +39,6 @@ const TYPE_COMPOSITE: u8 = 0x0F;
 const TYPE_DOMAIN: u8 = 0x10;
 /// A named enum value: version, type OID and immutable member id.
 const TYPE_ENUM: u8 = 0x11;
-
-pub(crate) fn encode_compact_value(
-    data_type: &DataType,
-    value: &serde_json::Value,
-) -> Result<Vec<u8>, CassieError> {
-    let (type_tag, payload) = encode_value(data_type, value)?;
-    let mut out = Vec::with_capacity(payload.len().saturating_add(1));
-    out.push(type_tag);
-    out.extend_from_slice(&payload);
-    Ok(out)
-}
-
-/// Decodes one stored field value against its declared type.
-///
-/// SQL NULL is tagged `TYPE_NULL`; for JSON columns it decodes to `None`, since
-/// JSON `null` has its own tag. Any other tag must be the one the declared type
-/// writes, so a flipped tag byte cannot decode as a plausible wrong-type value.
-pub(crate) fn decode_compact_field_value(
-    data_type: &DataType,
-    bytes: &[u8],
-) -> Result<Option<serde_json::Value>, CassieError> {
-    let (&type_tag, payload) = bytes
-        .split_first()
-        .ok_or_else(|| CassieError::Parse("empty compact value".to_string()))?;
-    if type_tag == TYPE_NULL {
-        if matches!(data_type, DataType::Json | DataType::Jsonb) {
-            return Ok(None);
-        }
-        return decode_directory_value(type_tag, payload).map(Some);
-    }
-    let expected = expected_type_tag(data_type);
-    if type_tag != expected {
-        return Err(CassieError::Parse(format!(
-            "stored type tag {type_tag} but the declared type uses type tag {expected}"
-        )));
-    }
-    let decoded = decode_directory_value(type_tag, payload)?;
-    if let DataType::Composite(descriptor) = data_type {
-        composite::check_stored(descriptor, &decoded)?;
-    }
-    enum_value::check_column(data_type, &decoded)?;
-    Ok(Some(decoded))
-}
-
-/// The compact encoding of an explicit SQL NULL, valid for every column type.
-pub(crate) fn encode_compact_sql_null() -> Vec<u8> {
-    vec![TYPE_NULL]
-}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct RowSchema {
@@ -594,72 +551,6 @@ fn field_bit(bitmap: &[u8], field_id: u32) -> bool {
             .get(byte)
             .is_some_and(|value| value & (1 << (zero_based % 8)) != 0)
     })
-}
-
-fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Value, CassieError> {
-    let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
-    let mut framed = Vec::new();
-    let input = if matches!(
-        type_tag,
-        TYPE_STRING
-            | TYPE_JSON
-            | TYPE_VECTOR_F32
-            | TYPE_DATE
-            | TYPE_TIME
-            | TYPE_TIMESTAMP
-            | TYPE_BYTEA
-            | TYPE_EXTENDED
-            | TYPE_COMPOSITE
-            | TYPE_DOMAIN
-            | TYPE_ENUM
-    ) {
-        write_varint(u64::try_from(bytes.len()).unwrap_or(u64::MAX), &mut framed);
-        framed.extend_from_slice(bytes);
-        framed.as_slice()
-    } else {
-        bytes
-    };
-    // `decode_array` already checks that its nested elements consume
-    // exactly their framed length; apply the same rule at the top level, so
-    // a field whose payload decodes a shorter prefix is rejected instead of
-    // silently dropping the remainder.
-    let mut cursor = Cursor::new(input);
-    let value = decode_value(type_tag, &mut cursor, controls.as_ref())?;
-    if !cursor.remaining().is_empty() {
-        return Err(CassieError::Parse(
-            "row blob field payload has unconsumed bytes".to_string(),
-        ));
-    }
-    Ok(value)
-}
-
-/// The one type tag `encode_value` writes for a declared field type. Kept
-/// beside the decoder so a new `DataType` cannot be added without deciding
-/// what its stored tag is.
-fn expected_type_tag(data_type: &DataType) -> u8 {
-    match data_type {
-        DataType::Null => TYPE_NULL,
-        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::ObjectId(_) => TYPE_I64,
-        DataType::Float => TYPE_F64,
-        DataType::Boolean => TYPE_BOOL,
-        DataType::Name
-        | DataType::Text
-        | DataType::Char { .. }
-        | DataType::Varchar { .. }
-        | DataType::JsonPath => TYPE_STRING,
-        DataType::Uuid => TYPE_UUID,
-        DataType::Date => TYPE_DATE,
-        DataType::Time => TYPE_TIME,
-        DataType::Timestamp => TYPE_TIMESTAMP,
-        DataType::Bytea => TYPE_BYTEA,
-        DataType::Array(_) => TYPE_ARRAY,
-        DataType::Json | DataType::Jsonb => TYPE_JSON,
-        DataType::Vector(_) => TYPE_VECTOR_F32,
-        DataType::Extended(_) => TYPE_EXTENDED,
-        DataType::Composite(_) => TYPE_COMPOSITE,
-        DataType::Domain(_) => TYPE_DOMAIN,
-        DataType::Enum(_) => TYPE_ENUM,
-    }
 }
 
 fn value_matches_filter(value: &serde_json::Value, filter_value: &serde_json::Value) -> bool {

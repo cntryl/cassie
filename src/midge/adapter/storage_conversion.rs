@@ -15,20 +15,56 @@ use std::collections::HashSet;
 mod tests;
 
 fn collect_conversion_scan(
-    scan: cntryl_midge::ScanIterator<'_>,
-    _charge: RewriteCharge<'_>,
+    mut scan: cntryl_midge::ScanIterator<'_>,
+    charge: RewriteCharge<'_>,
 ) -> Result<Vec<super::RawStorageEntry>, CassieError> {
-    #[cfg(test)]
-    {
-        tests::collect_observed_scan(scan)
-    }
-    #[cfg(not(test))]
-    {
-        super::collect_scan(scan)
+    let mut entries = Vec::new();
+    loop {
+        charge(0)?;
+        let Some(entry) = scan.next() else {
+            return Ok(entries);
+        };
+        let (key, value) = entry.map_err(CassieError::from)?;
+        #[cfg(test)]
+        tests::observe_yield(&key);
+        let capacity = if entries.len() == entries.capacity() {
+            entries
+                .len()
+                .checked_add(1)
+                .and_then(|length| length.max(4).checked_next_power_of_two())
+                .ok_or_else(scan_accounting_overflow)?
+        } else {
+            0
+        };
+        // Retain the whole next allocation's admission alongside earlier
+        // capacity charges, including any old/new allocation overlap.
+        let retained = capacity
+            .checked_mul(std::mem::size_of::<super::RawStorageEntry>())
+            .and_then(|bytes| bytes.checked_add(key.len()))
+            .and_then(|bytes| bytes.checked_add(value.len()))
+            .ok_or_else(scan_accounting_overflow)?;
+        charge(retained)?;
+        if capacity != 0 {
+            entries
+                .try_reserve_exact(capacity - entries.len())
+                .map_err(|error| {
+                    CassieError::ResourceLimit(format!(
+                        "unable to retain conversion source entries: {error}"
+                    ))
+                })?;
+        }
+        #[cfg(test)]
+        tests::observe_copy(&key);
+        entries.push((key.to_vec(), value.to_vec()));
     }
 }
 
-/// Budget callback: invoked with the retained byte estimate of each rewritten row.
+fn scan_accounting_overflow() -> CassieError {
+    CassieError::ResourceLimit("column conversion scan accounting overflow".to_owned())
+}
+
+/// Admission callback for retained source buffers and rewritten rows.
+/// A zero-byte charge checks interruption without adding retained state.
 pub(crate) type RewriteCharge<'a> = &'a mut dyn FnMut(usize) -> Result<(), CassieError>;
 
 /// Number of rows a conversion rewrote.
@@ -95,6 +131,7 @@ impl Midge {
             tx.rollback().map_err(CassieError::from)?;
             return Err(error);
         }
+        charge(0)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(Some(ConversionReport { rows }))
@@ -134,12 +171,14 @@ impl Midge {
             Self::row_prefix(row_schema.relation_id),
             Self::doc_prefix(collection),
         ] {
+            charge(0)?;
             let entries = collect_conversion_scan(
                 tx.scan(&Query::new().prefix(prefix.clone().into()))
                     .map_err(CassieError::from)?,
                 charge,
             )?;
             for (key, raw) in entries {
+                charge(retained_bytes(&key, &raw, key.len()))?;
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
                     continue;
                 };
@@ -149,7 +188,6 @@ impl Midge {
                 // A row key shadows a legacy document key with the same id.
                 let first = seen.insert(id.clone());
                 if first {
-                    charge(retained_bytes(&key, &raw, &id))?;
                     let payload = decode_row(row_schema, &raw)?;
                     Self::write_column_store_document_to_tx(
                         tx, collection, &id, &payload, row_schema,
@@ -172,6 +210,7 @@ impl Midge {
         self.validate_column_store_field_markers(tx, collection, row_schema, || charge(0))?;
         let mut highest_revision = row_schema.column_revision_floor;
         let live_prefix = Self::column_store_row_prefix(row_schema.relation_id);
+        charge(0)?;
         let live = collect_conversion_scan(
             tx.scan(&Query::new().prefix(live_prefix.clone().into()))
                 .map_err(CassieError::from)?,
@@ -179,10 +218,10 @@ impl Midge {
         )?;
         let mut converted = 0usize;
         for (key, raw) in live {
+            charge(retained_bytes(&key, &raw, key.len()))?;
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&key, &live_prefix) else {
                 continue;
             };
-            charge(retained_bytes(&key, &raw, &id))?;
             highest_revision = highest_revision.max(decode_marker_parts(collection, &id, &raw)?.1);
             // The marker contains no payload. Reserve the compact fields before
             // decoding them into retained JSON and the target row blob.
@@ -222,6 +261,7 @@ impl Midge {
         // Remove every column-family key (live markers, fields, tombstones) so
         // the row table has no residue in the column layout.
         let family_prefix = Self::column_store_collection_prefix(row_schema.relation_id);
+        charge(0)?;
         let residue = collect_conversion_scan(
             tx.scan(&Query::new().prefix(family_prefix.into()))
                 .map_err(CassieError::from)?,
@@ -229,6 +269,7 @@ impl Midge {
         )?;
         let deleted_prefix = Self::column_store_deleted_prefix(row_schema.relation_id);
         for (key, raw) in residue {
+            charge(0)?;
             if key.starts_with(&deleted_prefix) {
                 highest_revision = highest_revision.max(decode_deleted_marker(&raw));
             }
@@ -240,9 +281,9 @@ impl Midge {
 }
 
 /// Conservative retained-memory estimate for one decoded and re-encoded row.
-fn retained_bytes(key: &[u8], raw: &[u8], id: &str) -> usize {
+fn retained_bytes(key: &[u8], raw: &[u8], id_bytes: usize) -> usize {
     key.len()
         .saturating_add(raw.len().saturating_mul(4))
-        .saturating_add(id.len())
+        .saturating_add(id_bytes)
         .saturating_add(256)
 }

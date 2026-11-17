@@ -145,6 +145,12 @@ relation and row id, when:
 - a field key exists for a row with no live marker;
 - a value fails to decode or does not match the field's declared type.
 
+Compact-field validation consumes the complete stored payload, including an
+empty payload for SQL NULL. The shared integer tag does not erase the declared
+SMALLINT, INT or OID range, and an extended value's stored type OID must match
+the field's declared type OID. These checks preserve the existing field format
+and matching-OID representation rules.
+
 Validation follows the accessed source: point and index reads validate their
 requested/candidate rows; projected reads decode their fetched fields. Full-table
 traversal and authority conversion validate field-to-marker ownership across the
@@ -205,6 +211,11 @@ conditions.
   transaction and rolls back with it.
 - The rewrite is bounded by Midge's transaction memory and spill limits. If
   they are exceeded the statement fails with `54000` and nothing changes.
+- Cassie's query budget also admits source key/value copies and retained scan
+  capacity before allocation, alongside rewritten values. Conversion checks
+  interruption before opening and advancing source scans, during old-layout
+  cleanup and before commit; an admission or interruption failure publishes
+  no authority change.
 - A crash before commit leaves the previous mode intact; WAL replay never
   applies a partial commit.
 

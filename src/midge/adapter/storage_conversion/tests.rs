@@ -77,28 +77,6 @@ fn scan_counts() -> ScanCounts {
     SCAN_OBSERVATION.with(|slot| slot.borrow().as_ref().expect("owned observer").counts)
 }
 
-// Preserve the original eager native collection and subsequent owned copies.
-// Observation is private to unit tests and does not change production scans.
-pub(super) fn collect_observed_scan(
-    scan: cntryl_midge::ScanIterator<'_>,
-) -> Result<Vec<RawStorageEntry>, CassieError> {
-    let entries = scan
-        .inspect(|entry| {
-            if let Ok((key, _)) = entry {
-                observe_yield(key);
-            }
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(CassieError::from)?;
-    Ok(entries
-        .into_iter()
-        .map(|(key, value)| {
-            observe_copy(&key);
-            (key.to_vec(), value.to_vec())
-        })
-        .collect())
-}
-
 struct Fixture {
     midge: Midge,
     relation_id: u64,

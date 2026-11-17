@@ -317,8 +317,16 @@ fn should_reject_an_extended_field_encoded_with_another_declared_type_oid() {
 
     // Assert
     assert_eq!(valid_bytes[..5], [0x0e, 0, 0, 0x06, 0xa4]);
-    assert!(valid_point.expect("valid declared value").is_some());
+    let valid_point = valid_point
+        .expect("valid declared value")
+        .expect("NUMERIC row");
+    assert_eq!(valid_point.payload["name"].as_str(), Some("12.50"));
     assert_eq!(valid_scan.len(), 1);
+    let cassie::types::Value::Typed(valid_numeric) = &valid_scan[0][0] else {
+        panic!("declared NUMERIC keeps its native value carrier");
+    };
+    assert_eq!(valid_numeric.wire_type_oid(), 1700);
+    assert_eq!(valid_numeric.text(), "12.50");
     assert_corruption(&point.expect_err("declared OID is checked"), "row-a");
     assert_corruption(&scan.expect_err("projection checks declared OID"), "row-a");
     assert_eq!(verifier.len(), 1, "{verifier:?}");

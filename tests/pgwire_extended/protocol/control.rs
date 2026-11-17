@@ -105,14 +105,11 @@ async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
         .await
         .expect("bind listener");
     let addr = listener.local_addr().expect("listener address");
-    drop(listener);
-
-    let server = tokio::spawn(cassie::pgwire::server::run(
-        addr.to_string(),
+    let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener,
         std::sync::Arc::new(cassie.clone()),
         config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     (addr, server)
 }
 
@@ -270,14 +267,11 @@ fn should_close_connection_on_cancel_request_without_response() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             std::sync::Arc::new(cassie.clone()),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
 
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
@@ -333,14 +327,11 @@ fn should_silently_drop_copy_data_message_outside_copy_mode() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             std::sync::Arc::new(cassie.clone()),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
 
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
@@ -440,14 +431,11 @@ fn should_return_unsupported_error_for_copy_statement() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             std::sync::Arc::new(cassie.clone()),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
 
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await

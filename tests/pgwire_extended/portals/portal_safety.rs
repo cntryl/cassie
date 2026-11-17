@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
@@ -68,13 +67,11 @@ async fn spawn_server(
         .await
         .expect("bind listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
-    let server = tokio::spawn(cassie::pgwire::server::run(
-        address.to_string(),
+    let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener,
         Arc::new(cassie),
         config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     (address, server)
 }
 

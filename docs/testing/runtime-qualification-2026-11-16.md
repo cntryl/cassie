@@ -50,14 +50,30 @@ target timings and current hosted workflow are in
 Raw local receipts are under ignored
 `target/assembly-line/runtime-qualification/profile-{baseline,warm}.log`.
 
+### Selected bounded fixture improvement
+
+The ten startup helpers in `tests/pgwire_extended/{subqueries,types/json,
+simple_query,protocol,prepared_statements,portals}` that bind an ephemeral
+listener, drop it, ask `server::run` to bind again, and sleep 50 ms will instead
+transfer that same bound listener to `server::run_with_listener`. The bound
+socket already admits connections; the operating system queues them until the
+server task accepts. This removes the port-rebinding race and the fixed startup
+delay while retaining a fresh database, real authentication, framing assertions,
+runtime settings, cancellation and resource limits. The existing behavioral
+tests remain the regressions; intentional post-cancellation waits stay intact.
+
+This scope was selected with source-backed Jev review (probability 0.95).
+Removing a configured sleep is a source fact, not measured end-to-end headroom.
+The assembler must record the named target timings and complete ordered gates
+on the integrated source before reporting an observed runtime improvement.
+
 Source review confirms `write_frames` already coalesces ordinary cycles and
 `authenticate_principal_inner` prepares real password hashes and verifies the
 supplied credential. The measured authentication stage is material, but these
 samples do not isolate hashing, query execution, background storage or
 transport delay. Sharing databases, skipping authentication or changing
-transport lacks isolation/speedup evidence. No fixture optimization is selected.
-Next action: profile inside the material setup/authentication/query stages and
-compare a narrowly scoped candidate with unchanged assertions and isolation.
+transport lacks isolation/speedup evidence. The selected listener transfer
+does not attribute these measured stages to any particular implementation.
 
 Jev selected the finite profiler/documentation scope with probability 1.0;
 the probability that these measurements establish a safe material improvement

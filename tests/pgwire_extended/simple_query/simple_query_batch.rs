@@ -1,7 +1,6 @@
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use std::net::SocketAddr;
-use std::time::Duration;
 
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 type WireFrame = (u8, Vec<u8>);
@@ -77,13 +76,11 @@ async fn spawn_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
         .await
         .expect("bind listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
-    let server = tokio::spawn(cassie::pgwire::server::run(
-        address.to_string(),
+    let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener,
         std::sync::Arc::new(cassie.clone()),
         config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     (address, server)
 }
 

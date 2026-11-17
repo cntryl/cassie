@@ -26,6 +26,7 @@ pub(super) async fn handle_execute(
         .ok_or_else(|| missing_portal_error(&portal_name))?;
 
     if let Some(suspended) = suspended.filter(|_| !quarantined) {
+        super::super::transactions::capture_protocol_owner(session).await;
         return resume_suspended_portal(
             cassie,
             write_half,
@@ -41,6 +42,7 @@ pub(super) async fn handle_execute(
         .await;
     }
     if let Some(command) = portal.completed_command.as_deref().filter(|_| !quarantined) {
+        super::super::transactions::capture_protocol_owner(session).await;
         return write_completed_portal(write_half, command, &state.portal_memory_controls).await;
     }
 
@@ -50,6 +52,7 @@ pub(super) async fn handle_execute(
         if session.transaction_catalog_overlay().is_some()
             || descriptor.catalog_version() != catalog_version
         {
+            super::super::transactions::capture_protocol_owner(session).await;
             let columns =
                 describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
             validate_prepared_result_types(Some(&descriptor), &columns)?;
@@ -57,6 +60,7 @@ pub(super) async fn handle_execute(
         }
     }
     let Some(parsed) = prepared.parsed.clone() else {
+        super::super::transactions::capture_protocol_owner(session).await;
         return write_empty_query_response(write_half)
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error));

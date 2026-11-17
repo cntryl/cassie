@@ -9,6 +9,12 @@ use super::{
 use crate::sql::ast::CopyStatement;
 use std::collections::HashMap;
 
+#[path = "copy/diagnostics.rs"]
+mod diagnostics;
+#[cfg(test)]
+use diagnostics::copy_jsonb_diagnostic_fits;
+use diagnostics::{write_copy_jsonb_diagnostic_with_length, write_copy_unknown_column_with_length};
+
 #[path = "copy/binding.rs"]
 mod binding;
 #[path = "copy/execute.rs"]
@@ -39,6 +45,9 @@ mod binding_authority_accounting_tests;
 #[cfg(test)]
 #[path = "copy/origin_failure_authority_tests.rs"]
 mod origin_failure_authority_tests;
+#[cfg(test)]
+#[path = "copy/outer_failure_tests.rs"]
+mod outer_failure_tests;
 
 #[cfg(test)]
 #[path = "copy/cancellation_tests.rs"]
@@ -79,9 +88,14 @@ pub(super) async fn handle_simple_copy_candidate(
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
+    let operation_session = session.with_new_wire_operation();
+    let session = &operation_session;
     let streaming = super::simple_query::is_streaming_copy(sql);
+    if streaming {
+        super::transactions::capture_protocol_owner(session).await;
+    }
     if streaming && cassie.ensure_session_database_access(session).is_err() {
-        super::transactions::fail_query(runtime, state, session);
+        super::transactions::fail_owned_query(runtime, state, session).await;
         return write_copy_error(
             write_half,
             session,
@@ -243,7 +257,7 @@ fn bind_copy_from_stdin(
     let binding_sql = request
         .table_binding_sql()
         .ok_or_else(|| CassieError::Parse("COPY FROM STDIN requires a table target".to_string()))?;
-    let authority = crate::app::FailureAuthority::capture(session);
+    let authority = crate::app::FailureAuthority::capture_for_operation(session);
     let parsed = cassie.parse_statement_for_session(Some(session), &binding_sql)?;
     session.authorize_statement(&parsed.statement)?;
     cassie.authorize_role_object_access(session, &parsed.statement)?;
@@ -295,6 +309,7 @@ fn bind_copy_from_stdin(
         ));
     }
     validation::validate_force_columns(&scoped, &request, &statement)?;
+    authority.reserve_shared_owner(&controls)?;
     let binding_bytes = binding::charged_bytes(owner.is_some())?;
     #[cfg(test)]
     let mut observed = binding_accounting_test_hooks::before_admission(
@@ -549,7 +564,7 @@ async fn write_copy_error(
     session: &CassieSession,
     error: &PgWireError,
 ) -> SimpleCopyOutcome {
-    fail_copy_transaction(session);
+    fail_copy_transaction(session).await;
     if write_error_response(write_half, error).await.is_err()
         || write_ready_for_query(write_half, session).await.is_err()
     {
@@ -559,12 +574,8 @@ async fn write_copy_error(
     }
 }
 
-fn fail_copy_transaction(session: &CassieSession) {
-    if session.is_implicit_transaction() {
-        session.rollback_transaction();
-    } else {
-        session.mark_transaction_failed();
-    }
+async fn fail_copy_transaction(session: &CassieSession) {
+    super::transactions::fail_owned_transaction(session).await;
 }
 
 async fn handle_database_backup(
@@ -887,7 +898,7 @@ async fn finish_simple_copy(
     let cassie = Arc::clone(&binding.cassie);
     let controls_for_error = binding.controls.clone();
     let result = super::blocking::run_pgwire_blocking_with_error(
-        cassie,
+        Arc::clone(&cassie),
         "pgwire_copy_from_stdin",
         move |cassie| {
             let _controls =
@@ -904,6 +915,8 @@ async fn finish_simple_copy(
         },
     )
     .await;
+    #[cfg(test)]
+    super::wire_failure_test_hooks::after_worker(&cassie, &session);
     match result {
         Ok(completion) => {
             for notice in &completion.notices {
@@ -943,55 +956,4 @@ async fn finish_simple_copy(
             handled
         }
     }
-}
-
-async fn write_copy_jsonb_diagnostic_with_length(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    session: &CassieSession,
-    message: &str,
-    message_len: usize,
-    controls: &crate::runtime::QueryExecutionControls,
-) -> bool {
-    if !copy_jsonb_diagnostic_fits(message_len) {
-        fail_copy_transaction(session);
-        return false;
-    }
-    let error =
-        match PgWireError::controlled_diagnostic(PgWireSeverity::Error, "42601", message, controls)
-        {
-            Ok(error) => error,
-            Err(error) => cassie_pg_error(&error),
-        };
-    matches!(
-        write_copy_error(write_half, session, &error).await,
-        SimpleCopyOutcome::Handled
-    )
-}
-
-fn copy_jsonb_diagnostic_fits(message_len: usize) -> bool {
-    // 4-byte length, final terminator, and S/C/M tags with their terminators.
-    message_len
-        .checked_add(21)
-        .is_some_and(|length| length <= super::writers::MAX_BACKEND_FRAME_BYTES)
-}
-
-async fn write_copy_unknown_column_with_length(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    session: &CassieSession,
-    name: &str,
-    name_len: usize,
-    controls: &crate::runtime::QueryExecutionControls,
-) -> bool {
-    if !PgWireError::copy_undefined_column_fits(name_len) {
-        fail_copy_transaction(session);
-        return false;
-    }
-    let error = match PgWireError::copy_undefined_column(name, controls) {
-        Ok(error) => error,
-        Err(error) => cassie_pg_error(&error),
-    };
-    matches!(
-        write_copy_error(write_half, session, &error).await,
-        SimpleCopyOutcome::Handled
-    )
 }

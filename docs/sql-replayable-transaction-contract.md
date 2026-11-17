@@ -455,3 +455,26 @@ detached fork does not acquire that exception merely by using the same thread.
 There is no wait or root lock held across storage work. A failed native sequence
 attempt may conservatively leave strictness sticky. This is not cancellation
 of an already admitted native update or a bound on its completion time.
+
+### Outer wire failure ownership
+
+Each simple statement, extended message and streamed COPY has an execution-only
+session clone with its own deferred failure authority. Capturing the authority
+after the existing worker admission shares it with the outer output/error path;
+own BEGIN and savepoint adoption update that same owner. A rejection before
+admission returns the existing admission error promptly without changing a
+transaction. This is an intentional narrow behavior change: an operation that
+never acquired authority cannot fail or roll back a block. Jev selected this
+contract at probability 1.0, rather than blocking on transaction capture ahead
+of an already exhausted worker limit.
+
+Protocol errors that occur outside query admission obtain contemporaneous
+authority in a blocking worker before performing cleanup. Completion never
+recaptures a new owner after an admitted operation failed. Matching explicit
+errors mark Failed; matching implicit errors retire only their own transaction
+under the root mutex. Portal cleanup requires the same root generation to be
+idle under that mutex. On mutex contention the async wire path retains its
+bounded portals for a later cleanup/connection close instead of blocking the
+reactor or clearing another generation's state. Quarantine terminal cleanup is
+also owner-checked; a later error converter with no authority performs no
+transaction mutation. No root-session mutable current-command slot is added.

@@ -61,7 +61,10 @@ impl Cassie {
             statement.action,
             TransactionAction::Commit | TransactionAction::Rollback
         ) {
-            session.rollback_transaction();
+            let authority = super::FailureAuthority::capture_for_operation(session);
+            if !authority.rollback_if_current(session) {
+                return Err(error);
+            }
             if matches!(statement.action, TransactionAction::Rollback) && !statement.chain {
                 let mut result = QueryResult::try_builder(controls)?;
                 result.try_set_command("ROLLBACK")?;

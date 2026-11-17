@@ -48,7 +48,7 @@ pub(super) fn admit_statement(
         && super::super::transactions::eligible(parsed, catalog)
     {
         session
-            .begin_implicit_transaction()
+            .begin_implicit_transaction_for_operation(session.operation_failure_authority())
             .map_err(|error| ExtendedQueryError::cassie(&error))?;
     }
     Ok(standalone)
@@ -74,11 +74,7 @@ impl TransactionOwner {
         runtime: &RuntimeState,
         session: &CassieSession,
     ) {
-        if self.active
-            && (self.generation != session.transaction_generation()
-                || !session.is_transaction_active() && !session.is_transaction_failed())
-        {
-            state.clear_all_portals(runtime);
-        }
+        let _ = (self.active, self.generation);
+        super::super::transactions::clear_owned_idle_portals(runtime, state, session);
     }
 }

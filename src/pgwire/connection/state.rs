@@ -90,6 +90,7 @@ pub(super) struct SessionState {
     pub(super) prepared_wire_epoch: u64,
     pub(super) backend_registration: Option<crate::runtime::PgwireBackendRegistration>,
     pub(super) invalidate_portals_on_sync: bool,
+    pub(super) portal_invalidation_owner: Option<crate::app::FailureAuthority>,
     pub(super) extended_cycle: super::transactions::ExtendedCycle,
 }
 
@@ -118,6 +119,7 @@ impl SessionState {
             prepared_wire_epoch: 0,
             backend_registration: None,
             invalidate_portals_on_sync: false,
+            portal_invalidation_owner: None,
             extended_cycle: super::transactions::ExtendedCycle::default(),
         }
     }

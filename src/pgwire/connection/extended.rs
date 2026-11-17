@@ -80,86 +80,11 @@ use text_parameters::{decode_text_parameter, DecodedTextParameter};
 const OID_UNKNOWN: i32 = 705;
 const MAX_PORTALS_PER_CONNECTION: usize = 1_024;
 
-pub(super) async fn handle_frontend_message(
-    cassie: Arc<Cassie>,
-    runtime: &RuntimeState,
-    reader: &mut PgwireReader,
-    write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
-    awaiting_sync: &mut bool,
-    session: &CassieSession,
-) -> ConnectionStep {
-    let message = match read_frontend_message(reader).await {
-        Ok(message) => message,
-        Err(HandshakeError::Closed) => return ConnectionStep::Break,
-        Err(HandshakeError::Invalid(error)) => {
-            runtime.record_pgwire_protocol_error();
-            super::transactions::fail_query(runtime, state, session);
-            let _ = write_error_response(
-                write_half,
-                &PgWireError::protocol(format!("invalid frontend message: {error}")),
-            )
-            .await;
-            *awaiting_sync = true;
-            return ConnectionStep::Continue(HandshakeState::Ready);
-        }
-    };
+#[path = "extended/frontend.rs"]
+mod frontend;
+pub(super) use frontend::handle_frontend_message;
 
-    let invalidate_portals_on_error = matches!(
-        &message,
-        FrontendMessage::Parse { query, .. }
-            if query
-                .trim_start()
-                .get(..5)
-                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("copy "))
-    );
-    match dispatch_message(
-        Arc::clone(&cassie),
-        runtime,
-        write_half,
-        state,
-        session,
-        message,
-    )
-    .await
-    {
-        Ok(DispatchOutcome::Continue) => ConnectionStep::Continue(HandshakeState::Ready),
-        Ok(DispatchOutcome::Break) => ConnectionStep::Break,
-        Err(error) => {
-            if error.record_protocol_error {
-                runtime.record_pgwire_protocol_error();
-            }
-            if session.is_implicit_transaction() {
-                session.rollback_transaction();
-                state.clear_all_portals(runtime);
-            } else {
-                session.mark_transaction_failed();
-            }
-            if cassie.check_storage_recovery_required().is_err() {
-                super::transactions::clear_idle_portals(runtime, state, session);
-            }
-            if super::writers::write_changed_parameter_statuses(
-                write_half,
-                session,
-                &mut state.parameter_statuses,
-            )
-            .await
-            .is_err()
-            {
-                return ConnectionStep::Break;
-            }
-            let _ = write_error_response(write_half, error.pg_error.as_ref()).await;
-            state.invalidate_portals_on_sync |= invalidate_portals_on_error;
-            *awaiting_sync = true;
-            ConnectionStep::Continue(HandshakeState::Ready)
-        }
-    }
-}
-
-enum DispatchOutcome {
-    Continue,
-    Break,
-}
+use frontend::DispatchOutcome;
 
 async fn dispatch_message(
     cassie: Arc<Cassie>,
@@ -237,14 +162,14 @@ async fn dispatch_message(
                     })
                     .await;
                 if let Err(error) = committed {
-                    session.rollback_transaction();
+                    super::transactions::fail_owned_transaction(session).await;
                     write_error_response(write_half, &super::errors::cassie_pg_error(&error))
                         .await
                         .map_err(|error| ExtendedQueryError::write_failed(&error))?;
                 }
-                state.clear_all_portals(runtime);
+                super::transactions::clear_owned_idle_portals(runtime, state, session);
             }
-            super::transactions::clear_idle_portals(runtime, state, session);
+            super::transactions::clear_owned_idle_portals(runtime, state, session);
             state.extended_cycle = super::transactions::ExtendedCycle::default();
             let _ = write_ready_for_query(write_half, session).await;
         }
@@ -494,6 +419,7 @@ async fn execute_prepared_portal(
     } = request;
     let notice = super::simple_execution::missing_relation_notice(&cassie, session, &parsed);
     let execution_session = session.clone();
+    session.note_operation_worker_started();
     let sql = prepared.query.clone();
     let params = portal.params.clone();
     let parameter_type_oids = prepared.parameter_types.clone();
@@ -533,7 +459,7 @@ async fn execute_prepared_portal(
         )
         .await
         {
-            session.rollback_transaction();
+            super::transactions::fail_owned_transaction(session).await;
             return Err(ExtendedQueryError::cassie(&error));
         }
     }

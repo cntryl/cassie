@@ -40,7 +40,36 @@ fn expected_charge(active: bool) -> usize {
         0
     };
     binding.checked_sub(owner).expect("binding contains owner")
-        + crate::app::FailureAuthority::shared_owner_bytes()
+}
+
+#[test]
+fn should_retain_shared_copy_owner_memory_until_the_outer_operation_retires() {
+    for active in [false, true] {
+        // Arrange
+        let (cassie, session, request) = fixture(active);
+        let operation = session.with_new_wire_operation();
+        let BoundCopyRequest::From(_, _, binding) =
+            bind_copy_from_stdin(&cassie, &operation, request, None).unwrap()
+        else {
+            panic!("COPY FROM binding");
+        };
+        let controls = binding.controls.clone();
+        assert!(binding
+            .authority
+            .shared_owner_reservation_matches_for_test(&controls));
+
+        // Act
+        drop(binding);
+        let while_outer_lives = controls.current_query_memory_bytes();
+        drop(operation);
+        let after_retirement = controls.current_query_memory_bytes();
+
+        // Assert
+        assert_eq!(
+            while_outer_lives.checked_sub(after_retirement),
+            Some(crate::app::FailureAuthority::shared_owner_bytes())
+        );
+    }
 }
 
 #[test]

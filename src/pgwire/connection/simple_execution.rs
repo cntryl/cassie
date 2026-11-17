@@ -17,7 +17,7 @@ pub(super) async fn run_batch(
     session: &CassieSession,
     query: (Vec<String>, String),
     parsed: Vec<ParsedStatement>,
-) -> Result<(), ()> {
+) -> Result<CassieSession, ()> {
     let (statements, frontend_sql) = query;
     let frontend_sql: Arc<str> = frontend_sql.into();
     if statements.is_empty() {
@@ -25,14 +25,19 @@ pub(super) async fn run_batch(
             .await
             .map_err(|_| ())?;
     }
+    let mut operation = session.with_new_wire_operation();
     for (statement, parsed) in statements.into_iter().zip(parsed) {
+        operation = session.with_new_wire_operation();
+        let session = &operation;
         let notice = missing_relation_notice(&cassie, session, &parsed)
             .or_else(|| cassie.enum_add_value_skip_notice(session, &parsed));
         if !session.is_transaction_active()
             && !session.is_transaction_failed()
             && transactions::eligible(&parsed, &cassie.catalog)
         {
-            if let Err(error) = session.begin_implicit_transaction() {
+            if let Err(error) = session
+                .begin_implicit_transaction_for_operation(session.operation_failure_authority())
+            {
                 let _ = write_error_response(write_half, &cassie_pg_error(&error)).await;
                 break;
             }
@@ -48,11 +53,11 @@ pub(super) async fn run_batch(
         )
         .await?
         {
-            transactions::fail_query(runtime, state, session);
+            transactions::fail_owned_query(runtime, state, session).await;
             break;
         }
     }
-    Ok(())
+    Ok(operation)
 }
 
 pub(super) fn missing_relation_notice(

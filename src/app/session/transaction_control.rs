@@ -421,8 +421,30 @@ impl CassieSession {
     /// and declared projection write mode cannot change through a statement
     /// fork or a new declaration. The seal is released when the returned guard
     /// drops, which matters only if COMMIT fails and leaves the transaction open.
+    #[cfg(test)]
     pub(crate) fn seal_transaction_for_commit(&self) -> CommitSeal<'_> {
-        let mut transaction = self.transaction.lock();
+        self.seal_transaction_locked(self.transaction.lock())
+    }
+
+    pub(crate) fn seal_transaction_for_operation(&self) -> Result<CommitSeal<'_>, CassieError> {
+        let transaction = self.transaction.lock();
+        if let Some(authority) = self.operation_failure_authority.as_ref() {
+            let owner = authority.owner.lock();
+            if !authority.matches_root(self)
+                || !owner.captured
+                || owner.admission_rejected
+                || owner.identity != Some((transaction.unique_owner_id, transaction.rollback_epoch))
+            {
+                return Err(super::sequence_effect::changed());
+            }
+        }
+        Ok(self.seal_transaction_locked(transaction))
+    }
+
+    fn seal_transaction_locked(
+        &self,
+        mut transaction: parking_lot::MutexGuard<'_, super::SessionTransactionState>,
+    ) -> CommitSeal<'_> {
         let sealed = transaction.status == SessionTransactionStatus::InTransaction
             && !transaction.sealed_for_commit;
         if sealed {
@@ -468,7 +490,13 @@ impl CassieSession {
     }
 
     pub(crate) fn rollback_transaction(&self) {
-        let mut transaction = self.transaction.lock();
+        self.rollback_transaction_locked(self.transaction.lock());
+    }
+
+    pub(super) fn rollback_transaction_locked(
+        &self,
+        mut transaction: parking_lot::MutexGuard<'_, super::SessionTransactionState>,
+    ) {
         if !transaction.may_be_failed_by_current_thread() {
             // A COMMIT on another thread owns the transaction and retires it
             // itself once its native outcome is known. Midge cannot cancel an

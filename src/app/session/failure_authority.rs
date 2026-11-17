@@ -7,27 +7,60 @@ use uuid::Uuid;
 /// Owned by one operation and explicitly borrowed by its nested work.
 #[derive(Debug, Clone)]
 pub(crate) struct FailureAuthority {
-    root: Weak<Mutex<SessionTransactionState>>,
-    owner: Arc<Mutex<Option<(Uuid, u64)>>>,
+    pub(super) root: Weak<Mutex<SessionTransactionState>>,
+    pub(super) owner: Arc<Mutex<OperationOwner>>,
+}
+
+#[derive(Debug, Default)]
+pub(super) struct OperationOwner {
+    pub(super) identity: Option<(Uuid, u64)>,
+    pub(super) generation: u64,
+    pub(super) captured: bool,
+    pub(super) admission_rejected: bool,
+    pub(super) worker_started: bool,
+    shared_memory: Option<crate::runtime::QueryMemoryReservation>,
 }
 
 impl FailureAuthority {
+    pub(crate) fn reserve_shared_owner(
+        &self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<(), super::CassieError> {
+        let mut owner = self.owner.lock();
+        if owner.shared_memory.is_none() {
+            owner.shared_memory = Some(controls.reserve_query_memory(Self::shared_owner_bytes())?);
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn shared_owner_reservation_matches_for_test(
+        &self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> bool {
+        self.owner
+            .lock()
+            .shared_memory
+            .as_ref()
+            .is_some_and(|memory| memory.belongs_to(controls))
+    }
+
     /// Retained shared owner payload and Arc counters, excluding allocator metadata.
     pub(crate) const fn shared_owner_bytes() -> usize {
-        std::mem::size_of::<Mutex<Option<(Uuid, u64)>>>() + 2 * std::mem::size_of::<usize>()
+        std::mem::size_of::<Mutex<OperationOwner>>() + 2 * std::mem::size_of::<usize>()
     }
 
     #[cfg(test)]
     pub(crate) fn identity_only_for_test(session: &CassieSession) -> Self {
         Self {
             root: Arc::downgrade(&session.transaction),
-            owner: Arc::new(Mutex::new(None)),
+            owner: Arc::default(),
         }
     }
 
     #[cfg(test)]
     pub(crate) fn owner_for_test(&self) -> Option<(Uuid, u64)> {
-        *self.owner.lock()
+        self.owner.lock().identity
     }
 
     #[cfg(test)]
@@ -49,7 +82,7 @@ impl FailureAuthority {
             on_contention();
             session.transaction.lock()
         };
-        let owner = match transaction.status {
+        let identity = match transaction.status {
             SessionTransactionStatus::Idle => None,
             SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed => {
                 Some((transaction.unique_owner_id, transaction.rollback_epoch))
@@ -57,11 +90,18 @@ impl FailureAuthority {
         };
         Self {
             root: Arc::downgrade(&session.transaction),
-            owner: Arc::new(Mutex::new(owner)),
+            owner: Arc::new(Mutex::new(OperationOwner {
+                identity,
+                generation: transaction.generation,
+                captured: true,
+                admission_rejected: false,
+                worker_started: false,
+                shared_memory: None,
+            })),
         }
     }
 
-    fn matches_root(&self, session: &CassieSession) -> bool {
+    pub(super) fn matches_root(&self, session: &CassieSession) -> bool {
         std::ptr::eq(self.root.as_ptr(), Arc::as_ptr(&session.transaction))
     }
 
@@ -72,7 +112,10 @@ impl FailureAuthority {
         transaction: &SessionTransactionState,
     ) {
         if self.matches_root(session) {
-            *self.owner.lock() = Some((transaction.unique_owner_id, transaction.rollback_epoch));
+            let mut owner = self.owner.lock();
+            owner.identity = Some((transaction.unique_owner_id, transaction.rollback_epoch));
+            owner.generation = transaction.generation;
+            owner.captured = true;
         }
     }
 
@@ -87,8 +130,8 @@ impl FailureAuthority {
             return false;
         }
         let mut owner = self.owner.lock();
-        if *owner == Some((transaction.unique_owner_id, previous)) {
-            *owner = Some((transaction.unique_owner_id, transaction.rollback_epoch));
+        if owner.captured && owner.identity == Some((transaction.unique_owner_id, previous)) {
+            owner.identity = Some((transaction.unique_owner_id, transaction.rollback_epoch));
             true
         } else {
             false
@@ -103,14 +146,17 @@ impl FailureAuthority {
         previous: u64,
     ) {
         if self.matches_root(session) {
-            *self.owner.lock() = Some((transaction.unique_owner_id, previous));
+            self.owner.lock().identity = Some((transaction.unique_owner_id, previous));
         }
     }
 
     pub(crate) fn mark_failed_if_current(&self, session: &CassieSession) {
         let mut transaction = session.transaction.lock();
+        let owner = self.owner.lock();
         if self.matches_root(session)
-            && *self.owner.lock() == Some((transaction.unique_owner_id, transaction.rollback_epoch))
+            && owner.captured
+            && !owner.admission_rejected
+            && owner.identity == Some((transaction.unique_owner_id, transaction.rollback_epoch))
         {
             transaction.fail_or_defer();
         }
@@ -131,9 +177,11 @@ impl FailureAuthority {
                 Some((transaction.unique_owner_id, transaction.rollback_epoch))
             }
         };
-        if *self.owner.lock() != expected {
+        let owner = self.owner.lock();
+        if !owner.captured || owner.admission_rejected || owner.identity != expected {
             return Err(super::sequence_effect::changed());
         }
+        drop(owner);
         let projection_matches = if self.matches_root(session) {
             true
         } else {

@@ -14,6 +14,9 @@ mod failure_authority;
 mod sequence_effect;
 #[cfg(test)]
 mod sequence_effect_tests;
+mod wire_failure;
+#[cfg(test)]
+mod wire_failure_tests;
 pub(crate) use failure_authority::FailureAuthority;
 mod savepoints;
 mod transaction_snapshot;

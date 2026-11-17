@@ -11,17 +11,38 @@ use crate::sql::ast::{ParsedStatement, QueryStatement, StatementFamily};
 use std::sync::Arc;
 use tokio::io::AsyncWrite;
 
-pub(super) fn fail_query(
+/// Protocol-local failures capture contemporaneously on a blocking worker.
+pub(super) async fn capture_protocol_owner(session: &CassieSession) {
+    if !session.may_capture_protocol_owner() {
+        return;
+    }
+    let session = session.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        crate::app::FailureAuthority::capture_for_operation(&session)
+    })
+    .await;
+}
+
+pub(super) async fn fail_owned_transaction(session: &CassieSession) {
+    let session = session.clone();
+    let _ = tokio::task::spawn_blocking(move || session.fail_operation_transaction()).await;
+}
+
+pub(super) async fn fail_owned_query(
     runtime: &RuntimeState,
     state: &mut SessionState,
     session: &CassieSession,
 ) {
-    if session.is_implicit_transaction() {
-        session.rollback_transaction();
-    } else {
-        session.mark_transaction_failed();
-    }
-    clear_idle_portals(runtime, state, session);
+    fail_owned_transaction(session).await;
+    clear_owned_idle_portals(runtime, state, session);
+}
+
+pub(super) fn clear_owned_idle_portals(
+    runtime: &RuntimeState,
+    state: &mut SessionState,
+    session: &CassieSession,
+) {
+    session.try_with_owned_idle_transaction(|| state.clear_all_portals(runtime));
 }
 
 pub(super) fn clear_idle_portals(
@@ -44,7 +65,7 @@ pub(super) async fn finish_query(
     state: &mut SessionState,
     session: &CassieSession,
 ) -> Result<(), std::io::Error> {
-    if session.is_implicit_transaction() {
+    if !session.operation_was_rejected() && session.is_implicit_transaction() {
         let transaction_session = session.clone();
         if let Err(error) =
             super::run_pgwire_blocking(cassie, "pgwire_implicit_commit", move |cassie| {
@@ -52,11 +73,11 @@ pub(super) async fn finish_query(
             })
             .await
         {
-            session.rollback_transaction();
+            fail_owned_transaction(session).await;
             super::write_error_response(write_half, &super::cassie_pg_error(&error)).await?;
         }
     }
-    clear_idle_portals(runtime, state, session);
+    clear_owned_idle_portals(runtime, state, session);
     super::writers::write_changed_parameter_statuses(
         write_half,
         session,

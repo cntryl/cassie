@@ -99,6 +99,7 @@ impl Cassie {
         ) -> Result<QueryResult, CassieError>,
     ) -> Result<QueryResult, CassieError> {
         let query_started = Instant::now();
+        session.note_operation_worker_started();
         let recovery_required = self.check_storage_recovery_required().is_err();
         #[cfg(test)]
         if !recovery_required {
@@ -112,9 +113,10 @@ impl Cassie {
             match self.check_storage_recovery_required() {
                 Err(_) => None,
                 Ok(()) => {
+                    session.reject_operation_admission();
                     return Err(CassieError::Execution(
                         "query admission exhausted".to_string(),
-                    ))
+                    ));
                 }
             }
         };
@@ -130,14 +132,14 @@ impl Cassie {
         }
         #[cfg(test)]
         let authority = running_guard.as_ref().map(|_| {
-            super::FailureAuthority::capture_with_contention(session, || {
+            super::FailureAuthority::capture_for_operation_with_contention(session, || {
                 authority_test_hooks::on_capture_contended(self, session, &mut controls);
             })
         });
         #[cfg(not(test))]
         let authority = running_guard
             .as_ref()
-            .map(|_| super::FailureAuthority::capture(session));
+            .map(|_| super::FailureAuthority::capture_for_operation(session));
         self.runtime.record_query_memory(&controls);
         let result = execute(&controls, authority.as_ref());
         #[cfg(test)]
@@ -153,8 +155,6 @@ impl Cassie {
                 self.runtime.record_query_error(elapsed, error);
                 if let Some(authority) = authority.as_ref() {
                     authority.mark_failed_if_current(session);
-                } else if session.is_transaction_active() {
-                    session.mark_transaction_failed();
                 }
             }
         }

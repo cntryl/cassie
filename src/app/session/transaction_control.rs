@@ -475,17 +475,35 @@ impl CassieSession {
             return self.set_projection_write_mode(Some(value));
         }
         self.with_owned_setting_transaction(|transaction| {
-            if transaction.status != SessionTransactionStatus::InTransaction {
-                return Ok(());
+            if self.owns_transaction_lifecycle {
+                self.set_local_setting_locked(transaction, name, value)
+            } else if transaction.status == SessionTransactionStatus::InTransaction {
+                // Statement forks retain private settings. Their restoration
+                // keys must stay with that same private payload, while the
+                // actual-root guard still fences the whole mutation.
+                self.set_local_setting_locked(&mut self.transaction.lock(), name, value)
+            } else {
+                Ok(())
             }
-            let name = name.to_ascii_lowercase();
-            if !transaction.local_settings.contains(&name) {
-                transaction.local_settings.push(name.clone());
-            }
-            #[cfg(test)]
-            self.observe_local_setting_write_for_test();
-            self.settings.lock().set(&name, value).map(|_| ())
         })
+    }
+
+    fn set_local_setting_locked(
+        &self,
+        transaction: &mut super::SessionTransactionState,
+        name: &str,
+        value: &str,
+    ) -> Result<(), CassieError> {
+        if transaction.status != SessionTransactionStatus::InTransaction {
+            return Ok(());
+        }
+        let name = name.to_ascii_lowercase();
+        if !transaction.local_settings.contains(&name) {
+            transaction.local_settings.push(name.clone());
+        }
+        #[cfg(test)]
+        self.observe_local_setting_write_for_test();
+        self.settings.lock().set(&name, value).map(|_| ())
     }
 
     /// The transaction status a client should be told. While a COMMIT runs on

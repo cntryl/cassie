@@ -1,4 +1,6 @@
 //! Eight closed-store read profiles; provenance/copying and attestation are untimed.
+#[path = "read_campaign/index_attestation.rs"]
+mod index_attestation;
 #[path = "read_campaign/read_oracle.rs"]
 mod read_oracle;
 #[path = "read_campaign/store_copy.rs"]
@@ -95,9 +97,30 @@ fn index_metadata(cassie: &Cassie, source: &VerifiedSource) -> Result<serde_json
         .filter(|index| index.collection.eq_ignore_ascii_case(&collection))
         .collect::<Vec<_>>();
     persisted.sort_by(|left, right| left.name.cmp(&right.name));
-    if catalog != persisted {
-        return Err("catalog/persisted index definitions disagree".into());
-    }
+    let catalog_relation = cassie
+        .catalog
+        .get_collection(&collection)
+        .map(|item| item.storage_id);
+    let native_relation = cassie
+        .midge
+        .collection_metadata(&collection)
+        .map_err(|error| error.to_string())?
+        .map(|item| item.storage_id);
+    // Keep raw definitions even when validation reports a gap.
+    println!(
+        "{}",
+        json!({"kind": "index_metadata", "mode": source.result.mode,
+        "shape": source.result.shape, "collection": collection,
+        "catalog": catalog, "persisted": persisted,
+        "catalog_collection_storage_id": catalog_relation,
+        "native_collection_storage_id": native_relation})
+    );
+    let identities = index_attestation::verify_definitions(
+        &catalog,
+        &persisted,
+        catalog_relation.unwrap_or(0),
+        native_relation.unwrap_or(0),
+    )?;
     if source.result.shape == "indexed" {
         let [index] = catalog.as_slice() else {
             return Err("indexed fixture must have exactly its selected scalar index".into());
@@ -118,7 +141,10 @@ fn index_metadata(cassie: &Cassie, source: &VerifiedSource) -> Result<serde_json
     } else if !catalog.is_empty() {
         return Err("unindexed fixture unexpectedly contains indexes".into());
     }
-    Ok(json!({"catalog": catalog, "persisted": persisted}))
+    Ok(json!({"catalog": catalog, "persisted": persisted,
+        "catalog_collection_storage_id": catalog_relation,
+        "native_collection_storage_id": native_relation, "native_identities": identities,
+        "definition_comparison_scope": "full persisted definition excluding exactly two hydration storage-ID keys"}))
 }
 
 fn counter(metrics: &serde_json::Value, name: &str) -> Result<u64> {

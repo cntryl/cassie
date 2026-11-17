@@ -79,6 +79,35 @@ failed/gap result, never silently accepted, forced through a hint, or repaired b
 changing the planner. The sixteen disjoint buckets cover all rows without raising
 the selected memory budget for an unbounded full-result materialization.
 
+### Index metadata attestation
+
+After startup, Cassie's logical catalog intentionally omits the native index
+`__cassie_relation_id` and `__cassie_storage_id` options. Compare the full catalog
+index definition against a persisted clone with **only those two keys removed**.
+Keep every other field and option, including the catalog OID, access method,
+predicate, ordering and semantic version, in exact equality. This is benchmark
+normalization of a documented hydration difference, not a storage or planner fix.
+
+Separately require nonzero parsed native relation/index IDs and nonzero matching
+catalog/native collection IDs; the index relation ID must match both collection
+identities. IDs are allocator outputs, not fixed benchmark constants. Retain raw
+catalog/persisted definitions and identity observations in the receipt before
+validation, including on a gap. A positive index storage ID alone does not attest
+its physical contents: actual named-index plan/execution, no fallback and exact
+unique-ID/title/cardinality checks remain mandatory.
+
+The initial frozen reader at `66916fee39adc277b27540366200bfa013113110`
+(tree `3308fca2f53958e28b37b6a66d7751b376a5832e`) reported four indexed
+metadata gaps before timing. A separate public-API diagnostic on new verified
+owned copies confirmed that exactly these two options differed in all four
+indexed classes; the catalog OID and every remaining definition field matched.
+The raw diagnostic SHA-256 is
+`b6e85c377eefcabf35cf05c276ad4ffed324f6aae4aa8d1d12c32e9f2688da09`.
+Original source fingerprints remained unchanged. Preserve that failed campaign
+and its 204 successful unindexed timed samples separately; the corrected source
+requires the complete eight-profile campaign again, without a subset mode or
+relabelling those earlier samples.
+
 This contract and its probes are authored; no C read timing, index attestation, or
 operator readiness result is established until the assembler runs and records the
 frozen source. See the [benchmark entry](benchmarks.md) and [performance contracts](performance-contracts.md).

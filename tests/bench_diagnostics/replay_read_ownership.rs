@@ -285,3 +285,27 @@ fn should_reject_alias_paths_reusing_the_same_original_before_copying() {
     assert_eq!(stores.len(), 1);
     assert_eq!(fingerprint(&fixture.source).unwrap(), before);
 }
+
+#[test]
+fn should_encode_sha256_digest_bytes_in_canonical_lowercase_hex() {
+    // Arrange
+    let fixture = fixture();
+    let known_file = fixture.root.join("known-sha256");
+    std::fs::write(&known_file, b"abc").unwrap();
+    let empty_tree = fixture.root.join("empty-tree");
+    std::fs::create_dir(&empty_tree).unwrap();
+
+    // Act
+    let file_digest = sha256_file(&known_file).unwrap();
+    let tree_digest = fingerprint(&empty_tree).unwrap();
+
+    // Assert
+    assert_eq!(
+        file_digest,
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+    assert_eq!(
+        tree_digest,
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+}

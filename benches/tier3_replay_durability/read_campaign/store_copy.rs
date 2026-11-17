@@ -1,6 +1,7 @@
 //! Pure receipt verification and owned-copy boundary; never opens an engine.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -68,6 +69,14 @@ pub(crate) struct VerifiedSource {
     pub(crate) files: ProfileFiles,
 }
 
+fn lowercase_hex(bytes: &[u8]) -> String {
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(encoded, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    encoded
+}
+
 pub(crate) fn sha256_file(path: &Path) -> Result<String> {
     let metadata = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
     if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -86,7 +95,7 @@ pub(crate) fn sha256_file(path: &Path) -> Result<String> {
         }
         hash.update(&bytes[..size]);
     }
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(lowercase_hex(&hash.finalize()))
 }
 
 fn check_hash(path: &Path, expected: &str) -> Result<()> {
@@ -224,7 +233,7 @@ pub(crate) fn fingerprint(root: &Path) -> Result<String> {
     }
     let mut hash = Sha256::new();
     hash_tree(root, root, &mut hash)?;
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(lowercase_hex(&hash.finalize()))
 }
 
 fn copy_tree(source: &Path, destination: &Path) -> Result<()> {

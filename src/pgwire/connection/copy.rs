@@ -957,3 +957,7 @@ async fn finish_simple_copy(
         }
     }
 }
+
+#[cfg(all(test, feature = "replay-benchmark-observation"))]
+#[path = "copy/native_policy_tests.rs"]
+mod native_policy_tests;

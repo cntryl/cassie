@@ -531,3 +531,16 @@ history. The already admitted native effect remains applied: its global catalog
 cursor is published before propagating the history error, without undo or retry.
 The existing lifecycle-root exact-own-retirement receipt is retained only where
 shared state already allows it; detached forks do not gain that exception.
+
+### Actual wire COPY policy probe
+
+The local-memory native-policy controls stage real pgwire COPY rows and a checkpoint
+inside an explicit transaction, prove both remain private to that transaction,
+then observe the actual COMMIT worker. Test-only worker observation is armed after
+staging. The Data submission hook runs inside the native row-publication callback,
+after publication permission and outside suppressed/staged paths; it records the
+actual native result. Its first owning Data attempt is asserted independently from
+aggregate first policy, schema-epoch work and maintenance counters. Cases cover
+default strict, declared replayable buffered, and replayable COPY sequence-default
+strict promotion. These authored probes remain unrun until the combined gate;
+policy selection in memory mode is not a persistence or crash-durability proof.

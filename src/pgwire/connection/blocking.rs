@@ -47,7 +47,20 @@ where
     #[cfg(test)]
     let connection_admission = super::worker_lease::current_admission_for_test();
     let worker = super::worker_lease::spawn_owned_blocking(move || {
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| operation(cassie)));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            #[cfg(all(test, feature = "replay-benchmark-observation"))]
+            {
+                crate::midge::adapter::data_policy_test_observer::observe_worker(
+                    &cleanup_cassie,
+                    operation_name,
+                    || operation(cassie),
+                )
+            }
+            #[cfg(not(all(test, feature = "replay-benchmark-observation")))]
+            {
+                operation(cassie)
+            }
+        }));
         let recovery_allowed = cleanup_cassie.check_storage_recovery_required().is_ok();
         #[cfg(test)]
         let mut probe = cleanup_test_hooks::take(probe_key);

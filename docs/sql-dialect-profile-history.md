@@ -148,7 +148,7 @@ The work is ordered by contract dependencies, not by issue number. Finish or ver
 2. **Existing-type SQL extensions:** work only from the child issue's pinned signatures, semantics and dependencies. Expressions and relational syntax over existing types may proceed when their source/AST/transaction prerequisites are complete; #796 remains dependent on #793 for new type spellings/modifiers.
 3. **Extended type and durable identity:** before implementing any new family, resolve its #793 record. A versioned successor layout plus verified export/recreate/reimport is the selected common transition policy, but concrete per-family values, byte tags, OIDs, codecs, coercions, migration/recreate handling and limits remain unresolved. No general permission to choose these in an implementation follows from the transition policy.
 4. **DDL, transaction, catalog and routine lifecycles:** proceed only after the affected snapshot, rollback, catalog publication, security and recovery contracts are selected. Names that appear in PostgreSQL syntax are insufficient evidence to choose atomicity or persistence behavior.
-5. **Qualification and promotion:** run generic pinned-oracle #848 after all selected cells and named prerequisites have evidence. Run #849 only after its corpus and operational dependencies; Production-ready evidence remains under [Production Readiness](production-readiness.md), including #8, and local diagnostic promotion remains under #29.
+5. **Qualification and promotion:** run generic pinned-oracle #848 after all selected cells and named prerequisites have evidence. Run #849 only after its corpus and operational dependencies; Production evidence remains under [Production Readiness](production-readiness.md), including #8, and local diagnostic promotion remains under #29.
 
 | Priority | Scope | Exit condition |
 | --- | --- | --- |
@@ -408,7 +408,7 @@ records; approving aliases and pagination does not authorize them.
 #### Historical source refresh and current integration boundary
 
 #851 merged at the source baseline above; [First Typed Pipeline Acceptance](typed-pipeline-acceptance.md) records completed #756/#757 behavior. The full
-typed relational pipeline and Cassie-wide Production-ready gates remain open.
+typed relational pipeline and Cassie-wide production qualification gates remain open.
 Legacy Planned labels in higher-level target documents must not imply that the
 first scan/filter/projection slice is absent. This proposal defers support status
 to Feature Support and adds no promotion.
@@ -653,7 +653,7 @@ have native column-name shapes and empty rows. Dependency, rewrite, statistics,
 operator-family and built-in text-search rows remain unavailable because they
 require their actual semantic objects.
 
-These experimental descriptors retain existing logical carriers; native domain
+These descriptors retain existing logical carriers; native domain
 OIDs, NAME/reg* and opaque catalog codecs remain #793/#817 obligations. Ownership
 is not recorded in current metadata, so new owner fields are NULL. Definitions
 expose stored SQL, with native pretty-printing unqualified. Sequence allocation
@@ -673,7 +673,7 @@ this staged read model as historical flag or complete relation-catalog parity.
 
 ### Catalog scalar helper increment (2026-10-17)
 
-The Experimental #817 size helpers select `pg_size_bytes(text)` and
+The #817 size helpers select `pg_size_bytes(text)` and
 `pg_size_pretty(bigint)` using the existing primitive carriers, exact decimal
 rounding and native error precedence. NUMERIC formatting and physical storage
 size functions remain open. Encoding-name lookup selects native aliases and
@@ -684,7 +684,7 @@ qualification. See [catalog support](catalog-support.md) for exact boundaries.
 
 ### Runtime information increment (2026-10-17)
 
-Experimental #817 runtime helpers report Cassie's actual recovery/JIT/NUMA
+#817 runtime helpers report Cassie's actual recovery/JIT/NUMA
 capabilities and Rust Unicode version over BOOL/TEXT. Compression reports NULL
 for materialized ordinary SQL carriers, independently of Midge block codecs.
 Loaded-module discovery supports a three-TEXT-column FROM relation with zero
@@ -695,7 +695,7 @@ open. See [catalog support](catalog-support.md) for exact boundaries.
 
 ### Option expansion increment (2026-10-17)
 
-Experimental `FROM pg_options_to_table` uses selected one-dimensional logical
+`FROM pg_options_to_table` uses selected one-dimensional logical
 TEXT arrays and returns two actual TEXT columns. Literal constructors and TEXT
 parameters converted to arrays are selected; direct native array parameters,
 native array/RECORD ABI, bounds, dimensions, dynamic constructors and SQL array
@@ -704,7 +704,7 @@ promote these absent cells. See [catalog support](catalog-support.md).
 
 ### Statement text increment (2026-10-17)
 
-Experimental `current_query()` returns the original SQL using the existing TEXT
+`current_query()` returns the original SQL using the existing TEXT
 identity. Simple Query retains the entire message; prepared execution retains
 Parse text across rebinding and portal pages. Embedded SQL, analyzed EXPLAIN and
 view calls use an execution-local context. Result caching bypasses the helper.
@@ -727,7 +727,7 @@ retain `42P18`. Query budget, cancellation and result ownership use existing
 execution controls. Plan-cache cost model epoch is 19.
 
 
-Experimental ten-batch increment 1: Selected text concatenation over existing scalar types.
+ten-batch increment 1: Selected text concatenation over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -742,7 +742,7 @@ Plan-cache epoch: 20. Jev's 0.75 overload concern prompted 16 native/Rust
 parameter-format probes; final review selected verification at 0.94.
 
 
-Experimental ten-batch increment 2: Power and integer remainder over existing scalar types.
+ten-batch increment 2: Power and integer remainder over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -760,7 +760,7 @@ test. Parser failures are 67 with no new identity. Final checks follow only an
 equivalent match-arm consolidation after the parser comparison. Cache epoch 21.
 
 
-Experimental ten-batch increment 3: Integer bitwise operators over existing scalar types.
+ten-batch increment 3: Integer bitwise operators over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -782,7 +782,7 @@ Plan-cache semantic epoch is 22. Unsupported native numeric/other type overloads
 and complete operator-error diagnostics remain pending under their existing owners.
 
 
-Experimental ten-batch increment 4: Unary math operators over existing scalar types.
+ten-batch increment 4: Unary math operators over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -827,7 +827,7 @@ PostgreSQL 18.6, executable SHA256
 `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
 
 
-Experimental ten-batch increment 5: Boolean truth predicates over existing scalar types.
+ten-batch increment 5: Boolean truth predicates over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -862,7 +862,7 @@ failures fixed cumulatively. Final Jev review selected validation with probabili
 this finite increment does not close #793/#796 or the PostgreSQL program.
 
 
-Experimental ten-batch increment 6: Symmetric BETWEEN over existing scalar types.
+ten-batch increment 6: Symmetric BETWEEN over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -894,7 +894,7 @@ already-expired entry point. The initial 0.79 sibling gap prompted NULL,
 short-circuit, parameter and indexed-versus-scan witnesses. All original assertions
 remain intact. Full repository green and owner closure are not established here.
 
-Experimental increment 7 implementation scope: selected primitive
+increment 7 implementation scope: selected primitive
 function-style casts reuse checked scalar conversion, preserve exact typed routine
 resolution and retain native UNKNOWN textual-parameter coercions at wire Parse.
 Native caller probes exposed the existing INSERT VALUES literal-only materializer.
@@ -904,7 +904,7 @@ references remain unsupported and aggregates reject in the VALUES context. No
 storage representation or migration is added. Ordered selected validation passed; full repository and owner acceptance remain pending.
 
 
-Experimental ten-batch increment 7: Function-style primitive casts over existing scalar types.
+ten-batch increment 7: Function-style primitive casts over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -961,7 +961,7 @@ review selected validation with probability 0.86 (probe 0.14). Full owner closur
 complete repository green and hosted acceptance remain pending.
 
 
-Experimental ten-batch increment 8: LIKE ESCAPE over existing scalar types.
+ten-batch increment 8: LIKE ESCAPE over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -975,7 +975,7 @@ collation matching, non-text LIKE overloads and complete mixed predicate grammar
 remain pending under #796/#793.
 
 
-Experimental ten-batch increment 9: Identifier byte boundaries over existing scalar types.
+ten-batch increment 9: Identifier byte boundaries over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 
@@ -990,7 +990,7 @@ typmods. Complete NAME OID 19, truncation NOTICE and utility phase behavior rema
 pending under #793/#796.
 
 
-Experimental ten-batch increment 10: CTE materialization and integer dependency scope over existing scalar types.
+ten-batch increment 10: CTE materialization and integer dependency scope over existing scalar types.
 Native wire witnesses and precise local acceptance are recorded in
 [validation](testing/validation.md). Complete type and owner contracts remain pending.
 

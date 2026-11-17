@@ -110,13 +110,11 @@ fn should_project_scalar_subqueries_within_the_configured_result_row_limit() {
             .await
             .expect("bind pgwire listener");
         let address = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            address.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(storage.cassie.clone()),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let socket = tokio::net::TcpStream::connect(address)
             .await
             .expect("connect pgwire");

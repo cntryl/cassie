@@ -114,7 +114,7 @@ The local-development release gate is tracked separately from production
 qualification. It requires the selected schema and index lifecycle, relational
 query combinations, and pgwire/client workflows in
 [Local Development Readiness](local-development-readiness.md). Passing this
-gate does not promote broader PostgreSQL compatibility or production support.
+gate does not establish broader PostgreSQL compatibility or production support.
 
 The [v0.1.0 scope map](v0.1-scope-map.md) records the bounded MVP contract.
 The current open issue-to-release assignment is maintained in
@@ -129,8 +129,7 @@ Mapped property graphs, `GRAPH_TABLE`, typed paths and weighted paths read the
 statement's mapped tables through ordinary transactional indexes, with exact
 fallback. The legacy graph feature was removed without conversion. The
 [contract](graph-v060-contract.md) and [guide](graph-guide.md) define the supported
-surface. Graph traversal remains Experimental after the recorded conditional
-promotion decision; noisy local timing evidence is not release or capacity qualification.
+surface. The qualification review records that noisy local timing evidence is not release or capacity qualification.
 The separate [replay durability and throughput milestone](https://github.com/cntryl/cassie/milestone/14)
 tracks atomic replay, public checkpoint-view snapshot correctness, and workload evidence.
 
@@ -143,7 +142,7 @@ tracks atomic replay, public checkpoint-view snapshot correctness, and workload 
 | [v0.3.0 Composite Types and JSON Recordsets](https://github.com/cntryl/cassie/milestone/12) | TBD | Composite and domain type behavior, object-identifier conversions, catalog introspection and JSON recordsets. Its issue milestone is closed; composite arrays for graph paths remain a separate v0.6 prerequisite. |
 | [v0.4.0 Named Enum Types](https://github.com/cntryl/cassie/milestone/11) | TBD | The finite named ENUM scope in #827. Its issue milestone is closed; this does not add general PostgreSQL type or catalog parity. |
 | [v0.5.0 Authoritative Columnar Tables](https://github.com/cntryl/cassie/milestone/10) | TBD | Add an opt-in per-table column-authoritative layout alongside row-authoritative tables, with a versioned contract, durable recovery, mixed-mode queries and writes, constraints, derived indexes, and explicit conversion/image behavior. Midge remains the only storage layer. |
-| [v0.6.0 Fast, Idiomatic Graphs](https://github.com/cntryl/cassie/milestone/13) | TBD | Graph queries and native paths over projector-maintained tables, with transaction, correctness, client and resource evidence defined by the graph contract. Features are delivered on exact reads first and fast adjacency reads last; the legacy `CREATE GRAPH` feature is removed without conversion. Delivered: mapped graph DDL, `GRAPH_TABLE`, native path types, weighted paths, indexed/exact read bounds, EXPLAIN, two real-client workflows, an executed [guide](graph-guide.md), and tier 1-3 plus topology-axis benchmarks. The [qualification record](graph-v060-qualification.md) retains actual outcomes; graph traversal remains Experimental because local timing quality does not support promotion. |
+| [v0.6.0 Fast, Idiomatic Graphs](https://github.com/cntryl/cassie/milestone/13) | TBD | Graph queries and native paths over projector-maintained tables, with transaction, correctness, client and resource evidence defined by the graph contract. Features are delivered on exact reads first and fast adjacency reads last; the legacy `CREATE GRAPH` feature is removed without conversion. Delivered: mapped graph DDL, `GRAPH_TABLE`, native path types, weighted paths, indexed/exact read bounds, EXPLAIN, two real-client workflows, an executed [guide](graph-guide.md), and tier 1-3 plus topology-axis benchmarks. The [qualification record](graph-v060-qualification.md) retains actual outcomes; local timing quality does not establish a regression baseline or capacity claim. |
 
 The [v0.5.0 release qualification record](v0.5-release-qualification.md) maps every milestone issue to its finite acceptance evidence and actual validation status.
 
@@ -166,13 +165,13 @@ removed, not implemented.
 - retain complete same-commit benchmark manifests at representative scale and concurrency;
 - establish latency, capacity, cancellation, and recovery objectives per profile;
 - exercise backup, restore, rebuild, repair, and failure-injection runbooks;
-- promote feature families only when implementation, compatibility, performance, and readiness owners agree.
+- change documented feature scope only when implementation, compatibility, performance, and readiness owners agree.
 
 ## Typed Column Execution Target
 
 The finite [Query Engine Target 1](query-engine-target.md) and complete
 [ownership ledger](query-engine-invariant-ownership.md) define the milestone gates,
-exact child blockers, semantic oracles and promotion boundaries. Existing Stable
+exact child blockers, semantic oracles and qualification boundaries. Existing
 CBM1 codecs and selected column acceleration do not establish a common typed
 relational pipeline; that pipeline remains Planned.
 
@@ -187,7 +186,7 @@ relational pipeline; that pipeline remains Planned.
    [PR #851](https://github.com/cntryl/cassie/pull/851), commit
    `4a09c41a3670dad3a4c4c2b7ef7583327c37ab6b`, records both finite closures and
    [executed witnesses](typed-pipeline-acceptance.md). Milestones 1 and 2 closed
-   on 2026-10-11; complete relational integration and promotion remain separate.
+   on 2026-10-11; complete relational integration and qualification remain separate.
 3. Relational kernels: [#758](https://github.com/cntryl/cassie/issues/758) aggregates and [#759](https://github.com/cntryl/cassie/issues/759) joins follow [#756](https://github.com/cntryl/cassie/issues/756); [#760](https://github.com/cntryl/cassie/issues/760) ordering,
    sets and windows follows both; [#761](https://github.com/cntryl/cassie/issues/761) qualifies completed relational paths;
    [#762](https://github.com/cntryl/cassie/issues/762) then adds the selected bounded scalar expression subquery surface.
@@ -204,21 +203,21 @@ relational pipeline; that pipeline remains Planned.
    parity program is closed and is not a dependency.
 5. Compatibility and release evidence: [#777](https://github.com/cntryl/cassie/issues/777)–[#780](https://github.com/cntryl/cassie/issues/780) qualify the completed selected
    client/wire/control/cross-path subset; [#8](https://github.com/cntryl/cassie/issues/8) owns native operational objectives
-   and repeated evidence, [#29](https://github.com/cntryl/cassie/issues/29) owns local diagnostic promotion after [#8](https://github.com/cntryl/cassie/issues/8), and [#781](https://github.com/cntryl/cassie/issues/781)
+   and repeated evidence, [#29](https://github.com/cntryl/cassie/issues/29) owns local diagnostic qualification after [#8](https://github.com/cntryl/cassie/issues/8), and [#781](https://github.com/cntryl/cassie/issues/781)
    consolidates one immutable release ledger.
 
 No public batch API, persistent encoding, migration, new numeric/temporal/extension
 ABI, disk spilling or distributed execution is selected by these tracking stages.
 Portable kernels are the oracle; optional SIMD requires measured benefit and
 explicit feature/alignment/tail/mask semantics. A later stage waits for its named
-dependencies; mapped source/tests and issue closure do not promote support.
+dependencies; mapped source/tests and issue closure do not establish support.
 
 
 ## Query Depth
 
-- Promote Experimental query families only through their documented promotion criteria.
-- Use the completed [Query Promotion Evidence](query-promotion-evidence.md) inventory when
-  reviewing each Experimental family; retain its seeded differential and metamorphic evidence
+- Qualify query families through their documented evidence criteria.
+- Use the completed [Query Qualification Evidence](query-promotion-evidence.md) inventory when
+  reviewing each query family; retain its seeded differential and metamorphic evidence
   instead of duplicating family-specific corruption, cancellation, or resource-control suites.
 - Keep feedback-informed planning and checkpointed switching observable and opt-in until representative workloads justify default enablement.
 

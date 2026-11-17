@@ -1,4 +1,4 @@
-//! Experimental column-name shapes for object families absent from the current catalog.
+//! Column-name shapes for object families absent from the current catalog.
 //! These are existing logical carriers, not a claim of native catalog-domain ABI.
 use crate::types::DataType;
 

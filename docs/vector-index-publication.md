@@ -66,7 +66,7 @@ journal records to force startup.
 
 SQL and REST must satisfy the same provider-failure, constraint-failure, atomic-write,
 interrupted-build, generation-mismatch, restart and repeat-replay invariants. Existing
-query support labels and Cassie's Production Candidate status are unchanged.
+query behavior is unchanged, and Cassie remains pre-release.
 
 ## Repeated Cold Startup Qualification
 

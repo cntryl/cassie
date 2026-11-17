@@ -8,9 +8,12 @@ Cassie is a single-node read-model database for CQRS and event-sourced systems. 
 
 Cassie uses `cntryl-midge` directly as its only storage layer. Midge provides persistence, durability, and recovery mechanics. Cassie provides SQL semantics, planning, execution, logical query layouts, indexes, search, analytics, resource controls, and query-visible errors.
 
-Cassie has never been released. The package is reset to the 0.1.0 starting
-baseline; Cassie-owned persistent formats start at version 1. See the
-[release baseline](docs/release-baseline.md) for format and data compatibility.
+Cassie is a pre-release project and has never been released. APIs, client
+behavior and persistent formats may change. The package starts at the 0.1.0
+baseline and Cassie-owned persistent formats start at version 1. Use the
+[feature behavior and limits](docs/feature-support.md),
+[qualification evidence](docs/feature-qualification.md) and
+[release baseline](docs/release-baseline.md) when evaluating a deployment or upgrade.
 
 ## Start Here
 

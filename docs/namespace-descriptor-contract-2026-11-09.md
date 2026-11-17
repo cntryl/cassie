@@ -9,7 +9,7 @@ authored for the changed descriptors.
 
 This changes the wire descriptors observed by existing clients. It does not
 change stored namespace IDs, rename/restart behavior, row values, or database
-scope. `nspowner` remains experimental INT and `nspacl` experimental TEXT; they
+scope. `nspowner` remains INT and `nspacl` TEXT; they
 are not claimed to represent PostgreSQL owner or ACL semantics. The broader
 #817 and extension lifecycle in #843 remain incomplete. The PostgreSQL oracle
 was stopped, and the newly authored Cassie probes have not been executed.

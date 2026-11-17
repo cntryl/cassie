@@ -3,7 +3,6 @@
 use super::support_pgwire as pgwire_support;
 
 use std::net::SocketAddr;
-use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
@@ -107,14 +106,11 @@ async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
         .await
         .expect("bind listener");
     let addr = listener.local_addr().expect("listener address");
-    drop(listener);
-
-    let server = tokio::spawn(cassie::pgwire::server::run(
-        addr.to_string(),
+    let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener,
         std::sync::Arc::new(cassie.clone()),
         config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     (addr, server)
 }
 

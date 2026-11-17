@@ -188,7 +188,7 @@ qualify a cell. These inputs extend the six original bootstrap cases to eighteen
 cases and fifty-two cells. Execution and completion remain separate from input
 inventory; failed or unavailable cells keep qualification incomplete.
 
-No support or Production-ready promotion follows from this ledger. [Feature Support](feature-support.md), [Production Readiness](production-readiness.md), exact immutable execution receipts and current GitHub state remain authority.
+No additional support or production qualification follows from this ledger. [Feature Support](feature-support.md), [Production Readiness](production-readiness.md), exact immutable execution receipts and current GitHub state remain authority.
 
 ## Snapshot provenance
 

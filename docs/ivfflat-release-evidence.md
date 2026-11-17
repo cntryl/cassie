@@ -1,7 +1,7 @@
 # IVFFlat Release Evidence
 
-IVFFlat is a Stable functional capability. This record defines representative native-disk
-release evidence without turning the Stable label into a global capacity claim.
+IVFFlat has the documented functional contract. This record defines representative native-disk
+release evidence without making a global capacity claim.
 
 ## Functional and Recovery Contract
 

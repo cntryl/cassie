@@ -1,9 +1,9 @@
 # Replayable SQL transactions: design and proof gate
 
 Issue [#1279](https://github.com/cntryl/cassie/issues/1279) adds an explicit
-transaction-local projector mode. This document records the intended interface
-and the admission design to prove before runtime implementation. The SQL feature
-is not implemented or qualified by this document.
+transaction-local projector mode. This document records the implemented interface and its remaining qualification
+boundaries. Source and tests are identified below; their presence alone does not
+qualify the current commit.
 
 ## SQL interface
 
@@ -74,7 +74,16 @@ its existing policy and explicit durability barrier.
 Postcommit maintenance may still
 perform synchronous work before acknowledgement.
 
-## Admission design to prove
+## Superseded admission design and its proof obligations
+
+The drain/permit design in this section and its candidate client behavior below
+are historical design evidence. The later selected implementation seals COMMIT
+without waiting, as recorded in [Transaction authority within Midge as
+published](transaction-authority-midge-contract.md#3-commit-seals-it-does-not-drain-1279-100).
+The implementation status below describes the current behavior. The old
+drain-specific cancellation and lease requirements do not describe that
+implementation; owner-safe errors, staged publication, policy selection and
+recovery fencing still require independent evidence.
 
 A generation-bound transaction owner must be shared by the original session and
 all detached statement forks. It carries the declaration, sticky first-effect
@@ -323,7 +332,7 @@ native writes occurred anywhere in the transaction.
 
 ## Implementation status (#1279)
 
-Implemented, pending the ordered gate:
+Implemented; qualification must be checked against the exact current commit:
 
 - **Interface.** `SET LOCAL cassie.projection_write_mode = 'default' | 'replayable'
   | 'strict'` and `SET LOCAL ... = DEFAULT` inside an explicit, healthy
@@ -346,7 +355,7 @@ Implemented, pending the ordered gate:
   `nextval`, `setval` and identity or default sequence advances are classified
   where the value is recorded, so they are caught inside any statement. Every
   other statement promotes the transaction to strict: DDL, security, sequences,
-  `TRUNCATE`, `MERGE`, `COPY`, `CALL`, SQL-level `PREPARE`/`EXECUTE` and cursors,
+  `TRUNCATE`, `MERGE`, `CALL`, SQL-level `PREPARE`/`EXECUTE` and cursors,
   projection and retention commands, extensions and `EXPLAIN`. A staged
   transactional DDL overlay at COMMIT also promotes it. User-defined functions
   are evaluated as expressions by the same evaluator, so a sequence advance
@@ -372,7 +381,7 @@ Implemented, pending the ordered gate:
   rows and count as a replayable write. A sequence advance in a COPY default or
   in a `COPY (query) TO` still promotes the transaction to strict.
 
-Not implemented, and therefore not claimed:
+Evidence and remaining boundaries:
 
 - **A drain.** COMMIT does not wait for in-flight statement forks. It seals the
   transaction instead (see below), which is the selected design in
@@ -408,8 +417,9 @@ Not implemented, and therefore not claimed:
   transaction is promoted to `cloud_strict` on a background-cloud
   configuration. This is the policy selected for the commit, not an upload or
   cloud-loss test.
-- **Performance evidence.** No benchmark was run for the SQL mode; #1271 owns
-  that and the workload comparison.
+- **Performance evidence.** #1271 records a historical single-machine comparison
+  at `a9231cd09`; this is not qualification of the current source. #1271 owns
+  repeated matched workloads, recovery and durability qualification.
 - **Retirement.** Implemented under #1290: COMMIT does not wait, so there is no
   cancellation-while-waiting case; retirement is owner-checked, and
   ReadyForQuery reports failed to other threads while a COMMIT owns the

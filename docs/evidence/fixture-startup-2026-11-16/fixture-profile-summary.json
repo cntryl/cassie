@@ -1,0 +1,40 @@
+{
+  "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "tree": "d051222b580d48266b3ed604f588928bd443e660",
+  "profile": "test;2Cargo jobs;macOS arm64",
+  "controls": 16,
+  "sample_pairs": 8,
+  "checked_queries_per_control": 8,
+  "total_checked_queries": 128,
+  "compile_seconds": 0.55,
+  "command_total_seconds": 2.18,
+  "medians_us": {
+    "legacy_rebind_50ms": {
+      "fixture_us": 12174.5,
+      "listener_connect_us": 53260.0,
+      "authentication_us": 27406.0,
+      "cycles_us": 1534.5,
+      "listener_stop_us": 25.0
+    },
+    "owned_listener": {
+      "fixture_us": 12459.0,
+      "listener_connect_us": 132.0,
+      "authentication_us": 22785.0,
+      "cycles_us": 1494.5,
+      "listener_stop_us": 24.5
+    }
+  },
+  "paired_listener_connect_legacy_minus_owned_us": [
+    52010,
+    53162,
+    53156,
+    52201,
+    53169,
+    53140,
+    53160,
+    53125
+  ],
+  "paired_listener_connect_delta_median_us": 53148.0,
+  "scope": "Single frozen-source startup-mechanism comparison. Listener/connect includes configured 50000us legacy wait. No named-target speedup, full teardown, deployment or production performance claim.",
+  "raw_log_sha256": "91b2f38daa5b2c4e2a4e7968e35a9423c5b8aa7a3513d4b51e07dcb9b93dc2f1"
+}

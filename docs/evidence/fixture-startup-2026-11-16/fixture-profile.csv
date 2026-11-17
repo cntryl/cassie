@@ -1,0 +1,17 @@
+sample,helper,configured_startup_delay_us,fixture_us,listener_connect_us,authentication_us,cycles_us,listener_stop_us
+0,legacy_rebind_50ms,50000,34628,52155,35161,6970,24
+0,owned_listener,0,13251,145,23341,1532,27
+1,owned_listener,0,12058,130,22685,1745,22
+1,legacy_rebind_50ms,50000,12030,53292,26804,1547,23
+2,legacy_rebind_50ms,50000,12665,53266,27723,1484,25
+2,owned_listener,0,12832,110,22885,1668,23
+3,owned_listener,0,11864,134,22453,1499,17
+3,legacy_rebind_50ms,50000,11923,52335,26344,1525,26
+4,legacy_rebind_50ms,50000,12319,53257,28987,1544,24
+4,owned_listener,0,13081,88,23074,1490,23
+5,owned_listener,0,11817,119,22622,1396,26
+5,legacy_rebind_50ms,50000,11790,53259,26606,1492,25
+6,legacy_rebind_50ms,50000,12860,53295,29236,1551,27
+6,owned_listener,0,13088,135,23075,1430,26
+7,owned_listener,0,12086,136,22495,1430,26
+7,legacy_rebind_50ms,50000,11822,53261,27089,1449,25

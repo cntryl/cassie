@@ -1,13 +1,16 @@
 # Transaction authority within Midge as published
 
-Status: **selected design; sections 1, 3 and 4 and three increments of section 2 implemented and the session-state inventory recorded; the per-transaction cell itself and reserved-key documentation are not**. This document selects how the
+Status: **sections 1, 3 and 4 and three increments of section 2 are implemented;
+the session-state inventory is recorded. A per-transaction cell and reserved-key
+documentation remain deferred. Outer wire-error ownership remains incomplete.**
+This document records how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
 [#1302](https://github.com/cntryl/cassie/issues/1302) and the open part of
 [#1279](https://github.com/cntryl/cassie/issues/1279)) is built so that Cassie
 works with published `cntryl-midge` 0.5.2 exactly as it is. It supersedes the
 admission-permit-and-drain and admission-lease-with-compensator directions
-recorded on those issues. Only section 1 is implemented.
+recorded on those issues. Implementation boundaries are recorded in each section below.
 
 ## What Midge provides, and what it does not
 
@@ -163,12 +166,16 @@ today; the table records why, so a later change cannot silently break it.
 | `random` | Session-owned. | No transaction meaning. |
 | `procedure_calls` | Owned by the statement fork. | Copied at fork; a recursion guard, not transaction state. |
 
-The residual hazard is therefore not state that escapes the cell but an
-operation that outlives its transaction, which generation, epoch, failure
-authority and the COMMIT seal already stop. A cell would make that structural
-instead of checked; it would not remove a schedule that is currently reachable.
-Building it is a large refactor of every session accessor, and this document
-does not select it ahead of the evidence work above.
+An operation that outlives its transaction remains a proof obligation.
+Generation, epoch, failure authority and the COMMIT seal protect their owning
+paths, but do not automatically protect callers that discard the authority.
+In particular, the outer simple, extended and COPY error wrappers still call
+current-session failure/rollback helpers after asynchronous work. An older
+operation can therefore reach those wrappers after a replacement transaction
+starts. The COMMIT seal protects an in-flight COMMIT, not every later unsealed
+transaction. #1290 remains open until those boundaries carry their operation's
+authority and owner-safe portal cleanup is verified. A cell refactor is not
+selected as a substitute for that concrete repair.
 
 ### 3. COMMIT seals; it does not drain (#1279) (1.00)
 

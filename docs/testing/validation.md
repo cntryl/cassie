@@ -389,7 +389,7 @@ Evidence commands and retained local logs:
 - `target/test-inventory-tools312/bin/python tools/test_inventory.py --check`: passed after refreshing generated inventory; no unregistered Rust tests, unresolved module paths, duplicate registrations, unsharded targets or oversized files.
 
 The complete repository test gate is still red. No issue completion, merge,
-support promotion or production-readiness claim follows from this batch.
+support qualification or production-readiness claim follows from this batch.
 
 ## Text-selection implementation batch, 2026-10-15
 
@@ -1959,7 +1959,7 @@ functions. Of those failures, 179 were grouped under catalog/type information;
 #817/#793/#831/#841 requirements and the existing Midge catalog source defined
 this read-model increment; no persistent metadata, type or layout changed.
 
-The new experimental registry exposes PostgreSQL 18.6 column-name shapes for
+The new registry exposes PostgreSQL 18.6 column-name shapes for
 26 object families absent from current metadata. Empty rows reflect the absence
 of those objects, without implementing their DDL. Dependency, rewrite,
 statistics, operator-family and built-in text-search catalogs are omitted
@@ -5540,8 +5540,7 @@ backend test or release qualification. Issue #959 is closed as not planned.
 
 At that earlier readback, PR #1144 remained open with no review decision; the
 local follow-up had not yet been committed or pushed. The immutable v0.1.0
-release-commit gate remained outstanding. Cassie remains a Production Candidate
-and is not Production-ready; merge, release, and publication are not claimed.
+release-commit gate remained outstanding. Cassie remains pre-release without production qualification; merge, release, and publication are not claimed.
 ## 2026-10-30 — #954 current cancellation fixture status
 
 The six collection-aggregate cancellation tests now use three-row fixtures and

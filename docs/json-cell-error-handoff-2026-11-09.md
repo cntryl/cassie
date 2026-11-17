@@ -13,7 +13,7 @@ The candidate must retain an explicit plain-error outcome instead. Receipt:
 `target/assembly-review/json-row-diagnostic-contract-{request,response}.json`.
 Legacy fallback scratch and formatting are unadmitted and uninterruptible,
 diagnostic ownership/message/SQLSTATE and competing error priority remain
-pending. This path is a compatibility probe, not a production-ready solution.
+pending. This path is a compatibility probe, not a qualified production solution.
 
 A subsequent test-only increment replaces that fallback with the row-byte
 parser and an admitted owned row diagnostic. Its complete SliceRead parity and

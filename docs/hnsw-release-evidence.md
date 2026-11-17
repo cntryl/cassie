@@ -1,8 +1,8 @@
 # HNSW Release Evidence
 
-HNSW is a Stable functional capability. This record defines the narrower release-evidence
+HNSW has the documented functional contract. This record defines the narrower release-evidence
 contract used to validate its representative native-disk behavior; it does not make Cassie
-globally Production-ready or guarantee capacity on an operator's hardware.
+qualified for every deployment or guarantee capacity on an operator's hardware.
 
 ## Functional and Recovery Contract
 

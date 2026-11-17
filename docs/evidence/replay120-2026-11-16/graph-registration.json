@@ -1,0 +1,27 @@
+{
+  "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "command": [
+    "cargo",
+    "metadata",
+    "--locked",
+    "--no-deps",
+    "--format-version",
+    "1"
+  ],
+  "qualification_target": {
+    "kind": [
+      "example"
+    ],
+    "crate_types": [
+      "bin"
+    ],
+    "name": "qualification_graph_psycopg",
+    "src_path": "/private/tmp/cassie-all-open-integration-20261116/examples/qualification_graph_psycopg.rs",
+    "edition": "2021",
+    "doc": false,
+    "doctest": false,
+    "test": false
+  },
+  "graph_client_feature_absent": true,
+  "ordinary_bench_qualification_registration_absent": true
+}

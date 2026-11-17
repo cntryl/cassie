@@ -24,12 +24,12 @@ subprocess tests must retain their existing module paths in every executable
 that owns the fixture.
 
 This is a measured experiment, not a compilation performance claim. Keep the
-existing optimization profile and compiler checks. The approved CI workflow
-checks quality alongside two package-owned test jobs. Each test job compiles
-every package target with `cargo test --all-targets --no-run`, then runs that
-package's complete correctness suite, including doctests. The two packages cover
-the full workspace. The aggregate `backend` gate requires quality and both test
-jobs to succeed; each job retains its 20-minute limit. Performance sampling remains
+existing optimization profile and compiler checks. The historical 2026-11-05 CI workflow
+checked quality alongside two package-owned test jobs. Each test job compiled
+every package target with `cargo test --all-targets --no-run`, then ran that
+package's complete correctness suite, including doctests. The two packages covered
+the full workspace. The aggregate `backend` gate required quality and both test
+jobs to succeed; each job retained its 20-minute limit. Performance sampling remains
 under the documented benchmark commands; it is not run by the correctness job.
 Compare
 Cargo timing reports with the same job count and warm dependency artifacts,
@@ -37,6 +37,52 @@ record library compilation separately, and compare compiled test listings to
 the baseline. Run the complete ordered validation after the registration bundle
 is coherent. Record actual compilation and execution evidence here before
 calling the organization an improvement.
+
+## Current workflow and profiling
+
+At main `9d25356a` on 2026-11-16, `ci-backend.yml` runs formatting, test-policy
+validation, strict Clippy, workspace checking and the full workspace/all-feature
+test suite sequentially in one Ubuntu job with a 60-minute limit. The earlier
+20-minute integration-job measurements remain historical observations. This
+readback changes no workflow settings or deadlines.
+
+The passing [main run](https://github.com/cntryl/cassie/actions/runs/43933804770)
+took 25m09s overall. Its Cargo test step included 7m09s of compilation and about
+15m17s of execution. The four named wire targets ran for 439.82 seconds in total:
+catalogs 62.74s, extended 135.58s, grammar 127.91s and types 113.59s. These are
+one hosted sample with restored dependency artifacts, not a controlled speedup
+comparison or an attribution of runtime cost.
+
+The later [main run at `62f14515`](https://github.com/cntryl/cassie/actions/runs/43961578762)
+passed on the same day in 28m54s. Its Cargo test step took 25m34s, comprising
+9m13s of compilation and about 16m21s of execution and doctests. The named
+wire targets reported catalogs 68.82s (605 cases), extended 144.02s (982),
+grammar 137.67s (1,233) and types 122.81s (1,226): 473.32s combined. These
+are reported harness durations, not the sum of per-test times. The run retained
+nine inherited ignores. Different source, test counts and uncontrolled runner
+conditions prevent treating the two runs as a speed comparison. The existing
+60-minute workflow limit is current operational context; increasing a deadline
+is not the fixture improvement requested by #1191. The selected listener
+improvement, exact local evidence and final-head hosted outcomes are recorded
+in [PR #1332](https://github.com/cntryl/cassie/pull/1332).
+
+The explicit `tier4_pgwire_fixture_profile` benchmark measures fresh memory
+fixture/startup, listener/connect, real password authentication, eight query
+cycles and socket/listener stop separately. Accepted connection tasks and runtime
+destruction are outside the listener-stop timer. Run it with the correctness fixture profile:
+
+```sh
+cargo bench --locked -p cassie-integration-tests --bench tier4_pgwire_fixture_profile --profile test
+```
+
+`CASSIE_FIXTURE_PROFILE_SAMPLES` selects the number of matched sample pairs
+(default eight), each with fresh isolated fixtures for the legacy rebind/50 ms
+wait and owned-listener controls. Their order alternates. Output is CSV in
+microseconds with the configured delay identified separately. Result assertions
+validate each query; there are no timing assertions or shared databases. The harness does not
+replace fragmentation, authentication, cancellation or persistence tests. Its
+measurements and the remaining storage boundary are recorded in
+[Runtime qualification](runtime-qualification-2026-11-16.md).
 
 The integration package owns its test executables and fixture library and depends
 one way on the production Cassie package. Cassie's unit-test build has no helper

@@ -78,3 +78,48 @@ impl Shape {
         }
     }
 }
+
+/// Separate API workloads; SQL lanes have no replay event ledger.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Workload {
+    Apply,
+    Duplicate,
+    Noop,
+}
+
+impl Workload {
+    pub(crate) fn parse(value: Option<&OsStr>) -> Result<Self, &'static str> {
+        match value {
+            None => Ok(Self::Apply),
+            Some(value) if value == OsStr::new("apply") => Ok(Self::Apply),
+            Some(value) if value == OsStr::new("duplicate") => Ok(Self::Duplicate),
+            Some(value) if value == OsStr::new("noop") => Ok(Self::Noop),
+            Some(_) => Err("CASSIE_REPLAY_BENCH_WORKLOAD must be apply, duplicate or noop"),
+        }
+    }
+
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Apply => "apply",
+            Self::Duplicate => "duplicate",
+            Self::Noop => "noop",
+        }
+    }
+
+    pub(crate) const fn validate(self, mode: ReplayMode) -> Result<(), &'static str> {
+        if mode.is_sql() && !matches!(self, Self::Apply) {
+            return Err(
+                "SQL projector lanes support only apply; duplicate/noop measure the replay API",
+            );
+        }
+        Ok(())
+    }
+
+    pub(crate) const fn expected_counts(self, batch_size: u64) -> (u64, u64) {
+        match self {
+            Self::Apply => (batch_size, 0),
+            Self::Duplicate => (0, batch_size),
+            Self::Noop => (0, 0),
+        }
+    }
+}

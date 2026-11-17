@@ -1,0 +1,18 @@
+{
+  "base": "62f14515",
+  "head": "b7f84bbc",
+  "feature_rows_byte_preserved_except_status": 108,
+  "changed_feature_rows_needing_review": [
+    "| `information_schema.tables` | Stable named-client table/view discovery columns documented in the catalog support contract |",
+    "| `information_schema.columns` | Stable named-client column discovery columns documented in the catalog support contract; integer and floating-point types use the PostgreSQL names `integer` and `double precision` |",
+    "| Remaining virtual catalogs | PostgreSQL-like and Cassie runtime views outside the stable named-client subset; no PostgreSQL-internal parity claim |",
+    "| Time-series indexes | Ordered partition/range lookup with fixed-duration positive integer `minute(s)`, `hour(s)`, or `day(s)` bucket widths. The promoted evidence matrix uses 15 minutes, 1 hour, and 1 day. Buckets are fixed UTC durations; calendar month, week, local-time, and daylight-saving semantics are unsupported. Missing, stale, corrupt, or interrupted derived state falls back atomically to authoritative rows. |",
+    "| Column-batch analytics | Stable CBM1 batches provide deterministic automatic plain, constant, typed RLE, dictionary, 128-value frame-of-reference, FSST UTF-8 symbol streams, and ALP decimal-scaled float blocks, summary pruning, late materialization, encoded scans, exact filtered aggregate acceleration, and generation-fenced range copy-on-write maintenance. FSST uses manifest codec tag 6 and codec version 1 with at most 256 deterministic symbols and a bounded 64 KiB symbol table; selective projection validates the complete table, framing, indices, decoded sizes, and UTF-8 while materializing only selected values. ALP uses manifest codec tag 5 and codec version 1, encodes only finite bit-exact values, and leaves signed zero or non-exact values on plain encoding. Unsupported, stale, corrupt, unknown-version, or over-limit derived state falls back atomically to authoritative rows. Codec selection is not a SQL or configuration surface. |",
+    "| Common typed-column relational execution | The first private scan/filter/projection slice carries typed columns through selected collection reads, with native numeric/Boolean/NULL kernels, bounded scalar expressions and a final admitted row/wire handoff. [Finite acceptance and fallback boundaries](typed-pipeline-acceptance.md) preserve specialized access paths, filtered CBC1, staged visibility, parallel scans and tight memory profiles. The complete join/aggregate/order/set/window pipeline remains absent; later stages and promotion gates are defined in [Query Engine Target 1](query-engine-target.md). |"
+  ],
+  "graph_move_blob_equal": true,
+  "graph_feature_absent": true,
+  "ordinary_bench_registration_absent": true,
+  "runtime_source_changes": " src/catalog/virtual_views_empty.rs | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n",
+  "config_changes": ""
+}

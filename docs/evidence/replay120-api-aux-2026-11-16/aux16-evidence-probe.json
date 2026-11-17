@@ -1,0 +1,189 @@
+{
+  "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "tree": "d051222b580d48266b3ed604f588928bd443e660",
+  "controls_checked": 16,
+  "batch_samples_checked": 8800,
+  "all_log_json_hashes_match": true,
+  "all_percentiles_counter_sums_and_policy_checked": true,
+  "both_durable_raw_archives_exact_original_bytes": true,
+  "noop_scope": "Nominal100k budget, 100or1000 empty checkpoint calls; submitted0/applied0. Duplicate submitted100k/applied0.",
+  "command_seconds_sum": 1970.2382304590003,
+  "lanes": [
+    {
+      "name": "1000x100-repeat1-indexed-local_strict-duplicate",
+      "samples": 100,
+      "p50_ns": 16943104.0,
+      "p95_ns": 17116541,
+      "submitted": 100000,
+      "applied": 0,
+      "primary": 100,
+      "maintenance": 0,
+      "fsync": 100
+    },
+    {
+      "name": "1000x100-repeat1-indexed-local_buffered-duplicate",
+      "samples": 100,
+      "p50_ns": 5050125.0,
+      "p95_ns": 7145833,
+      "submitted": 100000,
+      "applied": 0,
+      "primary": 100,
+      "maintenance": 0,
+      "fsync": 4
+    },
+    {
+      "name": "1000x100-repeat1-indexed-local_strict-noop",
+      "samples": 100,
+      "p50_ns": 11931353.5,
+      "p95_ns": 12063750,
+      "submitted": 0,
+      "applied": 0,
+      "primary": 100,
+      "maintenance": 0,
+      "fsync": 100
+    },
+    {
+      "name": "1000x100-repeat1-indexed-local_buffered-noop",
+      "samples": 100,
+      "p50_ns": 386708.0,
+      "p95_ns": 464083,
+      "submitted": 0,
+      "applied": 0,
+      "primary": 100,
+      "maintenance": 0,
+      "fsync": 2
+    },
+    {
+      "name": "1000x100-repeat1-unindexed-local_strict-duplicate",
+      "samples": 100,
+      "p50_ns": 16975917.0,
+      "p95_ns": 17900084,
+      "submitted": 100000,
+      "applied": 0,
+      "primary": 100,
+      "maintenance": 0,
+      "fsync": 100
+    },
+    {
+      "name": "1000x100-repeat1-unindexed-local_buffered-duplicate",
+      "samples": 100,
+      "p50_ns": 5260958.0,
+      "p95_ns": 7213541,
+      "submitted": 100000,
+      "applied": 0,
+      "primary": 100,
+      "maintenance": 0,
+      "fsync": 4
+    },
+    {
+      "name": "1000x100-repeat1-unindexed-local_strict-noop",
+      "samples": 100,
+      "p50_ns": 9018145.5,
+      "p95_ns": 10984500,
+      "submitted": 0,
+      "applied": 0,
+      "primary": 100,
+      "maintenance": 0,
+      "fsync": 100
+    },
+    {
+      "name": "1000x100-repeat1-unindexed-local_buffered-noop",
+      "samples": 100,
+      "p50_ns": 285292.0,
+      "p95_ns": 356917,
+      "submitted": 0,
+      "applied": 0,
+      "primary": 100,
+      "maintenance": 0,
+      "fsync": 2
+    },
+    {
+      "name": "100x1000-repeat1-indexed-local_strict-duplicate",
+      "samples": 1000,
+      "p50_ns": 11303938.0,
+      "p95_ns": 13142542,
+      "submitted": 100000,
+      "applied": 0,
+      "primary": 1000,
+      "maintenance": 0,
+      "fsync": 1000
+    },
+    {
+      "name": "100x1000-repeat1-indexed-local_buffered-duplicate",
+      "samples": 1000,
+      "p50_ns": 835396.0,
+      "p95_ns": 1237916,
+      "submitted": 100000,
+      "applied": 0,
+      "primary": 1000,
+      "maintenance": 0,
+      "fsync": 29
+    },
+    {
+      "name": "100x1000-repeat1-indexed-local_strict-noop",
+      "samples": 1000,
+      "p50_ns": 11096208.0,
+      "p95_ns": 13015417,
+      "submitted": 0,
+      "applied": 0,
+      "primary": 1000,
+      "maintenance": 0,
+      "fsync": 1000
+    },
+    {
+      "name": "100x1000-repeat1-indexed-local_buffered-noop",
+      "samples": 1000,
+      "p50_ns": 345938.0,
+      "p95_ns": 611959,
+      "submitted": 0,
+      "applied": 0,
+      "primary": 1000,
+      "maintenance": 0,
+      "fsync": 29
+    },
+    {
+      "name": "100x1000-repeat1-unindexed-local_strict-duplicate",
+      "samples": 1000,
+      "p50_ns": 13131813.0,
+      "p95_ns": 15114333,
+      "submitted": 100000,
+      "applied": 0,
+      "primary": 1000,
+      "maintenance": 0,
+      "fsync": 1000
+    },
+    {
+      "name": "100x1000-repeat1-unindexed-local_buffered-duplicate",
+      "samples": 1000,
+      "p50_ns": 807646.0,
+      "p95_ns": 1167334,
+      "submitted": 100000,
+      "applied": 0,
+      "primary": 1000,
+      "maintenance": 0,
+      "fsync": 29
+    },
+    {
+      "name": "100x1000-repeat1-unindexed-local_strict-noop",
+      "samples": 1000,
+      "p50_ns": 11889875.0,
+      "p95_ns": 12084042,
+      "submitted": 0,
+      "applied": 0,
+      "primary": 1000,
+      "maintenance": 0,
+      "fsync": 1000
+    },
+    {
+      "name": "100x1000-repeat1-unindexed-local_buffered-noop",
+      "samples": 1000,
+      "p50_ns": 338479.5,
+      "p95_ns": 586292,
+      "submitted": 0,
+      "applied": 0,
+      "primary": 1000,
+      "maintenance": 0,
+      "fsync": 29
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "executable_source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "tree": "d051222b580d48266b3ed604f588928bd443e660",
+  "checks": {
+    "build": {
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--bin",
+        "cassie"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:07:28.899081+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:08:43.494980+00:00",
+      "elapsed_seconds": 74.595478667,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/build.log"
+    },
+    "test": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:08:50.680764+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:25:17.563189+00:00",
+      "elapsed_seconds": 986.881161958,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/test.log"
+    },
+    "clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+        "-D",
+        "clippy::pedantic"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:25:57.894443+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:27:06.898068+00:00",
+      "elapsed_seconds": 69.003235875,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/clippy.log"
+    },
+    "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:27:11.858781+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:27:16.859953+00:00",
+      "elapsed_seconds": 5.000780540999999,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/fmt.log"
+    },
+    "test-policy": {
+      "command": [
+        "python3",
+        "target/assembly-line/all-open-closeout/check_touched_tests.py"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:27:27.062907+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:27:27.146899+00:00",
+      "elapsed_seconds": 0.083626709,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/test-policy.log"
+    },
+    "inventory": {
+      "command": [
+        "target/inventory-venv/bin/python",
+        "tools/test_inventory.py",
+        "--check"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:27:37.505279+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:27:38.772612+00:00",
+      "elapsed_seconds": 1.266945417,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/inventory.log"
+    },
+    "graph-example": {
+      "command": [
+        "cargo",
+        "run",
+        "--locked",
+        "--profile",
+        "test",
+        "--example",
+        "qualification_graph_psycopg"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:27:59.642012+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:28:01.483244+00:00",
+      "elapsed_seconds": 1.840626791,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/graph-example.log"
+    },
+    "fixture-profile": {
+      "command": [
+        "cargo",
+        "bench",
+        "--locked",
+        "-p",
+        "cassie-integration-tests",
+        "--bench",
+        "tier4_pgwire_fixture_profile",
+        "--profile",
+        "test"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:28:21.520861+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:28:23.698909+00:00",
+      "elapsed_seconds": 2.177597291,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/fixture-profile.log"
+    },
+    "replay-bench-build": {
+      "command": [
+        "cargo",
+        "bench",
+        "--locked",
+        "--features",
+        "replay-benchmark-observation",
+        "--bench",
+        "tier3_replay_durability",
+        "--profile",
+        "test",
+        "--no-run"
+      ],
+      "head": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "dirty": "",
+      "started_utc": "2026-11-17T00:28:41.643015+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "ended_utc": "2026-11-17T00:31:00.196038+00:00",
+      "elapsed_seconds": 138.552232208,
+      "log": "/private/tmp/cassie-all-open-integration-20261116/target/assembly-line/all-open-closeout/replay-bench-build.log"
+    }
+  }
+}

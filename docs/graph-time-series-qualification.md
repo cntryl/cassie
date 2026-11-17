@@ -2,7 +2,7 @@
 
 > Historical record. The legacy `CREATE GRAPH` feature this document qualifies for graph traversal (adjacency sidecars, `graph_neighbors`, `graph_expand`, `graph_shortest_path`) was removed in v0.6.0 without conversion. Only the time-series findings remain current; see the [v0.6 graph contract](graph-v060-contract.md).
 
-Issue [772](https://github.com/cntryl/cassie/issues/772) owns this finite review. The initial inspected source is `f510d76910a0c1bb192e4e6ab8d267c821f0215b`. This review does not promote support: graph traversal, time-series rollups and retention remain Experimental; fixed positive UTC minute/hour/day time-series indexes remain Stable. It does not select a persistent format, public API or shared statement snapshot.
+Issue [772](https://github.com/cntryl/cassie/issues/772) owns this finite review. The initial inspected source is `f510d76910a0c1bb192e4e6ab8d267c821f0215b`. This review records only its finite findings; graph traversal, rollups, retention and fixed positive UTC minute/hour/day indexes retain their separately documented behavior and evidence. It does not select a persistent format, public API or shared statement snapshot.
 
 ## Finite invariant disposition
 

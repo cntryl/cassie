@@ -121,3 +121,77 @@ fn should_select_indexed_shape_unless_unindexed_is_requested() {
     assert_eq!(actual, [Ok("indexed"), Ok("indexed"), Ok("unindexed")]);
     assert!(rejected.is_err());
 }
+
+#[test]
+fn should_select_distinct_replay_workload_expectations() {
+    // Arrange
+    let cases = [
+        (None, "apply", (4, 0)),
+        (Some(OsStr::new("duplicate")), "duplicate", (0, 4)),
+        (Some(OsStr::new("noop")), "noop", (0, 0)),
+    ];
+
+    // Act
+    let actual = cases.map(|(input, label, counts)| {
+        let case = mode::Workload::parse(input).unwrap();
+        (case.label() == label, case.expected_counts(4) == counts)
+    });
+
+    // Assert
+    assert_eq!(actual, [(true, true); 3]);
+    assert!(mode::Workload::parse(Some(OsStr::new("unknown"))).is_err());
+}
+
+#[test]
+fn should_reject_ledger_workloads_for_sql_projector_lanes() {
+    // Arrange
+    let cases = [
+        mode::Workload::Apply,
+        mode::Workload::Duplicate,
+        mode::Workload::Noop,
+    ];
+
+    // Act
+    let sql = cases.map(|case| case.validate(ReplayMode::SqlReplayable).is_ok());
+    let replay = cases.map(|case| case.validate(ReplayMode::Buffered).is_ok());
+
+    // Assert
+    assert_eq!(sql, [true, false, false]);
+    assert_eq!(replay, [true; 3]);
+}
+
+#[path = "../../benches/tier3_replay_durability/bucket.rs"]
+mod bucket;
+
+#[test]
+fn should_accept_a_complete_bucket_of_exact_title_values() {
+    // Arrange
+    let rows = vec![vec![cassie::types::Value::String("title-0".to_owned())]; 2];
+    // Act
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        bucket::assert_bucket(&rows, 2, "title-0");
+    }));
+    // Assert
+    assert!(outcome.is_ok());
+}
+
+#[test]
+fn should_reject_invalid_title_bucket_results() {
+    // Arrange
+    use cassie::types::Value;
+    let cases = [
+        vec![],
+        vec![vec![Value::String("title-0".to_owned())]; 2],
+        vec![vec![Value::String("title-1".to_owned())]],
+        vec![vec![Value::Null]],
+    ];
+    // Act
+    let outcomes = cases.map(|rows| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            bucket::assert_bucket(&rows, 1, "title-0");
+        }))
+        .is_err()
+    });
+    // Assert
+    assert_eq!(outcomes, [true; 4]);
+}

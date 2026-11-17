@@ -80,8 +80,8 @@ storage layer. New JSONB columns persist their distinct schema type. Existing
 schema entries serialized as `json` remain JSON: the former alias erased the
 original SQL spelling, so it cannot be recovered by an automatic reinterpretation.
 No row-layout migration or additional storage abstraction is selected.
-This contract is authorized; support remains Experimental until its selected
-runtime, wire, restart, NULL and exact-value tests have passed.
+This contract is authorized; qualification requires passing results from its selected
+runtime, wire, restart, NULL and exact-value tests.
 
 The selected inspection increment uses the existing native document identities:
 `json_typeof`/`jsonb_typeof` return TEXT, `json_array_length`/`jsonb_array_length`
@@ -129,7 +129,7 @@ parameters, operators and selected functions. This is an expression-only
 identity: JSONPath table columns and JSONPath arrays are not selected, and no
 row-blob or persisted schema representation is introduced. The bounded runtime
 surface is recorded in [Feature Support](feature-support.md) and remains
-Experimental until its selected parser, accessor, predicate, item-method,
+unqualified until its selected parser, accessor, predicate, item-method,
 resource and cancellation evidence passes.
 
 The `varchar` identity also accepts `char varying(n)`,
@@ -275,7 +275,7 @@ known exclusions live in [Extended Types](extended-types.md) and the canonical
 ## Qualification boundary
 
 Type registration and a passing case do not promote a capability. Support
-status remains Experimental until the feature owner has the required semantic,
+qualification requires the feature owner to retain the required semantic,
 wire, resource, restart and client evidence. PostgreSQL-shaped behavior is
 selected per documented use case; unlisted casts, overloads, catalog rows,
 array families and extensions remain unsupported or unqualified according to

@@ -1,0 +1,6 @@
+{
+  "python": "3.12.13",
+  "psycopg": "3.2.13",
+  "libpq_version": 170006,
+  "implementation": "binary"
+}

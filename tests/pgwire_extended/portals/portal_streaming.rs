@@ -46,13 +46,11 @@ fn should_stop_portal_scan_after_requested_page_is_buffered() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(cassie),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("query connection");
@@ -131,13 +129,11 @@ fn should_cancel_suspended_portal_before_resume() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(cassie),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("query connection");
@@ -239,13 +235,11 @@ fn should_resume_portal_from_original_snapshot_after_concurrent_insert() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(cassie),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let mut socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("query connection");
@@ -543,13 +537,11 @@ fn should_page_portal_from_one_result_when_delete_commits_during_staged_transact
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(cassie),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let mut reader_socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("reader connection");

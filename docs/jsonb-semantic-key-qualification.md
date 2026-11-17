@@ -4,7 +4,7 @@ Issue #809 selects exact JSONB object/value identity and ordering under the
 [Type Contract](type-contract.md#selected-jsonb-contract-2026-10-24). The source
 candidate described here is **awaiting the combined executable gate**. Authored
 regressions, PostgreSQL oracle results and Jev source reviews are not Cassie
-passing runtime evidence. Support remains Experimental.
+passing runtime evidence. Broader qualification remains outstanding.
 
 ## Selected behavior
 

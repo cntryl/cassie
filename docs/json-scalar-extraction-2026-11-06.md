@@ -21,5 +21,4 @@ parameter regressions were authored after the initial implementation in response
 to those leads; they passed in the 2026-11-10 complete locked test suite. Their
 oracle output is retained in ignored
 `target/v020-json/oracle-scalar-params.json`. Existing tests cover JSONB chain
-semantics. Broader JSON support remains Experimental as recorded in Feature
-Support.
+semantics. Broader JSON qualification remains separate as recorded in Feature Support.

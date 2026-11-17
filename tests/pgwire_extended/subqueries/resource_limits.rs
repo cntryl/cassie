@@ -24,13 +24,11 @@ async fn start_server(
         .await
         .expect("bind pgwire listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
-    let server = tokio::spawn(cassie::pgwire::server::run(
-        address.to_string(),
+    let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener,
         Arc::new(instance),
         config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     (address, server)
 }
 

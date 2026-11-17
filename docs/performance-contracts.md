@@ -206,7 +206,7 @@ validation rejects configuration drift or recall below 0.90.
 
 Hybrid retrieval combines persisted text, vector, and structured candidates before exact final scoring under the shared query memory and cancellation controls. It reports component candidate counts, final row fetches, and fallback reasons.
 
-Remote embedding providers expose controlled document and query methods. Each request, retry, and backoff observes cancellation and clamps its transport timeout to the remaining query deadline. Provider success and error bodies are bounded by `CASSIE_EMBEDDINGS_MAX_RESPONSE_BYTES` (default 8 MiB), declared oversized bodies are rejected before reading, chunked bodies stop at the limit plus one byte, and propagated provider-error excerpts are control-free and capped at 1 KiB. Stable describes Cassie's protocol behavior and deterministic local contract evidence, not the availability or latency of third-party services.
+Remote embedding providers expose controlled document and query methods. Each request, retry, and backoff observes cancellation and clamps its transport timeout to the remaining query deadline. Provider success and error bodies are bounded by `CASSIE_EMBEDDINGS_MAX_RESPONSE_BYTES` (default 8 MiB), declared oversized bodies are rejected before reading, chunked bodies stop at the limit plus one byte, and propagated provider-error excerpts are control-free and capped at 1 KiB. These controls establish Cassie's protocol behavior and deterministic local contract evidence, not the availability or latency of third-party services.
 
 ## Time-Series, Graph, and Column Batches
 
@@ -761,7 +761,7 @@ A complete-suite artifact contains one run ID, commit, toolchain, profile, and u
 
 The default Tier 1-4 manifest also sums owner wall time and panics when that total exceeds 900 seconds. Owner wall time includes setup and measurement, while the artifact retains their separate durations for diagnosis.
 
-Filtered and smoke runs are diagnostic artifacts and never overwrite a complete owner suite's `latest.json`. Local fallback artifacts and percentiles are comparative developer evidence only. Production-ready latency, capacity, and disk-backed claims require retained evidence from a named deployment profile.
+Filtered and smoke runs are diagnostic artifacts and never overwrite a complete owner suite's `latest.json`. Local fallback artifacts and percentiles are comparative developer evidence only. Production latency, capacity, and disk-backed claims require retained evidence from a named deployment profile.
 
 ## Acceptance Commands
 
@@ -839,7 +839,7 @@ identity, and each recorded benchmark row's trust and quality. For `tier2_subsys
 it also requires exactly the eight registered scenario IDs, passing correctness, usable gate trust
 and quality, and all four declared paired p95 ratios. `GATE-CANDIDATE` identifies a row with usable
 row-level evidence; the selected-shard pass additionally requires those owner checks to pass.
-Diagnostic, experimental, invalid, and unavailable rows remain distinct. Record unselected
+Diagnostic, exploratory, invalid, and unavailable rows remain distinct. Record unselected
 shards as `SKIPPED` from the selection manifest; a missing artifact for a selected shard is
 `UNAVAILABLE`, never an inferred skip. Use `--skipped-cell <id>` only when the selection manifest
 confirms that the cell was not selected; `--unavailable-cell <id>` records an expected selected
@@ -854,7 +854,7 @@ Benchmark source and test files remain under 1,000 lines. Cassie's suite does no
 ## Typed Execution and Physical Storage Boundary
 
 The [finite query-engine target](query-engine-target.md) separates Midge column
-families (database namespaces), experimental ColumnStore field-key tables, Stable
+families (database namespaces), ColumnStore field-key tables,
 CBM1 derived acceleration, and the Planned common typed-column relational
 pipeline. Existing typed buffers and selected encoded kernels in this document
 describe specialized acceleration; they do not claim that every relational

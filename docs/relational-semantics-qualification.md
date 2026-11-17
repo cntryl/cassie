@@ -17,7 +17,7 @@ this probe because the parser's join source currently requires an `ON`
 predicate; no JOIN USING support is claimed here.
 
 These probes qualify this subset only. They do not complete SQL-005 or SQL-006,
-compare the behavior against PostgreSQL, or promote the Experimental support
+compare the behavior against PostgreSQL, or qualify the broader support
 level. Exact test names and the validation receipt are recorded with the
 implementation review.
 

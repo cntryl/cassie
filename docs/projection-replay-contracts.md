@@ -3,10 +3,12 @@
 Cassie replay is a local read-model ingestion contract. The source event stream, event ordering policy, retry policy, and projection handler code remain application-owned. Cassie owns local projection rows, replay checkpoint metadata, duplicate detection, freshness state, metrics, and catalog diagnostics.
 
 This surface is Cassie-specific and part of the local projection lifecycle in
-[Feature Support](feature-support.md). The selected atomic replay change is
-not yet qualified by the historical Stable lifecycle evidence. Issue #1270
-tracks its complete local, recovery and hosted qualification; deployment-level
-production readiness remains separate.
+[Feature Support](feature-support.md). Atomic replay and its finite synchronous
+recovery evidence were delivered under closed issue
+[#1270](https://github.com/cntryl/cassie/issues/1270). The replayable policy is
+implemented; the broader buffered/cloud loss and representative-workload
+qualification remains tracked by [#1271](https://github.com/cntryl/cassie/issues/1271).
+Deployment-level production readiness remains separate.
 
 ## Ownership Boundary
 
@@ -23,9 +25,9 @@ production readiness remains separate.
 
 Cassie must not be treated as the source event store. A Cassie snapshot or projection checkpoint is recovery evidence for local projection state, not a replacement for the application event stream.
 
-## Replayable durability policy (#1271, selected; implementation pending)
+## Replayable durability policy (#1271, implemented with qualification limits)
 
-The default replay API changes from synchronous local writes to buffered WAL.
+The default replay API selects buffered local WAL.
 Existing callers that require the previous local acknowledgement should migrate
 to `replay_projection_batch_strict`; on cloud this explicitly waits for the
 strict cloud policy instead of inheriting background upload.
@@ -69,11 +71,18 @@ source. Cassie does not currently automate this source coordination. No fixed
 loss window, power-loss guarantee, cloud cache-loss guarantee or throughput
 improvement is claimed without independent qualification.
 
-This section selects the intended contract; #1271 implementation, fault/restart
-qualification, operator diagnostics and representative benchmarks are pending.
-The #1270 synchronous process-death evidence does not qualify buffered or cloud
-recovery. The public checkpoint view's separate snapshot limitation remains
-tracked by #1272.
+The replay API policy is implemented in `src/app/replay.rs` and
+`src/midge/adapter/storage_config.rs` (closed
+[#1276](https://github.com/cntryl/cassie/issues/1276)); explicit SQL policy and its
+remaining proof boundaries are recorded in
+[Replayable SQL transactions](sql-replayable-transaction-contract.md). The
+maintenance classification work is delivered under closed
+[#1277](https://github.com/cntryl/cassie/issues/1277), while broader #1271
+fault/loss qualification, operator diagnostics and representative benchmarks
+remain separate obligations. The #1270 synchronous process-death evidence does
+not qualify buffered or cloud recovery. The public checkpoint view's
+statement-snapshot implementation and remaining limitations are described below
+(closed [#1272](https://github.com/cntryl/cassie/issues/1272)).
 
 ## Deterministic Handler Expectations
 
@@ -221,7 +230,7 @@ view across database scope, snapshot restore and materialized projection
 lifecycle; they run in the gate but were not written for this issue. Autocommit CREATE TABLE publishes under the global write guard
 without a separate staged overlay and is unaffected.
 
-Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. The selected #1271 policy above remains unimplemented and does not establish crash atomicity for a new durability policy.
+Preflight and known precommit row-write failures attempt to persist failed freshness, guarded by the metadata version read during preparation. A changed checkpoint returns conflict rather than overwriting newer metadata. A storage stall preserves its original retryable error if the separate diagnostic write also fails. Failed metadata is hydrated on restart when that diagnostic commit succeeds; durable failure diagnostics cannot be promised when storage is unavailable. A fenced writer must not submit another diagnostic write. A failure returned after commit may have an uncertain outcome; inspect recovered checkpoint and ledger state and retry the same batch instead of assuming either commit result. In particular, a failed metadata reread after a successful commit can return an error while the rows, ledger and checkpoint are already committed and the live catalog remains stale. A same-batch retry reconciles duplicate events when storage is available. The caller owns its external source acknowledgment. An external offset can survive loss of the entire Cassie database: recovery must rewind or rebuild from retained source events rather than trusting an offset beyond recovered Cassie state. The implemented replayable policy above does not by itself establish buffered power-loss or cloud-cache-loss qualification; #1271 retains those independent evidence requirements.
 
 ## Cancellable Replay
 
@@ -282,4 +291,4 @@ Do not swap an active projection version after a failed replay solely because a 
 - `src/midge/adapter/statement_read/tests/replay_process_crash.rs` covers strict and buffered local child-process kill-and-reopen at a precommit boundary and after acknowledgement, including recovered row, scalar index, ledger, checkpoint and same-batch retry assertions. These cases passed on the same head. Process death does not establish power-loss or cloud-cache-loss recovery.
 - Feature-gated replay policy tests passed on the same head and observe the first native commit policy and per-policy attempts, including simulated background and strict cloud configuration. Simulated provider policy selection does not qualify real provider acknowledgement or cloud-cache loss recovery.
 - The local strict-versus-buffered diagnostic benchmark on the same head observed additional strict foreground commit attempts in every buffered run. Replay's selected commit is followed before return by column-batch and projection-hash maintenance and time-series index rebuilds; debt cleanup uses strict write options. Engine-wide WAL and ledger counters may include background work and omit some filesystem syncs, so they cannot attribute every physical sync to replay. Broader workload measurements and maintenance-barrier work remain under [#1271](https://github.com/cntryl/cassie/issues/1271).
-- `docs/production-readiness.md` records the Stable local projection lifecycle promotion and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that promotion.
+- `docs/production-readiness.md` records the local projection lifecycle contract and its retained native-disk replay, refresh, verification, and repair evidence. Deployment-profile alert thresholds remain open under #8 and are not implied by that evidence.

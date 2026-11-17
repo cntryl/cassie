@@ -1,9 +1,8 @@
 # v0.6 graph contract and delivery plan
 
-Status: **implemented finite Cassie contract; graph traversal remains
-Experimental**. Owner decisions of 2026-11-15 define the selected surface; the
+Status: **implemented finite Cassie contract in a pre-release project**. Owner decisions of 2026-11-15 define the selected surface; the
 [qualification record](graph-v060-qualification.md) records executed correctness,
-client, read-bound and benchmark evidence and remaining promotion limits. This
+client, read-bound and benchmark evidence and remaining qualification limits. This
 document does not claim SQL:2023 conformance. The source tables and ordinary
 transactional indexes are authoritative; no derived adjacency proof is claimed.
 
@@ -671,7 +670,7 @@ multi-hop work.
 **Owner decision, 2026-11-15: the legacy graph feature is removed without
 conversion.** `CREATE GRAPH`, its fixed `g_nodes` and `g_edges` tables and the
 positional `graph_neighbors`, `graph_expand` and `graph_shortest_path` functions
-are Experimental and have no production usage; Cassie is pre-release and makes
+have no production usage; Cassie is pre-release and makes
 no on-disk compatibility promise. They are deleted once mapped property graphs,
 `GRAPH_TABLE` and `graph_weighted_paths` cover their uses, and their tests and
 benchmark are migrated to mapped graphs. No conversion tool, equivalence
@@ -695,11 +694,10 @@ statement's own Data snapshot and transaction overlay. That is correct by
 construction with the published Midge API and needs no derived state. Derived
 adjacency, its completeness argument and the O(degree) read bound are an
 optimization delivered last; if the bound cannot be justified against the
-published API, the blocker is recorded and exact reads remain. Stable still
-requires actual client and wire, independent semantic oracle, resource,
+published API, the blocker is recorded and exact reads remain. Feature qualification requires actual client and wire, independent semantic oracle, resource,
 lifecycle and benchmark evidence on the release candidate, plus the normal
-complete local and hosted gates. Experimental support is not automatically
-promoted when code lands.
+complete local and hosted gates. Implementation alone does not establish
+those evidence obligations.
 
 ### Execution sequence
 
@@ -712,7 +710,7 @@ promoted when code lands.
 | Exact execution | #1257, #1254 (transaction view) | Run the grammar on exact reads with independent path oracles, own-write and savepoint visibility, cancellation and resource tests. Do not use pruning that changes multiplicity or path history. |
 | Weighted paths and legacy removal | #1258 | Validate all applicable weights, compare k paths and costs with exhaustive oracles, then delete the legacy feature and migrate its tests. |
 | Fast reads | #1253, #1254 (read bounds), #1259 | Record the integrity model and completeness argument or the exact blocker; add adjacency, per-anchor overlay merge, batching and pushdown only with results identical to exact execution. |
-| Qualification | #1260 | Guide, clients, lifecycle cases, measured scaling and exact-head local and hosted gates; decide promotion from evidence. |
+| Qualification | #1260 | Guide, clients, lifecycle cases, measured scaling and exact-head local and hosted gates; record qualification results and remaining limits. |
 
 The GitHub native blockers carry the issue dependency graph; where they
 disagree with this table, this table is the delivery order. Independent design

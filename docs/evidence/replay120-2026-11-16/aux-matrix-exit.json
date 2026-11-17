@@ -1,0 +1,15 @@
+{
+  "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+  "tree": "d051222b580d48266b3ed604f588928bd443e660",
+  "command": [
+    "python3",
+    "target/assembly-line/all-open-closeout/run_matrix.py",
+    "api_aux"
+  ],
+  "process_exit_code": 0,
+  "controls_passed": 16,
+  "total_command_seconds": 1970.2382304590003,
+  "started_utc": "2026-11-17T01:50:24.671543+00:00",
+  "ended_utc": "2026-11-17T02:23:15.125206+00:00",
+  "observed_process_exit_utc": "2026-11-17T02:24:33.706310+00:00"
+}

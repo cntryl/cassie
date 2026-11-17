@@ -88,7 +88,7 @@ fn should_release_a_never_started_workers_connection_lease_without_running_it() 
         // Act
         let (queued,) = with_connection_lease(permit, async {
             (spawn_owned_blocking(move || {
-                observed.store(true, std::sync::atomic::Ordering::Release)
+                observed.store(true, std::sync::atomic::Ordering::Release);
             }),)
         })
         .await;

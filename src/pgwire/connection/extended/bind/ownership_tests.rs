@@ -87,7 +87,7 @@ fn should_reject_stale_bind_without_replacing_a_newer_portal() {
     assert_eq!(result.expect_err("stale Bind").pg_error.code, "25000");
     assert!(output.is_empty(), "stale Bind must not emit BindComplete");
     assert_eq!(state.portals["p"].completed_command.as_deref(), Some("B"));
-    assert!(state.portal_owners.belongs_to("p", current));
+    assert_eq!(state.portal_owner_identity("p"), Some(current));
 }
 
 #[test]

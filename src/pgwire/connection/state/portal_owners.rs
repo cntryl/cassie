@@ -95,6 +95,16 @@ impl PortalOwners {
             .any(|owner| owner.name == name && same_lifetime(owner.identity, identity))
     }
 
+    pub(in crate::pgwire::connection) fn identity(
+        &self,
+        name: &str,
+    ) -> Option<FailureAuthorityIdentity> {
+        self.owners
+            .iter()
+            .find(|owner| owner.name == name)
+            .map(|owner| owner.identity)
+    }
+
     pub(in crate::pgwire::connection) fn adopt(
         &mut self,
         before: FailureAuthorityIdentity,

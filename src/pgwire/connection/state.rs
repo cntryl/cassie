@@ -205,6 +205,13 @@ impl SessionState {
         }
     }
 
+    pub(super) fn portal_owner_identity(
+        &self,
+        name: &str,
+    ) -> Option<crate::app::FailureAuthorityIdentity> {
+        self.portal_owners.identity(name)
+    }
+
     pub(super) fn reconcile_portals(
         &mut self,
         identity: crate::app::FailureAuthorityIdentity,

@@ -59,7 +59,7 @@ fn should_retire_old_portals_without_clearing_the_replacement_transaction() {
     // Assert
     assert!(!state.portals.contains_key("old"));
     assert!(state.portals.contains_key("current"));
-    assert!(state.portal_owners.belongs_to("current", current));
+    assert_eq!(state.portal_owner_identity("current"), Some(current));
     state.remove_portal("current");
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
 }

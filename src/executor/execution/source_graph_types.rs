@@ -232,9 +232,14 @@ fn step_rows(
         return Ok(Vec::new());
     };
     let numeric_bytes = costs.map_or(Ok(0), numeric_bound)?;
-    let cost_memory = env.controls.reserve_query_memory(mul(
-        add(mul(path.edges.len(), 2)?, 1)?,
-        add(size_of::<Numeric>(), numeric_bytes)?,
+    let cost_count = path.edges.len();
+    let retained_count = add(mul(cost_count, 2)?, 1)?;
+    let directories = add(grown_capacity(cost_count, 4)?, add(cost_count, 1)?)?;
+    // Cost and prefix vectors coexist with a cloned previous prefix, two aligned
+    // operands, and addition/formatting scratch. Admit that workspace before decoding.
+    let cost_memory = env.controls.reserve_query_memory(add(
+        mul(directories, size_of::<Numeric>())?,
+        mul(add(retained_count, 4)?, numeric_bytes)?,
     )?)?;
     #[cfg(test)]
     crate::executor::execution::graph_memory_test_observer::record(

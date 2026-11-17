@@ -1,5 +1,6 @@
 //! View dependencies follow graph identity within the owning database.
 
+use crate::graph_view_fixture::started_shadow_fixture;
 use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 
@@ -158,7 +159,7 @@ const SHADOW_SETUP: &[&str] = &[
 #[test]
 fn should_protect_every_potential_graph_target_of_a_shadowed_unqualified_view_reference() {
     // Arrange
-    let fixture = sql_fixture("graph-view-shadowed-drop", SHADOW_SETUP);
+    let fixture = started_shadow_fixture("graph-view-shadowed-drop", SHADOW_SETUP);
     fixture.execute("CREATE VIEW alt.vg AS SELECT x FROM GRAPH_TABLE(g MATCH(v IS node) COLUMNS(v.id AS x)) AS t").expect("unqualified view binds public graph");
     assert_eq!(
         fixture.rows("SELECT x FROM alt.vg"),
@@ -195,7 +196,7 @@ fn should_protect_every_potential_graph_target_of_a_shadowed_unqualified_view_re
 #[test]
 fn should_reject_renaming_a_potential_graph_target_of_a_shadowed_view_reference() {
     // Arrange
-    let fixture = sql_fixture("graph-view-shadowed-rename", SHADOW_SETUP);
+    let fixture = started_shadow_fixture("graph-view-shadowed-rename", SHADOW_SETUP);
     fixture.execute("CREATE VIEW alt.vg AS SELECT x FROM GRAPH_TABLE(g MATCH(v IS node) COLUMNS(v.id AS x)) AS t").expect("unqualified view binds public graph");
     assert_eq!(
         fixture.rows("SELECT x FROM alt.vg"),
@@ -225,7 +226,7 @@ fn should_reject_renaming_a_potential_graph_target_of_a_shadowed_view_reference(
 #[test]
 fn should_reject_an_ambiguous_direct_graph_cascade_before_mutating_its_schema() {
     // Arrange
-    let fixture = sql_fixture("graph-view-shadowed-direct-cascade", SHADOW_SETUP);
+    let fixture = started_shadow_fixture("graph-view-shadowed-direct-cascade", SHADOW_SETUP);
     fixture.execute("CREATE VIEW keep.vg AS SELECT x FROM GRAPH_TABLE(g MATCH(v IS node) COLUMNS(v.id AS x)) AS t").expect("unqualified outside view");
     assert_eq!(
         fixture.rows("SELECT x FROM keep.vg"),
@@ -259,7 +260,7 @@ fn should_reject_an_ambiguous_direct_graph_cascade_before_mutating_its_schema() 
 #[test]
 fn should_reject_a_transitive_cascade_with_a_surviving_shadow_relation() {
     // Arrange
-    let fixture = sql_fixture("graph-view-shadowed-transitive-cascade", SHADOW_SETUP);
+    let fixture = started_shadow_fixture("graph-view-shadowed-transitive-cascade", SHADOW_SETUP);
     fixture.execute("CREATE VIEW public.base AS SELECT x FROM GRAPH_TABLE(alt.g MATCH(v IS node) COLUMNS(v.id AS x)) AS t").expect("qualified direct view");
     fixture
         .execute("CREATE TABLE keep.base(x INT)")
@@ -306,7 +307,7 @@ fn should_reject_a_transitive_cascade_with_a_surviving_shadow_relation() {
 #[test]
 fn should_reject_a_transitive_cascade_with_a_surviving_shadow_view() {
     // Arrange
-    let fixture = sql_fixture("graph-view-shadowed-transitive-view", SHADOW_SETUP);
+    let fixture = started_shadow_fixture("graph-view-shadowed-transitive-view", SHADOW_SETUP);
     fixture.execute("CREATE VIEW public.base AS SELECT x FROM GRAPH_TABLE(alt.g MATCH(v IS node) COLUMNS(v.id AS x)) AS t").expect("qualified direct view");
     fixture
         .execute("CREATE VIEW keep.base AS SELECT 99 AS x")
@@ -350,7 +351,7 @@ fn should_reject_a_transitive_cascade_with_a_surviving_shadow_view() {
 #[test]
 fn should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade() {
     // Arrange
-    let fixture = sql_fixture("graph-view-qualified-shadow-control", SHADOW_SETUP);
+    let fixture = started_shadow_fixture("graph-view-qualified-shadow-control", SHADOW_SETUP);
     fixture.execute("CREATE VIEW keep.vg AS SELECT x FROM GRAPH_TABLE(public.g MATCH(v IS node) COLUMNS(v.id AS x)) AS t").expect("qualified direct view");
     fixture
         .execute("CREATE VIEW keep.outer_view AS SELECT x FROM keep.vg")

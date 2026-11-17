@@ -416,24 +416,38 @@ async fn handle_close(
             {
                 let owned_session = session.clone();
                 let owned_name = name.clone();
-                run_pgwire_blocking(cassie, "pgwire_forget_prepared", move |_| {
-                    owned_session.forget_wire_prepared(&owned_name, id)
+                run_pgwire_blocking(cassie, "pgwire_forget_prepared", move |_cassie| {
+                    owned_session.forget_wire_prepared(&owned_name, id)?;
+                    #[cfg(test)]
+                    prepared_state::registry_publication_tests::after_registry(
+                        &_cassie,
+                        &owned_session,
+                    );
+                    Ok(())
                 })
                 .await
                 .map_err(|error| ExtendedQueryError::cassie(&error))?;
-                let prepared = state
-                    .prepared_statements
-                    .remove(&name)
-                    .expect("checked prepared statement");
-                runtime.record_pgwire_prepared_delta(-1);
-                state.prepared_result_descriptors.remove(&prepared.id);
-                remove_portals_for_prepared_id(state, runtime, prepared.id);
+                session
+                    .try_with_current_operation_owner(|_| {
+                        let prepared = state
+                            .prepared_statements
+                            .remove(&name)
+                            .expect("checked prepared statement");
+                        runtime.record_pgwire_prepared_delta(-1);
+                        state.prepared_result_descriptors.remove(&prepared.id);
+                        remove_portals_for_prepared_id(state, runtime, prepared.id);
+                    })
+                    .map_err(|error| ExtendedQueryError::cassie(&error))?;
             }
         }
         DescribeTarget::Portal => {
-            if state.remove_portal(&name).is_some() {
-                runtime.record_pgwire_portal_delta(-1);
-            }
+            session
+                .try_with_current_operation_owner(|_| {
+                    if state.remove_portal(&name).is_some() {
+                        runtime.record_pgwire_portal_delta(-1);
+                    }
+                })
+                .map_err(|error| ExtendedQueryError::cassie(&error))?;
         }
     }
     let _ = write_close_complete(write_half).await;

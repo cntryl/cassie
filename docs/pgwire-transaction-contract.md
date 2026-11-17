@@ -398,11 +398,11 @@ UUID and generation, or the captured idle preparation segment. Bind publication
 validates its captured UUID, generation and rollback epoch under the transaction
 mutex before replacing any portal or publishing its read view. A changed or busy
 owner returns `25000` without `BindComplete`. This check does not wait on the
-async connection thread. Portal metadata and names use the connection's portal
-memory tracker and are released on close, cascade and disconnect; the additional
+async connection thread. Additional owner metadata and its retained names use the
+connection's portal memory tracker and are released on close, cascade and disconnect; the additional
 retained ownership can reject a tight budget with `54000`.
 
-Only that operation's recorded implicit BEGIN may adopt idle preparation portals
+Only that operation's recorded idle-to-active BEGIN may adopt idle preparation portals
 into its new transaction. A generation change alone never grants adoption.
 Retirement removes only the matching owner's portals, preserving a replacement
 transaction's portals and named prepared statements. Portal lifetime comparisons

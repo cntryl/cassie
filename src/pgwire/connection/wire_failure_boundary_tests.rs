@@ -431,3 +431,138 @@ fn should_keep_the_replacement_healthy_after_an_extended_worker_error() {
     assert!(!session.is_transaction_failed());
     assert!(cassie.execute_sql(&session, "SELECT 1", vec![]).is_ok());
 }
+
+#[test]
+fn should_cleanup_an_own_implicit_origin_when_the_worker_slot_is_saturated() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.max_query_workers = 1;
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
+    cassie.startup().unwrap();
+    let root = cassie.create_session("saturated_origin", None);
+    let operation = root.with_new_wire_operation();
+    operation
+        .begin_implicit_transaction_for_operation(operation.operation_failure_authority())
+        .unwrap();
+    let receipt = operation
+        .operation_failure_authority()
+        .unwrap()
+        .portal_adoption();
+    let occupied = cassie.runtime.try_begin_running_query().unwrap();
+
+    // Act
+    let result = cassie.execute_pgwire_sql_with_cancellation(
+        &operation,
+        ("SELECT 7", "SELECT 7"),
+        &crate::runtime::QueryCancellationHandle::new(),
+    );
+    let retained = operation
+        .operation_failure_authority()
+        .unwrap()
+        .portal_adoption();
+    operation.fail_operation_transaction();
+    drop(occupied);
+
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::Execution(ref message)) if message == "query admission exhausted")
+    );
+    assert!(receipt.is_some());
+    assert_eq!(receipt, retained);
+    assert!(!root.is_transaction_active());
+    assert!(!root.is_transaction_failed());
+}
+
+#[test]
+fn should_not_fail_b_when_a_captured_operation_later_hits_saturation() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.max_query_workers = 1;
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
+    cassie.startup().unwrap();
+    let root = cassie.create_session("saturated_replacement", None);
+    root.begin_transaction(None).unwrap();
+    let operation = root.with_new_wire_operation();
+    let captured = crate::app::FailureAuthority::capture_for_operation(&operation).identity();
+    replace_transaction(&root);
+    let current = root.transaction_unique_owner_id();
+    let occupied = cassie.runtime.try_begin_running_query().unwrap();
+
+    // Act
+    let result = cassie.execute_pgwire_sql_with_cancellation(
+        &operation,
+        ("SELECT 7", "SELECT 7"),
+        &crate::runtime::QueryCancellationHandle::new(),
+    );
+    operation.fail_operation_transaction();
+    drop(occupied);
+
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::Execution(ref message)) if message == "query admission exhausted")
+    );
+    assert_eq!(
+        operation.operation_failure_authority().unwrap().identity(),
+        captured
+    );
+    assert_eq!(root.transaction_unique_owner_id(), current);
+    assert!(root.is_transaction_active());
+    assert!(!root.is_transaction_failed());
+}
+
+#[test]
+fn should_return_an_uncaptured_saturation_error_while_the_root_is_contended() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.max_query_workers = 1;
+    let cassie = Arc::new(Cassie::new_in_memory_with_config(config).unwrap());
+    cassie.startup().unwrap();
+    let root = cassie.create_session("saturated_contended", None);
+    root.begin_transaction(None).unwrap();
+    let operation = root.with_new_wire_operation();
+    let occupied = cassie.runtime.try_begin_running_query().unwrap();
+    let (held_tx, held_rx) = std::sync::mpsc::sync_channel(1);
+    let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+    let holding_root = root.clone();
+    let holder = std::thread::spawn(move || {
+        holding_root.hold_transaction_for_test(
+            &held_tx,
+            &release_rx,
+            Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        )
+    });
+    held_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    let (done_tx, done_rx) = std::sync::mpsc::sync_channel(1);
+    let worker_cassie = Arc::clone(&cassie);
+    let worker = std::thread::spawn(move || {
+        let result = worker_cassie.execute_pgwire_sql_with_cancellation(
+            &operation,
+            ("SELECT 7", "SELECT 7"),
+            &crate::runtime::QueryCancellationHandle::new(),
+        );
+        operation.fail_operation_transaction();
+        done_tx
+            .send((
+                result,
+                operation.operation_failure_authority().unwrap().identity(),
+            ))
+            .unwrap();
+    });
+
+    // Act
+    let completed_without_root = done_rx.recv_timeout(Duration::from_secs(5));
+    release_tx.send(()).unwrap();
+    holder.join().unwrap();
+    worker.join().unwrap();
+    drop(occupied);
+
+    // Assert
+    let (result, authority) = completed_without_root
+        .expect("uncaptured rejection and outer failure must not await root capture");
+    assert!(
+        matches!(result, Err(CassieError::Execution(ref message)) if message == "query admission exhausted")
+    );
+    assert!(authority.is_none());
+    assert!(root.is_transaction_active());
+    assert!(!root.is_transaction_failed());
+}

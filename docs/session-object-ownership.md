@@ -46,3 +46,11 @@ history only when the guarded reset succeeds. DISCARD SEQUENCES uses the same
 sequence-before-root order. Neither path acquires sequence history while already
 holding root. Direct public APIs without an execution context retain their
 existing current-session meaning. No guard encloses native storage I/O.
+
+Parse and statement Close registry writes run on the owned blocking worker with
+the original frame authority. Final connection map/portal cascade publication
+validates that owner under the actual root try-lock. Stale or busy publication
+returns 25000 without changing the previous connection maps. A failed Parse
+publication removes only its just-registered named wire ID on a blocking worker;
+a newer same-name ID survives, and unnamed Parse has no shared entry to remove.
+A Close registry removal already linearized before replacement is not restored.

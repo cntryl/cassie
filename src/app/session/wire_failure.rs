@@ -335,6 +335,12 @@ impl CassieSession {
         else {
             return;
         };
+        {
+            let owner = authority.owner.lock();
+            if !owner.captured || owner.admission_rejected {
+                return;
+            }
+        }
         let mut transaction = self.transaction.lock();
         let owner = authority.owner.lock();
         if !owner.captured

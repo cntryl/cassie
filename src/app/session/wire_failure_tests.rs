@@ -808,3 +808,56 @@ fn should_not_grant_an_established_rejected_operation_rights_over_a_replacement(
     assert!(session.is_transaction_active());
     assert!(!session.is_transaction_failed());
 }
+
+#[test]
+fn should_not_export_a_replacements_repeatable_read_alias_to_an_old_operation() {
+    // Arrange
+    let cassie = crate::app::Cassie::new_in_memory_with_config(
+        crate::config::CassieRuntimeConfig::default(),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("repeatable_alias", None);
+    cassie
+        .execute_sql(&session, "CREATE TABLE rr_alias_rows (id INT)", vec![])
+        .unwrap();
+    cassie
+        .execute_sql(&session, "BEGIN ISOLATION LEVEL REPEATABLE READ", vec![])
+        .unwrap();
+    cassie
+        .execute_sql(&session, "SELECT id FROM rr_alias_rows", vec![])
+        .unwrap();
+    let operation = session.with_new_wire_operation();
+    FailureAuthority::capture_for_operation(&operation);
+    session.rollback_transaction();
+    cassie
+        .execute_sql(&session, "BEGIN ISOLATION LEVEL REPEATABLE READ", vec![])
+        .unwrap();
+    cassie
+        .execute_sql(&session, "SELECT id FROM rr_alias_rows", vec![])
+        .unwrap();
+    let controls = cassie.runtime.query_controls(std::time::Instant::now());
+    let current = session.repeatable_read_identity();
+
+    // Act
+    let statement =
+        operation.repeatable_statement_read(&cassie.midge, &cassie.default_database, &controls);
+    let committed = operation.repeatable_committed_read(&cassie.midge, &cassie.default_database);
+    let live = session
+        .repeatable_committed_read(&cassie.midge, &cassie.default_database)
+        .unwrap();
+
+    // Assert
+    for error in [statement.unwrap_err(), committed.unwrap_err()] {
+        assert!(matches!(
+            error,
+            crate::app::CassieError::Transaction {
+                kind: crate::app::TransactionErrorKind::InvalidState,
+                ..
+            }
+        ));
+    }
+    assert!(live.is_some());
+    assert_eq!(session.repeatable_read_identity(), current);
+    assert!(!session.is_transaction_failed());
+}

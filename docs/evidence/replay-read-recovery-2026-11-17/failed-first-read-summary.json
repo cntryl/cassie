@@ -1,0 +1,164 @@
+{
+  "source": {
+    "commit": "66916fee39adc277b27540366200bfa013113110",
+    "tree": "3308fca2f53958e28b37b6a66d7751b376a5832e"
+  },
+  "status": "failed",
+  "actual_profile_records": 8,
+  "actual_passed_profiles": 4,
+  "actual_timed_samples": 204,
+  "actual_warmup_samples": 68,
+  "command_elapsed_seconds": 1446.331443041,
+  "raw_sha256": "032e1f83fb08d949ee85b9b40a0a3ef4d8e9cee8e38459d63a49f293d652217c",
+  "profiles": [
+    {
+      "mode": "local_strict",
+      "shape": "indexed",
+      "status": "gap",
+      "timed_samples": 0,
+      "warmup_samples": 0,
+      "error": "catalog/persisted index definitions disagree",
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {}
+    },
+    {
+      "mode": "local_buffered",
+      "shape": "indexed",
+      "status": "gap",
+      "timed_samples": 0,
+      "warmup_samples": 0,
+      "error": "catalog/persisted index definitions disagree",
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {}
+    },
+    {
+      "mode": "local_strict",
+      "shape": "unindexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "5027462104.5",
+          "p95_ns": "5056213833",
+          "min_ns": "5005932791",
+          "max_ns": "5068579084"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "4948176500",
+          "p95_ns": "4965968291",
+          "min_ns": "4938649833",
+          "max_ns": "4965968291"
+        }
+      }
+    },
+    {
+      "mode": "local_buffered",
+      "shape": "unindexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "5041745791.5",
+          "p95_ns": "5075374458",
+          "min_ns": "5003530292",
+          "max_ns": "5086546459"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "4955723250",
+          "p95_ns": "4981669875",
+          "min_ns": "4945805291",
+          "max_ns": "4981669875"
+        }
+      }
+    },
+    {
+      "mode": "sql_default",
+      "shape": "indexed",
+      "status": "gap",
+      "timed_samples": 0,
+      "warmup_samples": 0,
+      "error": "catalog/persisted index definitions disagree",
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {}
+    },
+    {
+      "mode": "sql_replayable",
+      "shape": "indexed",
+      "status": "gap",
+      "timed_samples": 0,
+      "warmup_samples": 0,
+      "error": "catalog/persisted index definitions disagree",
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {}
+    },
+    {
+      "mode": "sql_default",
+      "shape": "unindexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "5273307979.5",
+          "p95_ns": "5315483750",
+          "min_ns": "5250325959",
+          "max_ns": "5346490375"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "5179899208",
+          "p95_ns": "5182427125",
+          "min_ns": "5175656541",
+          "max_ns": "5182427125"
+        }
+      }
+    },
+    {
+      "mode": "sql_replayable",
+      "shape": "unindexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "5264111000",
+          "p95_ns": "5290390750",
+          "min_ns": "5227110167",
+          "max_ns": "5299460666"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "5182535667",
+          "p95_ns": "5195756125",
+          "min_ns": "5158063541",
+          "max_ns": "5195756125"
+        }
+      }
+    }
+  ],
+  "limits": "Embedded SQL execute/materialization only; copy/hash/startup/correctness outside timer. Localhost finite diagnostics, no speedup/provider/power-loss/native-quiescence claim."
+}

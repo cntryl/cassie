@@ -1,0 +1,58 @@
+{
+  "scope": "Current worktree including uncommitted final documentation; source is Git parent identity, not a committed-document assertion.",
+  "working_tree_status": " M docs/projection-cloud-cache-loss.md\n M docs/projection-replay-contracts.md\n M docs/projection-replay-profiles.md\n?? docs/evidence/replay-read-recovery-2026-11-17/\n",
+  "source": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+  "baseline": "c23a27604e29bea563bb2ee9f85009514d43f666",
+  "changed_markdown_files": 9,
+  "changed_doc_links_inspected": 119,
+  "current_failures": [],
+  "newly_broken_compared_with_baseline": [],
+  "policy_redirect_and_new_file_callers": [
+    {
+      "file": "README.md",
+      "target": "docs/feature-qualification.md",
+      "failure": null
+    },
+    {
+      "file": "docs/README.md",
+      "target": "feature-qualification.md",
+      "failure": null
+    },
+    {
+      "file": "docs/architecture-diagrams.md",
+      "target": "feature-qualification.md",
+      "failure": null
+    },
+    {
+      "file": "docs/definition-of-done.md",
+      "target": "feature-qualification.md",
+      "failure": null
+    },
+    {
+      "file": "docs/experimental-promotion-criteria.md",
+      "target": "feature-qualification.md",
+      "failure": null
+    },
+    {
+      "file": "docs/feature-support.md",
+      "target": "feature-qualification.md",
+      "failure": null
+    },
+    {
+      "file": "docs/graph-v060-gap-analysis.md",
+      "target": "feature-qualification.md",
+      "failure": null
+    },
+    {
+      "file": "docs/graph-v060-gap-analysis.md",
+      "target": "feature-qualification.md",
+      "failure": null
+    },
+    {
+      "file": "docs/promotion-evidence-matrix.md",
+      "target": "feature-qualification.md",
+      "failure": null
+    }
+  ],
+  "probe_limit": "Inline/reference local links and ATX headings/explicit anchors only; external URLs skipped. Suspected slug differences require manual confirmation."
+}

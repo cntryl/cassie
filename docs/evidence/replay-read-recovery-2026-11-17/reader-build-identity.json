@@ -1,0 +1,98 @@
+{
+  "source": {
+    "commit": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+    "tree": "c66c6a32199c64fcd9cbeebff9b57a2922530bee"
+  },
+  "build_receipt": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-bench-compile-2.json",
+  "executable": "/private/tmp/cassie-replay-qualification-integration-20261117/target/debug/build/cassie/e6e852e886807813/out/tier3_replay_durability-e6e852e886807813",
+  "executable_sha256": "e044cc749cc2e2dd99de0d9bb95a46ea4178ff3610169bcebee9fc301ce6d653",
+  "bytes": 78798024,
+  "fingerprint_files": [
+    {
+      "path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/debug/build/cassie/e6e852e886807813/fingerprint/output-test-bench-tier3_replay_durability",
+      "preserved_copy": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/reader-cargo-fingerprint-2/output-test-bench-tier3_replay_durability",
+      "sha256": "fd9db55a7287ee9d4b443564cd052e56eb10bd44046699bcbc8540ed83179098",
+      "bytes": 471
+    },
+    {
+      "path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/debug/build/cassie/e6e852e886807813/fingerprint/dep-test-bench-tier3_replay_durability",
+      "preserved_copy": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/reader-cargo-fingerprint-2/dep-test-bench-tier3_replay_durability",
+      "sha256": "0af4233f7c5aa4780625910c20081c4c1d4822bde32641d5e98e9369aa89a140",
+      "bytes": 456
+    },
+    {
+      "path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/debug/build/cassie/e6e852e886807813/fingerprint/test-bench-tier3_replay_durability.json",
+      "preserved_copy": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/reader-cargo-fingerprint-2/test-bench-tier3_replay_durability.json",
+      "sha256": "84b21e37bea6b554b7da290988a8c4ca5ebf5ce20ee220b8bc28267ad06f9058",
+      "bytes": 2672
+    },
+    {
+      "path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/debug/build/cassie/e6e852e886807813/fingerprint/test-bench-tier3_replay_durability",
+      "preserved_copy": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/reader-cargo-fingerprint-2/test-bench-tier3_replay_durability",
+      "sha256": "1baabbba1f56594adb045f0796a8befaf98695cf95e8cf483040eb274f6883d0",
+      "bytes": 16
+    }
+  ],
+  "manifest_sha256": "d88f3fb81a1157b9eb9b000f3f803dfbec67a9b02ae4c48b2a3177a505eb6c88",
+  "prior_manifest_sha256": "eb918ecda8851dd75c3e2fae40c4c64fd80a421eba120bb60061a8ef14c9140d",
+  "only_manifest_change": "reader source identity; all eight original producer/closure/result/log/fingerprint records unchanged",
+  "source_fingerprint_rechecks": [
+    {
+      "algorithm": "relative-path-type-length-sha256-v1",
+      "closure_attested": false,
+      "fingerprint": "b2d90f61cda7476b99759bf60e1d7121d3bf918f32358c172d6ca6c2289babe5",
+      "kind": "source_fingerprint",
+      "path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores/cassie-replay-bench-debf1dd6-b626-4249-83d9-4f45447def93"
+    },
+    {
+      "algorithm": "relative-path-type-length-sha256-v1",
+      "closure_attested": false,
+      "fingerprint": "88cb5dd68a0f3d19f81a48604dbc3d3c97e03040a4e8b6de73dab331337e5d9a",
+      "kind": "source_fingerprint",
+      "path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores/cassie-replay-bench-9a3e6164-fd86-4e7b-bd69-6326c2675ca6"
+    },
+    {
+      "algorithm": "relative-path-type-length-sha256-v1",
+      "closure_attested": false,
+      "fingerprint": "6948d468228b9870f4fce539e347ec936bd1c6055d1bac13642d8773d1c09319",
+      "kind": "source_fingerprint",
+      "path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores/cassie-replay-bench-c4c712b9-a112-40cf-b766-c6f0315ad31a"
+    },
+    {
+      "algorithm": "relative-path-type-length-sha256-v1",
+      "closure_attested": false,
+      "fingerprint": "ac027af14319a4f3d632e32a71354f14d5272d637806cfffdad65f6185a7986c",
+      "kind": "source_fingerprint",
+      "path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores/cassie-replay-bench-275d9fa2-6b3c-4fef-9a42-b9c2fb877fd8"
+    },
+    {
+      "algorithm": "relative-path-type-length-sha256-v1",
+      "closure_attested": false,
+      "fingerprint": "ce6e2be84dddf34a1121b0af93764fd77dd16dceea9f32e677406eef9b0338f7",
+      "kind": "source_fingerprint",
+      "path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-fb74581f-f784-41df-85ec-77c5f67e4a11"
+    },
+    {
+      "algorithm": "relative-path-type-length-sha256-v1",
+      "closure_attested": false,
+      "fingerprint": "94da4f03409887d70e6cc2f44e925a55405ed81107e87103028a65ba0a400b9d",
+      "kind": "source_fingerprint",
+      "path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-17216695-cd64-4d78-8ad2-4be2f1e20e93"
+    },
+    {
+      "algorithm": "relative-path-type-length-sha256-v1",
+      "closure_attested": false,
+      "fingerprint": "7ac5ecd022b08cc86cf79612b3815f0b9ee1a5a80ac0bdbcd7e56c9afc64214f",
+      "kind": "source_fingerprint",
+      "path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-7b3d3f80-dff6-49e7-8bdc-ad4068295335"
+    },
+    {
+      "algorithm": "relative-path-type-length-sha256-v1",
+      "closure_attested": false,
+      "fingerprint": "5e6a64f2374c893d537f06c5bf459847a2edd8a9ff6f7b4c43ebb615b2e0d0c1",
+      "kind": "source_fingerprint",
+      "path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-96750ba5-cefe-49ba-9ec5-9513b8aca6e7"
+    }
+  ],
+  "scope": "Trusted local Cargo build provenance, not remote cryptographic attestation."
+}

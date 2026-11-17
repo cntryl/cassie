@@ -108,9 +108,17 @@ and its 204 successful unindexed timed samples separately; the corrected source
 requires the complete eight-profile campaign again, without a subset mode or
 relabelling those earlier samples.
 
-This contract and its probes are authored; no C read timing, index attestation, or
-operator readiness result is established until the assembler runs and records the
-frozen source. See the [benchmark entry](benchmarks.md) and [performance contracts](performance-contracts.md).
+The corrected campaign passed all eight profiles at
+`a5fd91760e8cab27dad04e2d60b019b446304d4a` (tree
+`c66c6a32199c64fcd9cbeebff9b57a2922530bee`): **408 actual timed queries
+and 136 actual warmups**, with the required row/unique-ID/count, native identity,
+public-plan/index/scan and original-content assertions. The
+[finite evidence](evidence/replay-read-recovery-2026-11-17/README.md) retains
+individual samples, exact source/build/input provenance, the failed first
+204-sample campaign, actual metadata diagnostic and thirteen passing helper
+controls. These results do not establish operator or production readiness beyond
+the selected profile. See the [benchmark entry](benchmarks.md) and
+[performance contracts](performance-contracts.md).
 
 ## Running the read-only-original campaign
 
@@ -148,7 +156,9 @@ path evidence, every individual timing sample, and per-profile distributions.
 A profile gap retains preceding raw records and makes the finite campaign fail.
 No original is opened even on that path. The benchmark fixture/copy negative
 controls live in `tests/bench_diagnostics/replay_read_ownership.rs`; assembler-owned
-registration makes them part of the normal correctness gate.
+registration makes them part of the normal correctness gate. Four additional
+metadata identity controls live in
+`tests/bench_diagnostics/replay_index_metadata.rs`.
 
 Before constructing the manifest, the same reader executable can fingerprint a
 closed source without constructing an engine or copying anything:

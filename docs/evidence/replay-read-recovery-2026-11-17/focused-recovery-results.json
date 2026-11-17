@@ -1,0 +1,102 @@
+{
+  "head": "40a08ce25972bc3118d5dcc5dd9fb8f4c668cee9",
+  "tree": "9bff39744534ef6a125c6992fee2b5d2aa2ea168",
+  "started_utc": "2026-11-17T07:18:44.010776+00:00",
+  "status": "passed",
+  "modules": [
+    {
+      "name": "cloud-cache-loss",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "cassie",
+        "--lib",
+        "midge::adapter::statement_read::tests::replay_cloud_cache_loss::",
+        "--",
+        "--nocapture"
+      ],
+      "selector": "midge::adapter::statement_read::tests::replay_cloud_cache_loss::",
+      "expected_cases": 9,
+      "started_utc": "2026-11-17T07:18:44.011183+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "actual_passed": 9,
+      "elapsed_seconds": 323.84353125,
+      "ended_utc": "2026-11-17T07:24:07.854869+00:00",
+      "log": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/focused-cloud-cache-loss.log",
+      "recovery_observations": [
+        {
+          "profile": "api_strict",
+          "recovered_position": 2,
+          "retained_remote_entries": 118
+        },
+        {
+          "profile": "api_replayable",
+          "recovered_position": 1,
+          "retained_remote_entries": 133
+        },
+        {
+          "profile": "sql_strict",
+          "recovered_position": 2,
+          "retained_remote_entries": 125
+        },
+        {
+          "profile": "sql_replayable",
+          "recovered_position": 1,
+          "retained_remote_entries": 138
+        }
+      ]
+    },
+    {
+      "name": "read-ownership",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "cassie-integration-tests",
+        "--test",
+        "bench_diagnostics",
+        "replay_read_ownership::",
+        "--",
+        "--nocapture"
+      ],
+      "selector": "replay_read_ownership::",
+      "expected_cases": 9,
+      "started_utc": "2026-11-17T07:24:07.855471+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "actual_passed": 9,
+      "elapsed_seconds": 0.17295916599999828,
+      "ended_utc": "2026-11-17T07:24:08.028637+00:00",
+      "log": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/focused-read-ownership.log"
+    },
+    {
+      "name": "legacy-process",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "cassie",
+        "--lib",
+        "midge::adapter::statement_read::tests::replay_process_crash::",
+        "--",
+        "--nocapture"
+      ],
+      "selector": "midge::adapter::statement_read::tests::replay_process_crash::",
+      "expected_cases": 5,
+      "started_utc": "2026-11-17T07:24:08.028841+00:00",
+      "status": "passed",
+      "exit_code": 0,
+      "actual_passed": 5,
+      "elapsed_seconds": 47.48254208399999,
+      "ended_utc": "2026-11-17T07:24:55.511488+00:00",
+      "log": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/focused-legacy-process.log"
+    }
+  ],
+  "actual_passed": 23,
+  "ended_utc": "2026-11-17T07:24:55.511945+00:00"
+}

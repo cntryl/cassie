@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/index-metadata-diagnostic/probe",
+    "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/read-manifest.json"
+  ],
+  "started_utc": "2026-11-17T08:40:48.190824+00:00",
+  "status": "passed",
+  "source": "66916fee39adc277b27540366200bfa013113110",
+  "tree": "3308fca2f53958e28b37b6a66d7751b376a5832e",
+  "binary_sha256": "27e543778efbb58b970f1e118b3003faf03db6587a7665e044c4ad4655eb5635",
+  "manifest_sha256": "eb918ecda8851dd75c3e2fae40c4c64fd80a421eba120bb60061a8ef14c9140d",
+  "exit_code": 0,
+  "elapsed_seconds": 1.756466583,
+  "ended_utc": "2026-11-17T08:40:49.974831+00:00",
+  "raw_sha256": "b6e85c377eefcabf35cf05c276ad4ffed324f6aae4aa8d1d12c32e9f2688da09"
+}

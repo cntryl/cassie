@@ -2,7 +2,9 @@
 
 This finite #1271 campaign exercises Cassie recovery using the published Midge
 0.5.2 `OpenOptions::cloud_simulated` API. It does not simulate power loss or
-qualify a real cloud provider. Tests are authored but have not run.
+qualify a real cloud provider. The nine focused controls passed at
+`40a08ce25972bc3118d5dcc5dd9fb8f4c668cee9`; exact outcomes and limits are
+recorded in the [finite evidence](evidence/replay-read-recovery-2026-11-17/README.md).
 
 ## Selected contract
 
@@ -43,7 +45,8 @@ The destructive fixture helper also has deterministic ownership controls. It
 refuses foreign, unowned and symlinked cache roots before deletion, preflights
 nested entries, and preserves both the full remote tree and an outside-cache
 retained-source sentinel. These controls are separate from the four recovery
-cases and have not yet run.
+cases. All three safety controls and the two owned-close negatives passed
+in the same nine-control focused run.
 
 ## Evidence limits
 
@@ -53,3 +56,21 @@ that suffix loss occurred. Process death followed by deleting a simulated local
 cache does not establish physical power-loss recovery, real provider semantics,
 a global Midge WAL-quiescence guarantee, or production readiness. Those broader
 obligations remain under #1271 and #1188.
+
+## Recorded execution
+
+At `40a08ce25972bc3118d5dcc5dd9fb8f4c668cee9` (tree
+`9bff39744534ef6a125c6992fee2b5d2aa2ea168`), all nine cloud controls
+passed. The actual `--nocapture` observations were API strict **2**, API
+replayable **1**, SQL strict **2**, and SQL replayable **1**. Each case then
+passed its source-backed row/index/checkpoint reconciliation and retry assertions.
+The five existing local process-crash controls also passed. Cloud command time
+was 323.84 seconds, including 217.78 seconds compilation; its test harness took
+106.06 seconds. These outcomes demonstrate the selected simulated-cache-loss
+cases, including observed replayable prefix recovery, without changing the
+evidence limits above. Later benchmark-only corrections did not alter these
+cloud/process sources; their results retain this exact execution identity.
+
+See the [raw receipts and acceptance map](evidence/replay-read-recovery-2026-11-17/README.md)
+for the separate full default gate, corrected eight-profile read campaign,
+preserved failed attempts and final-head hosted-check requirement.

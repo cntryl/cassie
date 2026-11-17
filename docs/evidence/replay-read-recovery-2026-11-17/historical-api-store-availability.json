@@ -1,0 +1,42 @@
+[
+  {
+    "name": "1000x100-repeat1-indexed-local_strict-apply",
+    "storage_path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-15de2519-6920-4fa5-a637-bf4bf3e4243c",
+    "exists": false
+  },
+  {
+    "name": "1000x100-repeat1-indexed-local_buffered-apply",
+    "storage_path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-5fb5f06f-61cb-44eb-9151-48a97c8c0c7a",
+    "exists": false
+  },
+  {
+    "name": "1000x100-repeat1-unindexed-local_strict-apply",
+    "storage_path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-7929c1d4-ace4-4009-8a05-20422a612bf8",
+    "exists": false
+  },
+  {
+    "name": "1000x100-repeat1-unindexed-local_buffered-apply",
+    "storage_path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-e4368ec2-3412-480d-b51c-7525b0f89302",
+    "exists": false
+  },
+  {
+    "name": "1000x100-repeat2-indexed-local_strict-apply",
+    "storage_path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-b0a52bb5-d5a8-4e26-abcf-e8b6d78fa480",
+    "exists": false
+  },
+  {
+    "name": "1000x100-repeat2-indexed-local_buffered-apply",
+    "storage_path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-d540e1d5-7f4a-4118-880b-232350e06293",
+    "exists": false
+  },
+  {
+    "name": "1000x100-repeat2-unindexed-local_strict-apply",
+    "storage_path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-13cea516-1c67-4539-a3b6-7db35d70c42e",
+    "exists": false
+  },
+  {
+    "name": "1000x100-repeat2-unindexed-local_buffered-apply",
+    "storage_path": "/var/folders/dg/rh2n13nx6cqgwpb8lkkxsgy80000gn/T/cassie-replay-bench-59ced028-c053-46c4-953e-306784dac0a1",
+    "exists": false
+  }
+]

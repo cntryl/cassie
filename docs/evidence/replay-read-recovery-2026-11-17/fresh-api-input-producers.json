@@ -1,0 +1,130 @@
+{
+  "generation": "fresh-api-read-input-replacement-2026-11-17-v1",
+  "purpose": "Four newly generated reader inputs; separate from all historical A measurements. No full writer matrix rerun.",
+  "writer": {
+    "commit": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+    "tree": "d051222b580d48266b3ed604f588928bd443e660"
+  },
+  "orchestrator_head": "66916fee39adc277b27540366200bfa013113110",
+  "binary_sha256": "5b2fc1032db64cb103fb83d598022eb3c7080cc5cbd7ef5dbca2a9670a33caa1",
+  "command": [
+    "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/retained-a-producer/tier3_replay_durability-e6e852e886807813"
+  ],
+  "actual_build_profile": "test",
+  "query_memory_budget_bytes": 67108864,
+  "query_timeout_ms": 120000,
+  "process_hang_guard_seconds": 1800,
+  "outcomes": [
+    {
+      "name": "fresh-api-indexed-local_strict-1000x100",
+      "mode": "local_strict",
+      "shape": "indexed",
+      "status": "passed",
+      "started_utc": "2026-11-17T08:06:17.327275+00:00",
+      "environment_selectors": {
+        "TMPDIR": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores",
+        "CASSIE_REPLAY_BENCH_SOURCE": "58e6c96ea14c3466da17c256cb2fcaefbd71f940;tree=d051222b580d48266b3ed604f588928bd443e660;profile=test;feature=replay-benchmark-observation",
+        "CASSIE_REPLAY_BENCH_MODE": "local_strict",
+        "CASSIE_REPLAY_BENCH_SHAPE": "indexed",
+        "CASSIE_REPLAY_BENCH_WORKLOAD": "apply",
+        "CASSIE_REPLAY_BENCH_BATCH_SIZE": "1000",
+        "CASSIE_REPLAY_BENCH_BATCHES": "100"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 17.200497416,
+      "ended_utc": "2026-11-17T08:06:34.528104+00:00",
+      "log_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-indexed-local_strict-1000x100.log",
+      "result_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-indexed-local_strict-1000x100.json",
+      "result_sha256": "42c7e55d131641e2dfe2bd313de94566a7a88c11e3855ca634e8819f2e25fd83",
+      "log_sha256": "42c7e55d131641e2dfe2bd313de94566a7a88c11e3855ca634e8819f2e25fd83",
+      "storage_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores/cassie-replay-bench-debf1dd6-b626-4249-83d9-4f45447def93",
+      "observed_producer_exit_zero": true,
+      "source_known_clean_reopen_assertions": "passed",
+      "source_per_batch_API_report_assertions": "passed"
+    },
+    {
+      "name": "fresh-api-indexed-local_buffered-1000x100",
+      "mode": "local_buffered",
+      "shape": "indexed",
+      "status": "passed",
+      "started_utc": "2026-11-17T08:06:34.566815+00:00",
+      "environment_selectors": {
+        "TMPDIR": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores",
+        "CASSIE_REPLAY_BENCH_SOURCE": "58e6c96ea14c3466da17c256cb2fcaefbd71f940;tree=d051222b580d48266b3ed604f588928bd443e660;profile=test;feature=replay-benchmark-observation",
+        "CASSIE_REPLAY_BENCH_MODE": "local_buffered",
+        "CASSIE_REPLAY_BENCH_SHAPE": "indexed",
+        "CASSIE_REPLAY_BENCH_WORKLOAD": "apply",
+        "CASSIE_REPLAY_BENCH_BATCH_SIZE": "1000",
+        "CASSIE_REPLAY_BENCH_BATCHES": "100"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 16.576794917,
+      "ended_utc": "2026-11-17T08:06:51.143804+00:00",
+      "log_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-indexed-local_buffered-1000x100.log",
+      "result_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-indexed-local_buffered-1000x100.json",
+      "result_sha256": "97e76d3b02b72325f24cfa7d73df09bbc9850eb6746bb456ff6fc3fec69ea4ae",
+      "log_sha256": "97e76d3b02b72325f24cfa7d73df09bbc9850eb6746bb456ff6fc3fec69ea4ae",
+      "storage_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores/cassie-replay-bench-9a3e6164-fd86-4e7b-bd69-6326c2675ca6",
+      "observed_producer_exit_zero": true,
+      "source_known_clean_reopen_assertions": "passed",
+      "source_per_batch_API_report_assertions": "passed"
+    },
+    {
+      "name": "fresh-api-unindexed-local_strict-1000x100",
+      "mode": "local_strict",
+      "shape": "unindexed",
+      "status": "passed",
+      "started_utc": "2026-11-17T08:06:51.181974+00:00",
+      "environment_selectors": {
+        "TMPDIR": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores",
+        "CASSIE_REPLAY_BENCH_SOURCE": "58e6c96ea14c3466da17c256cb2fcaefbd71f940;tree=d051222b580d48266b3ed604f588928bd443e660;profile=test;feature=replay-benchmark-observation",
+        "CASSIE_REPLAY_BENCH_MODE": "local_strict",
+        "CASSIE_REPLAY_BENCH_SHAPE": "unindexed",
+        "CASSIE_REPLAY_BENCH_WORKLOAD": "apply",
+        "CASSIE_REPLAY_BENCH_BATCH_SIZE": "1000",
+        "CASSIE_REPLAY_BENCH_BATCHES": "100"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 174.92099399999998,
+      "ended_utc": "2026-11-17T08:09:46.103164+00:00",
+      "log_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-unindexed-local_strict-1000x100.log",
+      "result_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-unindexed-local_strict-1000x100.json",
+      "result_sha256": "ea2a86c3944223462d692e039dda3d7b3cc94b3adfcbd24981f1b6bf9ff25f38",
+      "log_sha256": "ea2a86c3944223462d692e039dda3d7b3cc94b3adfcbd24981f1b6bf9ff25f38",
+      "storage_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores/cassie-replay-bench-c4c712b9-a112-40cf-b766-c6f0315ad31a",
+      "observed_producer_exit_zero": true,
+      "source_known_clean_reopen_assertions": "passed",
+      "source_per_batch_API_report_assertions": "passed"
+    },
+    {
+      "name": "fresh-api-unindexed-local_buffered-1000x100",
+      "mode": "local_buffered",
+      "shape": "unindexed",
+      "status": "passed",
+      "started_utc": "2026-11-17T08:09:46.143338+00:00",
+      "environment_selectors": {
+        "TMPDIR": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores",
+        "CASSIE_REPLAY_BENCH_SOURCE": "58e6c96ea14c3466da17c256cb2fcaefbd71f940;tree=d051222b580d48266b3ed604f588928bd443e660;profile=test;feature=replay-benchmark-observation",
+        "CASSIE_REPLAY_BENCH_MODE": "local_buffered",
+        "CASSIE_REPLAY_BENCH_SHAPE": "unindexed",
+        "CASSIE_REPLAY_BENCH_WORKLOAD": "apply",
+        "CASSIE_REPLAY_BENCH_BATCH_SIZE": "1000",
+        "CASSIE_REPLAY_BENCH_BATCHES": "100"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 176.39757591600002,
+      "ended_utc": "2026-11-17T08:12:42.541162+00:00",
+      "log_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-unindexed-local_buffered-1000x100.log",
+      "result_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-unindexed-local_buffered-1000x100.json",
+      "result_sha256": "55018ff095546efca6818bab9d51cdabe414aa1ea23a26100c93c27bdeed86de",
+      "log_sha256": "55018ff095546efca6818bab9d51cdabe414aa1ea23a26100c93c27bdeed86de",
+      "storage_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/retained-stores/cassie-replay-bench-275d9fa2-6b3c-4fef-9a42-b9c2fb877fd8",
+      "observed_producer_exit_zero": true,
+      "source_known_clean_reopen_assertions": "passed",
+      "source_per_batch_API_report_assertions": "passed"
+    }
+  ],
+  "status": "passed",
+  "controls_passed": 4,
+  "ended_utc": "2026-11-17T08:12:42.542097+00:00"
+}

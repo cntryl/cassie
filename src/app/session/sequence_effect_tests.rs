@@ -84,6 +84,76 @@ fn should_reject_a_sequence_effect_after_its_transaction_is_replaced() {
 }
 
 #[test]
+fn should_reject_a_detached_sequence_effect_without_root_lineage() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let batch = cassie.new_statement_batch(Some(&session)).unwrap();
+    session.rollback_transaction();
+    session.begin_transaction(None).unwrap();
+
+    // Act
+    let admitted = batch.session().admit_sequence_projection_effect();
+
+    // Assert
+    assert!(admitted.is_err());
+    assert_eq!(
+        session.projection_commit_policy(false),
+        super::ProjectionCommitPolicy::Existing
+    );
+}
+
+#[test]
+fn should_reject_an_idle_sequence_owner_after_an_independent_begin() {
+    // Arrange
+    let session = CassieSession::new("idle_sequence_owner".into(), None);
+    let authority = super::FailureAuthority::capture(&session);
+    let operation = session.with_operation_failure_authority(Some(&authority));
+    session.begin_transaction(None).unwrap();
+
+    // Act
+    let admitted = operation.admit_sequence_projection_effect();
+
+    // Assert
+    assert!(admitted.is_err());
+}
+
+#[test]
+fn should_adopt_an_own_begin_before_sequence_admission() {
+    // Arrange
+    let session = CassieSession::new("own_sequence_owner".into(), None);
+    let authority = super::FailureAuthority::capture(&session);
+    let operation = session.with_operation_failure_authority(Some(&authority));
+    session
+        .begin_transaction_with_modes_for_operation(None, Default::default(), Some(&authority))
+        .unwrap();
+
+    // Act
+    let admitted = operation.admit_sequence_projection_effect();
+
+    // Assert
+    assert!(admitted.is_ok());
+}
+
+#[test]
+fn should_allow_committing_root_sequence_resolution_but_reject_a_same_thread_fork() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let authority = super::FailureAuthority::capture(&session);
+    let operation = session.with_operation_failure_authority(Some(&authority));
+    let batch = cassie.new_statement_batch(Some(&operation)).unwrap();
+    let seal = session.seal_transaction_for_commit();
+
+    // Act
+    let root = operation.admit_sequence_projection_effect();
+    let fork = batch.session().admit_sequence_projection_effect();
+
+    // Assert
+    assert!(root.is_ok());
+    assert!(fork.is_err());
+    drop(seal);
+}
+
+#[test]
 fn should_reject_a_sequence_effect_from_a_restored_savepoint_epoch() {
     // Arrange
     let (cassie, session) = fixture();

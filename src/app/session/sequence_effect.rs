@@ -22,6 +22,9 @@ impl CassieSession {
         if let Some(authority) = self.operation_failure_authority.as_ref() {
             authority.admit_sequence_effect(self)?;
         } else {
+            if !self.owns_transaction_lifecycle {
+                return Err(changed());
+            }
             // Direct embedded default APIs do not have a query lifecycle. Their
             // admission point is this call, rather than an earlier SQL owner.
             FailureAuthority::capture(self).admit_sequence_effect(self)?;

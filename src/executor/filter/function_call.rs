@@ -1,5 +1,8 @@
 //! Scalar call evaluation preserves argument order and context-owned scratch.
 #[cfg(test)]
+#[path = "array_constructor_memory_tests.rs"]
+mod array_constructor_memory_tests;
+#[cfg(test)]
 #[path = "json_object_keys_argument_tests.rs"]
 mod json_object_keys_argument_tests;
 
@@ -158,6 +161,18 @@ fn evaluate_argument_values<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
     name: &str,
 ) -> Result<Vec<Value>, QueryError> {
+    #[cfg(test)]
+    if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
+        let bytes = context.memory.map_or(0, super::EvaluationMemory::bytes);
+        crate::executor::execution::graph_memory_test_observer::record(
+            "before_array_arguments",
+            bytes,
+        );
+        crate::executor::execution::graph_memory_test_observer::record(
+            "copy_array_arguments",
+            bytes,
+        );
+    }
     function
         .args
         .iter()

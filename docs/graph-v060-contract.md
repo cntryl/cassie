@@ -138,8 +138,8 @@ mapped key tuple. `DROP TABLE ... CASCADE`, `DROP COLUMN ... CASCADE` and a
 `0A000`; a schema cascade drops the graphs the schema itself owns and the
 same-database direct and transitive views that depend on those graphs, including
 views in other schemas. A qualified graph or transitive view reference stays
-precise. An ambiguous unqualified reference with a surviving competing graph or
-relation refuses schema cascade with `0A000` before any graph, view or schema is
+precise. An ambiguous unqualified graph or relation reference refuses schema
+cascade with `0A000` before any graph, view or schema is
 mutated. Unique closures still cascade; unrelated views survive. View execution,
 stored SQL and formats retain their existing behavior. The schema, graphs and view
 closure are restored together on rollback. Graph DDL is

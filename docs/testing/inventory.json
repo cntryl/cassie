@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1772,
-    "rust_files": 1735,
-    "rust_test_declarations": 10538,
+    "files": 1773,
+    "rust_files": 1736,
+    "rust_test_declarations": 10542,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10563,
+    "registered_rust_instances": 10567,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -6424,6 +6424,130 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_index_metadata.rs::should_match_hydrated_definitions_with_valid_native_identities",
+      "name": "should_match_hydrated_definitions_with_valid_native_identities",
+      "current_file": "tests/bench_diagnostics/replay_index_metadata.rs",
+      "line": 37,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_index_metadata::should_match_hydrated_definitions_with_valid_native_identities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "indexes",
+        "directory": "tests/bench_diagnostics/indexes",
+        "file": "tests/bench_diagnostics/indexes/replay_index_metadata.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_index_metadata.rs::should_reject_semantic_definition_drift_outside_hydration_keys",
+      "name": "should_reject_semantic_definition_drift_outside_hydration_keys",
+      "current_file": "tests/bench_diagnostics/replay_index_metadata.rs",
+      "line": 58,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_index_metadata::should_reject_semantic_definition_drift_outside_hydration_keys"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "indexes",
+        "directory": "tests/bench_diagnostics/indexes",
+        "file": "tests/bench_diagnostics/indexes/replay_index_metadata.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_index_metadata.rs::should_reject_invalid_persisted_index_identities",
+      "name": "should_reject_invalid_persisted_index_identities",
+      "current_file": "tests/bench_diagnostics/replay_index_metadata.rs",
+      "line": 114,
+      "end_line": 138,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_index_metadata::should_reject_invalid_persisted_index_identities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "indexes",
+        "directory": "tests/bench_diagnostics/indexes",
+        "file": "tests/bench_diagnostics/indexes/replay_index_metadata.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_index_metadata.rs::should_require_matching_nonzero_collection_identities",
+      "name": "should_require_matching_nonzero_collection_identities",
+      "current_file": "tests/bench_diagnostics/replay_index_metadata.rs",
+      "line": 141,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_index_metadata::should_require_matching_nonzero_collection_identities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "indexes",
+        "directory": "tests/bench_diagnostics/indexes",
+        "file": "tests/bench_diagnostics/indexes/replay_index_metadata.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -328310,6 +328434,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/bench_diagnostics/replay_index_metadata.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 152,
+      "sha256": "b1ee1fb4fadbb2e2aea8cdc3e5d60c9354d04cd85674a11b191bbba5fb9c3f51",
+      "test_declarations": 4,
+      "registered_suites": [
+        "bench_diagnostics"
+      ],
+      "destinations": [
+        "tests/bench_diagnostics/indexes/replay_index_metadata.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/bench_diagnostics/replay_mode.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -328343,8 +328482,8 @@
       "current_file": "tests/bench_diagnostics.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 14,
-      "sha256": "929bccc1a8770c4a998b8c77a20b5138d5b0cdfbee2ae564b61bf6cadf53425b",
+      "lines": 17,
+      "sha256": "3d78aa5a860153c471ba988620071a58140b660a506147ec8ad2696724addccb",
       "test_declarations": 0,
       "registered_suites": [
         "bench_diagnostics"

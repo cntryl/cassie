@@ -5,17 +5,23 @@ use std::sync::Weak;
 use uuid::Uuid;
 
 /// Owned by one operation and explicitly borrowed by its nested work.
+#[derive(Debug, Clone)]
 pub(crate) struct FailureAuthority {
     root: Weak<Mutex<SessionTransactionState>>,
-    owner: Mutex<Option<(Uuid, u64)>>,
+    owner: Arc<Mutex<Option<(Uuid, u64)>>>,
 }
 
 impl FailureAuthority {
+    /// Retained shared owner payload and Arc counters, excluding allocator metadata.
+    pub(crate) const fn shared_owner_bytes() -> usize {
+        std::mem::size_of::<Mutex<Option<(Uuid, u64)>>>() + 2 * std::mem::size_of::<usize>()
+    }
+
     #[cfg(test)]
     pub(crate) fn identity_only_for_test(session: &CassieSession) -> Self {
         Self {
             root: Arc::downgrade(&session.transaction),
-            owner: Mutex::new(None),
+            owner: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -51,7 +57,7 @@ impl FailureAuthority {
         };
         Self {
             root: Arc::downgrade(&session.transaction),
-            owner: Mutex::new(owner),
+            owner: Arc::new(Mutex::new(owner)),
         }
     }
 
@@ -108,6 +114,44 @@ impl FailureAuthority {
         {
             transaction.fail_or_defer();
         }
+    }
+
+    pub(super) fn admit_sequence_effect(
+        &self,
+        session: &CassieSession,
+    ) -> Result<(), super::CassieError> {
+        let root = self
+            .root
+            .upgrade()
+            .ok_or_else(super::sequence_effect::changed)?;
+        let transaction = root.lock();
+        let expected = match transaction.status {
+            SessionTransactionStatus::Idle => None,
+            SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed => {
+                Some((transaction.unique_owner_id, transaction.rollback_epoch))
+            }
+        };
+        if *self.owner.lock() != expected {
+            return Err(super::sequence_effect::changed());
+        }
+        let projection_matches = if self.matches_root(session) {
+            true
+        } else {
+            Arc::ptr_eq(
+                &transaction.projection_write,
+                &session.transaction.lock().projection_write,
+            )
+        };
+        if !projection_matches
+            || transaction.status == SessionTransactionStatus::Failed
+            || transaction.sealed_for_commit
+                && (!session.owns_transaction_lifecycle
+                    || !transaction.may_be_failed_by_current_thread())
+        {
+            return Err(super::sequence_effect::changed());
+        }
+        transaction.projection_write.note_effect(true);
+        Ok(())
     }
 }
 

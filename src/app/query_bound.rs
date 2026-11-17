@@ -150,6 +150,8 @@ impl Cassie {
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         let (controls, authority) = scope;
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {

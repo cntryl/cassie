@@ -17,6 +17,9 @@ pub(super) fn apply_default_values(
         }
 
         if let Some(sequence) = constraint.default_sequence.as_deref() {
+            if let Some(session) = session {
+                session.admit_sequence_projection_effect()?;
+            }
             let value = app.midge.with_sequence_update_gate(sequence, || {
                 let (value, updated) =
                     app.midge.update_sequence_retrying(sequence, |metadata| {

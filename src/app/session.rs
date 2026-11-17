@@ -11,6 +11,9 @@ pub(crate) use publication_fence::PublicationFenceScope;
 mod command_catalog;
 pub(crate) use command_catalog::CommandCatalogScope;
 mod failure_authority;
+mod sequence_effect;
+#[cfg(test)]
+mod sequence_effect_tests;
 pub(crate) use failure_authority::FailureAuthority;
 mod savepoints;
 mod transaction_snapshot;
@@ -51,6 +54,9 @@ use uuid::Uuid;
 pub struct CassieSession {
     #[serde(skip)]
     statement_text: Option<Arc<statement_text::StatementText>>,
+    /// Execution-local lineage; independent commands install their own owner.
+    #[serde(skip)]
+    operation_failure_authority: Option<FailureAuthority>,
     pub user: String,
     pub database: Option<String>,
     #[serde(skip)]
@@ -295,6 +301,7 @@ impl CassieSession {
     fn with_access(user: String, database: Option<String>, access: SessionAccess) -> Self {
         Self {
             statement_text: None,
+            operation_failure_authority: None,
             user: normalize_role_name(user),
             database,
             access,

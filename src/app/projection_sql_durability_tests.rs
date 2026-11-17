@@ -137,7 +137,10 @@ fn should_select_strict_policy_after_setval_without_currval_assignment() {
     result.unwrap();
     assert_eq!(writes.first_policy, Some("local_sync"));
     assert_eq!(writes.primary_buffered_attempts, 0);
-    assert!(currval.is_err(), "setval(..., false) must not assign currval");
+    assert!(
+        currval.is_err(),
+        "setval(..., false) must not assign currval"
+    );
     assert_eq!(next.unwrap().rows()[0][0], crate::types::Value::Int64(42));
 }
 

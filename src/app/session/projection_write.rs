@@ -86,7 +86,7 @@ impl ProjectionWriteAuthority {
         self.state.lock().mode = mode;
     }
 
-    fn note_effect(&self, strict: bool) {
+    pub(super) fn note_effect(&self, strict: bool) {
         let mut state = self.state.lock();
         state.effect_seen = true;
         state.strict_required |= strict;

@@ -18,6 +18,7 @@ pub(super) fn charged_bytes(owner_present: bool) -> Result<usize, crate::app::Ca
     };
     std::mem::size_of::<CopyFromBinding>()
         .checked_sub(owner_bytes)
+        .and_then(|bytes| bytes.checked_add(crate::app::FailureAuthority::shared_owner_bytes()))
         .ok_or_else(|| crate::app::CassieError::ResourceLimit("COPY binding size underflow".into()))
 }
 

@@ -49,9 +49,6 @@ impl CassieSession {
         value: i64,
         from_nextval: bool,
     ) {
-        // Sequence advances commit independently of the transaction's rows, so
-        // they keep the existing strict policy even after a savepoint rollback.
-        self.note_projection_effect(true);
         let mut values = self.sequence_values.lock();
         values
             .by_sequence

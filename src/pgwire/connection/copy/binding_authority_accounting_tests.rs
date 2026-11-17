@@ -40,6 +40,7 @@ fn expected_charge(active: bool) -> usize {
         0
     };
     binding.checked_sub(owner).expect("binding contains owner")
+        + crate::app::FailureAuthority::shared_owner_bytes()
 }
 
 #[test]

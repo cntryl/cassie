@@ -37,6 +37,7 @@ impl CassieSession {
         let base_conflict_intent_count = conflict_intents.len();
         let session = Self {
             statement_text: self.statement_text.clone(),
+            operation_failure_authority: self.operation_failure_authority.clone(),
             user: self.user.clone(),
             database: self.database.clone(),
             access: self.access,

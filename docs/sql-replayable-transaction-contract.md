@@ -440,3 +440,18 @@ strict effect; a competing COMMIT can select its policy in that interval.
 Protecting the actual effect boundary and preventing a stale operation from
 acting on a replacement transaction remain #1279 requirements. Moving a void
 marker that reads whichever transaction is current does not prove either one.
+
+The selected repair carries the existing operation's failure authority on its
+execution-only session clone and detached forks. Before a native sequence or
+default update, admission verifies that authority's root, transaction UUID and
+rollback epoch under the root transaction mutex. It also checks the fork's
+projection authority is the root's authority. The strict marker is set before
+releasing that mutex. COMMIT uses the same mutex to seal and snapshot policy:
+an already admitted independent sequence update may finish later, but its Data
+transaction is already strict; an update reaching admission after sealing or
+retirement is refused before native submission. The lifecycle-owning COMMIT
+thread retains its existing deferred-conflict sequence resolution path; a
+detached fork does not acquire that exception merely by using the same thread.
+There is no wait or root lock held across storage work. A failed native sequence
+attempt may conservatively leave strictness sticky. This is not cancellation
+of an already admitted native update or a bound on its completion time.

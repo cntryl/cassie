@@ -50,6 +50,24 @@ target timings and current hosted workflow are in
 Raw local receipts are under ignored
 `target/assembly-line/runtime-qualification/profile-{baseline,warm}.log`.
 
+### Matched startup-mechanism controls
+
+The selected diagnostic extension alternates two helpers on the same frozen
+source and executable. Each sample creates one fresh memory fixture per helper,
+with identical runtime configuration, real password authentication and eight
+checked `SELECT 1` cycles. `legacy_rebind_50ms` reproduces the retired helper's
+bound-port drop, `server::run` rebind and fixed 50 ms startup wait;
+`owned_listener` transfers the bound socket to `run_with_listener` without that
+wait. Sample parity reverses their order. CSV identifies the helper and its
+configured startup delay; listener/connect time includes that delay.
+
+Jev selected these controls at probability 1.00 before implementation. They
+measure the selected startup mechanism, not all ten helpers' workloads, complete
+fixture teardown or a named target's end-to-end improvement. The named target
+durations from the full gate and historical hosted runs remain separate
+observations. The default eight samples now produce sixteen independent
+fixtures and 128 query-result assertions. No timing threshold is asserted.
+
 ### Selected bounded fixture improvement
 
 The ten startup helpers in `tests/pgwire_extended/{subqueries,types/json,

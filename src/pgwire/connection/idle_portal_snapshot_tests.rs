@@ -1,4 +1,4 @@
-//! Conditional portal cleanup uses one transaction-status observation.
+//! Owner-filtered portal cleanup preserves the transaction across savepoint recovery.
 
 use super::*;
 use crate::app::{CassieSession, SessionTransactionStatus};
@@ -39,7 +39,19 @@ fn fixture() -> (Arc<Cassie>, CassieSession, SessionState) {
         },
     );
     cassie.runtime.record_pgwire_portal_delta(1);
+    stamp_current_portal(&session, &mut state);
     (cassie, session, state)
+}
+
+fn stamp_current_portal(session: &CassieSession, state: &mut SessionState) {
+    let identity = crate::app::FailureAuthority::capture(session)
+        .identity()
+        .unwrap();
+    let owner = state
+        .portal_owners
+        .prepare("retained", identity, &state.portal_memory_controls)
+        .unwrap();
+    state.portal_owners.publish(owner);
 }
 
 fn runtime() -> tokio::runtime::Runtime {
@@ -129,6 +141,7 @@ async fn handle_frame(
 fn assert_failed_snapshot_retains_portal(site: Site) {
     let (cassie, session, mut state) = fixture();
     session.begin_transaction(None).expect("begin");
+    stamp_current_portal(&session, &mut state);
     session.create_savepoint("s").expect("savepoint");
     session.mark_transaction_failed();
     let owner = session.transaction_unique_owner_id();
@@ -256,6 +269,7 @@ fn should_retain_portals_after_active_snapshot() {
     // Arrange
     let (cassie, session, mut state) = fixture();
     session.begin_transaction(None).expect("begin");
+    stamp_current_portal(&session, &mut state);
 
     // Act
     transactions::clear_idle_portals(&cassie.runtime, &mut state, &session);
@@ -271,6 +285,7 @@ fn should_retain_portals_after_failed_snapshot() {
     // Arrange
     let (cassie, session, mut state) = fixture();
     session.begin_transaction(None).expect("begin");
+    stamp_current_portal(&session, &mut state);
     session.mark_transaction_failed();
 
     // Act
@@ -291,10 +306,12 @@ fn should_clear_portals_when_sync_invalidation_is_set() {
         for failed in [false, true] {
             let (cassie, session, mut state) = fixture();
             session.begin_transaction(None).expect("begin");
+            stamp_current_portal(&session, &mut state);
             if failed {
                 session.mark_transaction_failed();
             }
             state.invalidate_portals_on_sync = true;
+            state.portal_invalidation_owner = Some(crate::app::FailureAuthority::capture(&session));
             let (observed_tx, observed_rx) = mpsc::sync_channel(1);
             let (resume_tx, resume_rx) = mpsc::sync_channel(1);
             resume_tx
@@ -319,7 +336,7 @@ fn should_clear_portals_when_sync_invalidation_is_set() {
             drop(hook);
             session.rollback_transaction();
 
-            // Assert: flag is consumed and clears unconditionally without a snapshot.
+            // Assert: captured invalidation consumes the flag and clears its own portals without a snapshot.
             let decoded = frames(&output);
             assert!(state.portals.is_empty());
             assert_eq!(cassie.runtime.snapshot().pgwire.portals, 0);
@@ -344,6 +361,7 @@ fn should_skip_recovery_portal_check_when_storage_is_healthy() {
         // Arrange: an unsupported Parse yields an error with healthy storage.
         let (cassie, session, mut state) = fixture();
         session.begin_transaction(None).expect("begin");
+        stamp_current_portal(&session, &mut state);
         let (observed_tx, observed_rx) = mpsc::sync_channel(1);
         let (resume_tx, resume_rx) = mpsc::sync_channel(1);
         resume_tx

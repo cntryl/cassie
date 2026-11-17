@@ -158,6 +158,8 @@ async fn dispatch_message(
         }
         FrontendMessage::Sync => {
             runtime.record_pgwire_message("sync");
+            #[cfg(test)]
+            super::transactions::observe_portal_cleanup(session);
             if session.is_implicit_transaction() {
                 let transaction_session = session.clone();
                 let committed =

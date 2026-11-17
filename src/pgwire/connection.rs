@@ -491,6 +491,10 @@ async fn handle_sync_wait(
             runtime.record_pgwire_message("sync");
             *awaiting_sync = false;
             state.extended_cycle = transactions::ExtendedCycle::default();
+            #[cfg(test)]
+            if !state.invalidate_portals_on_sync {
+                transactions::observe_portal_cleanup(session);
+            }
             if std::mem::take(&mut state.invalidate_portals_on_sync) {
                 if let Some(owner) = state.portal_invalidation_owner.take() {
                     if let Some(identity) = owner.identity() {

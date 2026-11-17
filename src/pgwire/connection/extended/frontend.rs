@@ -69,6 +69,10 @@ pub(in crate::pgwire::connection) async fn handle_frontend_message(
                 runtime.record_pgwire_protocol_error();
             }
             super::super::transactions::capture_protocol_owner(session).await;
+            #[cfg(test)]
+            if cassie.check_storage_recovery_required().is_err() {
+                super::super::transactions::observe_portal_cleanup(session);
+            }
             super::super::transactions::fail_owned_query(runtime, state, session).await;
             if super::super::writers::write_changed_parameter_statuses(
                 write_half,

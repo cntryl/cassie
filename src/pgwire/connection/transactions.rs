@@ -23,6 +23,11 @@ pub(super) async fn capture_protocol_owner(session: &CassieSession) {
     .await;
 }
 
+#[cfg(test)]
+pub(super) fn observe_portal_cleanup(session: &CassieSession) {
+    portal_snapshot_test_hooks::after_snapshot(session, session.transaction_status_snapshot());
+}
+
 pub(super) async fn capture_and_validate_protocol_owner(
     session: &CassieSession,
 ) -> Result<(), CassieError> {

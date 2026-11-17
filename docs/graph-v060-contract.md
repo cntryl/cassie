@@ -144,6 +144,10 @@ mutated. Unique closures still cascade; unrelated views survive. View execution,
 stored SQL and formats retain their existing behavior. The schema, graphs and view
 closure are restored together on rollback. Graph DDL is
 transactional and, like other DDL, is reserved to administrators (`42501`).
+Dependency collection follows the binder's current lexical CTE lookup: each
+nonrecursive body sees prior definitions, the main query sees all local
+definitions, and a recursive arm sees itself. Qualified relation references
+remain catalog dependencies; real dependencies inside CTE bodies remain visible.
 
 Discovery uses the SQL/PGQ `information_schema` views `property_graphs`,
 `pg_element_tables`, `pg_element_table_key_columns`,

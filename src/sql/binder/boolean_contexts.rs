@@ -355,7 +355,7 @@ fn validate_source_predicates(
                 crate::sql::functions::graph_types::is_table_function(&function.name)
                     || crate::sql::functions::graph_weighted::is_weighted_paths(&function.name);
             for argument in function.expressions_mut() {
-                if graph_source || contains_graph_function(argument) {
+                if graph_source || super::graph_key_part::contains_graph_function(argument) {
                     validate_expression(argument, types, catalog, context)?;
                 }
             }
@@ -363,29 +363,6 @@ fn validate_source_predicates(
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => {}
     }
     Ok(())
-}
-
-fn contains_graph_function(expr: &Expr) -> bool {
-    use crate::sql::functions::FunctionId;
-    use std::ops::ControlFlow;
-
-    if matches!(expr, Expr::Function(function) if crate::sql::functions::function(&function.name)
-        .is_some_and(|metadata| matches!(metadata.id,
-            FunctionId::GraphKeyPart | FunctionId::GraphKeyPartTagged | FunctionId::GraphVertexRef
-            | FunctionId::GraphEdgeRef | FunctionId::GraphPathToJsonb)))
-    {
-        return true;
-    }
-    matches!(
-        expr.try_for_each_child(|child| {
-            if contains_graph_function(child) {
-                ControlFlow::Break(())
-            } else {
-                ControlFlow::Continue(())
-            }
-        }),
-        ControlFlow::Break(())
-    )
 }
 
 fn require_boolean(expr: &mut Expr, types: &ResultTypes, context: &str) -> Result<(), CassieError> {

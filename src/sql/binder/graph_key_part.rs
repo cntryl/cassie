@@ -15,6 +15,13 @@ use crate::sql::functions::graph_types::{
 };
 use crate::types::composite::CompositeRef;
 
+#[path = "graph_function_occurrences.rs"]
+mod graph_function_occurrences;
+
+pub(super) fn contains_graph_function(expression: &Expr) -> bool {
+    graph_function_occurrences::contains(expression)
+}
+
 /// The `type_tag` of an argument type, or `None` when it is not an overload.
 fn tag(data_type: &DataType) -> Option<i64> {
     match data_type.flattened() {

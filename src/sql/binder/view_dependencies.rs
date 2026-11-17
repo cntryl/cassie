@@ -10,6 +10,7 @@ use crate::sql::ast::{
 struct Collected {
     relations: BTreeSet<String>,
     graphs: BTreeSet<String>,
+    ctes: BTreeSet<String>,
 }
 
 pub(crate) fn select_referenced_relations(statement: &SelectStatement) -> Vec<String> {
@@ -26,6 +27,12 @@ pub(crate) fn select_referenced_graphs(statement: &SelectStatement) -> Vec<Strin
 }
 
 fn collect_select(statement: &SelectStatement, relations: &mut Collected) {
+    let inherited = relations.ctes.clone();
+    for cte in &statement.ctes {
+        // A nonrecursive body sees prior definitions, not its own new name.
+        collect_cte(cte, relations);
+        relations.ctes.insert(cte.name.to_ascii_lowercase());
+    }
     collect_source(&statement.source, relations);
     for item in &statement.projection {
         collect_item(item, relations);
@@ -47,9 +54,7 @@ fn collect_select(statement: &SelectStatement, relations: &mut Collected) {
     if let Some(set) = &statement.set {
         collect_select(&set.right, relations);
     }
-    for cte in &statement.ctes {
-        collect_cte(cte, relations);
-    }
+    relations.ctes = inherited;
 }
 
 fn collect_cte(cte: &CommonTableExpression, relations: &mut Collected) {
@@ -59,7 +64,10 @@ fn collect_cte(cte: &CommonTableExpression, relations: &mut Collected) {
             base, recursive, ..
         } => {
             collect_parsed_statement(base, relations);
+            let inherited = relations.ctes.clone();
+            relations.ctes.insert(cte.name.to_ascii_lowercase());
             collect_parsed_statement(recursive, relations);
+            relations.ctes = inherited;
         }
     }
     if let Some(cycle) = &cte.cycle {
@@ -77,7 +85,13 @@ fn collect_parsed_statement(statement: &ParsedStatement, relations: &mut Collect
 fn collect_source(source: &QuerySource, relations: &mut Collected) {
     match source {
         QuerySource::Collection(name) => {
-            relations.relations.insert(name.to_string());
+            // Match bind_collection_source's rendered lookup key, retaining quotes.
+            // Stripping them would hide catalog reads unsupported as local CTE reads.
+            if name.components().len() != 1
+                || !relations.ctes.contains(&name.as_str().to_ascii_lowercase())
+            {
+                relations.relations.insert(name.to_string());
+            }
         }
         QuerySource::Values { rows } => {
             for expression in rows.iter().flatten() {

@@ -573,6 +573,14 @@ fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
     .expect("ordinary control reaches persisted scoring");
     assert_eq!(positive.rows().len(), 5);
     assert!(cassie.midge.query_scan_entries_for_diagnostics() > positive_scan_before);
+    assert!(
+        cassie.metrics()["search"]["posting_reads_total"]
+            .as_u64()
+            .expect("persisted posting reads")
+            > positive_before["search"]["posting_reads_total"]
+                .as_u64()
+                .expect("baseline posting reads")
+    );
     assert_eq!(
         cassie.metrics()["search"]["row_scan_fallback_total"],
         positive_before["search"]["row_scan_fallback_total"]

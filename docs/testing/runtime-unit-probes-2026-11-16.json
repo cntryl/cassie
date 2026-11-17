@@ -1,14 +1,14 @@
 {
   "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
-  "source_before_inventory_commit": "932fce4edc9b225571259d572ffd7e1c269cf0b4",
-  "tree_before_inventory_commit": "d3d95121c296266cf0d096db1944d324e61b4858",
+  "source_before_inventory_commit": "45267021642645b78ba0ef11f25e5e1eb17c2cab",
+  "tree_before_inventory_commit": "8e9ad6e895d3af312d33431a3e4f50693aeb5f4f",
   "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
-  "file_count": 33,
-  "declaration_count": 247,
-  "added_in_file": 102,
-  "modified_in_file": 19,
-  "retained_in_file": 126,
+  "file_count": 37,
+  "declaration_count": 263,
+  "added_in_file": 103,
+  "modified_in_file": 21,
+  "retained_in_file": 139,
   "files": [
     {
       "file": "src/app/bulk_ingest.rs",
@@ -216,6 +216,158 @@
             "#[test]"
           ],
           "body_sha256": "a7faf7919e3c5394a5d500b570a8618fb7200d582e96cd337f753c0be6529859",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/query_failure_admission_tests.rs",
+      "sha256": "bf4e909b5e4cb8b2d7bb0987a360b04bfa803aaef616ce080c309b27a391450a",
+      "lines": 486,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_reject_saturated_query_before_waiting_for_transaction_lock",
+          "inline_modules": [],
+          "line": 78,
+          "end_line": 93,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "348116b6a6a065e73a0b85f6a4599d519b7398c818acaa24025027b48abf828d",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_saturated_admission_error_when_request_is_canceled",
+          "inline_modules": [],
+          "line": 96,
+          "end_line": 109,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "70ab8af4f8a75afb87f8794aabee9bb87586f6c8b066032fd2dd5684fff6a856",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 224,
+          "end_line": 237,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "929e9dad8060169db68ccc3e332c04f2b09d8b9bc3624c7af83efd665af65d90",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_current_owner_when_capture_wait_exceeds_deadline",
+          "inline_modules": [],
+          "line": 240,
+          "end_line": 253,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "97e4c4b85e8aec770ac14229204eb44509ff9d5f8484aeeed76bfd45e880b37e",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_unsupported_error_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 256,
+          "end_line": 266,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7ce0308eb5711c1f3f777c60e43547b7b74b0b4037911352c9baae86344b6495",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_empty_user_error_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 269,
+          "end_line": 279,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "7ad9c87098052f9ef2862aa49831b9c74b1526a11569994b3543af03036b3b8f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_missing_database_error_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 282,
+          "end_line": 292,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "acf3aae56a7fdc104d26e97b8503b42ae541d3861e44e3eb590fa6bb60177251",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_inner_recovery_error_when_capture_wait_is_canceled",
+          "inline_modules": [],
+          "line": 295,
+          "end_line": 305,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e6db7d9ff1542ff2a3af5b5df1e2822c5ccd4ed4311aca51b576611b9847dd5c",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_prefer_cancellation_when_capture_wait_also_exceeds_deadline",
+          "inline_modules": [],
+          "line": 308,
+          "end_line": 318,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "835506acfbe569fb65403f5946937789cd54af43af6c4ceeda1d4f76b8e6e6b3",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_capture_current_owner_after_query_admission",
+          "inline_modules": [],
+          "line": 321,
+          "end_line": 390,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "249b8da7b2583d4a7d1a0a6101be6aca3d412f1902eb5863c6c8409628935608",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_disabled_explain_timeout_during_capture_wait",
+          "inline_modules": [],
+          "line": 463,
+          "end_line": 473,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ab525319c18399812f39ab015c90faed7145bd5fb4d84d13f4f562788146679f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_enabled_explain_timeout_during_capture_wait",
+          "inline_modules": [],
+          "line": 476,
+          "end_line": 486,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "452d9381c6841603fb7f917146d5f0d11e36f2409bb2ef644dff04875a4ae522",
           "comparison": "retained_in_file",
           "execution_status": "authored/not run"
         }
@@ -442,9 +594,49 @@
       ]
     },
     {
+      "file": "src/app/query_failure_watchdog.rs",
+      "sha256": "0ca1880e54d71bc0d961b71dbbea422861911b0d9b46cd888e6c6d2826b1a6b0",
+      "lines": 204,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_reject_missing_retirement_watchdog_child",
+          "inline_modules": [],
+          "line": 194,
+          "end_line": 204,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "db60f61698d7f41e18cce87d405f2e48d3ae25c56300cc989b6311fc07d30e13",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/app/query_failure_watchdog/output.rs",
+      "sha256": "aed0969b47960a298cbac66ec2c063c4bc1dcd538442f6fac86989a4fc6a98b5",
+      "lines": 100,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_retain_the_bounded_tail_and_drain_all_child_diagnostics",
+          "inline_modules": [],
+          "line": 87,
+          "end_line": 100,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "3eac487e5ef02c711f70d51565baed8e051fbd70b4d0ba502cd405dc4d8f4d05",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
       "file": "src/app/query_prepared/authority_tests.rs",
-      "sha256": "826ab4a8ef685cfb943b00537f7959e287a0cb19c7e8df29c77d67a850ce94ab",
-      "lines": 912,
+      "sha256": "d4215dccdb0b3b11ff473de8878589aaad866245cd88ab31d4cb67dc996f8780",
+      "lines": 917,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
@@ -666,8 +858,8 @@
         {
           "name": "should_preserve_disabled_pgwire_timeout_during_capture_wait",
           "inline_modules": [],
-          "line": 746,
-          "end_line": 754,
+          "line": 751,
+          "end_line": 759,
           "attributes": [
             "#[test]"
           ],
@@ -678,8 +870,8 @@
         {
           "name": "should_preserve_enabled_pgwire_timeout_during_capture_wait",
           "inline_modules": [],
-          "line": 757,
-          "end_line": 765,
+          "line": 762,
+          "end_line": 770,
           "attributes": [
             "#[test]"
           ],
@@ -690,8 +882,8 @@
         {
           "name": "should_reject_saturated_pgwire_worker_before_waiting_for_transaction_lock",
           "inline_modules": [],
-          "line": 768,
-          "end_line": 826,
+          "line": 773,
+          "end_line": 831,
           "attributes": [
             "#[test]"
           ],
@@ -702,8 +894,8 @@
         {
           "name": "should_recheck_pgwire_recovery_when_saturated_after_healthy_check",
           "inline_modules": [],
-          "line": 829,
-          "end_line": 880,
+          "line": 834,
+          "end_line": 885,
           "attributes": [
             "#[test]"
           ],
@@ -714,8 +906,8 @@
         {
           "name": "should_forward_worker_authority_to_implicit_table_creation",
           "inline_modules": [],
-          "line": 883,
-          "end_line": 912,
+          "line": 888,
+          "end_line": 917,
           "attributes": [
             "#[test]"
           ],
@@ -1371,8 +1563,8 @@
     },
     {
       "file": "src/app/session/shared_setting_tests.rs",
-      "sha256": "90d361e5239449720b7df2eafa448f7b500e0f9e73aa1f1b3166566ca8533d3d",
-      "lines": 142,
+      "sha256": "922bdc7828bb486a45827db88fb28f6dbbd4768f809bb2a793f21827f183aa52",
+      "lines": 150,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
@@ -1388,22 +1580,22 @@
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_record_current_fork_local_history_in_the_actual_root",
+          "name": "should_keep_current_fork_local_history_private_under_actual_root_validation",
           "inline_modules": [],
           "line": 75,
-          "end_line": 120,
+          "end_line": 128,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "473a47c0b3856deb1e017aa002aa89593355f7c7e598b60e6e6b0be825aef82a",
+          "body_sha256": "bf056f4cb5d66fbacb95d6cdc244669d98fa32b7c426f754517beb681b6c0eb9",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
         {
           "name": "should_preserve_unscoped_public_setting_apis_current_session_meaning",
           "inline_modules": [],
-          "line": 123,
-          "end_line": 142,
+          "line": 131,
+          "end_line": 150,
           "attributes": [
             "#[test]"
           ],
@@ -1415,8 +1607,8 @@
     },
     {
       "file": "src/app/session/temporal_context/tests.rs",
-      "sha256": "d2723a4a9ee07746ef0733ad2dcbb214d72cf6720324975d5f2915da68d3c9c2",
-      "lines": 227,
+      "sha256": "366f24e00e6191d6b0726ac76f86161ca84b8608ef1ce0b6e5b51cd7bb2885d5",
+      "lines": 233,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
@@ -1483,11 +1675,11 @@
           "name": "should_preserve_now_through_an_actual_nested_procedure_call",
           "inline_modules": [],
           "line": 198,
-          "end_line": 227,
+          "end_line": 233,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "ac2b537966212628a7408ec732c3640948ddb8ac8027570072906cef141bbb55",
+          "body_sha256": "935650e4c2fda641c15cab9a138695ea0639c67f71111186e2eb077ba3e0abb3",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         }
@@ -1495,8 +1687,8 @@
     },
     {
       "file": "src/app/session/transaction_control.rs",
-      "sha256": "2e715bf1455979d975d31908294553ddeb327e2da5b118bf9481a2634fd19b45",
-      "lines": 870,
+      "sha256": "b2cbc3b25347e51f18e73be0f8974032f0c885627b9af6263ed036cde7af8ba4",
+      "lines": 888,
       "cfg_attributes_in_file": [
         "#[cfg(test)]",
         "#[cfg(test)]",
@@ -1518,8 +1710,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 670,
-          "end_line": 686,
+          "line": 688,
+          "end_line": 704,
           "attributes": [
             "#[test]"
           ],
@@ -1532,8 +1724,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 689,
-          "end_line": 707,
+          "line": 707,
+          "end_line": 725,
           "attributes": [
             "#[test]"
           ],
@@ -1546,8 +1738,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 710,
-          "end_line": 721,
+          "line": 728,
+          "end_line": 739,
           "attributes": [
             "#[test]"
           ],
@@ -1560,8 +1752,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 724,
-          "end_line": 735,
+          "line": 742,
+          "end_line": 753,
           "attributes": [
             "#[test]"
           ],
@@ -1574,8 +1766,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 738,
-          "end_line": 750,
+          "line": 756,
+          "end_line": 768,
           "attributes": [
             "#[test]"
           ],
@@ -1588,8 +1780,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 753,
-          "end_line": 765,
+          "line": 771,
+          "end_line": 783,
           "attributes": [
             "#[test]"
           ],
@@ -1602,8 +1794,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 768,
-          "end_line": 784,
+          "line": 786,
+          "end_line": 802,
           "attributes": [
             "#[test]"
           ],
@@ -1616,8 +1808,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 787,
-          "end_line": 802,
+          "line": 805,
+          "end_line": 820,
           "attributes": [
             "#[test]"
           ],
@@ -1630,8 +1822,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 805,
-          "end_line": 837,
+          "line": 823,
+          "end_line": 855,
           "attributes": [
             "#[test]"
           ],
@@ -1644,8 +1836,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 840,
-          "end_line": 869,
+          "line": 858,
+          "end_line": 887,
           "attributes": [
             "#[test]"
           ],
@@ -1677,8 +1869,8 @@
     },
     {
       "file": "src/app/session/wire_failure_tests.rs",
-      "sha256": "bba9c01c04e7d0b4b378d056dd6e25db50572bcddf1139629de113b0edcd16ee",
-      "lines": 888,
+      "sha256": "e0b57a6d86e195aab53e1c79040ec8fcf54f89606b57dff9dbbac5fec2df47f9",
+      "lines": 896,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
@@ -1817,19 +2009,19 @@
           "name": "should_preserve_the_captured_owner_when_recovery_latches_after_admission",
           "inline_modules": [],
           "line": 511,
-          "end_line": 577,
+          "end_line": 585,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "e88079c7d55b20e8a6691d2b238acbe4ece0c82f3a928f354191ae8b20c4e0d2",
+          "body_sha256": "ff4cb07edf755d4416a4e3e94f86fc30727e6332d49825e146bae16930c92df2",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
         {
           "name": "should_not_fail_a_replacement_after_old_quarantine_conversion_fails",
           "inline_modules": [],
-          "line": 580,
-          "end_line": 622,
+          "line": 588,
+          "end_line": 630,
           "attributes": [
             "#[test]"
           ],
@@ -1840,8 +2032,8 @@
         {
           "name": "should_leave_a_block_healthy_when_wire_admission_rejects_before_capture",
           "inline_modules": [],
-          "line": 625,
-          "end_line": 638,
+          "line": 633,
+          "end_line": 646,
           "attributes": [
             "#[test]"
           ],
@@ -1852,8 +2044,8 @@
         {
           "name": "should_not_capture_a_protocol_owner_after_an_unowned_query_attempt",
           "inline_modules": [],
-          "line": 641,
-          "end_line": 657,
+          "line": 649,
+          "end_line": 665,
           "attributes": [
             "#[test]"
           ],
@@ -1864,8 +2056,8 @@
         {
           "name": "should_preserve_a_replacement_after_an_admitted_wire_operation_fails",
           "inline_modules": [],
-          "line": 660,
-          "end_line": 675,
+          "line": 668,
+          "end_line": 683,
           "attributes": [
             "#[test]"
           ],
@@ -1876,8 +2068,8 @@
         {
           "name": "should_rollback_only_the_owned_implicit_wire_transaction",
           "inline_modules": [],
-          "line": 678,
-          "end_line": 693,
+          "line": 686,
+          "end_line": 701,
           "attributes": [
             "#[test]"
           ],
@@ -1888,8 +2080,8 @@
         {
           "name": "should_fail_a_wire_operations_own_begin_after_adoption",
           "inline_modules": [],
-          "line": 696,
-          "end_line": 710,
+          "line": 704,
+          "end_line": 718,
           "attributes": [
             "#[test]"
           ],
@@ -1900,8 +2092,8 @@
         {
           "name": "should_not_clear_portals_for_a_replacement_after_owned_retirement",
           "inline_modules": [],
-          "line": 713,
-          "end_line": 729,
+          "line": 721,
+          "end_line": 737,
           "attributes": [
             "#[test]"
           ],
@@ -1912,8 +2104,8 @@
         {
           "name": "should_refuse_a_stale_outer_commit_without_publishing_or_rolling_back_the_replacement",
           "inline_modules": [],
-          "line": 732,
-          "end_line": 764,
+          "line": 740,
+          "end_line": 772,
           "attributes": [
             "#[test]"
           ],
@@ -1924,8 +2116,8 @@
         {
           "name": "should_keep_an_established_owner_when_later_admission_is_rejected",
           "inline_modules": [],
-          "line": 767,
-          "end_line": 787,
+          "line": 775,
+          "end_line": 795,
           "attributes": [
             "#[test]"
           ],
@@ -1936,8 +2128,8 @@
         {
           "name": "should_not_grant_an_established_rejected_operation_rights_over_a_replacement",
           "inline_modules": [],
-          "line": 790,
-          "end_line": 810,
+          "line": 798,
+          "end_line": 818,
           "attributes": [
             "#[test]"
           ],
@@ -1948,8 +2140,8 @@
         {
           "name": "should_not_export_a_replacements_repeatable_read_alias_to_an_old_operation",
           "inline_modules": [],
-          "line": 813,
-          "end_line": 863,
+          "line": 821,
+          "end_line": 871,
           "attributes": [
             "#[test]"
           ],
@@ -1960,8 +2152,8 @@
         {
           "name": "should_detach_only_the_explicit_unscoped_cleanup_clone",
           "inline_modules": [],
-          "line": 866,
-          "end_line": 888,
+          "line": 874,
+          "end_line": 896,
           "attributes": [
             "#[test]"
           ],
@@ -1973,8 +2165,8 @@
     },
     {
       "file": "src/app/session_objects/ownership_tests.rs",
-      "sha256": "77becf4a2a84d6c792530f6f480846f7126236a80cc7210987c0864d2310f355",
-      "lines": 402,
+      "sha256": "6ad12691a8ba86724465f21847e76f965a5025b3fc56f673f60bcb33d2293f7b",
+      "lines": 403,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
@@ -2029,19 +2221,19 @@
           "name": "should_reject_shared_object_mutation_from_a_fork_without_lineage",
           "inline_modules": [],
           "line": 215,
-          "end_line": 234,
+          "end_line": 235,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "350e21f04b9093b96fbd42ebba1b2312c743ed0b061549bf2c5dd72b7c6dfd72",
+          "body_sha256": "0f15867c53b6b0f4285b8e61ce494cd629b9b70e1fb97ceb3e66267b3666ea62",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
         {
           "name": "should_publish_and_fetch_shared_objects_through_a_current_detached_owner",
           "inline_modules": [],
-          "line": 237,
-          "end_line": 280,
+          "line": 238,
+          "end_line": 281,
           "attributes": [
             "#[test]"
           ],
@@ -2052,8 +2244,8 @@
         {
           "name": "should_refuse_a_sealed_fork_while_preserving_the_committing_root",
           "inline_modules": [],
-          "line": 283,
-          "end_line": 313,
+          "line": 284,
+          "end_line": 314,
           "attributes": [
             "#[test]"
           ],
@@ -2064,8 +2256,8 @@
         {
           "name": "should_publish_a_held_cursor_after_its_own_modifying_cte_commits",
           "inline_modules": [],
-          "line": 316,
-          "end_line": 335,
+          "line": 317,
+          "end_line": 336,
           "attributes": [
             "#[test]"
           ],
@@ -2076,8 +2268,8 @@
         {
           "name": "should_revoke_an_owned_idle_receipt_after_an_independent_transaction",
           "inline_modules": [],
-          "line": 338,
-          "end_line": 357,
+          "line": 339,
+          "end_line": 358,
           "attributes": [
             "#[test]"
           ],
@@ -2088,8 +2280,8 @@
         {
           "name": "should_not_treat_another_operations_commit_as_its_own_retirement",
           "inline_modules": [],
-          "line": 360,
-          "end_line": 377,
+          "line": 361,
+          "end_line": 378,
           "attributes": [
             "#[test]"
           ],
@@ -2100,8 +2292,8 @@
         {
           "name": "should_not_transfer_the_roots_idle_retirement_receipt_to_a_detached_fork",
           "inline_modules": [],
-          "line": 380,
-          "end_line": 402,
+          "line": 381,
+          "end_line": 403,
           "attributes": [
             "#[test]"
           ],
@@ -2477,8 +2669,8 @@
     },
     {
       "file": "src/pgwire/connection/blocking/tests.rs",
-      "sha256": "f18a528ee3fce94e847f3f441f6ac97758abdd46bd779a1b56a6ab83a726929b",
-      "lines": 202,
+      "sha256": "c0051f893ea3b45d94f6f1c162e35ee8de0c1b220142744ee103df5599ccdc8a",
+      "lines": 233,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
@@ -2521,19 +2713,19 @@
           "name": "should_leave_cleanup_debt_for_later_when_a_queued_worker_never_starts",
           "inline_modules": [],
           "line": 153,
-          "end_line": 182,
+          "end_line": 213,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "aa5618cbc3b377ebda7f41758452ba8aed799384bf38883cc90c0eebc2b0c21b",
+          "body_sha256": "d8f9043fc0b0654920ab325366bed0f2e12b07210b3f635f0f0c7d3fa009ace2",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
         {
           "name": "should_map_join_failures_to_retryable_storage_errors",
           "inline_modules": [],
-          "line": 185,
-          "end_line": 202,
+          "line": 216,
+          "end_line": 233,
           "attributes": [
             "#[test]"
           ],
@@ -2782,6 +2974,38 @@
           ],
           "body_sha256": "c35c63c582cd6be854de8959c36989f07223ef4bb5d6358626c030fa982901fa",
           "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/copy/origin_failure_authority_tests.rs",
+      "sha256": "16c559f8f5969caeb009addf954b5080e5b0042b821275b14798b4b20933516d",
+      "lines": 146,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_preserve_replacement_when_old_copy_predicate_fails",
+          "inline_modules": [],
+          "line": 32,
+          "end_line": 113,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d4a402a47871935314d31a78dc687814cfab04e1592cc83590bc00d59d5f7634",
+          "comparison": "modified_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_fail_origin_when_current_copy_predicate_fails",
+          "inline_modules": [],
+          "line": 116,
+          "end_line": 146,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "89fe1643801553a43a19264ac069088c8789996b371fcda2604ca653102f27a4",
+          "comparison": "retained_in_file",
           "execution_status": "authored/not run"
         }
       ]

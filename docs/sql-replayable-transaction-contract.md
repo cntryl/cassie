@@ -522,3 +522,12 @@ including its own-start adoption receipt. Only a never-captured context becomes
 admission-rejected. This gives an established protocol origin its existing cleanup
 rights, while all UUID/epoch/generation checks still reject replacement ownership.
 An uncaptured saturated rejection remains immediate and performs no root mutation.
+
+Independent native sequence completion and session history publication are distinct.
+After successful native nextval/setval/default assignment, currval/lastval publication
+locks sequence values before the actual root, validates the captured owner, then
+writes history. A stale result returns 25000 and does not repopulate a replacement's
+history. The already admitted native effect remains applied: its global catalog
+cursor is published before propagating the history error, without undo or retry.
+The existing lifecycle-root exact-own-retirement receipt is retained only where
+shared state already allows it; detached forks do not gain that exception.

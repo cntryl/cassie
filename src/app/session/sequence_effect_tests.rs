@@ -237,5 +237,20 @@ fn should_promote_data_policy_before_an_admitted_sequence_effect_reaches_storage
     commit.unwrap();
     assert_eq!(writes.first_policy, Some("local_sync"));
     assert_eq!(writes.primary_buffered_attempts, 0);
-    assert_eq!(sequence.unwrap().rows()[0][0], Value::Int64(1));
+    assert_eq!(sequence.unwrap_err().sql_state(), "25000");
+    let cursor = cassie
+        .catalog
+        .list_sequences()
+        .into_iter()
+        .find(|sequence| crate::catalog::local_name(&sequence.name) == "effect_sequence")
+        .unwrap();
+    assert_eq!(
+        cassie
+            .midge
+            .get_sequence(&cursor.name)
+            .unwrap()
+            .unwrap()
+            .cursor(),
+        cursor.cursor()
+    );
 }

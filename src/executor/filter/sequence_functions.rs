@@ -78,10 +78,11 @@ fn nextval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError
         let (value, updated) = midge.update_sequence_retrying(&sequence, |metadata| {
             metadata.advance().map_err(Into::into)
         })?;
-        session.record_sequence_value(&sequence, identity, value, true);
+        let history = session.record_sequence_value(&sequence, identity, value, true);
         if !midge.is_private_sequence(&updated)? {
             session.publish_sequence_metadata(&updated);
         }
+        history?;
         Ok(value)
     })?;
     Ok(Value::Int64(value))
@@ -126,12 +127,15 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
         let (value, updated) = midge.update_sequence_retrying(&sequence, |metadata| {
             metadata.assign(value, is_called).map_err(Into::into)
         })?;
-        if is_called {
-            session.record_sequence_value(&sequence, identity, value, false);
-        }
+        let history = if is_called {
+            session.record_sequence_value(&sequence, identity, value, false)
+        } else {
+            Ok(())
+        };
         if !midge.is_private_sequence(&updated)? {
             session.publish_sequence_metadata(&updated);
         }
+        history?;
         Ok(value)
     })?;
     Ok(Value::Int64(value))

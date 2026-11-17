@@ -1,8 +1,10 @@
-//! Session-local sequence history for `currval` and `lastval`, and the
-//! sequence positions a rolled-back `TRUNCATE ... RESTART IDENTITY` restores.
+//! Session-local sequence history for `currval` and `lastval`.
 #[cfg(test)]
 #[path = "session_sequences/discard_restart_tests.rs"]
 mod discard_restart_tests;
+#[cfg(test)]
+#[path = "session_sequences/history_owner_tests.rs"]
+mod history_owner_tests;
 
 use std::collections::HashMap;
 
@@ -66,14 +68,19 @@ impl CassieSession {
         identity: u64,
         value: i64,
         from_nextval: bool,
-    ) {
+    ) -> Result<(), CassieError> {
+        #[cfg(test)]
+        history_owner_tests::after_native();
         let mut values = self.sequence_values.lock();
-        values
-            .by_sequence
-            .insert(sequence_identity(sequence, identity), value);
-        if from_nextval {
-            values.last = Some((sequence.to_ascii_lowercase(), identity));
-        }
+        self.with_owned_shared_session_state(|_, _| {
+            values
+                .by_sequence
+                .insert(sequence_identity(sequence, identity), value);
+            if from_nextval {
+                values.last = Some((sequence.to_ascii_lowercase(), identity));
+            }
+            Ok(())
+        })
     }
 
     /// `currval`.

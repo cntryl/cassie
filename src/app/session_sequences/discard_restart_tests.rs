@@ -16,7 +16,9 @@ fn should_preserve_sequence_history_when_an_old_operation_cannot_reset_the_repla
     let _authority = crate::app::FailureAuthority::capture_for_operation(&operation);
     session.rollback_transaction();
     session.begin_transaction(None).unwrap();
-    session.record_sequence_value("replacement", 7, 42, true);
+    session
+        .record_sequence_value("replacement", 7, 42, true)
+        .unwrap();
 
     // Act
     let reset = operation.discard_sequence_values_for_operation();
@@ -35,7 +37,7 @@ fn should_clear_owned_sequence_history_only_after_the_owned_reset_leaf_succeeds(
     let session = CassieSession::new("owned_sequence_reset".into(), None);
     let operation = session.with_new_wire_operation();
     let _authority = crate::app::FailureAuthority::capture_for_operation(&operation);
-    session.record_sequence_value("owned", 7, 42, true);
+    session.record_sequence_value("owned", 7, 42, true).unwrap();
 
     // Act
     let denied: Result<(), CassieError> = operation.with_owned_sequence_reset(|_, _| {

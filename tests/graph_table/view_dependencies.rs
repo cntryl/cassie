@@ -304,6 +304,50 @@ fn should_reject_a_transitive_cascade_with_a_surviving_shadow_relation() {
 }
 
 #[test]
+fn should_reject_a_transitive_cascade_with_a_surviving_shadow_view() {
+    // Arrange
+    let fixture = sql_fixture("graph-view-shadowed-transitive-view", SHADOW_SETUP);
+    fixture.execute("CREATE VIEW public.base AS SELECT x FROM GRAPH_TABLE(alt.g MATCH(v IS node) COLUMNS(v.id AS x)) AS t").expect("qualified direct view");
+    fixture
+        .execute("CREATE VIEW keep.base AS SELECT 99 AS x")
+        .expect("surviving view shadows the dependent view");
+    fixture
+        .execute("CREATE VIEW keep.outer_view AS SELECT x FROM base")
+        .expect("unqualified view of view");
+    assert_eq!(
+        fixture.rows("SELECT x FROM keep.outer_view"),
+        vec![vec![Value::Int64(2)]]
+    );
+
+    // Act
+    let dropped = fixture.execute("DROP SCHEMA alt CASCADE");
+
+    // Assert
+    assert_eq!(
+        dropped
+            .expect_err("ambiguous view target refuses cascade")
+            .sql_state(),
+        "0A000"
+    );
+    assert_eq!(
+        fixture.rows("SELECT * FROM GRAPH_TABLE(alt.g MATCH(v IS node) COLUMNS(v.id)) AS t"),
+        vec![vec![Value::Int64(2)]]
+    );
+    assert_eq!(
+        fixture.rows("SELECT x FROM public.base"),
+        vec![vec![Value::Int64(2)]]
+    );
+    assert_eq!(
+        fixture.rows("SELECT x FROM keep.outer_view"),
+        vec![vec![Value::Int64(2)]]
+    );
+    assert_eq!(
+        fixture.rows("SELECT x FROM keep.base"),
+        vec![vec![Value::Int64(99)]]
+    );
+}
+
+#[test]
 fn should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade() {
     // Arrange
     let fixture = sql_fixture("graph-view-qualified-shadow-control", SHADOW_SETUP);

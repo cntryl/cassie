@@ -1,7 +1,7 @@
 pub(crate) mod owned_rows;
 
 #[cfg(test)]
-mod graph_memory_test_observer;
+pub(crate) mod graph_memory_test_observer;
 
 #[cfg(test)]
 #[path = "owned_rows_result_tests.rs"]

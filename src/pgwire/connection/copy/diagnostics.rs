@@ -1,7 +1,7 @@
 //! Resource-bounded COPY error diagnostics retain their operation owner.
 use super::{
-    fail_copy_transaction, write_copy_error, AsyncWrite, CassieError, CassieSession, PgWireError,
-    PgWireSeverity, SimpleCopyOutcome,
+    cassie_pg_error, fail_copy_transaction, write_copy_error, AsyncWrite, CassieSession,
+    PgWireError, PgWireSeverity, SimpleCopyOutcome,
 };
 
 pub(super) async fn write_copy_jsonb_diagnostic_with_length(

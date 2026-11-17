@@ -5,7 +5,9 @@
 pub(super) mod portal_snapshot_test_hooks;
 
 use super::state::SessionState;
-use crate::app::{Cassie, CassieError, CassieSession, SessionTransactionStatus};
+#[cfg(test)]
+use crate::app::SessionTransactionStatus;
+use crate::app::{Cassie, CassieError, CassieSession};
 use crate::runtime::RuntimeState;
 use crate::sql::ast::{ParsedStatement, QueryStatement, StatementFamily};
 use std::sync::Arc;

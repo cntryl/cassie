@@ -1,12 +1,12 @@
 {
-  "baseline": "b228bc160eaa59ed7f1d4ffa3864aeaed7666f0b",
-  "source_before_inventory_commit": "9d8cf088a730652ce4fac15afe790ab90bb7b264",
-  "tree_before_inventory_commit": "118757c3cb8a60c69a348b2c5de32517eca1c097",
+  "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
+  "source_before_inventory_commit": "9314bedfe24087a033c987637da268672880c1d5",
+  "tree_before_inventory_commit": "8120771508079f97aabc8bfde132d5b00d19f83b",
   "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
-  "file_count": 30,
-  "declaration_count": 235,
-  "added_in_file": 90,
+  "file_count": 32,
+  "declaration_count": 244,
+  "added_in_file": 99,
   "modified_in_file": 19,
   "retained_in_file": 126,
   "files": [
@@ -1414,6 +1414,86 @@
       ]
     },
     {
+      "file": "src/app/session/temporal_context/tests.rs",
+      "sha256": "d2723a4a9ee07746ef0733ad2dcbb214d72cf6720324975d5f2915da68d3c9c2",
+      "lines": 227,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_refuse_an_old_root_or_fork_clock_without_resetting_b_now",
+          "inline_modules": [],
+          "line": 49,
+          "end_line": 89,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "32a1702e1cd23d1333435f56bee60dec14b6e776cc1ba090d2b8deddf304b629",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_install_the_first_current_clock_under_root_then_clock_locks",
+          "inline_modules": [],
+          "line": 92,
+          "end_line": 125,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6e3e4859a5eb21c34e09c80a6bc3539b92673340ebfae9cbb971a4363aa1b9d9",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_keep_idle_statement_start_separate_from_the_shared_transaction_clock",
+          "inline_modules": [],
+          "line": 128,
+          "end_line": 147,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "4f05be9fab7401d7253ebf6e6e0f4eb023371838505a68b64849e0b2084d192a",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_allow_only_the_own_retired_root_to_install_an_idle_statement_clock",
+          "inline_modules": [],
+          "line": 150,
+          "end_line": 178,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "41a670d49eaff1847ce9362eacc9df1e2b85a8ee7d64e726b4877c1e947cd39f",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_not_adopt_another_actors_commit_as_an_idle_clock_receipt",
+          "inline_modules": [],
+          "line": 181,
+          "end_line": 195,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b8e5651054c4cb06738d519d5e346b9f7224da4c9fe49b14d4ba5176cd63e83c",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_now_through_an_actual_nested_procedure_call",
+          "inline_modules": [],
+          "line": 198,
+          "end_line": 227,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "ac2b537966212628a7408ec732c3640948ddb8ac8027570072906cef141bbb55",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
       "file": "src/app/session/transaction_control.rs",
       "sha256": "2cbb275db38d289cb0b4f4844d7298db2332b9952207e6e35b1d3e2ae6dcb0ad",
       "lines": 869,
@@ -2613,6 +2693,50 @@
           ],
           "body_sha256": "d714bf9e4c40f48a15f32ae253e6a92e18d6afd1b8c926653b02911cc7a4e309",
           "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/pgwire/connection/copy/native_policy_tests.rs",
+      "sha256": "05450b67347fd9227bdb0f59b0977b5ff820c9d01a9dfdc8068f3c74aa83d4e6",
+      "lines": 136,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_use_strict_native_data_policy_for_default_wire_copy_and_checkpoint",
+          "inline_modules": [],
+          "line": 121,
+          "end_line": 124,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "657e5ed9039aeabc58ce8c4f40141e7046cb5bb935f5f9072be9f0dbf048771f",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_use_buffered_native_data_policy_for_replayable_wire_copy_and_checkpoint",
+          "inline_modules": [],
+          "line": 127,
+          "end_line": 130,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "eb6a973ef166ff3119baae4bb939e76a6900caa4ef3e5f7f9825ec2fe248b8df",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_promote_replayable_wire_copy_with_a_sequence_default_to_strict_data_policy",
+          "inline_modules": [],
+          "line": 133,
+          "end_line": 136,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "c35c63c582cd6be854de8959c36989f07223ef4bb5d6358626c030fa982901fa",
+          "comparison": "added_in_file",
           "execution_status": "authored/not run"
         }
       ]

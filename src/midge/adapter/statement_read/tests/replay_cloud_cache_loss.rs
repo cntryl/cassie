@@ -113,7 +113,7 @@ fn should_reconcile_sql_prefix_after_simulated_cloud_cache_loss() {
 }
 
 #[test]
-fn should_refuse_foreign_and_unowned_cache_roots_before_deletion() {
+fn should_refuse_cache_loss_without_matching_root_ownership() {
     // Arrange
     let owned = CacheFixture::new();
     let foreign = CacheFixture::new();
@@ -154,7 +154,7 @@ fn should_refuse_symlinked_cache_before_deletion() {
 }
 
 #[test]
-fn should_preserve_remote_hashes_and_retained_source_when_wiping_owned_cache() {
+fn should_retain_source_evidence_after_owned_local_cache_removal() {
     // Arrange
     let owned = CacheFixture::new();
     seed_cache_sentinels(&owned);

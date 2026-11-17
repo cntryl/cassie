@@ -360,6 +360,16 @@ impl<'a> Walk<'a> {
         if self.plan.may_duplicate {
             // Hop splits of one path are one match unless they bind a named singleton
             // variable to different elements; then each binding is its own match.
+            #[cfg(test)]
+            crate::executor::execution::graph_memory_test_observer::record(
+                "before_seen_key",
+                self.memory.bytes(),
+            );
+            #[cfg(test)]
+            crate::executor::execution::graph_memory_test_observer::record(
+                "copy_seen_key",
+                self.memory.bytes(),
+            );
             let mut key = candidate.vertices.clone();
             key.extend(&candidate.edges);
             key.extend(candidate.directions.iter().map(|d| usize::from(*d)));
@@ -374,8 +384,18 @@ impl<'a> Walk<'a> {
                         Source::Group => None,
                     }),
             );
-            self.memory
-                .try_grow(key.capacity() * 4 + 2 * size_of::<usize>())?;
+            #[cfg(test)]
+            crate::executor::execution::graph_memory_test_observer::record(
+                "required_seen_key",
+                key.capacity() * size_of::<usize>() + 2 * size_of::<usize>(),
+            );
+            let bytes = key.capacity() * 4 + 2 * size_of::<usize>();
+            #[cfg(test)]
+            crate::executor::execution::graph_memory_test_observer::record(
+                "charged_seen_key",
+                bytes,
+            );
+            self.memory.try_grow(bytes)?;
             if !self.seen.insert(key) {
                 return Ok(());
             }
@@ -475,5 +495,71 @@ mod memory_tests {
             "copy_frontier",
             std::mem::size_of::<super::Hop>(),
         );
+    }
+
+    fn duplicate_fixture() -> (crate::app::Cassie, crate::app::CassieSession) {
+        let (cassie, session) = observer::fixture();
+        for sql in ["DELETE FROM e", "INSERT INTO e VALUES(1,1,1)"] {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .expect("one self loop");
+        }
+        (cassie, session)
+    }
+
+    const DUPLICATE_QUERY: &str = "SELECT * FROM GRAPH_TABLE(g MATCH \
+        (a IS node WHERE a.id=1)-[]->{0,1}(b)-[]->{0,1}(c) COLUMNS(a.id)) AS t";
+
+    #[test]
+    fn should_admit_a_seen_key_before_copying_path_and_singleton_indices() {
+        // Arrange
+        let (cassie, session) = duplicate_fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, DUPLICATE_QUERY, vec![])
+            .expect("quantified self loop");
+
+        // Assert
+        assert!(result.row_count() > 0);
+        observer::assert_admitted(
+            "before_seen_key",
+            "copy_seen_key",
+            std::mem::size_of::<usize>(),
+        );
+    }
+
+    #[test]
+    fn should_account_for_the_native_width_of_retained_seen_key_indices() {
+        // Arrange
+        let (cassie, session) = duplicate_fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, DUPLICATE_QUERY, vec![])
+            .expect("quantified self loop");
+        let observations = observer::events();
+
+        // Assert
+        assert!(result.row_count() > 0);
+        let mut required = None;
+        let mut checked = 0;
+        for (boundary, bytes) in observations {
+            if boundary == "required_seen_key" {
+                required = Some(bytes);
+            } else if boundary == "charged_seen_key" {
+                let required = required
+                    .take()
+                    .expect("native capacity oracle before admission");
+                assert!(
+                    bytes >= required,
+                    "seen key admitted {bytes} bytes but owns at least {required}"
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 0, "the fixture must retain a seen key");
     }
 }

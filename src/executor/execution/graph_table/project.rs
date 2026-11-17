@@ -10,10 +10,54 @@ use super::store::Store;
 use super::BatchRow;
 use super::QueryError;
 use super::SourceExecutionEnv;
-use crate::executor::retained_memory::{add, lookup_bytes, mul};
+use crate::executor::retained_memory::{
+    add, data_type_clone_bytes, grown_capacity, lookup_bytes, mul,
+};
 use crate::runtime::owned_memory::grow_vec;
 use crate::runtime::QueryMemoryReservation;
 use crate::sql::ast::Expr;
+
+/// Final source metadata and the replacement row/chunk directories coexist with
+/// the projected row directory. Names use the ordinary `column{ordinal}` format.
+pub(super) fn metadata_bytes(
+    types: &[crate::types::DataType],
+    row_count: usize,
+) -> Result<usize, QueryError> {
+    let shared = size_of::<Vec<crate::types::DataType>>()
+        + size_of::<QueryMemoryReservation>()
+        + 4 * size_of::<usize>();
+    let mut bytes = add(
+        shared,
+        mul(types.len(), size_of::<crate::types::DataType>())?,
+    )?;
+    for data_type in types {
+        bytes = add(bytes, data_type_clone_bytes(data_type)?)?;
+    }
+    bytes = add(bytes, mul(row_count, 2 * size_of::<BatchRow>())?)?;
+    bytes = add(
+        bytes,
+        mul(
+            row_count.div_ceil(super::batch::DEFAULT_BATCH_SIZE),
+            size_of::<Vec<BatchRow>>(),
+        )?,
+    )?;
+    let text_count = types
+        .iter()
+        .filter(|data_type| **data_type == crate::types::DataType::Text)
+        .count();
+    bytes = add(
+        bytes,
+        mul(grown_capacity(text_count, 4)?, size_of::<String>())?,
+    )?;
+    for (index, data_type) in types.iter().enumerate() {
+        if *data_type == crate::types::DataType::Text {
+            let digits = usize::try_from(add(index, 1)?.ilog10() + 1).unwrap_or(usize::MAX);
+            // Formatting may retain geometric spare capacity in addition to the digits.
+            bytes = add(bytes, mul(add("column".len(), digits)?, 2)?)?;
+        }
+    }
+    Ok(bytes)
+}
 
 /// One output row per selected path whose pattern `WHERE` is TRUE.
 ///

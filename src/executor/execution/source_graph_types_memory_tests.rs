@@ -203,3 +203,75 @@ fn should_use_the_outer_query_owner_for_a_nested_reference_constructor_scan() {
         "existence reads must share the active outer tracker"
     );
 }
+
+#[test]
+fn should_admit_live_prefix_costs_and_actual_aligned_operands_on_the_cost_owner() {
+    // Arrange
+    let (cassie, session) = observer::fixture();
+    let descriptors =
+        crate::executor::filter::graph_functions::descriptors_of(Some(&session)).expect("types");
+    let vertex = reference();
+    let edge = ElementRef {
+        kind: ElementKind::Edge,
+        mapping_id: uuid::Uuid::from_u128(4),
+        ..vertex.clone()
+    };
+    let path = Path {
+        vertices: vec![vertex.clone(), vertex.clone(), vertex],
+        edges: vec![edge.clone(), edge],
+        directions: vec![Direction::Forward, Direction::Forward],
+    }
+    .to_value(&descriptors)
+    .expect("two-edge native path");
+    let wide =
+        crate::types::extended::numeric::parse_text(&"1".repeat(2_048)).expect("finite wide cost");
+    let costs = Value::Array(
+        SqlArray::from_elements(vec![
+            Value::Typed(TypedValue::Numeric(wide.clone())),
+            Value::Typed(TypedValue::Numeric(wide)),
+        ])
+        .expect("two costs"),
+    );
+    let functions = HashMap::new();
+    let controls = controls();
+    let env = SourceExecutionEnv {
+        cassie: &cassie,
+        session: Some(&session),
+        user_functions: &functions,
+        params: &[],
+        parameter_type_oids: &[],
+        controls: &controls,
+    };
+    let mut output = controls.reserve_query_memory(0).expect("output owner");
+    let _observation = observer::start();
+    let _alignment = math::observe_add_alignment(|bytes| {
+        observer::record("aligned_graph_prefix_costs", bytes);
+    });
+
+    // Act
+    let rows = step_rows(&env, &path, Some(&costs), &mut output).expect("finite prefix costs");
+    let events = observer::events();
+
+    // Assert
+    assert_eq!(rows.len(), 3);
+    let mut admitted = None;
+    let mut live = None;
+    let mut additions = 0;
+    for (boundary, bytes) in events {
+        match boundary {
+            "admitted_graph_prefix_costs" => admitted = Some(bytes),
+            "live_graph_prefix_costs" => live = Some(bytes),
+            "aligned_graph_prefix_costs" if live.is_some() => {
+                let required = live.expect("live prefix boundary") + bytes;
+                let charged = admitted.expect("specific cost owner");
+                assert!(
+                    charged >= required,
+                    "prefix owner admits {charged}, but live payload alone requires {required}"
+                );
+                additions += 1;
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(additions, 2);
+}

@@ -12,6 +12,26 @@ const MIN_SIG_DIGITS: i64 = 16;
 /// scale: three times `NUMERIC_MAX_RESULT_SCALE` (twice the display-scale cap).
 const MAX_EXP_ARGUMENT: u32 = MAX_DISPLAY_SCALE * 6;
 
+#[cfg(test)]
+thread_local! {
+    static ADD_ALIGNMENT_OBSERVER: std::cell::Cell<Option<fn(usize)>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) struct AddAlignmentObservation(Option<fn(usize)>);
+
+#[cfg(test)]
+impl Drop for AddAlignmentObservation {
+    fn drop(&mut self) {
+        ADD_ALIGNMENT_OBSERVER.with(|observer| observer.set(self.0));
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn observe_add_alignment(observer: fn(usize)) -> AddAlignmentObservation {
+    AddAlignmentObservation(ADD_ALIGNMENT_OBSERVER.with(|slot| slot.replace(Some(observer))))
+}
+
 fn error(sqlstate: &'static str, message: &str) -> TypeInputError {
     TypeInputError {
         sqlstate,
@@ -63,6 +83,15 @@ pub fn add(left: &Numeric, right: &Numeric) -> Result<Numeric, TypeInputError> {
             },
         ) => {
             let (a, b, scale) = aligned(a, *a_scale, b, *b_scale);
+            #[cfg(test)]
+            ADD_ALIGNMENT_OBSERVER.with(|observer| {
+                if let Some(observer) = observer.get() {
+                    observer(
+                        usize::try_from(a.bits().div_ceil(8) + b.bits().div_ceil(8))
+                            .expect("numeric format bounds fit native size"),
+                    );
+                }
+            });
             Numeric::finite(a + b, scale).check_format()
         }
     }

@@ -232,10 +232,16 @@ fn step_rows(
         return Ok(Vec::new());
     };
     let numeric_bytes = costs.map_or(Ok(0), numeric_bound)?;
-    let _cost_memory = env.controls.reserve_query_memory(mul(
+    let cost_memory = env.controls.reserve_query_memory(mul(
         add(mul(path.edges.len(), 2)?, 1)?,
         add(size_of::<Numeric>(), numeric_bytes)?,
     )?)?;
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record(
+        "admitted_graph_prefix_costs",
+        cost_memory.bytes(),
+    );
+    let _cost_memory = cost_memory;
     let costs = costs.map(|costs| edge_costs(costs, &path)).transpose()?;
     // Every cumulative cost is computed before the first row is emitted, so
     // an overflow never yields a partial result.
@@ -326,11 +332,29 @@ fn cumulative_costs(
     for cost in costs {
         env.controls.check_interruption()?;
         let previous = totals.last().cloned().unwrap_or_else(Numeric::zero);
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "live_graph_prefix_costs",
+            (costs.len() + totals.len()) * size_of::<Numeric>()
+                + costs.iter().map(numeric_test_bytes).sum::<usize>()
+                + totals.iter().map(numeric_test_bytes).sum::<usize>()
+                + numeric_test_bytes(&previous),
+        );
         totals.push(
             math::add(&previous, cost).map_err(|error| failure(error.sqlstate, error.message))?,
         );
     }
     Ok(totals)
+}
+
+#[cfg(test)]
+fn numeric_test_bytes(value: &Numeric) -> usize {
+    match value {
+        Numeric::Finite { mantissa, .. } => {
+            usize::try_from(mantissa.bits().div_ceil(8)).expect("tiny probe mantissa")
+        }
+        _ => 0,
+    }
 }
 
 fn step(

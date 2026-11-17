@@ -124,6 +124,10 @@ rename returns `2BP01` while a view in the graph's database depends on that
 graph. The rejected statement preserves the old graph and its views; rename
 without such dependents remains supported. A view in another database cannot
 block graph drop or rename. Names retain ordinary quoted identifier identity.
+Stored qualified references protect their precise same-database targets. Because
+view SQL retains unqualified names without a captured creation search path, an
+unqualified graph name potentially depends on every matching local graph identity
+in that database; drop and rename protect each potential target.
 
 The lifecycle guard covers every column a mapping reads: key, endpoint and
 exposed property columns reject `DROP COLUMN` and type change with `2BP01`, a
@@ -133,8 +137,11 @@ mapped key tuple. `DROP TABLE ... CASCADE`, `DROP COLUMN ... CASCADE` and a
 `DROP SCHEMA ... CASCADE` that would orphan a graph of another schema return
 `0A000`; a schema cascade drops the graphs the schema itself owns and the
 same-database direct and transitive views that depend on those graphs, including
-views in other schemas. The closure is resolved in each stored view's own
-database/schema context; unrelated views survive. The schema, graphs and view
+views in other schemas. A qualified graph or transitive view reference stays
+precise. An ambiguous unqualified reference with a surviving competing graph or
+relation refuses schema cascade with `0A000` before any graph, view or schema is
+mutated. Unique closures still cascade; unrelated views survive. View execution,
+stored SQL and formats retain their existing behavior. The schema, graphs and view
 closure are restored together on rollback. Graph DDL is
 transactional and, like other DDL, is reserved to administrators (`42501`).
 

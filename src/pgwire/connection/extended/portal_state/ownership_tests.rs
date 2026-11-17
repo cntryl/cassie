@@ -300,6 +300,122 @@ fn should_release_output_admission_after_a_wire_write_fails() {
 }
 
 #[test]
+fn should_release_retained_materialized_frames_when_a_suspended_portal_is_canceled() {
+    // Arrange
+    let limits = CassieRuntimeLimits::default();
+    let producer = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let (mut state, portal) = state(&limits);
+    let mut writer = tokio::io::sink();
+    runtime().block_on(suspend(&mut writer, &mut state, &portal, result(&producer)));
+    let (portal, suspended) = take_portal_execution(&mut state, "retained").expect("resume");
+    let mut suspended = suspended.expect("suspended result and frames");
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    cancellation.cancel();
+    suspended.cancellation = Some(cancellation);
+    let mut config = crate::config::CassieRuntimeConfig::from_env().expect("configuration");
+    config.password = "portal-cancellation-control".to_owned();
+    let cassie = std::sync::Arc::new(
+        crate::app::Cassie::new_in_memory_with_config(config).expect("memory fixture"),
+    );
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    let error = runtime().block_on(super::super::portal_streaming::resume_suspended_portal(
+        std::sync::Arc::clone(&cassie),
+        &mut writer,
+        super::super::portal_streaming::SuspendedPortalRequest {
+            state: &mut state,
+            session: &session,
+            portal_name: "retained",
+            portal: &portal,
+            suspended,
+            max_rows: 1,
+        },
+    ));
+
+    // Assert
+    assert_eq!(error.expect_err("canceled resume").pg_error.code, "57014");
+    assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
+    assert_eq!(producer.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_retained_materialized_frames_when_a_resumed_wire_write_fails() {
+    // Arrange
+    let limits = CassieRuntimeLimits::default();
+    let producer = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let (mut state, portal) = state(&limits);
+    runtime().block_on(suspend(
+        &mut tokio::io::sink(),
+        &mut state,
+        &portal,
+        result(&producer),
+    ));
+    let (portal, suspended) = take_portal_execution(&mut state, "retained").expect("resume");
+    let mut writer = FailingWrite::default();
+
+    // Act
+    let error = runtime().block_on(write_suspended_result(
+        &mut writer,
+        SuspendedPortalWriteRequest {
+            state: &mut state,
+            portal_name: "retained",
+            portal: &portal,
+            suspended: suspended.expect("suspended result and frames"),
+            max_rows: 1,
+            result_cap: 100,
+        },
+    ));
+
+    // Assert
+    assert!(error.is_err());
+    assert_eq!(writer.calls, 1);
+    assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
+    assert_eq!(producer.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_retained_materialized_frames_when_a_pending_resume_disconnects() {
+    // Arrange
+    let limits = CassieRuntimeLimits::default();
+    let producer = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let (mut state, portal) = state(&limits);
+    runtime().block_on(suspend(
+        &mut tokio::io::sink(),
+        &mut state,
+        &portal,
+        result(&producer),
+    ));
+    let portal_controls = state.portal_memory_controls.clone();
+    let (portal, suspended) = take_portal_execution(&mut state, "retained").expect("resume");
+    let mut writer = PendingWrite;
+    let mut write = Box::pin(write_suspended_result(
+        &mut writer,
+        SuspendedPortalWriteRequest {
+            state: &mut state,
+            portal_name: "retained",
+            portal: &portal,
+            suspended: suspended.expect("suspended result and frames"),
+            max_rows: 1,
+            result_cap: 100,
+        },
+    ));
+    let mut context = Context::from_waker(Waker::noop());
+
+    // Act
+    let pending = write.as_mut().poll(&mut context).is_pending();
+    let retained = portal_controls.current_query_memory_bytes();
+    drop(write);
+    drop(state);
+
+    // Assert
+    assert!(pending);
+    assert!(retained > 0);
+    assert_eq!(portal_controls.current_query_memory_bytes(), 0);
+    assert_eq!(producer.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_reject_frame_scratch_before_writing_any_result_bytes() {
     // Arrange
     let limits = CassieRuntimeLimits::default();

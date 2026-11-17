@@ -22,37 +22,37 @@ impl CassieSession {
                 "parameter \"{name}\" cannot be reset"
             )));
         }
-        let transaction = self.transaction.lock();
-        self.ensure_operation_current_locked(&transaction)?;
-        let value = self.settings.lock().reset(name)?;
-        if name.eq_ignore_ascii_case("search_path") {
-            self.set_search_path_locked(
-                value
-                    .split(',')
-                    .map(|name| name.trim().to_string())
-                    .collect(),
-            );
-        }
-        Ok(())
+        self.with_owned_setting_state(|| {
+            let value = self.settings.lock().reset(name)?;
+            if name.eq_ignore_ascii_case("search_path") {
+                self.set_search_path_locked(
+                    value
+                        .split(',')
+                        .map(|name| name.trim().to_owned())
+                        .collect(),
+                );
+            }
+            Ok(())
+        })
     }
 
     pub(crate) fn reset_all_settings(&self) -> Result<(), CassieError> {
-        let transaction = self.transaction.lock();
-        self.ensure_operation_current_locked(&transaction)?;
-        let mut settings = self.settings.lock();
-        settings.reset_all();
-        let search_path = settings
-            .get_ref("search_path")
-            .expect("registered search_path")
-            .to_string();
-        drop(settings);
-        self.set_search_path_locked(
-            search_path
-                .split(',')
-                .map(|name| name.trim().to_string())
-                .collect(),
-        );
-        Ok(())
+        self.with_owned_setting_state(|| {
+            let mut settings = self.settings.lock();
+            settings.reset_all();
+            let search_path = settings
+                .get_ref("search_path")
+                .expect("registered search_path")
+                .to_owned();
+            drop(settings);
+            self.set_search_path_locked(
+                search_path
+                    .split(',')
+                    .map(|name| name.trim().to_owned())
+                    .collect(),
+            );
+            Ok(())
+        })
     }
 }
 

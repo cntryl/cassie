@@ -15,6 +15,8 @@ mod sequence_effect;
 #[cfg(test)]
 mod sequence_effect_tests;
 #[cfg(test)]
+mod shared_setting_tests;
+#[cfg(test)]
 mod truncate_owner_tests;
 mod wire_failure;
 #[cfg(test)]
@@ -418,10 +420,10 @@ impl CassieSession {
         &self,
         path: Vec<String>,
     ) -> Result<(), CassieError> {
-        let transaction = self.transaction.lock();
-        self.ensure_operation_current_locked(&transaction)?;
-        self.set_search_path_locked(path);
-        Ok(())
+        self.with_owned_setting_state(|| {
+            self.set_search_path_locked(path);
+            Ok(())
+        })
     }
 
     fn set_search_path_locked(&self, path: Vec<String>) {
@@ -476,9 +478,7 @@ impl CassieSession {
             return self.set_transaction_read_only(value);
         }
         Self::reject_projection_write_mode_change(name)?;
-        let transaction = self.transaction.lock();
-        self.ensure_operation_current_locked(&transaction)?;
-        self.settings.lock().set(name, value)
+        self.with_owned_setting_state(|| self.settings.lock().set(name, value))
     }
 
     pub(crate) fn set_backend_pid(&self, process_id: i32) {

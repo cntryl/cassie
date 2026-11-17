@@ -473,18 +473,18 @@ impl CassieSession {
         if super::is_projection_write_mode(name) {
             return self.set_projection_write_mode(Some(value));
         }
-        let mut transaction = self.transaction.lock();
-        self.ensure_operation_current_locked(&transaction)?;
-        if transaction.status != SessionTransactionStatus::InTransaction {
-            return Ok(());
-        }
-        let name = name.to_ascii_lowercase();
-        if !transaction.local_settings.contains(&name) {
-            transaction.local_settings.push(name.clone());
-        }
-        #[cfg(test)]
-        self.observe_local_setting_write_for_test();
-        self.settings.lock().set(&name, value).map(|_| ())
+        self.with_owned_setting_transaction(|transaction| {
+            if transaction.status != SessionTransactionStatus::InTransaction {
+                return Ok(());
+            }
+            let name = name.to_ascii_lowercase();
+            if !transaction.local_settings.contains(&name) {
+                transaction.local_settings.push(name.clone());
+            }
+            #[cfg(test)]
+            self.observe_local_setting_write_for_test();
+            self.settings.lock().set(&name, value).map(|_| ())
+        })
     }
 
     /// The transaction status a client should be told. While a COMMIT runs on

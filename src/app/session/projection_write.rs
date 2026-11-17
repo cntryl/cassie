@@ -149,27 +149,28 @@ impl CassieSession {
     /// block, `22023` for an unknown value and `25000` after the first write or
     /// independently durable effect of the transaction.
     pub(crate) fn set_projection_write_mode(&self, value: Option<&str>) -> Result<(), CassieError> {
-        let transaction = self.transaction.lock();
-        self.ensure_operation_current_locked(&transaction)?;
-        match transaction.status {
-            SessionTransactionStatus::InTransaction if !transaction.implicit => {}
-            SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
-            _ => {
-                return Err(CassieError::Transaction {
-                    kind: TransactionErrorKind::NoActiveTransaction,
-                    message: format!(
+        self.with_owned_setting_transaction(|transaction| {
+            match transaction.status {
+                SessionTransactionStatus::InTransaction if !transaction.implicit => {}
+                SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
+                _ => {
+                    return Err(CassieError::Transaction {
+                        kind: TransactionErrorKind::NoActiveTransaction,
+                        message: format!(
                         "SET LOCAL \"{PROJECTION_WRITE_MODE}\" requires an explicit transaction \
                          block"
                     ),
-                });
+                    });
+                }
             }
-        }
-        let mode = value.map_or(Ok(ProjectionWriteMode::Default), ProjectionWriteMode::parse)?;
-        let staged_effects = transaction.sealed_for_commit
-            || !transaction.writes.is_empty()
-            || transaction.catalog_overlay.is_some()
-            || !transaction.conflict_intents.is_empty();
-        transaction.projection_write.declare(mode, staged_effects)
+            let mode =
+                value.map_or(Ok(ProjectionWriteMode::Default), ProjectionWriteMode::parse)?;
+            let staged_effects = transaction.sealed_for_commit
+                || !transaction.writes.is_empty()
+                || transaction.catalog_overlay.is_some()
+                || !transaction.conflict_intents.is_empty();
+            transaction.projection_write.declare(mode, staged_effects)
+        })
     }
 
     /// Rejects every way of changing the mode other than `SET LOCAL`.

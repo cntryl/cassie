@@ -39,6 +39,15 @@ or detached fork does not receive it. This exception does not authorize staged
 Data publication, mode changes or native sequence effects and never repeats
 already committed effects.
 
+Shared settings and search path follow the captured actual root even when their
+caller is a statement fork. Pure setter/reset leaves and the complete SET LOCAL
+history-plus-value update stay under that root guard. A fork's private mutex
+cannot authorize changes to the root's shared settings. The private mutable-root
+setting helper does not grant the shared-object own-retirement exception to mode
+or transaction state. Direct lifecycle-owning APIs without an execution context
+retain their existing current-session behavior; startup configuration and the
+existing SET LOCAL search_path semantics are unchanged.
+
 DISCARD ALL validates its owner before any destruction and retains output
 admission before resetting state. Its final reset takes sequence history then
 the actual root, followed by objects and settings/search path. It clears sequence

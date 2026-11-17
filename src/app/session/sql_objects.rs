@@ -155,6 +155,34 @@ impl CassieSession {
         &self,
         operation: impl FnOnce(SessionTransactionStatus, bool) -> Result<T, CassieError>,
     ) -> Result<T, CassieError> {
+        self.with_owned_shared_transaction_inner(true, |transaction| {
+            operation(transaction.status, transaction.implicit)
+        })
+    }
+
+    pub(super) fn with_owned_setting_transaction<T>(
+        &self,
+        operation: impl FnOnce(&mut super::SessionTransactionState) -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        if self.operation_failure_authority.is_none() && self.owns_transaction_lifecycle {
+            let mut transaction = self.transaction.lock();
+            return operation(&mut transaction);
+        }
+        self.with_owned_shared_transaction_inner(false, operation)
+    }
+
+    pub(super) fn with_owned_setting_state<T>(
+        &self,
+        operation: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        self.with_owned_setting_transaction(|_| operation())
+    }
+
+    fn with_owned_shared_transaction_inner<T>(
+        &self,
+        allow_owned_retirement: bool,
+        operation: impl FnOnce(&mut super::SessionTransactionState) -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
         let authority = self.operation_failure_authority.as_ref();
         let root = if let Some(authority) = authority {
             if self.owns_transaction_lifecycle && !authority.matches_root(self) {
@@ -169,13 +197,14 @@ impl CassieSession {
         } else {
             return Err(super::sequence_effect::changed());
         };
-        let transaction = root.lock();
+        let mut transaction = root.lock();
         if let Some(authority) = authority {
             if authority.identity()
                 != Some(FailureAuthorityIdentity::from_transaction(&transaction))
             {
                 let owner = authority.owner.lock();
-                let owned_idle_retirement = self.owns_transaction_lifecycle
+                let owned_idle_retirement = allow_owned_retirement
+                    && self.owns_transaction_lifecycle
                     && transaction.status == SessionTransactionStatus::Idle
                     && owner.captured
                     && !owner.admission_rejected
@@ -199,7 +228,7 @@ impl CassieSession {
         {
             return Err(super::sequence_effect::changed());
         }
-        operation(transaction.status, transaction.implicit)
+        operation(&mut transaction)
     }
 
     pub(crate) fn with_owned_session_objects<T>(

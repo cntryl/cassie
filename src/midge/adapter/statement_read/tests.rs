@@ -7,6 +7,8 @@ use super::*;
 use crate::app::{Cassie, CassieSession, SessionReadScope};
 use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
 
+#[path = "tests/replay_cloud_cache_loss.rs"]
+mod replay_cloud_cache_loss;
 #[path = "tests/replay_durable_snapshot.rs"]
 mod replay_durable_snapshot;
 #[path = "tests/replay_process_crash.rs"]

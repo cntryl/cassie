@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1771,
-    "rust_files": 1734,
-    "rust_test_declarations": 10529,
+    "files": 1772,
+    "rust_files": 1735,
+    "rust_test_declarations": 10537,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10554,
+    "registered_rust_instances": 10562,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -6763,6 +6763,255 @@
         "category": "semantics",
         "directory": "tests/bench_diagnostics/semantics",
         "file": "tests/bench_diagnostics/semantics/replay_mode.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_preserve_original_bytes_when_the_reader_mutates_its_distinct_copy",
+      "name": "should_preserve_original_bytes_when_the_reader_mutates_its_distinct_copy",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 72,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_preserve_original_bytes_when_the_reader_mutates_its_distinct_copy"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_reject_a_foreign_writer_even_when_its_artifact_hashes_match",
+      "name": "should_reject_a_foreign_writer_even_when_its_artifact_hashes_match",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 115,
+      "end_line": 127,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_reject_a_foreign_writer_even_when_its_artifact_hashes_match"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_reject_missing_or_unsuccessful_clean_close_evidence_before_copying",
+      "name": "should_reject_missing_or_unsuccessful_clean_close_evidence_before_copying",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 130,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_reject_missing_or_unsuccessful_clean_close_evidence_before_copying"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_reject_a_symlink_inside_an_otherwise_verified_closed_source",
+      "name": "should_reject_a_symlink_inside_an_otherwise_verified_closed_source",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 165,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_reject_a_symlink_inside_an_otherwise_verified_closed_source"
+        }
+      ],
+      "attributes": [
+        "#[cfg(unix)]",
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_reject_a_changed_original_after_the_owned_reader_copy_is_prepared",
+      "name": "should_reject_a_changed_original_after_the_owned_reader_copy_is_prepared",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 187,
+      "end_line": 207,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_reject_a_changed_original_after_the_owned_reader_copy_is_prepared"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_reject_a_mismatched_raw_receipt_or_original_fingerprint",
+      "name": "should_reject_a_mismatched_raw_receipt_or_original_fingerprint",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 210,
+      "end_line": 229,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_reject_a_mismatched_raw_receipt_or_original_fingerprint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_reject_duplicate_row_ids_despite_matching_bucket_cardinality",
+      "name": "should_reject_duplicate_row_ids_despite_matching_bucket_cardinality",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 232,
+      "end_line": 270,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_reject_duplicate_row_ids_despite_matching_bucket_cardinality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_reject_alias_paths_reusing_the_same_original_before_copying",
+      "name": "should_reject_alias_paths_reusing_the_same_original_before_copying",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 273,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_reject_alias_paths_reusing_the_same_original_before_copying"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -328045,11 +328294,26 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 287,
+      "sha256": "419a42cc649b69d9280ecbd432242e46efee9504f607f95ac33a7266d75cbd47",
+      "test_declarations": 8,
+      "registered_suites": [
+        "bench_diagnostics"
+      ],
+      "destinations": [
+        "tests/bench_diagnostics/security/replay_read_ownership.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/bench_diagnostics.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 11,
-      "sha256": "9d79a21dea958a355bca6090a196c949e82a17605967de6c62420e7a98ca7d0a",
+      "lines": 14,
+      "sha256": "929bccc1a8770c4a998b8c77a20b5138d5b0cdfbee2ae564b61bf6cadf53425b",
       "test_declarations": 0,
       "registered_suites": [
         "bench_diagnostics"

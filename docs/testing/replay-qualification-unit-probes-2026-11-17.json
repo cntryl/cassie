@@ -1,0 +1,233 @@
+{
+  "baseline": "48ee5d986f37dd3f47cbcedc58863fb272f4c34a",
+  "source_before_inventory_commit": "aec4b4a2115580808ec4d60a483c0a8156784ea5",
+  "tree_before_inventory_commit": "70713da8d76f48f9855a4412c2aa81a20a4c958e",
+  "scope": "Static declarations in C-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
+  "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; C-touched files selected by git diff from baseline.",
+  "file_count": 3,
+  "declaration_count": 15,
+  "added_in_file": 9,
+  "modified_in_file": 0,
+  "retained_in_file": 6,
+  "files": [
+    {
+      "file": "src/midge/adapter/core.rs",
+      "sha256": "1a4b9d8e490af8d5e4210732c15fc9ffe549eee56e37e0e34616ed5d2924e541",
+      "lines": 648,
+      "cfg_attributes_in_file": [
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]",
+        "#[cfg(test)]"
+      ],
+      "test_declarations": [
+        {
+          "name": "should_bootstrap_a_fresh_cloud_backed_namespace",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 599,
+          "end_line": 643,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "af2ff6f3feabbf7dc4b16fce5ad13fc4b7f97076260e16e43e51a1169e2091d5",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/midge/adapter/statement_read/tests/replay_cloud_cache_loss.rs",
+      "sha256": "f821e7334ee81e5c939df7839d06e4bc30eccadcd52f93a76a625cbb807ee77a",
+      "lines": 649,
+      "cfg_attributes_in_file": [
+        "#[cfg(unix)]"
+      ],
+      "test_declarations": [
+        {
+          "name": "should_recover_strict_api_acknowledgement_after_simulated_cloud_cache_loss",
+          "inline_modules": [],
+          "line": 68,
+          "end_line": 77,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b196b9fe0ef3b63c5f06dece848967afdff162868671d5f48b9c1f99bd4dce7d",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reconcile_api_prefix_after_simulated_cloud_cache_loss",
+          "inline_modules": [],
+          "line": 80,
+          "end_line": 89,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "108ca010d03258d19fff7a9dd70f708923ea371f4b23e5c610b7eaa5a017c6dc",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_recover_strict_sql_acknowledgement_after_simulated_cloud_cache_loss",
+          "inline_modules": [],
+          "line": 92,
+          "end_line": 101,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "50eb37875bffde6cb54fa6d5e8b82615b940e0bc1cd1bfef01c975492f906906",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reconcile_sql_prefix_after_simulated_cloud_cache_loss",
+          "inline_modules": [],
+          "line": 104,
+          "end_line": 113,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b24205d725ac00013e26232ecb7f53834e2152ccc0b2af9c46fb394830e78513",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_refuse_cache_loss_without_matching_root_ownership",
+          "inline_modules": [],
+          "line": 116,
+          "end_line": 135,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6f4c49a7873cef73ccaaffe71c487f3eafdb097413e79f26ff73306dba3fb674",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_refuse_symlinked_cache_before_deletion",
+          "inline_modules": [],
+          "line": 139,
+          "end_line": 154,
+          "attributes": [
+            "#[cfg(unix)]",
+            "#[test]"
+          ],
+          "body_sha256": "31d48dc4446a3778a1a86aca98d78c318359fbfc64f5d2f20157a08b8758836e",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retain_source_evidence_after_owned_local_cache_removal",
+          "inline_modules": [],
+          "line": 157,
+          "end_line": 178,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f9607e38413fe5b730022aa1787b6bd969f73e2e62325e0e922056be376d6487",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_refuse_owned_baseline_shutdown_while_an_adapter_owner_is_retained",
+          "inline_modules": [],
+          "line": 181,
+          "end_line": 198,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "d8c03b55757549a814c33b0aca193f8ab367f75792d7e8976c5d6171fbd93bdd",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_propagate_native_busy_when_an_owned_baseline_has_an_active_transaction",
+          "inline_modules": [],
+          "line": 201,
+          "end_line": 223,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "f478205bdcbe0ede61331be1f3c0871bd0b5c606460f46b6ca0d3caf81ec6496",
+          "comparison": "added_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
+      "file": "src/midge/adapter/statement_read/tests/replay_process_crash.rs",
+      "sha256": "120af2d04d381865f1cb053ead6127892190e06b90f04a499f0f7d752bd61723",
+      "lines": 497,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_recover_previous_replay_after_process_death_before_commit",
+          "inline_modules": [],
+          "line": 418,
+          "end_line": 428,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "09a4663b8ad3434a709cdf6aef41fbdcabba5047fc99a97f319a95d85259338d",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_recover_acknowledged_replay_after_process_death",
+          "inline_modules": [],
+          "line": 431,
+          "end_line": 441,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b3ba5c828c08a0d80411a9dc633cbdb45b2930902a1141a7eadf6848a4743d7c",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_retry_only_the_writer_lease_held_error_during_recovery",
+          "inline_modules": [],
+          "line": 444,
+          "end_line": 460,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8abfb92b1e13a0d0168868d5c92046335322a75cd816f523faff7595c22c5a2b",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_recover_prior_state_after_buffered_replay_process_death_before_commit",
+          "inline_modules": [],
+          "line": 463,
+          "end_line": 473,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "8855d785a3ae540d10268289f6ce4808ecc6594a90f9794bf409513b06774c75",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_reconcile_buffered_replay_after_acknowledged_process_death",
+          "inline_modules": [],
+          "line": 476,
+          "end_line": 497,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "973163b1d564aecfe956cef404d434f6c91ae50bc136a02265f0d3810e4ad45b",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    }
+  ]
+}

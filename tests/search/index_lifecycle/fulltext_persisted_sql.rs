@@ -601,8 +601,10 @@ fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
     );
 
     // Arrange: isolate persisted loading from the separately checked SQL admission.
-    let mut restricted_limits = cassie::config::CassieRuntimeLimits::default();
-    restricted_limits.query_memory_budget_bytes = 1_024;
+    let restricted_limits = cassie::config::CassieRuntimeLimits {
+        query_memory_budget_bytes: 1_024,
+        ..cassie::config::CassieRuntimeLimits::default()
+    };
     let restricted = cassie::runtime::QueryExecutionControls::from_limits(
         &restricted_limits,
         std::time::Instant::now(),

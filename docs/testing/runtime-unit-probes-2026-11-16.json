@@ -1,7 +1,7 @@
 {
   "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
-  "source_before_inventory_commit": "45267021642645b78ba0ef11f25e5e1eb17c2cab",
-  "tree_before_inventory_commit": "8e9ad6e895d3af312d33431a3e4f50693aeb5f4f",
+  "source_before_inventory_commit": "3fb6118a4ffbaeaff137366f78fbe26d8faf0a26",
+  "tree_before_inventory_commit": "da5c36a80c216f03ff3449d364a59b1260c21110",
   "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
   "file_count": 37,
@@ -2980,27 +2980,27 @@
     },
     {
       "file": "src/pgwire/connection/copy/origin_failure_authority_tests.rs",
-      "sha256": "16c559f8f5969caeb009addf954b5080e5b0042b821275b14798b4b20933516d",
-      "lines": 146,
+      "sha256": "3f469b2a29d40f1885f90e56c14fded02fc9e54351741eccd37a4ad3e6c6ecdb",
+      "lines": 147,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
           "name": "should_preserve_replacement_when_old_copy_predicate_fails",
           "inline_modules": [],
           "line": 32,
-          "end_line": 113,
+          "end_line": 114,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "d4a402a47871935314d31a78dc687814cfab04e1592cc83590bc00d59d5f7634",
+          "body_sha256": "ba4daf62fb46300efda2aaf6aad1ed1c01428dd0c487b1c9e0b88f053a25085c",
           "comparison": "modified_in_file",
           "execution_status": "authored/not run"
         },
         {
           "name": "should_fail_origin_when_current_copy_predicate_fails",
           "inline_modules": [],
-          "line": 116,
-          "end_line": 146,
+          "line": 117,
+          "end_line": 147,
           "attributes": [
             "#[test]"
           ],

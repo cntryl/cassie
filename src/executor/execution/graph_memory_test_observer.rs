@@ -90,7 +90,7 @@ pub(crate) fn assert_admitted(before: &'static str, copy: &'static str, required
 
 pub(crate) fn fixture() -> (crate::app::Cassie, crate::app::CassieSession) {
     let mut config = crate::config::CassieRuntimeConfig::from_env().expect("configuration");
-    config.password = "graph-memory-unit-fixture".to_owned();
+    config.password = uuid::Uuid::new_v4().to_string();
     let cassie = crate::app::Cassie::new_in_memory_with_config(config).expect("memory fixture");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);

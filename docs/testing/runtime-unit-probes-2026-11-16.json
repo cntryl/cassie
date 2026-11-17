@@ -1,7 +1,7 @@
 {
   "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
-  "source_before_inventory_commit": "d99e7eb0e53d5261348d3acd6bf413f3cb86df52",
-  "tree_before_inventory_commit": "40c94402f988bd86470e0e1d59daa8e4ed4a7652",
+  "source_before_inventory_commit": "003e2dd301ff5a56d95a37531d694e5cd082a283",
+  "tree_before_inventory_commit": "bab0c654a1bfadf00175e317aff8e32d37851760",
   "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
   "file_count": 37,
@@ -615,19 +615,19 @@
     },
     {
       "file": "src/app/query_failure_watchdog/output.rs",
-      "sha256": "aed0969b47960a298cbac66ec2c063c4bc1dcd538442f6fac86989a4fc6a98b5",
+      "sha256": "28d46042fc16616057c8c8b29cb6dba9c100fda1a144a1c1cc2960cf2f97147c",
       "lines": 100,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
-          "name": "should_retain_the_bounded_tail_and_drain_all_child_diagnostics",
+          "name": "should_drain_child_diagnostics_with_a_bounded_retained_tail",
           "inline_modules": [],
           "line": 87,
           "end_line": 100,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "3eac487e5ef02c711f70d51565baed8e051fbd70b4d0ba502cd405dc4d8f4d05",
+          "body_sha256": "27f2997ec93faa1cc9d9621117cb1884fb3b88261692b729d1cfa097f0b1fc6f",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         }
@@ -1563,19 +1563,19 @@
     },
     {
       "file": "src/app/session/shared_setting_tests.rs",
-      "sha256": "0803e829056e99b3f899c3fc3adc6f28b10106ac2d18f1d885ab83e137c84e0a",
+      "sha256": "d9529ef24ed996748a255f6cf76f739aa3c560e3ac31bda93c21f2a9b5dbf16b",
       "lines": 150,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
-          "name": "should_keep_replacement_settings_and_mode_from_an_old_detached_leaf",
+          "name": "should_preserve_replacement_session_configuration_when_an_old_detached_leaf_resumes",
           "inline_modules": [],
           "line": 16,
           "end_line": 72,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "eeafca4ed64e9b195161bb9fa4d5e7dd3ceb0970a14bca40585f77c09c70fcaa",
+          "body_sha256": "bfb67181ebd084800d3d9a6dac5cbbbeeb19b8e65c5c27fbc88a3731bf0d6df8",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -1869,7 +1869,7 @@
     },
     {
       "file": "src/app/session/wire_failure_tests.rs",
-      "sha256": "9b05e6252bfbc30de24e02b9b1c2f84521f1ab848ca212144d23689aa7f5dad0",
+      "sha256": "a88cc3233a472e7cb54e2daddb667a6129f431c8db1996b65ae4d3bb01a2a56a",
       "lines": 901,
       "cfg_attributes_in_file": [],
       "test_declarations": [
@@ -1898,14 +1898,14 @@
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_reject_late_root_bookkeeping_and_staging_without_changing_the_replacement",
+          "name": "should_reject_stale_root_mutations_without_changing_the_replacement",
           "inline_modules": [],
           "line": 129,
           "end_line": 171,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "187fbb66ed5f8eaf0e34d49f0df45da338461d7ea1be0aba2f3f0f57ed6f1167",
+          "body_sha256": "824aef86c955714f666e23e5fb0a14c39b316ae42cfc113dfa513ab98877b489",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -1922,26 +1922,26 @@
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_keep_local_setting_history_and_the_actual_write_under_one_root_lock",
+          "name": "should_apply_local_settings_atomically_under_the_root_lock",
           "inline_modules": [],
           "line": 248,
           "end_line": 290,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "8d0c8958ce602b21db448b58cd838e6758f777870f975290d200db5d8fd99dfc",
+          "body_sha256": "37fb10696896ed8acffa3c9c1877b2394bfbe611aadcff4020ac7548368e6373",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_restore_savepoint_settings_and_objects_before_releasing_the_root_mutex",
+          "name": "should_restore_savepoint_session_state_before_releasing_the_root_mutex",
           "inline_modules": [],
           "line": 293,
           "end_line": 327,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "6fc532bebcba3ad8467ad6822b3a5313cefac28d7a78338eefafb8fe2c02ab74",
+          "body_sha256": "fbf625fd8fb7fc82c41bfaadd202212731028369aae465f7680aa1ca3db7a3d8",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -2165,31 +2165,31 @@
     },
     {
       "file": "src/app/session_objects/ownership_tests.rs",
-      "sha256": "6ad12691a8ba86724465f21847e76f965a5025b3fc56f673f60bcb33d2293f7b",
+      "sha256": "2cc5369aefd62417c647bc032258c8b7f3b2c3c2477eb1d0779b03a52adaee65",
       "lines": 403,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
-          "name": "should_keep_newer_objects_and_cursor_position_when_an_old_leaf_resumes",
+          "name": "should_preserve_replacement_object_state_when_an_old_leaf_resumes",
           "inline_modules": [],
           "line": 63,
           "end_line": 113,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "6ced6e1b3cc1f047d1f3a933f5438b8e7a28e8c406e54b3f8a93d34f36366b6a",
+          "body_sha256": "21784bedc704800c9fa87bd7651ff0b785f0f7cc99a64288bda3edef422cbd5a",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_preserve_newer_objects_settings_and_sequence_history_from_old_discard",
+          "name": "should_preserve_replacement_session_state_from_old_discard",
           "inline_modules": [],
           "line": 116,
           "end_line": 147,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "bfd2b5363a633eca72d9eb177424351ea2be435257554e1b85cb6d8bb315bde0",
+          "body_sha256": "8022904ae86c5e45a80c4811c390fcffcbd33c8f5295b57b796fab435b04c166",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -2206,14 +2206,14 @@
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_keep_wire_id_cleanup_and_reject_stale_protocol_namespace_writes",
+          "name": "should_fence_protocol_namespace_writes_by_owner",
           "inline_modules": [],
           "line": 186,
           "end_line": 212,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "26b763fe3b0dc281d93f0c04c70fbd18dccb41d8134c6c35ef228477e817a20a",
+          "body_sha256": "26d1e102cc9b0671de04a4ab227e65133c7e270e75f6c6b3a41be1a94d142b27",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -2230,14 +2230,14 @@
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_publish_and_fetch_shared_objects_through_a_current_detached_owner",
+          "name": "should_access_shared_objects_through_a_current_detached_owner",
           "inline_modules": [],
           "line": 238,
           "end_line": 281,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "e16d79732f6b058e7153a2144206bee9ef120d692ff814747392d57a5de56826",
+          "body_sha256": "609a0e7c3e825a0e5ccd25b654b5ca11e975e1be96b207db0e1113381a220045",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -2305,7 +2305,7 @@
     },
     {
       "file": "src/app/session_schema/tests.rs",
-      "sha256": "b89d901c8ffd9e7a51eaa83ada6ea75200aed57eff77a8e00bb24977b312cf6a",
+      "sha256": "d06355df353c06622d3df9a7f4d1c62ae2debeeacfc1adc3d062b45a3b3fe839",
       "lines": 419,
       "cfg_attributes_in_file": [],
       "test_declarations": [
@@ -2322,14 +2322,14 @@
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_admit_fork_context_payload_and_database_bytes_until_its_last_clone_retires",
+          "name": "should_retain_the_complete_fork_context_charge_until_its_last_clone_retires",
           "inline_modules": [],
           "line": 97,
           "end_line": 140,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "7d357f4390921e70328afe97b296b220d10e0f8a348b4eae01b4fc72d94a2ee1",
+          "body_sha256": "8d72add91759e9874887aef917669d8ffc9170ff50014cfa18f40db823823e41",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -2669,19 +2669,19 @@
     },
     {
       "file": "src/pgwire/connection/blocking/tests.rs",
-      "sha256": "a494225a713650c9803b6624ac49f7850c501b48c0084f4c36aea08ce52c8430",
+      "sha256": "ed98747b52046ab9feb5799ba1cac175f0b66074d2799ae6e2d7ee13fdc691d1",
       "lines": 236,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
-          "name": "should_keep_cleanup_off_the_reactor_for_success_error_and_panic",
+          "name": "should_retire_worker_cleanup_off_the_reactor_for_every_outcome",
           "inline_modules": [],
           "line": 33,
           "end_line": 71,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "e9652e1fea7cc394e0af02934d7bcf46d58a00b5039fa846d8fef775f735e2e2",
+          "body_sha256": "83eed13386ebb9119379a0779b9519907d3a9ecbd3c45caa92f2e748a665c190",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -2936,31 +2936,31 @@
     },
     {
       "file": "src/pgwire/connection/copy/native_policy_tests.rs",
-      "sha256": "05450b67347fd9227bdb0f59b0977b5ff820c9d01a9dfdc8068f3c74aa83d4e6",
+      "sha256": "9d26db5502e34f1c659d8797d3bc3938063e6e7d47f3de039670b7b0594f7412",
       "lines": 136,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
-          "name": "should_use_strict_native_data_policy_for_default_wire_copy_and_checkpoint",
+          "name": "should_use_strict_native_data_policy_for_default_wire_copy_transaction",
           "inline_modules": [],
           "line": 121,
           "end_line": 124,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "657e5ed9039aeabc58ce8c4f40141e7046cb5bb935f5f9072be9f0dbf048771f",
+          "body_sha256": "254f81631c419a226e678fb01a6d57b595cfd4415b9da0ed14b11a49926d8b11",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_use_buffered_native_data_policy_for_replayable_wire_copy_and_checkpoint",
+          "name": "should_use_buffered_native_data_policy_for_replayable_wire_copy_transaction",
           "inline_modules": [],
           "line": 127,
           "end_line": 130,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "eb6a973ef166ff3119baae4bb939e76a6900caa4ef3e5f7f9825ec2fe248b8df",
+          "body_sha256": "965590b13c1b2f78a1c15740039c8ac66446a9eaac8bf249d27c1befa84a5f36",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -3064,7 +3064,7 @@
     },
     {
       "file": "src/pgwire/connection/extended/registry_publication_tests.rs",
-      "sha256": "446814c333ce2f23d19148c7837028a3723cd02e780717053438b1f29ba9774e",
+      "sha256": "1f9d7c107259e3cb644cb6c2018921128b3dca98993afa6a2acd31cbc63c20a6",
       "lines": 311,
       "cfg_attributes_in_file": [],
       "test_declarations": [
@@ -3093,26 +3093,26 @@
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_publish_parse_and_close_for_the_current_frame_owner",
+          "name": "should_apply_prepared_namespace_changes_for_the_current_frame_owner",
           "inline_modules": [],
           "line": 169,
           "end_line": 207,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "cb18857b3523f66722052891e15b090f50bc16739111fb70ecdc18e21b070c23",
+          "body_sha256": "48a6a00d6e41ec2ec3fee2dd85eaa030dfc14be09b75ffb6e2a5f8a6cc6c8d0d",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_keep_b_portals_and_registry_when_an_a_close_reaches_the_shared_leaf",
+          "name": "should_preserve_b_namespace_when_an_a_close_reaches_the_shared_leaf",
           "inline_modules": [],
           "line": 210,
           "end_line": 265,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "f960a4fa353928f22c765e76f91b5758c9de5e567dd90557231280b0946d14fb",
+          "body_sha256": "5fdf72e38e039784b6e4dc7f56990ec377143bc1019f64304785ab0f2a70d163",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -3248,7 +3248,7 @@
     },
     {
       "file": "src/pgwire/connection/state/portal_owners/tests.rs",
-      "sha256": "37072969265ef7d70c939e50ce6f9fd229cd9ee30a382db2bd99d3604840a8e1",
+      "sha256": "fa9c5d12b9b1bb7d7e01254b5d78bdb72616f05bf58e826930bcc4544433ab53",
       "lines": 116,
       "cfg_attributes_in_file": [],
       "test_declarations": [
@@ -3277,14 +3277,14 @@
           "execution_status": "authored/not run"
         },
         {
-          "name": "should_release_metadata_and_names_when_the_last_portal_closes",
+          "name": "should_release_the_complete_owner_metadata_charge_when_the_last_portal_closes",
           "inline_modules": [],
           "line": 71,
           "end_line": 92,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "e781b1fb464f713763e6640a9971c9d111ea554acaa8f93ca13fce316f4c1d7d",
+          "body_sha256": "102f5874968d1c8af00299e2b1931e6bb2a39a56c4d07658b703429465ac4fdb",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         },
@@ -3476,19 +3476,19 @@
     },
     {
       "file": "src/pgwire/connection/worker_lease/network_tests.rs",
-      "sha256": "7a26c40545f03499c1ad9b198c0a954a9a7f498b0a36148c851a37fdf8176d20",
+      "sha256": "9ef1ae144fa4b9a4d4e0febb75a2fb21965d8ef8608dcf6328b3e0e3bc35cd17",
       "lines": 144,
       "cfg_attributes_in_file": [],
       "test_declarations": [
         {
-          "name": "should_complete_max_one_copy_where_and_retain_its_slot_through_disconnect_and_shutdown",
+          "name": "should_retain_a_copy_where_connection_slot_until_worker_retirement",
           "inline_modules": [],
           "line": 48,
           "end_line": 144,
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "f06e79f83ef9a48aa5ae071e1a810bff298e32b8e880db1525923a3c70481623",
+          "body_sha256": "b6fc084c6afda5121015491878cb6da7ee3fa160937809afdcae16a7b824c979",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         }

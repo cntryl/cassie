@@ -1,7 +1,7 @@
 {
   "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
-  "source_before_inventory_commit": "9314bedfe24087a033c987637da268672880c1d5",
-  "tree_before_inventory_commit": "8120771508079f97aabc8bfde132d5b00d19f83b",
+  "source_before_inventory_commit": "45c3e8852c3ff494c0f7257fab6bc811136a1f7f",
+  "tree_before_inventory_commit": "173079282299a2768b4759af655c490ae52b9693",
   "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
   "file_count": 32,
@@ -1495,9 +1495,10 @@
     },
     {
       "file": "src/app/session/transaction_control.rs",
-      "sha256": "2cbb275db38d289cb0b4f4844d7298db2332b9952207e6e35b1d3e2ae6dcb0ad",
-      "lines": 869,
+      "sha256": "2e715bf1455979d975d31908294553ddeb327e2da5b118bf9481a2634fd19b45",
+      "lines": 870,
       "cfg_attributes_in_file": [
+        "#[cfg(test)]",
         "#[cfg(test)]",
         "#[cfg(test)]",
         "#[cfg(test)]",
@@ -1517,8 +1518,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 669,
-          "end_line": 685,
+          "line": 670,
+          "end_line": 686,
           "attributes": [
             "#[test]"
           ],
@@ -1531,8 +1532,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 688,
-          "end_line": 706,
+          "line": 689,
+          "end_line": 707,
           "attributes": [
             "#[test]"
           ],
@@ -1545,8 +1546,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 709,
-          "end_line": 720,
+          "line": 710,
+          "end_line": 721,
           "attributes": [
             "#[test]"
           ],
@@ -1559,8 +1560,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 723,
-          "end_line": 734,
+          "line": 724,
+          "end_line": 735,
           "attributes": [
             "#[test]"
           ],
@@ -1573,8 +1574,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 737,
-          "end_line": 749,
+          "line": 738,
+          "end_line": 750,
           "attributes": [
             "#[test]"
           ],
@@ -1587,8 +1588,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 752,
-          "end_line": 764,
+          "line": 753,
+          "end_line": 765,
           "attributes": [
             "#[test]"
           ],
@@ -1601,8 +1602,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 767,
-          "end_line": 783,
+          "line": 768,
+          "end_line": 784,
           "attributes": [
             "#[test]"
           ],
@@ -1615,8 +1616,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 786,
-          "end_line": 801,
+          "line": 787,
+          "end_line": 802,
           "attributes": [
             "#[test]"
           ],
@@ -1629,8 +1630,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 804,
-          "end_line": 836,
+          "line": 805,
+          "end_line": 837,
           "attributes": [
             "#[test]"
           ],
@@ -1643,8 +1644,8 @@
           "inline_modules": [
             "tests"
           ],
-          "line": 839,
-          "end_line": 868,
+          "line": 840,
+          "end_line": 869,
           "attributes": [
             "#[test]"
           ],

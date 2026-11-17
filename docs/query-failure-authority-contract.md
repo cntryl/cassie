@@ -714,3 +714,16 @@ the selected bounded point, subject to further source and executable review of
 all preflight/error ordering. The authored held-mutex test checks the actual
 bind result before unlock, not the later pgwire error response. The full wire
 and transaction-retirement paths remain outside this slice.
+
+## Integrated admission error order
+
+The integrated #1290 contract distinguishes entry quarantine from a stale
+admitted operation. An already-quarantined entry or current-owner operation
+returns storage-recovery-required (`58030`) under its existing quarantine path.
+If recovery latches after admission and captured transaction A has already been
+replaced by B, the admitted-owner check rejects A with `25000` before entering
+the SQL core. That rejection must leave B healthy and retain its identity; it
+does not clear the storage fence. A subsequent operation on B still returns
+`58030`. This phase ordering is the selected source-backed Jev decision for the
+observed late-latch test mismatch, not a runtime pass. Current-owner quarantine
+controls and all three stale-entry routes must execute on the corrected source.

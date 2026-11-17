@@ -39,10 +39,17 @@ or detached fork does not receive it. This exception does not authorize staged
 Data publication, mode changes or native sequence effects and never repeats
 already committed effects.
 
-Shared settings and search path follow the captured actual root even when their
-caller is a statement fork. Pure setter/reset leaves and the complete SET LOCAL
-history-plus-value update stay under that root guard. A fork's private mutex
-cannot authorize changes to the root's shared settings. The private mutable-root
+Settings and search-path leaves validate the captured actual root even when
+their caller is a statement fork. Their existing payload ownership is retained:
+ordinary root clones share settings and LOCAL history, while detached statement
+forks keep both their setting values and LOCAL history private. A fork must not
+register a root restoration key while changing only its private value; otherwise
+terminal cleanup could erase a later legitimate root SET. Root validation covers
+the complete history-plus-value update, with root-before-fork lock order for a
+detached caller. A fork's private mutex alone cannot authorize mutation.
+
+Projection mode remains transaction-owned on the actual root and retains its
+shared staged-effect freeze; it is not a private setting snapshot. The private mutable-root
 setting helper does not grant the shared-object own-retirement exception to mode
 or transaction state. Direct lifecycle-owning APIs without an execution context
 retain their existing current-session behavior; startup configuration and the

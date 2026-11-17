@@ -136,4 +136,5 @@ impl PortalOwners {
 }
 
 #[cfg(test)]
+#[path = "portal_owners/tests.rs"]
 mod tests;

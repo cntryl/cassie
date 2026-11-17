@@ -1,5 +1,4 @@
 //! Independent sequence completion does not publish history into a replacement owner.
-use super::*;
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
 use crate::types::Value;

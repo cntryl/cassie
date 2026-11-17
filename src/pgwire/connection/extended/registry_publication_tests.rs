@@ -8,7 +8,10 @@ use std::sync::{Mutex, OnceLock};
 type Action = Box<dyn FnOnce(&CassieSession) + Send>;
 static ACTIONS: OnceLock<Mutex<HashMap<usize, Action>>> = OnceLock::new();
 
-pub(super) fn after_registry(cassie: &Cassie, session: &CassieSession) {
+pub(in crate::pgwire::connection::extended) fn after_registry(
+    cassie: &Cassie,
+    session: &CassieSession,
+) {
     let action = ACTIONS.get().and_then(|actions| {
         actions
             .lock()

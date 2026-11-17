@@ -11,8 +11,6 @@ use std::collections::HashMap;
 
 #[path = "copy/diagnostics.rs"]
 mod diagnostics;
-#[cfg(test)]
-use diagnostics::copy_jsonb_diagnostic_fits;
 use diagnostics::{write_copy_jsonb_diagnostic_with_length, write_copy_unknown_column_with_length};
 
 #[path = "copy/binding.rs"]

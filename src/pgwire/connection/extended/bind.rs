@@ -115,4 +115,5 @@ pub(super) async fn handle_bind(
 }
 
 #[cfg(test)]
+#[path = "bind/ownership_tests.rs"]
 mod ownership_tests;

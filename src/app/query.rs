@@ -970,6 +970,10 @@ fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> b
 mod cache_semantics_tests;
 
 #[cfg(test)]
+#[path = "query_cte_cache_semantics_tests.rs"]
+mod cte_cache_semantics_tests;
+
+#[cfg(test)]
 #[path = "query_parameter_cache_tests.rs"]
 mod parameter_cache_tests;
 

@@ -3,6 +3,9 @@
 #[path = "array_constructor_memory_tests.rs"]
 mod array_constructor_memory_tests;
 #[cfg(test)]
+#[path = "cardinality_memory_tests.rs"]
+mod cardinality_memory_tests;
+#[cfg(test)]
 #[path = "json_object_keys_argument_tests.rs"]
 mod json_object_keys_argument_tests;
 
@@ -20,6 +23,7 @@ thread_local! {
 pub(in crate::executor::filter) fn record_input_value_clone(present: bool) {
     if present {
         INPUT_VALUE_CLONES.with(|count| count.set(count.get().saturating_add(1)));
+        cardinality_memory_tests::observe_leaf_copy();
     }
 }
 #[cfg(test)]
@@ -112,6 +116,10 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
 
     if let Some(result) = json_builders::evaluate(function, row, &args, context) {
         return result;
+    }
+    #[cfg(test)]
+    if matches!(name.as_str(), "cardinality" | "pg_catalog.cardinality") {
+        cardinality_memory_tests::observe_native_dispatch(context, &args);
     }
     if let Some(result) = array_functions::evaluate(
         name.strip_prefix("pg_catalog.").unwrap_or(&name),
@@ -224,6 +232,10 @@ fn evaluate_argument_values<R: RowAccess + ?Sized>(
             "copy_array_arguments",
             bytes,
         );
+    }
+    #[cfg(test)]
+    if matches!(name, "cardinality" | "pg_catalog.cardinality") {
+        cardinality_memory_tests::observe_argument_directory(context);
     }
     function
         .args

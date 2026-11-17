@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1781,
-    "rust_files": 1744,
-    "rust_test_declarations": 10574,
+    "files": 1785,
+    "rust_files": 1748,
+    "rust_test_declarations": 10593,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10599,
+    "registered_rust_instances": 10618,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -66271,6 +66271,37 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cte_view_dependencies.rs::should_preserve_quoted_cte_views_during_graph_schema_cascade",
+      "name": "should_preserve_quoted_cte_views_during_graph_schema_cascade",
+      "current_file": "tests/graph_table/cte_view_dependencies.rs",
+      "line": 7,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cte_view_dependencies::should_preserve_quoted_cte_views_during_graph_schema_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "ctes",
+        "directory": "tests/graph_table/ctes",
+        "file": "tests/graph_table/ctes/cte_view_dependencies.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -258513,6 +258544,192 @@
       }
     },
     {
+      "id": "tests/sql_queries/cardinality_admission.rs::should_count_large_native_numeric_values_with_the_default_budget",
+      "name": "should_count_large_native_numeric_values_with_the_default_budget",
+      "current_file": "tests/sql_queries/cardinality_admission.rs",
+      "line": 9,
+      "end_line": 19,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cardinality_admission::should_count_large_native_numeric_values_with_the_default_budget"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/cardinality_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cardinality_admission.rs::should_count_large_numeric_values_through_the_pg_catalog_builtin",
+      "name": "should_count_large_numeric_values_through_the_pg_catalog_builtin",
+      "current_file": "tests/sql_queries/cardinality_admission.rs",
+      "line": 22,
+      "end_line": 30,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cardinality_admission::should_count_large_numeric_values_through_the_pg_catalog_builtin"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/cardinality_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cardinality_admission.rs::should_preserve_native_array_count_semantics",
+      "name": "should_preserve_native_array_count_semantics",
+      "current_file": "tests/sql_queries/cardinality_admission.rs",
+      "line": 33,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cardinality_admission::should_preserve_native_array_count_semantics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/cardinality_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cardinality_admission.rs::should_reject_invalid_cardinality_signatures",
+      "name": "should_reject_invalid_cardinality_signatures",
+      "current_file": "tests/sql_queries/cardinality_admission.rs",
+      "line": 46,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cardinality_admission::should_reject_invalid_cardinality_signatures"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/cardinality_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cardinality_admission.rs::should_keep_schema_qualified_cardinality_on_its_udf_route",
+      "name": "should_keep_schema_qualified_cardinality_on_its_udf_route",
+      "current_file": "tests/sql_queries/cardinality_admission.rs",
+      "line": 67,
+      "end_line": 86,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cardinality_admission::should_keep_schema_qualified_cardinality_on_its_udf_route"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/cardinality_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cardinality_admission.rs::should_preserve_numeric_overflow_errors_after_native_counting",
+      "name": "should_preserve_numeric_overflow_errors_after_native_counting",
+      "current_file": "tests/sql_queries/cardinality_admission.rs",
+      "line": 89,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cardinality_admission::should_preserve_numeric_overflow_errors_after_native_counting"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/cardinality_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/casts/array_element_casts.rs::should_cast_numeric_array_constructors_to_other_numeric_array_types",
       "name": "should_cast_numeric_array_constructors_to_other_numeric_array_types",
       "current_file": "tests/sql_queries/casts/array_element_casts.rs",
@@ -271096,6 +271313,378 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_resolve_a_quoted_local_cte_before_the_catalog",
+      "name": "should_resolve_a_quoted_local_cte_before_the_catalog",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 15,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_resolve_a_quoted_local_cte_before_the_catalog"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_inherit_quoted_cte_identity_in_a_nested_select",
+      "name": "should_inherit_quoted_cte_identity_in_a_nested_select",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 25,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_inherit_quoted_cte_identity_in_a_nested_select"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_fold_unquoted_cte_identifiers_once",
+      "name": "should_fold_unquoted_cte_identifiers_once",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 37,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_fold_unquoted_cte_identifiers_once"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_keep_qualified_catalog_references_outside_cte_lookup",
+      "name": "should_keep_qualified_catalog_references_outside_cte_lookup",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 55,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_keep_qualified_catalog_references_outside_cte_lookup"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_materialize_case_distinct_ctes_independently",
+      "name": "should_materialize_case_distinct_ctes_independently",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 65,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_materialize_case_distinct_ctes_independently"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_inline_case_distinct_ctes_independently",
+      "name": "should_inline_case_distinct_ctes_independently",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 75,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_inline_case_distinct_ctes_independently"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_reject_duplicate_resolved_cte_identifiers",
+      "name": "should_reject_duplicate_resolved_cte_identifiers",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 85,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_reject_duplicate_resolved_cte_identifiers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_preserve_cte_identifier_contents",
+      "name": "should_preserve_cte_identifier_contents",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 104,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_preserve_cte_identifier_contents"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_preserve_nonrecursive_body_visibility",
+      "name": "should_preserve_nonrecursive_body_visibility",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 125,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_preserve_nonrecursive_body_visibility"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_resolve_a_quoted_recursive_self_reference",
+      "name": "should_resolve_a_quoted_recursive_self_reference",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 139,
+      "end_line": 156,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_resolve_a_quoted_recursive_self_reference"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_preserve_quoted_cte_wildcard_descriptors",
+      "name": "should_preserve_quoted_cte_wildcard_descriptors",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 159,
+      "end_line": 178,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_preserve_quoted_cte_wildcard_descriptors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/cte_identity.rs::should_restore_outer_cte_identity_after_a_nested_shadow",
+      "name": "should_restore_outer_cte_identity_after_a_nested_shadow",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 181,
+      "end_line": 188,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_restore_outer_cte_identity_after_a_nested_shadow"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -335516,6 +336105,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/cte_view_dependencies.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 62,
+      "sha256": "39a0540bc4167122d0f6ba4045fade78a0c31037e5ff0afb049a753cc869f61e",
+      "test_declarations": 1,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/ctes/cte_view_dependencies.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/database_scope.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -335807,8 +336411,8 @@
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 76,
-      "sha256": "8faba6acd2643527f2aba74bfb543a24e39b099480734e7aee957ca4d4271e87",
+      "lines": 79,
+      "sha256": "d7636f79be52137067c61d44ee0d2972cc376525e07f35be41cf38166a60ff05",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"
@@ -350311,6 +350915,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/cardinality_admission.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 119,
+      "sha256": "be9da14eddb8a599786f50c70e7bc1576728034f543a5f866feeb4831d79885e",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/expressions/cardinality_admission.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/casts/array_element_casts.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -350713,6 +351332,21 @@
       ],
       "destinations": [
         "tests/sql_queries/comparisons/null_semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 188,
+      "sha256": "c3842b4a9bc974e493ce811f5c54b24eaf5995851ac018b649f1435e90de25a8",
+      "test_declarations": 12,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/ctes/cte_identity.rs"
       ],
       "line_limit": 1000
     },
@@ -352491,8 +353125,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 310,
-      "sha256": "221a43344784604b7f8a31f4a48c1532996835e07fc3cdc247f00f6c6e333517",
+      "lines": 319,
+      "sha256": "e3f1a32bc447d83bfe4d1ec844d2cf4323b7efe7341cc6c78f5d7f11ebe83778",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -354119,6 +354753,21 @@
       ],
       "destinations": [
         "tests/support/primitive_literal_inputs.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/query_correctness_fixture.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 26,
+      "sha256": "7a1ec4ff7ad62c158e7696a11b06180ab707c0d0cfc36c8306768875b5f3caad",
+      "test_declarations": 0,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/support/query_correctness_fixture.rs"
       ],
       "line_limit": 1000
     },

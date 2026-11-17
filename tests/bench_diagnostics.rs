@@ -7,6 +7,9 @@ mod replay_mode;
 #[path = "bench_diagnostics/replay_read_ownership.rs"]
 mod replay_read_ownership;
 
+#[path = "bench_diagnostics/replay_index_metadata.rs"]
+mod replay_index_metadata;
+
 #[path = "bench_diagnostics/graph_topology.rs"]
 mod graph_topology;
 

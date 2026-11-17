@@ -219,9 +219,10 @@ fn should_reject_shared_object_mutation_from_a_fork_without_lineage() {
     execute(&cassie, &session, "PREPARE kept AS SELECT 7");
     let batch = cassie
         .new_statement_batch(Some(&session))
-        .expect("unscoped fork");
+        .expect("fork automatically captures its root lineage");
+    let missing = batch.session().without_operation_failure_authority();
     // Act
-    let result = batch.session().with_owned_session_objects(|objects, _, _| {
+    let result = missing.with_owned_session_objects(|objects, _, _| {
         objects.clear_prepared();
         Ok(())
     });

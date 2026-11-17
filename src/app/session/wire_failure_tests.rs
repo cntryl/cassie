@@ -567,12 +567,20 @@ fn should_preserve_the_captured_owner_when_recovery_latches_after_admission() {
         // Assert
         assert_eq!(
             result.unwrap_err().sql_state(),
-            "58030",
+            "25000",
             "quarantine route {route}"
         );
         assert!(session.is_transaction_active());
         assert!(!session.is_transaction_failed());
         assert_eq!(session.transaction_unique_owner_id(), owner_b);
+        assert_eq!(
+            cassie
+                .execute_sql(&session, "SELECT 1", vec![])
+                .unwrap_err()
+                .sql_state(),
+            "58030",
+            "late stale rejection must not clear the storage recovery fence"
+        );
     }
 }
 

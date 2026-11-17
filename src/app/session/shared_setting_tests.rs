@@ -72,7 +72,7 @@ fn should_keep_replacement_settings_and_mode_from_an_old_detached_leaf() {
 }
 
 #[test]
-fn should_record_current_fork_local_history_in_the_actual_root() {
+fn should_keep_current_fork_local_history_private_under_actual_root_validation() {
     for terminal in ["COMMIT", "ROLLBACK"] {
         // Arrange
         let (cassie, session) = fixture();
@@ -96,26 +96,34 @@ fn should_record_current_fork_local_history_in_the_actual_root() {
             .session()
             .set_search_path_for_operation(vec!["public".to_owned(), "fork".to_owned()])
             .expect("owned path");
-        let visible = session
+        let fork_visible = batch
+            .session()
             .setting("application_name")
-            .expect("current local value");
+            .expect("private local value");
+        let root_visible = session.setting("application_name").expect("root value");
+        let root_local_history = session.transaction.lock().local_settings.clone();
+        let fork_local_history = batch.session().transaction.lock().local_settings.clone();
+        session
+            .set_setting("application_name", "root-persistent")
+            .expect("legitimate root SET after private fork mutation");
         cassie
             .execute_sql(&session, terminal, Vec::new())
             .expect("retire actual root");
         // Assert
-        assert_eq!(visible, "local");
+        assert_eq!(fork_visible, "local");
+        assert_eq!(root_visible, "before");
+        assert!(root_local_history.is_empty());
+        assert_eq!(fork_local_history, vec!["application_name"]);
+        assert_eq!(batch.session().search_path(), vec!["public", "fork"]);
         assert_eq!(
             session.setting("application_name").expect("restored value"),
-            "before"
-        );
-        assert_eq!(
-            session.search_path(),
             if terminal == "COMMIT" {
-                vec!["public", "fork"]
+                "root-persistent"
             } else {
-                vec!["public"]
+                "before"
             }
         );
+        assert_eq!(session.search_path(), vec!["public"]);
     }
 }
 

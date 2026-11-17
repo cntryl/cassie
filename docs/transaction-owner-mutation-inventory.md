@@ -55,6 +55,8 @@ frozen integrated bundle. The broader published-Midge/native/background
 qualification blocker in #1188 remains separate; this inventory adds no engine
 capability and does not close that issue.
 
+## Transaction clock
+
 Transaction clock publication validates the operation's actual root UUID, rollback
 epoch and generation, then retains that root mutex through the shared clock read
 or first-write (root→clock order). Statement forks use their captured actual-root

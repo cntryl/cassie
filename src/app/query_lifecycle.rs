@@ -172,8 +172,7 @@ impl Cassie {
         authority_test_hooks::after_root_capture(self, session, &authority);
         self.runtime.record_query_memory(&controls);
         let mut rows = 0;
-        let result = session
-            .ensure_admitted_operation_owner(&authority)
+        let result = CassieSession::ensure_admitted_operation_owner(&authority)
             .and_then(|()| {
                 self.execute_sql_core_for_operation(
                     session,
@@ -226,8 +225,7 @@ impl Cassie {
         let authority = super::FailureAuthority::capture_for_operation(session);
         self.runtime.record_query_memory(&controls);
         let mut rows = 0;
-        let result = session
-            .ensure_admitted_operation_owner(&authority)
+        let result = CassieSession::ensure_admitted_operation_owner(&authority)
             .and_then(|()| {
                 self.explain_sql_core_for_operation(
                     session,

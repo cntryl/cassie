@@ -165,7 +165,7 @@ fn should_reject_late_root_bookkeeping_and_staging_without_changing_the_replacem
     let transaction = session.transaction.lock();
     assert!(!transaction.has_query);
     assert!(transaction.writes.is_empty());
-    assert!(transaction.local_settings.is_empty());
+    assert_eq!(transaction.local_settings, Vec::<String>::new());
     assert!(transaction.catalog_overlay.is_none());
     assert_eq!(transaction.isolation, None);
 }
@@ -250,7 +250,7 @@ fn should_keep_local_setting_history_and_the_actual_write_under_one_root_lock() 
     let session = CassieSession::new("local_setting_owner".into(), None);
     session.begin_transaction(None).unwrap();
     let observed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let observer = std::sync::Arc::clone(&observed);
+    let flag_writer = std::sync::Arc::clone(&observed);
     LOCAL_SETTING_WRITE.with(|slot| {
         *slot.borrow_mut() = Some(Box::new(move |session| {
             assert!(session.transaction.try_lock().is_none());
@@ -262,8 +262,8 @@ fn should_keep_local_setting_history_and_the_actual_write_under_one_root_lock() 
                     .unwrap(),
                 "0"
             );
-            observer.store(true, std::sync::atomic::Ordering::Release);
-        }))
+            flag_writer.store(true, std::sync::atomic::Ordering::Release);
+        }));
     });
 
     // Act
@@ -303,7 +303,7 @@ fn should_restore_savepoint_settings_and_objects_before_releasing_the_root_mutex
         .to_owned();
     session.set_local_setting("statement_timeout", "1").unwrap();
     let observed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let observer = std::sync::Arc::clone(&observed);
+    let flag_writer = std::sync::Arc::clone(&observed);
     SAVEPOINT_CLEANUP.with(|slot| {
         *slot.borrow_mut() = Some(Box::new(move |session| {
             assert!(session.transaction.try_lock().is_none());
@@ -315,8 +315,8 @@ fn should_restore_savepoint_settings_and_objects_before_releasing_the_root_mutex
                     .unwrap(),
                 before
             );
-            observer.store(true, std::sync::atomic::Ordering::Release);
-        }))
+            flag_writer.store(true, std::sync::atomic::Ordering::Release);
+        }));
     });
 
     // Act
@@ -359,7 +359,7 @@ fn should_not_retire_a_replacement_when_an_owning_nested_statement_fails() {
         assert!(session.is_transaction_active());
         assert!(!session.is_transaction_failed());
         assert_eq!(session.transaction_unique_owner_id(), owner_b);
-        assert!(cassie.execute_sql(&session, "SELECT id FROM owned_nested_rows", vec![]).unwrap().rows().is_empty());
+        assert_eq!(cassie.execute_sql(&session, "SELECT id FROM owned_nested_rows", vec![]).unwrap().rows(), &[] as &[Vec<crate::types::Value>]);
     }
 }
 
@@ -422,7 +422,7 @@ fn should_reject_an_old_insert_before_it_can_fork_a_replacement_transaction() {
         // Assert
         assert_eq!(old.unwrap_err().sql_state(), "25000");
         assert!(replacement_healthy);
-        assert!(rows.rows().is_empty());
+        assert_eq!(rows.rows(), &[] as &[Vec<crate::types::Value>]);
     }
 }
 
@@ -707,7 +707,11 @@ fn should_fail_a_wire_operations_own_begin_after_adoption() {
     let operation = session.with_new_wire_operation();
     let authority = FailureAuthority::capture_for_operation(&operation);
     session
-        .begin_transaction_with_modes_for_operation(None, Default::default(), Some(&authority))
+        .begin_transaction_with_modes_for_operation(
+            None,
+            crate::sql::ast::TransactionModes::default(),
+            Some(&authority),
+        )
         .unwrap();
 
     // Act
@@ -768,7 +772,7 @@ fn should_refuse_a_stale_outer_commit_without_publishing_or_rolling_back_the_rep
     // Assert
     assert!(stale_commit.is_err());
     assert!(replacement_healthy);
-    assert!(rows.rows().is_empty());
+    assert_eq!(rows.rows(), &[] as &[Vec<crate::types::Value>]);
 }
 
 #[test]
@@ -889,8 +893,9 @@ fn should_detach_only_the_explicit_unscoped_cleanup_clone() {
         operation.operation_failure_authority().unwrap().identity(),
         owner
     );
-    assert!(operation
-        .ensure_admitted_operation_owner(operation.operation_failure_authority().unwrap())
-        .is_err());
+    assert!(CassieSession::ensure_admitted_operation_owner(
+        operation.operation_failure_authority().unwrap()
+    )
+    .is_err());
     assert!(!root.is_transaction_failed());
 }

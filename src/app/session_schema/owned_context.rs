@@ -87,7 +87,7 @@ impl OwnedSessionSchemaContext {
             context.catalog = app.catalog.clone();
             context.write_catalog = app.metadata_write_catalog.clone();
             context.publication_catalog = app.publication_catalog.clone();
-            context.owner = app.catalog_owner.clone();
+            context.owner.clone_from(&app.catalog_owner);
             context.midge = Arc::downgrade(&app.midge);
             return Ok(());
         }

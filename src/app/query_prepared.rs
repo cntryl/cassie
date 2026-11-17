@@ -114,14 +114,13 @@ impl Cassie {
         } else if let Some(guard) = self.runtime.try_begin_running_query() {
             Some(guard)
         } else {
-            match self.check_storage_recovery_required() {
-                Err(_) => None,
-                Ok(()) => {
-                    session.reject_operation_admission();
-                    return Err(CassieError::Execution(
-                        "query admission exhausted".to_string(),
-                    ));
-                }
+            if self.check_storage_recovery_required().is_err() {
+                None
+            } else {
+                session.reject_operation_admission();
+                return Err(CassieError::Execution(
+                    "query admission exhausted".to_string(),
+                ));
             }
         };
         let mut controls = QueryExecutionControls::with_cancellation(
@@ -152,7 +151,7 @@ impl Cassie {
         let result = authority
             .as_ref()
             .map_or(Ok(()), |authority| {
-                session.ensure_admitted_operation_owner(authority)
+                CassieSession::ensure_admitted_operation_owner(authority)
             })
             .and_then(|()| execute(&controls, authority.as_ref()));
         #[cfg(test)]

@@ -125,7 +125,7 @@ impl CassieSession {
             return false;
         };
         let current = super::FailureAuthorityIdentity::from_transaction(&transaction);
-        let retired = current.transaction.is_none() && current.generation == owner.generation
+        let retired = current.transaction.is_none()
             || current.transaction != owner.transaction
             || current.generation != owner.generation;
         if retired {
@@ -263,7 +263,6 @@ impl CassieSession {
     }
 
     pub(crate) fn ensure_admitted_operation_owner(
-        &self,
         authority: &FailureAuthority,
     ) -> Result<(), super::CassieError> {
         let root = authority

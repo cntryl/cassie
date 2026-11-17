@@ -102,14 +102,7 @@ impl CassieSession {
             ));
         }
 
-        let normalized = name.to_ascii_lowercase();
-        let Some(index) = transaction
-            .savepoints
-            .iter()
-            .rposition(|savepoint| savepoint.name == normalized)
-        else {
-            return Err(CassieError::missing_savepoint(&normalized));
-        };
+        let index = savepoint_index(&transaction, name)?;
 
         // Invalidate prior forks before the first possible rollback mutation.
         // An ordinary prune error occurs before its retain; restore the old
@@ -213,18 +206,23 @@ impl CassieSession {
             }
         }
 
-        let normalized = name.to_ascii_lowercase();
-        let Some(index) = transaction
-            .savepoints
-            .iter()
-            .rposition(|savepoint| savepoint.name == normalized)
-        else {
-            return Err(CassieError::missing_savepoint(&normalized));
-        };
+        let index = savepoint_index(&transaction, name)?;
 
         transaction.savepoints.truncate(index);
         Ok(())
     }
+}
+
+fn savepoint_index(
+    transaction: &super::SessionTransactionState,
+    name: &str,
+) -> Result<usize, CassieError> {
+    let normalized = name.to_ascii_lowercase();
+    transaction
+        .savepoints
+        .iter()
+        .rposition(|savepoint| savepoint.name == normalized)
+        .ok_or_else(|| CassieError::missing_savepoint(&normalized))
 }
 
 /// Restores the transaction modes and projection write declaration recorded by

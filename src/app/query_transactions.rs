@@ -139,7 +139,7 @@ impl Cassie {
                 )?;
             }
             TransactionAction::Commit if failed_commit => {
-                session.rollback_for_operation(authority)?
+                session.rollback_for_operation(authority)?;
             }
             TransactionAction::Commit => {
                 self.commit_transaction_with_controls(session, controls)?;

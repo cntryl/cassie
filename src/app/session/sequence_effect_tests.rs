@@ -151,7 +151,11 @@ fn should_adopt_an_own_begin_before_sequence_admission() {
     let authority = super::FailureAuthority::capture(&session);
     let operation = session.with_operation_failure_authority(Some(&authority));
     session
-        .begin_transaction_with_modes_for_operation(None, Default::default(), Some(&authority))
+        .begin_transaction_with_modes_for_operation(
+            None,
+            crate::sql::ast::TransactionModes::default(),
+            Some(&authority),
+        )
         .unwrap();
 
     // Act

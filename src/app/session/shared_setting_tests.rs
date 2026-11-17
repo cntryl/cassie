@@ -112,7 +112,7 @@ fn should_keep_current_fork_local_history_private_under_actual_root_validation()
         // Assert
         assert_eq!(fork_visible, "local");
         assert_eq!(root_visible, "before");
-        assert!(root_local_history.is_empty());
+        assert_eq!(root_local_history, Vec::<String>::new());
         assert_eq!(fork_local_history, vec!["application_name"]);
         assert_eq!(batch.session().search_path(), vec!["public", "fork"]);
         assert_eq!(

@@ -82,7 +82,7 @@ fn should_preserve_b_history_after_an_admitted_a_sequence_effect_finishes() {
         let rows = cassie
             .execute_sql(&session, "SELECT id FROM history_rows", vec![])
             .unwrap();
-        assert!(rows.rows().is_empty());
+        assert_eq!(rows.rows(), &[] as &[Vec<crate::types::Value>]);
     }
 }
 

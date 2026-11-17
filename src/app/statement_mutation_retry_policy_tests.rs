@@ -199,15 +199,17 @@ fn commit(
                             .rows(),
                         &[vec![Value::Int64(9)]]
                     );
-                    assert!(cassie
-                        .execute_sql(
-                            &other,
-                            "SELECT position FROM retry_witness_checkpoint",
-                            vec![]
-                        )
-                        .unwrap()
-                        .rows()
-                        .is_empty());
+                    assert_eq!(
+                        cassie
+                            .execute_sql(
+                                &other,
+                                "SELECT position FROM retry_witness_checkpoint",
+                                vec![]
+                            )
+                            .unwrap()
+                            .rows(),
+                        &[] as &[Vec<Value>]
+                    );
                     let published = sequence(cassie);
                     assert_eq!(published.cursor(), prior);
                     assert_eq!(
@@ -221,7 +223,7 @@ fn commit(
                     );
                 }))
             }))
-            .is_none())
+            .is_none());
     });
     let _guard = WitnessGuard;
     let observation = data_policy_test_observer::arm(&fixture.cassie, "retry_policy_unit");

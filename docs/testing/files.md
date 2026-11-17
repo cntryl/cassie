@@ -475,10 +475,10 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/graph_table/tie_order.rs` | test_module | 144 | 2 | graph_table | move_with_module_alias | `tests/graph_table/ordering/tie_order.rs` |
 | `tests/graph_table/transactions.rs` | test_module | 197 | 7 | graph_table | move_with_module_alias | `tests/graph_table/transactions/transactions.rs` |
 | `tests/graph_table/variants.rs` | test_module | 506 | 18 | graph_table | move_with_module_alias | `tests/graph_table/semantics/variants.rs` |
-| `tests/graph_table/view_dependencies.rs` | test_module | 377 | 9 | graph_table | move_with_module_alias | `tests/graph_table/semantics/view_dependencies.rs` |
+| `tests/graph_table/view_dependencies.rs` | test_module | 378 | 9 | graph_table | move_with_module_alias | `tests/graph_table/semantics/view_dependencies.rs` |
 | `tests/graph_table/wire.rs` | test_module | 170 | 6 | graph_table | move_with_module_alias | `tests/graph_table/semantics/wire.rs` |
 | `tests/graph_table/world.rs` | test_support | 382 | 0 | graph_table | keep | `tests/graph_table/world.rs` |
-| `tests/graph_table.rs` | cargo_target | 73 | 0 | graph_table | keep | `tests/graph_table.rs` |
+| `tests/graph_table.rs` | cargo_target | 76 | 0 | graph_table | keep | `tests/graph_table.rs` |
 | `tests/graph_types/argument_binding.rs` | test_module | 103 | 4 | graph_types | move_with_module_alias | `tests/graph_types/parameters/argument_binding.rs` |
 | `tests/graph_types/catalog.rs` | test_module | 100 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/catalog.rs` |
 | `tests/graph_types/constructors.rs` | test_module | 31 | 1 | graph_types | move_with_module_alias | `tests/graph_types/semantics/constructors.rs` |
@@ -1679,6 +1679,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/graph_oracle/select.rs` | shared_support | 57 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/select.rs` |
 | `tests/support/graph_oracle/tests.rs` | shared_support | 471 | 19 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/tests.rs` |
 | `tests/support/graph_oracle/weighted.rs` | shared_support | 123 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/weighted.rs` |
+| `tests/support/graph_view_fixture.rs` | shared_support | 24 | 0 | graph_table | keep | `tests/support/graph_view_fixture.rs` |
 | `tests/support/local_storage.rs` | shared_support | 5 | 0 | sql_mutations, storage_indexes | keep | `tests/support/local_storage.rs` |
 | `tests/support/metrics.rs` | shared_support | 8 | 0 | metrics, planner_controls | keep | `tests/support/metrics.rs` |
 | `tests/support/mixed_numeric.rs` | shared_support | 24 | 0 | pgwire_types, sql_queries | keep | `tests/support/mixed_numeric.rs` |

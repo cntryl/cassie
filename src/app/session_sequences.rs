@@ -107,21 +107,17 @@ impl CassieSession {
 
     /// `DISCARD SEQUENCES`: forgets this session's `currval`/`lastval`
     /// history without changing any sequence.
+    #[cfg(test)]
     pub(crate) fn discard_sequence_values(&self) {
         self.discard_sequence_values_inner(|| {}, |_| {});
     }
 
+    #[cfg(test)]
     fn discard_sequence_values_inner(
         &self,
         on_contended: impl FnOnce(),
         after_status: impl FnOnce(Option<SessionTransactionStatus>),
     ) {
-        #[cfg(not(test))]
-        let mut values = {
-            let _ = on_contended;
-            self.sequence_values.lock()
-        };
-        #[cfg(test)]
         let mut values = if let Some(values) = self.sequence_values.try_lock() {
             values
         } else {

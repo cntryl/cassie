@@ -11,6 +11,7 @@ use crate::sql::ast::TransactionModes;
 impl CassieSession {
     /// Observe root status under the transaction mutex. Detached forks have
     /// their own mutex and must not be mistaken for the root's authority.
+    #[cfg(test)]
     pub(crate) fn with_root_transaction_status_locked<T>(
         &self,
         operation: impl FnOnce(Option<SessionTransactionStatus>) -> T,

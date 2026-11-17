@@ -329,6 +329,7 @@ impl SessionState {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn clear_all_portals(&mut self, runtime: &RuntimeState) {
         record_negative_delta(self.portals.len(), |delta| {
             runtime.record_pgwire_portal_delta(delta);

@@ -364,7 +364,8 @@ impl CassieSession {
         }
     }
 
-    /// Portal cleanup is in-memory and nonblocking; contention retains portals.
+    /// Test witness for the superseded generation-only cleanup guard.
+    #[cfg(test)]
     pub(crate) fn try_with_owned_idle_transaction(&self, cleanup: impl FnOnce()) {
         let Some(authority) = self
             .operation_failure_authority
@@ -381,28 +382,6 @@ impl CassieSession {
             && !owner.admission_rejected
             && owner.generation == transaction.generation
             && transaction.status == SessionTransactionStatus::Idle
-        {
-            cleanup();
-        }
-    }
-
-    pub(crate) fn try_with_owned_transaction(&self, cleanup: impl FnOnce()) {
-        let Some(authority) = self
-            .operation_failure_authority
-            .as_ref()
-            .filter(|authority| authority.matches_root(self))
-        else {
-            return;
-        };
-        let Some(transaction) = self.transaction.try_lock() else {
-            return;
-        };
-        let owner = authority.owner.lock();
-        let matching = owner.identity
-            == Some((transaction.unique_owner_id, transaction.rollback_epoch))
-            || transaction.status == SessionTransactionStatus::Idle
-                && owner.generation == transaction.generation;
-        if owner.captured && !owner.admission_rejected && matching && !transaction.sealed_for_commit
         {
             cleanup();
         }

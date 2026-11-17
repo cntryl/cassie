@@ -311,3 +311,92 @@ fn should_refuse_a_sealed_fork_while_preserving_the_committing_root() {
     root.expect("committing root retains its owned permission");
     assert!(!session.has_sql_prepared("kept"));
 }
+
+#[test]
+fn should_publish_a_held_cursor_after_its_own_modifying_cte_commits() {
+    // Arrange
+    let (cassie, session) = fixture();
+    // Act
+    execute(&cassie, &session,
+        "DECLARE held CURSOR WITH HOLD FOR WITH changed AS (DELETE FROM objects_rows RETURNING id) SELECT id FROM changed ORDER BY id");
+    let fetched = cassie
+        .execute_sql(&session, "FETCH ALL FROM held", Vec::new())
+        .expect("retained held result");
+    let rows = cassie
+        .execute_sql(&session, "SELECT count(*) FROM objects_rows", Vec::new())
+        .expect("committed deletion");
+    // Assert
+    assert_eq!(
+        fetched.rows(),
+        &[vec![Value::Int64(1)], vec![Value::Int64(2)]]
+    );
+    assert_eq!(rows.rows(), &[vec![Value::Int64(0)]]);
+    assert_eq!(session.transaction_status(), "idle");
+}
+
+#[test]
+fn should_revoke_an_owned_idle_receipt_after_an_independent_transaction() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let operation = session.with_new_wire_operation();
+    FailureAuthority::capture_for_operation(&operation);
+    execute(&cassie, &operation, "BEGIN");
+    execute(&cassie, &operation, "COMMIT");
+    execute(&cassie, &session, "BEGIN");
+    execute(&cassie, &session, "COMMIT");
+    // Act
+    let result = leaf(
+        &cassie,
+        &operation,
+        "PREPARE late AS SELECT 9",
+        &controls(1 << 20),
+    );
+    // Assert
+    assert_eq!(result.expect_err("B revoked receipt").sql_state(), "25000");
+    assert!(!session.has_sql_prepared("late"));
+}
+
+#[test]
+fn should_not_treat_another_operations_commit_as_its_own_retirement() {
+    // Arrange
+    let (cassie, session) = fixture();
+    execute(&cassie, &session, "BEGIN");
+    let authority = FailureAuthority::capture(&session);
+    let old = session.with_operation_failure_authority(Some(&authority));
+    execute(&cassie, &session, "COMMIT");
+    // Act
+    let result = leaf(
+        &cassie,
+        &old,
+        "PREPARE late AS SELECT 9",
+        &controls(1 << 20),
+    );
+    // Assert
+    assert_eq!(result.expect_err("unowned retirement").sql_state(), "25000");
+    assert!(!session.has_sql_prepared("late"));
+}
+
+#[test]
+fn should_not_transfer_the_roots_idle_retirement_receipt_to_a_detached_fork() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let operation = session.with_new_wire_operation();
+    FailureAuthority::capture_for_operation(&operation);
+    execute(&cassie, &operation, "BEGIN");
+    let batch = cassie
+        .new_statement_batch(Some(&operation))
+        .expect("fork before retirement");
+    execute(&cassie, &operation, "COMMIT");
+    // Act
+    let result = batch.session().with_owned_session_objects(|objects, _, _| {
+        objects.clear_prepared();
+        Ok(())
+    });
+    // Assert
+    assert_eq!(
+        result
+            .expect_err("fork has no root retirement permission")
+            .sql_state(),
+        "25000"
+    );
+}

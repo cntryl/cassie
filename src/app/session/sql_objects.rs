@@ -174,7 +174,16 @@ impl CassieSession {
             if authority.identity()
                 != Some(FailureAuthorityIdentity::from_transaction(&transaction))
             {
-                return Err(super::sequence_effect::changed());
+                let owner = authority.owner.lock();
+                let owned_idle_retirement = self.owns_transaction_lifecycle
+                    && transaction.status == SessionTransactionStatus::Idle
+                    && owner.captured
+                    && !owner.admission_rejected
+                    && owner.retired_generation == Some(transaction.generation)
+                    && owner.generation == transaction.generation;
+                if !owned_idle_retirement {
+                    return Err(super::sequence_effect::changed());
+                }
             }
             if !Arc::ptr_eq(&root, &self.transaction)
                 && !Arc::ptr_eq(

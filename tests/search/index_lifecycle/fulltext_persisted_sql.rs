@@ -587,22 +587,52 @@ fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
     );
     drop(positive);
     assert_eq!(controls.current_query_memory_bytes(), 0);
-    let scan_before = cassie.midge.query_scan_entries_for_diagnostics();
 
-    // Act
+    // Act: the actual SQL request still owns its original 1024-byte admission budget.
     let error = cassie
         .execute_sql(&session, query, vec![Value::String("alpha".to_string())])
-        .expect_err("candidate statistics should exceed memory budget");
+        .expect_err("actual SQL request must reject its configured memory budget");
 
     // Assert
     assert!(matches!(error, CassieError::ResourceLimit(_)));
-    assert!(
-        cassie.midge.query_scan_entries_for_diagnostics() > scan_before,
-        "low-memory SQL must reach persisted loading before rejecting"
-    );
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0
+    );
+
+    // Arrange: isolate persisted loading from the separately checked SQL admission.
+    let mut restricted_limits = cassie::config::CassieRuntimeLimits::default();
+    restricted_limits.query_memory_budget_bytes = 1_024;
+    let restricted = cassie::runtime::QueryExecutionControls::from_limits(
+        &restricted_limits,
+        std::time::Instant::now(),
+    );
+    let scan_before = cassie.midge.query_scan_entries_for_diagnostics();
+    let before = cassie.metrics();
+
+    // Act: the identical plan must reach real persisted work at the executor boundary.
+    let error = cassie::executor::run_with_controls(
+        &cassie,
+        &plan,
+        vec![Value::String("alpha".to_string())],
+        &restricted,
+    )
+    .expect_err("persisted fulltext loading must exceed the same 1024-byte budget");
+    let error = CassieError::from(error);
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(restricted.query_memory_budget_bytes, 1_024);
+    assert!(matches!(error, CassieError::ResourceLimit(_)), "{error}");
+    assert!(
+        cassie.midge.query_scan_entries_for_diagnostics() > scan_before,
+        "low-memory executor must reach persisted loading before rejecting"
+    );
+    assert_eq!(restricted.current_query_memory_bytes(), 0);
+    assert_eq!(after["search"]["count"], before["search"]["count"]);
+    assert_eq!(
+        after["search"]["row_scan_fallback_total"],
+        before["search"]["row_scan_fallback_total"]
     );
 }
 

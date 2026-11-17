@@ -36,6 +36,11 @@ fn execute(
 ) -> SourceExecution {
     let args = super::source_table_function::evaluate_args(env, function, outer_row)?;
     let local = name.rsplit('.').next().unwrap_or(name);
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record(
+        "before_graph_rows",
+        env.controls.current_query_memory_bytes(),
+    );
     let rows = match (local, args.as_slice()) {
         ("key_parts", [reference]) => key_part_rows(reference)?,
         ("path_steps", [path]) => step_rows(env, path, None)?,
@@ -79,6 +84,10 @@ fn key_part_rows(argument: &Value) -> Result<Vec<BatchRow>, QueryError> {
         .iter()
         .enumerate()
         .map(|(index, part)| {
+            #[cfg(test)]
+            crate::executor::execution::graph_memory_test_observer::record_current(
+                "copy_graph_rows",
+            );
             let integer = match part {
                 KeyPart::SmallInt(value) => Value::Int64(i64::from(*value)),
                 KeyPart::Int(value) => Value::Int64(i64::from(*value)),
@@ -187,6 +196,8 @@ fn step(
     index: usize,
     cumulative: Option<&[Numeric]>,
 ) -> Result<BatchRow, QueryError> {
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record_current("copy_graph_rows");
     let encode = |element: &ElementRef| {
         element
             .to_value(descriptors)
@@ -219,3 +230,7 @@ fn step(
     }
     Ok(row(columns))
 }
+
+#[cfg(test)]
+#[path = "source_graph_types_memory_tests.rs"]
+mod memory_tests;

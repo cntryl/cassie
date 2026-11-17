@@ -58,10 +58,20 @@ pub(super) fn apply(
         GraphSelectorKind::AnyShortest => 1,
         GraphSelectorKind::Shortest(count) => count as usize,
     };
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record(
+        "before_graph_selector",
+        env.controls.current_query_memory_bytes(),
+    );
     let mut pairs = HashMap::<(usize, usize), Vec<usize>>::new();
     for (index, path) in candidates.iter().enumerate() {
         env.controls.check_interruption()?;
         let end = *path.vertices.last().expect("path has a vertex");
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "copy_graph_selector",
+            env.controls.current_query_memory_bytes(),
+        );
         pairs
             .entry((path.vertices[0], end))
             .or_default()
@@ -85,6 +95,36 @@ pub(super) fn apply(
         .collect::<Vec<_>>();
     chosen.sort_by(|left, right| order(store, left, right));
     Ok(chosen)
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use crate::executor::execution::graph_memory_test_observer as observer;
+
+    #[test]
+    fn should_admit_selector_groups_before_allocating_their_candidate_indices() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
+             KEEP SHORTEST 1 PATHS COLUMNS(b.id)) AS t",
+                vec![],
+            )
+            .expect("one shortest graph path");
+
+        // Assert
+        assert_eq!(result.row_count(), 1);
+        observer::assert_admitted(
+            "before_graph_selector",
+            "copy_graph_selector",
+            std::mem::size_of::<usize>(),
+        );
+    }
 }
 
 /// Cancellation and the diagnostic pause just before a (non-interruptible) sort.

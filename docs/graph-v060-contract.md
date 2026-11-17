@@ -119,13 +119,23 @@ implemented. Source schema/table/column renames preserve resolved identities and
 update displayed metadata atomically. Cross-schema graph moves, graph-definition
 alteration beyond rename, and graph mutation syntax return `0A000`.
 
+The 2026-11-17 source-backed Jev decision selects a finite view lifecycle:
+rename returns `2BP01` while a view in the graph's database depends on that
+graph. The rejected statement preserves the old graph and its views; rename
+without such dependents remains supported. A view in another database cannot
+block graph drop or rename. Names retain ordinary quoted identifier identity.
+
 The lifecycle guard covers every column a mapping reads: key, endpoint and
 exposed property columns reject `DROP COLUMN` and type change with `2BP01`, a
 key column also rejects `DROP NOT NULL`, and a constraint or index may be
 dropped only while another non-partial unique key still covers exactly the
 mapped key tuple. `DROP TABLE ... CASCADE`, `DROP COLUMN ... CASCADE` and a
 `DROP SCHEMA ... CASCADE` that would orphan a graph of another schema return
-`0A000`; a schema cascade drops the graphs the schema itself owns. Graph DDL is
+`0A000`; a schema cascade drops the graphs the schema itself owns and the
+same-database direct and transitive views that depend on those graphs, including
+views in other schemas. The closure is resolved in each stored view's own
+database/schema context; unrelated views survive. The schema, graphs and view
+closure are restored together on rollback. Graph DDL is
 transactional and, like other DDL, is reserved to administrators (`42501`).
 
 Discovery uses the SQL/PGQ `information_schema` views `property_graphs`,
@@ -394,6 +404,14 @@ text and UUID semantics match their SQL types; equality and tie-breaking must
 agree with those semantics. Adding other key families requires an equivalent
 identity, ordering and index proof.
 
+The 2026-11-17 source-backed Jev decision uses structural SQL array keys for
+array fields of all native composite values, including graph references. Compare
+elements recursively with NULL after non-NULL, then element count, dimension
+rank, all dimension lengths, and finally all lower bounds. Integer components
+retain exact signed integer comparison. SQL comparison keys do not stringify
+native record arrays; the internal graph path tie order remains the order
+specified by this contract.
+
 Database, graph and mapping IDs are durable UUID logical identities, rather
 than SQL names or type OIDs: rename preserves them; a dropped and recreated object
 gets a new identity. An operation resolving a reference from a different
@@ -658,9 +676,13 @@ encoding error emits no page, and retention is accounted against the query
 budget. Later Execute calls page the already completed result, respecting
 cumulative portal limits. Cancellation or transport failure during later
 delivery can leave previously delivered pages visible; Cassie cannot retract
-bytes already sent, and the failed Execute emits no successful page. Prove
-that this is feasible with existing portal lifecycle, cancellation and memory
-controls; until then this is a prerequisite, not a claim of current behavior.
+bytes already sent, and the failed Execute emits no successful page. The
+2026-11-17 source-backed Jev decision selects retained preflight: admit reusable
+largest-frame storage against the materialized portal owner's tracker, encode
+every row with final formats and global row indices, and validate description
+and completion frames before first delivery. Retain that storage and its lease
+through suspension and reuse it for later pages. Qualification evidence belongs
+in the qualification record; this contract alone does not establish a pass.
 Read-count tests vary total
 graph size independently of selected degree, and characterize high fan-out and
 multi-hop work.

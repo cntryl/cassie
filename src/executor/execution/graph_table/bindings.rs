@@ -64,3 +64,32 @@ pub(super) fn group_entries(plan: &Plan<'_>, store: &Store, step: usize, edge: u
         .as_ref()
         .map_or_default(|columns| element_entries(row, columns))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Candidate;
+    use std::mem::size_of;
+
+    #[test]
+    fn should_account_for_the_native_width_of_every_candidate_index() {
+        // Arrange
+        let candidate = Candidate {
+            vertices: vec![0, 1, 2],
+            edges: vec![0, 1],
+            directions: vec![1, 1],
+            step_hops: vec![1, 1],
+        };
+        let retained_indices = candidate.vertices.capacity()
+            + candidate.edges.capacity()
+            + candidate.step_hops.capacity();
+        let expected = size_of::<Candidate>()
+            + retained_indices * size_of::<usize>()
+            + candidate.directions.capacity() * size_of::<u8>();
+
+        // Act
+        let accounted = candidate.bytes();
+
+        // Assert
+        assert_eq!(accounted, expected);
+    }
+}

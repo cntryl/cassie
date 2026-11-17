@@ -65,6 +65,16 @@ fn pending_of(
         for (id, change) in snapshot.ordered_changes() {
             env.controls.check_interruption()?;
             pending.changes += 1;
+            #[cfg(test)]
+            crate::executor::execution::graph_memory_test_observer::record(
+                "before_pending",
+                env.controls.current_query_memory_bytes(),
+            );
+            #[cfg(test)]
+            crate::executor::execution::graph_memory_test_observer::record(
+                "copy_pending",
+                env.controls.current_query_memory_bytes(),
+            );
             pending.ids.insert(id.clone());
             bytes += id.capacity() + size_of::<String>();
             if let crate::app::TransactionRowChange::Upsert(payload) = change {
@@ -130,6 +140,16 @@ pub(super) fn lookup_rows(
             continue;
         };
         let (document, _source_memory) = source.into_parts();
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "before_lookup_row",
+            env.controls.current_query_memory_bytes(),
+        );
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "copy_lookup_row",
+            env.controls.current_query_memory_bytes(),
+        );
         let row = crate::executor::scan::hydrate_character_arrays(
             crate::executor::scan::document_to_row(&document, schema.as_ref()),
             env.controls,
@@ -145,6 +165,61 @@ pub(super) fn lookup_rows(
         }
     }
     Ok(rows)
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use crate::executor::execution::graph_memory_test_observer as observer;
+
+    const QUERY: &str =
+        "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
+        COLUMNS(b.id)) AS t";
+
+    #[test]
+    fn should_admit_a_lazy_lookup_row_before_hydrating_its_copy() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, QUERY, vec![])
+            .expect("indexed graph query");
+
+        // Assert
+        assert_eq!(result.row_count(), 1);
+        observer::assert_admitted(
+            "before_lookup_row",
+            "copy_lookup_row",
+            std::mem::size_of::<super::BatchRow>(),
+        );
+    }
+
+    #[test]
+    fn should_admit_pending_row_identity_before_cloning_it_into_the_graph_cache() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        cassie
+            .execute_sql(&session, "BEGIN", vec![])
+            .expect("begin overlay");
+        cassie
+            .execute_sql(&session, "INSERT INTO e VALUES(2,1,2)", vec![])
+            .expect("pending edge");
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, QUERY, vec![])
+            .expect("merged graph query");
+
+        // Assert
+        assert_eq!(result.row_count(), 2);
+        observer::assert_admitted(
+            "before_pending",
+            "copy_pending",
+            std::mem::size_of::<String>() + std::mem::size_of::<super::BatchRow>(),
+        );
+    }
 }
 
 fn side_flags(direction: GraphEdgeDirection) -> &'static [Side] {

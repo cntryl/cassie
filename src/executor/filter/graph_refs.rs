@@ -173,6 +173,11 @@ fn element_exists(
         &fallback
     };
     let mut found = false;
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record_owner(
+        "constructor_scan_owner",
+        controls,
+    );
     midge.scan_rows_until::<QueryError, _>(&resolved.table, RowDecode::Full, controls, |row| {
         // A row the transaction rewrote or deleted is judged by its change below.
         if !changes.contains_key(&row.id) && matches(&row.payload, resolved, key) {

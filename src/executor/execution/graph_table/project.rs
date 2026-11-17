@@ -48,6 +48,16 @@ pub(super) fn rows(
                 continue;
             }
         }
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "before_graph_output",
+            memory.bytes(),
+        );
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "copy_graph_output",
+            memory.bytes(),
+        );
         let mut values = Vec::with_capacity(names.len());
         let mut bytes = size_of::<BatchRow>() + 64;
         for (name, column) in names.iter().zip(&table.columns) {
@@ -65,4 +75,34 @@ pub(super) fn rows(
         out.push(BatchRow::new(values));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use crate::executor::execution::graph_memory_test_observer as observer;
+
+    #[test]
+    fn should_admit_graph_output_before_allocating_its_row_directory() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
+             COLUMNS(b.id)) AS t",
+                vec![],
+            )
+            .expect("one graph path");
+
+        // Assert
+        assert_eq!(result.row_count(), 1);
+        observer::assert_admitted(
+            "before_graph_output",
+            "copy_graph_output",
+            std::mem::size_of::<super::BatchRow>(),
+        );
+    }
 }

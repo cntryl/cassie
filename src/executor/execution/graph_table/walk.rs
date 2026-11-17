@@ -273,6 +273,16 @@ impl<'a> Walk<'a> {
         self.store
             .expand(self.env, &plan.graph, from, (direction, &place.selection))?;
         let store = &*self.store;
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "before_frontier",
+            self.memory.bytes(),
+        );
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "copy_frontier",
+            self.memory.bytes(),
+        );
         let mut choices = Vec::new();
         if direction != GraphEdgeDirection::Incoming {
             for edge in &store.outgoing[from] {
@@ -324,6 +334,16 @@ impl<'a> Walk<'a> {
 
     /// Records the path ending the last step after `hops` hops.
     fn emit(&mut self, hops: usize) -> Result<(), QueryError> {
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "before_candidate",
+            self.memory.bytes(),
+        );
+        #[cfg(test)]
+        crate::executor::execution::graph_memory_test_observer::record(
+            "copy_candidate",
+            self.memory.bytes(),
+        );
         let mut step_hops = self.step_hops.clone();
         if !self.plan.steps.is_empty() {
             step_hops.push(hops);
@@ -400,5 +420,60 @@ impl<'a> Walk<'a> {
             }
         }
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use crate::executor::execution::graph_memory_test_observer as observer;
+
+    #[test]
+    fn should_admit_a_candidate_before_copying_its_path_vectors() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
+             COLUMNS(b.id)) AS t",
+                vec![],
+            )
+            .expect("one graph path");
+
+        // Assert
+        assert_eq!(result.row_count(), 1);
+        observer::assert_admitted(
+            "before_candidate",
+            "copy_candidate",
+            std::mem::size_of::<super::Candidate>() + 4 * std::mem::size_of::<usize>() + 1,
+        );
+    }
+
+    #[test]
+    fn should_admit_the_traversal_frontier_before_allocating_hop_choices() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
+             COLUMNS(b.id)) AS t",
+                vec![],
+            )
+            .expect("one graph path");
+
+        // Assert
+        assert_eq!(result.row_count(), 1);
+        observer::assert_admitted(
+            "before_frontier",
+            "copy_frontier",
+            std::mem::size_of::<super::Hop>(),
+        );
     }
 }

@@ -11,13 +11,18 @@ const SETUP: &[&str] = &[
      EDGE TABLES(e AS l KEY(id) SOURCE KEY(a) REFERENCES n(id) \
      DESTINATION KEY(b) REFERENCES n(id) LABEL edge PROPERTIES(id))",
 ];
-const VIEW: &str = "CREATE VIEW vg AS SELECT x FROM GRAPH_TABLE(public.g MATCH(v IS node) COLUMNS(v.id AS x)) AS t";
+const VIEW: &str =
+    "CREATE VIEW vg AS SELECT x FROM GRAPH_TABLE(g MATCH(v IS node) COLUMNS(v.id AS x)) AS t";
 
 #[test]
 fn should_reject_a_graph_rename_while_its_view_depends_on_the_old_name() {
     // Arrange
     let fixture = sql_fixture("graph-view-rename-dependency", SETUP);
     fixture.execute(VIEW).expect("create dependent view");
+    assert_eq!(
+        fixture.rows("SELECT x FROM vg"),
+        vec![vec![Value::Int64(1)]]
+    );
 
     // Act
     let renamed = fixture.execute("ALTER PROPERTY GRAPH g RENAME TO renamed");
@@ -83,10 +88,30 @@ fn should_drop_the_transitive_graph_view_closure_with_its_schema_and_restore_it_
 #[test]
 fn should_ignore_other_databases_when_checking_graph_view_dependencies() {
     // Arrange
-    let fixture = sql_fixture("graph-view-database-dependency", SETUP);
-    fixture.execute(VIEW).expect("create dependent view");
+    let fixture = sql_fixture("graph-view-database-dependency", &[]);
     fixture
-        .execute("CREATE DATABASE other_graph_db")
+        .cassie
+        .startup()
+        .expect("bootstrap database scoping");
+    let original = fixture.cassie.create_session("tester", None);
+    for sql in SETUP {
+        fixture
+            .cassie
+            .execute_sql(&original, sql, vec![])
+            .expect("seed original graph");
+    }
+    fixture
+        .cassie
+        .execute_sql(&original, VIEW, vec![])
+        .expect("create dependent view");
+    let before = fixture
+        .cassie
+        .execute_sql(&original, "SELECT x FROM vg", vec![])
+        .expect("view is initially usable");
+    assert_eq!(before.rows(), &[vec![Value::Int64(1)]]);
+    fixture
+        .cassie
+        .execute_sql(&original, "CREATE DATABASE other_graph_db", vec![])
         .expect("create independent database");
     let other = fixture
         .cassie
@@ -102,12 +127,15 @@ fn should_ignore_other_databases_when_checking_graph_view_dependencies() {
     let dropped = fixture
         .cassie
         .execute_sql(&other, "DROP PROPERTY GRAPH g", vec![]);
-    let original_view = fixture.rows("SELECT x FROM vg");
+    let original_view = fixture
+        .cassie
+        .execute_sql(&original, "SELECT x FROM vg", vec![])
+        .expect("original view remains usable");
 
     // Assert
     assert!(
         dropped.is_ok(),
         "a foreign database view cannot depend on this graph: {dropped:?}"
     );
-    assert_eq!(original_view, vec![vec![Value::Int64(1)]]);
+    assert_eq!(original_view.rows(), &[vec![Value::Int64(1)]]);
 }

@@ -328,3 +328,121 @@ fn should_reject_frame_scratch_before_writing_any_result_bytes() {
     assert_eq!(during_fill, limits.query_memory_budget_bytes - retained);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_retain_preflight_frame_admission_with_the_suspended_result_owner() {
+    // Arrange
+    let limits = CassieRuntimeLimits::default();
+    let producer = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let result = result(&producer);
+    let (mut state, portal) = state(&limits);
+    let mut writer = tokio::io::sink();
+
+    // Act
+    runtime().block_on(suspend(&mut writer, &mut state, &portal, result));
+    let result_bytes = state.portals["retained"]
+        .suspended
+        .as_ref()
+        .expect("suspended result")
+        .result
+        .admission()
+        .bytes();
+    let with_frames = state.portal_memory_controls.current_query_memory_bytes();
+    drop(state.remove_portal("retained"));
+
+    // Assert
+    assert!(
+        with_frames > result_bytes,
+        "the complete-result frame lease must remain with the portal"
+    );
+    assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
+    assert_eq!(producer.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reuse_the_actual_preflight_frame_buffer_after_portal_suspension() {
+    // Arrange
+    use crate::pgwire::connection::result_frames::{
+        frame_allocation_count, observe_frame_allocations,
+    };
+    let limits = CassieRuntimeLimits::default();
+    let producer = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let result = result(&producer);
+    let (mut state, portal) = state(&limits);
+    let mut writer = tokio::io::sink();
+    let _observation = observe_frame_allocations();
+
+    // Act
+    let (first, resumed) = runtime().block_on(async {
+        suspend(&mut writer, &mut state, &portal, result).await;
+        let first = frame_allocation_count();
+        let (portal, suspended) = take_portal_execution(&mut state, "retained").expect("resume");
+        write_suspended_result(
+            &mut writer,
+            SuspendedPortalWriteRequest {
+                state: &mut state,
+                portal_name: "retained",
+                portal: &portal,
+                suspended: suspended.expect("retained owner"),
+                max_rows: 1,
+                result_cap: 100,
+            },
+        )
+        .await
+        .expect("second page");
+        (first, frame_allocation_count())
+    });
+
+    // Assert
+    assert!(first > 0, "preflight owns actual frame backing");
+    assert_eq!(
+        resumed, first,
+        "resume reuses the retained backing allocation"
+    );
+}
+
+#[test]
+fn should_resume_with_retained_encoding_scratch_when_a_competing_owner_fills_the_budget() {
+    // Arrange
+    let limits = CassieRuntimeLimits::default();
+    let producer = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let result = result(&producer);
+    let (mut state, portal) = state(&limits);
+    let mut writer = tokio::io::sink();
+    runtime().block_on(suspend(&mut writer, &mut state, &portal, result));
+    let competing_bytes = limits.query_memory_budget_bytes
+        - state.portal_memory_controls.current_query_memory_bytes();
+    let competing = state
+        .portal_memory_controls
+        .reserve_query_memory(competing_bytes)
+        .expect("competing owner occupies exactly the remaining budget");
+
+    // Act
+    let (portal, suspended) = take_portal_execution(&mut state, "retained").expect("resume");
+    let resumed = runtime().block_on(write_suspended_result(
+        &mut writer,
+        SuspendedPortalWriteRequest {
+            state: &mut state,
+            portal_name: "retained",
+            portal: &portal,
+            suspended: suspended.expect("retained owner"),
+            max_rows: 1,
+            result_cap: 100,
+        },
+    ));
+    drop(state.remove_portal("retained"));
+    let after_portal = state.portal_memory_controls.current_query_memory_bytes();
+    drop(competing);
+
+    // Assert
+    assert!(
+        resumed.is_ok(),
+        "a preflighted resume needs no new encoding admission: {resumed:?}"
+    );
+    assert_eq!(
+        after_portal, competing_bytes,
+        "only the competing owner remains"
+    );
+    assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
+    assert_eq!(producer.current_query_memory_bytes(), 0);
+}

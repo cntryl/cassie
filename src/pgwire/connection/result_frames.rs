@@ -156,7 +156,44 @@ fn frame_buffer(capacity: usize) -> Result<Vec<u8>, CassieError> {
             "allocator exceeded admitted pgwire frame capacity".to_owned(),
         ));
     }
+    #[cfg(test)]
+    FRAME_ALLOCATIONS.with(|count| {
+        if let Some(previous) = count.get() {
+            count.set(Some(previous + 1));
+        }
+    });
     Ok(bytes)
+}
+
+#[cfg(test)]
+thread_local! {
+    static FRAME_ALLOCATIONS: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) struct FrameAllocationObservation;
+
+#[cfg(test)]
+impl Drop for FrameAllocationObservation {
+    fn drop(&mut self) {
+        FRAME_ALLOCATIONS.with(|count| count.set(None));
+    }
+}
+
+#[cfg(test)]
+pub(super) fn observe_frame_allocations() -> FrameAllocationObservation {
+    FRAME_ALLOCATIONS.with(|count| {
+        assert!(
+            count.replace(Some(0)).is_none(),
+            "frame observations cannot nest"
+        );
+    });
+    FrameAllocationObservation
+}
+
+#[cfg(test)]
+pub(super) fn frame_allocation_count() -> usize {
+    FRAME_ALLOCATIONS.with(|count| count.get().expect("active frame allocation observer"))
 }
 
 fn scratch_bytes(

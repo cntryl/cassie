@@ -27,11 +27,7 @@ pub(super) async fn handle_parse(
         query,
         parameter_type_oids,
     } = request;
-    if let Err(error) = cassie.check_storage_recovery_required() {
-        if crate::sql::parser::parse_terminal_transaction_control(&query).is_none() {
-            return Err(ExtendedQueryError::cassie(&error));
-        }
-    }
+    admit_recovery_parse(&cassie, &query)?;
     validate_prepared_name(state, session, &name)?;
     let empty_query = super::super::simple_query::split_simple_query(&query)
         .is_ok_and(|statements| statements.is_empty());
@@ -122,6 +118,15 @@ pub(super) async fn handle_parse(
     .await?;
 
     let _ = write_parse_complete(write_half).await;
+    Ok(())
+}
+
+fn admit_recovery_parse(cassie: &Cassie, query: &str) -> Result<(), ExtendedQueryError> {
+    if let Err(error) = cassie.check_storage_recovery_required() {
+        if crate::sql::parser::parse_terminal_transaction_control(query).is_none() {
+            return Err(ExtendedQueryError::cassie(&error));
+        }
+    }
     Ok(())
 }
 

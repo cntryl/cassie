@@ -1,7 +1,10 @@
 //! The per-statement temporal view of a session: zone, styles and clocks.
 use std::sync::Arc;
 
-use super::CassieSession;
+use super::{CassieError, CassieSession, SessionTransactionStatus};
+
+#[cfg(test)]
+mod tests;
 use crate::types::extended::temporal::session::{
     current_timestamp, parse_datestyle, DateOrder, DateOutput, IntervalStyle, TemporalSession,
 };
@@ -11,28 +14,34 @@ impl CassieSession {
     /// Builds the temporal session a statement starting now evaluates under.
     /// `now()` is fixed for an explicit transaction; otherwise it is the
     /// statement start.
-    fn temporal_session_and_origin(&self) -> (TemporalSession, bool) {
+    fn temporal_session_and_origin(&self) -> Result<(TemporalSession, bool), CassieError> {
         let statement_start = current_timestamp();
-        let transaction_start = if self.is_transaction_active() {
-            let generation = self.transaction_generation();
+        #[cfg(test)]
+        tests::before_clock_owner();
+        let transaction_start = self.with_owned_temporal_transaction(|status, generation| {
+            if status != SessionTransactionStatus::InTransaction {
+                // Idle (including an exact own-retirement receipt) never reads
+                // or writes the shared active-transaction clock.
+                return Ok(statement_start);
+            }
             let mut clock = self.transaction_clock.lock();
-            match *clock {
+            #[cfg(test)]
+            tests::observe_clock_publication(self);
+            Ok(match *clock {
                 Some((started, at)) if started == generation => at,
                 _ => {
                     *clock = Some((generation, statement_start));
                     statement_start
                 }
-            }
-        } else {
-            statement_start
-        };
+            })
+        })?;
         let setting = |name: &str| self.setting(name).unwrap_or_default();
         let (zone, is_posix) =
             setting_zone_with_origin(&setting("timezone")).unwrap_or_else(|| (Zone::utc(), false));
         let (date_output, date_order) =
             parse_datestyle(&setting("datestyle"), (DateOutput::Iso, DateOrder::Mdy))
                 .unwrap_or((DateOutput::Iso, DateOrder::Mdy));
-        (
+        Ok((
             TemporalSession {
                 zone,
                 date_output,
@@ -44,16 +53,17 @@ impl CassieSession {
                 statement_start,
             },
             is_posix,
-        )
+        ))
     }
 
     /// Installs this session's temporal view into a statement's controls.
     pub(crate) fn install_temporal_session(
         &self,
         controls: &crate::runtime::QueryExecutionControls,
-    ) {
-        let (session, is_posix) = self.temporal_session_and_origin();
+    ) -> Result<(), CassieError> {
+        let (session, is_posix) = self.temporal_session_and_origin()?;
         controls.install_temporal_session(Arc::new(session), is_posix);
+        Ok(())
     }
 }
 

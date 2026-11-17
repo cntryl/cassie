@@ -160,6 +160,17 @@ impl CassieSession {
         })
     }
 
+    /// Clock callers receive only a guarded status/generation view. An owned
+    /// retired root may build Idle statement time, but never publish a clock.
+    pub(super) fn with_owned_temporal_transaction<T>(
+        &self,
+        operation: impl FnOnce(SessionTransactionStatus, u64) -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        self.with_owned_shared_transaction_inner(true, |transaction| {
+            operation(transaction.status, transaction.generation)
+        })
+    }
+
     pub(super) fn with_owned_setting_transaction<T>(
         &self,
         operation: impl FnOnce(&mut super::SessionTransactionState) -> Result<T, CassieError>,

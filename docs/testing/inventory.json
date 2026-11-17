@@ -70311,7 +70311,7 @@
       "name": "should_preserve_local_cte_shadows_while_cascading_external_cte_body_dependencies",
       "current_file": "tests/graph_table/view_dependencies.rs",
       "line": 381,
-      "end_line": 442,
+      "end_line": 434,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -335762,8 +335762,8 @@
       "current_file": "tests/graph_table/view_dependencies.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 442,
-      "sha256": "fffb019a7803764f48206cac962f1afae2cddfe4ed734f6fb92813c7ca651eb2",
+      "lines": 434,
+      "sha256": "93c1609e71e40f42905a45373d06bb4aeb284b5a9edf046b14b9fe3c70136a40",
       "test_declarations": 10,
       "registered_suites": [
         "graph_table"

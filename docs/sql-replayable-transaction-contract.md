@@ -74,7 +74,16 @@ its existing policy and explicit durability barrier.
 Postcommit maintenance may still
 perform synchronous work before acknowledgement.
 
-## Admission design to prove
+## Superseded admission design and its proof obligations
+
+The drain/permit design in this section and its candidate client behavior below
+are historical design evidence. The later selected implementation seals COMMIT
+without waiting, as recorded in [Transaction authority within Midge as
+published](transaction-authority-midge-contract.md#3-commit-seals-it-does-not-drain-1279-100).
+The implementation status below describes the current behavior. The old
+drain-specific cancellation and lease requirements do not describe that
+implementation; owner-safe errors, staged publication, policy selection and
+recovery fencing still require independent evidence.
 
 A generation-bound transaction owner must be shared by the original session and
 all detached statement forks. It carries the declaration, sticky first-effect

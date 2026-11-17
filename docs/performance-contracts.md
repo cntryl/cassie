@@ -250,6 +250,8 @@ indexes consulted are the ones every indexed SQL query already trusts.
   scan on an ordinary non-partial, non-expression scalar index of the edge table whose
   leading columns are the endpoint columns (source columns for outgoing, destination
   columns for incoming, both for undirected), followed by point reads of the named rows.
+  Any trailing index columns must be provably `NOT NULL`, because scalar indexes omit
+  rows with NULL suffix components. Otherwise that mapping uses the exact fallback.
   Every candidate row is re-checked against the exact key comparison before use.
 - **Start vertices.** When the start vertex pattern (an anchored end pattern, which would
   need a backward search, is not implemented) has an inline predicate that is exactly a conjunction of `key_column = constant or

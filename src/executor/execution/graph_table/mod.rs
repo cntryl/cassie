@@ -89,6 +89,16 @@ pub(super) fn execute(
         rows
     };
     env.controls.check_interruption()?;
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record(
+        "before_graph_output_metadata",
+        output.bytes(),
+    );
+    #[cfg(test)]
+    crate::executor::execution::graph_memory_test_observer::record(
+        "copy_graph_output_metadata",
+        output.bytes(),
+    );
     let types = Arc::new(binding.output.clone());
     let lease = Arc::new(output);
     let rows = rows

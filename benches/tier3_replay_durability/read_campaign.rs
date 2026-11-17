@@ -155,7 +155,7 @@ fn execute_read(
     let row_count = result.as_ref().ok().map(|result| result.rows().len());
     let elapsed_ns = start.elapsed().as_nanos();
     let after = cassie.metrics();
-    let checked = (|| {
+    let checked: Result<serde_json::Value> = (|| {
         let result = result
             .as_ref()
             .map_err(|error| format!("SQLSTATE {}: {error}", error.sql_state()))?;

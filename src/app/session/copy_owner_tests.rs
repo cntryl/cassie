@@ -28,7 +28,7 @@ fn stage_storage_only(cassie: &Cassie, session: &CassieSession) {
             session
                 .current_database()
                 .unwrap_or(&cassie.default_database),
-            session.transaction_storage_overlay(),
+            session.transaction_storage_overlay().unwrap(),
             true,
         )
         .expect("DDL storage scope");
@@ -127,7 +127,7 @@ fn should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence() {
             session
                 .current_database()
                 .unwrap_or(&cassie.default_database),
-            fork.session().transaction_storage_overlay(),
+            fork.session().transaction_storage_overlay().unwrap(),
             false,
         )
         .expect("fork storage scope");
@@ -149,7 +149,7 @@ fn should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence() {
             session
                 .current_database()
                 .unwrap_or(&cassie.default_database),
-            session.transaction_storage_overlay(),
+            session.transaction_storage_overlay().unwrap(),
             false,
         )
         .expect("parent storage scope");
@@ -271,7 +271,7 @@ fn should_not_pair_old_copy_snapshot_with_recreated_physical_target() {
         .expect("begin");
     let controls = controls();
     let before = {
-        let overlay = session.transaction_storage_overlay();
+        let overlay = session.transaction_storage_overlay().unwrap();
         let overlay = overlay.lock();
         cassie
             .midge
@@ -340,7 +340,7 @@ fn should_keep_a_recreated_copy_target_identity_in_the_staged_storage_overlay() 
             .execute_sql(&session, sql, vec![])
             .expect("replace target");
     }
-    let overlay = session.transaction_storage_overlay();
+    let overlay = session.transaction_storage_overlay().unwrap();
     let descriptor = {
         let _scope = cassie
             .midge
@@ -365,7 +365,7 @@ fn should_keep_a_recreated_copy_target_identity_in_the_staged_storage_overlay() 
     assert_eq!(descriptor.fields.len(), 1);
     assert_eq!(descriptor.fields[0].name, "payload");
     assert_eq!(physical_id, Some(descriptor.relation_id));
-    let (commit_gates, _) = cassie.transaction_commit_write_gates(&session);
+    let (commit_gates, _) = cassie.transaction_commit_write_gates(&session).unwrap();
     assert!(
         commit_gates.contains(&target),
         "pure DDL retains its target gate"
@@ -773,7 +773,7 @@ fn should_preserve_copy_owner_when_savepoint_pruning_is_canceled() {
             .midge
             .enter_transactional_ddl_scope(
                 &cassie.default_database,
-                session.transaction_storage_overlay(),
+                session.transaction_storage_overlay().unwrap(),
                 true,
             )
             .expect("private sequence scope");

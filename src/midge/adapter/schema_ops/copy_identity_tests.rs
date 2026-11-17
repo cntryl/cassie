@@ -121,7 +121,7 @@ fn should_reclaim_only_retired_rows_after_a_recreated_target_commits() {
     // Act
     fixture.replace();
     {
-        let overlay = fixture.session.transaction_storage_overlay();
+        let overlay = fixture.session.transaction_storage_overlay().unwrap();
         let _scope = fixture
             .cassie
             .midge

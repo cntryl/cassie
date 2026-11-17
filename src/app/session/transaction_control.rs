@@ -98,6 +98,7 @@ impl CassieSession {
             ));
         }
         let mut transaction = self.transaction.lock();
+        self.ensure_begin_operation_current_locked(&transaction, authority)?;
         // Snapshot under the transaction mutex. Retirement restores session
         // state under the same mutex, so a new transaction never captures the
         // previous transaction's `SET LOCAL` values.
@@ -168,6 +169,7 @@ impl CassieSession {
 
     pub(crate) fn set_transaction_isolation(&self, value: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status == SessionTransactionStatus::Idle || transaction.implicit {
             // The bounded #819 profile keeps this a deterministic 0A000 rejection;
             // PostgreSQL's 25P01 warning-and-no-op form is not selected.
@@ -232,6 +234,9 @@ impl CassieSession {
 
     pub(crate) fn mark_transaction_query(&self) {
         let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
         if transaction.status == SessionTransactionStatus::InTransaction {
             transaction.has_query = true;
         }
@@ -297,6 +302,7 @@ impl CassieSession {
     pub(super) fn set_transaction_read_only(&self, value: &str) -> Result<String, CassieError> {
         let read_only = crate::app::session_settings::parse_bool(value)?;
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if !read_only
             && transaction.modes.read_only == Some(true)
             && (transaction.has_query
@@ -376,6 +382,7 @@ impl CassieSession {
         &self,
         mut transaction: parking_lot::MutexGuard<'_, super::SessionTransactionState>,
     ) {
+        self.note_owned_retirement_locked(&transaction);
         let unique_owner_id = transaction.unique_owner_id;
         transaction.status = SessionTransactionStatus::Idle;
         transaction.implicit = false;
@@ -467,6 +474,7 @@ impl CassieSession {
             return self.set_projection_write_mode(Some(value));
         }
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Ok(());
         }
@@ -474,7 +482,8 @@ impl CassieSession {
         if !transaction.local_settings.contains(&name) {
             transaction.local_settings.push(name.clone());
         }
-        drop(transaction);
+        #[cfg(test)]
+        self.observe_local_setting_write_for_test();
         self.settings.lock().set(&name, value).map(|_| ())
     }
 
@@ -509,6 +518,7 @@ impl CassieSession {
             // admitted commit, so this rollback must not end it underneath.
             return;
         }
+        self.note_owned_retirement_locked(&transaction);
         let unique_owner_id = transaction.unique_owner_id;
         let session_state = transaction.session_state.take();
         transaction.status = SessionTransactionStatus::Idle;

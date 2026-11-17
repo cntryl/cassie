@@ -16,6 +16,7 @@ impl CassieSession {
 
     pub(crate) fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         match transaction.status {
             SessionTransactionStatus::InTransaction => {}
             SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
@@ -91,6 +92,7 @@ impl CassieSession {
         after_prune: impl FnOnce(),
     ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_given_operation_current_locked(&transaction, authority)?;
         if !matches!(
             transaction.status,
             SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed
@@ -175,28 +177,32 @@ impl CassieSession {
         *transaction.storage_overlay.lock() = storage_overlay;
         transaction.savepoints.truncate(index + 1);
         transaction.status = SessionTransactionStatus::InTransaction;
-        drop(transaction);
         self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
             let restored = waits.restore_owner_keys(unique_owner_id, &unique_keys);
-            #[cfg(test)]
-            if let Err(error) = &restored {
+            if let Err(error) = restored {
+                drop(transaction);
+                #[cfg(test)]
                 authority_test_hooks::after_restore_error(
                     self,
                     unique_owner_id,
                     restored_epoch,
-                    error,
+                    &error,
                 );
+                return Err(error);
             }
-            restored?;
         }
         self.restore_session_state(session_state);
         self.rollback_session_objects_to(object_mark);
+        #[cfg(test)]
+        self.observe_savepoint_cleanup_for_test();
+        drop(transaction);
         Ok(())
     }
 
     pub(crate) fn release_savepoint(&self, name: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         match transaction.status {
             SessionTransactionStatus::InTransaction => {}
             SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),

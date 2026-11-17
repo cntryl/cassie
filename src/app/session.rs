@@ -409,6 +409,20 @@ impl CassieSession {
     }
 
     pub fn set_search_path(&self, path: Vec<String>) {
+        let _ = self.set_search_path_for_operation(path);
+    }
+
+    pub(crate) fn set_search_path_for_operation(
+        &self,
+        path: Vec<String>,
+    ) -> Result<(), CassieError> {
+        let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        self.set_search_path_locked(path);
+        Ok(())
+    }
+
+    fn set_search_path_locked(&self, path: Vec<String>) {
         let normalized = if path.is_empty() {
             vec![DEFAULT_SCHEMA.to_string()]
         } else {
@@ -460,6 +474,8 @@ impl CassieSession {
             return self.set_transaction_read_only(value);
         }
         Self::reject_projection_write_mode_change(name)?;
+        let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         self.settings.lock().set(name, value)
     }
 
@@ -481,6 +497,7 @@ impl CassieSession {
         renames: &[(String, String)],
     ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Ok(());
         }
@@ -510,6 +527,9 @@ impl CassieSession {
 
     pub(crate) fn rename_transaction_column(&self, collection: &str, current: &str, next: &str) {
         let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
         if transaction.status != SessionTransactionStatus::InTransaction {
             return;
         }
@@ -624,6 +644,7 @@ impl CassieSession {
         self.ensure_transaction_writable()?;
         self.preflight_transaction_collections(&[collection.to_string()])?;
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let writes = Arc::make_mut(&mut transaction.writes);
         Arc::make_mut(writes.entry(collection.to_string()).or_default())
             .insert(id, TransactionRowChange::Upsert(payload));
@@ -638,6 +659,7 @@ impl CassieSession {
         self.ensure_transaction_writable()?;
         self.preflight_transaction_collections(&[collection.to_string()])?;
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let writes = Arc::make_mut(&mut transaction.writes);
         Arc::make_mut(writes.entry(collection.to_string()).or_default())
             .insert(id, TransactionRowChange::Delete);
@@ -747,7 +769,10 @@ impl CassieSession {
     }
 
     pub(crate) fn stage_conflict_intent(&self, intent: TransactionConflictIntent) {
-        self.transaction.lock().conflict_intents.push(intent);
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_ok() {
+            transaction.conflict_intents.push(intent);
+        }
     }
 
     pub(crate) fn transaction_conflict_intents(&self) -> Vec<TransactionConflictIntent> {
@@ -755,11 +780,17 @@ impl CassieSession {
     }
 
     pub(crate) fn clear_conflict_intents(&self) {
-        self.transaction.lock().conflict_intents.clear();
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_ok() {
+            transaction.conflict_intents.clear();
+        }
     }
 
     pub(crate) fn remove_document_change(&self, collection: &str, id: &str) {
         let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
         let transaction_writes = Arc::make_mut(&mut transaction.writes);
         let Some(writes) = transaction_writes.get_mut(collection) else {
             return;

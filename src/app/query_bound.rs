@@ -62,6 +62,8 @@ impl Cassie {
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         let (controls, authority) = scope;
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {
@@ -110,6 +112,8 @@ impl Cassie {
         scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
     ) -> Result<QueryResult, CassieError> {
         let (controls, authority) = scope;
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
         if let Some(result) =
             self.quarantined_statement_result(session, &parsed.statement, controls)
         {
@@ -275,7 +279,7 @@ impl Cassie {
         let _storage_scope = if transaction_active {
             Some(self.midge.enter_transactional_ddl_scope(
                 session.current_database().unwrap_or(&self.default_database),
-                session.transaction_storage_overlay(),
+                session.transaction_storage_overlay()?,
                 catalog_statement,
             )?)
         } else {

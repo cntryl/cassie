@@ -68,7 +68,7 @@ impl Cassie {
                 authority,
             )?;
             #[cfg(test)]
-            session.observe_owned_transaction_start_for_test();
+            CassieSession::observe_owned_transaction_start_for_test();
         } else if savepoint {
             session.create_savepoint(CTAS_SAVEPOINT_NAME)?;
         }

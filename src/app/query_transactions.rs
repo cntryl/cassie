@@ -285,7 +285,7 @@ impl Cassie {
         let index_guard =
             crate::midge::adapter::IndexCleanupCommitGuard::capture(&storage_overlay, controls)
                 .inspect_err(|_| session.mark_transaction_failed())?;
-        let (row_collections, referential) = self.transaction_commit_write_gates(session);
+        let (row_collections, referential) = self.transaction_commit_write_gates(session)?;
         let gate_names = if index_guard.is_empty() {
             None
         } else {

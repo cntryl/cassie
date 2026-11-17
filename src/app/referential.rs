@@ -72,11 +72,11 @@ impl Cassie {
     pub(crate) fn transaction_commit_write_gates(
         &self,
         session: &CassieSession,
-    ) -> (Vec<String>, bool) {
+    ) -> Result<(Vec<String>, bool), CassieError> {
         let mut collections = Vec::new();
         let mut referential = false;
         let schema_collections = session
-            .transaction_storage_overlay()
+            .transaction_storage_overlay()?
             .lock()
             .schema_write_collections();
         for collection in session
@@ -88,7 +88,7 @@ impl Cassie {
             referential |= linked.len() > 1;
             collections.extend(linked);
         }
-        (collections, referential)
+        Ok((collections, referential))
     }
 
     /// Re-checks FOREIGN KEY references for staged upserts at commit time.

@@ -306,7 +306,7 @@ impl Cassie {
         let _storage_scope = if transactional {
             Some(self.midge.enter_transactional_ddl_scope(
                 session.current_database().unwrap_or(&self.default_database),
-                staging.transaction_storage_overlay(),
+                staging.transaction_storage_overlay()?,
                 false,
             )?)
         } else {

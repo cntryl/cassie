@@ -26,6 +26,8 @@ impl Cassie {
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
         self.execute_pgwire_query(session, cancellation, |controls, authority| {
+            let operation_session = session.with_operation_failure_authority(authority);
+            let session = &operation_session;
             let (parsed, sql) = statement;
             if let Some(result) =
                 self.quarantined_statement_result(session, &parsed.statement, controls)
@@ -51,6 +53,8 @@ impl Cassie {
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
         self.execute_pgwire_query(session, cancellation, |controls, authority| {
+            let operation_session = session.with_operation_failure_authority(authority);
+            let session = &operation_session;
             let (sql, frontend_sql) = query;
             if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
                 return result;
@@ -138,6 +142,12 @@ impl Cassie {
         });
         #[cfg(not(test))]
         let authority = Some(super::FailureAuthority::capture_for_operation(session));
+        #[cfg(test)]
+        if let Some(authority) = authority.as_ref() {
+            super::query_lifecycle::authority_test_hooks::after_root_capture(
+                self, session, authority,
+            );
+        }
         self.runtime.record_query_memory(&controls);
         let result = execute(&controls, authority.as_ref());
         #[cfg(test)]

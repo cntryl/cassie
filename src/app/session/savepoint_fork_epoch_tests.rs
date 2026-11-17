@@ -137,7 +137,11 @@ fn transaction_with_private_sequence() -> (
     );
     let control_scope = crate::midge::adapter::PublicationControlScope::enter(Some(&controls));
     let ddl_scope = midge
-        .enter_transactional_ddl_scope("postgres", session.transaction_storage_overlay(), true)
+        .enter_transactional_ddl_scope(
+            "postgres",
+            session.transaction_storage_overlay().unwrap(),
+            true,
+        )
         .expect("private sequence scope");
     let mut sequence =
         crate::catalog::SequenceMeta::new("epoch_private_seq", crate::types::DataType::BigInt);

@@ -303,14 +303,12 @@ fn should_preserve_independent_implicit_owner_after_worker_promotion() {
         let explicit = !session.is_implicit_transaction();
         session.rollback_transaction();
 
-        // Assert: promotion itself remains existing behavior; only completion is scoped.
+        // Assert: stale promotion is rejected before B's origin changes.
         assert_eq!(captured, None);
-        assert!(
-            matches!(result, Err(CassieError::Execution(ref message)) if message == "after promotion")
-        );
+        assert_eq!(result.as_ref().unwrap_err().sql_state(), "25000");
         assert_eq!(current, owner);
         assert!(healthy);
-        assert!(explicit);
+        assert!(!explicit);
     }
     crate::app::query_failure_watchdog::complete_child(CASE);
 }

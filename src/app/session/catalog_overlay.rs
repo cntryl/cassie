@@ -29,6 +29,9 @@ impl CassieSession {
     /// the advanced cursor in place.
     pub(crate) fn mirror_published_sequence_cursor(&self, metadata: &crate::catalog::SequenceMeta) {
         let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
         transaction.catalog_views.descriptors = None;
         if transaction.catalog_views.base.is_none() {
             if let Some(overlay) = transaction.catalog_overlay.as_ref() {
@@ -65,6 +68,7 @@ impl CassieSession {
         controls: &QueryExecutionControls,
     ) -> Result<Catalog, CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.catalog_overlay.is_none() {
             // Preserve an immutable admitted base for the semantic own delta;
             // the existing mutable DDL overlay must never mutate this owner.
@@ -90,6 +94,7 @@ impl CassieSession {
         controls: &QueryExecutionControls,
     ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         let Some(initial) = transaction
             .repeatable_read
             .as_ref()
@@ -140,6 +145,7 @@ impl CassieSession {
         controls: &QueryExecutionControls,
     ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         Self::command_descriptor_snapshot_locked(&mut transaction, current, controls)
     }
 
@@ -184,8 +190,12 @@ impl CassieSession {
         )
     }
 
-    pub(crate) fn transaction_storage_overlay(&self) -> Arc<Mutex<StorageOverlay>> {
-        Arc::clone(&self.transaction.lock().storage_overlay)
+    pub(crate) fn transaction_storage_overlay(
+        &self,
+    ) -> Result<Arc<Mutex<StorageOverlay>>, CassieError> {
+        let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        Ok(Arc::clone(&transaction.storage_overlay))
     }
 
     pub(crate) fn transaction_storage_overlay_snapshot(&self) -> StorageOverlay {

@@ -223,7 +223,7 @@ pub(super) fn on_capture_contended(
     }
 }
 
-pub(super) fn after_root_capture(
+pub(crate) fn after_root_capture(
     cassie: &Cassie,
     session: &CassieSession,
     authority: &FailureAuthority,

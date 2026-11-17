@@ -487,3 +487,21 @@ CTEs use the same captured owner; a stale command cannot retire a newer block
 or report a successful rollback of that block. The sequence-admission checks
 also compare generation when the captured owner is idle, so an idle capture
 does not become valid again after an intervening transaction ends.
+
+The root mutation contract supersedes the earlier failure-only increments:
+captured UUID, rollback epoch and generation must match under the very mutex
+that mutates root state. A stale `ROLLBACK TO`, SAVEPOINT, RELEASE or BEGIN is
+`25000` before it changes the newer block; the old tests retain their schedules
+and now require no stale mutation. A current failed block can still recover
+through its own `ROLLBACK TO`. An uncaptured wire context may adopt only the
+implicit stage it actually creates under that mutex. A terminal operation's
+recorded own retirement permits its `AND CHAIN` start; an unrelated retirement
+does not grant that permission. Jev selected this stronger contract at 1.0.
+
+SQL session-setting leaves follow the same captured-owner rule: ordinary SET,
+search_path SET/RESET, RESET ALL and transaction-local restoration bookkeeping
+validate immediately under the root-to-settings/search_path lock order before
+their actual in-memory write. The dispatcher is not locked across calls to
+other transaction helpers. Existing direct public setters on an unscoped
+session retain their current-session behavior. Existing SET LOCAL search_path
+behavior is preserved; this ownership repair adds no PostgreSQL parity claim.

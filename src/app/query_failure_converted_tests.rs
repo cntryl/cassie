@@ -137,15 +137,12 @@ fn should_preserve_independent_implicit_owner_after_old_begin_promotes() {
     let usable = cassie.execute_sql(&session, "SELECT 1", vec![]);
     session.rollback_transaction();
 
-    // Assert: existing BEGIN promotion changes B's origin; this probes only
-    // whether old A's conversion error is allowed to mark B failed.
-    assert!(
-        matches!(result, Err(CassieError::Execution(ref message)) if message == "old begin conversion")
-    );
+    // Assert: stale BEGIN cannot promote B or acquire its failure authority.
+    assert_eq!(result.as_ref().unwrap_err().sql_state(), "25000");
     assert_eq!(current_owner, owner_b);
     assert!(active);
     assert!(!failed);
-    assert!(!implicit);
+    assert!(implicit);
     assert!(usable.is_ok());
     drop(usable);
     drop(result);

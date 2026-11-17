@@ -71,6 +71,8 @@ impl Cassie {
         controls: &QueryExecutionControls,
         authority: Option<&super::FailureAuthority>,
     ) -> Result<QueryResult, CassieError> {
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
         let started = Instant::now();
         session.note_operation_worker_started();
         let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(controls));

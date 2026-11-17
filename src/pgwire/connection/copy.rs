@@ -88,9 +88,9 @@ pub(super) async fn handle_simple_copy_candidate(
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
-    let operation_session = session.with_new_wire_operation();
-    let session = &operation_session;
     let streaming = super::simple_query::is_streaming_copy(sql);
+    let operation_session = streaming.then(|| session.with_new_wire_operation());
+    let session = operation_session.as_ref().unwrap_or(session);
     if streaming {
         super::transactions::capture_protocol_owner(session).await;
     }
@@ -123,7 +123,7 @@ pub(super) async fn handle_simple_copy_candidate(
     .await;
     drop(cancellation);
     if matches!(outcome, SimpleCopyOutcome::Handled) {
-        super::transactions::clear_idle_portals(runtime, state, session);
+        super::transactions::clear_owned_idle_portals(runtime, state, session);
     }
     outcome
 }

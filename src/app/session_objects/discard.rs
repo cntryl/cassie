@@ -35,7 +35,7 @@ impl Cassie {
                     objects.clear_cursors();
                     objects.clear_prepared();
                 });
-                session.reset_all_settings();
+                session.reset_all_settings()?;
                 session.discard_sequence_values();
             }
             DiscardTarget::Sequences => session.discard_sequence_values(),

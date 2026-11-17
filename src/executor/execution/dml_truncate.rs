@@ -220,7 +220,7 @@ fn restart_owned_sequences(
                         working
                             .current_database()
                             .unwrap_or(&cassie.default_database),
-                        working.transaction_storage_overlay(),
+                        working.transaction_storage_overlay()?,
                         true,
                     )
                     .map_err(QueryError::from)?,
@@ -239,7 +239,7 @@ fn restart_owned_sequences(
             .map_err(QueryError::from)?;
         if transactional && !private {
             working
-                .transaction_storage_overlay()
+                .transaction_storage_overlay()?
                 .lock()
                 .mark_sequence_restarted(updated.object_id);
         }

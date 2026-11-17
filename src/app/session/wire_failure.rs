@@ -45,7 +45,7 @@ impl FailureAuthority {
             return false;
         }
         let transaction = session.transaction.lock();
-        let owner = self.owner.lock();
+        let mut owner = self.owner.lock();
         let expected = match transaction.status {
             SessionTransactionStatus::Idle => None,
             SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed => {
@@ -60,6 +60,7 @@ impl FailureAuthority {
         {
             return false;
         }
+        owner.retired_generation = Some(transaction.generation);
         drop(owner);
         session.rollback_transaction_locked(transaction);
         true
@@ -116,10 +117,18 @@ impl CassieSession {
         &self,
         transaction: &super::SessionTransactionState,
     ) -> Result<(), super::CassieError> {
+        self.ensure_given_operation_current_locked(transaction, None)
+    }
+
+    pub(super) fn ensure_given_operation_current_locked(
+        &self,
+        transaction: &super::SessionTransactionState,
+        authority: Option<&FailureAuthority>,
+    ) -> Result<(), super::CassieError> {
         if !self.owns_transaction_lifecycle {
             return Ok(());
         }
-        let Some(authority) = self.operation_failure_authority.as_ref() else {
+        let Some(authority) = authority.or(self.operation_failure_authority.as_ref()) else {
             return Ok(());
         };
         let owner = authority.owner.lock();
@@ -138,6 +147,48 @@ impl CassieSession {
             return Err(super::sequence_effect::changed());
         }
         Ok(())
+    }
+
+    pub(super) fn ensure_begin_operation_current_locked(
+        &self,
+        transaction: &super::SessionTransactionState,
+        authority: Option<&FailureAuthority>,
+    ) -> Result<(), super::CassieError> {
+        let Some(authority) = authority.or(self.operation_failure_authority.as_ref()) else {
+            return Ok(());
+        };
+        let owner = authority.owner.lock();
+        let may_start = authority.matches_root(self)
+            && !owner.admission_rejected
+            && transaction.status == SessionTransactionStatus::Idle
+            && (!owner.captured
+                || owner.retired_generation == Some(transaction.generation)
+                    && owner.generation == transaction.generation);
+        drop(owner);
+        if may_start {
+            Ok(())
+        } else {
+            self.ensure_given_operation_current_locked(transaction, Some(authority))
+        }
+    }
+
+    pub(super) fn note_owned_retirement_locked(
+        &self,
+        transaction: &super::SessionTransactionState,
+    ) {
+        if let Some(authority) = self
+            .operation_failure_authority
+            .as_ref()
+            .filter(|authority| authority.matches_root(self))
+        {
+            let mut owner = authority.owner.lock();
+            if owner.captured
+                && owner.identity == Some((transaction.unique_owner_id, transaction.rollback_epoch))
+                && owner.generation == transaction.generation
+            {
+                owner.retired_generation = Some(transaction.generation);
+            }
+        }
     }
 
     pub(crate) fn rollback_for_operation(

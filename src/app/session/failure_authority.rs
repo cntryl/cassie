@@ -41,6 +41,7 @@ pub(super) struct OperationOwner {
     pub(super) admission_rejected: bool,
     pub(super) worker_started: bool,
     portal_adoption: Option<(FailureAuthorityIdentity, FailureAuthorityIdentity)>,
+    pub(super) retired_generation: Option<u64>,
     shared_memory: Option<crate::runtime::QueryMemoryReservation>,
 }
 
@@ -140,6 +141,7 @@ impl FailureAuthority {
                 admission_rejected: false,
                 worker_started: false,
                 portal_adoption: None,
+                retired_generation: None,
                 shared_memory: None,
             })),
         }
@@ -166,6 +168,7 @@ impl FailureAuthority {
             owner.identity = Some((transaction.unique_owner_id, transaction.rollback_epoch));
             owner.generation = transaction.generation;
             owner.captured = true;
+            owner.retired_generation = None;
         }
     }
 

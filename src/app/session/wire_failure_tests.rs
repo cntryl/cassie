@@ -3,9 +3,177 @@
 use super::{CassieSession, FailureAuthority};
 use std::cell::RefCell;
 use std::sync::mpsc::{Receiver, SyncSender};
+type SessionObserver = Box<dyn FnOnce(&CassieSession)>;
+
+#[test]
+fn should_refuse_old_savepoint_commands_before_mutating_a_same_named_replacement() {
+    for sql in [
+        "SAVEPOINT s",
+        "ROLLBACK TO SAVEPOINT s",
+        "RELEASE SAVEPOINT s",
+        "BEGIN",
+    ] {
+        // Arrange
+        let cassie = crate::app::Cassie::new_in_memory_with_config(
+            crate::config::CassieRuntimeConfig::default(),
+        )
+        .unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("savepoint_owner", None);
+        session.begin_transaction(None).unwrap();
+        session.create_savepoint("s").unwrap();
+        let worker_cassie = cassie.clone();
+        let worker_session = session.clone();
+        let (captured_tx, captured_rx) = std::sync::mpsc::sync_channel(1);
+        let (resume_tx, resume_rx) = std::sync::mpsc::sync_channel(1);
+        let worker = std::thread::spawn(move || {
+            let _pause =
+                crate::app::query_lifecycle::authority_test_hooks::install_after_root_capture(
+                    &worker_cassie,
+                    &worker_session,
+                    captured_tx,
+                    resume_rx,
+                );
+            worker_cassie.execute_sql(&worker_session, sql, vec![])
+        });
+        captured_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        session.rollback_transaction();
+        if sql == "BEGIN" {
+            session.begin_implicit_transaction().unwrap();
+        } else {
+            session.begin_transaction(None).unwrap();
+            session.create_savepoint("s").unwrap();
+        }
+        let owner_b = session.transaction_unique_owner_id();
+        let epoch_b = session.rollback_epoch_for_test();
+        let marks_b = session.transaction.lock().savepoints.len();
+
+        // Act
+        resume_tx.send(()).unwrap();
+        let old = worker.join().unwrap();
+
+        // Assert
+        assert_eq!(old.unwrap_err().sql_state(), "25000", "stale command {sql}");
+        assert_eq!(session.transaction_unique_owner_id(), owner_b);
+        assert_eq!(session.rollback_epoch_for_test(), epoch_b);
+        assert_eq!(session.transaction.lock().savepoints.len(), marks_b);
+        assert!(session.is_transaction_active());
+        assert!(!session.is_transaction_failed());
+        if sql == "BEGIN" {
+            assert!(session.is_implicit_transaction());
+        }
+    }
+}
+
+#[test]
+fn should_refuse_old_sql_setting_leaves_without_changing_the_replacement() {
+    for sql in [
+        "SET application_name = 'old'",
+        "RESET application_name",
+        "RESET ALL",
+        "SET search_path TO old_schema",
+        "RESET search_path",
+    ] {
+        // Arrange
+        let cassie = crate::app::Cassie::new_in_memory_with_config(
+            crate::config::CassieRuntimeConfig::default(),
+        )
+        .unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("setting_owner", None);
+        session.begin_transaction(None).unwrap();
+        let worker_cassie = cassie.clone();
+        let worker_session = session.clone();
+        let (captured_tx, captured_rx) = std::sync::mpsc::sync_channel(1);
+        let (resume_tx, resume_rx) = std::sync::mpsc::sync_channel(1);
+        let worker = std::thread::spawn(move || {
+            let _pause =
+                crate::app::query_lifecycle::authority_test_hooks::install_after_root_capture(
+                    &worker_cassie,
+                    &worker_session,
+                    captured_tx,
+                    resume_rx,
+                );
+            worker_cassie.execute_sql(&worker_session, sql, vec![])
+        });
+        captured_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        session.rollback_transaction();
+        session.begin_transaction(None).unwrap();
+        session
+            .set_setting("application_name", "replacement")
+            .unwrap();
+        session.set_search_path(vec!["replacement_schema".into()]);
+
+        // Act
+        resume_tx.send(()).unwrap();
+        let result = worker.join().unwrap();
+
+        // Assert
+        assert_eq!(
+            result.unwrap_err().sql_state(),
+            "25000",
+            "old setting {sql}"
+        );
+        assert_eq!(session.setting("application_name").unwrap(), "replacement");
+        assert_eq!(session.search_path(), ["replacement_schema"]);
+        assert!(session.is_transaction_active());
+        assert!(!session.is_transaction_failed());
+    }
+}
+
+#[test]
+fn should_reject_late_root_bookkeeping_and_staging_without_changing_the_replacement() {
+    // Arrange
+    let cassie = crate::app::Cassie::new_in_memory_with_config(
+        crate::config::CassieRuntimeConfig::default(),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("root_bookkeeping", None);
+    session.begin_transaction(None).unwrap();
+    let authority = FailureAuthority::capture(&session);
+    let operation = session.with_operation_failure_authority(Some(&authority));
+    session.rollback_transaction();
+    session.begin_transaction(None).unwrap();
+    let controls = crate::runtime::QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+
+    // Act
+    operation.mark_transaction_query();
+    let write = operation.stage_document_write(
+        "postgres.public.guard_rows",
+        "old".into(),
+        serde_json::json!({"id": 7}),
+    );
+    let local = operation.set_local_setting("statement_timeout", "1");
+    let isolation = operation.set_transaction_isolation("repeatable read");
+    let catalog = operation.begin_transaction_catalog_overlay(&cassie.catalog, &controls);
+    let overlay = operation.transaction_storage_overlay();
+
+    // Assert
+    assert_eq!(write.unwrap_err().sql_state(), "25000");
+    assert_eq!(local.unwrap_err().sql_state(), "25000");
+    assert_eq!(isolation.unwrap_err().sql_state(), "25000");
+    assert_eq!(catalog.unwrap_err().sql_state(), "25000");
+    assert_eq!(overlay.unwrap_err().sql_state(), "25000");
+    let transaction = session.transaction.lock();
+    assert!(!transaction.has_query);
+    assert!(transaction.writes.is_empty());
+    assert!(transaction.local_settings.is_empty());
+    assert!(transaction.catalog_overlay.is_none());
+    assert_eq!(transaction.isolation, None);
+}
 
 thread_local! {
     static OWN_START: RefCell<Option<(SyncSender<()>, Receiver<()>)>> = const { RefCell::new(None) };
+    static SAVEPOINT_CLEANUP: RefCell<Option<SessionObserver>> = const { RefCell::new(None) };
+    static LOCAL_SETTING_WRITE: RefCell<Option<SessionObserver>> = const { RefCell::new(None) };
 }
 
 pub(crate) struct OwnedStartPause;
@@ -18,6 +186,16 @@ impl Drop for OwnedStartPause {
 }
 
 impl CassieSession {
+    pub(crate) fn observe_local_setting_write_for_test(&self) {
+        if let Some(observer) = LOCAL_SETTING_WRITE.with(|slot| slot.borrow_mut().take()) {
+            observer(self);
+        }
+    }
+    pub(crate) fn observe_savepoint_cleanup_for_test(&self) {
+        if let Some(observer) = SAVEPOINT_CLEANUP.with(|slot| slot.borrow_mut().take()) {
+            observer(self);
+        }
+    }
     pub(crate) fn pause_owned_transaction_start_for_test(
         entered: SyncSender<()>,
         resume: Receiver<()>,
@@ -26,7 +204,7 @@ impl CassieSession {
         OwnedStartPause
     }
 
-    pub(crate) fn observe_owned_transaction_start_for_test(&self) {
+    pub(crate) fn observe_owned_transaction_start_for_test() {
         if let Some((entered, resume)) = OWN_START.with(|slot| slot.borrow_mut().take()) {
             entered.send(()).unwrap();
             resume
@@ -34,6 +212,88 @@ impl CassieSession {
                 .unwrap();
         }
     }
+}
+
+#[test]
+fn should_keep_local_setting_history_and_the_actual_write_under_one_root_lock() {
+    // Arrange
+    let session = CassieSession::new("local_setting_owner".into(), None);
+    session.begin_transaction(None).unwrap();
+    let observed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let observer = std::sync::Arc::clone(&observed);
+    LOCAL_SETTING_WRITE.with(|slot| {
+        *slot.borrow_mut() = Some(Box::new(move |session| {
+            assert!(session.transaction.try_lock().is_none());
+            assert_eq!(
+                session
+                    .settings
+                    .lock()
+                    .get_ref("statement_timeout")
+                    .unwrap(),
+                "0"
+            );
+            observer.store(true, std::sync::atomic::Ordering::Release);
+        }))
+    });
+
+    // Act
+    session.set_local_setting("statement_timeout", "1").unwrap();
+    let changed = session
+        .settings
+        .lock()
+        .get_ref("statement_timeout")
+        .unwrap()
+        .to_owned();
+    session.rollback_transaction();
+
+    // Assert
+    assert!(observed.load(std::sync::atomic::Ordering::Acquire));
+    assert_eq!(changed, "1ms");
+    assert_eq!(
+        session
+            .settings
+            .lock()
+            .get_ref("statement_timeout")
+            .unwrap(),
+        "0"
+    );
+}
+
+#[test]
+fn should_restore_savepoint_settings_and_objects_before_releasing_the_root_mutex() {
+    // Arrange
+    let session = CassieSession::new("savepoint_cleanup".into(), None);
+    session.begin_transaction(None).unwrap();
+    session.create_savepoint("s").unwrap();
+    let before = session
+        .settings
+        .lock()
+        .get_ref("statement_timeout")
+        .unwrap()
+        .to_owned();
+    session.set_local_setting("statement_timeout", "1").unwrap();
+    let observed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let observer = std::sync::Arc::clone(&observed);
+    SAVEPOINT_CLEANUP.with(|slot| {
+        *slot.borrow_mut() = Some(Box::new(move |session| {
+            assert!(session.transaction.try_lock().is_none());
+            assert_eq!(
+                session
+                    .settings
+                    .lock()
+                    .get_ref("statement_timeout")
+                    .unwrap(),
+                before
+            );
+            observer.store(true, std::sync::atomic::Ordering::Release);
+        }))
+    });
+
+    // Act
+    session.rollback_to_savepoint("s").unwrap();
+
+    // Assert
+    assert!(observed.load(std::sync::atomic::Ordering::Acquire));
 }
 
 #[test]
@@ -215,6 +475,75 @@ fn should_fail_the_owned_block_after_a_quarantined_query_error() {
     // Assert
     assert_eq!(error.sql_state(), "58030");
     assert!(session.is_transaction_failed());
+}
+
+#[test]
+fn should_preserve_the_captured_owner_when_recovery_latches_after_admission() {
+    for route in [0, 1, 2] {
+        // Arrange
+        let cassie = crate::app::Cassie::new_in_memory_with_config(
+            crate::config::CassieRuntimeConfig::default(),
+        )
+        .unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("quarantine_route", None);
+        session.begin_transaction(None).unwrap();
+        let worker_cassie = cassie.clone();
+        let worker_session = session.clone();
+        let (captured_tx, captured_rx) = std::sync::mpsc::sync_channel(1);
+        let (resume_tx, resume_rx) = std::sync::mpsc::sync_channel(1);
+        let worker = std::thread::spawn(move || {
+            let _pause =
+                crate::app::query_lifecycle::authority_test_hooks::install_after_root_capture(
+                    &worker_cassie,
+                    &worker_session,
+                    captured_tx,
+                    resume_rx,
+                );
+            let cancellation = crate::runtime::QueryCancellationHandle::new();
+            match route {
+                0 => worker_cassie.execute_sql(&worker_session, "ROLLBACK", vec![]),
+                1 => worker_cassie.execute_pgwire_sql_with_cancellation(
+                    &worker_session,
+                    ("ROLLBACK", "ROLLBACK"),
+                    &cancellation,
+                ),
+                _ => {
+                    let parsed = crate::sql::parse_statement("ROLLBACK").unwrap();
+                    let fingerprint = crate::runtime::sql_fingerprint(&parsed);
+                    worker_cassie.execute_parsed_sql_with_cancellation(
+                        &worker_session,
+                        (parsed, "ROLLBACK"),
+                        fingerprint,
+                        (vec![], &[]),
+                        crate::runtime::ExecutionMode::ExtendedQuery,
+                        &cancellation,
+                    )
+                }
+            }
+        });
+        captured_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        session.rollback_transaction();
+        session.begin_transaction(None).unwrap();
+        let owner_b = session.transaction_unique_owner_id();
+        cassie.midge.latch_storage_recovery_required_for_test();
+
+        // Act
+        resume_tx.send(()).unwrap();
+        let result = worker.join().unwrap();
+
+        // Assert
+        assert_eq!(
+            result.unwrap_err().sql_state(),
+            "58030",
+            "quarantine route {route}"
+        );
+        assert!(session.is_transaction_active());
+        assert!(!session.is_transaction_failed());
+        assert_eq!(session.transaction_unique_owner_id(), owner_b);
+    }
 }
 
 #[test]

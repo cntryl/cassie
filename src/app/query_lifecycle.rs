@@ -74,9 +74,18 @@ impl Cassie {
         let started = Instant::now();
         session.note_operation_worker_started();
         let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(controls));
-        if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
+        if let Some((result, authority)) =
+            self.quarantined_sql_result_with_authority(session, sql, controls)
+        {
             let rows = result.as_ref().map_or(0, QueryResult::row_count);
-            self.finish_converted_query(session, started, controls, &result, rows, None);
+            self.finish_converted_query(
+                session,
+                started,
+                controls,
+                &result,
+                rows,
+                Some(&authority),
+            );
             return result;
         }
         let Some(running) = self.runtime.try_begin_running_query() else {
@@ -121,18 +130,25 @@ impl Cassie {
         let mut controls =
             QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, execution.1);
         session.apply_statement_timeout(&mut controls, started);
-        let quarantine = self.quarantined_sql_result(session, sql, &controls);
+        let quarantine = self.quarantined_sql_result_with_authority(session, sql, &controls);
         #[cfg(test)]
         if quarantine.is_none() {
             authority_test_hooks::after_healthy_recovery_check(self, session);
         }
-        if let Some(result) = quarantine {
+        if let Some((result, authority)) = quarantine {
             let mut rows = 0;
             let result = result.and_then(|result| {
                 rows = result.row_count();
                 convert(result, &controls)
             });
-            self.finish_converted_query(session, started, &controls, &result, rows, None);
+            self.finish_converted_query(
+                session,
+                started,
+                &controls,
+                &result,
+                rows,
+                Some(&authority),
+            );
             return result;
         }
         let Some(running) = self.runtime.try_begin_running_query() else {

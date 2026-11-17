@@ -17,7 +17,7 @@ mod sequence_effect_tests;
 mod wire_failure;
 #[cfg(test)]
 mod wire_failure_tests;
-pub(crate) use failure_authority::FailureAuthority;
+pub(crate) use failure_authority::{FailureAuthority, FailureAuthorityIdentity};
 mod savepoints;
 mod transaction_snapshot;
 use transaction_snapshot::TransactionReadSnapshot;
@@ -573,6 +573,10 @@ impl CassieSession {
     }
 
     pub(crate) fn mark_transaction_failed(&self) {
+        if let Some(authority) = self.operation_failure_authority.as_ref() {
+            authority.mark_failed_if_current(self);
+            return;
+        }
         let mut transaction = self.transaction.lock();
         transaction.fail_or_defer();
     }

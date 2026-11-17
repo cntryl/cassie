@@ -20,12 +20,13 @@ pub(super) async fn run_batch(
 ) -> Result<CassieSession, ()> {
     let (statements, frontend_sql) = query;
     let frontend_sql: Arc<str> = frontend_sql.into();
+    let mut operation = session.with_new_wire_operation();
     if statements.is_empty() {
+        transactions::capture_protocol_owner(&operation).await;
         write_empty_query_response(write_half)
             .await
             .map_err(|_| ())?;
     }
-    let mut operation = session.with_new_wire_operation();
     for (statement, parsed) in statements.into_iter().zip(parsed) {
         operation = session.with_new_wire_operation();
         let session = &operation;

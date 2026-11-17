@@ -73,6 +73,56 @@ fn should_retain_shared_copy_owner_memory_until_the_outer_operation_retires() {
 }
 
 #[test]
+fn should_retain_shared_copy_owner_memory_after_the_awaiting_task_is_aborted() {
+    // Arrange
+    let (cassie, session, request) = fixture(false);
+    let operation = session.with_new_wire_operation();
+    let BoundCopyRequest::From(_, _, binding) =
+        bind_copy_from_stdin(&cassie, &operation, request, None).unwrap()
+    else {
+        panic!("COPY FROM binding");
+    };
+    let controls = binding.controls.clone();
+    let worker_authority = binding.authority.clone();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (retired_tx, retired_rx) = tokio::sync::oneshot::channel();
+    let (resume_tx, resume_rx) = std::sync::mpsc::sync_channel(1);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    // Act
+    let (while_worker_lives, after_retirement) = runtime.block_on(async {
+        let awaiting = tokio::spawn(async move {
+            tokio::task::spawn_blocking(move || {
+                entered_tx.send(()).unwrap();
+                resume_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                drop(worker_authority);
+                retired_tx.send(()).unwrap();
+            })
+            .await
+            .unwrap();
+        });
+        entered_rx.await.unwrap();
+        awaiting.abort();
+        let _ = awaiting.await;
+        drop(binding);
+        drop(operation);
+        let retained = controls.current_query_memory_bytes();
+        resume_tx.send(()).unwrap();
+        retired_rx.await.unwrap();
+        (retained, controls.current_query_memory_bytes())
+    });
+
+    // Assert
+    assert_eq!(
+        while_worker_lives.checked_sub(after_retirement),
+        Some(crate::app::FailureAuthority::shared_owner_bytes())
+    );
+}
+
+#[test]
 fn should_reject_copy_binding_with_one_byte_less_than_authority_charge() {
     for active in [false, true] {
         // Arrange: the future seam observes the real charge after validation.

@@ -16,6 +16,7 @@ impl CassieSession {
         validate: impl FnOnce(&mut SessionTransactionState) -> Result<(), CassieError>,
     ) -> Result<StatementMutationBatch, CassieError> {
         let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
         if transaction.status == SessionTransactionStatus::Failed {
             return Err(CassieError::failed_transaction());
         }

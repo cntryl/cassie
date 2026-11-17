@@ -478,3 +478,12 @@ bounded portals for a later cleanup/connection close instead of blocking the
 reactor or clearing another generation's state. Quarantine terminal cleanup is
 also owner-checked; a later error converter with no authority performs no
 transaction mutation. No root-session mutable current-command slot is added.
+
+An operation refused because its captured transaction was replaced, restored
+to another savepoint epoch, or sealed by another owner returns `25000`
+(`InvalidState`), rather than an internal server error. A matching current
+failed block retains `25P02`. SQL ROLLBACK and cleanup through CTAS or modifying
+CTEs use the same captured owner; a stale command cannot retire a newer block
+or report a successful rollback of that block. The sequence-admission checks
+also compare generation when the captured owner is idle, so an idle capture
+does not become valid again after an intervening transaction ends.

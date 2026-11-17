@@ -4,6 +4,28 @@ use super::{Arc, CassieSession, Mutex, SessionTransactionState, SessionTransacti
 use std::sync::Weak;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FailureAuthorityIdentity {
+    pub(crate) transaction: Option<Uuid>,
+    pub(crate) generation: u64,
+    pub(crate) rollback_epoch: u64,
+}
+
+impl FailureAuthorityIdentity {
+    pub(super) fn from_transaction(transaction: &SessionTransactionState) -> Self {
+        Self {
+            transaction: (transaction.status != SessionTransactionStatus::Idle)
+                .then_some(transaction.unique_owner_id),
+            generation: transaction.generation,
+            rollback_epoch: if transaction.status == SessionTransactionStatus::Idle {
+                0
+            } else {
+                transaction.rollback_epoch
+            },
+        }
+    }
+}
+
 /// Owned by one operation and explicitly borrowed by its nested work.
 #[derive(Debug, Clone)]
 pub(crate) struct FailureAuthority {
@@ -18,10 +40,31 @@ pub(super) struct OperationOwner {
     pub(super) captured: bool,
     pub(super) admission_rejected: bool,
     pub(super) worker_started: bool,
+    portal_adoption: Option<(FailureAuthorityIdentity, FailureAuthorityIdentity)>,
     shared_memory: Option<crate::runtime::QueryMemoryReservation>,
 }
 
 impl FailureAuthority {
+    pub(crate) fn identity(&self) -> Option<FailureAuthorityIdentity> {
+        let owner = self.owner.lock();
+        (owner.captured && !owner.admission_rejected).then_some(FailureAuthorityIdentity {
+            transaction: owner.identity.map(|(identity, _)| identity),
+            generation: owner.generation,
+            rollback_epoch: owner.identity.map_or(0, |(_, epoch)| epoch),
+        })
+    }
+
+    pub(crate) fn portal_adoption(
+        &self,
+    ) -> Option<(FailureAuthorityIdentity, FailureAuthorityIdentity)> {
+        let owner = self.owner.lock();
+        if owner.captured && !owner.admission_rejected {
+            owner.portal_adoption
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn reserve_shared_owner(
         &self,
         controls: &crate::runtime::QueryExecutionControls,
@@ -96,6 +139,7 @@ impl FailureAuthority {
                 captured: true,
                 admission_rejected: false,
                 worker_started: false,
+                portal_adoption: None,
                 shared_memory: None,
             })),
         }
@@ -110,9 +154,15 @@ impl FailureAuthority {
         &self,
         session: &CassieSession,
         transaction: &SessionTransactionState,
+        before: FailureAuthorityIdentity,
     ) {
         if self.matches_root(session) {
             let mut owner = self.owner.lock();
+            owner.portal_adoption = (transaction.implicit && before.transaction.is_none())
+                .then_some((
+                    before,
+                    FailureAuthorityIdentity::from_transaction(transaction),
+                ));
             owner.identity = Some((transaction.unique_owner_id, transaction.rollback_epoch));
             owner.generation = transaction.generation;
             owner.captured = true;
@@ -178,10 +228,17 @@ impl FailureAuthority {
             }
         };
         let owner = self.owner.lock();
-        if !owner.captured || owner.admission_rejected || owner.identity != expected {
+        if !owner.captured
+            || owner.admission_rejected
+            || owner.identity != expected
+            || owner.generation != transaction.generation
+        {
             return Err(super::sequence_effect::changed());
         }
         drop(owner);
+        if transaction.status == SessionTransactionStatus::Failed {
+            return Err(super::CassieError::failed_transaction());
+        }
         let projection_matches = if self.matches_root(session) {
             true
         } else {
@@ -191,7 +248,6 @@ impl FailureAuthority {
             )
         };
         if !projection_matches
-            || transaction.status == SessionTransactionStatus::Failed
             || transaction.sealed_for_commit
                 && (!session.owns_transaction_lifecycle
                     || !transaction.may_be_failed_by_current_thread())

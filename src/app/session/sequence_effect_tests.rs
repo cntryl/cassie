@@ -57,7 +57,11 @@ fn should_reject_sequence_effects_captured_before_the_commit_seal() {
         let cursor = cassie.execute_sql(&other, "SELECT nextval('effect_sequence')", vec![]);
 
         // Assert
-        assert!(rejected.is_err(), "late sequence effect: {sql}");
+        assert_eq!(
+            rejected.unwrap_err().sql_state(),
+            "25000",
+            "late sequence effect: {sql}"
+        );
         assert_eq!(cursor.unwrap().rows()[0][0], Value::Int64(1));
         session.rollback_transaction();
     }
@@ -76,7 +80,7 @@ fn should_reject_a_sequence_effect_after_its_transaction_is_replaced() {
     let admitted = operation.admit_sequence_projection_effect();
 
     // Assert
-    assert!(admitted.is_err());
+    assert_eq!(admitted.unwrap_err().sql_state(), "25000");
     assert_eq!(
         session.projection_commit_policy(false),
         super::ProjectionCommitPolicy::Existing

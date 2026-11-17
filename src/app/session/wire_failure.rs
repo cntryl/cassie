@@ -55,6 +55,7 @@ impl FailureAuthority {
         if !owner.captured
             || owner.admission_rejected
             || owner.identity != expected
+            || owner.generation != transaction.generation
             || !transaction.may_be_failed_by_current_thread()
         {
             return false;
@@ -66,6 +67,93 @@ impl FailureAuthority {
 }
 
 impl CassieSession {
+    pub(crate) fn try_with_current_operation_owner<T>(
+        &self,
+        publish: impl FnOnce(super::FailureAuthorityIdentity) -> T,
+    ) -> Result<T, super::CassieError> {
+        let transaction = self
+            .transaction
+            .try_lock()
+            .ok_or_else(super::sequence_effect::changed)?;
+        self.ensure_operation_current_locked(&transaction)?;
+        if self.operation_failure_authority.is_none() || transaction.sealed_for_commit {
+            return Err(super::sequence_effect::changed());
+        }
+        Ok(publish(super::FailureAuthorityIdentity::from_transaction(
+            &transaction,
+        )))
+    }
+
+    pub(crate) fn try_with_retired_operation_owner(
+        &self,
+        cleanup: impl FnOnce(super::FailureAuthorityIdentity),
+    ) -> bool {
+        let Some(authority) = self
+            .operation_failure_authority
+            .as_ref()
+            .filter(|authority| authority.matches_root(self))
+        else {
+            return false;
+        };
+        let Some(transaction) = self.transaction.try_lock() else {
+            return false;
+        };
+        let Some(owner) = authority.identity() else {
+            return false;
+        };
+        let current = super::FailureAuthorityIdentity::from_transaction(&transaction);
+        let retired = current.transaction.is_none() && current.generation == owner.generation
+            || current.transaction != owner.transaction
+            || current.generation != owner.generation;
+        if retired {
+            cleanup(owner);
+        }
+        retired
+    }
+
+    /// Root mutation and ownership validation share this transaction lock.
+    pub(super) fn ensure_operation_current_locked(
+        &self,
+        transaction: &super::SessionTransactionState,
+    ) -> Result<(), super::CassieError> {
+        if !self.owns_transaction_lifecycle {
+            return Ok(());
+        }
+        let Some(authority) = self.operation_failure_authority.as_ref() else {
+            return Ok(());
+        };
+        let owner = authority.owner.lock();
+        let expected = match transaction.status {
+            SessionTransactionStatus::Idle => None,
+            SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed => {
+                Some((transaction.unique_owner_id, transaction.rollback_epoch))
+            }
+        };
+        if !authority.matches_root(self)
+            || !owner.captured
+            || owner.admission_rejected
+            || owner.identity != expected
+            || owner.generation != transaction.generation
+        {
+            return Err(super::sequence_effect::changed());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn rollback_for_operation(
+        &self,
+        authority: Option<&FailureAuthority>,
+    ) -> Result<(), super::CassieError> {
+        if let Some(authority) = authority.or(self.operation_failure_authority.as_ref()) {
+            if !authority.rollback_if_current(self) {
+                return Err(super::sequence_effect::changed());
+            }
+        } else {
+            self.rollback_transaction();
+        }
+        Ok(())
+    }
+
     pub(crate) fn with_new_wire_operation(&self) -> Self {
         let mut operation = self.clone();
         operation.operation_failure_authority = Some(FailureAuthority {

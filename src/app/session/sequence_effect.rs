@@ -3,7 +3,10 @@
 use super::{CassieError, CassieSession, FailureAuthority};
 
 pub(super) fn changed() -> CassieError {
-    CassieError::Execution("session transaction changed before sequence effect admission".into())
+    CassieError::Transaction {
+        kind: crate::app::TransactionErrorKind::InvalidState,
+        message: "session transaction changed before the operation could take effect".into(),
+    }
 }
 
 impl CassieSession {

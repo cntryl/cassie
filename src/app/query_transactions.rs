@@ -138,11 +138,13 @@ impl Cassie {
                     authority,
                 )?;
             }
-            TransactionAction::Commit if failed_commit => session.rollback_transaction(),
+            TransactionAction::Commit if failed_commit => {
+                session.rollback_for_operation(authority)?
+            }
             TransactionAction::Commit => {
                 self.commit_transaction_with_controls(session, controls)?;
             }
-            TransactionAction::Rollback => session.rollback_transaction(),
+            TransactionAction::Rollback => session.rollback_for_operation(authority)?,
             TransactionAction::Savepoint { name } => session.create_savepoint(name)?,
             TransactionAction::RollbackTo { name } => {
                 session.rollback_to_savepoint_for_operation(name, authority)?;

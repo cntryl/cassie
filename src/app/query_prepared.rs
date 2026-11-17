@@ -131,15 +131,13 @@ impl Cassie {
             authority_test_hooks::after_admission(self, session);
         }
         #[cfg(test)]
-        let authority = running_guard.as_ref().map(|_| {
+        let authority = Some({
             super::FailureAuthority::capture_for_operation_with_contention(session, || {
                 authority_test_hooks::on_capture_contended(self, session, &mut controls);
             })
         });
         #[cfg(not(test))]
-        let authority = running_guard
-            .as_ref()
-            .map(|_| super::FailureAuthority::capture_for_operation(session));
+        let authority = Some(super::FailureAuthority::capture_for_operation(session));
         self.runtime.record_query_memory(&controls);
         let result = execute(&controls, authority.as_ref());
         #[cfg(test)]

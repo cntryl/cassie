@@ -136,6 +136,7 @@ impl CassieSession {
                 requested_modes.deferrable.or(transaction.modes.deferrable);
             return Ok(());
         }
+        let before = super::FailureAuthorityIdentity::from_transaction(&transaction);
         transaction.status = SessionTransactionStatus::InTransaction;
         transaction.implicit = implicit;
         transaction.isolation = isolation;
@@ -160,7 +161,7 @@ impl CassieSession {
         transaction.commit_thread = None;
         transaction.deferred_failure = DeferredFailure::None;
         if let Some(authority) = authority {
-            authority.adopt_start(self, &transaction);
+            authority.adopt_start(self, &transaction, before);
         }
         Ok(())
     }
@@ -254,6 +255,7 @@ impl CassieSession {
     ) -> Result<(), CassieError> {
         let read_only = {
             let mut transaction = self.transaction.lock();
+            self.ensure_operation_current_locked(&transaction)?;
             if transaction.status == SessionTransactionStatus::Idle {
                 // Settings have their own lock; an idle check must not later
                 // fail a transaction started by another session clone.
@@ -490,6 +492,10 @@ impl CassieSession {
     }
 
     pub(crate) fn rollback_transaction(&self) {
+        if let Some(authority) = self.operation_failure_authority.as_ref() {
+            authority.rollback_if_current(self);
+            return;
+        }
         self.rollback_transaction_locked(self.transaction.lock());
     }
 

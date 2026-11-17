@@ -44,6 +44,8 @@ pub(super) fn run(
         .is_some_and(|session| !session.is_transaction_active());
     if let Some(session) = inputs.session.filter(|_| owns_transaction) {
         session.begin_implicit_transaction_for_operation(inputs.authority)?;
+        #[cfg(test)]
+        session.observe_owned_transaction_start_for_test();
     }
     let result = execute(inputs, plan, &modifying);
     let Some(session) = inputs.session.filter(|_| owns_transaction) else {

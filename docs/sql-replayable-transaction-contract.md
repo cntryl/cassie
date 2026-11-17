@@ -306,8 +306,9 @@ ordinary statement admission. An outcome-unknown, fenced or otherwise
 indeterminate result is not a known abort and must not be blindly retried. A
 more conservative alternative is to classify every possible deferred expression
 strict before the first submission; it preserves safety but may downgrade the
-performance benefit when that branch never executes. Neither design has been
-implemented or tested.
+performance benefit when that branch never executes. The monotonic production
+path is implemented; its focused phase/submission witnesses remain authored/not
+run until the coherent gate.
 
 Jev selected monotonic promotion (.98) over conservative preclassification (.02),
 flagging deferred sequence effects (.95), typed-abort handling (.91) and commit
@@ -402,13 +403,21 @@ Evidence and remaining boundaries:
   [local diagnostics](local-diagnostics-contract.md)).
 - **Unique-conflict resolution.** A declared transaction whose deferred
   `INSERT ... ON CONFLICT DO UPDATE` loses to a concurrently committed row
-  resolves the conflict before native submission. Without a strict effect its
-  first native commit stays `local_buffered`; if the update expression advances
-  a sequence the transaction is promoted and its first native commit is
-  `local_sync` (`src/app/projection_sql_durability_tests.rs`). The retry path in
-  `statement_mutation.rs` re-selects the policy for the same reason; reaching it
-  needs a native-level unique conflict that the pre-submission resolution
-  already removes, so it has no separate witness.
+  reaches the actual initial adapter proposal in `statement_mutation.rs`.
+  Unique-reservation validation can return a typed `UniqueViolation` before the
+  owning Data native `transaction.commit` is called: this is no Data submission,
+  not a native commit returning a uniqueness failure. The real resolver then
+  evaluates the deferred assignment. A sequence effect promotes the re-selected
+  retry options to strict; the matched no-effect retry remains buffered.
+  `src/app/statement_mutation_retry_policy_tests.rs` records the actual initial
+  result/options and zero Data submissions before resolution, actual resolver
+  cursor changes, retry options and one successful owning Data attempt. Its
+  unknown-response control arms the existing adapter response simulation only
+  inside the Data callback after native success, then requires no resolver/retry
+  and recovery quarantine. Native success and returned adapter outcome are
+  distinct observations; this is not an engine crash or global-no-effect proof.
+  The focused witness is authored/not run until the coherent gate. The earlier
+  `projection_sql_durability_tests.rs` aggregate policy controls remain.
 - **Cloud policy evidence.** Against simulated cloud storage
   (`src/app/projection_sql_durability_tests.rs`, built with the
   `replay-benchmark-observation` feature), a declared replayable transaction's

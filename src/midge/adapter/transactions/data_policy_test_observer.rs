@@ -1,7 +1,7 @@
 //! Test-only paired worker/native-Data observation; never product telemetry.
 use crate::app::Cassie;
 use crate::midge::adapter::{observe_native_commits, NativeCommitObservation};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::ThreadId;
@@ -11,12 +11,14 @@ type Registration = (&'static str, oneshot::Sender<Report>);
 static NEXT: OnceLock<Mutex<HashMap<usize, Registration>>> = OnceLock::new();
 thread_local! {
     static DATA: RefCell<Option<Vec<DataSubmission>>> = const { RefCell::new(None) };
+    static UNKNOWN_ON_DATA: Cell<bool> = const { Cell::new(false) };
 }
 
 #[derive(Debug)]
 pub(crate) struct DataSubmission {
     pub(crate) policy: &'static str,
     pub(crate) succeeded: bool,
+    pub(crate) outcome_unknown: bool,
 }
 
 #[derive(Debug)]
@@ -44,6 +46,7 @@ struct DataGuard;
 impl Drop for DataGuard {
     fn drop(&mut self) {
         DATA.with(|slot| slot.borrow_mut().take());
+        UNKNOWN_ON_DATA.set(false);
     }
 }
 
@@ -90,12 +93,26 @@ pub(crate) fn observe_worker<T>(cassie: &Cassie, name: &str, operation: impl FnO
     output
 }
 
+pub(crate) fn current_data_submission_count() -> Option<usize> {
+    DATA.with(|slot| slot.borrow().as_ref().map(Vec::len))
+}
+
+/// Target the existing adapter-response simulation at Data, not an earlier
+/// schema epoch commit. The native result is not replaced by this observer.
+pub(crate) fn arm_existing_unknown_on_next_data_submission() {
+    DATA.with(|slot| assert!(slot.borrow().is_some(), "requires an active observer"));
+    UNKNOWN_ON_DATA.set(true);
+}
+
 pub(super) fn observe_data_submission<T>(
     options: cntryl_midge::WriteOptions,
     submit: impl FnOnce() -> Result<T, cntryl_midge::MidgeError>,
 ) -> Result<T, cntryl_midge::MidgeError> {
     // Invoked inside the owning row-publication callback, after all staging /
     // suppression branches and publication permission. Record the real result.
+    if UNKNOWN_ON_DATA.replace(false) {
+        super::inject_native_commit_unknown_after_success();
+    }
     let result = submit();
     DATA.with(|slot| {
         if let Some(data) = slot.borrow_mut().as_mut() {
@@ -109,6 +126,10 @@ pub(super) fn observe_data_submission<T>(
             data.push(DataSubmission {
                 policy,
                 succeeded: result.is_ok(),
+                outcome_unknown: matches!(
+                    &result,
+                    Err(cntryl_midge::MidgeError::OutcomeUnknown(_))
+                ),
             });
         }
     });

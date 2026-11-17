@@ -14,6 +14,10 @@ mod tests;
 #[path = "statement_mutation_copy_tests.rs"]
 mod copy_tests;
 
+#[cfg(all(test, feature = "replay-benchmark-observation"))]
+#[path = "statement_mutation_retry_policy_tests.rs"]
+mod retry_policy_tests;
+
 #[path = "statement_mutation_maintenance.rs"]
 mod maintenance;
 
@@ -123,6 +127,8 @@ impl Cassie {
             self.midge
                 .apply_document_write_batches_with_options(&writes, &options)
         };
+        #[cfg(all(test, feature = "replay-benchmark-observation"))]
+        retry_policy_tests::after_initial(self, options.commit, &initial);
         let reports = match initial {
             Ok(reports) => reports,
             Err(error @ CassieError::UniqueViolation { .. })
@@ -133,8 +139,12 @@ impl Cassie {
                         self, staging, error, controls,
                     ));
                 }
+                #[cfg(all(test, feature = "replay-benchmark-observation"))]
+                retry_policy_tests::resolver_entered();
                 crate::executor::resolve_transaction_conflict_intents(self, staging, controls)
                     .map_err(CassieError::from)?;
+                #[cfg(all(test, feature = "replay-benchmark-observation"))]
+                retry_policy_tests::resolved(self, staging);
                 writes = transaction_write_batches(staging);
                 if writes.is_empty() {
                     BTreeMap::new()
@@ -151,6 +161,8 @@ impl Cassie {
                         &mut retry_options,
                     );
                     check_publication_controls(controls)?;
+                    #[cfg(all(test, feature = "replay-benchmark-observation"))]
+                    retry_policy_tests::before_retry(retry_options.commit);
                     if let Some((_, overlay)) = transactional_ddl {
                         self.midge
                             .apply_document_write_batches_with_transactional_ddl(

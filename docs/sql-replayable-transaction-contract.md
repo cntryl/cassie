@@ -424,3 +424,19 @@ Evidence and remaining boundaries:
   cancellation-while-waiting case; retirement is owner-checked, and
   ReadyForQuery reports failed to other threads while a COMMIT owns the
   transaction.
+
+### Sequence assignment boundary
+
+`setval(sequence, value, false)` changes the persisted sequence cursor while
+leaving `currval`/`lastval` unchanged. It therefore requires the same sticky
+strict classification as the other sequence assignments. The focused
+`should_select_strict_policy_after_setval_without_currval_assignment` regression
+observes the native Data policy and preserves the sequence-history semantics.
+It was authored before the corresponding branch repair and is not yet executed.
+
+This sequential repair does not establish concurrent admission safety. The
+sequence/default paths still perform their native update before recording their
+strict effect; a competing COMMIT can select its policy in that interval.
+Protecting the actual effect boundary and preventing a stale operation from
+acting on a replacement transaction remain #1279 requirements. Moving a void
+marker that reads whichever transaction is current does not prove either one.

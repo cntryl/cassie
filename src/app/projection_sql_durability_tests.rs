@@ -105,6 +105,43 @@ fn should_use_strict_policy_for_mixed_projection_transaction() {
 }
 
 #[test]
+fn should_select_strict_policy_after_setval_without_currval_assignment() {
+    // Arrange
+    let (cassie, session) = sql_fixture();
+    for sql in [
+        "CREATE SEQUENCE replay_sql_setval_sequence",
+        "BEGIN",
+        "SET LOCAL cassie.projection_write_mode = 'replayable'",
+        "SELECT setval('replay_sql_setval_sequence', 42, false)",
+        "INSERT INTO replay_sql_data (value) VALUES (7)",
+        "INSERT INTO replay_sql_checkpoint (position) VALUES (1)",
+    ] {
+        execute(&cassie, &session, sql);
+    }
+
+    // Act
+    let (result, writes) =
+        observe_native_commits(|| cassie.execute_sql(&session, "COMMIT", vec![]));
+    let currval = cassie.execute_sql(
+        &session,
+        "SELECT currval('replay_sql_setval_sequence')",
+        vec![],
+    );
+    let next = cassie.execute_sql(
+        &session,
+        "SELECT nextval('replay_sql_setval_sequence')",
+        vec![],
+    );
+
+    // Assert
+    result.unwrap();
+    assert_eq!(writes.first_policy, Some("local_sync"));
+    assert_eq!(writes.primary_buffered_attempts, 0);
+    assert!(currval.is_err(), "setval(..., false) must not assign currval");
+    assert_eq!(next.unwrap().rows()[0][0], crate::types::Value::Int64(42));
+}
+
+#[test]
 fn should_restore_default_policy_after_savepoint_rollback() {
     // Arrange
     let (cassie, session) = sql_fixture();

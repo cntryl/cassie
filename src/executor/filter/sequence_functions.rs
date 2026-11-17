@@ -126,6 +126,10 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
         })?;
         if is_called {
             session.record_sequence_value(&sequence, identity, value, false);
+        } else {
+            // `is_called` controls currval history, not whether this native
+            // sequence assignment requires strict transaction durability.
+            session.note_projection_effect(true);
         }
         if !midge.is_private_sequence(&updated)? {
             session.publish_sequence_metadata(&updated);

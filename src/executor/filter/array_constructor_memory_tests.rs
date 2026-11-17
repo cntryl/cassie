@@ -95,7 +95,7 @@ fn should_admit_the_array_argument_directory_before_collecting_scalar_values() {
 }
 
 #[test]
-fn should_preserve_nested_native_array_values_and_child_lower_bounds() {
+fn should_preserve_nested_native_array_shape() {
     // Arrange
     let child = |value| {
         Value::Array(

@@ -49,7 +49,7 @@ fn should_reject_a_graph_rename_while_its_view_depends_on_the_old_name() {
 }
 
 #[test]
-fn should_drop_the_transitive_graph_view_closure_with_its_schema_and_restore_it_on_rollback() {
+fn should_restore_a_cascaded_graph_view_closure_on_rollback() {
     // Arrange
     let fixture = sql_fixture("graph-view-schema-cascade", &[
         "CREATE TABLE v(id INT PRIMARY KEY)",
@@ -349,7 +349,7 @@ fn should_reject_a_transitive_cascade_with_a_surviving_shadow_view() {
 }
 
 #[test]
-fn should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade() {
+fn should_keep_qualified_dependencies_precise_during_schema_cascade() {
     // Arrange
     let fixture = started_shadow_fixture("graph-view-qualified-shadow-control", SHADOW_SETUP);
     fixture.execute("CREATE VIEW keep.vg AS SELECT x FROM GRAPH_TABLE(public.g MATCH(v IS node) COLUMNS(v.id AS x)) AS t").expect("qualified direct view");

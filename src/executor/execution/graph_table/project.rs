@@ -162,7 +162,7 @@ mod memory_tests {
     }
 
     #[test]
-    fn should_admit_graph_output_metadata_before_cloning_array_types_and_chunking_rows() {
+    fn should_admit_graph_output_metadata_before_copying() {
         // Arrange
         let (cassie, session) = observer::fixture();
         let _observation = observer::start();

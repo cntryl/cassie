@@ -205,7 +205,7 @@ fn should_use_the_outer_query_owner_for_a_nested_reference_constructor_scan() {
 }
 
 #[test]
-fn should_admit_live_prefix_costs_and_actual_aligned_operands_on_the_cost_owner() {
+fn should_admit_the_complete_live_numeric_prefix_workspace() {
     // Arrange
     let (cassie, session) = observer::fixture();
     let descriptors =

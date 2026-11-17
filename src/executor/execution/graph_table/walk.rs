@@ -588,7 +588,7 @@ mod memory_tests {
         (a IS node WHERE a.id=1)-[]->{0,1}(b)-[]->{0,1}(c) COLUMNS(a.id)) AS t";
 
     #[test]
-    fn should_admit_a_seen_key_before_copying_path_and_singleton_indices() {
+    fn should_admit_a_seen_key_before_copying_its_indices() {
         // Arrange
         let (cassie, session) = duplicate_fixture();
         let _observation = observer::start();

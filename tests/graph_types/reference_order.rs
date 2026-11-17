@@ -4,7 +4,7 @@ use crate::fixture::{person, started, SOCIAL_SETUP};
 use cassie::types::Value;
 
 #[test]
-fn should_order_reference_keys_numerically_and_without_losing_bigint_precision() {
+fn should_order_reference_keys_by_exact_numeric_value() {
     // Arrange
     let fixture = started("graph-reference-numeric-order", &SOCIAL_SETUP);
     fixture.run("INSERT INTO people VALUES(10,'ten'),(9007199254740992,'large')");
@@ -48,7 +48,7 @@ fn should_compare_array_fields_of_ordinary_composites_using_sql_array_order() {
 }
 
 #[test]
-fn should_agree_on_record_array_equality_grouping_and_distinct_for_nondefault_bounds() {
+fn should_preserve_record_array_key_consistency_for_nondefault_bounds() {
     // Arrange
     let fixture = started(
         "graph-reference-array-key-equality",

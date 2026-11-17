@@ -434,12 +434,11 @@ strict classification as the other sequence assignments. The focused
 observes the native Data policy and preserves the sequence-history semantics.
 It was authored before the corresponding branch repair and is not yet executed.
 
-This sequential repair does not establish concurrent admission safety. The
-sequence/default paths still perform their native update before recording their
-strict effect; a competing COMMIT can select its policy in that interval.
-Protecting the actual effect boundary and preventing a stale operation from
-acting on a replacement transaction remain #1279 requirements. Moving a void
-marker that reads whichever transaction is current does not prove either one.
+The sequential setval repair alone did not establish concurrent admission
+safety: its baseline performed native updates before recording strictness.
+The following operation-owned pre-native admission repair replaces that ordering.
+Its synchronized controls remain authored/not run until combined qualification;
+moving a void current-session marker would not satisfy the ownership requirement.
 
 The selected repair carries the existing operation's failure authority on its
 execution-only session clone and detached forks. Before a native sequence or
@@ -472,8 +471,9 @@ Protocol errors that occur outside query admission obtain contemporaneous
 authority in a blocking worker before performing cleanup. Completion never
 recaptures a new owner after an admitted operation failed. Matching explicit
 errors mark Failed; matching implicit errors retire only their own transaction
-under the root mutex. Portal cleanup requires the same root generation to be
-idle under that mutex. On mutex contention the async wire path retains its
+under the root mutex. Portal cleanup filters immutable transaction UUID and
+generation tokens, adopting only an exact own-start receipt. Current-lifetime
+reconciliation uses a root try-lock. On contention the async wire path retains its
 bounded portals for a later cleanup/connection close instead of blocking the
 reactor or clearing another generation's state. Quarantine terminal cleanup is
 also owner-checked; a later error converter with no authority performs no

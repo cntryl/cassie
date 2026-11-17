@@ -1,8 +1,10 @@
 # Transaction authority within Midge as published
 
-Status: **sections 1, 3 and 4 and three increments of section 2 are implemented;
-the session-state inventory is recorded. A per-transaction cell and reserved-key
-documentation remain deferred. Outer wire-error ownership remains incomplete.**
+Status: **the finite staged-effect, sealing and operation-owner repairs are
+implemented in the current runtime bundle and await executable qualification.
+The session-state inventory and focused regressions are recorded. A separate
+per-transaction cell refactor is deferred; it is not an acceptance substitute.
+Shared settings and retained-worker cleanup/accounting remain in integration.**
 This document records how the
 remaining transaction-authority work
 ([#1290](https://github.com/cntryl/cassie/issues/1290),
@@ -157,25 +159,34 @@ today; the table records why, so a later change cannot silently break it.
 | Field | Rule | Guard |
 | --- | --- | --- |
 | `transaction` | Owned by the transaction. | Reset and cleaned under its own mutex at COMMIT and ROLLBACK; operations use generation, rollback epoch, failure authority and the COMMIT seal. |
-| `schema_context` | Owned by the transaction. | Retired under the transaction mutex; lock order is transaction mutex, then schema context. |
-| `session_objects` (cursors, prepared statements) | Owned by the transaction where transactional. | `end_transaction_objects` runs under the transaction mutex; savepoints roll back to a cursor mark. |
+| `schema_context` | Root context belongs to the transaction; each statement fork owns its context wrapper and cloned default-database bytes. | Root attachment validates captured ownership under root→context order; forks retain their acquired catalog/descriptor references with a last-clone memory reservation. |
+| `session_objects` (cursors, prepared statements) | Transactional lifetimes and existing named/with-hold session lifetimes are preserved. | Shared mutations validate the actual root authority before root→objects writes, including detached callers; own-retirement publication is restricted to the exact lifecycle-root receipt. |
 | `transaction_unique_waits` | Owned by the transaction. | Keyed by the transaction's unique-owner id, released at retirement. |
 | `transaction_clock` | Owned by the transaction. | Keyed by generation, so a later transaction never reads an earlier timestamp. |
-| `search_path`, `settings` | Session-owned, restored by the transaction. | Snapshotted at BEGIN under the mutex; ROLLBACK restores all, COMMIT restores only `SET LOCAL` names. A `SET` from another clone racing a ROLLBACK is overwritten by the restore. PostgreSQL has one statement at a time per session and no such schedule, so this is accepted and not tested. |
-| `sequence_values` (`currval`, `lastval`) | Session-owned. | Survives ROLLBACK as in PostgreSQL. `DISCARD` clears the cache inside the transaction mutex's status check, so it is ordered against BEGIN and retirement. |
+| `search_path`, `settings` | Session-owned, restored by the transaction. | BEGIN snapshots and terminal restoration run under the root mutex; scoped setting leaves and `SET LOCAL` restoration history must validate actual root ownership at the write. Detached shared-setting guards remain an explicit integration obligation. |
+| `sequence_values` (`currval`, `lastval`) | Session-owned; survives ROLLBACK. | Reset and successful-native history publication use sequence-values→actual-root order. A stale result cannot overwrite a replacement's history; the already applied independent native effect and global catalog cursor remain published. |
 | `random` | Session-owned. | No transaction meaning. |
 | `procedure_calls` | Owned by the statement fork. | Copied at fork; a recursion guard, not transaction state. |
 
-An operation that outlives its transaction remains a proof obligation.
-Generation, epoch, failure authority and the COMMIT seal protect their owning
-paths, but do not automatically protect callers that discard the authority.
-In particular, the outer simple, extended and COPY error wrappers still call
-current-session failure/rollback helpers after asynchronous work. An older
-operation can therefore reach those wrappers after a replacement transaction
-starts. The COMMIT seal protects an in-flight COMMIT, not every later unsealed
-transaction. #1290 remains open until those boundaries carry their operation's
-authority and owner-safe portal cleanup is verified. A cell refactor is not
-selected as a substitute for that concrete repair.
+An operation that outlives its transaction remains an executable proof obligation.
+The current bundle carries one deferred owner through simple, extended and COPY
+workers, converters and outer error/terminal wrappers. Query-slot rejection before
+capture has no mutation authority; established protocol-origin ownership survives
+later saturation. Own BEGIN/savepoint transitions update only that operation's
+carrier. Root mutation, mutable-alias export and terminal cleanup validate UUID,
+rollback epoch and generation under their actual root mutex.
+
+Wire portals carry immutable lifetime tokens. Bind and final Parse/Close
+publication validate the captured operation; fresh Execute checks expected portal
+lifetime before own stage creation and after worker admission. An old portal never
+captures failure authority over B. Exact own idle-to-active receipts adopt surviving
+preparation portals for implicit or explicit BEGIN. Reconciliation reads actual
+current lifetime nonblockingly and filters owners, ignoring epoch for portal
+lifetime while checking it for operation admission. Named statement lifetimes and
+unnamed Query destruction remain unchanged.
+
+These source repairs do not close #1290 or #1279 until the focused synchronized
+probes and complete combined gate run against the final integrated source.
 
 ### 3. COMMIT seals; it does not drain (#1279) (1.00)
 

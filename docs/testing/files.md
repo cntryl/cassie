@@ -1194,6 +1194,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/planner_controls/indexes/planner_indexes.rs` | test_module | 490 | 9 | planner_controls | keep | `tests/planner_controls/indexes/planner_indexes.rs` |
 | `tests/planner_controls/planning/adaptive_promotion_evidence.rs` | test_module | 18 | 1 | planner_controls | keep | `tests/planner_controls/planning/adaptive_promotion_evidence.rs` |
 | `tests/planner_controls/planning/execution_result_cache.rs` | test_module | 805 | 18 | planner_controls | keep | `tests/planner_controls/planning/execution_result_cache.rs` |
+| `tests/planner_controls/planning/join_selectivity.rs` | test_module | 453 | 16 | planner_controls | move_with_module_alias | `tests/planner_controls/joins/join_selectivity.rs` |
 | `tests/planner_controls/planning/optimizer_memo.rs` | test_module | 310 | 7 | planner_controls | keep | `tests/planner_controls/planning/optimizer_memo.rs` |
 | `tests/planner_controls/planning/plan_cache/errors.rs` | test_module | 146 | 2 | planner_controls | keep | `tests/planner_controls/planning/plan_cache/errors.rs` |
 | `tests/planner_controls/planning/plan_cache/mod.rs` | module_registration | 27 | 0 | planner_controls | keep | `tests/planner_controls/planning/plan_cache/mod.rs` |
@@ -1209,7 +1210,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/planner_controls/planning/planner_read_path_depth.rs` | test_module | 574 | 9 | planner_controls | keep | `tests/planner_controls/planning/planner_read_path_depth.rs` |
 | `tests/planner_controls/planning/query_promotion_evidence.rs` | test_module | 38 | 1 | planner_controls | keep | `tests/planner_controls/planning/query_promotion_evidence.rs` |
 | `tests/planner_controls/planning/statement_routes.rs` | test_module | 138 | 6 | planner_controls | keep | `tests/planner_controls/planning/statement_routes.rs` |
-| `tests/planner_controls.rs` | cargo_target | 71 | 0 | planner_controls | keep | `tests/planner_controls.rs` |
+| `tests/planner_controls.rs` | cargo_target | 74 | 0 | planner_controls | keep | `tests/planner_controls.rs` |
 | `tests/query_scan_controls/cancellation/request_cancellation.rs` | test_module | 152 | 3 | query_scan_controls | keep | `tests/query_scan_controls/cancellation/request_cancellation.rs` |
 | `tests/query_scan_controls/column_store/row_limits.rs` | test_module | 44 | 2 | query_scan_controls | keep | `tests/query_scan_controls/column_store/row_limits.rs` |
 | `tests/query_scan_controls/predicates/fulltext_filtered_controls.rs` | test_module | 209 | 2 | query_scan_controls | keep | `tests/query_scan_controls/predicates/fulltext_filtered_controls.rs` |
@@ -1683,6 +1684,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/graph_oracle/tests.rs` | shared_support | 471 | 19 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/tests.rs` |
 | `tests/support/graph_oracle/weighted.rs` | shared_support | 123 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/weighted.rs` |
 | `tests/support/graph_view_fixture.rs` | shared_support | 24 | 0 | graph_table | keep | `tests/support/graph_view_fixture.rs` |
+| `tests/support/join_cost_stats.rs` | shared_support | 51 | 0 | planner_controls | keep | `tests/support/join_cost_stats.rs` |
 | `tests/support/local_storage.rs` | shared_support | 5 | 0 | sql_mutations, storage_indexes | keep | `tests/support/local_storage.rs` |
 | `tests/support/metrics.rs` | shared_support | 8 | 0 | metrics, planner_controls | keep | `tests/support/metrics.rs` |
 | `tests/support/mixed_numeric.rs` | shared_support | 24 | 0 | pgwire_types, sql_queries | keep | `tests/support/mixed_numeric.rs` |

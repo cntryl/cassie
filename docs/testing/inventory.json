@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1785,
-    "rust_files": 1748,
-    "rust_test_declarations": 10593,
+    "files": 1787,
+    "rust_files": 1750,
+    "rust_test_declarations": 10609,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10618,
+    "registered_rust_instances": 10634,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -223607,6 +223607,502 @@
       }
     },
     {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_choose_a_selective_join_before_a_smaller_cartesian_input",
+      "name": "should_choose_a_selective_join_before_a_smaller_cartesian_input",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 61,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_choose_a_selective_join_before_a_smaller_cartesian_input"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_change_join_order_when_only_usable_distinct_counts_change",
+      "name": "should_change_join_order_when_only_usable_distinct_counts_change",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 73,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_change_join_order_when_only_usable_distinct_counts_change"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_keep_a_cheaper_cartesian_prefix_for_duplicate_heavy_joins",
+      "name": "should_keep_a_cheaper_cartesian_prefix_for_duplicate_heavy_joins",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 88,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_keep_a_cheaper_cartesian_prefix_for_duplicate_heavy_joins"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_preserve_duplicate_commuted_and_cyclic_join_predicates",
+      "name": "should_preserve_duplicate_commuted_and_cyclic_join_predicates",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 100,
+      "end_line": 121,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_preserve_duplicate_commuted_and_cyclic_join_predicates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_wait_for_a_whole_compound_on_expression_before_using_its_selectivity",
+      "name": "should_wait_for_a_whole_compound_on_expression_before_using_its_selectivity",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 124,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_wait_for_a_whole_compound_on_expression_before_using_its_selectivity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_exact_qualified_base_statistics_before_suffix_matches",
+      "name": "should_use_exact_qualified_base_statistics_before_suffix_matches",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 149,
+      "end_line": 175,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_use_exact_qualified_base_statistics_before_suffix_matches"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_a_stable_default_for_ambiguous_base_statistics",
+      "name": "should_use_a_stable_default_for_ambiguous_base_statistics",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 178,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_use_a_stable_default_for_ambiguous_base_statistics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_keep_a_quoted_relation_distinct_in_base_statistics",
+      "name": "should_keep_a_quoted_relation_distinct_in_base_statistics",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 206,
+      "end_line": 221,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_keep_a_quoted_relation_distinct_in_base_statistics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_exact_quoted_field_statistics_for_selectivity",
+      "name": "should_use_exact_quoted_field_statistics_for_selectivity",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 224,
+      "end_line": 244,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_use_exact_quoted_field_statistics_for_selectivity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_unique_qualified_statistics_for_unqualified_sources",
+      "name": "should_use_unique_qualified_statistics_for_unqualified_sources",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 247,
+      "end_line": 259,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_use_unique_qualified_statistics_for_unqualified_sources"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_accept_either_measurement_signal_for_distinct_statistics",
+      "name": "should_accept_either_measurement_signal_for_distinct_statistics",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 262,
+      "end_line": 280,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_accept_either_measurement_signal_for_distinct_statistics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_decline_unusable_field_statistics_without_discarding_base_counts",
+      "name": "should_decline_unusable_field_statistics_without_discarding_base_counts",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 283,
+      "end_line": 338,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_decline_unusable_field_statistics_without_discarding_base_counts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_keep_where_selectivity_out_of_join_intermediate_estimates",
+      "name": "should_keep_where_selectivity_out_of_join_intermediate_estimates",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 341,
+      "end_line": 351,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_keep_where_selectivity_out_of_join_intermediate_estimates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_preserve_existing_join_reordering_legality_boundaries",
+      "name": "should_preserve_existing_join_reordering_legality_boundaries",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 354,
+      "end_line": 373,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_preserve_existing_join_reordering_legality_boundaries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_the_same_selectivity_estimate_for_greedy_expansion",
+      "name": "should_use_the_same_selectivity_estimate_for_greedy_expansion",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 376,
+      "end_line": 395,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_use_the_same_selectivity_estimate_for_greedy_expansion"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_explain_the_selective_order_and_preserve_parameterized_sql_rows",
+      "name": "should_explain_the_selective_order_and_preserve_parameterized_sql_rows",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 425,
+      "end_line": 453,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_explain_the_selective_order_and_preserve_parameterized_sql_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/planner_controls/planning/optimizer_memo.rs::should_enumerate_three_relation_inner_join_by_cardinality",
       "name": "should_enumerate_three_relation_inner_join_by_cardinality",
       "current_file": "tests/planner_controls/planning/optimizer_memo.rs",
@@ -347107,6 +347603,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 453,
+      "sha256": "dd15d5b53f7d6d7091c629db64c95f5f5493ab5a0689d3d97875aefa7becdaec",
+      "test_declarations": 16,
+      "registered_suites": [
+        "planner_controls"
+      ],
+      "destinations": [
+        "tests/planner_controls/joins/join_selectivity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/planner_controls/planning/optimizer_memo.rs",
       "role": "test_module",
       "action": "keep",
@@ -347335,8 +347846,8 @@
       "current_file": "tests/planner_controls.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 71,
-      "sha256": "c6a21dd102b039accfbcf88011fa758abd597d536246c96a64cbf482390418af",
+      "lines": 74,
+      "sha256": "df794467994f487b32a848f8229e31c4cdf2ba5a2296e7b7129d9deb2a8d10a1",
       "test_declarations": 0,
       "registered_suites": [
         "planner_controls"
@@ -354451,6 +354962,21 @@
       ],
       "destinations": [
         "tests/support/graph_view_fixture.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/join_cost_stats.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 51,
+      "sha256": "7b9c14d03c87f027dc4e48bde6ee2266f075a8a88721e965fc8e90e64d0bfd7b",
+      "test_declarations": 0,
+      "registered_suites": [
+        "planner_controls"
+      ],
+      "destinations": [
+        "tests/support/join_cost_stats.rs"
       ],
       "line_limit": 1000
     },

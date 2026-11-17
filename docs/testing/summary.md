@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1785 |
-| Rust files | 1748 |
-| Rust test declarations | 10593 |
+| Files under `tests/` | 1787 |
+| Rust files | 1750 |
+| Rust test declarations | 10609 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10618 |
+| Static Rust registration instances | 10634 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -55,7 +55,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [pgwire_extended](inventory/pgwire_extended.md) | 981 | 0 |
 | [pgwire_grammar](inventory/pgwire_grammar.md) | 1233 | 8 |
 | [pgwire_types](inventory/pgwire_types.md) | 1220 | 0 |
-| [planner_controls](inventory/planner_controls.md) | 124 | 0 |
+| [planner_controls](inventory/planner_controls.md) | 140 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 53 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 76 | 0 |
 | [rest](inventory/rest.md) | 101 | 0 |

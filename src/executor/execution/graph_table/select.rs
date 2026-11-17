@@ -124,6 +124,23 @@ pub(super) fn apply(
     Ok(chosen)
 }
 
+/// Cancellation and the diagnostic pause just before a (non-interruptible) sort.
+fn selection_boundary(env: &SourceExecutionEnv<'_>) -> Result<(), QueryError> {
+    env.controls
+        .scored_candidate(QueryScoringTestBoundary::GraphSelection)?;
+    env.controls.check_interruption()?;
+    Ok(())
+}
+
+fn empty() -> Candidate {
+    Candidate {
+        vertices: Vec::new(),
+        edges: Vec::new(),
+        directions: Vec::new(),
+        step_hops: Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod memory_tests {
     use crate::executor::execution::graph_memory_test_observer as observer;
@@ -151,22 +168,5 @@ mod memory_tests {
             "copy_graph_selector",
             std::mem::size_of::<usize>(),
         );
-    }
-}
-
-/// Cancellation and the diagnostic pause just before a (non-interruptible) sort.
-fn selection_boundary(env: &SourceExecutionEnv<'_>) -> Result<(), QueryError> {
-    env.controls
-        .scored_candidate(QueryScoringTestBoundary::GraphSelection)?;
-    env.controls.check_interruption()?;
-    Ok(())
-}
-
-fn empty() -> Candidate {
-    Candidate {
-        vertices: Vec::new(),
-        edges: Vec::new(),
-        directions: Vec::new(),
-        step_hops: Vec::new(),
     }
 }

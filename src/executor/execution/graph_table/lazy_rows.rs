@@ -27,7 +27,7 @@ pub(super) fn row_copy(
 }
 
 /// Rehome moved source buffers under a narrow owner; a cached row must not retain
-/// OperatorMemory's controls back into the statement cache that contains it.
+/// `OperatorMemory`'s controls back into the statement cache that contains it.
 pub(super) fn detach_row(
     row: BatchRow,
     memory: &mut QueryMemoryReservation,

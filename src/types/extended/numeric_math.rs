@@ -88,7 +88,7 @@ pub fn add(left: &Numeric, right: &Numeric) -> Result<Numeric, TypeInputError> {
                 if let Some(observer) = observer.get() {
                     observer(
                         usize::try_from(a.bits().div_ceil(8) + b.bits().div_ceil(8))
-                            .expect("numeric format bounds fit native size"),
+                            .unwrap_or(usize::MAX),
                     );
                 }
             });

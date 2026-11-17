@@ -45,7 +45,7 @@ fn typed(function: FunctionCall, target: &CompositeRef) -> Expr {
 }
 
 /// Validate SQL array identity after nested overloads have been lowered. Runtime record
-/// text is a legitimate carrier only after binding proved graph_key_part[].
+/// text is a legitimate carrier only after binding proved `graph_key_part[]`.
 pub(super) fn validate_reference_arguments(
     function: &FunctionCall,
     types: &ResultTypes,

@@ -371,15 +371,7 @@ impl<'a> Walk<'a> {
             "before_candidate",
             self.memory.bytes(),
         );
-        let step_count = add(
-            self.step_hops.len(),
-            usize::from(!self.plan.steps.is_empty()),
-        )?;
-        let index_count = add(add(self.vertices.len(), self.edges.len())?, step_count)?;
-        let candidate_bytes = add(
-            size_of::<Candidate>(),
-            add(mul(index_count, size_of::<usize>())?, self.directions.len())?,
-        )?;
+        let (step_count, candidate_bytes) = self.candidate_shape()?;
         self.memory.try_grow(candidate_bytes)?;
         #[cfg(test)]
         crate::executor::execution::graph_memory_test_observer::record(
@@ -474,6 +466,20 @@ impl<'a> Walk<'a> {
         grow_vec(&mut self.found, 1, self.memory)?;
         self.found.push(candidate);
         Ok(())
+    }
+
+    /// The populated step slots and admitted bytes before a candidate is copied.
+    fn candidate_shape(&self) -> Result<(usize, usize), QueryError> {
+        let step_count = add(
+            self.step_hops.len(),
+            usize::from(!self.plan.steps.is_empty()),
+        )?;
+        let index_count = add(add(self.vertices.len(), self.edges.len())?, step_count)?;
+        let candidate_bytes = add(
+            size_of::<Candidate>(),
+            add(mul(index_count, size_of::<usize>())?, self.directions.len())?,
+        )?;
+        Ok((step_count, candidate_bytes))
     }
 
     /// Inline predicates that read other pattern variables run on the complete path, still

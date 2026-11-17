@@ -309,7 +309,7 @@ fn element_bytes(element: &ElementRef) -> Result<usize, QueryError> {
 
 /// Full coefficient bit width bounds decimal digit buffers without formatting.
 /// It also leaves room for native limb spare capacity; the separate four-slot
-/// workspace covers alignment, the previous clone and check_format's decimal
+/// workspace covers alignment, the previous clone and `check_format`'s decimal
 /// conversion/division buffers. Four bytes per scale digit cover alignment,
 /// and one byte per input conservatively covers cumulative carries.
 fn numeric_bound(costs: &Value) -> Result<usize, QueryError> {

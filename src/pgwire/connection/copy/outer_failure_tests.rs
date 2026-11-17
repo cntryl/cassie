@@ -25,8 +25,18 @@ fn should_keep_the_replacement_healthy_after_a_copy_worker_error() {
         .append(b"not-an-integer\n", &binding.controls)
         .unwrap();
     let _hook = super::super::wire_failure_test_hooks::install(&cassie, |session| {
-        session.rollback_transaction();
-        session.begin_transaction(None).unwrap();
+        let original = session
+            .operation_failure_authority()
+            .and_then(crate::app::FailureAuthority::identity);
+        let independent = session.without_operation_failure_authority();
+        independent.rollback_transaction();
+        independent.begin_transaction(None).unwrap();
+        assert_eq!(
+            session
+                .operation_failure_authority()
+                .and_then(crate::app::FailureAuthority::identity),
+            original
+        );
     });
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

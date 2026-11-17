@@ -153,6 +153,23 @@ fn should_finish_started_worker_cleanup_after_its_awaiting_task_is_aborted() {
 fn should_leave_cleanup_debt_for_later_when_a_queued_worker_never_starts() {
     // Arrange
     runtime(1).block_on(async {
+        // Complete startup and create real adapter cleanup debt before the
+        // only blocking-pool slot is deliberately occupied.
+        let cassie = fixture();
+        let session = cassie.create_session("queued_cleanup", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE queued_cleanup_debt (id INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .midge
+            .defer_drop_collection("queued_cleanup_debt", cassie.runtime.schema_epoch())
+            .unwrap();
+        let debt = cassie.midge.pending_schema_cleanups().unwrap();
+        assert_eq!(debt.len(), 1);
         let (occupied_tx, occupied_rx) = tokio::sync::oneshot::channel();
         let (release_tx, release_rx) = mpsc::sync_channel(1);
         let occupied = tokio::task::spawn_blocking(move || {
@@ -162,22 +179,36 @@ fn should_leave_cleanup_debt_for_later_when_a_queued_worker_never_starts() {
                 .expect("release blocking slot");
         });
         occupied_rx.await.expect("slot occupied");
-        let cassie = fixture();
         let control = cleanup_test_hooks::install(&cassie, true);
         let ran = Arc::new(AtomicBool::new(false));
         let worker_ran = Arc::clone(&ran);
         // Act
-        let result = run_pgwire_blocking(cassie, "queued_cleanup", move |_| {
-            worker_ran.store(true, Ordering::Release);
-            Ok(())
-        })
-        .await;
+        let awaiting = tokio::spawn(run_pgwire_blocking(
+            Arc::clone(&cassie),
+            "queued_cleanup",
+            move |_| {
+                worker_ran.store(true, Ordering::Release);
+                Ok(())
+            },
+        ));
+        tokio::time::timeout(Duration::from_secs(10), control.queued_aborted)
+            .await
+            .expect("queued abort requested")
+            .expect("abort observation");
         release_tx.send(()).expect("release occupied slot");
         occupied.await.expect("slot owner");
+        let result = awaiting.await.expect("queued boundary");
         // Assert
         assert!(matches!(result, Err(CassieError::StorageRetryable(_))));
         assert!(!ran.load(Ordering::Acquire));
         assert_eq!(control.calls.load(Ordering::Acquire), 0);
+        assert_eq!(cassie.midge.pending_schema_cleanups().unwrap(), debt);
+        // Retire the never-consumed probe before exercising real future cleanup.
+        cleanup_test_hooks::retire(cleanup_test_hooks::key(&cassie));
+        run_pgwire_blocking(Arc::clone(&cassie), "later_cleanup", |_| Ok(()))
+            .await
+            .expect("later owned worker");
+        assert!(cassie.midge.pending_schema_cleanups().unwrap().is_empty());
     });
 }
 

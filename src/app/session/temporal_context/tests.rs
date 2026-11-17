@@ -198,30 +198,36 @@ fn should_not_adopt_another_actors_commit_as_an_idle_clock_receipt() {
 fn should_preserve_now_through_an_actual_nested_procedure_call() {
     // Arrange
     let (cassie, session) = fixture();
+    cassie
+        .execute_sql(&session, "SELECT now()", vec![])
+        .unwrap();
     session.rollback_transaction();
     cassie
         .execute_sql(
             &session,
-            r#"CREATE PROCEDURE nested_clock() AS "SELECT now()""#,
+            "CREATE TABLE nested_clock_rows (first_now TIMESTAMPTZ, second_now TIMESTAMPTZ)",
             vec![],
         )
         .unwrap();
-    session.begin_transaction(None).unwrap();
-    let first = cassie
-        .execute_sql(&session, "SELECT now()", vec![])
-        .unwrap();
+    cassie.execute_sql(&session, r#"CREATE PROCEDURE nested_clock() AS "INSERT INTO nested_clock_rows VALUES (now(), now())""#, vec![]).unwrap();
     let before = *session.transaction_clock.lock();
 
-    // Act
+    // Act: CALL is supported standalone, and discards its body's QueryResult.
     cassie
         .execute_sql(&session, "CALL nested_clock()", vec![])
         .unwrap();
-    let second = cassie
-        .execute_sql(&session, "SELECT now()", vec![])
+    let rows = cassie
+        .execute_sql(
+            &session,
+            "SELECT first_now, second_now FROM nested_clock_rows",
+            vec![],
+        )
         .unwrap();
 
     // Assert
-    assert_eq!(first.rows(), second.rows());
+    assert_eq!(rows.rows().len(), 1);
+    assert_eq!(rows.rows()[0][0], rows.rows()[0][1]);
     assert_eq!(*session.transaction_clock.lock(), before);
+    assert!(!session.is_transaction_active());
     assert!(!session.is_transaction_failed());
 }

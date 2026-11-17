@@ -20,6 +20,7 @@ pub(in crate::pgwire::connection) struct Control {
     pub(in crate::pgwire::connection) resume: mpsc::SyncSender<()>,
     pub(in crate::pgwire::connection) completed: oneshot::Receiver<()>,
     pub(in crate::pgwire::connection) calls: Arc<AtomicUsize>,
+    pub(in crate::pgwire::connection) queued_aborted: oneshot::Receiver<()>,
     _guard: Guard,
 }
 
@@ -41,6 +42,7 @@ pub(in crate::pgwire::connection) struct Probe {
 struct Registered {
     probe: Option<Probe>,
     abort_queued: bool,
+    queued_aborted: Option<oneshot::Sender<()>>,
 }
 
 fn registry() -> &'static Mutex<HashMap<usize, Registered>> {
@@ -56,6 +58,7 @@ pub(in crate::pgwire::connection) fn install(cassie: &Cassie, abort_queued: bool
     let (entered_tx, entered) = oneshot::channel();
     let (resume, resume_rx) = mpsc::sync_channel(1);
     let (completed_tx, completed) = oneshot::channel();
+    let (queued_aborted_tx, queued_aborted) = oneshot::channel();
     let calls = Arc::new(AtomicUsize::new(0));
     let key = key(cassie);
     let probe = Probe {
@@ -71,7 +74,8 @@ pub(in crate::pgwire::connection) fn install(cassie: &Cassie, abort_queued: bool
             key,
             Registered {
                 probe: Some(probe),
-                abort_queued
+                abort_queued,
+                queued_aborted: Some(queued_aborted_tx),
             }
         )
         .is_none());
@@ -80,6 +84,7 @@ pub(in crate::pgwire::connection) fn install(cassie: &Cassie, abort_queued: bool
         resume,
         completed,
         calls,
+        queued_aborted,
         _guard: Guard(key),
     }
 }
@@ -98,6 +103,21 @@ pub(in crate::pgwire::connection) fn abort_before_start(key: usize) -> bool {
         .expect("cleanup probes")
         .get_mut(&key)
         .is_some_and(|entry| std::mem::take(&mut entry.abort_queued))
+}
+
+pub(in crate::pgwire::connection) fn retire(key: usize) {
+    registry().lock().expect("cleanup probes").remove(&key);
+}
+
+pub(in crate::pgwire::connection) fn queued_abort_requested(key: usize) {
+    let sender = registry()
+        .lock()
+        .expect("cleanup probes")
+        .get_mut(&key)
+        .and_then(|entry| entry.queued_aborted.take());
+    if let Some(sender) = sender {
+        let _ = sender.send(());
+    }
 }
 
 impl Probe {

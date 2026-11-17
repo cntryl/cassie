@@ -99,7 +99,8 @@ fn should_preserve_replacement_when_old_copy_predicate_fails() {
 
     // Assert
     assert!(
-        matches!(result, Err(filter::CopyWhereError::Cassie(CassieError::Execution(ref message))) if message == "division by zero")
+        matches!(result, Err(filter::CopyWhereError::Cassie(ref error)) if error.sql_state() == "25000"),
+        "stale COPY must be rejected before evaluating its predicate: {result:?}"
     );
     assert!(healthy);
     assert!(usable.is_ok());

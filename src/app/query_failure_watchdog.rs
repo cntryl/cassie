@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+mod output;
+use output::ChildOutput;
+
 const CHILD_CASE: &str = "CASSIE_TEST_RETIREMENT_WATCHDOG_CASE";
 const CHILD_TOKEN: &str = "CASSIE_TEST_RETIREMENT_WATCHDOG_TOKEN";
 const CHILD_DIRECTORY: &str = "CASSIE_TEST_RETIREMENT_WATCHDOG_DIRECTORY";
@@ -52,6 +55,7 @@ impl Drop for OwnedDirectory {
 struct OwnedChild {
     child: Child,
     reaped: bool,
+    output: ChildOutput,
 }
 
 impl Drop for OwnedChild {
@@ -136,19 +140,21 @@ pub(super) fn run_parent(test_name: &str, case: &str) -> Result<(), String> {
 fn run_owned_child(directory: &Path, test_name: &str, case: &str) -> Result<(), String> {
     let token = uuid::Uuid::new_v4().to_string();
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
-    let child = Command::new(executable)
+    let mut child = Command::new(executable)
         .args(["--exact", test_name, "--nocapture", "--test-threads=1"])
         .env(CHILD_CASE, case)
         .env(CHILD_TOKEN, &token)
         .env(CHILD_DIRECTORY, directory)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("spawn watchdog child: {error}"))?;
+    let output = ChildOutput::start(&mut child);
     let mut child = OwnedChild {
         child,
         reaped: false,
+        output,
     };
     let deadline = Instant::now() + DEADLINE;
     let status = loop {
@@ -158,15 +164,29 @@ fn run_owned_child(directory: &Path, test_name: &str, case: &str) -> Result<(), 
         }
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            return Err(format!("watchdog child timed out: {case}"));
+            let _ = child.child.kill();
+            child
+                .child
+                .wait()
+                .map_err(|error| format!("reap timed-out child: {error}"))?;
+            child.reaped = true;
+            return Err(format!(
+                "watchdog child timed out: {case}; {}",
+                child.output.finish()
+            ));
         }
         std::thread::park_timeout(CHECK_INTERVAL.min(remaining));
     };
+    let output = child.output.finish();
     if !status.success() {
-        return Err(format!("watchdog child failed for {case}: {status}"));
+        return Err(format!(
+            "watchdog child failed for {case}: {status}; {output}"
+        ));
     }
-    verify_receipt(directory, "start", &receipt(case, &token, "START"))?;
-    verify_receipt(directory, "complete", &receipt(case, &token, "COMPLETE"))?;
+    verify_receipt(directory, "start", &receipt(case, &token, "START"))
+        .map_err(|error| format!("{error}; {output}"))?;
+    verify_receipt(directory, "complete", &receipt(case, &token, "COMPLETE"))
+        .map_err(|error| format!("{error}; {output}"))?;
     Ok(())
 }
 
@@ -177,5 +197,8 @@ fn should_reject_missing_retirement_watchdog_child() {
     // Act
     let result = run_parent(name, "missing");
     // Assert
-    assert!(result.is_err());
+    let error = result.expect_err("missing watchdog child must fail");
+    assert!(error.contains("missing start receipt"));
+    assert!(error.contains("child stdout"));
+    assert!(error.contains("0 tests"));
 }

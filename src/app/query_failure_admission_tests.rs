@@ -413,15 +413,16 @@ fn assert_explain_timeout_snapshot(initial: &str, changed: &str, expected_deadli
         .recv_timeout(Duration::from_secs(5))
         .expect("transaction lock held");
     let (contended_tx, contended_rx) = mpsc::sync_channel(1);
+    let (capture_tx, capture_rx) = mpsc::sync_channel(1);
     let old_cassie = cassie.clone();
     let old_session = session.clone();
     let worker = std::thread::spawn(move || {
         // Future hook must observe this EXPLAIN's real failed capture try-lock.
-        let _hook = super::query_lifecycle::authority_test_hooks::install_on_capture_contention(
+        let _hook = super::query_lifecycle::authority_test_hooks::install_paused_capture_contention(
             &old_cassie,
             &old_session,
             contended_tx,
-            false,
+            capture_rx,
         );
         old_cassie.explain_sql_with_cancellation_converted(
             &old_session,
@@ -434,21 +435,25 @@ fn assert_explain_timeout_snapshot(initial: &str, changed: &str, expected_deadli
     contended_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("actual capture contention");
-    let held_during_change = held.load(Ordering::Acquire);
+    let held_during_contention = held.load(Ordering::Acquire);
 
-    // Act
+    // Act: the actual-root setting write waits until the prior root holder
+    // retires, while the capturing worker remains at its real contention seam.
+    release_tx.send(()).expect("release transaction lock");
+    holder.join().expect("holder");
     session
         .set_setting("statement_timeout", changed)
         .expect("concurrent setting");
-    release_tx.send(()).expect("release transaction lock");
-    holder.join().expect("holder");
+    capture_tx
+        .send(())
+        .expect("resume capture after setting change");
     let result = worker.join().expect("EXPLAIN worker");
     let current = session.transaction_unique_owner_id();
     let healthy = !session.is_transaction_failed();
     session.rollback_transaction();
 
     // Assert: converter observes the actual controls used by EXPLAIN.
-    assert!(held_during_change);
+    assert!(held_during_contention);
     assert_eq!(result.expect("EXPLAIN"), expected_deadline);
     assert_eq!(current, owner);
     assert!(healthy);

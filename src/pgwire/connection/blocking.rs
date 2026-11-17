@@ -87,6 +87,7 @@ where
     #[cfg(test)]
     if cleanup_test_hooks::abort_before_start(probe_key) {
         worker.abort();
+        cleanup_test_hooks::queued_abort_requested(probe_key);
     }
     let result = worker.await;
 

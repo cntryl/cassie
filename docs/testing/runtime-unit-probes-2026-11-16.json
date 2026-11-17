@@ -1,7 +1,7 @@
 {
   "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
-  "source_before_inventory_commit": "77e0b6fbbfdfdcd6b15e1d38a32d82316114601c",
-  "tree_before_inventory_commit": "8f0dc66bdef1159bddd8c006b1c3b9875ab72c23",
+  "source_before_inventory_commit": "ed9303d75e161b036a7357e1e6c5f022c13e3527",
+  "tree_before_inventory_commit": "6a4a70cdc6bb7b7becb57490d05e2e0757ec73bc",
   "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
   "file_count": 37,
@@ -3496,7 +3496,7 @@
     },
     {
       "file": "src/pgwire/connection/worker_lease/tests.rs",
-      "sha256": "3d0452663f0b4b9700635602ec656ee850e155b01219bae081b540dc0ff4617d",
+      "sha256": "077f2e0e98cfaa3a89cf898472b7668d1dc145bcb134bd23af4133902069556d",
       "lines": 111,
       "cfg_attributes_in_file": [],
       "test_declarations": [
@@ -3520,7 +3520,7 @@
           "attributes": [
             "#[test]"
           ],
-          "body_sha256": "5f3795acfedd4026367f268dc341fa653f448f293e51dc8b4cf352bf567d742d",
+          "body_sha256": "56367c6f98b0de7934c521aa5cb7b9338563b0008fa154f15f31716d5130b72e",
           "comparison": "added_in_file",
           "execution_status": "authored/not run"
         }

@@ -86,8 +86,10 @@ fn should_release_a_never_started_workers_connection_lease_without_running_it() 
         let observed = Arc::clone(&ran);
 
         // Act
-        let queued = with_connection_lease(permit, async {
-            spawn_owned_blocking(move || observed.store(true, std::sync::atomic::Ordering::Release))
+        let (queued,) = with_connection_lease(permit, async {
+            (spawn_owned_blocking(move || {
+                observed.store(true, std::sync::atomic::Ordering::Release)
+            }),)
         })
         .await;
         queued.abort();

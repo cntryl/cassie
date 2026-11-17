@@ -5,8 +5,9 @@ use super::{
     execute_streaming_portal_page, missing_portal_error, prepared_for_portal,
     resume_suspended_portal, streamable_portal_query, take_portal_execution, transaction_boundary,
     validate_prepared_result_types, write_completed_portal, write_empty_query_response, Arc,
-    AsyncWrite, Cassie, CassieSession, ExtendedQueryError, PreparedPortalRequest, RuntimeState,
-    SessionState, StreamingPortalPageRequest, SuspendedPortalRequest,
+    AsyncWrite, Cassie, CassieSession, ExtendedQueryError, PreparedPortalRequest,
+    PreparedStatement, RuntimeState, SessionState, StreamingPortalPageRequest,
+    SuspendedPortalRequest,
 };
 
 pub(super) async fn handle_execute(
@@ -54,20 +55,7 @@ pub(super) async fn handle_execute(
     }
 
     let prepared = prepared_for_portal(state, &portal)?;
-    if let Some(descriptor) = state.prepared_result_descriptors.get(&prepared.id).cloned() {
-        let catalog_version = current_catalog_version(&cassie, session);
-        if session.transaction_catalog_overlay().is_some()
-            || descriptor.catalog_version() != catalog_version
-        {
-            super::super::transactions::capture_and_validate_protocol_owner(session)
-                .await
-                .map_err(|error| ExtendedQueryError::cassie(&error))?;
-            let columns =
-                describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
-            validate_prepared_result_types(Some(&descriptor), &columns)?;
-            descriptor.set_catalog_version(catalog_version);
-        }
-    }
+    refresh_prepared_descriptor(&cassie, session, state, &prepared).await?;
     let Some(parsed) = prepared.parsed.clone() else {
         super::super::transactions::capture_and_validate_protocol_owner(session)
             .await
@@ -128,6 +116,29 @@ pub(super) async fn handle_execute(
     .await;
     super::super::transactions::clear_owned_idle_portals(runtime, state, session);
     result
+}
+
+async fn refresh_prepared_descriptor(
+    cassie: &Arc<Cassie>,
+    session: &CassieSession,
+    state: &SessionState,
+    prepared: &PreparedStatement,
+) -> Result<(), ExtendedQueryError> {
+    if let Some(descriptor) = state.prepared_result_descriptors.get(&prepared.id).cloned() {
+        let catalog_version = current_catalog_version(cassie, session);
+        if session.transaction_catalog_overlay().is_some()
+            || descriptor.catalog_version() != catalog_version
+        {
+            super::super::transactions::capture_and_validate_protocol_owner(session)
+                .await
+                .map_err(|error| ExtendedQueryError::cassie(&error))?;
+            let columns =
+                describe_prepared(Arc::clone(cassie), session.clone(), prepared.clone()).await?;
+            validate_prepared_result_types(Some(&descriptor), &columns)?;
+            descriptor.set_catalog_version(catalog_version);
+        }
+    }
+    Ok(())
 }
 
 fn admit_recovery_execute(

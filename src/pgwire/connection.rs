@@ -602,7 +602,7 @@ async fn handle_simple_query(
         }
     };
 
-    let operation = match simple_execution::run_batch(
+    let Ok(operation) = simple_execution::run_batch(
         cassie.clone(),
         runtime,
         write_half,
@@ -612,9 +612,8 @@ async fn handle_simple_query(
         parsed,
     )
     .await
-    {
-        Ok(operation) => operation,
-        Err(()) => return ConnectionStep::Break,
+    else {
+        return ConnectionStep::Break;
     };
 
     if transactions::finish_query(cassie, runtime, write_half, state, &operation)

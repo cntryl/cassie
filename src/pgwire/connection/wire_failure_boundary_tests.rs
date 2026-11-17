@@ -539,7 +539,7 @@ fn should_return_an_uncaptured_saturation_error_while_the_root_is_contended() {
             &held_tx,
             &release_rx,
             Arc::new(std::sync::atomic::AtomicBool::new(false)),
-        )
+        );
     });
     held_rx.recv_timeout(Duration::from_secs(5)).unwrap();
     let (done_tx, done_rx) = std::sync::mpsc::sync_channel(1);

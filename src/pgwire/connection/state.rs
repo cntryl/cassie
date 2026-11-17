@@ -245,7 +245,7 @@ impl SessionState {
             self.remove_portal(name);
         }
         record_negative_delta(names.len(), |delta| {
-            runtime.record_pgwire_portal_delta(delta)
+            runtime.record_pgwire_portal_delta(delta);
         });
     }
 

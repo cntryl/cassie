@@ -109,7 +109,7 @@ fn should_not_publish_named_or_unnamed_parse_after_registry_owner_replacement() 
 
         // Assert
         assert_eq!(result.unwrap_err().pg_error.code, "25000");
-        assert!(output.is_empty());
+        assert_eq!(output, [] as [u8; 0]);
         assert!(!state.prepared_statements.contains_key("late"));
         if name.is_empty() {
             assert_eq!(state.prepared_statements[""].id, 444);
@@ -154,7 +154,7 @@ fn should_not_publish_close_or_remove_portals_after_registry_owner_replacement()
 
     // Assert
     assert_eq!(result.unwrap_err().pg_error.code, "25000");
-    assert!(output.is_empty());
+    assert_eq!(output, [] as [u8; 0]);
     assert_eq!(state.prepared_statements["source"].id, 444);
     assert_eq!(
         root.with_session_objects(|objects| objects
@@ -251,7 +251,7 @@ fn should_keep_b_portals_and_registry_when_an_a_close_reaches_the_shared_leaf() 
 
     // Assert
     assert_eq!(result.unwrap_err().pg_error.code, "25000");
-    assert!(output.is_empty());
+    assert_eq!(output, [] as [u8; 0]);
     assert_eq!(state.prepared_statements["source"].id, 999);
     assert_eq!(state.portal_owner_identity("b"), Some(owner));
     assert!(state.portals.contains_key("b"));
@@ -304,7 +304,7 @@ fn should_not_remove_b_portals_for_an_a_portal_close() {
 
     // Assert
     assert_eq!(result.unwrap_err().pg_error.code, "25000");
-    assert!(output.is_empty());
+    assert_eq!(output, [] as [u8; 0]);
     assert!(state.portals.contains_key("b"));
     assert_eq!(state.portal_owner_identity("b"), Some(owner));
     assert!(!root.is_transaction_failed());

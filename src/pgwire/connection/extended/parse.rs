@@ -36,27 +36,19 @@ pub(super) async fn handle_parse(
     let empty_query = super::super::simple_query::split_simple_query(&query)
         .is_ok_and(|statements| statements.is_empty());
     if empty_query {
-        let parameter_types = normalize_parameter_type_oids(&parameter_type_oids);
-        let id = state.next_prepared_id();
-        store_prepared_statement(
-            Arc::clone(&cassie),
-            session,
+        return store_empty_parse(
+            &cassie,
             runtime,
+            write_half,
             state,
-            PreparedStatement {
-                id,
+            session,
+            ParseRequest {
                 name,
                 query,
-                parsed: None,
-                sql_fingerprint: 0,
-                parameter_count: parameter_types.len(),
-                parameter_types,
-                described: false,
+                parameter_type_oids,
             },
         )
-        .await?;
-        let _ = write_parse_complete(write_half).await;
-        return Ok(());
+        .await;
     }
     if let Some(error) = unsupported_sql_error(&query) {
         if session.is_authenticated_read_only() {
@@ -129,6 +121,37 @@ pub(super) async fn handle_parse(
     )
     .await?;
 
+    let _ = write_parse_complete(write_half).await;
+    Ok(())
+}
+
+async fn store_empty_parse(
+    cassie: &Arc<Cassie>,
+    runtime: &RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
+    session: &CassieSession,
+    request: ParseRequest,
+) -> Result<(), ExtendedQueryError> {
+    let parameter_types = normalize_parameter_type_oids(&request.parameter_type_oids);
+    let id = state.next_prepared_id();
+    store_prepared_statement(
+        Arc::clone(cassie),
+        session,
+        runtime,
+        state,
+        PreparedStatement {
+            id,
+            name: request.name,
+            query: request.query,
+            parsed: None,
+            sql_fingerprint: 0,
+            parameter_count: parameter_types.len(),
+            parameter_types,
+            described: false,
+        },
+    )
+    .await?;
     let _ = write_parse_complete(write_half).await;
     Ok(())
 }

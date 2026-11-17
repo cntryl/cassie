@@ -208,7 +208,10 @@ fn should_leave_cleanup_debt_for_later_when_a_queued_worker_never_starts() {
         run_pgwire_blocking(Arc::clone(&cassie), "later_cleanup", |_| Ok(()))
             .await
             .expect("later owned worker");
-        assert!(cassie.midge.pending_schema_cleanups().unwrap().is_empty());
+        assert_eq!(
+            cassie.midge.pending_schema_cleanups().unwrap().as_slice(),
+            &debt[..0]
+        );
     });
 }
 

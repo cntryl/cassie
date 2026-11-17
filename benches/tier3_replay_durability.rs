@@ -215,9 +215,12 @@ fn handle_read_mode() -> bool {
 }
 
 fn main() {
-    if handle_read_mode() {
-        return;
+    if !handle_read_mode() {
+        run_producer();
     }
+}
+
+fn run_producer() {
     let mode = ReplayMode::parse(std::env::var_os("CASSIE_REPLAY_BENCH_MODE").as_deref())
         .unwrap_or_else(|error| panic!("{error}"));
     let shape = Shape::parse(std::env::var_os("CASSIE_REPLAY_BENCH_SHAPE").as_deref())

@@ -41,7 +41,7 @@ pub(in crate::executor::execution) fn execute_truncate(
         }
         check_timeout(controls)?;
         if statement.restart_identity {
-            let working_cassie = cassie.with_statement_metadata_writer(batch.session());
+            let working_cassie = cassie.with_statement_metadata_writer(batch.session())?;
             restart_owned_sequences(&working_cassie, session, batch.session(), &tables)?;
         }
         cassie

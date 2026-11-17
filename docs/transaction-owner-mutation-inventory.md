@@ -29,10 +29,15 @@ It does not cancel, undo or bound an admitted native update.
 
 ## Remaining integration and review obligations
 
-- Fork schema contexts currently share a root Arc. The selected repair is an
-  execution-local owned context clone retaining its descriptor lease, Weak
-  Midge link and same-query known-payload reservation. Root attachment must
-  validate lineage under root-to-context lock order.
+- Fork schema contexts use the selected execution-local owned clone: retain
+  catalog/descriptor lease references and the Weak Midge link, while owning a
+  separate default-database String. Admit wrapper payload, known Arc counters
+  and actual String bytes before cloning, and retain their memory guard with
+  that same Arc until its last clone retires. Root attachment validates lineage
+  under root-to-context lock order; fork attachment never writes a later root
+  context. Jev selected this isolation over shared-guard-only at 1.0. This is a
+  metadata lifetime owner, not another storage abstraction or an allocator
+  metadata claim. Source and executable qualification remain separate.
 - Per-portal owner metadata and guarded Bind publication are source-reviewed
   in a separate coordinator increment. Actual Execute/Sync adoption and
   cleanup wiring must be reviewed with this candidate; a generation-only

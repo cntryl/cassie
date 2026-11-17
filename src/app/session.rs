@@ -67,7 +67,7 @@ pub struct CassieSession {
     #[serde(skip)]
     access: SessionAccess,
     #[serde(skip)]
-    pub(super) schema_context: Arc<Mutex<Option<super::session_schema::SessionSchemaContext>>>,
+    pub(super) schema_context: Arc<super::session_schema::OwnedSessionSchemaContext>,
     #[serde(skip)]
     search_path: Arc<Mutex<Vec<String>>>,
     #[serde(skip)]
@@ -310,7 +310,7 @@ impl CassieSession {
             user: normalize_role_name(user),
             database,
             access,
-            schema_context: Arc::new(Mutex::new(None)),
+            schema_context: Arc::new(super::session_schema::OwnedSessionSchemaContext::empty()),
             search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
             settings: Arc::new(Mutex::new(SessionSettings::default())),
             backend_pid: Arc::new(AtomicI32::new(0)),

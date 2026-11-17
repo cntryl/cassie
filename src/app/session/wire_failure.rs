@@ -16,6 +16,11 @@ impl FailureAuthority {
             .as_ref()
             .filter(|authority| authority.matches_root(session))
         else {
+            if let Some(authority) = session.operation_failure_authority.as_ref() {
+                // A detached fork carries its actual root's lineage; its
+                // private transaction mutex must never become a new root.
+                return authority.clone();
+            }
             return Self::capture_with_contention(session, on_contention);
         };
         let transaction = if let Some(transaction) = session.transaction.try_lock() {
@@ -68,6 +73,17 @@ impl FailureAuthority {
 }
 
 impl CassieSession {
+    pub(crate) fn with_schema_attachment_guard<T>(
+        &self,
+        attach: impl FnOnce() -> Result<T, super::CassieError>,
+    ) -> Result<T, super::CassieError> {
+        if !self.owns_transaction_lifecycle {
+            return attach();
+        }
+        let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        attach()
+    }
     pub(crate) fn try_with_current_operation_owner<T>(
         &self,
         publish: impl FnOnce(super::FailureAuthorityIdentity) -> T,

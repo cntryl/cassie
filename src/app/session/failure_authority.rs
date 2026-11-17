@@ -126,6 +126,13 @@ impl FailureAuthority {
             on_contention();
             session.transaction.lock()
         };
+        Self::captured_from_state(session, &transaction)
+    }
+
+    pub(super) fn captured_from_state(
+        session: &CassieSession,
+        transaction: &SessionTransactionState,
+    ) -> Self {
         let identity = match transaction.status {
             SessionTransactionStatus::Idle => None,
             SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed => {
@@ -219,6 +226,9 @@ impl FailureAuthority {
         &self,
         session: &CassieSession,
     ) -> Result<(), super::CassieError> {
+        if !session.owns_transaction_lifecycle && self.matches_root(session) {
+            return Err(super::sequence_effect::changed());
+        }
         let root = self
             .root
             .upgrade()

@@ -34,6 +34,112 @@ fn fixture() -> (Cassie, CassieSession) {
 }
 
 #[test]
+fn should_keep_a_late_statement_fork_schema_attachment_out_of_the_replacement() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = session
+        .command_descriptor_snapshot(&cassie.publication_catalog, &controls)
+        .unwrap()
+        .unwrap();
+    let mut scoped = cassie.clone();
+    scoped.catalog = owner.catalog().clone();
+    scoped.catalog_owner = Some(Arc::clone(&owner));
+    scoped.metadata_write_catalog = session.transaction_catalog_overlay().unwrap();
+    session.attach_schema_context(&scoped).unwrap();
+    let batch = cassie.new_statement_batch(Some(&session)).unwrap();
+    session.rollback_transaction();
+    session.begin_transaction(None).unwrap();
+    session.attach_schema_context(&cassie).unwrap();
+
+    // Act
+    batch.session().attach_schema_context(&scoped).unwrap();
+
+    // Assert
+    assert!(!Arc::ptr_eq(
+        &session.schema_context,
+        &batch.session().schema_context
+    ));
+    assert!(session
+        .schema_context
+        .lock()
+        .as_ref()
+        .unwrap()
+        .owner
+        .is_none());
+    assert!(Arc::ptr_eq(
+        batch
+            .session()
+            .schema_context
+            .lock()
+            .as_ref()
+            .unwrap()
+            .owner
+            .as_ref()
+            .unwrap(),
+        &owner
+    ));
+    assert!(!session
+        .schema_context
+        .lock()
+        .as_ref()
+        .unwrap()
+        .catalog
+        .relation_exists("scoped_own"));
+    drop(batch);
+    drop(scoped);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_admit_fork_context_payload_and_database_bytes_until_its_last_clone_retires() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let expected = std::mem::size_of::<OwnedSessionSchemaContext>()
+        + 2 * std::mem::size_of::<usize>()
+        + cassie.default_database.len();
+
+    // Act
+    let context = session
+        .schema_context
+        .fork_with_controls(Some(&controls))
+        .unwrap();
+    let last = Arc::clone(&context);
+    let charged = controls.current_query_memory_bytes();
+    drop(context);
+    let retained = controls.current_query_memory_bytes();
+    drop(last);
+    let released = controls.current_query_memory_bytes();
+    let exact = QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits {
+            query_memory_budget_bytes: expected,
+            ..CassieRuntimeLimits::default()
+        },
+        Instant::now(),
+    );
+    let short = QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits {
+            query_memory_budget_bytes: expected - 1,
+            ..CassieRuntimeLimits::default()
+        },
+        Instant::now(),
+    );
+    let accepted = session.schema_context.fork_with_controls(Some(&exact));
+    let denied = session.schema_context.fork_with_controls(Some(&short));
+
+    // Assert
+    assert_eq!(charged, expected);
+    assert_eq!(retained, expected);
+    assert_eq!(released, 0);
+    assert!(accepted.is_ok());
+    assert_eq!(denied.unwrap_err().sql_state(), "54000");
+}
+
+#[test]
 fn should_retire_the_schema_context_read_owner_at_transaction_end() {
     // Arrange
     for commit in [false, true] {
@@ -51,7 +157,7 @@ fn should_retire_the_schema_context_read_owner_at_transaction_end() {
         scoped.metadata_write_catalog = session
             .transaction_catalog_overlay()
             .expect("mutable stage");
-        session.attach_schema_context(&scoped);
+        session.attach_schema_context(&scoped).unwrap();
         drop(scoped);
 
         // Act
@@ -182,7 +288,7 @@ fn should_keep_published_sequence_cursor_out_of_the_transaction_catalog_overlay(
     scoped.metadata_write_catalog = session
         .transaction_catalog_overlay()
         .expect("transaction catalog overlay");
-    session.attach_schema_context(&scoped);
+    session.attach_schema_context(&scoped).unwrap();
 
     // Act
     session.publish_sequence_metadata(&updated);

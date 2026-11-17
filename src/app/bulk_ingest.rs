@@ -312,7 +312,7 @@ impl Cassie {
         } else {
             None
         };
-        let working = self.with_statement_metadata_writer(staging);
+        let working = self.with_statement_metadata_writer(staging)?;
         let mut references = super::foreign_key_checks::ForeignKeyReferences::default();
         let schema = self.catalog.get_schema(&statement.table);
         let mut seen_ids = BTreeSet::new();

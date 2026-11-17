@@ -92,18 +92,41 @@ fn should_reject_a_detached_sequence_effect_without_root_lineage() {
     // Arrange
     let (cassie, session) = fixture();
     let batch = cassie.new_statement_batch(Some(&session)).unwrap();
+    let mut missing = batch.session().clone();
+    missing.operation_failure_authority = None;
     session.rollback_transaction();
     session.begin_transaction(None).unwrap();
 
     // Act
-    let admitted = batch.session().admit_sequence_projection_effect();
+    let admitted = missing.admit_sequence_projection_effect();
+    let private_authority = super::FailureAuthority::capture_for_operation(&missing);
+    let rebound_private = missing.with_operation_failure_authority(Some(&private_authority));
+    let rebound_admission = rebound_private.admit_sequence_projection_effect();
 
     // Assert
     assert!(admitted.is_err());
+    assert_eq!(rebound_admission.unwrap_err().sql_state(), "25000");
     assert_eq!(
         session.projection_commit_policy(false),
         super::ProjectionCommitPolicy::Existing
     );
+}
+
+#[test]
+fn should_keep_root_lineage_for_a_direct_sessions_statement_fork() {
+    // Arrange
+    let (cassie, session) = fixture();
+    assert!(session.operation_failure_authority.is_none());
+    let batch = cassie.new_statement_batch(Some(&session)).unwrap();
+
+    // Act
+    let admitted = batch.session().admit_sequence_projection_effect();
+    session.rollback_transaction();
+    let retired = batch.session().admit_sequence_projection_effect();
+
+    // Assert
+    assert!(admitted.is_ok());
+    assert_eq!(retired.unwrap_err().sql_state(), "25000");
 }
 
 #[test]

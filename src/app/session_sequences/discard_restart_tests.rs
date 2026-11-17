@@ -7,6 +7,59 @@ use crate::types::Value;
 use std::sync::mpsc;
 use std::time::Duration;
 
+#[test]
+fn should_preserve_sequence_history_when_an_old_operation_cannot_reset_the_replacement() {
+    // Arrange
+    let session = CassieSession::new("old_sequence_reset".into(), None);
+    session.begin_transaction(None).unwrap();
+    let operation = session.with_new_wire_operation();
+    let _authority = crate::app::FailureAuthority::capture_for_operation(&operation);
+    session.rollback_transaction();
+    session.begin_transaction(None).unwrap();
+    session.record_sequence_value("replacement", 7, 42, true);
+
+    // Act
+    let reset = operation.discard_sequence_values_for_operation();
+
+    // Assert
+    assert_eq!(reset.unwrap_err().sql_state(), "25000");
+    let values = session.sequence_values.lock();
+    assert_eq!(values.by_sequence.get("id:7"), Some(&42));
+    assert_eq!(values.last, Some(("replacement".into(), 7)));
+    assert!(!session.is_transaction_failed());
+}
+
+#[test]
+fn should_clear_owned_sequence_history_only_after_the_owned_reset_leaf_succeeds() {
+    // Arrange
+    let session = CassieSession::new("owned_sequence_reset".into(), None);
+    let operation = session.with_new_wire_operation();
+    let _authority = crate::app::FailureAuthority::capture_for_operation(&operation);
+    session.record_sequence_value("owned", 7, 42, true);
+
+    // Act
+    let denied: Result<(), CassieError> = operation.with_owned_sequence_reset(|_, _| {
+        Err(CassieError::InvalidParameterValue(
+            "reset leaf refused".into(),
+        ))
+    });
+    let retained = session
+        .sequence_values
+        .lock()
+        .by_sequence
+        .get("id:7")
+        .copied();
+    let accepted = operation.discard_sequence_values_for_operation();
+
+    // Assert
+    assert!(denied.is_err());
+    assert_eq!(retained, Some(42));
+    accepted.unwrap();
+    let values = session.sequence_values.lock();
+    assert!(values.by_sequence.is_empty());
+    assert!(values.last.is_none());
+}
+
 fn fixture() -> (Cassie, CassieSession, String, SequenceCursor) {
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");

@@ -138,7 +138,7 @@ impl PendingUpsert {
         // Default/identity expressions execute once before the working base is
         // captured. A wait reuses these candidates and never repeats inputs.
         if prepared.is_none() {
-            let input_cassie = cassie.with_statement_metadata_writer(input_session);
+            let input_cassie = cassie.with_statement_metadata_writer(input_session)?;
             *prepared = Some(super::dml::prepare_waiting_insert(
                 &input_cassie,
                 input_session,
@@ -156,7 +156,7 @@ impl PendingUpsert {
             controls,
         )?;
         let controls = &statement_controls;
-        let working_cassie = cassie.with_statement_metadata_writer(batch.session());
+        let working_cassie = cassie.with_statement_metadata_writer(batch.session())?;
         let keys = keys.get_or_insert_with(|| {
             crate::app::collect_upsert_unique_keys(
                 &cassie.catalog,

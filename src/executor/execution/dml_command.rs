@@ -832,7 +832,7 @@ fn execute_atomic_dml(
                 batch.session(),
                 controls,
             )?;
-            let working_cassie = cassie.with_statement_metadata_writer(batch.session());
+            let working_cassie = cassie.with_statement_metadata_writer(batch.session())?;
             let result = execute(&working_cassie, batch.session(), &statement_controls)?;
             check_timeout(controls)?;
 

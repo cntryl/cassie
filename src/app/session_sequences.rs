@@ -41,6 +41,24 @@ fn not_defined(message: String) -> CassieError {
 }
 
 impl CassieSession {
+    /// Keeps the established sequence-values -> actual-root order for reset.
+    pub(crate) fn with_owned_sequence_reset<T>(
+        &self,
+        reset: impl FnOnce(SessionTransactionStatus, bool) -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        let mut values = self.sequence_values.lock();
+        self.with_owned_shared_session_state(|status, implicit| {
+            let output = reset(status, implicit)?;
+            values.by_sequence.clear();
+            values.last = None;
+            Ok(output)
+        })
+    }
+
+    pub(crate) fn discard_sequence_values_for_operation(&self) -> Result<(), CassieError> {
+        self.with_owned_sequence_reset(|_, _| Ok(()))
+    }
+
     /// Records a value returned by `nextval` (or `setval`) for `sequence`.
     pub(crate) fn record_sequence_value(
         &self,

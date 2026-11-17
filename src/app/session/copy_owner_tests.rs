@@ -177,7 +177,7 @@ fn should_use_the_default_database_for_a_session_without_an_explicit_database() 
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
     cassie.startup().expect("startup");
     let session = CassieSession::new("tester".into(), None);
-    session.attach_schema_context(&cassie);
+    session.attach_schema_context(&cassie).unwrap();
     for sql in ["BEGIN", "CREATE TABLE copy_owner_default_db (id INT)"] {
         cassie.execute_sql(&session, sql, vec![]).expect("setup");
     }

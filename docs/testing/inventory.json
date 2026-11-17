@@ -70059,8 +70059,8 @@
       }
     },
     {
-      "id": "tests/graph_table/view_dependencies.rs::should_drop_the_transitive_graph_view_closure_with_its_schema_and_restore_it_on_rollback",
-      "name": "should_drop_the_transitive_graph_view_closure_with_its_schema_and_restore_it_on_rollback",
+      "id": "tests/graph_table/view_dependencies.rs::should_restore_a_cascaded_graph_view_closure_on_rollback",
+      "name": "should_restore_a_cascaded_graph_view_closure_on_rollback",
       "current_file": "tests/graph_table/view_dependencies.rs",
       "line": 52,
       "end_line": 87,
@@ -70071,7 +70071,7 @@
       "instances": [
         {
           "suite": "graph_table",
-          "name": "view_dependencies::should_drop_the_transitive_graph_view_closure_with_its_schema_and_restore_it_on_rollback"
+          "name": "view_dependencies::should_restore_a_cascaded_graph_view_closure_on_rollback"
         }
       ],
       "attributes": [
@@ -70276,8 +70276,8 @@
       }
     },
     {
-      "id": "tests/graph_table/view_dependencies.rs::should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade",
-      "name": "should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade",
+      "id": "tests/graph_table/view_dependencies.rs::should_keep_qualified_dependencies_precise_during_schema_cascade",
+      "name": "should_keep_qualified_dependencies_precise_during_schema_cascade",
       "current_file": "tests/graph_table/view_dependencies.rs",
       "line": 352,
       "end_line": 378,
@@ -70288,7 +70288,7 @@
       "instances": [
         {
           "suite": "graph_table",
-          "name": "view_dependencies::should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade"
+          "name": "view_dependencies::should_keep_qualified_dependencies_precise_during_schema_cascade"
         }
       ],
       "attributes": [
@@ -72446,8 +72446,8 @@
       }
     },
     {
-      "id": "tests/graph_types/reference_order.rs::should_order_reference_keys_numerically_and_without_losing_bigint_precision",
-      "name": "should_order_reference_keys_numerically_and_without_losing_bigint_precision",
+      "id": "tests/graph_types/reference_order.rs::should_order_reference_keys_by_exact_numeric_value",
+      "name": "should_order_reference_keys_by_exact_numeric_value",
       "current_file": "tests/graph_types/reference_order.rs",
       "line": 7,
       "end_line": 26,
@@ -72458,7 +72458,7 @@
       "instances": [
         {
           "suite": "graph_types",
-          "name": "reference_order::should_order_reference_keys_numerically_and_without_losing_bigint_precision"
+          "name": "reference_order::should_order_reference_keys_by_exact_numeric_value"
         }
       ],
       "attributes": [
@@ -72508,8 +72508,8 @@
       }
     },
     {
-      "id": "tests/graph_types/reference_order.rs::should_agree_on_record_array_equality_grouping_and_distinct_for_nondefault_bounds",
-      "name": "should_agree_on_record_array_equality_grouping_and_distinct_for_nondefault_bounds",
+      "id": "tests/graph_types/reference_order.rs::should_preserve_record_array_key_consistency_for_nondefault_bounds",
+      "name": "should_preserve_record_array_key_consistency_for_nondefault_bounds",
       "current_file": "tests/graph_types/reference_order.rs",
       "line": 51,
       "end_line": 73,
@@ -72520,7 +72520,7 @@
       "instances": [
         {
           "suite": "graph_types",
-          "name": "reference_order::should_agree_on_record_array_equality_grouping_and_distinct_for_nondefault_bounds"
+          "name": "reference_order::should_preserve_record_array_key_consistency_for_nondefault_bounds"
         }
       ],
       "attributes": [
@@ -72530,9 +72530,9 @@
       "execution_status": "not_assessed",
       "placement": {
         "suite": "graph_types",
-        "category": "aggregates/grouping",
-        "directory": "tests/graph_types/aggregates/grouping",
-        "file": "tests/graph_types/aggregates/grouping/reference_order.rs",
+        "category": "ordering",
+        "directory": "tests/graph_types/ordering",
+        "file": "tests/graph_types/ordering/reference_order.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -335763,7 +335763,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 434,
-      "sha256": "93c1609e71e40f42905a45373d06bb4aeb284b5a9edf046b14b9fe3c70136a40",
+      "sha256": "affe28363bbb6669e988de6ac66a7699a12e52e6706e662fa6bcb0f82c2eb2ea",
       "test_declarations": 10,
       "registered_suites": [
         "graph_table"
@@ -336001,15 +336001,14 @@
     {
       "current_file": "tests/graph_types/reference_order.rs",
       "role": "test_module",
-      "action": "split_by_contract",
+      "action": "move_with_module_alias",
       "lines": 73,
-      "sha256": "9848dfa1489f81e4ffc5e3bede953fc4d961790d8a0b871aae52618aacb74b18",
+      "sha256": "f4a29dbb7fcb952257a2d181e8c7b6d7b88c62c1f08a611c9615f96639f9f125",
       "test_declarations": 3,
       "registered_suites": [
         "graph_types"
       ],
       "destinations": [
-        "tests/graph_types/aggregates/grouping/reference_order.rs",
         "tests/graph_types/ordering/reference_order.rs"
       ],
       "line_limit": 1000

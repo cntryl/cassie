@@ -491,7 +491,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/graph_types/projected_paths.rs` | test_module | 386 | 9 | graph_types | move_with_module_alias | `tests/graph_types/semantics/projected_paths.rs` |
 | `tests/graph_types/record_codec.rs` | test_support | 55 | 0 | graph_types | keep | `tests/graph_types/record_codec.rs` |
 | `tests/graph_types/record_frame.rs` | test_support | 186 | 0 | graph_types | keep | `tests/graph_types/record_frame.rs` |
-| `tests/graph_types/reference_order.rs` | test_module | 73 | 3 | graph_types | split_by_contract | `tests/graph_types/aggregates/grouping/reference_order.rs`; `tests/graph_types/ordering/reference_order.rs` |
+| `tests/graph_types/reference_order.rs` | test_module | 73 | 3 | graph_types | move_with_module_alias | `tests/graph_types/ordering/reference_order.rs` |
 | `tests/graph_types/refs.rs` | test_module | 335 | 19 | graph_types | move_with_module_alias | `tests/graph_types/semantics/refs.rs` |
 | `tests/graph_types/reserved.rs` | test_module | 306 | 16 | graph_types | move_with_module_alias | `tests/graph_types/semantics/reserved.rs` |
 | `tests/graph_types/storage.rs` | test_module | 180 | 5 | graph_types | move_with_module_alias | `tests/graph_types/semantics/storage.rs` |

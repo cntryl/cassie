@@ -60,7 +60,7 @@ fn leaf(
 }
 
 #[test]
-fn should_keep_newer_objects_and_cursor_position_when_an_old_leaf_resumes() {
+fn should_preserve_replacement_object_state_when_an_old_leaf_resumes() {
     for detached in [false, true] {
         for sql in [
             "PREPARE late AS SELECT 9",
@@ -113,7 +113,7 @@ fn should_keep_newer_objects_and_cursor_position_when_an_old_leaf_resumes() {
 }
 
 #[test]
-fn should_preserve_newer_objects_settings_and_sequence_history_from_old_discard() {
+fn should_preserve_replacement_session_state_from_old_discard() {
     // Arrange
     let (cassie, session) = fixture();
     let authority = FailureAuthority::capture(&session);
@@ -183,7 +183,7 @@ fn should_admit_discard_output_before_destroying_same_owner_state() {
 }
 
 #[test]
-fn should_keep_wire_id_cleanup_and_reject_stale_protocol_namespace_writes() {
+fn should_fence_protocol_namespace_writes_by_owner() {
     // Arrange
     let (cassie, session) = fixture();
     execute(&cassie, &session, "BEGIN");
@@ -235,7 +235,7 @@ fn should_reject_shared_object_mutation_from_a_fork_without_lineage() {
 }
 
 #[test]
-fn should_publish_and_fetch_shared_objects_through_a_current_detached_owner() {
+fn should_access_shared_objects_through_a_current_detached_owner() {
     // Arrange
     let (cassie, session) = fixture();
     execute(&cassie, &session, "BEGIN");

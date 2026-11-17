@@ -118,13 +118,13 @@ fn assert_wire_copy_policy(sequence_default: bool, mode: &str, expected: &str) {
 }
 
 #[test]
-fn should_use_strict_native_data_policy_for_default_wire_copy_and_checkpoint() {
+fn should_use_strict_native_data_policy_for_default_wire_copy_transaction() {
     // Arrange / Act / Assert: helper stages real wire COPY + checkpoint, then observes actual COMMIT worker.
     assert_wire_copy_policy(false, "default", "local_sync");
 }
 
 #[test]
-fn should_use_buffered_native_data_policy_for_replayable_wire_copy_and_checkpoint() {
+fn should_use_buffered_native_data_policy_for_replayable_wire_copy_transaction() {
     // Arrange / Act / Assert: helper proves private staging and the successful owning Data buffered attempt.
     assert_wire_copy_policy(false, "replayable", "local_buffered");
 }

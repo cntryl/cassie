@@ -68,7 +68,7 @@ fn should_adopt_only_the_recorded_idle_preparation_segment() {
 }
 
 #[test]
-fn should_release_metadata_and_names_when_the_last_portal_closes() {
+fn should_release_the_complete_owner_metadata_charge_when_the_last_portal_closes() {
     // Arrange
     let bytes = 4 * std::mem::size_of::<PortalOwner>() + "portal".len();
     let denied = controls(bytes - 1);

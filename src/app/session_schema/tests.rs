@@ -94,7 +94,7 @@ fn should_keep_a_late_statement_fork_schema_attachment_out_of_the_replacement() 
 }
 
 #[test]
-fn should_admit_fork_context_payload_and_database_bytes_until_its_last_clone_retires() {
+fn should_retain_the_complete_fork_context_charge_until_its_last_clone_retires() {
     // Arrange
     let (cassie, session) = fixture();
     let controls =

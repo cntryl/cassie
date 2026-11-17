@@ -30,7 +30,7 @@ enum Outcome {
 }
 
 #[test]
-fn should_keep_cleanup_off_the_reactor_for_success_error_and_panic() {
+fn should_retire_worker_cleanup_off_the_reactor_for_every_outcome() {
     runtime(2).block_on(async {
         for outcome in [Outcome::Success, Outcome::Error, Outcome::Panic] {
             // Arrange

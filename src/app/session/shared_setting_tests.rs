@@ -13,7 +13,7 @@ fn fixture() -> (Cassie, CassieSession) {
 }
 
 #[test]
-fn should_keep_replacement_settings_and_mode_from_an_old_detached_leaf() {
+fn should_preserve_replacement_session_configuration_when_an_old_detached_leaf_resumes() {
     for leaf in ["set", "local", "reset", "reset_all", "path", "mode"] {
         // Arrange
         let (cassie, session) = fixture();

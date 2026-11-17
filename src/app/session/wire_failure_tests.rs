@@ -126,7 +126,7 @@ fn should_refuse_old_sql_setting_leaves_without_changing_the_replacement() {
 }
 
 #[test]
-fn should_reject_late_root_bookkeeping_and_staging_without_changing_the_replacement() {
+fn should_reject_stale_root_mutations_without_changing_the_replacement() {
     // Arrange
     let cassie = crate::app::Cassie::new_in_memory_with_config(
         crate::config::CassieRuntimeConfig::default(),
@@ -245,7 +245,7 @@ impl CassieSession {
 }
 
 #[test]
-fn should_keep_local_setting_history_and_the_actual_write_under_one_root_lock() {
+fn should_apply_local_settings_atomically_under_the_root_lock() {
     // Arrange
     let session = CassieSession::new("local_setting_owner".into(), None);
     session.begin_transaction(None).unwrap();
@@ -290,7 +290,7 @@ fn should_keep_local_setting_history_and_the_actual_write_under_one_root_lock() 
 }
 
 #[test]
-fn should_restore_savepoint_settings_and_objects_before_releasing_the_root_mutex() {
+fn should_restore_savepoint_session_state_before_releasing_the_root_mutex() {
     // Arrange
     let session = CassieSession::new("savepoint_cleanup".into(), None);
     session.begin_transaction(None).unwrap();

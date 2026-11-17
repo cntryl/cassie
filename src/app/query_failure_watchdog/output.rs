@@ -84,7 +84,7 @@ impl Drop for ChildOutput {
 }
 
 #[test]
-fn should_retain_the_bounded_tail_and_drain_all_child_diagnostics() {
+fn should_drain_child_diagnostics_with_a_bounded_retained_tail() {
     // Arrange
     let bytes = b"long prefix panic details";
 

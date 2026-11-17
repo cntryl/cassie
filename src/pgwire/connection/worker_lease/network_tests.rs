@@ -45,7 +45,7 @@ async fn authenticate(socket: &mut tokio::net::TcpStream, password: &str) {
 }
 
 #[test]
-fn should_complete_max_one_copy_where_and_retain_its_slot_through_disconnect_and_shutdown() {
+fn should_retain_a_copy_where_connection_slot_until_worker_retirement() {
     // Arrange
     tokio::runtime::Builder::new_current_thread()
         .enable_all()

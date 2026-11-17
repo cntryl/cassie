@@ -166,7 +166,7 @@ fn should_not_publish_close_or_remove_portals_after_registry_owner_replacement()
 }
 
 #[test]
-fn should_publish_parse_and_close_for_the_current_frame_owner() {
+fn should_apply_prepared_namespace_changes_for_the_current_frame_owner() {
     // Arrange
     let (cassie, root, operation, mut state) = fixture();
     let mut output = Vec::new();
@@ -207,7 +207,7 @@ fn should_publish_parse_and_close_for_the_current_frame_owner() {
 }
 
 #[test]
-fn should_keep_b_portals_and_registry_when_an_a_close_reaches_the_shared_leaf() {
+fn should_preserve_b_namespace_when_an_a_close_reaches_the_shared_leaf() {
     // Arrange
     let (cassie, root, operation, mut state) = fixture();
     root.rollback_transaction();

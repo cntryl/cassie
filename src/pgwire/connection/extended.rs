@@ -418,11 +418,13 @@ async fn handle_close(
             {
                 let owned_session = session.clone();
                 let owned_name = name.clone();
-                run_pgwire_blocking(cassie, "pgwire_forget_prepared", move |_cassie| {
+                run_pgwire_blocking(cassie, "pgwire_forget_prepared", move |worker_cassie| {
+                    #[cfg(not(test))]
+                    drop(worker_cassie);
                     owned_session.forget_wire_prepared(&owned_name, id)?;
                     #[cfg(test)]
                     prepared_state::registry_publication_tests::after_registry(
-                        &_cassie,
+                        &worker_cassie,
                         &owned_session,
                     );
                     Ok(())

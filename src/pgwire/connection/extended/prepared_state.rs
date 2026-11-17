@@ -74,10 +74,12 @@ pub(super) async fn store_prepared_statement(
             "prepared statement directory allocation failed: {error}"
         )))
     })?;
-    super::run_pgwire_blocking(cassie, "pgwire_register_prepared", move |_cassie| {
+    super::run_pgwire_blocking(cassie, "pgwire_register_prepared", move |worker_cassie| {
+        #[cfg(not(test))]
+        drop(worker_cassie);
         registration_session.register_wire_prepared(&name, id, &query)?;
         #[cfg(test)]
-        registry_publication_tests::after_registry(&_cassie, &registration_session);
+        registry_publication_tests::after_registry(&worker_cassie, &registration_session);
         Ok(())
     })
     .await

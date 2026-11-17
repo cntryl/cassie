@@ -223,24 +223,66 @@ fn should_keep_a_quoted_relation_distinct_in_base_statistics() {
 #[test]
 fn should_use_exact_quoted_field_statistics_for_selectivity() {
     // Arrange
-    let sql = "SELECT a.\"K\" FROM a JOIN c ON a.\"K\"=c.\"AK\" JOIN b ON b.id=c.bk";
-    let stats = fixture::Stats::from([
+    let cases = [
         (
-            "a".to_string(),
-            fixture::collection(10, &[("K", 10), ("k", 1)]),
+            "SELECT a.\"id.with.dot\" FROM a JOIN c ON a.\"id.with.dot\"=c.\"source.key\" JOIN b ON b.id=c.bk",
+            "id.with.dot", "dot", "source.key", "key",
         ),
-        ("b".to_string(), fixture::collection(100, &[("id", 100)])),
         (
-            "c".to_string(),
-            fixture::collection(1_000, &[("AK", 1_000), ("ak", 1), ("bk", 1_000)]),
+            "SELECT a.\"K\" FROM a JOIN c ON a.\"K\"=c.\"AK\" JOIN b ON b.id=c.bk",
+            "K", "k", "AK", "ak",
         ),
-    ]);
+    ];
 
     // Act
-    let order = planned_order(sql, &stats);
+    let observations = cases.map(|(sql, a_key, a_decoy, c_key, c_decoy)| {
+        let stats = fixture::Stats::from([
+            (
+                "a".to_string(),
+                fixture::collection(10, &[(a_key, 10), (a_decoy, 1)]),
+            ),
+            ("b".to_string(), fixture::collection(100, &[("id", 100)])),
+            (
+                "c".to_string(),
+                fixture::collection(1_000, &[(c_key, 1_000), (c_decoy, 1), ("bk", 1_000)]),
+            ),
+        ]);
+        let before = fixture::plan(sql);
+        let after = optimizer::optimize_with_stats(before.clone(), &stats);
+        let QuerySource::Join {
+            left: before_left, ..
+        } = &before.source
+        else {
+            panic!("three-relation fixture");
+        };
+        let QuerySource::Join { on: before_on, .. } = before_left.as_ref() else {
+            panic!("original a-c join");
+        };
+        let QuerySource::Join {
+            left: after_left, ..
+        } = &after.source
+        else {
+            panic!("three-relation result");
+        };
+        let QuerySource::Join { on: after_on, .. } = after_left.as_ref() else {
+            panic!("first result join");
+        };
+        (
+            sql,
+            source_order(&after.source),
+            serde_json::to_value(before_on).expect("original whole ON"),
+            serde_json::to_value(after_on).expect("first whole ON"),
+        )
+    });
 
     // Assert
-    assert_eq!(order, ["a", "c", "b"]);
+    for (sql, order, expected_on, first_on) in observations {
+        assert_eq!(order, ["a", "c", "b"], "{sql}");
+        assert_eq!(
+            first_on, expected_on,
+            "filtering must occur at the estimated first join: {sql}"
+        );
+    }
 }
 
 #[test]
@@ -368,7 +410,11 @@ fn should_preserve_existing_join_reordering_legality_boundaries() {
         let after = optimizer::optimize_with_stats(before.clone(), &stats);
 
         // Assert
-        assert_eq!(after.source, before.source, "{sql}");
+        assert_eq!(
+            serde_json::to_value(&after.source).expect("complete result source"),
+            serde_json::to_value(&before.source).expect("complete original source"),
+            "{sql}"
+        );
     }
 }
 

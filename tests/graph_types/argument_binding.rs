@@ -101,3 +101,30 @@ fn should_resolve_a_mapping_alias_without_folding_a_quoted_sibling() {
     assert_eq!(lower, vec![vec![Value::Int64(1)]]);
     assert_eq!(upper, lower);
 }
+
+#[test]
+fn should_bind_graph_constructors_inside_a_table_function_scalar_subquery() {
+    // Arrange
+    let fixture = started("graph-argument-scalar-subquery", &SOCIAL_SETUP);
+    let reference = "cassie_graph.vertex_ref('social','person',\
+        ARRAY[cassie_graph.key_part(2::bigint+0::bigint)])";
+
+    // Act
+    let direct = fixture.execute(&format!(
+        "SELECT count(*) FROM unnest(ARRAY[{reference}]) AS u"
+    ));
+    let nested = fixture.execute(&format!(
+        "SELECT count(*) FROM unnest(ARRAY[(SELECT {reference})]) AS u"
+    ));
+
+    // Assert
+    let expected = vec![vec![Value::Int64(1)]];
+    assert_eq!(
+        direct.expect("direct constructor control").rows(),
+        &expected
+    );
+    assert_eq!(
+        nested.expect("constructor inside scalar subquery").rows(),
+        &expected
+    );
+}

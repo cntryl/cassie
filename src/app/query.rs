@@ -974,6 +974,10 @@ mod cache_semantics_tests;
 mod cte_cache_semantics_tests;
 
 #[cfg(test)]
+#[path = "query_join_cost_cache_tests.rs"]
+mod join_cost_cache_tests;
+
+#[cfg(test)]
 #[path = "query_parameter_cache_tests.rs"]
 mod parameter_cache_tests;
 

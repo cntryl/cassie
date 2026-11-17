@@ -182,9 +182,9 @@
     ],
     "files": 1772,
     "rust_files": 1735,
-    "rust_test_declarations": 10537,
+    "rust_test_declarations": 10538,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10562,
+    "registered_rust_instances": 10563,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -7000,6 +7000,37 @@
         {
           "suite": "bench_diagnostics",
           "name": "replay_read_ownership::should_reject_alias_paths_reusing_the_same_original_before_copying"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "security",
+        "directory": "tests/bench_diagnostics/security",
+        "file": "tests/bench_diagnostics/security/replay_read_ownership.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/replay_read_ownership.rs::should_encode_sha256_digest_bytes_in_canonical_lowercase_hex",
+      "name": "should_encode_sha256_digest_bytes_in_canonical_lowercase_hex",
+      "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
+      "line": 290,
+      "end_line": 311,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "replay_read_ownership::should_encode_sha256_digest_bytes_in_canonical_lowercase_hex"
         }
       ],
       "attributes": [
@@ -328297,9 +328328,9 @@
       "current_file": "tests/bench_diagnostics/replay_read_ownership.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 287,
-      "sha256": "419a42cc649b69d9280ecbd432242e46efee9504f607f95ac33a7266d75cbd47",
-      "test_declarations": 8,
+      "lines": 311,
+      "sha256": "f7bfd01d0f3a7767707ecc9c9d4b60a78ed4d4e5f1d33fe44365a1f52286599c",
+      "test_declarations": 9,
       "registered_suites": [
         "bench_diagnostics"
       ],

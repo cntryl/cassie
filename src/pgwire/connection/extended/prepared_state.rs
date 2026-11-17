@@ -98,7 +98,7 @@ pub(super) async fn store_prepared_statement(
     });
     if let Err(error) = publication {
         if !cleanup_name.is_empty() {
-            let cleanup_session = session.with_operation_failure_authority(None);
+            let cleanup_session = session.without_operation_failure_authority();
             super::run_pgwire_blocking(cleanup_cassie, "pgwire_forget_rejected_parse", move |_| {
                 cleanup_session.forget_wire_prepared(&cleanup_name, id)
             })

@@ -82,7 +82,7 @@ fn should_not_publish_named_or_unnamed_parse_after_registry_owner_replacement() 
                 .insert(String::new(), prepared("", 444));
         }
         install(&cassie, |session| {
-            let root = session.with_operation_failure_authority(None);
+            let root = session.without_operation_failure_authority();
             root.rollback_transaction();
             root.begin_transaction(None).unwrap();
             root.register_wire_prepared("late", 999, "SELECT 9")
@@ -131,7 +131,7 @@ fn should_not_publish_close_or_remove_portals_after_registry_owner_replacement()
         .prepared_statements
         .insert("source".into(), prepared("source", 444));
     install(&cassie, |session| {
-        let root = session.with_operation_failure_authority(None);
+        let root = session.without_operation_failure_authority();
         root.rollback_transaction();
         root.begin_transaction(None).unwrap();
         root.register_wire_prepared("source", 999, "SELECT 9")

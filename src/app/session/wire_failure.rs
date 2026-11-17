@@ -240,6 +240,13 @@ impl CassieSession {
         Ok(())
     }
 
+    /// Exact wire-ID cleanup deliberately uses the current connection namespace.
+    pub(crate) fn without_operation_failure_authority(&self) -> Self {
+        let mut cleanup = self.clone();
+        cleanup.operation_failure_authority = None;
+        cleanup
+    }
+
     pub(crate) fn with_new_wire_operation(&self) -> Self {
         let mut operation = self.clone();
         operation.operation_failure_authority = Some(FailureAuthority {

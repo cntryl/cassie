@@ -861,3 +861,28 @@ fn should_not_export_a_replacements_repeatable_read_alias_to_an_old_operation() 
     assert_eq!(session.repeatable_read_identity(), current);
     assert!(!session.is_transaction_failed());
 }
+
+#[test]
+fn should_detach_only_the_explicit_unscoped_cleanup_clone() {
+    // Arrange
+    let root = CassieSession::new("cleanup_clone".into(), None);
+    root.begin_transaction(None).unwrap();
+    let operation = root.with_new_wire_operation();
+    let owner = FailureAuthority::capture_for_operation(&operation).identity();
+
+    // Act
+    let cleanup = operation.without_operation_failure_authority();
+    cleanup.rollback_transaction();
+    cleanup.begin_transaction(None).unwrap();
+
+    // Assert
+    assert!(cleanup.operation_failure_authority().is_none());
+    assert_eq!(
+        operation.operation_failure_authority().unwrap().identity(),
+        owner
+    );
+    assert!(operation
+        .ensure_admitted_operation_owner(operation.operation_failure_authority().unwrap())
+        .is_err());
+    assert!(!root.is_transaction_failed());
+}

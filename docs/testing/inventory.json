@@ -328329,7 +328329,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 311,
-      "sha256": "f7bfd01d0f3a7767707ecc9c9d4b60a78ed4d4e5f1d33fe44365a1f52286599c",
+      "sha256": "161b2441885e7b6f9c48e97c9d5b347678b377eb9795a67d61b2fcbebed3b71f",
       "test_declarations": 9,
       "registered_suites": [
         "bench_diagnostics"

@@ -27,9 +27,11 @@ one transaction's durability outcome.
 ## Finite read campaign contract
 
 The selected local campaign contains **eight profiles**, one producer batch shape
-of 1,000 rows × 100 batches, all with 100,000 rows: historical API strict/buffered
-writers at `58e6c96ea14c3466da17c256cb2fcaefbd71f940`, and the separately recorded
-final B SQL-default/replayable writer, each indexed and unindexed. Writer commit,
+of 1,000 rows × 100 batches, all with 100,000 rows: API strict/buffered fixtures from the retained exact
+`58e6c96ea14c3466da17c256cb2fcaefbd71f940` producer, and separately recorded
+B SQL-default/replayable fixtures at `168527ec5804b47511a3a662484984a935be5c11`,
+each indexed and unindexed. The API datasets are fresh replacements described
+below; the historical A measurement records remain unchanged. Writer commit,
 tree, successful producer exit/clean-close evidence, raw result/log SHA-256 and
 reader commit/tree remain distinct. This does not rerun the writer matrices or
 relabel historical write measurements as final-reader measurements.
@@ -129,24 +131,42 @@ CASSIE_REPLAY_BENCH_SOURCE_FINGERPRINT=/absolute/closed/store cargo bench --lock
 Its JSON identifies `relative-path-type-length-sha256-v1` and the source path.
 This utility only hashes regular files; it does not attest closure or provenance.
 
-For historical API inputs, extract the four `1000x100-repeat1-{shape}-{mode}-apply`
-`.json`/`.log` pairs from [the original A archive](evidence/replay120-2026-11-16/raw-receipts.tar.gz),
-where `shape` is `indexed`/`unindexed` and `mode` is
-`local_strict`/`local_buffered`. Verify the archive against its
-[manifest](evidence/replay120-2026-11-16/raw-receipts-manifest.json) and retain
-[the actual producer exit-zero receipt](evidence/replay120-2026-11-16/apply-matrix-exit.json)
-and [source/build evidence](evidence/replay120-2026-11-16/README.md).
-Use the original extracted JSON bytes when hashing; reserialization changes that
-receipt hash. Obtain `storage_path` from each JSON. Independently establish that
-these retained stores remain closed and exclusively unavailable to later openers
-before deriving each bound closure receipt. The historical log's clean-reopen
-claim alone cannot establish present closure.
+## Missing historical stores and selected replacement inputs
 
-For SQL inputs, use four newly qualified final-B producer `.json`/`.log` pairs,
-`sql_default`/`sql_replayable` × `indexed`/`unindexed`, at the same batch shape.
-Their exact exit receipts, writer SHA/tree and closure evidence remain pending;
-do not substitute historical A SQL lanes or invent successful B closure records.
-The manifest cannot run until those real receipts exist.
+The original A JSON/log archives and process-exit evidence remain valid historical
+measurements, but the referenced four 1,000 × 100 API store directories no longer
+exist; all four repeat-two alternatives are also absent. The availability census
+is retained. No recreated store may be attached to an original A receipt.
+
+The selected bounded replacement uses the retained exact A executable, independently
+matched to its original successful `58e6c96e` build receipt, Cargo dependency
+fingerprints and unchanged Rust/manifests/lock/config at the documentation-only
+`b228bc16` worktree. The preserved binary is 78,189,544 bytes with SHA-256
+`5b2fc1032db64cb103fb83d598022eb3c7080cc5cbd7ef5dbca2a9670a33caa1`.
+This is trusted retained-build provenance, not remote cryptographic attestation.
+
+Run only four **new, separately labelled input producers**: API strict/buffered ×
+indexed/unindexed, 1,000 × 100, 100,000 events, actual test profile, 64 MiB and
+120-second per-query guard. Keep their original new JSON, log, exit and source
+fingerprints. Preserve the original A archives, source identities and timings;
+do not merge the replacement runs into that 32-control write study or claim a
+new repeated write-performance qualification. No complete write matrix is rerun.
+The parent/assembler excludes other openers and reserves the new owned directories
+for the copy-only reader. Construct closure receipts only after real producer exit
+and clean-reopen success; the reader's manifest points to the new receipts.
+
+The [original A archive](evidence/replay120-2026-11-16/raw-receipts.tar.gz),
+[archive manifest](evidence/replay120-2026-11-16/raw-receipts-manifest.json),
+[process-exit receipt](evidence/replay120-2026-11-16/apply-matrix-exit.json) and
+[source/build evidence](evidence/replay120-2026-11-16/README.md) remain historical
+context. They are not the closure chain for the replacement stores.
+
+For SQL inputs, reuse the four real 1,000 × 100 default/replayable ×
+indexed/unindexed stores from the completed B eight-cell campaign at `168527ec`.
+Their raw JSON/log/exit chain is retained in the
+[B qualification record](evidence/runtime-closeout-2026-11-17/README.md).
+Do not substitute historical A SQL lanes or relabel B producer identity as the
+reader. The four retained SQL stores remain closed under the same caller exclusion.
 
 A preparation script can construct each profile from these real inputs using
 `hashlib.sha256(Path(path).read_bytes()).hexdigest()` for its three receipt hashes.

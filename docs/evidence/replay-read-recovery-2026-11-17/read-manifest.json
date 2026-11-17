@@ -1,0 +1,90 @@
+{
+  "format": "cassie-replay-read-v1",
+  "reader": {
+    "commit": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+    "tree": "c66c6a32199c64fcd9cbeebff9b57a2922530bee"
+  },
+  "reader_build_profile": "test",
+  "api_writer": {
+    "commit": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+    "tree": "d051222b580d48266b3ed604f588928bd443e660"
+  },
+  "sql_writer": {
+    "commit": "168527ec5804b47511a3a662484984a935be5c11",
+    "tree": "b67f2cdf03fa6e01d6b6e8b28b9fe8157ce48d49"
+  },
+  "profiles": [
+    {
+      "result_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-indexed-local_strict-1000x100.json",
+      "result_sha256": "42c7e55d131641e2dfe2bd313de94566a7a88c11e3855ca634e8819f2e25fd83",
+      "log_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-indexed-local_strict-1000x100.log",
+      "log_sha256": "42c7e55d131641e2dfe2bd313de94566a7a88c11e3855ca634e8819f2e25fd83",
+      "closure_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/fresh-api-indexed-local_strict-1000x100-closure.json",
+      "closure_sha256": "a31c9f763eb4966d4882aecc4db617f04b7978976df96649c351a94a4567e0fe",
+      "source_fingerprint": "b2d90f61cda7476b99759bf60e1d7121d3bf918f32358c172d6ca6c2289babe5"
+    },
+    {
+      "result_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-indexed-local_buffered-1000x100.json",
+      "result_sha256": "97e76d3b02b72325f24cfa7d73df09bbc9850eb6746bb456ff6fc3fec69ea4ae",
+      "log_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-indexed-local_buffered-1000x100.log",
+      "log_sha256": "97e76d3b02b72325f24cfa7d73df09bbc9850eb6746bb456ff6fc3fec69ea4ae",
+      "closure_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/fresh-api-indexed-local_buffered-1000x100-closure.json",
+      "closure_sha256": "622fee6442a7c60dc8a478f076da25f6440f09e0cb0d1f546ac11455ba02e8df",
+      "source_fingerprint": "88cb5dd68a0f3d19f81a48604dbc3d3c97e03040a4e8b6de73dab331337e5d9a"
+    },
+    {
+      "result_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-unindexed-local_strict-1000x100.json",
+      "result_sha256": "ea2a86c3944223462d692e039dda3d7b3cc94b3adfcbd24981f1b6bf9ff25f38",
+      "log_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-unindexed-local_strict-1000x100.log",
+      "log_sha256": "ea2a86c3944223462d692e039dda3d7b3cc94b3adfcbd24981f1b6bf9ff25f38",
+      "closure_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/fresh-api-unindexed-local_strict-1000x100-closure.json",
+      "closure_sha256": "fb9877d6db61fcfd8e93fd2e0257209a2adff356a15821edf76769bd02a21eb1",
+      "source_fingerprint": "6948d468228b9870f4fce539e347ec936bd1c6055d1bac13642d8773d1c09319"
+    },
+    {
+      "result_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-unindexed-local_buffered-1000x100.json",
+      "result_sha256": "55018ff095546efca6818bab9d51cdabe414aa1ea23a26100c93c27bdeed86de",
+      "log_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/replacement-api/fresh-api-unindexed-local_buffered-1000x100.log",
+      "log_sha256": "55018ff095546efca6818bab9d51cdabe414aa1ea23a26100c93c27bdeed86de",
+      "closure_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/fresh-api-unindexed-local_buffered-1000x100-closure.json",
+      "closure_sha256": "896f43264a5a0d9e269a944580a190a546bcfc722bbdb02ebf8903b995354e84",
+      "source_fingerprint": "ac027af14319a4f3d632e32a71354f14d5272d637806cfffdad65f6185a7986c"
+    },
+    {
+      "result_path": "/private/tmp/cassie-all-open-runtime-integration-20261116/target/assembly-line/runtime-closeout/sql8/1000x100-repeat1-indexed-sql_default-apply.json",
+      "result_sha256": "7e90dc0f3ce7dcc36a098ece8c8868ca2ba8de3601f0f79d6f51ac5df27518af",
+      "log_path": "/private/tmp/cassie-all-open-runtime-integration-20261116/target/assembly-line/runtime-closeout/sql8/1000x100-repeat1-indexed-sql_default-apply.log",
+      "log_sha256": "1e1b0ad5e11a98436ede37c6acd665d92d10738e872e940ab3e65bc30fab5300",
+      "closure_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/1000x100-repeat1-indexed-sql_default-apply-closure.json",
+      "closure_sha256": "b8193314361117bce34f8eec1959788b954243d4fb100b565c8318063fb5d701",
+      "source_fingerprint": "ce6e2be84dddf34a1121b0af93764fd77dd16dceea9f32e677406eef9b0338f7"
+    },
+    {
+      "result_path": "/private/tmp/cassie-all-open-runtime-integration-20261116/target/assembly-line/runtime-closeout/sql8/1000x100-repeat1-indexed-sql_replayable-apply.json",
+      "result_sha256": "178f0db35cbe43c279e679a682286b2064db5d009e7b439208331a0c04fa981f",
+      "log_path": "/private/tmp/cassie-all-open-runtime-integration-20261116/target/assembly-line/runtime-closeout/sql8/1000x100-repeat1-indexed-sql_replayable-apply.log",
+      "log_sha256": "12f3b43bcde9cfd08545d4160cc3d921839300f056ea643bb25fd18a97c8ceb8",
+      "closure_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/1000x100-repeat1-indexed-sql_replayable-apply-closure.json",
+      "closure_sha256": "5923a5da38adb50714c980272ab96a0e32c6649d455747ff470f7900d57f2347",
+      "source_fingerprint": "94da4f03409887d70e6cc2f44e925a55405ed81107e87103028a65ba0a400b9d"
+    },
+    {
+      "result_path": "/private/tmp/cassie-all-open-runtime-integration-20261116/target/assembly-line/runtime-closeout/sql8/1000x100-repeat1-unindexed-sql_default-apply.json",
+      "result_sha256": "62e89d1505832063b33cee29f4d78995ec9dd369cd47ea1ffccbe9925e30a4e3",
+      "log_path": "/private/tmp/cassie-all-open-runtime-integration-20261116/target/assembly-line/runtime-closeout/sql8/1000x100-repeat1-unindexed-sql_default-apply.log",
+      "log_sha256": "e52e6ea9693d685276ec781111e0d5c7cad966f8f167bb5b65bbd331f9664d52",
+      "closure_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/1000x100-repeat1-unindexed-sql_default-apply-closure.json",
+      "closure_sha256": "69e0c1e82474abc2040b025e972c792a1cfbb491c1b4cd6f7e3f10daaaf46560",
+      "source_fingerprint": "7ac5ecd022b08cc86cf79612b3815f0b9ee1a5a80ac0bdbcd7e56c9afc64214f"
+    },
+    {
+      "result_path": "/private/tmp/cassie-all-open-runtime-integration-20261116/target/assembly-line/runtime-closeout/sql8/1000x100-repeat1-unindexed-sql_replayable-apply.json",
+      "result_sha256": "02bf6d29421d19221ff0e2fe91c610e21eaa9ea4a97955829f3c818ae2a82297",
+      "log_path": "/private/tmp/cassie-all-open-runtime-integration-20261116/target/assembly-line/runtime-closeout/sql8/1000x100-repeat1-unindexed-sql_replayable-apply.log",
+      "log_sha256": "2e548fc156e11cae7027e09cd0f6200659899a3607434d90654c241e8ab86699",
+      "closure_path": "/private/tmp/cassie-replay-qualification-integration-20261117/target/assembly-line/replay-qualification/read-inputs/1000x100-repeat1-unindexed-sql_replayable-apply-closure.json",
+      "closure_sha256": "6f50413908a7a399e3c27148a1d60323149bddda6fa69582e5b8accd2f1e504d",
+      "source_fingerprint": "5e6a64f2374c893d537f06c5bf459847a2edd8a9ff6f7b4c43ebb615b2e0d0c1"
+    }
+  ]
+}

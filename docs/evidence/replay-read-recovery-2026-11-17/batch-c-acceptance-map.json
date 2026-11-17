@@ -1,0 +1,121 @@
+{
+  "status": "Finite C selected local boundaries qualified at explicit sources. Final publication-head review/hosted/merge pending.",
+  "base": {
+    "commit": "c23a27604e29bea563bb2ee9f85009514d43f666",
+    "tree": "ff5d3044a35f623da73730474192f0dfc778df41",
+    "meaning": "Merged B squash, tree-equal to reviewed publication48ee."
+  },
+  "current_source": {
+    "commit": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+    "tree": "c66c6a32199c64fcd9cbeebff9b57a2922530bee"
+  },
+  "classification": "Qualification tests, benchmark diagnostics and operator docs; no production policy/API/planner/CI/release change. Test-only constructors/owned terminal shutdown helpers are cfg(test).",
+  "actual_evidence": [
+    {
+      "scope": "Full default test",
+      "source": "40a08ce25972bc3118d5dcc5dd9fb8f4c668cee9",
+      "tree": "9bff39744534ef6a125c6992fee2b5d2aa2ea168",
+      "result": "14,478 passed / 0 failed / 9 inherited ignores, 48 harness summaries; exit0,531.60343875s. Later changes are explicitly separate affected checks.",
+      "receipt": "c-default-test3-review.json"
+    },
+    {
+      "scope": "Focused cloud/ownership/process",
+      "source": "40a08ce25972bc3118d5dcc5dd9fb8f4c668cee9",
+      "result": "9 cloud +9 ownership/hash +5 legacy process cases passed. Cloud command323.8435s includes compilation; harness106.06s is not per-profile recovery latency. Strict API/SQL recovered2; replayable API/SQL recovered1 then reconciled to2.",
+      "receipt": "c-focused-23-review.json"
+    },
+    {
+      "scope": "Corrected ownership/hash helpers",
+      "source": "52bf8c36e023531f35d92bebb165871e728f7612",
+      "result": "9 passed after fixed64KiB heap scratch; SHA256 input/order unchanged.",
+      "receipt": "c-clippy-acc32938-review.json"
+    },
+    {
+      "scope": "Initial affected strict checks",
+      "source": "66916fee39adc277b27540366200bfa013113110",
+      "result": "Full strict Clippy, fmt, seven policy commands and both inventories passed; benchmark precompile passed.",
+      "receipt": "c-66916fee-affected-gate-review.json"
+    },
+    {
+      "scope": "New exact-A input producers",
+      "source": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+      "tree": "d051222b580d48266b3ed604f588928bd443e660",
+      "result": "Four NEW strict/buffered\u00d7indexed/unindexed,1000\u00d7100,100k apply producer processes passed;400 batch samples, fresh retained stores/new receipts. Original historical A stores absent; never relabel replacements as original samples.",
+      "receipt": "c-read-manifest-preflight-review.json"
+    },
+    {
+      "scope": "First read campaign",
+      "source": "66916fee39adc277b27540366200bfa013113110",
+      "tree": "3308fca2f53958e28b37b6a66d7751b376a5832e",
+      "result": "FAILED exit101,1446.331443041s: four unindexed profiles passed204timed+68warmups; four indexed metadata gaps before any query. Individual median/p95 and original fingerprints verified. Planned408 header is not actual408.",
+      "receipt": "c-first-read-campaign-review.json"
+    },
+    {
+      "scope": "Actual raw index diagnostic",
+      "source": "66916fee39adc277b27540366200bfa013113110",
+      "result": "All four indexed classes: catalog/native collectionID12, native relationID12/indexID16; hydrated catalog lacks exactly those two native keys, OID16399/all other fields equal. Originals unchanged; ignored probe source903bb9,rawb6e85c37 and208dependency fingerprints/203artifact hashes verified. No production defect inferred.",
+      "receipt": "c-index-metadata-actual-probe-review.json"
+    },
+    {
+      "scope": "Corrected pure controls/strict qualification",
+      "source": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+      "tree": "c66c6a32199c64fcd9cbeebff9b57a2922530bee",
+      "result": "New metadata4 +existing ownership9 passed; full strict Clippy/fmt/all8policycommands/both inventories passed. Integration10542decl/10567registrations; source-unit5files23decl. No claim full default repeated here.",
+      "receipt": "c-corrected-read-manifest-preflight-review.json"
+    },
+    {
+      "scope": "Corrected reader/manifest preflight",
+      "source": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+      "result": "ReaderbinarySHAe044cc749cc2e2dd99de0d9bb95a46ea4178ff3610169bcebee9fc301ce6d653 +4Cargo fingerprint files; manifestSHAd88f3fb81a1157b9eb9b000f3f803dfbec67a9b02ae4c48b2a3177a505eb6c88. All eight raw/log/closure chains and current original tree hashes independently verified read-only; original engines never opened.",
+      "receipt": "c-corrected-read-manifest-preflight-review.json"
+    },
+    {
+      "scope": "Corrected complete read campaign",
+      "source": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+      "tree": "c66c6a32199c64fcd9cbeebff9b57a2922530bee",
+      "result": "PASS exit0/1596.667718708s:8profiles408timed136warmup. Perprofile48equality+3COUNT,3round100kIDs;all4actualnamedindex/nativeops/noFallback/noCollectionScan and4actualunindexedscanpaths. Metadata native IDs/fullnormalizeddefs/originalfingerprints pass. Summarymedians/p95/minmax/544CSVrowbijection independentlyderived;CSVcontains408timed+136warmups. RawSHAa214baa9020ab9a497c3de4adeaaf968c2f8d04d04c6b6da050872e37ec2bd86.",
+      "receipt": "c-final-read-campaign-review.json"
+    }
+  ],
+  "observed_failures_preserved": [
+    "Initial9e test compile E0624 private constructor,140.88s; cfg(test) bridge fixed without production visibility change.",
+    "Rebased555 test compile two LowerHex E0277,271.10s; bytewise lowercase encoding and knownSHA vectors fixed.",
+    "Strict40a failed29.58s: three numeric separators and64KiB stack buffer; source-equivalent heap/literal/dispatch repair.",
+    "Strict52bf failed5.456s: E0283 local closure error type; explicit existingResult<Value,String> annotation.",
+    "Strictcd408 failed7.15s: two redundant comparison references; exact expected100000/ID predicates unchanged.",
+    "First669 eight-profile read campaign failed four metadata comparisons; historical204actual samples retained separately.",
+    "Standalone diagnostic first compile E0463 dependency alias resolution failed; corrected exact artifact linkage then actual exit0."
+  ],
+  "criteria": [
+    {
+      "criterion": "Owned simulated-cloud cache-loss API/SQL strict/replayable recovery",
+      "status": "PASS selected four cases, plus five safety/close negatives; no real-provider/power-loss claim."
+    },
+    {
+      "criterion": "Closed-store provenance/source safety and pure read oracle controls",
+      "status": "PASS nine original helpers plus four metadata controls; actual original fingerprints independently verified at both manifest audits."
+    },
+    {
+      "criterion": "Complete read/index comparison",
+      "status": "PASS selected eight-profile/408timed/136warmup campaign on a5fd;individualsamples/nativepath/row/count/identity/originalfingerprintsverified. Onehost,testprofile,warmup+3rounds;notproduction/OS-cold/variance/speedupguarantee."
+    },
+    {
+      "criterion": "Operator workflow",
+      "status": "Source-reviewed docs record transaction policy declaration, checkpoint authority, strict configured cloud floor, embedded diagnostics and absence of per-request WAL receipt endpoint; final affected link/doc check pending."
+    },
+    {
+      "criterion": "Final publication",
+      "status": "PENDING final docs/evidence identity review, exact-head hosted checks, squash merge/tree/issue readback."
+    },
+    {
+      "criterion": "Broad1271/1188 closure",
+      "status": "OPEN: physical power-loss/real-provider and broader native/background qualification not demonstrated. UpstreamMidge1045 remains open; published0.5.2 only, no internal APIs/engine edits/global quiescence invention."
+    }
+  ],
+  "lead_closure": "All selected >=.30 leads now have actualfocused evidence/action at finite boundary; external power/real-provider/nativebackgroundcriteria remainOPEN. See append-only ledger dispositions; no historicalfailurerelabelling.",
+  "question_ledger": {
+    "records": 17,
+    "questions": 48,
+    "file": "batch-c-question-ledger.json"
+  }
+}

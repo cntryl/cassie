@@ -13,6 +13,9 @@ use mode::{ReplayMode, Shape, Workload};
 #[path = "tier3_replay_durability/verification.rs"]
 mod verification;
 
+#[path = "tier3_replay_durability/read_campaign.rs"]
+mod read_campaign;
+
 fn parameter(name: &str, default: usize) -> usize {
     let value = std::env::var(name).map_or(default, |value| {
         value
@@ -197,7 +200,27 @@ fn benchmark_config() -> CassieRuntimeConfig {
     }
 }
 
+fn handle_read_mode() -> bool {
+    if let Some(source) = std::env::var_os("CASSIE_REPLAY_BENCH_SOURCE_FINGERPRINT") {
+        read_campaign::print_source_fingerprint(std::path::Path::new(&source))
+            .unwrap_or_else(|error| panic!("{error}"));
+        return true;
+    }
+    if let Some(manifest) = std::env::var_os("CASSIE_REPLAY_BENCH_READ_MANIFEST") {
+        read_campaign::run(std::path::Path::new(&manifest))
+            .unwrap_or_else(|error| panic!("{error}"));
+        return true;
+    }
+    false
+}
+
 fn main() {
+    if !handle_read_mode() {
+        run_producer();
+    }
+}
+
+fn run_producer() {
     let mode = ReplayMode::parse(std::env::var_os("CASSIE_REPLAY_BENCH_MODE").as_deref())
         .unwrap_or_else(|error| panic!("{error}"));
     let shape = Shape::parse(std::env::var_os("CASSIE_REPLAY_BENCH_SHAPE").as_deref())

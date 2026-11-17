@@ -1,0 +1,74 @@
+{
+  "raw_sha256": "a214baa9020ab9a497c3de4adeaaf968c2f8d04d04c6b6da050872e37ec2bd86",
+  "profiles": [
+    {
+      "mode": "local_strict",
+      "shape": "indexed",
+      "status": "passed",
+      "error": null,
+      "actual_timed": 51,
+      "actual_warmup": 17
+    },
+    {
+      "mode": "local_buffered",
+      "shape": "indexed",
+      "status": "passed",
+      "error": null,
+      "actual_timed": 51,
+      "actual_warmup": 17
+    },
+    {
+      "mode": "local_strict",
+      "shape": "unindexed",
+      "status": "passed",
+      "error": null,
+      "actual_timed": 51,
+      "actual_warmup": 17
+    },
+    {
+      "mode": "local_buffered",
+      "shape": "unindexed",
+      "status": "passed",
+      "error": null,
+      "actual_timed": 51,
+      "actual_warmup": 17
+    },
+    {
+      "mode": "sql_default",
+      "shape": "indexed",
+      "status": "passed",
+      "error": null,
+      "actual_timed": 51,
+      "actual_warmup": 17
+    },
+    {
+      "mode": "sql_replayable",
+      "shape": "indexed",
+      "status": "passed",
+      "error": null,
+      "actual_timed": 51,
+      "actual_warmup": 17
+    },
+    {
+      "mode": "sql_default",
+      "shape": "unindexed",
+      "status": "passed",
+      "error": null,
+      "actual_timed": 51,
+      "actual_warmup": 17
+    },
+    {
+      "mode": "sql_replayable",
+      "shape": "unindexed",
+      "status": "passed",
+      "error": null,
+      "actual_timed": 51,
+      "actual_warmup": 17
+    }
+  ],
+  "actual_timed": 408,
+  "actual_warmup": 136,
+  "passed_profiles": 8,
+  "gap_profiles": 0,
+  "disposition": "Counts/percentiles independently derived from actual individual records. Original aftercopy/afterdrop checks hold; no nativequiescence or production-performance claim."
+}

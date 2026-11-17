@@ -1,0 +1,224 @@
+{
+  "source": {
+    "commit": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+    "tree": "c66c6a32199c64fcd9cbeebff9b57a2922530bee"
+  },
+  "status": "passed",
+  "actual_profile_records": 8,
+  "actual_passed_profiles": 8,
+  "actual_timed_samples": 408,
+  "actual_warmup_samples": 136,
+  "command_elapsed_seconds": 1596.667718708,
+  "raw_sha256": "a214baa9020ab9a497c3de4adeaaf968c2f8d04d04c6b6da050872e37ec2bd86",
+  "profiles": [
+    {
+      "mode": "local_strict",
+      "shape": "indexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "21894021",
+          "p95_ns": "32498000",
+          "min_ns": "20686042",
+          "max_ns": "32917083"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "4834643250",
+          "p95_ns": "4860370167",
+          "min_ns": "4803180167",
+          "max_ns": "4860370167"
+        }
+      }
+    },
+    {
+      "mode": "local_buffered",
+      "shape": "indexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "21271958",
+          "p95_ns": "33076708",
+          "min_ns": "20134500",
+          "max_ns": "34971833"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "4903593917",
+          "p95_ns": "4966357209",
+          "min_ns": "4893350208",
+          "max_ns": "4966357209"
+        }
+      }
+    },
+    {
+      "mode": "local_strict",
+      "shape": "unindexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "5013133646",
+          "p95_ns": "5029277250",
+          "min_ns": "4993107625",
+          "max_ns": "5030175042"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "4924840250",
+          "p95_ns": "4948368833",
+          "min_ns": "4924743792",
+          "max_ns": "4948368833"
+        }
+      }
+    },
+    {
+      "mode": "local_buffered",
+      "shape": "unindexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "5015970500",
+          "p95_ns": "5039646084",
+          "min_ns": "4992949542",
+          "max_ns": "5055004584"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "4934008500",
+          "p95_ns": "4941683875",
+          "min_ns": "4917105750",
+          "max_ns": "4941683875"
+        }
+      }
+    },
+    {
+      "mode": "sql_default",
+      "shape": "indexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "23009437.5",
+          "p95_ns": "33407875",
+          "min_ns": "21233750",
+          "max_ns": "33468166"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "6656445208",
+          "p95_ns": "6667218084",
+          "min_ns": "6649937792",
+          "max_ns": "6667218084"
+        }
+      }
+    },
+    {
+      "mode": "sql_replayable",
+      "shape": "indexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "23395687.5",
+          "p95_ns": "33558875",
+          "min_ns": "21373166",
+          "max_ns": "33749167"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "6673162250",
+          "p95_ns": "6675156417",
+          "min_ns": "6645799000",
+          "max_ns": "6675156417"
+        }
+      }
+    },
+    {
+      "mode": "sql_default",
+      "shape": "unindexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "5230955437.5",
+          "p95_ns": "5253997958",
+          "min_ns": "5219497208",
+          "max_ns": "5260241875"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "5143507334",
+          "p95_ns": "5158662375",
+          "min_ns": "5137736834",
+          "max_ns": "5158662375"
+        }
+      }
+    },
+    {
+      "mode": "sql_replayable",
+      "shape": "unindexed",
+      "status": "passed",
+      "timed_samples": 51,
+      "warmup_samples": 17,
+      "error": null,
+      "original_fingerprint_verified_after_copy": true,
+      "original_fingerprint_verified_after_reader_drop": true,
+      "distributions": {
+        "equality": {
+          "n": 48,
+          "p50_ns": "5214406312.5",
+          "p95_ns": "5234534750",
+          "min_ns": "5188269000",
+          "max_ns": "5290238875"
+        },
+        "count": {
+          "n": 3,
+          "p50_ns": "5121819917",
+          "p95_ns": "5131977125",
+          "min_ns": "5112012208",
+          "max_ns": "5131977125"
+        }
+      }
+    }
+  ],
+  "limits": "Embedded SQL execute/materialization only; copy/hash/startup/correctness outside timer. Localhost finite diagnostics, no speedup/provider/power-loss/native-quiescence claim."
+}

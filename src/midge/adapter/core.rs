@@ -142,12 +142,27 @@ impl Midge {
         default_database: impl Into<String>,
         strict: bool,
     ) -> Result<Self, CassieError> {
+        Self::new_cloud_simulated_with_lease_for_test(
+            cache_path,
+            default_database,
+            strict,
+            std::time::Duration::from_secs(300),
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_cloud_simulated_with_lease_for_test(
+        cache_path: impl AsRef<Path>,
+        default_database: impl Into<String>,
+        strict: bool,
+        lease_ttl: std::time::Duration,
+    ) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::cloud_simulated(
             cache_path.as_ref(),
             "cassie-test",
             "startup",
         )
-        .lease_ttl(std::time::Duration::from_secs(300))
+        .lease_ttl(lease_ttl)
         .build()
         .map_err(CassieError::from)?;
         let write_policy = if strict {
@@ -156,6 +171,20 @@ impl Midge {
             super::storage_config::WritePolicy::CloudBackground
         };
         Self::open_with_write_policy(options, default_database, write_policy)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn shutdown_owned_for_test(
+        self: Arc<Self>,
+        timeout: Duration,
+    ) -> Result<(), cntryl_midge::MidgeError> {
+        let mut owned = Arc::try_unwrap(self).map_err(|shared| {
+            cntryl_midge::MidgeError::Busy(format!(
+                "owned fixture shutdown requires exclusive adapter ownership; {} owners remain",
+                Arc::strong_count(&shared)
+            ))
+        })?;
+        owned.engine.shutdown(timeout)
     }
 
     /// # Errors

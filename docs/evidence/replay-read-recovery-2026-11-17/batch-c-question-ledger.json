@@ -1,0 +1,1060 @@
+{
+  "status": "Finite local C qualification supported at explicit source identities; final publication-head docs/evidence review, hosted checks and merge/readback pending. Historical provisional judgments remain historical.",
+  "records": [
+    {
+      "receipt": "remaining-qualification-map",
+      "source_identity": {},
+      "request_sha256": "39bd11de57f6e662e3044c1041c788c22792864004c22fc0fd5be334d25299e5",
+      "response_sha256": "2d252299bb6b85e452a4a8d0198b605bf9f441762f79c8a9677b523a94e99643",
+      "questions": {
+        "native1188": {
+          "type": "choice",
+          "instructions": "Which current1188disposition follows observedfailure/API/upstreamstatus without claimingabsencefromsamples?",
+          "criteria": {
+            "keep_external_qualification_open": "Keepopen; finiteCassiecoordinationmerged. Upstream1045confirm/refutecontrolledscheduleandpublishfix/typedretry/publiccontract,thenqualifiedpublisheddep+targetednative/backgroundinteropcampaign.",
+            "close_from_fullgate": "PassingcurrentCassieglobaltestsorfiniteconcurrentcreate samples provebroadernative/backgroundabsence.",
+            "add_global_guard": "Cassie-onlyglobalguard canfenceallnative/backgroundWALtransitions/publicwritablehandles."
+          }
+        },
+        "cloud_cache_qualification": {
+          "type": "choice",
+          "instructions": "Is simulatedcloudcache-loss qualification necessarilyblockedbyabsentglobalquiescence, or boundedCassie-sideworkachievablewithcanonicalAPI?",
+          "criteria": {
+            "bounded_cassie_campaign": "Achievableasexplicitfilesystem-backedcloudmodel:killchildfirst,preservesimulatedremote,dropcache,reopen/checkprefix/offsetreconciliation; noengineinternaltesting orrealproviderclaim.",
+            "blocked_until_quiescence": "No cloudcachelossmodel canbeexecutedwithoutglobalnativequiescenceAPI.",
+            "existing_policy_test_sufficient": "Currentcloudpolicyselectiontests alreadyprove cachelossrecovery."
+          }
+        },
+        "power_loss": {
+          "type": "choice",
+          "instructions": "What currentpower-loss evidence/action is supported?",
+          "criteria": {
+            "external_facility_needed": "Existingprocesskillandcleanreopeninsufficient; usecontrolledexternalstoragefaultcampaign orsupportedcanonicalfaultsurface. Internal-onlyCrashDevice notauthorizedcanonicalAPI. Nameinfrastructuregapratherenginefixguarantee.",
+            "call_internal_supported": "Enableinternal-testinganduse__internalCrashDeviceasstableauthorizedcanonicalAPIwithoutcontractchange.",
+            "process_kill_equals_power": "Existingchildabortprovespowerloss."
+          }
+        },
+        "operator_diagnostics": {
+          "type": "choice",
+          "instructions": "What followsfromcurrentselectedmode/checkpoint/docs/counterinterfaces withoutinventingactualdurabilityreceipt?",
+          "criteria": {
+            "record_existing_profile_workflow": "RecordoperatorworkflowwithSHOWdeclaredmode/configuredcloudpolicy/checkpointreadiness/nativecounters andexplicitstickystrict/losslimits; no receiptclaimed. Criteriondoesnotinherentlyrequire newpublicreceipt.",
+            "must_add_receipt": "Originalcriterionrequiresper-transactionactualdurabilityreceipt/newtelemetrybeforeanyfiniteclosure.",
+            "api_blocked": "Midgeglobalquiescencemissingmakesalloperatorprofileselectiondiagnosticsimpossible."
+          }
+        },
+        "read_index_remaining": {
+          "type": "choice",
+          "instructions": "Do48writeackcontrols+untimedverificationaloneestablishdistinctrepresentativetimedreadandindependentlyattestedindexqualification?",
+          "criteria": {
+            "remain_actionable_cassie_work": "No; retaincompletedwritecomparisons, recordremainingtimedread/indexoraclework asCassie-ownedqualification, notAPIblock.",
+            "fully_demonstrated": "Untimedrow/titlecountsindependentlyattestallindexplansandtimedreadthroughput.",
+            "native_blocked": "Cannot measureCassiereadswithoutnewMidgeglobalquiescence."
+          }
+        },
+        "sql1279_finite_closure": {
+          "type": "choice",
+          "instructions": "Can1279finiteSQLfeaturecloseafterALLnamedpendingproofs/gates/8freshSQLcellsareactuallysuccessful, while broader1271/1188remainopen?",
+          "criteria": {
+            "conditional_finite_close": "Yesonlyaftermappednativepolicy/retry/unknown/COPY/resource/owner/nested/restart/poolchecks+local/hostedpass, withexactselectedcontractsandbroadlimitationsretained.",
+            "always_wait1271_all": "EvenfullyprovenfiniteSQLmodecannotcloseuntilallbroad1271power/cache/read/productionqualificationcomplete.",
+            "close_now": "Source/model/pendinggatealreadyqualifies1279."
+          }
+        }
+      },
+      "results": {
+        "native1188": {
+          "type": "choice",
+          "choice": "keep_external_qualification_open",
+          "confidence": 1.0,
+          "probabilities": {
+            "keep_external_qualification_open": 1.0,
+            "close_from_fullgate": 0.0,
+            "add_global_guard": 0.0
+          }
+        },
+        "cloud_cache_qualification": {
+          "type": "choice",
+          "choice": "bounded_cassie_campaign",
+          "confidence": 1.0,
+          "probabilities": {
+            "bounded_cassie_campaign": 1.0,
+            "blocked_until_quiescence": 0.0,
+            "existing_policy_test_sufficient": 0.0
+          }
+        },
+        "power_loss": {
+          "type": "choice",
+          "choice": "external_facility_needed",
+          "confidence": 1.0,
+          "probabilities": {
+            "external_facility_needed": 1.0,
+            "call_internal_supported": 0.0,
+            "process_kill_equals_power": 0.0
+          }
+        },
+        "operator_diagnostics": {
+          "type": "choice",
+          "choice": "record_existing_profile_workflow",
+          "confidence": 1.0,
+          "probabilities": {
+            "record_existing_profile_workflow": 1.0,
+            "must_add_receipt": 0.0,
+            "api_blocked": 0.0
+          }
+        },
+        "read_index_remaining": {
+          "type": "choice",
+          "choice": "remain_actionable_cassie_work",
+          "confidence": 1.0,
+          "probabilities": {
+            "remain_actionable_cassie_work": 1.0,
+            "fully_demonstrated": 0.0,
+            "native_blocked": 0.0
+          }
+        },
+        "sql1279_finite_closure": {
+          "type": "choice",
+          "choice": "conditional_finite_close",
+          "confidence": 1.0,
+          "probabilities": {
+            "conditional_finite_close": 1.0,
+            "always_wait1271_all": 0.0,
+            "close_now": 0.0
+          }
+        }
+      }
+    },
+    {
+      "receipt": "batch-c-finite-contract",
+      "source_identity": {},
+      "request_sha256": "faf1c53ae637e93d3ca90ee887302401ef21c60ad544c0050fa0fb174e6f5bdf",
+      "response_sha256": "c470ca7cdbe43103101590e58743fecff1b063d8030d8b3a8cd1d7181a902d7f",
+      "questions": {
+        "cloud_cases": {
+          "type": "choice",
+          "instructions": "Select finite canonical cloud-cache-loss cases needed before claiming bothreplayAPIandSQLprefixqualification inthismodel.",
+          "criteria": {
+            "four_api_and_sql": "Four small strict/replayable API+SQL cases, strictbaseline2-eventprefix, realackkill/reap/cacheerase/source-reconcile oracles.",
+            "two_api_only_sufficient": "OnlyAPIstrict/replayable directlyqualifybothentrypoints withoutSQLcachelossroute.",
+            "blocked_canonical_api": "No supportedcanonicalcloud_simulated campaignpossible withoutengineinternaltesting."
+          }
+        },
+        "cloud_contract": {
+          "type": "choice",
+          "instructions": "Does selected ownedcachewipe/remotehash/reallease model avoidinventedquiescence or unsafe source deletion?",
+          "criteria": {
+            "implement_owned_model": "Implementonlyafterkilledchildreaped, preserveentireremotebytes/hash, ownedroot/symlinkguards, actualleaseheld-onlyboundedretry, noleaseedits/noexternalpowerlossclaim.",
+            "need_global_quiescence": "Evenafterchilddeathmustacquireunavailableglobalenginequiescencebeforedeletingitsownedlocalcache.",
+            "allow_live_cache_wipe": "Deletecacheregardlessofchildlifecycle andremote/sourcepaths."
+          }
+        },
+        "read_profiles": {
+          "type": "choice",
+          "instructions": "Select finite representative C read/indexcampaign scope withoutrelabeledwriter evidence, varianceorallphysicalingestionlayoutsclaims.",
+          "criteria": {
+            "eight_one_batchshape": "8profiles APIstrict/bufferA+SQLdefault/replayableB \u00d72shapes atoneexplicit1000x100producerbatchshape; priorwritegroupsretainbothsizes.",
+            "sixteen_both_batchshapes": "16required evenforboundedrepresentativereadcampaign becauseoriginalseveralbatchsizescriterionmustapplytoeachtimedreadprofile.",
+            "rerun_all_write_matrix": "Readqualificationrequiresrerunning48writergroupsbeforeanyreadmeasurement."
+          }
+        },
+        "read_oracle": {
+          "type": "choice",
+          "instructions": "Which current source-backed oracle is supported for actualindexqualification andtimedreads?",
+          "criteria": {
+            "actual_plan_metrics_results": "Untimedfullrangeexact100k+titlebuckets withEXPLAINindexmetadataandactualindexcounterdelta/name, perquerytimedmaterializationwithposttimerchecks, cacheprofileexplicit; failratherlabelindexifnotused.",
+            "title_counts_alone": "Untimedtitlecountswithoutactualindexpathproveallindexesandtimedreadlatency.",
+            "force_unsupported_hint": "Inventplannerhintsorchangeproductionplannertomakeindexattestationpass."
+          }
+        },
+        "c_scope_gap": {
+          "type": "noul",
+          "instructions": "Probability thisfiniteCproposal misses a source/config/ownershipprecondition requiringfocusedprobes beforeimplementationqualification, especiallyonlylocalcachedeletedandreadoriginalsunchanged."
+        }
+      },
+      "results": {
+        "cloud_cases": {
+          "type": "choice",
+          "choice": "four_api_and_sql",
+          "confidence": 1.0,
+          "probabilities": {
+            "four_api_and_sql": 1.0,
+            "two_api_only_sufficient": 0.0,
+            "blocked_canonical_api": 0.0
+          }
+        },
+        "cloud_contract": {
+          "type": "choice",
+          "choice": "implement_owned_model",
+          "confidence": 1.0,
+          "probabilities": {
+            "implement_owned_model": 1.0,
+            "need_global_quiescence": 0.0,
+            "allow_live_cache_wipe": 0.0
+          }
+        },
+        "read_profiles": {
+          "type": "choice",
+          "choice": "eight_one_batchshape",
+          "confidence": 0.97,
+          "probabilities": {
+            "eight_one_batchshape": 0.98,
+            "sixteen_both_batchshapes": 0.02,
+            "rerun_all_write_matrix": 0.0
+          }
+        },
+        "read_oracle": {
+          "type": "choice",
+          "choice": "actual_plan_metrics_results",
+          "confidence": 1.0,
+          "probabilities": {
+            "actual_plan_metrics_results": 1.0,
+            "title_counts_alone": 0.0,
+            "force_unsupported_hint": 0.0
+          }
+        },
+        "c_scope_gap": {
+          "type": "noul",
+          "noul": 0.63
+        }
+      }
+    },
+    {
+      "receipt": "c-read-repetitions-contract",
+      "source_identity": {},
+      "request_sha256": "0d7968661486899fb98f964762e983997d0fca569ac1298943f806179344f28e",
+      "response_sha256": "96cfed5d655b3a705ac63d07d65df1cba2e79ae90c85d697e191e19d73f9c7bf",
+      "questions": {
+        "repetitions": {
+          "type": "choice",
+          "instructions": "Select finite repetition count for descriptive representative Creadmeasurements withallrawsamplesandnoformalvariance/speedupclaim.",
+          "criteria": {
+            "three_descriptive": "3rounds51queries/profile408total suffice; reportfamilyNandlimitedp95countN3 explicitly.",
+            "five_required": "5roundsrequiredbyactualissuecriteria evenwithoutvariancequalityclaim.",
+            "none": "Neither selectedcountsupportsfinitecampaign."
+          }
+        },
+        "closed_source": {
+          "type": "choice",
+          "instructions": "Which closed-source precondition fits publicAPI/readonlyoriginalconstraints withoutinventingquiescence?",
+          "criteria": {
+            "verified_exit_receipt_and_fingerprints": "Requireverifiedproducerprocess-exit0/cleanclose rawreceipt+sourceGit/hash, readonlybyte-stability andcopy-onlyownedpathguards; rejectmissingproof. No lockfileabsenceclaim.",
+            "require_lock_absence_only": "A missingnativeleasefilename is sufficient/necessarycanonicalprooforiginalisclosed.",
+            "open_original_to_probe": "Opennativeengineonoriginalordeleteitsleasefiletoproveclosed."
+          }
+        }
+      },
+      "results": {
+        "repetitions": {
+          "type": "choice",
+          "choice": "three_descriptive",
+          "confidence": 0.96,
+          "probabilities": {
+            "three_descriptive": 0.97,
+            "five_required": 0.03,
+            "none": 0.0
+          }
+        },
+        "closed_source": {
+          "type": "choice",
+          "choice": "verified_exit_receipt_and_fingerprints",
+          "confidence": 1.0,
+          "probabilities": {
+            "verified_exit_receipt_and_fingerprints": 1.0,
+            "require_lock_absence_only": 0.0,
+            "open_original_to_probe": 0.0
+          }
+        }
+      }
+    },
+    {
+      "receipt": "cloud-5840c278",
+      "source_identity": {
+        "base": "42f863e48b4dea924879d59f2e74fdb1250821d7",
+        "head": "5840c2781f7042f0ed4c445eceb88d1bc1e7300b",
+        "tree": "a1232db093220cd087b6d35cba25f7674278b483"
+      },
+      "request_sha256": "c76ff43da09c7cc9db78f90e9578f08f187e4e9dd728021f899f7180416b5cca",
+      "response_sha256": "1d491e2ab3f7198954c097204281e7e02feac19c77e718a2f3a66cee7b82cc3e",
+      "questions": {
+        "ownership_gap": {
+          "type": "noul",
+          "instructions": "Probability suppliedownedcachewipe/remotehash/sentinelnegativecontrols permitdeletingforeignsource/remoteorwipewhilechildstillrunning inactualcallgraph."
+        },
+        "recovery_oracle_gap": {
+          "type": "noul",
+          "instructions": "Probability source4cases falselyclaimremoteACK/all-or-nothing/ledger/index/reconciliation ratherthanfinitepinnedfilesystemcloudmodel, givenalltestsunrun."
+        },
+        "baseline_lease_gap": {
+          "type": "noul",
+          "instructions": "Probability normalbaselineCassie.shutdown/drop doesnotguarantee nativelease releasedbeforechildone-shotopen, yieldingvalidLeaseHeld/harnessfailure ratherthanintendedcache-lossboundary."
+        },
+        "baseline_action": {
+          "type": "choice",
+          "instructions": "Chooseconcretesource-backed baselinehandoffcontractwithpublishedAPIconstraint.",
+          "criteria": {
+            "owned_canonical_shutdown": "UseexclusiveownedtestMidge canonicalEngine.shutdown afterallborrowersdrop, failerrors; thenchildstart. Noengineglobalquiescenceclaim.",
+            "retry_child_start": "RetryonlyLeaseHeldinchildstartupwithcloud-specificdeadlineconsistentwithTTL, doNOTassumeDropquiescence.",
+            "ignore_drop_gap": "Currentone-shotchildopen afterCassie.shutdown/drop isguaranteed safe despitepublishedDropdetachedreaper."
+          }
+        },
+        "source_disposition": {
+          "type": "choice",
+          "instructions": "SelectinterimCsourceaction; testsunrun/registrationpending.",
+          "criteria": {
+            "repair_baseline_before_gate": "Addressbaselineleasehandoffproofbeforeintegrationqualification; retainalreadyadequateownershiporacles.",
+            "integrate_as_is": "No baselineororaclefixrequiredbeforeCgate.",
+            "blocked_external": "CanonicalAPIcannotimplementanyfinitecloudcachelossfixture."
+          }
+        }
+      },
+      "results": {
+        "ownership_gap": {
+          "type": "noul",
+          "noul": 0.18
+        },
+        "recovery_oracle_gap": {
+          "type": "noul",
+          "noul": 0.5
+        },
+        "baseline_lease_gap": {
+          "type": "noul",
+          "noul": 0.8
+        },
+        "baseline_action": {
+          "type": "choice",
+          "choice": "owned_canonical_shutdown",
+          "confidence": 0.82,
+          "probabilities": {
+            "owned_canonical_shutdown": 0.88,
+            "retry_child_start": 0.11,
+            "ignore_drop_gap": 0.01
+          }
+        },
+        "source_disposition": {
+          "type": "choice",
+          "choice": "repair_baseline_before_gate",
+          "confidence": 0.96,
+          "probabilities": {
+            "repair_baseline_before_gate": 0.97,
+            "integrate_as_is": 0.02,
+            "blocked_external": 0.01
+          }
+        }
+      }
+    },
+    {
+      "receipt": "cloud-handoff-correction",
+      "source_identity": {
+        "base": "42f863e48b4dea924879d59f2e74fdb1250821d7",
+        "head": "5840c2781f7042f0ed4c445eceb88d1bc1e7300b",
+        "tree": "a1232db093220cd087b6d35cba25f7674278b483"
+      },
+      "request_sha256": "43313bae324dd9c9fe046b43c86bb96c7fc44578e61e9a59969f677b5d89a7db",
+      "response_sha256": "e4519a40f35910bab11fed6fce84fd72b9a7fe373684dca7001ec53d2ec9f21f",
+      "questions": {
+        "corrected_handoff_choice": {
+          "type": "choice",
+          "instructions": "Given corrected adapter Drop source, select the finite fixture action.",
+          "criteria": {
+            "assert_owned_close": "Require selected consuming canonical shutdown with error propagation and extra-owner control before cloud gate.",
+            "existing_drop_sufficient": "Keep warning-only5s Drop, one-shot child startup sufficient.",
+            "retry_only": "Instead retry only actual LeaseHeld in child."
+          }
+        },
+        "remaining_handoff_gap": {
+          "type": "noul",
+          "instructions": "Probability selected helper still has a source-backed handoff correctness gap requiring another focused probe beyond extra-owner refusal and four actual cloud cases."
+        }
+      },
+      "results": {
+        "corrected_handoff_choice": {
+          "type": "choice",
+          "choice": "assert_owned_close",
+          "confidence": 0.96,
+          "probabilities": {
+            "assert_owned_close": 0.97,
+            "existing_drop_sufficient": 0.03,
+            "retry_only": 0.0
+          }
+        },
+        "remaining_handoff_gap": {
+          "type": "noul",
+          "noul": 0.61
+        }
+      }
+    },
+    {
+      "receipt": "cloud-2cebd09a",
+      "source_identity": {
+        "base": "42f863e48b4dea924879d59f2e74fdb1250821d7",
+        "head": "2cebd09a237bfb46ab15db295ad8f91a5adda5d8",
+        "tree": "ea95a37ff95cf77925beb0d1903f2d7845ef7edc",
+        "previous_reviewed": "5840c2781f7042f0ed4c445eceb88d1bc1e7300b"
+      },
+      "request_sha256": "e6f335a6e6447f609d1f541cf251a8696276a187c8024f9c29e7e9471898704f",
+      "response_sha256": "e9a3d16a4eb60b579b33720465ba205320d8757d8088f7fb57b21df4d2b7642d",
+      "questions": {
+        "repair_disposition": {
+          "type": "choice",
+          "instructions": "Does exact source now satisfy selected fixture handoff contract sufficiently to integrate C then execute9tests with normal coherent gates?",
+          "criteria": {
+            "integrate_then_probe": "Accept affected source only, require9executions before qualification.",
+            "source_repair_required": "Another concrete source change is mandatory before integration.",
+            "unavailable_api": "Canonical API cannot implement chosen handoff."
+          }
+        },
+        "new_handoff_gap": {
+          "type": "noul",
+          "instructions": "Probability a distinct source-backed defect remains in this handoff delta needing another focused probe beyond extraowner refusal, nativeBusy propagation, and4realcloudpositivehandoffs."
+        }
+      },
+      "results": {
+        "repair_disposition": {
+          "type": "choice",
+          "choice": "integrate_then_probe",
+          "confidence": 0.94,
+          "probabilities": {
+            "integrate_then_probe": 0.96,
+            "source_repair_required": 0.04,
+            "unavailable_api": 0.0
+          }
+        },
+        "new_handoff_gap": {
+          "type": "noul",
+          "noul": 0.65
+        }
+      }
+    },
+    {
+      "receipt": "read-a8211cbd",
+      "source_identity": {
+        "base": "056872b4a57caf67d2b0222d3b05e9415a0c2609",
+        "head": "a8211cbd14b6a602239794b6f40c8b55d65478d3",
+        "tree": "55a1adbbd05ce083a01131da3a52c699d22c4a86"
+      },
+      "request_sha256": "b9e72eae75421aa3e27e1111cef074c18ecdc0a956c7e6069616a089345fc18c",
+      "response_sha256": "7740ec220a16751518f9b6de8f3fa86b360d41c8039255af312c6608af2498ac",
+      "questions": {
+        "identity_oracle_choice": {
+          "type": "choice",
+          "instructions": "Select finite read correctness oracle needed before claiming completebucket/indexcoverage.",
+          "criteria": {
+            "unique_ids": "Selectid,title; attest6250correcttitlesplusuniqueIDsperbucketand100kuniqueroundIDs,checksoutsidetimer; retain51queries/profile.",
+            "title_counts_sufficient": "Titlevalues+6250count16buckets+independent100kCOUNTsufficeforselectedclaimwithoutidentitycoverage.",
+            "narrow_claim": "Keepqueriesbutexplicitlyclaimvalue/countcoverageonly,notrowidentity/indexcompleteness."
+          }
+        },
+        "canonical_store_choice": {
+          "type": "choice",
+          "instructions": "Should8originalstoresbededuplicatedbycanonicaldirectoryratherthanrawPathBufbeforeanycopy?",
+          "criteria": {
+            "canonical_dedup": "Canonicalizeownedverifiedsourcesandrejectaliaseswithfocusedpurehelpernegativebeforecopy.",
+            "raw_paths_sufficient": "Actualhashedproducerpathlabels/externalclosureproofmakecanonicalaliasrejectionunnecessary."
+          }
+        },
+        "reader_close_choice": {
+          "type": "choice",
+          "instructions": "Selectaccuratefiniteoutput/doccontractwithoutinventingnativequiescenceAPI.",
+          "criteria": {
+            "drop_wording": "Renameafter_reader_close toafter_reader_drop anddocumentadaptergracefulcloseattempt/reaperlimitation;originalpreservationproofisafterCassiedrop,noglobalquiescenceclaim.",
+            "assert_close": "Requireadditionalcanonicalownedshutdownbeforecallingafter_reader_close,withoutnewproductionAPI.",
+            "keep_wording": "Currentshutdown+Dropallowsunqualifiedconfirmedreaderclosewording."
+          }
+        },
+        "copy_safety_gap": {
+          "type": "noul",
+          "instructions": "Probability exactcopyhelpercanmutate/deleteoriginalsunderselectedclosed/exclusivelyowned/noexternalracefixturemodel,requiringmorefocusedprobe than6providedcontrols."
+        },
+        "read_attestation_gap": {
+          "type": "noul",
+          "instructions": "Probability namedplan+actualcounters/lastindexandnative/catalogdefinitionchecks canacceptfallbackratherthanselectedscalarindexintheseequalityqueries."
+        }
+      },
+      "results": {
+        "identity_oracle_choice": {
+          "type": "choice",
+          "choice": "unique_ids",
+          "confidence": 0.94,
+          "probabilities": {
+            "unique_ids": 0.96,
+            "title_counts_sufficient": 0.01,
+            "narrow_claim": 0.03
+          }
+        },
+        "canonical_store_choice": {
+          "type": "choice",
+          "choice": "canonical_dedup",
+          "confidence": 0.84,
+          "probabilities": {
+            "canonical_dedup": 0.92,
+            "raw_paths_sufficient": 0.08
+          }
+        },
+        "reader_close_choice": {
+          "type": "choice",
+          "choice": "drop_wording",
+          "confidence": 0.97,
+          "probabilities": {
+            "drop_wording": 0.98,
+            "assert_close": 0.01,
+            "keep_wording": 0.01
+          }
+        },
+        "copy_safety_gap": {
+          "type": "noul",
+          "noul": 0.13
+        },
+        "read_attestation_gap": {
+          "type": "noul",
+          "noul": 0.04
+        }
+      }
+    },
+    {
+      "receipt": "read-58e1b5ca",
+      "source_identity": {
+        "base": "056872b4a57caf67d2b0222d3b05e9415a0c2609",
+        "head": "58e1b5ca1cd337733659ddf118215d5367b3c0d7",
+        "tree": "2a673001d2a39ae12ab53c0222c1096bf77f6018",
+        "previous_reviewed": "a8211cbd14b6a602239794b6f40c8b55d65478d3"
+      },
+      "request_sha256": "1f90dc5d374168600c90b084763f00dd324e8e8d4148aed3b2e072e2c02c77af",
+      "response_sha256": "bf4b8f0440fe1fb6900a0a7660fd458761838fe308c9257bddf33dd9db3cb2b7",
+      "questions": {
+        "affected_source_disposition": {
+          "type": "choice",
+          "instructions": "Does exactrepair implement selectedoracle/provenance/wording contract sufficiently for C integration then requiredprobeexecution?",
+          "criteria": {
+            "integrate_pending_probes": "Acceptaffectedsourceonly;8helpertests+9cloudtests+8actualreadprofilesandcoherentgatespending.",
+            "source_fix_required": "Anotherconcreteselectedcontractomissionrequiresfixbeforeintegration."
+          }
+        },
+        "alias_reuse_survives": {
+          "type": "noul",
+          "instructions": "Canpathaliases of the samecanonicaloriginalstillpassload_manifestclaim_original andbeusedasdistinctselectedprofilesunderfixedclosedfilesystemmodel?"
+        },
+        "duplicate_identity_survives": {
+          "type": "noul",
+          "instructions": "CanrepeatedIDwithinoracrossbucketspassnewroundvalidationandCOUNTacceptanceas100kdistinctIDs?"
+        }
+      },
+      "results": {
+        "affected_source_disposition": {
+          "type": "choice",
+          "choice": "integrate_pending_probes",
+          "confidence": 0.74,
+          "probabilities": {
+            "integrate_pending_probes": 0.87,
+            "source_fix_required": 0.13
+          }
+        },
+        "alias_reuse_survives": {
+          "type": "noul",
+          "noul": 0.07
+        },
+        "duplicate_identity_survives": {
+          "type": "noul",
+          "noul": 0.1
+        }
+      }
+    },
+    {
+      "receipt": "name-only-b-c",
+      "source_identity": {
+        "cloud_head": "6b2d7619c0c419e23888dceee0889933d5333a71",
+        "cloud_tree": "6bd2703ab1fc72e17473d65d9f1bfdf3359a0bd3",
+        "read_head": "6c9f7809349d7fa126c6cda89be74dfec3ea1818",
+        "read_tree": "4d87751610d7501c9683fc7f4ee0311fccba2fd2"
+      },
+      "request_sha256": "d3a9fc4d9ba1d9085af506188bd7ed39e44abf322d3154612c834ebb9786dc51",
+      "response_sha256": "27604be00a2268f882d4a8463a6ab622a617b0f6276dd58328dad373c8d66ca1",
+      "questions": {
+        "name_repair_disposition": {
+          "type": "choice",
+          "instructions": "Doexactimmutableidentifier-onlyrenamespreserveoriginaltestobligationsandselectorswhilemeetingobservedrequiredpolicywithoutbypass?",
+          "criteria": {
+            "accept_repeat_affected": "Acceptsourcewithrenameequivalenceproof;rerunrequiredstrictpolicies/currentmetadata;keepoldexecutionidentityandfinalhostedrequirement.",
+            "repair_required": "Meaningorselectedchild/callbackfunctionlost,orassertions/bodieschangedunexpectedly.",
+            "split_tests": "These namesnecessarilyrequiredeleting/splittingbodiesdespiteinvariant-equivalentoutcomes."
+          }
+        },
+        "child_selector_gap": {
+          "type": "noul",
+          "instructions": "Givenexactdecl-onlydiffandactive-codegrep,canrenamesmakeanyexistingself-executedchildselectzerotestsunderunchangedProfile::test_nameconstants?"
+        }
+      },
+      "results": {
+        "name_repair_disposition": {
+          "type": "choice",
+          "choice": "accept_repeat_affected",
+          "confidence": 0.96,
+          "probabilities": {
+            "accept_repeat_affected": 0.97,
+            "repair_required": 0.03,
+            "split_tests": 0.0
+          }
+        },
+        "child_selector_gap": {
+          "type": "noul",
+          "noul": 0.21
+        }
+      },
+      "scope": "Four C declaration names only; all8helper/9cloud bodies/attributes/selectors unchanged and stillunrun. B17namechecks are separatehistoricalevidence."
+    },
+    {
+      "receipt": "combined-c-9e8fd05a",
+      "source_identity": {
+        "base": "48ee5d986f37dd3f47cbcedc58863fb272f4c34a",
+        "head": "9e8fd05abcdde7774a2708aace6b249f54e09528",
+        "tree": "f2effd67abdc7c10e50ba2b4c94f251daf694031"
+      },
+      "request_sha256": "2bd6c3c16b289d3f9eb47899abbd84fdbe2a1a90b072c083b1ee21fcbefce4f0",
+      "response_sha256": "d6a80c4dec237199a1792b6f827f3ce2d3a01e24747f6aa8364834f5d8eebdf9",
+      "questions": {
+        "combined_gate_disposition": {
+          "type": "choice",
+          "instructions": "Doesexactcomposition/sharedregistration/cfghelperdiffpreserveacceptedCcontractsandallowtheauthorizedsolelocalorderedgatewithrequiredprobesbeforepublication?",
+          "criteria": {
+            "gate_pending_probes": "Sourceaccepted;execute9cloud+8helper+5legacy/fullgate,recordactualpositionsandlimits;noCPRuntilBmerge/rebaseproof.",
+            "repair_before_gate": "Concretecomposition/selector/constructorregressionrequiresfixfirst.",
+            "claim_qualified": "TreatunrunCprobes/readcampaignasalreadypassed."
+          }
+        },
+        "legacy_constructor_changed": {
+          "type": "noul",
+          "instructions": "DoesnewcfgtestTTLforwarderchangeexistingnew_cloud_simulated_for_test300s/defaultskeworproductionconstructorbehavior?"
+        },
+        "child_harness_gap": {
+          "type": "noul",
+          "instructions": "Doesexactgenericchildmarker/env/registrationdiffcauseold5ornew4childselectors toselectzerocasesordropthekill-and-reap-beforewipeboundary?"
+        },
+        "identity_attestation_execution": {
+          "type": "choice",
+          "instructions": "Which evidence is needed before C acceptance?",
+          "criteria": {
+            "actual_results_required": "Actual9/8/5/fullgateand8profile408sample outcomeswithpositions,uniqueIDs,actualpath/provenance/fingerprints;staticmanifests/headercountsnotproof.",
+            "source_only": "Static15+8declarationsandplanned408header suffice."
+          }
+        }
+      },
+      "results": {
+        "combined_gate_disposition": {
+          "type": "choice",
+          "choice": "gate_pending_probes",
+          "confidence": 0.98,
+          "probabilities": {
+            "gate_pending_probes": 0.99,
+            "repair_before_gate": 0.01,
+            "claim_qualified": 0.0
+          }
+        },
+        "legacy_constructor_changed": {
+          "type": "noul",
+          "noul": 0.25
+        },
+        "child_harness_gap": {
+          "type": "noul",
+          "noul": 0.15
+        },
+        "identity_attestation_execution": {
+          "type": "choice",
+          "choice": "actual_results_required",
+          "confidence": 1.0,
+          "probabilities": {
+            "actual_results_required": 1.0,
+            "source_only": 0.0
+          }
+        }
+      }
+    },
+    {
+      "receipt": "c-bridge-c9840dc0",
+      "source_identity": {
+        "base": "9e8fd05abcdde7774a2708aace6b249f54e09528",
+        "head": "c9840dc0199d8f6e04e3a3a965be6d71476825ba",
+        "tree": "1cdd9850c275c3b24fb744ddc98d5385a1b6dd91"
+      },
+      "request_sha256": "e0e2e61257dc556d20d07120706f67dbaf1203d90a071aec03e6db89a8115def",
+      "response_sha256": "f812883544a86907090e18288f3d14c41c5584dcb2b7b8886bb541eb22998f12",
+      "questions": {
+        "bridge_disposition": {
+          "type": "choice",
+          "instructions": "Doesexacttest-onlydelegatingbridgefixtheobservedvisibilitydefectwithoutalteringselectedCstorage/policy/lifetimecontracts?",
+          "criteria": {
+            "accept_test_bridge": "Acceptsource;integratewithallotherobservedcompiledefects,refreshmetadata,repeataffectedcoherentgate;allCprobesremainunrun.",
+            "production_api_changed": "Repairbeforegatebecauseoriginalproductionvisibilityorpolicyisbroadened.",
+            "test_oracle_weakened": "Repairbecauseactualcloudpathorownership/recoveryoracleisbypassed."
+          }
+        }
+      },
+      "results": {
+        "bridge_disposition": {
+          "type": "choice",
+          "choice": "accept_test_bridge",
+          "confidence": 0.96,
+          "probabilities": {
+            "accept_test_bridge": 0.97,
+            "production_api_changed": 0.02,
+            "test_oracle_weakened": 0.01
+          }
+        }
+      }
+    },
+    {
+      "receipt": "c-hex-f544a29e",
+      "source_identity": {
+        "base": "55576a5e4a764ea2cf0041fcef382350b0a520d7",
+        "head": "f544a29e40724e69942247a6aec03ec8676c0ded",
+        "tree": "1770b078121a918f8b0fa4b61995ee6a0e4090fe"
+      },
+      "request_sha256": "2071f5ad2b43b062602615054a3e3692d93a9066b0d0216c91aa8683f495a618",
+      "response_sha256": "2d2169036985d8d9c1c3d92c04db90e96ebf0de71374daf1c67a22e0b1ad9ce6",
+      "questions": {
+        "digest_repair_disposition": {
+          "type": "choice",
+          "instructions": "SelectexactsourceactionforcanonicalSHArepresentationfixwithoutweakeningidentitychain.",
+          "criteria": {
+            "accept_canonical_format": "Acceptsource,refreshmetadataandcoherentgate;requireactualknownvectorsandoriginal8helpers,allCtests remainpending.",
+            "algorithm_changed": "RepairbeforegatebecauseSHApreimage/order/digestrepresentationchangedsemantically.",
+            "oracle_weakened": "Repairbecauseprovenance/closure/copyassertionswerebypassed."
+          }
+        }
+      },
+      "results": {
+        "digest_repair_disposition": {
+          "type": "choice",
+          "choice": "accept_canonical_format",
+          "confidence": 0.79,
+          "probabilities": {
+            "accept_canonical_format": 0.86,
+            "algorithm_changed": 0.14,
+            "oracle_weakened": 0.0
+          }
+        }
+      }
+    },
+    {
+      "receipt": "c-missing-api-store",
+      "source_identity": {
+        "C_head": "40a08ce25972bc3118d5dcc5dd9fb8f4c668cee9",
+        "C_tree": "9bff39744534ef6a125c6992fee2b5d2aa2ea168",
+        "A_writer": "58e6c96ea14c3466da17c256cb2fcaefbd71f940",
+        "A_tree": "d051222b580d48266b3ed604f588928bd443e660"
+      },
+      "request_sha256": "1aef3d94fb5d093fa74b5dadc30fec2b605e182c017a240a5b70dac7230f3440",
+      "response_sha256": "0e1d74776e0e28e6653d7f5603c6bd5f9ae42fe114ff55d9bebcda35926e8424",
+      "questions": {
+        "missing_store_direction": {
+          "type": "choice",
+          "instructions": "Which next action preserves the selected finite read-campaign provenance contract given actually absent original stores? Select only implementable direction with preconditions.",
+          "criteria": {
+            "fresh_A_if_verified": "Verify exact retained A executable provenance then run four clearly new replacement A-writer controls with fresh closure/raw/fingerprint receipts; if proof fails use documented generation change.",
+            "amend_generation_now": "Even a provably exact A executable should not be reused; immediately change writer generation/manifest and create new controls.",
+            "stop_campaign": "Missing stores make all future finite read qualification impossible.",
+            "fabricate_original": "Attach historical receipts to recreated stores without new producer receipts."
+          }
+        },
+        "replacement_claim_gap": {
+          "type": "noul",
+          "instructions": "Is it valid to claim these fresh replacement stores are the original historical measured A stores merely because source SHA and workload match? A yes identifies an unacceptable claim risk; source distinction is explicit."
+        }
+      },
+      "disposition": "fresh_A_if_verified1.0; artifact proof independently accepted. .33 awkward validity/risk question not acceptance; focused replacement-contract audit passed52bf, actualraw/closure/manifest audit pending.",
+      "results": {
+        "missing_store_direction": {
+          "type": "choice",
+          "choice": "fresh_A_if_verified",
+          "confidence": 1.0,
+          "probabilities": {
+            "fresh_A_if_verified": 1.0,
+            "amend_generation_now": 0.0,
+            "stop_campaign": 0.0,
+            "fabricate_original": 0.0
+          }
+        },
+        "replacement_claim_gap": {
+          "type": "noul",
+          "noul": 0.33
+        }
+      }
+    },
+    {
+      "receipt": "c-index-identity-gap",
+      "source_identity": {
+        "base": "c23a27604e29bea563bb2ee9f85009514d43f666",
+        "head": "66916fee39adc277b27540366200bfa013113110",
+        "tree": "3308fca2f53958e28b37b6a66d7751b376a5832e"
+      },
+      "request_sha256": "78afcbfe3c830d2b10c52cc115c87309343d35007a6dccf38dc1c26393d7e199",
+      "response_sha256": "ebf9d528ca758e839fad36799656c70a3b4c0818c84604afbc7451aaa568692d",
+      "questions": {
+        "oracle_direction": {
+          "type": "choice",
+          "instructions": "Which source-backed bounded oracle direction should be selected conditional on raw metadata confirming only expected hydration identity differences?",
+          "criteria": {
+            "normalize_exact_hydration_keys": "Benchmark-only normalized full definition equality plus separately validated native identity and raw receipts; pure negative controls and actual failing-field probe required.",
+            "change_hydration": "Production hydration must change to satisfy structural fullEq.",
+            "drop_metadata_or_force_plan": "Ignore metadata mismatch broadly or force index; actual source evidence unnecessary.",
+            "none": "No source-backed direction until a different contract is established."
+          }
+        },
+        "actual_field_probe_required": {
+          "type": "noul",
+          "instructions": "Does the generic actual gap leave enough uncertainty that a focused actual raw catalog/native identity probe is required before calling this observed failure only a benchmark oracle defect?"
+        }
+      },
+      "disposition": "Conditional normalize_exact_hydration_keys1.0; actual_field_probe_required.92OPEN. Source hydrationclears2keys, genericactualgapnotfullfields. Accepted ignoredrawmetadata probeSHA903bb9... executionpendingafterterminalcampaign. No repair frommodelalone.",
+      "actual_probe_disposition": "Actualsource669diagnosticrawSHAb6e85c377eefcabf35cf05c276ad4ffed324f6aae4aa8d1d12c32e9f2688da09:all4fullmetadata differonlyhydration-cleared2keys;relation12/nativeindexstorage16,bothcollectionIDs12,catalogOID16399allotherfieldsidentical.208dep fingerprint/203artifacthashes+binaryverified;originalsunchanged. .92probe discharged, conditionalnormalize1.0 grounded;repairandnewfull8/408stillpending.",
+      "results": {
+        "oracle_direction": {
+          "type": "choice",
+          "choice": "normalize_exact_hydration_keys",
+          "confidence": 1.0,
+          "probabilities": {
+            "normalize_exact_hydration_keys": 1.0,
+            "change_hydration": 0.0,
+            "drop_metadata_or_force_plan": 0.0,
+            "none": 0.0
+          }
+        },
+        "actual_field_probe_required": {
+          "type": "noul",
+          "noul": 0.92
+        }
+      }
+    },
+    {
+      "receipt": "c-index-repair-8fd4617b",
+      "source_identity": {
+        "base": "66916fee39adc277b27540366200bfa013113110",
+        "head": "8fd4617be273cefe0989918db9b0af4eacd02c22",
+        "tree": "cda5a0579b9ece1a89e5e9bcbfa22d8f15a578c7"
+      },
+      "request_sha256": "a955167a5f7ebdec7a0f22515f5a5d58ba270a60423c8671eaa657b21c2e6fbe",
+      "response_sha256": "7706da382a10beb930f9f881c94deed0390ca072b69fc55f335bfe8bf38af9f1",
+      "questions": {
+        "repair_gate": {
+          "type": "choice",
+          "instructions": "Given actualdiagnostic and exactdiff, which nextreview action is source-backed?",
+          "criteria": {
+            "accept_for_affected_gate_full_campaign": "Accept boundedoracle repair for registration/affectedtests/fullstrictandnewcomplete8profile408campaign; no executedqualification yet.",
+            "require_production_change": "Needproductionhydration/planner/APIchange instead.",
+            "reject_broad_normalization": "Thisdiffremoves semanticoptions beyond selected2 or waives nativeidentity/execution.",
+            "none": "Anotherconcrete blocker prevents sourceacceptance."
+          }
+        },
+        "remaining_acceptance_gap": {
+          "type": "noul",
+          "instructions": "Is there a plausible >=0.30 unprobed semantic acceptance gap in this exacthelper/integration that could silently accept a wrong definition/native relation despite remaining fullEq,positiveIDs,relationchecks and unchanged mandatory actualexecution/cardinality? Treat intended positiveindexIDalone limit as explicitly covered by pending actualfullcampaign, not alreadyprovenphysicalcorrectness."
+        }
+      },
+      "disposition": "Sourceaccept.88;residual.64OPEN mapsfocusedactualindexed/full8campaign.93. Newpure4/oldhelpers9andfullstrictstillrequired. No qualificationyet.",
+      "results": {
+        "repair_gate": {
+          "type": "choice",
+          "choice": "accept_for_affected_gate_full_campaign",
+          "confidence": 0.84,
+          "probabilities": {
+            "accept_for_affected_gate_full_campaign": 0.88,
+            "require_production_change": 0.0,
+            "reject_broad_normalization": 0.01,
+            "none": 0.11
+          }
+        },
+        "remaining_acceptance_gap": {
+          "type": "noul",
+          "noul": 0.64
+        }
+      }
+    },
+    {
+      "receipt": "c-index-repair-probe-action",
+      "source_identity": {
+        "base": "66916fee39adc277b27540366200bfa013113110",
+        "head": "8fd4617be273cefe0989918db9b0af4eacd02c22",
+        "tree": "cda5a0579b9ece1a89e5e9bcbfa22d8f15a578c7"
+      },
+      "request_sha256": "de4be00fdf78788181cb4ee4168c8e532cbd20458ec6a8b580a822c9dbe661bb",
+      "response_sha256": "ab765c3f94207dce8ce493454f12fb914a5784ffd30eadc0cdd0a4560a669ad2",
+      "questions": {
+        "concrete_required_probe": {
+          "type": "choice",
+          "instructions": "Which concrete focusedprobe/action best addresses the prior.64remaining acceptance lead for this exact boundedbenchmarkdiff? Choose nextaction; do notinvent unavailable engineproof.",
+          "criteria": {
+            "actual_four_index_execution_and_full_campaign": "PositiveindexIDalone cannotprovephysicalcontents; requireactualcorrected4indexedprofiles withrawidentities+namedplan/nativeindexops/no fallback+all6250bucketuniqueIDs/100kCount, plusnewfull8campaign. Alreadyselectedactualprobe mustpassbeforequalifiedclaim.",
+            "pure_semantic_identity_negative_controls": "Runnew4purecontrols covering13semanticdrifts,missing/zero/nonnumeric/mismatchedidentity andpositivearbitrary47/98; helperis unexecuted so noacceptancewithoutthese.",
+            "duplicate_storage_id_specific_new_test": "Helpercanacceptmultiple distinctindexes sharingphysicalstorageID; neednewnegativebeforegates even thoughselectedfixtureenforcesexactlyoneindex andunindexedzero.",
+            "normalize_catalog_keys_too": "Newcode muststripkeysfromcatalogtoo despitehydrationcontractexplicitlyomittingthem.",
+            "none_source_blocker_identified": "Noadditionalconcrete sourceblocker demonstrated;runallselectedpure+actualcampaignprobes andretainunresolvedlimituntilthen."
+          }
+        }
+      },
+      "disposition": "Sourceaccept.88;residual.64OPEN mapsfocusedactualindexed/full8campaign.93. Newpure4/oldhelpers9andfullstrictstillrequired. No qualificationyet.",
+      "results": {
+        "concrete_required_probe": {
+          "type": "choice",
+          "choice": "actual_four_index_execution_and_full_campaign",
+          "confidence": 0.91,
+          "probabilities": {
+            "actual_four_index_execution_and_full_campaign": 0.93,
+            "pure_semantic_identity_negative_controls": 0.03,
+            "duplicate_storage_id_specific_new_test": 0.01,
+            "normalize_catalog_keys_too": 0.0,
+            "none_source_blocker_identified": 0.03
+          }
+        }
+      }
+    },
+    {
+      "receipt": "c-final-local-interpretation",
+      "source_identity": {
+        "base": "c23a27604e29bea563bb2ee9f85009514d43f666",
+        "reader_head": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+        "reader_tree": "c66c6a32199c64fcd9cbeebff9b57a2922530bee"
+      },
+      "request_sha256": "16d869b98c11ab095ce5423aa6a09c54bc840d0f92d4b048435909afcc7e99d9",
+      "response_sha256": "4964956e5a38058bee6638bb5fd9e5f5e5e5035773690ad9b0c6529baa079b89",
+      "questions": {
+        "finite_local_disposition": {
+          "type": "choice",
+          "instructions": "Which acceptance follows actual evidence and exact source attributions before final docs/head and hosted qualification?",
+          "criteria": {
+            "finite_local_pass_pending_publication": "Finite C selected simulated-cloud/closed-store/read boundary locally supported; proceed final evidence review then hosted checks; not merged/production/broad issue closure.",
+            "claim_all_at_a5fd": "Relabel full default/cloud tests as a5fd reruns.",
+            "claim_broad_complete": "Close1271/1188 because finite probes passed.",
+            "reject_finite_evidence": "Actual selected probes do not support finite boundary."
+          }
+        },
+        "index_lead_disposition": {
+          "type": "choice",
+          "instructions": "Does executed corrected full campaign discharge .64 lead mapped .93 to actual four indexed plan/native metrics/no fallback/unique-ID/count probes?",
+          "criteria": {
+            "discharged_selected_boundary": "Yes for selected four fixtures/queries and full8 campaign; no universal physical-engine proof from positive IDs.",
+            "still_source_only": "Actual execution still absent.",
+            "universal_physical_proof": "Every positive-ID index universally correct."
+          }
+        },
+        "scope_latency_interpretation": {
+          "type": "choice",
+          "instructions": "How must docs describe actual408 read latencies/cloud positions without unsupported claims?",
+          "criteria": {
+            "descriptive_bounded_keep_blocks": "Warm descriptive one-host/test-profile/three-round observations; actual index paths, strict2/replay1 simulated loss+reconcile; no RPO/RTO/speedup guarantee; realprovider/power/native broader remain open.",
+            "promise_speedup": "Treat index-read difference as buffered-write production speedup.",
+            "close_power_native": "Treat finite process/cache/read probes as power-loss/native-absence proof."
+          }
+        }
+      },
+      "results": {
+        "finite_local_disposition": {
+          "type": "choice",
+          "choice": "finite_local_pass_pending_publication",
+          "confidence": 1.0,
+          "probabilities": {
+            "finite_local_pass_pending_publication": 1.0,
+            "claim_all_at_a5fd": 0.0,
+            "claim_broad_complete": 0.0,
+            "reject_finite_evidence": 0.0
+          }
+        },
+        "index_lead_disposition": {
+          "type": "choice",
+          "choice": "discharged_selected_boundary",
+          "confidence": 1.0,
+          "probabilities": {
+            "discharged_selected_boundary": 1.0,
+            "still_source_only": 0.0,
+            "universal_physical_proof": 0.0
+          }
+        },
+        "scope_latency_interpretation": {
+          "type": "choice",
+          "choice": "descriptive_bounded_keep_blocks",
+          "confidence": 1.0,
+          "probabilities": {
+            "descriptive_bounded_keep_blocks": 1.0,
+            "promise_speedup": 0.0,
+            "close_power_native": 0.0
+          }
+        }
+      },
+      "disposition": "Actual finite local boundary accepted1.0; .64 selected index lead discharged1.0 by actualfull8/408; boundeddescriptiveinterpretation/keepbroaderblocks1.0. Finaldocs/head/hosted/merge pending."
+    }
+  ],
+  "record_count": 17,
+  "question_count": 48,
+  "source_payloads": "Excluded. Exact question text/results and request/response hashes retained; credentials never included.",
+  "append_only_actual_dispositions": [
+    {
+      "lead": "C finite scope gap .63",
+      "status": "PARTIAL; selected four cloud cases passed; full corrected eight-profile/408 campaign still running. No broader issue closure.",
+      "evidence": [
+        "c-focused-23-review.json",
+        "c-corrected-read-manifest-preflight-review.json"
+      ]
+    },
+    {
+      "lead": "Cloud recovery oracle .50",
+      "status": "DISCHARGED for selected simulated-cloud boundary: four cases passed actual strict API/SQL position 2 and replayable API/SQL position 1; complete row/checkpoint/index/ledger-or-SQL-reconciliation assertions passed.",
+      "evidence": [
+        "c-focused-23-review.json"
+      ]
+    },
+    {
+      "lead": "Baseline handoff .80/.61/.65",
+      "status": "DISCHARGED at owned fixture boundary: consuming adapter close, extra-owner refusal, actual native Busy propagation and all four positive close-before-child handoffs passed. Existing TTL300 helper unchanged; selected TTL60 fixture does not establish production RTO.",
+      "evidence": [
+        "c-focused-23-review.json"
+      ]
+    },
+    {
+      "lead": "Unique row IDs .96/canonical source aliases .92/drop wording .98",
+      "status": "Source repaired before qualification; original ownership/hash/duplicate-ID/canonical-alias nine controls passed. Read records use after-reader-drop and explicitly disclaim native quiescence. All eight sources independently fingerprinted without opening originals.",
+      "evidence": [
+        "c-read-manifest-preflight-review.json",
+        "c-corrected-read-manifest-preflight-review.json"
+      ]
+    },
+    {
+      "lead": "Missing-store claim question .33",
+      "status": "DISCHARGED by concrete provenance audit. Question phrasing mixed validity/risk and is not factual proof. Missing historical A stores recorded; four NEW exact-A retained-artifact producer inputs have new raw/log/actual exit/closure chains, separate generation labels, unchanged historical archives.",
+      "evidence": [
+        "c-missing-api-store-disposition.json",
+        "c-retained-a-producer-proof-review.json",
+        "c-read-manifest-preflight-review.json"
+      ]
+    },
+    {
+      "lead": "Actual index field probe .92",
+      "status": "DISCHARGED: standalone public-API probe on four new owned copies confirmed exactly two hydration-cleared native ID options differ, other fields/OID identical, both collection IDs match. Source/probe/dependency/binary hashes and original fingerprints verified.",
+      "evidence": [
+        "c-index-metadata-actual-probe-review.json"
+      ]
+    },
+    {
+      "lead": "Corrected index acceptance .64, focused action .93",
+      "status": "OPEN until corrected campaign terminal. New four pure semantic/identity controls passed, but positive IDs alone are not physical contents proof. Actual four indexed named-plan/native-ops/no-fallback/unique-ID/COUNT probes plus complete eight-profile/408 campaign must pass.",
+      "evidence": [
+        "c-index-repair-8fd4617b-review.json",
+        "c-corrected-read-manifest-preflight-review.json"
+      ]
+    },
+    {
+      "lead": "Corrected index acceptance .64, incremental actual probe",
+      "source": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+      "status": "All four indexed classes independently verified passed51timed/profile:48named-index equalities/nativeops/no collectionscans/no fallback +3COUNT/full100kunique-ID rounds. Raw native identities and original fingerprints match. Physical index branch demonstrated for selectedfixtures; full8/408terminal stillpendingtwoSQLunindexed. No broaderphysical/engineproof claim."
+    },
+    {
+      "lead": "Final corrected campaign / .64 lead closure",
+      "source": "a5fd91760e8cab27dad04e2d60b019b446304d4a",
+      "tree": "c66c6a32199c64fcd9cbeebff9b57a2922530bee",
+      "actual": "Exit0/1596.667718708s;8passedprofiles408timed136warmup;rawSHAa214baa9020ab9a497c3de4adeaaf968c2f8d04d04c6b6da050872e37ec2bd86. All4actualindexed namedplan/nativeops/noFallback/noCollectionScan/uniqueIDs/COUNT;all4unindexedactualscans;fullnativeidentity/definition andoriginalaftercopy/afterdropchecks pass. IndependentindividualDecimalmedian/nearestp95/minmaxand544CSVrowbijectionverified.",
+      "disposition": ".64 selected physical-index/fullcampaign lead DISCHARGED for tested boundary. Finite C scope .63 now completed at selected cloud/read probes. No universal native/background/power/real-provider or speedup/RPO/RTO claim. Finaldocs/head/hosted/merge stillpending.",
+      "evidence": [
+        "c-final-read-campaign-review.json",
+        "c-final-local-interpretation-request.json",
+        "c-final-local-interpretation-response.json"
+      ]
+    }
+  ]
+}

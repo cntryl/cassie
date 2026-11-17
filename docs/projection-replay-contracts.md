@@ -331,3 +331,13 @@ proofs, affected gates, benchmark source, and final publication-head hosted chec
 - `docs/production-readiness.md` retains the lifecycle, refresh, verification and
   repair contract. Deployment-profile alert thresholds are separate from this
   replay evidence.
+
+The later [finite simulated-cache-loss and read record](evidence/replay-read-recovery-2026-11-17/README.md)
+adds nine cloud controls with observed strict position 2/replayable position 1
+for API and SQL, followed by reconciliation, at `40a08ce2`. Its separately
+qualified closed-store reader at `a5fd9176` passed eight profiles / 408 actual
+timed queries with named index or scan attestations and original-byte checks.
+Those sources and fresh-versus-historical input identities remain explicit; the
+earlier B process/policy results above are not relabelled as cloud-cache-loss
+measurements. Physical power-loss, real provider semantics and native-wide
+quiescence remain open under #1271 and #1188.

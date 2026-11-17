@@ -1,15 +1,54 @@
 {
   "baseline": "48ee5d986f37dd3f47cbcedc58863fb272f4c34a",
-  "source_before_inventory_commit": "aec4b4a2115580808ec4d60a483c0a8156784ea5",
-  "tree_before_inventory_commit": "70713da8d76f48f9855a4412c2aa81a20a4c958e",
+  "source_before_inventory_commit": "2f0143c357558a6fb7126913f5691e44b3ee1ea8",
+  "tree_before_inventory_commit": "1cdd9850c275c3b24fb744ddc98d5385a1b6dd91",
   "scope": "Static declarations in C-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; C-touched files selected by git diff from baseline.",
-  "file_count": 3,
-  "declaration_count": 15,
+  "file_count": 5,
+  "declaration_count": 23,
   "added_in_file": 9,
   "modified_in_file": 0,
-  "retained_in_file": 6,
+  "retained_in_file": 14,
   "files": [
+    {
+      "file": "src/app/lifecycle.rs",
+      "sha256": "1788892f1227bf051a1022bea5557745208b15d0bd718ae1bb7f7445ccd9e6f1",
+      "lines": 461,
+      "cfg_attributes_in_file": [
+        "#[cfg(test)]",
+        "#[cfg(test)]"
+      ],
+      "test_declarations": [
+        {
+          "name": "should_support_background_cloud_storage_lifecycle",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 451,
+          "end_line": 454,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "9a62d965762326618774faf26f1a5cfdfe233e6a9d0ed74c63bc4a2798753b83",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_support_strict_cloud_storage_lifecycle",
+          "inline_modules": [
+            "tests"
+          ],
+          "line": 457,
+          "end_line": 460,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "6c416bdb586317c275c791f9f866579304f51ff8fb572ef10613acbe3b35a04e",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
     {
       "file": "src/midge/adapter/core.rs",
       "sha256": "1a4b9d8e490af8d5e4210732c15fc9ffe549eee56e37e0e34616ed5d2924e541",
@@ -43,8 +82,88 @@
       ]
     },
     {
+      "file": "src/midge/adapter/statement_read/tests.rs",
+      "sha256": "4e384203cfb91da529d7fd9e99d85de8e9e6ab46caba088fd870f0d0135574ab",
+      "lines": 459,
+      "cfg_attributes_in_file": [],
+      "test_declarations": [
+        {
+          "name": "should_keep_committed_data_frozen_across_command_overlays",
+          "inline_modules": [],
+          "line": 66,
+          "end_line": 143,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "2665aa0e854f2b2d668d53fd25cb208bcd097683abb6bc4e8e9a41d9316aaeda",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_release_each_command_admission_after_its_last_owner",
+          "inline_modules": [],
+          "line": 146,
+          "end_line": 181,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "994ca3ee796f194bbb8196fa5b975ea7d161829025a08ff08356658d0c8e53e2",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_deny_command_ownership_without_admitting_its_retained_core_again",
+          "inline_modules": [],
+          "line": 184,
+          "end_line": 205,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "e61110fc008244c4e51f218282a7022d0694ee2c7edf0cdf9c5906b8f9b23d2f",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_rebind_a_command_view_to_its_atomic_working_session",
+          "inline_modules": [],
+          "line": 208,
+          "end_line": 271,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "b0d16bd451bedc014b7a2d9f626030f7de31bc4ef60711082d0639a8836d14a1",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_descriptor_authority_when_command_owners_share_a_core",
+          "inline_modules": [],
+          "line": 274,
+          "end_line": 315,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1eb2e451e5c47e24c9adb915ca94df7bce14107c2ec8c4e0de04a314770fcf55",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        },
+        {
+          "name": "should_preserve_atomic_replay_in_pinned_data_snapshot",
+          "inline_modules": [],
+          "line": 369,
+          "end_line": 459,
+          "attributes": [
+            "#[test]"
+          ],
+          "body_sha256": "1235cf36f95f5fc486eafb995d4de3e94d60f8a32f66df089f05327e774dcecd",
+          "comparison": "retained_in_file",
+          "execution_status": "authored/not run"
+        }
+      ]
+    },
+    {
       "file": "src/midge/adapter/statement_read/tests/replay_cloud_cache_loss.rs",
-      "sha256": "f821e7334ee81e5c939df7839d06e4bc30eccadcd52f93a76a625cbb807ee77a",
+      "sha256": "1293e0ea3e03372e118ccaf0073d33a40b62423479a3b55cb5668e878b5218d4",
       "lines": 649,
       "cfg_attributes_in_file": [
         "#[cfg(unix)]"

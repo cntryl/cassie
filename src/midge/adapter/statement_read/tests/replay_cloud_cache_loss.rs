@@ -354,7 +354,7 @@ fn open_cloud(cache: &Path, configured_strict: bool) -> Result<Cassie, CassieErr
         configured_strict,
         LEASE_TTL,
     )?;
-    Cassie::new_with_midge_and_config(Arc::new(midge), config)
+    Cassie::new_with_test_midge_and_config(Arc::new(midge), config)
 }
 
 fn start_cloud(cache: &Path, configured_strict: bool) -> Cassie {

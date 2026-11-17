@@ -177,6 +177,22 @@ fn should_preserve_remote_hashes_and_retained_source_when_wiping_owned_cache() {
     assert!(!owned.cache().join("wal").exists());
 }
 
+#[test]
+fn should_refuse_owned_baseline_shutdown_while_an_adapter_owner_is_retained() {
+    // Arrange
+    let midge = Arc::new(Midge::new_in_memory("postgres").unwrap());
+    let retained = Arc::clone(&midge);
+
+    // Act
+    let result = midge.shutdown_owned_for_test(Duration::from_secs(30));
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::Execution(message))
+        if message.starts_with("owned fixture shutdown requires exclusive adapter ownership")));
+    assert_eq!(Arc::strong_count(&retained), 1);
+    retained.shutdown_owned_for_test(Duration::from_secs(30)).unwrap();
+}
+
 struct CacheFixture {
     _directory: OwnedDataDir,
     root: PathBuf,

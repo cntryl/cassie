@@ -31,7 +31,129 @@ pub(super) struct QueryResultFrames<'a> {
     _memory: QueryMemoryReservation,
 }
 
+/// The allocation and its narrow admission can outlive a borrow of the result.
+#[derive(Debug)]
+pub(super) struct OwnedFrameStorage {
+    bytes: Vec<u8>,
+    memory: QueryMemoryReservation,
+}
+
+#[derive(Debug)]
+pub(super) struct PortalFrameOwner {
+    name: String,
+    frames: Option<OwnedFrameStorage>,
+    _name_memory: QueryMemoryReservation,
+}
+
+impl PortalFrameOwner {
+    pub(super) fn take_frames(&mut self) -> OwnedFrameStorage {
+        self.frames.take().expect("prepared frame storage")
+    }
+
+    pub(super) fn restore_frames(&mut self, frames: OwnedFrameStorage) {
+        self.frames = Some(frames);
+    }
+}
+
+/// Follows the existing private portal read-owner directory. A taken owner keeps its
+/// name/frame leases, and its slot stays admitted until publication or retirement.
+#[derive(Debug, Default)]
+pub(super) struct PortalFrameOwners {
+    owners: Vec<PortalFrameOwner>,
+    directory: Option<QueryMemoryReservation>,
+}
+
+impl PortalFrameOwners {
+    pub(super) fn prepare(
+        &mut self,
+        name: &str,
+        frames: OwnedFrameStorage,
+        controls: &QueryExecutionControls,
+    ) -> Result<PortalFrameOwner, CassieError> {
+        self.remove(name);
+        let result = (|| {
+            let memory = controls.reserve_query_memory(name.len())?;
+            let mut owned_name = String::new();
+            owned_name
+                .try_reserve_exact(name.len())
+                .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+            if owned_name.capacity() > name.len() {
+                return Err(CassieError::ResourceLimit(
+                    "allocator exceeded admitted portal frame name".to_owned(),
+                ));
+            }
+            owned_name.push_str(name);
+            if self.directory.is_none() {
+                self.directory = Some(controls.reserve_query_memory(0)?);
+            }
+            crate::runtime::owned_memory::grow_vec(
+                &mut self.owners,
+                1,
+                self.directory.as_mut().expect("initialized above"),
+            )?;
+            Ok(PortalFrameOwner {
+                name: owned_name,
+                frames: Some(frames),
+                _name_memory: memory,
+            })
+        })();
+        if result.is_err() {
+            self.release_empty();
+        }
+        result
+    }
+
+    pub(super) fn take(&mut self, name: &str) -> Option<PortalFrameOwner> {
+        let index = self.owners.iter().position(|owner| owner.name == name)?;
+        Some(self.owners.swap_remove(index))
+    }
+
+    pub(super) fn publish(&mut self, owner: PortalFrameOwner) {
+        assert!(
+            self.owners.len() < self.owners.capacity(),
+            "portal frame slot was admitted before delivery"
+        );
+        self.owners.push(owner);
+    }
+
+    pub(super) fn remove(&mut self, name: &str) {
+        drop(self.take(name));
+        self.release_empty();
+    }
+
+    pub(super) fn release_empty(&mut self) {
+        if self.owners.is_empty() {
+            self.owners = Vec::new();
+            self.directory = None;
+        }
+    }
+}
+
 impl<'a> QueryResultFrames<'a> {
+    pub(super) fn into_storage(self) -> OwnedFrameStorage {
+        let Self {
+            bytes,
+            _memory: memory,
+            ..
+        } = self;
+        OwnedFrameStorage { bytes, memory }
+    }
+
+    pub(super) fn from_storage(
+        result: &'a QueryResult,
+        rows: usize,
+        storage: OwnedFrameStorage,
+    ) -> Self {
+        let returned_rows =
+            (!result.columns().is_empty() || result.row_count() != 0).then_some(rows);
+        let command = select_command_tag(result.command(), returned_rows);
+        Self {
+            bytes: storage.bytes,
+            command,
+            result: Some(result),
+            _memory: storage.memory,
+        }
+    }
     pub(super) fn try_new(
         result: &'a QueryResult,
         rows: &[Vec<Value>],

@@ -6,14 +6,18 @@
 use std::collections::HashMap;
 use std::mem::size_of;
 
+use super::cache::{key_bytes, row_key_bytes};
 use super::keys::{key_of, KeyPart};
 use super::plan::Plan;
 use super::BatchRow;
-use super::{batch, source_collection, QueryError, SourceExecutionEnv};
+use super::{source_collection, QueryError, SourceExecutionEnv};
 use crate::catalog::{GraphKeyColumn, PropertyGraphMeta};
+use crate::executor::retained_memory::hash_table_bytes;
 use crate::executor::retained_memory::{add, mul};
+use crate::runtime::owned_memory::{allocation_error, grow_vec};
 use crate::runtime::QueryMemoryReservation;
 use crate::types::DataType;
+use std::sync::Arc;
 
 pub(super) struct Loaded {
     pub(super) id: String,
@@ -79,7 +83,23 @@ pub(super) fn read_rows(
         crate::midge::adapter::RowTraversal::CompleteSource,
     )?;
     env.controls.check_interruption()?;
-    Ok(batch::flatten_batches(batches))
+    let count = batches
+        .iter()
+        .try_fold(0, |count, batch| add(count, batch.len()))?;
+    let memory = Arc::new(
+        env.controls
+            .reserve_query_memory(add(64, mul(count, size_of::<BatchRow>())?)?)?,
+    );
+    let mut rows = Vec::new();
+    rows.try_reserve_exact(count)
+        .map_err(|error| allocation_error(&error))?;
+    for batch in batches {
+        rows.extend(batch);
+    }
+    for row in &mut rows {
+        row.attach_operator_memory(env.controls, Arc::clone(&memory))?;
+    }
+    Ok(rows)
 }
 
 fn load_mapping(
@@ -96,23 +116,16 @@ fn load_mapping(
     reads.full_rows += scanned.len() as u64;
     for row in scanned {
         env.controls.check_interruption()?;
+        memory.try_grow(row_key_bytes(&row, &columns)?)?;
         let Some(tuple) = key_of(|column| row.get(column), &columns, &types) else {
             continue;
         };
-        let heap = tuple.iter().map(KeyPart::heap_bytes).sum::<usize>();
-        memory.try_grow(add(
-            heap,
-            add(
-                size_of::<BatchRow>(),
-                add(
-                    size_of::<Vec<KeyPart>>(),
-                    mul(tuple.len(), size_of::<KeyPart>())?,
-                )?,
-            )?,
-        )?)?;
+        grow_vec(&mut keys, 1, memory)?;
+        grow_vec(&mut rows, 1, memory)?;
         keys.push(tuple);
         rows.push(row);
     }
+    memory.try_grow(id.len())?;
     Ok(Loaded {
         id: id.to_owned(),
         rows,
@@ -153,6 +166,10 @@ impl Store {
         memory: &mut QueryMemoryReservation,
     ) -> Result<Self, QueryError> {
         let mut reads = Reads::default();
+        memory.try_grow(mul(
+            add(graph.vertices.len(), graph.edges.len())?,
+            size_of::<Option<Loaded>>(),
+        )?)?;
         let mut vertex_maps = (0..graph.vertices.len()).map(|_| None).collect::<Vec<_>>();
         for &index in vertex_list {
             let mapping = &graph.vertices[index];
@@ -163,10 +180,16 @@ impl Store {
                 memory,
                 &mut reads,
             )?;
-            memory.try_grow(mul(
+            memory.try_grow(hash_table_bytes::<(Vec<KeyPart>, usize)>(
                 loaded.keys.len(),
-                add(size_of::<(Vec<KeyPart>, usize)>(), 2 * size_of::<usize>())?,
             )?)?;
+            for key in &loaded.keys {
+                memory.try_grow(key_bytes(key)?)?;
+            }
+            loaded
+                .index
+                .try_reserve(loaded.keys.len())
+                .map_err(|error| allocation_error(&error))?;
             for (row, key) in loaded.keys.iter().enumerate() {
                 env.controls.check_interruption()?;
                 loaded.index.insert(key.clone(), row);
@@ -206,21 +229,20 @@ impl Store {
             .flatten()
             .map(|loaded| loaded.rows.len())
             .sum::<usize>();
-        memory.try_grow(mul(
-            total,
-            2 * size_of::<Vec<usize>>() + size_of::<(usize, usize)>(),
-        )?)?;
-        self.vertices.reserve(total);
+        grow_vec(&mut self.vertices, total, memory)?;
         for (mapping, loaded) in self.vertex_maps.iter_mut().enumerate() {
             for row in 0..loaded.as_ref().map_or(0, |loaded| loaded.rows.len()) {
                 if let Some(loaded) = loaded.as_mut() {
+                    grow_vec(&mut loaded.ids, 1, memory)?;
                     loaded.ids.push(self.vertices.len());
                 }
                 self.vertices.push((mapping, row));
             }
         }
-        self.outgoing = vec![Vec::new(); total];
-        self.incoming = vec![Vec::new(); total];
+        grow_vec(&mut self.outgoing, total, memory)?;
+        grow_vec(&mut self.incoming, total, memory)?;
+        self.outgoing.resize_with(total, Vec::new);
+        self.incoming.resize_with(total, Vec::new);
         Ok(())
     }
 
@@ -265,15 +287,15 @@ impl Store {
     ) -> Result<(), QueryError> {
         for &index in edge_list {
             let count = self.edge_maps[index].as_ref().map_or(0, |l| l.rows.len());
-            memory.try_grow(mul(
-                count,
-                add(size_of::<EdgeRecord>(), 2 * size_of::<usize>())?,
-            )?)?;
             for row in 0..count {
                 env.controls.check_interruption()?;
                 let found = {
                     let loaded = self.edge_maps[index].as_ref().expect("edge mapping read");
                     let data = &loaded.rows[row];
+                    let _key_memory = env.controls.reserve_query_memory(add(
+                        row_key_bytes(data, &graph.edges[index].source.columns)?,
+                        row_key_bytes(data, &graph.edges[index].destination.columns)?,
+                    )?)?;
                     self.endpoint(graph, index, true, data)
                         .zip(self.endpoint(graph, index, false, data))
                 };
@@ -281,6 +303,9 @@ impl Store {
                     continue;
                 };
                 let edge = self.edges.len();
+                grow_vec(&mut self.edges, 1, memory)?;
+                grow_vec(&mut self.outgoing[source], 1, memory)?;
+                grow_vec(&mut self.incoming[destination], 1, memory)?;
                 self.edges.push(EdgeRecord {
                     mapping: index,
                     row,

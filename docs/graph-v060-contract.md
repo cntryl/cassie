@@ -547,7 +547,10 @@ cassie_graph.path_to_jsonb(path cassie_graph.graph_path) -> jsonb
 `key_part` is overloaded on the five listed exact input types and rejects NULL;
 no implicit conversion changes the type tag. `graph` is an optionally
 schema-qualified graph name resolved in the current database; `mapping` is its
-mapping alias in the requested element kind. Constructors resolve the typed
+mapping alias in the requested element kind. Use the exact stored alias
+spelling supplied as `mapping` TEXT: `n` and `N` remain distinct after DDL
+identifier folding. Quotation marks inside that TEXT do not introduce a second
+identifier grammar. Constructors resolve the typed
 tuple in that mapping's current transaction view, check key arity and exact
 SQL types and require the element to exist and be readable. NULL required
 arguments return `22004`; wrong type or arity returns `42804`; an unknown graph,
@@ -648,7 +651,10 @@ model, fallback rules and read bounds are specified in `docs/performance-contrac
 
 - A vertex is fetched by the unique key that backs its mapping.
 - Incident edges are fetched through an ordinary scalar index on the edge table's endpoint
-  columns when one exists. An edge mapping without a usable index on a needed endpoint side
+  columns when one exists. Leading endpoint columns also qualify when every trailing
+  index column is provably `NOT NULL`; nullable suffixes require the exact fallback
+  because scalar indexes can omit those rows. An edge mapping without a usable index
+  on a needed endpoint side
   falls back to the exact full read of that mapping for the statement; a partial
   neighborhood is never used.
 - Start vertices use point lookups only when the start pattern's inline predicate fixes the

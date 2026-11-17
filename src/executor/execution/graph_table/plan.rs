@@ -73,13 +73,6 @@ fn internal(message: &str) -> crate::app::CassieError {
     crate::app::CassieError::Execution(message.to_owned())
 }
 
-fn requested(labels: &[String], label: &GraphLabelMeta) -> bool {
-    labels.is_empty()
-        || labels
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(&label.name))
-}
-
 /// The mappings carrying any requested label (all when none is requested), each once, with
 /// the columns of the variable's properties.
 fn select(
@@ -90,10 +83,15 @@ fn select(
 ) -> Selection {
     (0..count)
         .map(|mapping| {
-            let carried = labels_of(mapping)
-                .into_iter()
-                .filter(|label| requested(requested_labels, label))
-                .collect::<Vec<_>>();
+            let labels = labels_of(mapping);
+            let carried = if requested_labels.is_empty() {
+                labels.iter().collect::<Vec<_>>()
+            } else {
+                requested_labels
+                    .iter()
+                    .filter_map(|name| labels.iter().find(|label| label.name == *name))
+                    .collect()
+            };
             if carried.is_empty() {
                 return None;
             }
@@ -104,10 +102,17 @@ fn select(
                         label
                             .properties
                             .iter()
-                            .find(|candidate| candidate.name.eq_ignore_ascii_case(property))
+                            .find(|candidate| candidate.name == *property)
                     });
                     if let Some(found) = found {
-                        columns.push((format!("{name}.{property}"), found.column.clone()));
+                        columns.push((
+                            format!(
+                                "{}.{}",
+                                crate::catalog::canonical_identifier_component(name),
+                                crate::catalog::canonical_identifier_component(property)
+                            ),
+                            found.column.clone(),
+                        ));
                     }
                 }
             }

@@ -12,7 +12,8 @@ use super::bindings::Candidate;
 use super::store::Store;
 use super::{failure, QueryError, SourceExecutionEnv};
 use crate::catalog::PropertyGraphMeta;
-use crate::executor::retained_memory::{add, mul};
+use crate::executor::retained_memory::{add, grown_capacity, mul};
+use crate::runtime::accounted::Accounted;
 use crate::types::graph::{Direction, ElementKind, ElementRef, GraphDescriptors, KeyPart, Path};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
@@ -107,6 +108,48 @@ impl PathBuilder {
         add(bytes, candidate.directions.len()).map_err(Into::into)
     }
 
+    fn native_bytes(store: &Store, candidate: &Candidate) -> Result<usize, QueryError> {
+        let mut bytes = add(
+            mul(3, size_of::<Value>())?,
+            mul(3, size_of::<crate::types::ArrayDimension>())?,
+        )?;
+        let elements = add(candidate.vertices.len(), candidate.edges.len())?;
+        bytes = add(
+            bytes,
+            mul(
+                add(
+                    grown_capacity(candidate.vertices.len(), 4)?,
+                    grown_capacity(candidate.edges.len(), 4)?,
+                )?,
+                size_of::<Value>(),
+            )?,
+        )?;
+        bytes = add(bytes, mul(candidate.directions.len(), size_of::<Value>())?)?;
+        bytes = add(
+            bytes,
+            mul(
+                elements,
+                5 * size_of::<Value>() + 3 * 36 + size_of::<crate::types::ArrayDimension>(),
+            )?,
+        )?;
+        for key in candidate
+            .vertices
+            .iter()
+            .map(|id| store.vertex_key(*id).1)
+            .chain(candidate.edges.iter().map(|id| store.edge_key(*id).1))
+        {
+            bytes = add(
+                bytes,
+                mul(grown_capacity(key.len(), 4)?, size_of::<Value>())?,
+            )?;
+            bytes = add(bytes, mul(key.len(), 4 * size_of::<Value>() + 36)?)?;
+            for part in key {
+                bytes = add(bytes, part.heap_bytes())?;
+            }
+        }
+        Ok(bytes)
+    }
+
     /// The `graph_path` record of `candidate`. The transient structural path is reserved
     /// against the query budget while it is encoded; the caller accounts the record.
     ///
@@ -118,10 +161,11 @@ impl PathBuilder {
         env: &SourceExecutionEnv<'_>,
         store: &Store,
         candidate: &Candidate,
-    ) -> Result<Value, QueryError> {
-        let _scratch = env
-            .controls
-            .reserve_query_memory(Self::scratch_bytes(store, candidate)?)?;
+    ) -> Result<Accounted<Value>, QueryError> {
+        let memory = env.controls.reserve_query_memory(add(
+            mul(Self::scratch_bytes(store, candidate)?, 2)?,
+            Self::native_bytes(store, candidate)?,
+        )?)?;
         let path = self.path(store, candidate)?;
         let value = path
             .to_value(&self.descriptors)
@@ -129,6 +173,6 @@ impl PathBuilder {
         if let Value::Typed(TypedValue::Record(record)) = &value {
             crate::executor::filter::graph_validation::validate(record)?;
         }
-        Ok(value)
+        Ok(Accounted::from_admitted(value, memory))
     }
 }

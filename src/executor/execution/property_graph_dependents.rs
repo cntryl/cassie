@@ -392,6 +392,22 @@ pub(super) fn drop_schema_graphs(cassie: &Cassie, schema: &str) -> Result<(), Qu
         .iter()
         .filter(|graph| object_in_schema(&graph.name, schema))
     {
+        let database = crate::catalog::relation_database_name(&graph.name)
+            .unwrap_or_else(|| cassie.default_database.clone());
+        let schema = match crate::catalog::parse_name(&graph.name) {
+            Ok(
+                crate::catalog::ParsedName::SchemaQualified { schema, .. }
+                | crate::catalog::ParsedName::DatabaseQualified { schema, .. },
+            ) => schema,
+            _ => crate::catalog::DEFAULT_SCHEMA.to_owned(),
+        };
+        let search_path = vec![schema];
+        let context = if cassie.database_catalog_enforced() {
+            crate::sql::binder::BindingContext::scoped(database, search_path)
+        } else {
+            crate::sql::binder::BindingContext::unscoped(database, search_path)
+        };
+        super::property_graph_views::drop_dependents(cassie, &context, graph)?;
         cassie
             .midge
             .delete_property_graph(&graph.name)

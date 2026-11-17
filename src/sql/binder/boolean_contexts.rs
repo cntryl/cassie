@@ -44,6 +44,7 @@ pub(super) fn validate_boolean_aggregate(
     super::bytea_functions::qualify(function, types)?;
     math_signatures::validate(function, types)?;
     temporal_signatures::validate(function, types)?;
+    super::graph_key_part::validate_reference_arguments(function, types)?;
     if let Some(metadata) =
         crate::sql::functions::function(&function.name).filter(|metadata| metadata.is_aggregate)
     {
@@ -348,6 +349,14 @@ fn validate_source_predicates(
                 inner
             };
             validate_select_with_types(select, &inner, catalog, context)?;
+        }
+        QuerySource::TableFunction { function, .. }
+            if crate::sql::functions::graph_types::is_table_function(&function.name)
+                || crate::sql::functions::graph_weighted::is_weighted_paths(&function.name) =>
+        {
+            for argument in function.expressions_mut() {
+                validate_expression(argument, types, catalog, context)?;
+            }
         }
         QuerySource::Collection(_)
         | QuerySource::Cte(_)

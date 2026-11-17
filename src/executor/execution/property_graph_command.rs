@@ -103,6 +103,7 @@ fn rename(
     let Some(graph) = existing_graph(cassie, context, name)? else {
         return Err(missing_graph(name));
     };
+    super::property_graph_views::reject_rename(cassie, context, &graph)?;
     // A rename stays in the graph's schema and keeps every identity.
     let renamed_name = crate::catalog::derive_scoped_name(&graph.name, |_| new_name.to_owned());
     if cassie.catalog.get_property_graph(&renamed_name).is_some() {
@@ -298,7 +299,9 @@ impl Source {
     fn column(&self, alias: &str, name: &str) -> Result<(String, DataType), QueryError> {
         self.columns
             .iter()
-            .find(|(column, _)| column.eq_ignore_ascii_case(name))
+            .find(|(column, _)| {
+                crate::sql::ColumnIdentifierPath::matches_stored_field(name, column)
+            })
             .cloned()
             .ok_or_else(|| {
                 diagnostic(
@@ -355,8 +358,7 @@ impl Source {
 
     pub(super) fn is_not_null(&self, column: &str) -> bool {
         self.constraints.iter().any(|constraint| {
-            constraint.field.eq_ignore_ascii_case(column)
-                && (constraint.not_null || constraint.primary_key)
+            constraint.field == column && (constraint.not_null || constraint.primary_key)
         })
     }
 
@@ -370,7 +372,7 @@ impl Source {
                 && fields
                     .iter()
                     .zip(&wanted)
-                    .all(|(left, right)| left.eq_ignore_ascii_case(right))
+                    .all(|(left, right)| left == right)
         };
         let ordered =
             |ordinal: fn(&crate::catalog::FieldConstraint) -> Option<u32>,
@@ -412,9 +414,7 @@ impl Source {
         }
         if let [only] = wanted.as_slice() {
             if self.constraints.iter().any(|constraint| {
-                constraint.unique
-                    && constraint.unique_name.is_none()
-                    && constraint.field.eq_ignore_ascii_case(only)
+                constraint.unique && constraint.unique_name.is_none() && constraint.field == *only
             }) {
                 return true;
             }
@@ -504,7 +504,9 @@ impl Source {
                 .references
                 .iter()
                 .zip(&vertex.key)
-                .all(|(reference, key)| reference.eq_ignore_ascii_case(&key.name));
+                .all(|(reference, key)| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(reference, &key.name)
+                });
         if !references_key || endpoint.columns.len() != vertex.key.len() {
             return Err(diagnostic(
                 INVALID_KEY,

@@ -1,8 +1,10 @@
 //! The elements a complete path binds to the pattern variables, as expression rows.
 
-use super::eval::{element_entries, Entries};
+use super::eval::{element_entries, push_entry, Entries};
 use super::plan::{Plan, Source};
 use super::store::Store;
+use super::{QueryError, SourceExecutionEnv};
+use crate::runtime::accounted::{Accounted, AccountedVec};
 
 /// A complete path match: interleaved vertices, edges and direction values (1 forward,
 /// 2 reverse), and the hop count of each pattern step.
@@ -18,7 +20,8 @@ impl Candidate {
     /// Bytes the candidate retains.
     pub(super) fn bytes(&self) -> usize {
         std::mem::size_of::<Self>()
-            + (self.vertices.capacity() + self.edges.capacity() + self.step_hops.capacity()) * 4
+            + (self.vertices.capacity() + self.edges.capacity() + self.step_hops.capacity())
+                * std::mem::size_of::<usize>()
             + self.directions.capacity()
     }
 
@@ -34,35 +37,57 @@ impl Candidate {
 }
 
 /// `variable.property` entries of every scalar (non-group) variable of the path.
-pub(super) fn scalar_entries(plan: &Plan<'_>, store: &Store, candidate: &Candidate) -> Entries {
-    let mut entries = Entries::new();
+pub(super) fn scalar_entries(
+    env: &SourceExecutionEnv<'_>,
+    plan: &Plan<'_>,
+    store: &Store,
+    candidate: &Candidate,
+) -> Result<Accounted<Entries>, QueryError> {
+    let mut entries = AccountedVec::try_new(env.controls)?;
     for variable in &plan.variables {
         match variable.source {
             Source::Vertex(position) => {
                 let (mapping, row) =
                     store.vertex_row(candidate.vertices[candidate.offset(position)]);
                 if let Some(columns) = &plan.positions[position].selection[mapping] {
-                    entries.extend(element_entries(row, columns));
+                    for (entry, column) in columns {
+                        env.controls.check_interruption()?;
+                        push_entry(&mut entries, entry, row.get(column))?;
+                    }
                 }
             }
             Source::Edge(step) => {
                 let (mapping, row) = store.edge_row(candidate.edges[candidate.offset(step)]);
                 if let Some(columns) = &plan.steps[step].selection[mapping] {
-                    entries.extend(element_entries(row, columns));
+                    for (entry, column) in columns {
+                        env.controls.check_interruption()?;
+                        push_entry(&mut entries, entry, row.get(column))?;
+                    }
                 }
             }
             Source::Group => {}
         }
     }
-    entries
+    let (entries, memory) = entries.into_parts();
+    Ok(Accounted::from_admitted(entries, memory))
 }
 
 /// The entries of one edge of a quantified step under its group variable's name.
-pub(super) fn group_entries(plan: &Plan<'_>, store: &Store, step: usize, edge: usize) -> Entries {
+pub(super) fn group_entries(
+    env: &SourceExecutionEnv<'_>,
+    plan: &Plan<'_>,
+    store: &Store,
+    step: usize,
+    edge: usize,
+) -> Result<Accounted<Entries>, QueryError> {
     let (mapping, row) = store.edge_row(edge);
-    plan.steps[step].selection[mapping]
-        .as_ref()
-        .map_or_default(|columns| element_entries(row, columns))
+    element_entries(
+        env,
+        row,
+        plan.steps[step].selection[mapping]
+            .as_deref()
+            .unwrap_or(&[]),
+    )
 }
 
 #[cfg(test)]

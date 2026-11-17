@@ -245,8 +245,10 @@ pub(in super::super) fn execute(
     qualify: bool,
 ) -> SourceExecution {
     env.controls.check_interruption()?;
-    let args = super::super::super::source_table_function::evaluate_args(env, function, outer_row)?;
-    let request = Request::parse(&args)?;
+    let arguments =
+        super::super::super::source_table_function::evaluate_args(env, function, outer_row)?;
+    let args = &arguments.0;
+    let request = Request::parse(args)?;
     let resolved = resolve(env, &request)?;
     let descriptors = crate::executor::filter::graph_functions::descriptors_of(env.session)?;
 

@@ -10,10 +10,13 @@ use std::collections::{HashMap, HashSet};
 use std::mem::size_of;
 
 use super::bindings::{group_entries, scalar_entries, Candidate};
-use super::eval::{element_entries, Evaluator};
+use super::cache::{reserve_map, reserve_set};
+use super::eval::{combine_entries, element_entries, Evaluator};
 use super::plan::{Plan, Source};
 use super::store::Store;
 use super::{QueryError, SourceExecutionEnv};
+use crate::executor::retained_memory::{add, mul};
+use crate::runtime::owned_memory::{allocation_error, grow_vec};
 use crate::runtime::{QueryMemoryReservation, QueryScoringTestBoundary};
 use crate::sql::ast::{GraphEdgeDirection, GraphPathMode};
 
@@ -86,7 +89,9 @@ impl<'a> Walk<'a> {
     /// Every path matching labels, inline predicates, quantifier bounds and the mode, before
     /// any selector or graph-pattern `WHERE`.
     pub(super) fn run(mut self) -> Result<Vec<Candidate>, QueryError> {
-        let starts = self.store.start_vertices(self.env, self.plan, self.eval)?;
+        let starts = self
+            .store
+            .start_vertices(self.env, self.plan, self.eval, self.memory)?;
         for start in starts {
             self.env.controls.check_interruption()?;
             if !self.vertex_ok(0, start)? {
@@ -96,6 +101,7 @@ impl<'a> Walk<'a> {
             self.edges.clear();
             self.directions.clear();
             self.step_hops.clear();
+            grow_vec(&mut self.vertices, 1, self.memory)?;
             self.vertices.push(start);
             if self.plan.steps.is_empty() {
                 self.emit(0)?;
@@ -107,7 +113,10 @@ impl<'a> Walk<'a> {
     }
 
     fn search(&mut self) -> Result<(), QueryError> {
-        let mut stack = vec![self.frame(0, 0, false, false)?];
+        let mut stack_memory = self.env.controls.reserve_query_memory(0)?;
+        let mut stack = Vec::new();
+        grow_vec(&mut stack, 1, &mut stack_memory)?;
+        stack.push(Self::frame(0, 0, false, false));
         while let Some(top) = stack.len().checked_sub(1) {
             self.env
                 .controls
@@ -117,14 +126,14 @@ impl<'a> Walk<'a> {
             if !stack[top].closed {
                 stack[top].closed = true;
                 if self.close(step, hops)? {
-                    stack.push(self.frame(step + 1, 0, false, true)?);
+                    grow_vec(&mut stack, 1, &mut stack_memory)?;
+                    stack.push(Self::frame(step + 1, 0, false, true));
                     continue;
                 }
             }
             if stack[top].list.is_none() {
                 let list = self.hops_of(step, hops)?;
                 let bytes = list.capacity() * size_of::<Hop>();
-                self.memory.try_grow(bytes)?;
                 stack[top].bytes += bytes;
                 stack[top].list = Some(list);
             }
@@ -137,10 +146,14 @@ impl<'a> Walk<'a> {
             frame.cursor += 1;
             if let Some((edge, direction, to)) = next {
                 if self.mode_allows(edge, to) {
+                    grow_vec(&mut self.vertices, 1, self.memory)?;
+                    grow_vec(&mut self.edges, 1, self.memory)?;
+                    grow_vec(&mut self.directions, 1, self.memory)?;
                     self.vertices.push(to);
                     self.edges.push(edge);
                     self.directions.push(direction);
-                    stack.push(self.frame(step, hops + 1, true, false)?);
+                    grow_vec(&mut stack, 1, &mut stack_memory)?;
+                    stack.push(Self::frame(step, hops + 1, true, false));
                 }
                 continue;
             }
@@ -153,21 +166,15 @@ impl<'a> Walk<'a> {
             if done.via_close {
                 self.step_hops.pop();
             }
-            self.release(done.bytes);
+            let bytes = done.bytes;
+            drop(done);
+            self.release(bytes);
         }
         Ok(())
     }
 
-    fn frame(
-        &mut self,
-        step: usize,
-        hops: usize,
-        pushed: bool,
-        via_close: bool,
-    ) -> Result<Frame, QueryError> {
-        let bytes = size_of::<Frame>() + 9;
-        self.memory.try_grow(bytes)?;
-        Ok(Frame {
+    fn frame(step: usize, hops: usize, pushed: bool, via_close: bool) -> Frame {
+        Frame {
             step,
             hops,
             closed: false,
@@ -175,8 +182,8 @@ impl<'a> Walk<'a> {
             via_close,
             list: None,
             cursor: 0,
-            bytes,
-        })
+            bytes: 0,
+        }
     }
 
     /// Closes `step` after `hops` hops when its end vertex satisfies the declared vertex
@@ -193,6 +200,7 @@ impl<'a> Walk<'a> {
             self.emit(hops)?;
             return Ok(false);
         }
+        grow_vec(&mut self.step_hops, 1, self.memory)?;
         self.step_hops.push(hops);
         Ok(true)
     }
@@ -221,9 +229,8 @@ impl<'a> Walk<'a> {
         if let Some(known) = self.cache.get(&key) {
             return Ok(*known);
         }
-        let holds = self
-            .eval
-            .holds(filter.expr, element_entries(row, columns))?;
+        let entries = element_entries(self.env, row, columns)?;
+        let holds = self.eval.holds(filter.expr, entries.get())?;
         self.remember(key, holds)?;
         Ok(holds)
     }
@@ -246,16 +253,14 @@ impl<'a> Walk<'a> {
         if let Some(known) = self.cache.get(&key) {
             return Ok(*known);
         }
-        let holds = self
-            .eval
-            .holds(filter.expr, element_entries(row, columns))?;
+        let entries = element_entries(self.env, row, columns)?;
+        let holds = self.eval.holds(filter.expr, entries.get())?;
         self.remember(key, holds)?;
         Ok(holds)
     }
 
     fn remember(&mut self, key: (usize, usize), holds: bool) -> Result<(), QueryError> {
-        self.memory
-            .try_grow(size_of::<((usize, usize), bool)>() + 2 * size_of::<usize>())?;
+        reserve_map(&mut self.cache, self.memory)?;
         self.cache.insert(key, holds);
         Ok(())
     }
@@ -278,12 +283,29 @@ impl<'a> Walk<'a> {
             "before_frontier",
             self.memory.bytes(),
         );
+        let capacity = add(
+            if direction == GraphEdgeDirection::Incoming {
+                0
+            } else {
+                store.outgoing[from].len()
+            },
+            if direction == GraphEdgeDirection::Outgoing {
+                0
+            } else {
+                store.incoming[from].len()
+            },
+        )?;
+        let bytes = mul(capacity, size_of::<Hop>())?;
+        self.memory.try_grow(mul(bytes, 2)?)?;
         #[cfg(test)]
         crate::executor::execution::graph_memory_test_observer::record(
             "copy_frontier",
             self.memory.bytes(),
         );
         let mut choices = Vec::new();
+        choices
+            .try_reserve_exact(capacity)
+            .map_err(|error| allocation_error(&error))?;
         if direction != GraphEdgeDirection::Incoming {
             for edge in &store.outgoing[from] {
                 choices.push(Hop {
@@ -308,13 +330,23 @@ impl<'a> Walk<'a> {
                 });
             }
         }
-        let mut allowed = Vec::with_capacity(choices.len());
+        let mut allowed = Vec::new();
+        allowed
+            .try_reserve_exact(capacity)
+            .map_err(|error| allocation_error(&error))?;
+        if choices.capacity() > capacity || allowed.capacity() > capacity {
+            return Err(crate::app::CassieError::ResourceLimit(
+                "allocator exceeded admitted graph frontier capacity".to_owned(),
+            )
+            .into());
+        }
         for choice in choices {
             self.env.controls.check_interruption()?;
             if self.edge_ok(step, choice.edge)? {
                 allowed.push(choice);
             }
         }
+        self.release(bytes);
         Ok(allowed)
     }
 
@@ -339,12 +371,23 @@ impl<'a> Walk<'a> {
             "before_candidate",
             self.memory.bytes(),
         );
+        let step_count = add(
+            self.step_hops.len(),
+            usize::from(!self.plan.steps.is_empty()),
+        )?;
+        let index_count = add(add(self.vertices.len(), self.edges.len())?, step_count)?;
+        let candidate_bytes = add(
+            size_of::<Candidate>(),
+            add(mul(index_count, size_of::<usize>())?, self.directions.len())?,
+        )?;
+        self.memory.try_grow(candidate_bytes)?;
         #[cfg(test)]
         crate::executor::execution::graph_memory_test_observer::record(
             "copy_candidate",
             self.memory.bytes(),
         );
-        let mut step_hops = self.step_hops.clone();
+        let mut step_hops = Vec::with_capacity(step_count);
+        step_hops.extend_from_slice(&self.step_hops);
         if !self.plan.steps.is_empty() {
             step_hops.push(hops);
         }
@@ -354,7 +397,15 @@ impl<'a> Walk<'a> {
             directions: self.directions.clone(),
             step_hops,
         };
+        if candidate.bytes() > candidate_bytes {
+            return Err(crate::app::CassieError::ResourceLimit(
+                "candidate exceeded admitted graph path capacity".to_owned(),
+            )
+            .into());
+        }
         if self.plan.deferred && !self.deferred_hold(&candidate)? {
+            drop(candidate);
+            self.release(candidate_bytes);
             return Ok(());
         }
         if self.plan.may_duplicate {
@@ -365,12 +416,28 @@ impl<'a> Walk<'a> {
                 "before_seen_key",
                 self.memory.bytes(),
             );
+            let singletons = self
+                .plan
+                .variables
+                .iter()
+                .filter(|variable| !matches!(variable.source, Source::Group))
+                .count();
+            let length = add(
+                add(
+                    add(candidate.vertices.len(), candidate.edges.len())?,
+                    candidate.directions.len(),
+                )?,
+                singletons,
+            )?;
+            let bytes = add(mul(length, size_of::<usize>())?, 2 * size_of::<usize>())?;
+            self.memory.try_grow(bytes)?;
             #[cfg(test)]
             crate::executor::execution::graph_memory_test_observer::record(
                 "copy_seen_key",
                 self.memory.bytes(),
             );
-            let mut key = candidate.vertices.clone();
+            let mut key = Vec::with_capacity(length);
+            key.extend_from_slice(&candidate.vertices);
             key.extend(&candidate.edges);
             key.extend(candidate.directions.iter().map(|d| usize::from(*d)));
             key.extend(
@@ -378,9 +445,10 @@ impl<'a> Walk<'a> {
                     .variables
                     .iter()
                     .filter_map(|variable| match variable.source {
-                        Source::Vertex(position) | Source::Edge(position) => {
-                            Some(candidate.offset(position))
+                        Source::Vertex(position) => {
+                            Some(candidate.vertices[candidate.offset(position)])
                         }
+                        Source::Edge(position) => Some(candidate.edges[candidate.offset(position)]),
                         Source::Group => None,
                     }),
             );
@@ -389,18 +457,21 @@ impl<'a> Walk<'a> {
                 "required_seen_key",
                 key.capacity() * size_of::<usize>() + 2 * size_of::<usize>(),
             );
-            let bytes = key.capacity() * 4 + 2 * size_of::<usize>();
             #[cfg(test)]
             crate::executor::execution::graph_memory_test_observer::record(
                 "charged_seen_key",
                 bytes,
             );
-            self.memory.try_grow(bytes)?;
-            if !self.seen.insert(key) {
+            if self.seen.contains(&key) {
+                drop(key);
+                drop(candidate);
+                self.release(add(bytes, candidate_bytes)?);
                 return Ok(());
             }
+            reserve_set(&mut self.seen, self.memory)?;
+            self.seen.insert(key);
         }
-        self.memory.try_grow(candidate.bytes())?;
+        grow_vec(&mut self.found, 1, self.memory)?;
         self.found.push(candidate);
         Ok(())
     }
@@ -409,12 +480,12 @@ impl<'a> Walk<'a> {
     /// before any selector.
     fn deferred_hold(&mut self, candidate: &Candidate) -> Result<bool, QueryError> {
         let plan = self.plan;
-        let scalars = scalar_entries(plan, &*self.store, candidate);
+        let scalars = scalar_entries(self.env, plan, &*self.store, candidate)?;
         for place in &plan.positions {
             let Some(filter) = place.filter.as_ref().filter(|filter| !filter.local) else {
                 continue;
             };
-            if !self.eval.holds(filter.expr, scalars.clone())? {
+            if !self.eval.holds(filter.expr, scalars.get())? {
                 return Ok(false);
             }
         }
@@ -423,7 +494,7 @@ impl<'a> Walk<'a> {
                 continue;
             };
             if !step.group {
-                if !self.eval.holds(filter.expr, scalars.clone())? {
+                if !self.eval.holds(filter.expr, scalars.get())? {
                     return Ok(false);
                 }
                 continue;
@@ -432,9 +503,9 @@ impl<'a> Walk<'a> {
             let last = first + candidate.step_hops[index];
             for edge in &candidate.edges[first..last] {
                 self.env.controls.check_interruption()?;
-                let mut entries = scalars.clone();
-                entries.extend(group_entries(plan, &*self.store, index, *edge));
-                if !self.eval.holds(filter.expr, entries)? {
+                let group = group_entries(self.env, plan, &*self.store, index, *edge)?;
+                let entries = combine_entries(self.env, scalars.get(), group.get())?;
+                if !self.eval.holds(filter.expr, entries.get())? {
                     return Ok(false);
                 }
             }

@@ -19,7 +19,7 @@ impl Fold<'_, '_> {
             .and_then(|scope| self.catalog.graph_descriptors(scope.database))?;
         let reference = i32::try_from(descriptors.element_ref.oid).ok()?;
         let path = i32::try_from(descriptors.path.oid).ok()?;
-        match name.rsplit('.').next()? {
+        match name.rsplit('.').next()?.to_ascii_lowercase().as_str() {
             "path_to_jsonb" | "path_steps" => Some(vec![path]),
             "key_parts" => Some(vec![reference]),
             "weighted_path_steps" => Some(vec![path, NUMERIC_ARRAY]),

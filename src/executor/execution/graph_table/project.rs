@@ -10,7 +10,8 @@ use super::store::Store;
 use super::BatchRow;
 use super::QueryError;
 use super::SourceExecutionEnv;
-use crate::executor::retained_memory::{add, value_clone_bytes};
+use crate::executor::retained_memory::{add, lookup_bytes, mul};
+use crate::runtime::owned_memory::grow_vec;
 use crate::runtime::QueryMemoryReservation;
 use crate::sql::ast::Expr;
 
@@ -28,6 +29,9 @@ pub(super) fn rows(
     memory: &mut QueryMemoryReservation,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let table = plan.table;
+    let _name_memory = env
+        .controls
+        .reserve_query_memory(mul(table.columns.len(), size_of::<String>() + 32)?)?;
     // The binder renames references to the output columns onto these positional names.
     let names = (0..table.columns.len())
         .map(crate::sql::table_sources::physical_name)
@@ -42,9 +46,9 @@ pub(super) fn rows(
     let mut out = Vec::new();
     for path in selected {
         env.controls.check_interruption()?;
-        let entries = scalar_entries(plan, store, path);
+        let entries = scalar_entries(env, plan, store, path)?;
         if let Some(filter) = &table.filter {
-            if !eval.holds(filter, entries.clone())? {
+            if !eval.holds(filter, entries.get())? {
                 continue;
             }
         }
@@ -53,25 +57,32 @@ pub(super) fn rows(
             "before_graph_output",
             memory.bytes(),
         );
+        let name_bytes = names
+            .iter()
+            .try_fold(0, |bytes, name| add(bytes, name.len()))?;
+        memory.try_grow(add(
+            size_of::<BatchRow>(),
+            add(
+                mul(names.len(), size_of::<(String, crate::types::Value)>())?,
+                add(name_bytes, lookup_bytes(names.len(), name_bytes)?)?,
+            )?,
+        )?)?;
         #[cfg(test)]
         crate::executor::execution::graph_memory_test_observer::record(
             "copy_graph_output",
             memory.bytes(),
         );
         let mut values = Vec::with_capacity(names.len());
-        let mut bytes = size_of::<BatchRow>() + 64;
         for (name, column) in names.iter().zip(&table.columns) {
             let value = match &paths {
                 Some(builder) if is_path(&column.expr) => builder.value(env, store, path)?,
-                _ => eval.value(&column.expr, entries.clone())?,
+                _ => eval.value(&column.expr, entries.get())?,
             };
-            bytes = add(
-                bytes,
-                add(name.capacity() + 64, value_clone_bytes(&value)?)?,
-            )?;
+            let (value, value_memory) = value.into_parts();
+            memory.absorb(value_memory);
             values.push((name.clone(), value));
         }
-        memory.try_grow(bytes)?;
+        grow_vec(&mut out, 1, memory)?;
         out.push(BatchRow::new(values));
     }
     Ok(out)

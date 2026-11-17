@@ -31,7 +31,7 @@ impl Scope<'_, '_> {
         let mut types = FieldTypeMap::new();
         for variable in self.variables {
             for (property, data_type) in consistent_properties(variable) {
-                let name = format!("{}.{property}", variable.name);
+                let name = property_name(&variable.name, &property);
                 insert_type(&mut types, &name, &data_type);
                 fields.push(FieldSchema {
                     name,
@@ -42,6 +42,14 @@ impl Scope<'_, '_> {
         }
         (Schema { fields }, types)
     }
+}
+
+pub(super) fn property_name(variable: &str, property: &str) -> String {
+    format!(
+        "{}.{}",
+        crate::catalog::canonical_identifier_component(variable),
+        crate::catalog::canonical_identifier_component(property)
+    )
 }
 
 /// Registers `name` (`variable.property`) the way column references look it up.
@@ -108,7 +116,7 @@ fn check_reference(
         ColumnIdentifierPath::parse(name).map_err(|message| diagnostic(SYNTAX_ERROR, message))?;
     if path.is_qualified() {
         if let Some(variable) = path.namespace_qualifier().and_then(|q| scope.variable(&q)) {
-            return check_property(variable, path.final_name(), own_group);
+            return check_property(variable, &path.declared_name(), own_group);
         }
     } else if let Some(variable) = scope.variable(path.final_name()) {
         return Err(bare_variable(variable));

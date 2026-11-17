@@ -103,3 +103,110 @@ pub(crate) fn convert<R: RowAccess>(
     memory.shrink_to(retained);
     Ok((semantic, memory))
 }
+
+#[cfg(test)]
+mod record_memory_tests {
+    use super::*;
+    use crate::executor::batch::BatchRow;
+    use crate::types::composite::RecordValue;
+    use crate::types::typed::TypedValue;
+    use crate::types::{DataType, SqlArray};
+
+    fn record_with_array() -> Value {
+        let array = SqlArray::from_elements(vec![Value::String("short-key".to_owned())])
+            .expect("tiny array");
+        Value::Typed(TypedValue::Record(RecordValue::anonymous(vec![(
+            Value::Array(array),
+            DataType::Array(Box::new(DataType::Text)),
+        )])))
+    }
+
+    fn minimum_heap() -> usize {
+        // One outer field slot, one array element slot, lengths/lower-bound buffers and text.
+        2 * std::mem::size_of::<usize>() + 2 * std::mem::size_of::<i32>() + "short-key".len()
+    }
+
+    fn controls() -> QueryExecutionControls {
+        QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits::default(),
+            std::time::Instant::now(),
+        )
+    }
+
+    #[test]
+    fn should_retain_native_record_array_key_memory_on_the_sort_owner_until_drop() {
+        // Arrange
+        let controls = controls();
+        let row = BatchRow::new(Vec::new());
+        let expression = Expr::Column("record_key".to_owned());
+        let functions = HashMap::new();
+
+        // Act
+        let (key, lease) = convert(
+            &row,
+            &expression,
+            record_with_array(),
+            &functions,
+            &controls,
+            || Ok(()),
+        )
+        .expect("native record key conversion");
+        let retained = controls.current_query_memory_bytes();
+        let charged = lease.bytes_for_test();
+        let same_owner = lease.belongs_to(&controls);
+        drop(key);
+        drop(lease);
+
+        // Assert
+        assert!(same_owner);
+        assert!(
+            charged >= minimum_heap(),
+            "the key's own Vec/text allocations remain admitted"
+        );
+        assert_eq!(
+            retained, charged,
+            "there is no input row or unrelated owner in this fixture"
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_include_native_record_array_backing_in_the_ordinary_semantic_estimate() {
+        // Arrange
+        let value = record_with_array();
+
+        // Act
+        let key = SemanticValue::from_value(&value);
+        let estimated = key.estimated_bytes();
+
+        // Assert
+        assert!(
+            estimated >= minimum_heap(),
+            "record array backing is owned by this semantic value"
+        );
+    }
+
+    #[test]
+    fn should_include_native_record_array_backing_in_the_controlled_semantic_estimate() {
+        // Arrange
+        let controls = controls();
+        let value = record_with_array();
+        let key = crate::executor::semantic::SemanticKey::single(&value);
+
+        // Act
+        let estimated = key
+            .estimated_bytes_controlled(&controls)
+            .expect("controlled estimate");
+
+        // Assert
+        assert!(
+            estimated >= std::mem::size_of::<SemanticValue>() + minimum_heap(),
+            "the semantic directory and record array backing are distinct allocations"
+        );
+        assert_eq!(
+            controls.current_query_memory_bytes(),
+            0,
+            "estimation retains no new owner"
+        );
+    }
+}

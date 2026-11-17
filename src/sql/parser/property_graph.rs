@@ -178,7 +178,17 @@ impl Cursor {
     }
 
     fn columns(&mut self) -> Result<Vec<String>, SqlError> {
-        self.list(|cursor| cursor.identifier("column name"))
+        self.list(|cursor| cursor.column_name("column name"))
+    }
+
+    fn column_name(&mut self, description: &str) -> Result<String, SqlError> {
+        let path = self.qualified_name(description)?;
+        if path.components().len() != 1 {
+            return Err(SqlError::syntax(format!(
+                "property graph definition expected an unqualified {description}"
+            )));
+        }
+        Ok(path.into_string())
     }
 
     fn labels(&mut self) -> Result<Vec<GraphLabel>, SqlError> {
@@ -187,11 +197,14 @@ impl Cursor {
             let name = self.identifier("label name")?;
             self.expect_keyword("properties")?;
             let properties = self.list(|cursor| {
-                let column = cursor.identifier("property column")?;
+                let column = cursor.column_name("property column")?;
                 let name = if cursor.take_keyword("as") {
                     cursor.identifier("property name")?
                 } else {
-                    column.clone()
+                    IdentifierPath::parse(&column)
+                        .map_err(SqlError::syntax)?
+                        .column_name()
+                        .expect("one property column")
                 };
                 Ok(GraphProperty { column, name })
             })?;

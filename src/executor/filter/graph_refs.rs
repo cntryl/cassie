@@ -161,9 +161,11 @@ fn element_exists(
     key: &[KeyPart],
     context: EvalContext<'_>,
 ) -> Result<bool, QueryError> {
-    let changes = session.collection_changes_matching(&resolved.table);
+    let snapshot = session.staged_write_snapshot(&resolved.table);
+    let changes = snapshot.ordered_changes();
+    let ambient = crate::midge::adapter::PublicationControlScope::current_query_controls();
     let fallback;
-    let controls = if let Some(controls) = context.controls {
+    let controls = if let Some(controls) = context.controls.or(ambient.as_ref()) {
         controls
     } else {
         fallback = crate::runtime::QueryExecutionControls::from_limits(
@@ -186,8 +188,15 @@ fn element_exists(
         }
         Ok(true)
     })?;
-    Ok(found
-        || changes.values().any(|change| {
-            matches!(change, crate::app::TransactionRowChange::Upsert(payload) if matches(payload, resolved, key))
-        }))
+    if found {
+        return Ok(true);
+    }
+    for change in changes.values() {
+        controls.check_interruption()?;
+        if matches!(change, crate::app::TransactionRowChange::Upsert(payload) if matches(payload, resolved, key))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }

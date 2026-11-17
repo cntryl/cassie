@@ -22,7 +22,18 @@ enum FieldKey {
     /// A typed field keeps its own ordered key, so `numeric`, `date` and the
     /// other extended families order by value and not by their spelling.
     Typed(TypedKey),
+    Array(ArrayKey),
     Null,
+}
+
+/// PostgreSQL compares elements, count, rank, all lengths, then all lower bounds.
+/// Vec's element order includes its length when one element sequence is a prefix.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct ArrayKey {
+    elements: Vec<FieldKey>,
+    rank: usize,
+    lengths: Vec<i32>,
+    lower_bounds: Vec<i32>,
 }
 
 /// The key whose order is the record's btree order.
@@ -47,7 +58,20 @@ fn field_key(value: &Value) -> FieldKey {
                 .collect::<Vec<_>>()
                 .join(","),
         ),
-        Value::Array(array) => FieldKey::Text(array.to_nested_json().to_string()),
+        Value::Array(array) => FieldKey::Array(ArrayKey {
+            elements: array.elements().iter().map(field_key).collect(),
+            rank: array.dimensions().len(),
+            lengths: array
+                .dimensions()
+                .iter()
+                .map(|dimension| dimension.length)
+                .collect(),
+            lower_bounds: array
+                .dimensions()
+                .iter()
+                .map(|dimension| dimension.lower_bound)
+                .collect(),
+        }),
         Value::Json(document) => FieldKey::Text(document.to_string()),
     }
 }

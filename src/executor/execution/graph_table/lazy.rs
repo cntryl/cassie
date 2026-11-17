@@ -12,22 +12,25 @@ use std::collections::{HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
 
-use super::access::{constant_part, start_anchor, Access, KeyIndex, Side};
-use super::cache::{keyed_bytes, with_cache, FullEdges, Keyed, Pending};
+use super::access::{constant_part, start_anchor, Access, Side};
+use super::cache::{
+    key_bytes, keyed_bytes, reserve_map, reserve_set, row_key_bytes, with_cache, FullEdges, Keyed,
+};
 use super::eval::Evaluator;
 use super::keys::{key_of, KeyPart};
+pub(super) use super::lazy_rows::lookup_rows;
+use super::lazy_rows::{detach_row, row_copy};
 use super::plan::{Plan, Selection};
 use super::store::{key_types, read_rows, EdgeRecord, Loaded, Reads, Store};
 use super::{BatchRow, QueryError, SourceExecutionEnv};
 use crate::catalog::{GraphEdgeMeta, PropertyGraphMeta};
-use crate::midge::adapter::{DocumentRef, ScalarIndexScanRequest};
+use crate::executor::retained_memory::{add, mul};
+use crate::runtime::owned_memory::grow_vec;
 use crate::runtime::QueryMemoryReservation;
 use crate::sql::ast::GraphEdgeDirection;
-use crate::types::DataType;
 
 pub(super) struct Lazy {
     pub(super) access: Access,
-    memory: QueryMemoryReservation,
     /// Vertex mappings read in full: every vertex of the mapping has an id.
     scanned: Vec<bool>,
     vertex_ids: HashMap<(usize, Vec<KeyPart>), Option<usize>>,
@@ -35,6 +38,7 @@ pub(super) struct Lazy {
     /// `(vertex, edge mapping, source side)` neighborhoods already merged into adjacency.
     expanded: HashSet<(usize, usize, bool)>,
     frontier: HashSet<usize>,
+    memory: QueryMemoryReservation,
 }
 
 fn vertex_mapping_of(graph: &PropertyGraphMeta, alias: &str) -> Option<usize> {
@@ -42,184 +46,6 @@ fn vertex_mapping_of(graph: &PropertyGraphMeta, alias: &str) -> Option<usize> {
         .vertices
         .iter()
         .position(|vertex| vertex.alias == alias)
-}
-
-/// The pending session changes of `table`, converted once per statement.
-fn pending_of(
-    env: &SourceExecutionEnv<'_>,
-    reads: &mut Reads,
-    table: &str,
-) -> Result<Arc<Pending>, QueryError> {
-    if let Some(known) = with_cache(env, |cache| Ok(cache.pending.get(table).cloned()))? {
-        return Ok(known);
-    }
-    let mut pending = Pending {
-        changes: 0,
-        ids: HashSet::new(),
-        rows: Vec::new(),
-    };
-    let mut bytes = size_of::<Pending>();
-    if let Some(session) = env.session {
-        let snapshot = session.staged_write_snapshot(table);
-        let schema = env.cassie.catalog.get_schema(table);
-        for (id, change) in snapshot.ordered_changes() {
-            env.controls.check_interruption()?;
-            pending.changes += 1;
-            #[cfg(test)]
-            crate::executor::execution::graph_memory_test_observer::record(
-                "before_pending",
-                env.controls.current_query_memory_bytes(),
-            );
-            #[cfg(test)]
-            crate::executor::execution::graph_memory_test_observer::record(
-                "copy_pending",
-                env.controls.current_query_memory_bytes(),
-            );
-            pending.ids.insert(id.clone());
-            bytes += id.capacity() + size_of::<String>();
-            if let crate::app::TransactionRowChange::Upsert(payload) = change {
-                let document = DocumentRef {
-                    id: id.clone(),
-                    payload: payload.clone(),
-                };
-                let row = crate::executor::scan::hydrate_character_arrays(
-                    crate::executor::scan::document_to_row(&document, schema.as_ref()),
-                    env.controls,
-                )?;
-                bytes += keyed_bytes(&[], &row)? + id.capacity();
-                pending.rows.push((id.clone(), row));
-            }
-        }
-    }
-    reads.overlay_changes += pending.changes as u64;
-    let pending = Arc::new(pending);
-    with_cache(env, |cache| {
-        cache.admit(bytes)?;
-        cache.pending.insert(table.to_owned(), Arc::clone(&pending));
-        Ok(())
-    })?;
-    Ok(pending)
-}
-
-/// The rows of `table` whose `columns` hold exactly `key`, read through `index` in the
-/// statement's view: committed index hits whose row has no pending change, plus pending
-/// upserts that match. Every candidate is re-checked against the exact key comparison.
-pub(super) fn lookup_rows(
-    env: &SourceExecutionEnv<'_>,
-    reads: &mut Reads,
-    table: &str,
-    index: &KeyIndex,
-    (columns, types): (&[String], &[DataType]),
-    key: &[KeyPart],
-) -> Result<Vec<BatchRow>, QueryError> {
-    env.controls.check_interruption()?;
-    let pending = pending_of(env, reads, table)?;
-    let request = ScalarIndexScanRequest {
-        equality_prefix: index.probe(key),
-        ..ScalarIndexScanRequest::default()
-    };
-    let hits =
-        env.cassie
-            .midge
-            .scan_scalar_index_controlled(&index.index, &request, env.controls)?;
-    let (hits, _hits_memory) = hits.into_parts();
-    reads.index_entries += hits.len() as u64;
-    let schema = env.cassie.catalog.get_schema(table);
-    let mut rows = Vec::new();
-    for hit in hits {
-        env.controls.check_interruption()?;
-        if pending.ids.contains(&hit.id) {
-            continue;
-        }
-        reads.row_fetches += 1;
-        let Some(source) =
-            env.cassie
-                .midge
-                .get_retrieval_document_controlled(table, &hit.id, env.controls)?
-        else {
-            continue;
-        };
-        let (document, _source_memory) = source.into_parts();
-        #[cfg(test)]
-        crate::executor::execution::graph_memory_test_observer::record(
-            "before_lookup_row",
-            env.controls.current_query_memory_bytes(),
-        );
-        #[cfg(test)]
-        crate::executor::execution::graph_memory_test_observer::record(
-            "copy_lookup_row",
-            env.controls.current_query_memory_bytes(),
-        );
-        let row = crate::executor::scan::hydrate_character_arrays(
-            crate::executor::scan::document_to_row(&document, schema.as_ref()),
-            env.controls,
-        )?;
-        if key_of(|column| row.get(column), columns, types).as_deref() == Some(key) {
-            rows.push(row);
-        }
-    }
-    for (_, row) in &pending.rows {
-        env.controls.check_interruption()?;
-        if key_of(|column| row.get(column), columns, types).as_deref() == Some(key) {
-            rows.push(row.clone());
-        }
-    }
-    Ok(rows)
-}
-
-#[cfg(test)]
-mod memory_tests {
-    use crate::executor::execution::graph_memory_test_observer as observer;
-
-    const QUERY: &str =
-        "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
-        COLUMNS(b.id)) AS t";
-
-    #[test]
-    fn should_admit_a_lazy_lookup_row_before_hydrating_its_copy() {
-        // Arrange
-        let (cassie, session) = observer::fixture();
-        let _observation = observer::start();
-
-        // Act
-        let result = cassie
-            .execute_sql(&session, QUERY, vec![])
-            .expect("indexed graph query");
-
-        // Assert
-        assert_eq!(result.row_count(), 1);
-        observer::assert_admitted(
-            "before_lookup_row",
-            "copy_lookup_row",
-            std::mem::size_of::<super::BatchRow>(),
-        );
-    }
-
-    #[test]
-    fn should_admit_pending_row_identity_before_cloning_it_into_the_graph_cache() {
-        // Arrange
-        let (cassie, session) = observer::fixture();
-        cassie
-            .execute_sql(&session, "BEGIN", vec![])
-            .expect("begin overlay");
-        cassie
-            .execute_sql(&session, "INSERT INTO e VALUES(2,1,2)", vec![])
-            .expect("pending edge");
-        let _observation = observer::start();
-
-        // Act
-        let result = cassie
-            .execute_sql(&session, QUERY, vec![])
-            .expect("merged graph query");
-
-        // Assert
-        assert_eq!(result.row_count(), 2);
-        observer::assert_admitted(
-            "before_pending",
-            "copy_pending",
-            std::mem::size_of::<String>() + std::mem::size_of::<super::BatchRow>(),
-        );
-    }
 }
 
 fn side_flags(direction: GraphEdgeDirection) -> &'static [Side] {
@@ -241,6 +67,18 @@ impl Store {
         graph: &PropertyGraphMeta,
         access: Access,
     ) -> Result<Self, QueryError> {
+        let mut bytes = add(
+            size_of::<Lazy>(),
+            mul(graph.vertices.len(), 1 + size_of::<Option<Loaded>>())?,
+        )?;
+        bytes = add(bytes, mul(graph.edges.len(), size_of::<Option<Loaded>>())?)?;
+        for mapping in &graph.vertices {
+            bytes = add(bytes, mapping.mapping_id.len())?;
+        }
+        for mapping in &graph.edges {
+            bytes = add(bytes, mapping.mapping_id.len())?;
+        }
+        let memory = env.controls.reserve_query_memory(bytes)?;
         let empty = |id: &str| Loaded {
             id: id.to_owned(),
             rows: Vec::new(),
@@ -267,7 +105,7 @@ impl Store {
         let lazy = Lazy {
             scanned: vec![false; graph.vertices.len()],
             access,
-            memory: env.controls.reserve_query_memory(0)?,
+            memory,
             vertex_ids: HashMap::new(),
             edge_ids: HashMap::new(),
             expanded: HashSet::new(),
@@ -292,19 +130,26 @@ impl Store {
     fn add_vertex(
         &mut self,
         mapping: usize,
-        key: Vec<KeyPart>,
-        row: BatchRow,
+        key: &[KeyPart],
+        row: &BatchRow,
     ) -> Result<usize, QueryError> {
-        let bytes = keyed_bytes(&key, &row)? + 3 * size_of::<usize>() + 2 * size_of::<Vec<usize>>();
         let id = self.vertices.len();
         let lazy = self.lazy.as_deref_mut().expect("lazy store");
-        lazy.memory.try_grow(bytes)?;
-        lazy.vertex_ids.insert((mapping, key.clone()), Some(id));
+        lazy.memory.try_grow(mul(key_bytes(key)?, 2)?)?;
+        reserve_map(&mut lazy.vertex_ids, &mut lazy.memory)?;
+        let row = row_copy(row, &mut lazy.memory)?;
+        grow_vec(&mut self.vertices, 1, &mut lazy.memory)?;
+        grow_vec(&mut self.outgoing, 1, &mut lazy.memory)?;
+        grow_vec(&mut self.incoming, 1, &mut lazy.memory)?;
         let loaded = self.vertex_maps[mapping].as_mut().expect("vertex mapping");
+        grow_vec(&mut loaded.ids, 1, &mut lazy.memory)?;
+        grow_vec(&mut loaded.rows, 1, &mut lazy.memory)?;
+        grow_vec(&mut loaded.keys, 1, &mut lazy.memory)?;
+        lazy.vertex_ids.insert((mapping, key.to_vec()), Some(id));
         self.vertices.push((mapping, loaded.rows.len()));
         loaded.ids.push(id);
         loaded.rows.push(row);
-        loaded.keys.push(key);
+        loaded.keys.push(key.to_vec());
         self.outgoing.push(Vec::new());
         self.incoming.push(Vec::new());
         Ok(id)
@@ -316,13 +161,17 @@ impl Store {
         env: &SourceExecutionEnv<'_>,
         graph: &PropertyGraphMeta,
         mapping: usize,
+        memory: &mut QueryMemoryReservation,
     ) -> Result<Vec<usize>, QueryError> {
         if self.lazy_state().scanned[mapping] {
-            return Ok(self.vertex_maps[mapping]
-                .as_ref()
-                .map_or_default(|loaded| loaded.ids.clone()));
+            let known = self.vertex_maps[mapping].as_ref().expect("vertex mapping");
+            let mut ids = Vec::new();
+            grow_vec(&mut ids, known.ids.len(), memory)?;
+            ids.extend_from_slice(&known.ids);
+            return Ok(ids);
         }
         let meta = &graph.vertices[mapping];
+        let _cache_key_memory = env.controls.reserve_query_memory(graph.name.len())?;
         let cache_key = (graph.name.clone(), mapping);
         let known = with_cache(env, |cache| Ok(cache.vertex_scans.get(&cache_key).cloned()))?;
         let rows = if let Some(rows) = known {
@@ -332,27 +181,32 @@ impl Store {
             let (columns, types) = key_types(&meta.key);
             let scanned = read_rows(env, &meta.table)?;
             self.reads.full_rows += scanned.len() as u64;
-            let mut rows = Vec::with_capacity(scanned.len());
-            let mut bytes = size_of::<Vec<Keyed>>();
+            let mut backing = env.controls.reserve_query_memory(graph.name.len() + 64)?;
+            let mut rows = Vec::new();
             for row in scanned {
                 env.controls.check_interruption()?;
+                backing.try_grow(row_key_bytes(&row, &columns)?)?;
                 let Some(key) = key_of(|column| row.get(column), &columns, &types) else {
                     continue;
                 };
-                bytes += keyed_bytes(&key, &row)?;
+                let row = detach_row(row, &mut backing)?;
+                grow_vec(&mut rows, 1, &mut backing)?;
                 rows.push((key, row));
             }
             let rows = Arc::new(rows);
             with_cache(env, |cache| {
-                cache.admit(bytes)?;
+                reserve_map(&mut cache.vertex_scans, &mut cache.memory)?;
+                cache.adopt(backing);
                 cache.vertex_scans.insert(cache_key, Arc::clone(&rows));
                 Ok(())
             })?;
             rows
         };
-        let mut ids = Vec::with_capacity(rows.len());
+        let mut ids = Vec::new();
+        grow_vec(&mut ids, rows.len(), memory)?;
         for (key, row) in rows.iter() {
             env.controls.check_interruption()?;
+            let _probe_memory = env.controls.reserve_query_memory(key_bytes(key)?)?;
             let known = self
                 .lazy_state()
                 .vertex_ids
@@ -361,7 +215,7 @@ impl Store {
                 .flatten();
             ids.push(match known {
                 Some(id) => id,
-                None => self.add_vertex(mapping, key.clone(), row.clone())?,
+                None => self.add_vertex(mapping, key, row)?,
             });
         }
         self.lazy_state().scanned[mapping] = true;
@@ -376,6 +230,9 @@ impl Store {
         mapping: usize,
         key: &[KeyPart],
     ) -> Result<Option<usize>, QueryError> {
+        let _probe_memory = env
+            .controls
+            .reserve_query_memory(add(mul(key_bytes(key)?, 2)?, graph.name.len())?)?;
         let probe = (mapping, key.to_vec());
         let lazy = self.lazy_state();
         if let Some(known) = lazy.vertex_ids.get(&probe) {
@@ -385,7 +242,8 @@ impl Store {
             return Ok(None);
         }
         let Some(index) = lazy.access.vertex[mapping].clone() else {
-            self.scan_vertex_mapping(env, graph, mapping)?;
+            let mut scratch = env.controls.reserve_query_memory(0)?;
+            self.scan_vertex_mapping(env, graph, mapping, &mut scratch)?;
             return Ok(self.lazy_state().vertex_ids.get(&probe).copied().flatten());
         };
         let meta = &graph.vertices[mapping];
@@ -405,22 +263,27 @@ impl Store {
                 key,
             )?
             .into_iter()
-            .next();
+            .next()
+            .map(Arc::new);
             let bytes = match &row {
                 Some(row) => keyed_bytes(key, row)?,
                 None => size_of::<Option<BatchRow>>(),
             };
             with_cache(env, |cache| {
-                cache.admit(bytes)?;
+                reserve_map(&mut cache.vertices, &mut cache.memory)?;
+                cache.admit(add(bytes, add(graph.name.len(), key_bytes(key)?)?)?)?;
                 cache.vertices.insert(cache_key, row.clone());
                 Ok(())
             })?;
             row
         };
         if let Some(row) = row {
-            Ok(Some(self.add_vertex(mapping, key.to_vec(), row)?))
+            Ok(Some(self.add_vertex(mapping, key, &row)?))
         } else {
-            self.lazy_state().vertex_ids.insert(probe, None);
+            let lazy = self.lazy_state();
+            lazy.memory.try_grow(key_bytes(key)?)?;
+            reserve_map(&mut lazy.vertex_ids, &mut lazy.memory)?;
+            lazy.vertex_ids.insert(probe, None);
             Ok(None)
         }
     }
@@ -436,9 +299,13 @@ impl Store {
         env: &SourceExecutionEnv<'_>,
         plan: &Plan<'_>,
         eval: &Evaluator<'_>,
+        memory: &mut QueryMemoryReservation,
     ) -> Result<Vec<usize>, QueryError> {
         if self.lazy.is_none() {
-            return Ok((0..self.vertices.len()).collect());
+            let mut starts = Vec::new();
+            grow_vec(&mut starts, self.vertices.len(), memory)?;
+            starts.extend(0..self.vertices.len());
+            return Ok(starts);
         }
         let graph = &plan.graph;
         let mut starts = Vec::new();
@@ -453,10 +320,13 @@ impl Store {
             };
             if let Some(key) = anchored {
                 if let Some(id) = self.find_vertex(env, graph, mapping, &key)? {
+                    grow_vec(&mut starts, 1, memory)?;
                     starts.push(id);
                 }
             } else {
-                starts.extend(self.scan_vertex_mapping(env, graph, mapping)?);
+                let ids = self.scan_vertex_mapping(env, graph, mapping, memory)?;
+                grow_vec(&mut starts, ids.len(), memory)?;
+                starts.extend(ids);
             }
         }
         Ok(starts)
@@ -471,6 +341,8 @@ impl Store {
         key: &[KeyPart],
     ) -> Result<Arc<Vec<Keyed>>, QueryError> {
         let meta = &graph.edges[edge];
+        let cache_bytes = add(graph.name.len() + 64, key_bytes(key)?)?;
+        let _cache_key_memory = env.controls.reserve_query_memory(cache_bytes)?;
         let cache_key = (graph.name.clone(), edge, side == Side::Source, key.to_vec());
         if let Some(known) = with_cache(env, |cache| {
             Ok(cache.neighborhoods.get(&cache_key).cloned())
@@ -488,6 +360,7 @@ impl Store {
             .and_then(|access| access.index(side))
             .cloned();
         let (edge_columns, edge_types) = key_types(&meta.key);
+        let mut memory = env.controls.reserve_query_memory(cache_bytes)?;
         let mut found = Vec::new();
         if let Some(index) = index {
             for row in lookup_rows(
@@ -498,8 +371,11 @@ impl Store {
                 (&endpoint.columns, &near_types),
                 key,
             )? {
+                memory.try_grow(row_key_bytes(&row, &edge_columns)?)?;
                 if let Some(edge_key) = key_of(|column| row.get(column), &edge_columns, &edge_types)
                 {
+                    let row = detach_row(row, &mut memory)?;
+                    grow_vec(&mut found, 1, &mut memory)?;
                     found.push((edge_key, row));
                 }
             }
@@ -511,17 +387,24 @@ impl Store {
                 &all.by_destination
             };
             for position in by.get(key).map_or(&[][..], Vec::as_slice) {
-                found.push(all.rows[*position].clone());
+                env.controls.check_interruption()?;
+                let (key, row) = &all.rows[*position];
+                memory.try_grow(key_bytes(key)?)?;
+                let copied = row_copy(row, &mut memory)?;
+                grow_vec(&mut found, 1, &mut memory)?;
+                found.push((key.clone(), copied));
             }
         }
-        found.sort_by(|left, right| left.0.cmp(&right.0));
-        let mut bytes = size_of::<Vec<Keyed>>();
-        for (edge_key, row) in &found {
-            bytes += keyed_bytes(edge_key, row)?;
+        {
+            let _sort_memory = env
+                .controls
+                .reserve_query_memory(mul(found.len(), size_of::<Keyed>())?)?;
+            found.sort_by(|left, right| left.0.cmp(&right.0));
         }
         let found = Arc::new(found);
         with_cache(env, |cache| {
-            cache.admit(bytes)?;
+            reserve_map(&mut cache.neighborhoods, &mut cache.memory)?;
+            cache.adopt(memory);
             cache.neighborhoods.insert(cache_key, Arc::clone(&found));
             Ok(())
         })?;
@@ -536,6 +419,7 @@ impl Store {
         edge: usize,
     ) -> Result<Arc<FullEdges>, QueryError> {
         let meta = &graph.edges[edge];
+        let _cache_key_memory = env.controls.reserve_query_memory(graph.name.len())?;
         let cache_key = (graph.name.clone(), edge);
         if let Some(known) = with_cache(env, |cache| Ok(cache.edge_scans.get(&cache_key).cloned()))?
         {
@@ -552,44 +436,50 @@ impl Store {
             .ok_or_else(|| super::failure("edge endpoint mapping is missing"))?;
         let destination_types = endpoint_types(&meta.destination.vertex_alias)
             .ok_or_else(|| super::failure("edge endpoint mapping is missing"))?;
+        let mut memory = env
+            .controls
+            .reserve_query_memory(size_of::<FullEdges>() + graph.name.len() + 64)?;
         let mut full = FullEdges {
             rows: Vec::new(),
             by_source: HashMap::new(),
             by_destination: HashMap::new(),
         };
-        let mut bytes = size_of::<FullEdges>();
         for row in scanned {
             env.controls.check_interruption()?;
+            memory.try_grow(add(
+                row_key_bytes(&row, &edge_columns)?,
+                add(
+                    row_key_bytes(&row, &meta.source.columns)?,
+                    row_key_bytes(&row, &meta.destination.columns)?,
+                )?,
+            )?)?;
             let Some(edge_key) = key_of(|column| row.get(column), &edge_columns, &edge_types)
             else {
                 continue;
             };
             let position = full.rows.len();
-            bytes += keyed_bytes(&edge_key, &row)? + 4 * size_of::<usize>();
             if let Some(source) = key_of(
                 |column| row.get(column),
                 &meta.source.columns,
                 &source_types,
             ) {
-                bytes += keyed_bytes(&source, &row)?;
-                full.by_source.entry(source).or_default().push(position);
+                insert_position(&mut full.by_source, source, position, &mut memory)?;
             }
             if let Some(destination) = key_of(
                 |column| row.get(column),
                 &meta.destination.columns,
                 &destination_types,
             ) {
-                bytes += keyed_bytes(&destination, &row)?;
-                full.by_destination
-                    .entry(destination)
-                    .or_default()
-                    .push(position);
+                insert_position(&mut full.by_destination, destination, position, &mut memory)?;
             }
+            let row = detach_row(row, &mut memory)?;
+            grow_vec(&mut full.rows, 1, &mut memory)?;
             full.rows.push((edge_key, row));
         }
         let full = Arc::new(full);
         with_cache(env, |cache| {
-            cache.admit(bytes)?;
+            reserve_map(&mut cache.edge_scans, &mut cache.memory)?;
+            cache.adopt(memory);
             cache.edge_scans.insert(cache_key, Arc::clone(&full));
             Ok(())
         })?;
@@ -614,11 +504,15 @@ impl Store {
             return Ok(());
         }
         let (near_mapping, near_row) = self.vertices[vertex];
-        let near_key = self.vertex_maps[near_mapping]
+        let borrowed_key = &self.vertex_maps[near_mapping]
             .as_ref()
             .expect("vertex mapping")
-            .keys[near_row]
-            .clone();
+            .keys[near_row];
+        let _near_memory = env.controls.reserve_query_memory(add(
+            key_bytes(borrowed_key)?,
+            graph.vertices[near_mapping].alias.len(),
+        )?)?;
+        let near_key = borrowed_key.clone();
         let near_alias = graph.vertices[near_mapping].alias.clone();
         for edge in 0..graph.edges.len() {
             if selection[edge].is_none() || self.lazy_state().access.edge[edge].is_none() {
@@ -629,15 +523,18 @@ impl Store {
                 if endpoint_of(meta, side).vertex_alias != near_alias {
                     continue;
                 }
-                if !self
-                    .lazy_state()
-                    .expanded
-                    .insert((vertex, edge, side == Side::Source))
-                {
+                let marker = (vertex, edge, side == Side::Source);
+                let lazy = self.lazy_state();
+                if lazy.expanded.contains(&marker) {
                     continue;
                 }
+                reserve_set(&mut lazy.expanded, &mut lazy.memory)?;
+                lazy.expanded.insert(marker);
                 let peak = {
                     let lazy = self.lazy_state();
+                    if !lazy.frontier.contains(&vertex) {
+                        reserve_set(&mut lazy.frontier, &mut lazy.memory)?;
+                    }
                     lazy.frontier.insert(vertex);
                     lazy.frontier.len() as u64
                 };
@@ -656,6 +553,7 @@ impl Store {
         (edge_key, row): (&[KeyPart], &BatchRow),
         (source, destination): (usize, usize),
     ) -> Result<usize, QueryError> {
+        let _probe_memory = self.lazy_state().memory.try_sibling(key_bytes(edge_key)?)?;
         let known = self
             .lazy_state()
             .edge_ids
@@ -664,19 +562,23 @@ impl Store {
         if let Some(id) = known {
             return Ok(id);
         }
-        let bytes = keyed_bytes(edge_key, row)? + size_of::<EdgeRecord>() + 4 * size_of::<usize>();
         let id = self.edges.len();
-        let lazy = self.lazy_state();
-        lazy.memory.try_grow(bytes)?;
-        lazy.edge_ids.insert((edge, edge_key.to_vec()), id);
+        let lazy = self.lazy.as_deref_mut().expect("lazy store");
+        lazy.memory.try_grow(mul(key_bytes(edge_key)?, 2)?)?;
+        reserve_map(&mut lazy.edge_ids, &mut lazy.memory)?;
+        let row = row_copy(row, &mut lazy.memory)?;
+        grow_vec(&mut self.edges, 1, &mut lazy.memory)?;
         let loaded = self.edge_maps[edge].as_mut().expect("edge mapping");
+        grow_vec(&mut loaded.rows, 1, &mut lazy.memory)?;
+        grow_vec(&mut loaded.keys, 1, &mut lazy.memory)?;
+        lazy.edge_ids.insert((edge, edge_key.to_vec()), id);
         self.edges.push(EdgeRecord {
             mapping: edge,
             row: loaded.rows.len(),
             source,
             destination,
         });
-        loaded.rows.push(row.clone());
+        loaded.rows.push(row);
         loaded.keys.push(edge_key.to_vec());
         Ok(id)
     }
@@ -702,6 +604,9 @@ impl Store {
         let (_, far_types) = key_types(&graph.vertices[far_mapping].key);
         for (edge_key, row) in hood {
             env.controls.check_interruption()?;
+            let _key_memory = env
+                .controls
+                .reserve_query_memory(row_key_bytes(row, &far.columns)?)?;
             let Some(far_key) = key_of(|column| row.get(column), &far.columns, &far_types) else {
                 continue;
             };
@@ -714,11 +619,14 @@ impl Store {
                 (far_id, vertex)
             };
             let id = self.edge_id(edge, (edge_key, row), (source, destination))?;
-            if side == Side::Source {
-                self.outgoing[vertex].push(id);
+            let lazy = self.lazy.as_deref_mut().expect("lazy store");
+            let adjacency = if side == Side::Source {
+                &mut self.outgoing[vertex]
             } else {
-                self.incoming[vertex].push(id);
-            }
+                &mut self.incoming[vertex]
+            };
+            grow_vec(adjacency, 1, &mut lazy.memory)?;
+            adjacency.push(id);
         }
         Ok(())
     }
@@ -744,8 +652,25 @@ fn anchor_key(
         .into_iter()
         .zip(&meta.key)
         .map(|(expr, key)| {
-            let value = eval.value(expr, Vec::new()).ok()?;
-            constant_part(&value, key)
+            let value = eval.value(expr, &Vec::new()).ok()?;
+            constant_part(value.get(), key)
         })
         .collect()
+}
+
+/// The key was admitted before construction; admit map buckets and positional backing
+/// before publishing a new endpoint group.
+fn insert_position(
+    map: &mut HashMap<Vec<KeyPart>, Vec<usize>>,
+    key: Vec<KeyPart>,
+    position: usize,
+    memory: &mut QueryMemoryReservation,
+) -> Result<(), QueryError> {
+    if !map.contains_key(&key) {
+        reserve_map(map, memory)?;
+    }
+    let positions = map.entry(key).or_default();
+    grow_vec(positions, 1, memory)?;
+    positions.push(position);
+    Ok(())
 }

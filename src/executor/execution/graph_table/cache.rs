@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use super::keys::KeyPart;
 use super::{BatchRow, QueryError, SourceExecutionEnv};
-use crate::executor::retained_memory::{add, mul, value_clone_bytes};
+use crate::executor::retained_memory::{add, mul};
 use crate::runtime::QueryMemoryReservation;
 
 /// A fetched row and its key tuple.
@@ -25,6 +25,7 @@ pub(super) struct Pending {
     pub(super) changes: usize,
     pub(super) ids: HashSet<String>,
     pub(super) rows: Vec<(String, BatchRow)>,
+    pub(super) memory: QueryMemoryReservation,
 }
 
 /// A fully read edge mapping indexed by endpoint key.
@@ -35,12 +36,50 @@ pub(super) struct FullEdges {
 }
 
 pub(super) struct Cache {
-    memory: QueryMemoryReservation,
-    pub(super) vertices: HashMap<(String, usize, Vec<KeyPart>), Option<BatchRow>>,
+    pub(super) vertices: HashMap<(String, usize, Vec<KeyPart>), Option<Arc<BatchRow>>>,
     pub(super) neighborhoods: HashMap<HoodKey, Arc<Vec<Keyed>>>,
     pub(super) vertex_scans: HashMap<(String, usize), Arc<Vec<Keyed>>>,
     pub(super) edge_scans: HashMap<(String, usize), Arc<FullEdges>>,
     pub(super) pending: HashMap<String, Arc<Pending>>,
+    pub(super) memory: QueryMemoryReservation,
+}
+
+/// A rehash may hold old and replacement buckets simultaneously. The sibling lease
+/// spans that allocation; the parent's growth keeps the replacement after it returns.
+pub(super) fn reserve_map<K: Eq + std::hash::Hash, V>(
+    map: &mut HashMap<K, V>,
+    memory: &mut QueryMemoryReservation,
+) -> Result<(), QueryError> {
+    let before = hash_bytes::<(K, V)>(map.len())?;
+    let after = hash_bytes::<(K, V)>(map.len() + 1)?;
+    let _overlap = (map.len() == map.capacity())
+        .then(|| memory.try_sibling(before))
+        .transpose()?;
+    memory.try_grow(after - before)?;
+    map.try_reserve(1)
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+    Ok(())
+}
+
+pub(super) fn reserve_set<K: Eq + std::hash::Hash>(
+    set: &mut HashSet<K>,
+    memory: &mut QueryMemoryReservation,
+) -> Result<(), QueryError> {
+    let before = hash_bytes::<K>(set.len())?;
+    let after = hash_bytes::<K>(set.len() + 1)?;
+    let _overlap = (set.len() == set.capacity())
+        .then(|| memory.try_sibling(before))
+        .transpose()?;
+    memory.try_grow(after - before)?;
+    set.try_reserve(1)
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+    Ok(())
+}
+
+fn hash_bytes<T>(entries: usize) -> Result<usize, QueryError> {
+    Ok(crate::executor::retained_memory::hash_table_bytes::<T>(
+        entries,
+    )?)
 }
 
 impl Cache {
@@ -59,17 +98,38 @@ impl Cache {
     pub(super) fn admit(&mut self, bytes: usize) -> Result<(), QueryError> {
         Ok(self.memory.try_grow(bytes)?)
     }
+
+    pub(super) fn adopt(&mut self, memory: QueryMemoryReservation) {
+        self.memory.absorb(memory);
+    }
+}
+
+pub(super) fn key_bytes(key: &[KeyPart]) -> Result<usize, QueryError> {
+    Ok(key
+        .iter()
+        .try_fold(mul(key.len(), size_of::<KeyPart>())?, |bytes, part| {
+            add(bytes, part.heap_bytes())
+        })?)
+}
+
+pub(super) fn row_key_bytes(row: &BatchRow, columns: &[String]) -> Result<usize, QueryError> {
+    Ok(columns.iter().try_fold(
+        mul(columns.len(), size_of::<KeyPart>())?,
+        |bytes, column| {
+            add(
+                bytes,
+                row.get(column)
+                    .map_or(Ok(0), crate::executor::retained_memory::value_clone_bytes)?,
+            )
+        },
+    )?)
 }
 
 /// Bytes a retained row and its key tuple occupy.
 pub(super) fn keyed_bytes(key: &[KeyPart], row: &BatchRow) -> Result<usize, QueryError> {
     let mut bytes = add(size_of::<BatchRow>(), mul(key.len(), size_of::<KeyPart>())?)?;
     bytes = add(bytes, key.iter().map(KeyPart::heap_bytes).sum::<usize>())?;
-    for (name, value) in row.entries() {
-        bytes = add(bytes, size_of::<(String, crate::types::Value)>())?;
-        bytes = add(bytes, name.capacity())?;
-        bytes = add(bytes, value_clone_bytes(value)?)?;
-    }
+    bytes = add(bytes, row.owned_body_bytes()?)?;
     Ok(bytes)
 }
 

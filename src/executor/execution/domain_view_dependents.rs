@@ -17,6 +17,33 @@ use crate::sql::{
     parse_statement, with_domain_scope, with_enum_scope, with_type_scope, DomainResolver,
 };
 
+/// Stored names without a database part belong to the instance default database.
+pub(super) fn view_database(cassie: &Cassie, view: &ViewMeta) -> String {
+    relation_database_name(&view.name).unwrap_or_else(|| cassie.default_database.clone())
+}
+
+/// Resolve a stored definition in its owning namespace, rather than the caller's database.
+pub(super) fn view_context(cassie: &Cassie, view: &ViewMeta) -> crate::sql::binder::BindingContext {
+    let database = view_database(cassie, view);
+    let schema = match parse_name(&view.name) {
+        Ok(
+            ParsedName::SchemaQualified { schema, .. }
+            | ParsedName::DatabaseQualified { schema, .. },
+        ) => schema,
+        _ => crate::catalog::DEFAULT_SCHEMA.to_owned(),
+    };
+    let mut search_path = vec![schema];
+    if search_path[0] != crate::catalog::DEFAULT_SCHEMA {
+        search_path.push(crate::catalog::DEFAULT_SCHEMA.to_owned());
+    }
+    if cassie.database_catalog_enforced() {
+        crate::sql::binder::BindingContext::scoped(database, search_path)
+    } else {
+        crate::sql::binder::BindingContext::unscoped(database, search_path)
+    }
+    .with_unqualified_database(cassie.default_database.clone())
+}
+
 /// Whether the type name `raw` can denote `domain`: the same unqualified name,
 /// or the same name qualified by the domain's schema (and database).
 fn names_domain(raw: &str, domain: &DomainTypeMeta) -> bool {
@@ -101,16 +128,31 @@ fn selects_from(cassie: &Cassie, view: &ViewMeta, targets: &[ViewMeta]) -> bool 
     else {
         return false;
     };
+    let context = view_context(cassie, view);
     crate::sql::binder::select_referenced_relations(&select)
         .iter()
-        .filter_map(|relation| cassie.catalog.get_view(relation))
+        .filter_map(|relation| {
+            crate::sql::binder::resolve_existing_name(relation, &context, |candidate| {
+                cassie.catalog.get_view(candidate).is_some()
+            })
+            .ok()
+        })
+        .filter_map(|relation| cassie.catalog.get_view(&relation))
         .any(|referenced| targets.iter().any(|target| target.name == referenced.name))
 }
 
 /// The views a cascade removes with `domain`: those that cast to it and,
 /// transitively, the views that select from them.
 fn cascade_dependents(cassie: &Cassie, domain: &DomainTypeMeta) -> Vec<ViewMeta> {
-    let mut dependents = direct_dependents(cassie, domain);
+    cascade_from(cassie, &domain.database, direct_dependents(cassie, domain))
+}
+
+/// Closure shared by type and property-graph cascades.
+pub(super) fn cascade_from(
+    cassie: &Cassie,
+    database: &str,
+    mut dependents: Vec<ViewMeta>,
+) -> Vec<ViewMeta> {
     if dependents.is_empty() {
         return dependents;
     }
@@ -119,7 +161,7 @@ fn cascade_dependents(cassie: &Cassie, domain: &DomainTypeMeta) -> Vec<ViewMeta>
             .catalog
             .list_views()
             .into_iter()
-            .filter(|view| in_database(view, &domain.database))
+            .filter(|view| view_database(cassie, view) == database)
             .filter(|view| dependents.iter().all(|known| known.name != view.name))
             .find(|view| selects_from(cassie, view, &dependents));
         match next {

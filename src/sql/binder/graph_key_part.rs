@@ -37,6 +37,41 @@ fn typed(function: FunctionCall, target: &CompositeRef) -> Expr {
     }
 }
 
+/// Validate SQL array identity after nested overloads have been lowered. Runtime record
+/// text is a legitimate carrier only after binding proved graph_key_part[].
+pub(super) fn validate_reference_arguments(
+    function: &FunctionCall,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    let Some(graph) = types.graph_types() else {
+        return Ok(());
+    };
+    let name = function.name.to_ascii_lowercase();
+    if !matches!(
+        name.as_str(),
+        VERTEX_REF | EDGE_REF | VERTEX_REF_TYPED | EDGE_REF_TYPED
+    ) {
+        return Ok(());
+    }
+    let Some(argument) = function.args.get(2) else {
+        return Ok(());
+    };
+    let Some(data_type) = types.expression_type(argument) else {
+        return Ok(());
+    };
+    if matches!(data_type, DataType::Null)
+        || matches!(data_type.flattened(), DataType::Array(element)
+            if matches!(element.flattened(), DataType::Composite(descriptor) if descriptor.oid == graph.key_part.oid))
+    {
+        return Ok(());
+    }
+    Err(DiagnosticError::new(
+        "42804",
+        "key parts must have type cassie_graph.graph_key_part[]",
+    )
+    .into())
+}
+
 /// Lowers a graph constructor call: `key_part` resolves its overload and the
 /// reference constructors only gain their result type. A call whose argument
 /// type is not yet known stays as written and fails at execution.

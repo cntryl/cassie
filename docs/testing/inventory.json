@@ -182,9 +182,9 @@
     ],
     "files": 1781,
     "rust_files": 1744,
-    "rust_test_declarations": 10572,
+    "rust_test_declarations": 10574,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10597,
+    "registered_rust_instances": 10599,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -70307,6 +70307,37 @@
       }
     },
     {
+      "id": "tests/graph_table/view_dependencies.rs::should_preserve_local_cte_shadows_while_cascading_external_cte_body_dependencies",
+      "name": "should_preserve_local_cte_shadows_while_cascading_external_cte_body_dependencies",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 381,
+      "end_line": 442,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_preserve_local_cte_shadows_while_cascading_external_cte_body_dependencies"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_table/wire.rs::should_describe_declared_column_types_in_row_description",
       "name": "should_describe_declared_column_types_in_row_description",
       "current_file": "tests/graph_table/wire.rs",
@@ -70599,6 +70630,37 @@
         {
           "suite": "graph_types",
           "name": "argument_binding::should_resolve_a_mapping_alias_without_folding_a_quoted_sibling"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "parameters",
+        "directory": "tests/graph_types/parameters",
+        "file": "tests/graph_types/parameters/argument_binding.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/argument_binding.rs::should_bind_graph_constructors_inside_a_table_function_scalar_subquery",
+      "name": "should_bind_graph_constructors_inside_a_table_function_scalar_subquery",
+      "current_file": "tests/graph_types/argument_binding.rs",
+      "line": 106,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "argument_binding::should_bind_graph_constructors_inside_a_table_function_scalar_subquery"
         }
       ],
       "attributes": [
@@ -335700,9 +335762,9 @@
       "current_file": "tests/graph_table/view_dependencies.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 378,
-      "sha256": "1f25b51485346bfed3ccafdbb58793128e3ab23f9c86b6df973db60ddd3777a5",
-      "test_declarations": 9,
+      "lines": 442,
+      "sha256": "fffb019a7803764f48206cac962f1afae2cddfe4ed734f6fb92813c7ca651eb2",
+      "test_declarations": 10,
       "registered_suites": [
         "graph_table"
       ],
@@ -335760,9 +335822,9 @@
       "current_file": "tests/graph_types/argument_binding.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 103,
-      "sha256": "cf6722b0e712c6b551c99f8bc099d604e3fc1e4955e927b30144b9e326c27628",
-      "test_declarations": 4,
+      "lines": 130,
+      "sha256": "3d0cfa095a3fe1c73a122fdd3c79e824dedaaa1ff3911b8636e9f14ce25b2f27",
+      "test_declarations": 5,
       "registered_suites": [
         "graph_types"
       ],

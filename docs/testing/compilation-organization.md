@@ -73,9 +73,11 @@ destruction are outside the listener-stop timer. Run it with the correctness fix
 cargo bench --locked -p cassie-integration-tests --bench tier4_pgwire_fixture_profile --profile test
 ```
 
-`CASSIE_FIXTURE_PROFILE_SAMPLES` selects the number of fresh isolated fixtures
-(default eight). Output is CSV in microseconds. Result assertions validate each
-query; there are no timing assertions or shared databases. The harness does not
+`CASSIE_FIXTURE_PROFILE_SAMPLES` selects the number of matched sample pairs
+(default eight), each with fresh isolated fixtures for the legacy rebind/50 ms
+wait and owned-listener controls. Their order alternates. Output is CSV in
+microseconds with the configured delay identified separately. Result assertions
+validate each query; there are no timing assertions or shared databases. The harness does not
 replace fragmentation, authentication, cancellation or persistence tests. Its
 measurements and the remaining storage boundary are recorded in
 [Runtime qualification](runtime-qualification-2026-11-16.md).

@@ -16,10 +16,11 @@ cargo bench --locked -p cassie-integration-tests --bench tier4_pgwire_fixture_pr
 
 The integration package owns this explicit benchmark because it consumes the
 same compiled fixture library as the four wire correctness targets. It runs
-eight separate memory databases, owned bound listeners, real root password
-startup, eight `SELECT 1` cycles per connection, and socket/listener stop. Each
-query checks its returned row. `CASSIE_FIXTURE_PROFILE_SAMPLES` changes the
-sample count. Timings are diagnostics, never correctness thresholds.
+fresh memory databases with real root password startup, eight `SELECT 1` cycles
+per connection, and socket/listener stop. Each query checks its returned row.
+`CASSIE_FIXTURE_PROFILE_SAMPLES` changes the sample-pair count (default eight);
+the current matched controls below create two independent fixtures per pair.
+Timings are diagnostics, never correctness thresholds.
 
 Two consecutive local macOS arm64 runs used the same source based on main
 `9d25356a`, with only this profiler and manifest lint inheritance added. The

@@ -352,7 +352,7 @@ pub(super) fn run(path: &Path) -> Result<()> {
             "original_fingerprint_verified_after_reader_drop": verified_after_reader_drop,
             "reader_retirement_scope": "Cassie drop/graceful-close attempt; native quiescence not attested",
             "original_fingerprint_after_reader_drop": if verified_after_reader_drop { Some(&source.files.source_fingerprint) } else { None },
-            "query_memory_budget_bytes": 67108864, "query_timeout_ms": 120000, "execution_result_cache_enabled": false,
+            "query_memory_budget_bytes": 67_108_864, "query_timeout_ms": 120_000, "execution_result_cache_enabled": false,
             "warmup_rounds": 1, "timed_rounds": 3, "status": if outcome.is_ok() { "passed" } else { "gap" },
             "result": outcome.as_ref().ok(), "error": outcome.as_ref().err(),
             "identity_scope": "writer/reader labels require external exact Git and producer-exit verification; no self-attestation"})

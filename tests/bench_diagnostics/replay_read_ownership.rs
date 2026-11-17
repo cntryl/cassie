@@ -38,8 +38,8 @@ fn fixture() -> Fixture {
     let record = serde_json::json!({
         "source": format!("{};tree={};profile=test;feature=replay-benchmark-observation", api.commit, api.tree),
         "mode": "local_strict", "shape": "indexed", "workload": "apply",
-        "batch_size": 1000, "batch_count": 100, "events": 100000,
-        "query_memory_budget_bytes": 67108864, "query_timeout_ms": 120000,
+        "batch_size": 1000, "batch_count": 100, "events": 100_000,
+        "query_memory_budget_bytes": 67_108_864, "query_timeout_ms": 120_000,
         "storage_path": source, "recovery_boundary": "clean shutdown then constructor and startup; verification excluded"
     });
     let bytes = serde_json::to_vec(&record).unwrap();

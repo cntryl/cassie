@@ -87,7 +87,7 @@ pub(crate) fn sha256_file(path: &Path) -> Result<String> {
     }
     let mut file = File::open(path).map_err(|error| format!("read {}: {error}", path.display()))?;
     let mut hash = Sha256::new();
-    let mut bytes = [0_u8; 64 * 1024];
+    let mut bytes = vec![0_u8; 64 * 1024].into_boxed_slice();
     loop {
         let size = file.read(&mut bytes).map_err(|error| error.to_string())?;
         if size == 0 {

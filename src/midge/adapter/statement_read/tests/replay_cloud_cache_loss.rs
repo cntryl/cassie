@@ -187,10 +187,39 @@ fn should_refuse_owned_baseline_shutdown_while_an_adapter_owner_is_retained() {
     let result = midge.shutdown_owned_for_test(Duration::from_secs(30));
 
     // Assert
-    assert!(matches!(result, Err(CassieError::Execution(message))
-        if message.starts_with("owned fixture shutdown requires exclusive adapter ownership")));
+    assert!(
+        matches!(result, Err(cntryl_midge::MidgeError::Busy(message))
+        if message.starts_with("owned fixture shutdown requires exclusive adapter ownership"))
+    );
     assert_eq!(Arc::strong_count(&retained), 1);
-    retained.shutdown_owned_for_test(Duration::from_secs(30)).unwrap();
+    retained
+        .shutdown_owned_for_test(Duration::from_secs(30))
+        .unwrap();
+}
+
+#[test]
+fn should_propagate_native_busy_when_an_owned_baseline_has_an_active_transaction() {
+    // Arrange
+    let midge = Arc::new(Midge::new_in_memory("postgres").unwrap());
+    let family = midge
+        .engine
+        .create_column_family("owned_shutdown_probe")
+        .unwrap();
+    let transaction = midge
+        .engine
+        .begin_tx(family.id(), cntryl_midge::TransactionMode::ReadWrite)
+        .unwrap();
+    assert_eq!(Arc::strong_count(&midge), 1);
+
+    // Act
+    let result = midge.shutdown_owned_for_test(Duration::from_secs(30));
+
+    // Assert
+    assert!(
+        matches!(result, Err(cntryl_midge::MidgeError::Busy(message))
+        if !message.starts_with("owned fixture shutdown requires exclusive adapter ownership"))
+    );
+    drop(transaction);
 }
 
 struct CacheFixture {

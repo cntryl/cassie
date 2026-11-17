@@ -167,6 +167,7 @@ impl SemanticValue {
         match self {
             Self::String(value) | Self::Json(value) => value.len(),
             Self::Vector(value) => value.len().saturating_mul(std::mem::size_of::<u32>()),
+            Self::Typed(crate::types::typed::TypedKey::Record(record)) => record.retained_bytes(),
             Self::Array(values) => values.iter().fold(
                 values.len().saturating_mul(std::mem::size_of::<Self>()),
                 |bytes, value| bytes.saturating_add(value.estimated_bytes()),

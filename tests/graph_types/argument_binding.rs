@@ -43,6 +43,37 @@ fn should_bind_computed_key_parts_inside_table_function_arguments() {
 }
 
 #[test]
+fn should_bind_computed_graph_key_parts_inside_another_table_function() {
+    // Arrange
+    let fixture = started("graph-argument-computed-unnest", &SOCIAL_SETUP);
+    let count = |operand: &str| {
+        fixture.execute(&format!(
+            "SELECT count(*) FROM unnest(ARRAY[cassie_graph.vertex_ref(\
+             'social','person',ARRAY[cassie_graph.key_part({operand})])]) AS u"
+        ))
+    };
+
+    // Act
+    let simple = count("2::bigint");
+    let explicitly_typed = count("(2::bigint+0::bigint)::bigint");
+    let computed = count("2::bigint+0::bigint");
+
+    // Assert
+    let expected = vec![vec![Value::Int64(1)]];
+    assert_eq!(simple.expect("simple graph reference").rows(), &expected);
+    assert_eq!(
+        explicitly_typed
+            .expect("explicit computed graph reference")
+            .rows(),
+        &expected
+    );
+    assert_eq!(
+        computed.expect("computed graph reference").rows(),
+        &expected
+    );
+}
+
+#[test]
 fn should_resolve_a_mapping_alias_without_folding_a_quoted_sibling() {
     // Arrange
     let fixture = started("graph-argument-quoted-mapping", &[

@@ -133,6 +133,9 @@ impl SemanticKey {
                                 values.len().saturating_mul(std::mem::size_of::<u32>()),
                             );
                         }
+                        SemanticValue::Typed(crate::types::typed::TypedKey::Record(record)) => {
+                            value_bytes = value_bytes.saturating_add(record.retained_bytes());
+                        }
                         SemanticValue::Array(values) => {
                             value_bytes = value_bytes.saturating_add(
                                 values

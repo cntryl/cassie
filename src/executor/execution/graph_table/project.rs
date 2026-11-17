@@ -116,4 +116,31 @@ mod memory_tests {
             std::mem::size_of::<super::BatchRow>(),
         );
     }
+
+    #[test]
+    fn should_admit_graph_output_metadata_before_cloning_array_types_and_chunking_rows() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let _observation = observer::start();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM GRAPH_TABLE(g MATCH(a IS node WHERE a.id=1)-[IS edge]->(b IS node) \
+                 COLUMNS(ARRAY[b.id] AS ids)) AS t",
+                vec![],
+            )
+            .expect("one graph row with array metadata");
+
+        // Assert
+        assert_eq!(result.row_count(), 1);
+        observer::assert_admitted(
+            "before_graph_output_metadata",
+            "copy_graph_output_metadata",
+            2 * std::mem::size_of::<crate::types::DataType>()
+                + std::mem::size_of::<super::BatchRow>()
+                + std::mem::size_of::<Vec<super::BatchRow>>(),
+        );
+    }
 }

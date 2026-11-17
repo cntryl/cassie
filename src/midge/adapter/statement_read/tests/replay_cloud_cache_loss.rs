@@ -454,9 +454,13 @@ fn baseline(cache: &Path, profile: Profile) {
     };
     apply_event(&cassie, strict, 1);
     assert_state(&cassie, profile, 1);
+    let midge = Arc::clone(&cassie.midge);
     cassie.shutdown();
     drop(session);
     drop(cassie);
+    midge
+        .shutdown_owned_for_test(Duration::from_secs(30))
+        .expect("assert successful exclusive native baseline close before starting child");
 }
 
 fn recovered_position(cassie: &Cassie, profile: Profile) -> u64 {

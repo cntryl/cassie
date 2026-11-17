@@ -173,6 +173,20 @@ impl Midge {
         Self::open_with_write_policy(options, default_database, write_policy)
     }
 
+    #[cfg(test)]
+    pub(crate) fn shutdown_owned_for_test(
+        self: Arc<Self>,
+        timeout: Duration,
+    ) -> Result<(), cntryl_midge::MidgeError> {
+        let mut owned = Arc::try_unwrap(self).map_err(|shared| {
+            cntryl_midge::MidgeError::Busy(format!(
+                "owned fixture shutdown requires exclusive adapter ownership; {} owners remain",
+                Arc::strong_count(&shared)
+            ))
+        })?;
+        owned.engine.shutdown(timeout)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

@@ -36,7 +36,7 @@ pub(super) async fn capture_and_validate_protocol_owner(
     let session = session.clone();
     super::worker_lease::spawn_owned_blocking(move || {
         let authority = crate::app::FailureAuthority::capture_for_operation(&session);
-        session.ensure_admitted_operation_owner(&authority)
+        CassieSession::ensure_admitted_operation_owner(&authority)
     })
     .await
     .map_err(|error| CassieError::Execution(format!("protocol owner worker failed: {error}")))?

@@ -181,9 +181,10 @@ Inner-join planning exhaustively enumerates deterministic relation orders throug
 
 ### Selected bounded join-selectivity increment
 
-The following increment is selected for the current graph/query repair bundle.
-Its regressions are authored and unexecuted; this contract is not a qualification
-or a claim that every supported query becomes faster.
+The following increment is authored for the current graph/query repair bundle.
+Its 26 regressions have 20 observed baseline assertion failures and six passing
+controls. The implementation still awaits integrated review and the complete
+combined local gate; no GREEN or universal speed improvement is claimed.
 
 The existing unaliased base-table, all-inner join boundary stays unchanged.
 Exact component-aware relation statistics take precedence over suffix matches;
@@ -217,8 +218,10 @@ the legacy saturating cost for the entire candidate order. The private compiled
 plan cache epoch must advance with this increment so L1 and L2 plans carrying
 the prior order are recompiled; authoritative stored data and formats do not
 change. Focused witnesses live in `join_selectivity`, the private cost
-observations and the join-cost cache tests. Observed RED, implementation review,
-and the combined ordered local gate remain required before promotion.
+observations and the join-cost cache tests. Exact baseline receipts are retained
+under the isolated worktree's `target/assembly-line/query-join-cost/` directory.
+Implementation review and the combined ordered local gate remain required before
+promotion.
 
 ## Retrieval Access Paths
 

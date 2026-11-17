@@ -10,18 +10,14 @@ const STAR: &str = "SELECT a.id FROM a JOIN c ON a.id=c.ak JOIN b ON b.id=c.bk";
 fn observed_cost(sql: &str, stats: &fixture::Stats, order: &[&str]) -> u128 {
     let terms =
         super::InnerJoinTerms::from_source(&fixture::plan(sql).source).expect("eligible source");
-    let rows = terms
-        .relations
-        .iter()
-        .map(|source| super::relation_rows(source, stats))
-        .collect::<Vec<_>>();
+    let inputs = super::inputs::resolve(&terms.relations, &terms.predicates, stats);
     let indices = order.iter().map(|name| {
         terms.relations.iter().position(|source| {
             matches!(source, crate::sql::ast::QuerySource::Collection(path) if path.as_str() == *name)
         }).expect("order names an input relation")
     }).collect::<Vec<_>>();
-    // This is the actual baseline runtime routine, not a second cost oracle.
-    super::join_order_cost(&indices, &rows)
+    // This is the actual runtime routine, not a second cost oracle.
+    super::join_order_cost(&indices, &inputs)
 }
 
 #[test]

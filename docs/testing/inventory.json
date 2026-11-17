@@ -182,9 +182,9 @@
     ],
     "files": 1780,
     "rust_files": 1743,
-    "rust_test_declarations": 10566,
+    "rust_test_declarations": 10572,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10591,
+    "registered_rust_instances": 10597,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -70103,6 +70103,192 @@
         {
           "suite": "graph_table",
           "name": "view_dependencies::should_ignore_other_databases_when_checking_graph_view_dependencies"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/view_dependencies.rs::should_protect_every_potential_graph_target_of_a_shadowed_unqualified_view_reference",
+      "name": "should_protect_every_potential_graph_target_of_a_shadowed_unqualified_view_reference",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 159,
+      "end_line": 193,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_protect_every_potential_graph_target_of_a_shadowed_unqualified_view_reference"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/view_dependencies.rs::should_reject_renaming_a_potential_graph_target_of_a_shadowed_view_reference",
+      "name": "should_reject_renaming_a_potential_graph_target_of_a_shadowed_view_reference",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 196,
+      "end_line": 223,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_reject_renaming_a_potential_graph_target_of_a_shadowed_view_reference"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/view_dependencies.rs::should_reject_an_ambiguous_direct_graph_cascade_before_mutating_its_schema",
+      "name": "should_reject_an_ambiguous_direct_graph_cascade_before_mutating_its_schema",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 226,
+      "end_line": 257,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_reject_an_ambiguous_direct_graph_cascade_before_mutating_its_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/view_dependencies.rs::should_reject_a_transitive_cascade_with_a_surviving_shadow_relation",
+      "name": "should_reject_a_transitive_cascade_with_a_surviving_shadow_relation",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 260,
+      "end_line": 304,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_reject_a_transitive_cascade_with_a_surviving_shadow_relation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/view_dependencies.rs::should_reject_a_transitive_cascade_with_a_surviving_shadow_view",
+      "name": "should_reject_a_transitive_cascade_with_a_surviving_shadow_view",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 307,
+      "end_line": 348,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_reject_a_transitive_cascade_with_a_surviving_shadow_view"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/view_dependencies.rs::should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade",
+      "name": "should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade",
+      "current_file": "tests/graph_table/view_dependencies.rs",
+      "line": 351,
+      "end_line": 377,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "view_dependencies::should_keep_qualified_graph_and_view_dependencies_precise_during_schema_cascade"
         }
       ],
       "attributes": [
@@ -335514,9 +335700,9 @@
       "current_file": "tests/graph_table/view_dependencies.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 141,
-      "sha256": "73c20a54ecdd59c0d8d9a313fa773f42c48ae85867763cb2be2e9dd22251d6bb",
-      "test_declarations": 3,
+      "lines": 377,
+      "sha256": "a2b1f64d445d836498e8c5fc9c13a9301c38a23bcaa5f74e1c0598052fb8595b",
+      "test_declarations": 9,
       "registered_suites": [
         "graph_table"
       ],

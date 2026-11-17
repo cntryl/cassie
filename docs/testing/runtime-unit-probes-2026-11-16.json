@@ -1,7 +1,7 @@
 {
   "baseline": "8f010a9d9bd7054198de7ee5e48161def707223d",
-  "source_before_inventory_commit": "ed9303d75e161b036a7357e1e6c5f022c13e3527",
-  "tree_before_inventory_commit": "6a4a70cdc6bb7b7becb57490d05e2e0757ec73bc",
+  "source_before_inventory_commit": "d99e7eb0e53d5261348d3acd6bf413f3cb86df52",
+  "tree_before_inventory_commit": "40c94402f988bd86470e0e1d59daa8e4ed4a7652",
   "scope": "Static declarations in B-touched src/ Rust files. Existing integration inventory intentionally scans tests/ only. This manifest does not resolve parent module cfg, prove registration, execute tests, or establish observed RED. Comparison is by source file and inline module, not a proof that relocated cases are new behavior.",
   "generator": "tools/test_inventory.py::rust_declarations with pinned tools/test_inventory_requirements.txt; B-touched files selected by git diff from baseline.",
   "file_count": 37,

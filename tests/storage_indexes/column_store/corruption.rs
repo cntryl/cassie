@@ -299,7 +299,14 @@ fn should_reject_an_extended_field_encoded_with_another_declared_type_oid() {
         .expect("encoded NUMERIC")
         .expect("stored NUMERIC field");
     let valid_point = env.cassie.midge.get_document(TABLE, "row-a");
-    let valid_scan = env.rows("SELECT name FROM victims WHERE id = 1");
+    let valid_scan = env
+        .cassie
+        .execute_sql(
+            &env.session,
+            "SELECT name FROM victims WHERE id = 1",
+            vec![],
+        )
+        .expect("valid declared NUMERIC query");
     // The same extended tag, but a REAL OID and a valid REAL binary payload.
     let foreign_type = [0x0e, 0, 0, 0x02, 0xbc, 0x3f, 0xc0, 0, 0];
 
@@ -321,12 +328,11 @@ fn should_reject_an_extended_field_encoded_with_another_declared_type_oid() {
         .expect("valid declared value")
         .expect("NUMERIC row");
     assert_eq!(valid_point.payload["name"].as_str(), Some("12.50"));
-    assert_eq!(valid_scan.len(), 1);
-    let cassie::types::Value::Typed(valid_numeric) = &valid_scan[0][0] else {
-        panic!("declared NUMERIC keeps its native value carrier");
-    };
-    assert_eq!(valid_numeric.wire_type_oid(), 1700);
-    assert_eq!(valid_numeric.text(), "12.50");
+    assert_eq!(
+        valid_scan.rows(),
+        &[vec![cassie::types::Value::String("12.50".to_owned())]]
+    );
+    assert_eq!(valid_scan.columns()[0].type_oid, 1700);
     assert_corruption(&point.expect_err("declared OID is checked"), "row-a");
     assert_corruption(&scan.expect_err("projection checks declared OID"), "row-a");
     assert_eq!(verifier.len(), 1, "{verifier:?}");

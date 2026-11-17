@@ -59,6 +59,7 @@ mod tests;
 mod transactions;
 #[path = "connection/transport.rs"]
 mod transport;
+pub(crate) mod worker_lease;
 #[path = "connection/writers.rs"]
 mod writers;
 

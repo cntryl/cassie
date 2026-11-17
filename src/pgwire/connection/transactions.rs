@@ -17,7 +17,7 @@ pub(super) async fn capture_protocol_owner(session: &CassieSession) {
         return;
     }
     let session = session.clone();
-    let _ = tokio::task::spawn_blocking(move || {
+    let _ = super::worker_lease::spawn_owned_blocking(move || {
         crate::app::FailureAuthority::capture_for_operation(&session)
     })
     .await;
@@ -32,7 +32,7 @@ pub(super) async fn capture_and_validate_protocol_owner(
     session: &CassieSession,
 ) -> Result<(), CassieError> {
     let session = session.clone();
-    tokio::task::spawn_blocking(move || {
+    super::worker_lease::spawn_owned_blocking(move || {
         let authority = crate::app::FailureAuthority::capture_for_operation(&session);
         session.ensure_admitted_operation_owner(&authority)
     })
@@ -42,7 +42,8 @@ pub(super) async fn capture_and_validate_protocol_owner(
 
 pub(super) async fn fail_owned_transaction(session: &CassieSession) {
     let session = session.clone();
-    let _ = tokio::task::spawn_blocking(move || session.fail_operation_transaction()).await;
+    let _ = super::worker_lease::spawn_owned_blocking(move || session.fail_operation_transaction())
+        .await;
 }
 
 pub(super) async fn fail_owned_query(

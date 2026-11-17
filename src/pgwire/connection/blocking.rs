@@ -3,11 +3,10 @@ use super::{str, Arc, Cassie, CassieError};
 use std::collections::HashMap;
 #[cfg(debug_assertions)]
 use std::sync::{Mutex, OnceLock};
-use tokio::task;
 
 #[cfg(test)]
 #[path = "blocking/cleanup_test_hooks.rs"]
-mod cleanup_test_hooks;
+pub(in crate::pgwire::connection) mod cleanup_test_hooks;
 
 #[cfg(debug_assertions)]
 static NEXT_RETRYABLE_FAILURES_FOR_TEST: OnceLock<Mutex<HashMap<usize, String>>> = OnceLock::new();
@@ -45,14 +44,16 @@ where
     let cleanup_cassie = Arc::clone(&cassie);
     #[cfg(test)]
     let probe_key = cleanup_test_hooks::key(&cassie);
-    let worker = task::spawn_blocking(move || {
+    #[cfg(test)]
+    let connection_admission = super::worker_lease::current_admission_for_test();
+    let worker = super::worker_lease::spawn_owned_blocking(move || {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| operation(cassie)));
         let recovery_allowed = cleanup_cassie.check_storage_recovery_required().is_ok();
         #[cfg(test)]
         let mut probe = cleanup_test_hooks::take(probe_key);
         #[cfg(test)]
         if let Some(probe) = probe.as_mut() {
-            probe.before_cleanup(recovery_allowed);
+            probe.before_cleanup(recovery_allowed, connection_admission);
         }
         if recovery_allowed {
             #[cfg(test)]

@@ -22,3 +22,28 @@ skip, abort of the awaiting task, and cancellation before worker start. They are
 authored before implementation and remain unexecuted until the coherent runtime
 gate. This boundary alone does not establish the separate global admission
 bound for all started COPY or blocking workers.
+
+## Retained worker admission
+
+Each configured listener's accepted connection owns its existing connection
+semaphore permit through a resource-only Tokio task-local Arc. Every actual
+blocking spawn reads and explicitly clones that resource on the async task before
+spawning. The clone lives outside the complete operation-and-cleanup closure, so
+panic, waiter abort, disconnect and listener shutdown cannot return the slot while
+the started worker or its cleanup still runs. Queued cancellation drops the clone
+without executing a new operation or cleanup. There is no extra query permit and
+COPY WHERE retains its existing nested-query admission precedence.
+
+The finite bound is per configured listener: at most one blocking continuation per
+admitted connection, because the connection loop awaits its boundaries serially
+and a canceled handshake exits. This is not a runtime-global bound across arbitrary
+listener instances or direct external calls to the public `run_connection` helper
+outside that listener admission scope. It does not claim cancellation, a time bound,
+or quiescence of already admitted native/background work. Failure authority remains
+an explicit operation field; the resource task-local does not carry transaction
+identity.
+
+The production spawn census is the common blocking boundary plus the three
+protocol ownership/failure helpers in `transactions.rs`; all use the same explicit
+resource-capturing spawn wrapper. Child Tokio tasks do not inherit this task-local
+implicitly. Rejecting a connection runs no database blocking worker.

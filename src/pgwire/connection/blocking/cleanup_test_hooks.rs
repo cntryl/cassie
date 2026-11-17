@@ -8,16 +8,18 @@ use std::thread::ThreadId;
 use std::time::Duration;
 use tokio::sync::oneshot;
 
-pub(super) struct Observation {
-    pub(super) worker: ThreadId,
-    pub(super) recovery_allowed: bool,
+pub(in crate::pgwire::connection) struct Observation {
+    pub(in crate::pgwire::connection) worker: ThreadId,
+    pub(in crate::pgwire::connection) recovery_allowed: bool,
+    pub(in crate::pgwire::connection) connection_admission:
+        Option<std::sync::Weak<tokio::sync::Semaphore>>,
 }
 
-pub(super) struct Control {
-    pub(super) entered: oneshot::Receiver<Observation>,
-    pub(super) resume: mpsc::SyncSender<()>,
-    pub(super) completed: oneshot::Receiver<()>,
-    pub(super) calls: Arc<AtomicUsize>,
+pub(in crate::pgwire::connection) struct Control {
+    pub(in crate::pgwire::connection) entered: oneshot::Receiver<Observation>,
+    pub(in crate::pgwire::connection) resume: mpsc::SyncSender<()>,
+    pub(in crate::pgwire::connection) completed: oneshot::Receiver<()>,
+    pub(in crate::pgwire::connection) calls: Arc<AtomicUsize>,
     _guard: Guard,
 }
 
@@ -29,7 +31,7 @@ impl Drop for Guard {
     }
 }
 
-pub(super) struct Probe {
+pub(in crate::pgwire::connection) struct Probe {
     entered: Option<oneshot::Sender<Observation>>,
     resume: mpsc::Receiver<()>,
     completed: oneshot::Sender<()>,
@@ -46,11 +48,11 @@ fn registry() -> &'static Mutex<HashMap<usize, Registered>> {
     PROBES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-pub(super) fn key(cassie: &Cassie) -> usize {
+pub(in crate::pgwire::connection) fn key(cassie: &Cassie) -> usize {
     Arc::as_ptr(&cassie.runtime).cast::<()>() as usize
 }
 
-pub(super) fn install(cassie: &Cassie, abort_queued: bool) -> Control {
+pub(in crate::pgwire::connection) fn install(cassie: &Cassie, abort_queued: bool) -> Control {
     let (entered_tx, entered) = oneshot::channel();
     let (resume, resume_rx) = mpsc::sync_channel(1);
     let (completed_tx, completed) = oneshot::channel();
@@ -82,7 +84,7 @@ pub(super) fn install(cassie: &Cassie, abort_queued: bool) -> Control {
     }
 }
 
-pub(super) fn take(key: usize) -> Option<Probe> {
+pub(in crate::pgwire::connection) fn take(key: usize) -> Option<Probe> {
     registry()
         .lock()
         .expect("cleanup probes")
@@ -90,7 +92,7 @@ pub(super) fn take(key: usize) -> Option<Probe> {
         .and_then(|entry| entry.probe.take())
 }
 
-pub(super) fn abort_before_start(key: usize) -> bool {
+pub(in crate::pgwire::connection) fn abort_before_start(key: usize) -> bool {
     registry()
         .lock()
         .expect("cleanup probes")
@@ -99,13 +101,18 @@ pub(super) fn abort_before_start(key: usize) -> bool {
 }
 
 impl Probe {
-    pub(super) fn before_cleanup(&mut self, recovery_allowed: bool) {
+    pub(in crate::pgwire::connection) fn before_cleanup(
+        &mut self,
+        recovery_allowed: bool,
+        connection_admission: Option<std::sync::Weak<tokio::sync::Semaphore>>,
+    ) {
         self.entered
             .take()
             .expect("single observation")
             .send(Observation {
                 worker: std::thread::current().id(),
                 recovery_allowed,
+                connection_admission,
             })
             .unwrap_or_else(|_| panic!("cleanup observation receiver"));
         self.resume
@@ -113,11 +120,11 @@ impl Probe {
             .expect("resume cleanup worker");
     }
 
-    pub(super) fn record_call(&self) {
+    pub(in crate::pgwire::connection) fn record_call(&self) {
         self.calls.fetch_add(1, Ordering::Release);
     }
 
-    pub(super) fn finish(self) {
+    pub(in crate::pgwire::connection) fn finish(self) {
         let _ = self.completed.send(());
     }
 }

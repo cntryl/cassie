@@ -121,16 +121,17 @@ async fn serve(
                         let config = config.clone();
                         let tls_config = tls_config.clone();
                         tokio::spawn(async move {
-                            let _permit = permit;
-                            let () = Box::pin(crate::pgwire::connection::run_connection(
-                                socket,
-                                cassie,
-                                config,
-                                tls_config,
-                                require_tls,
-                                peer.ip(),
-                            ))
-                            .await;
+                            let () = crate::pgwire::connection::worker_lease::with_connection_lease(
+                                permit,
+                                Box::pin(crate::pgwire::connection::run_connection(
+                                    socket,
+                                    cassie,
+                                    config,
+                                    tls_config,
+                                    require_tls,
+                                    peer.ip(),
+                                )),
+                            ).await;
                         });
                     }
                     Err(e) => {

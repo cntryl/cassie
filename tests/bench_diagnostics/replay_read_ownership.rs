@@ -69,7 +69,7 @@ fn fixture() -> Fixture {
 }
 
 #[test]
-fn should_copy_only_into_a_distinct_owned_directory_and_leave_source_bytes_unchanged() {
+fn should_preserve_original_bytes_when_the_reader_mutates_its_distinct_copy() {
     // Arrange
     let fixture = fixture();
     let checked = load_profile(&fixture.files, &fixture.api, &fixture.sql).unwrap();
@@ -229,7 +229,7 @@ fn should_reject_a_mismatched_raw_receipt_or_original_fingerprint() {
 }
 
 #[test]
-fn should_reject_duplicate_row_ids_even_when_bucket_titles_and_counts_match() {
+fn should_reject_duplicate_row_ids_despite_matching_bucket_cardinality() {
     // Arrange
     use cassie::types::Value;
     let rows = vec![

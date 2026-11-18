@@ -290,3 +290,42 @@ fn should_infer_text_type_for_all_unknown_union_branches() {
     assert_eq!(descriptions[1][0].type_oid, 25, "PostgreSQL text OID");
     assert_eq!(wire::data_rows(frames), vec![vec![None], vec![None]]);
 }
+
+#[test]
+fn should_describe_and_encode_mixed_integer_set_outputs_as_bigint() {
+    // Arrange
+    let sql = "SELECT NULL::INT AS n UNION ALL SELECT 9007199254740993::BIGINT \
+               ORDER BY n NULLS FIRST";
+    let cycle = fixture::execute_cycle(sql, None, 1, true);
+
+    // Act
+    let batches = fixture::run_cycles("set-mixed-integer-width", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (20, 8, -1), 1, true);
+    let mut wide_integer = vec![0, 1, 0, 0, 0, 8];
+    wide_integer.extend_from_slice(&9_007_199_254_740_993_i64.to_be_bytes());
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![vec![0, 1, 255, 255, 255, 255], wide_integer]
+    );
+}
+
+#[test]
+fn should_reject_incompatible_set_categories_during_parse() {
+    // Arrange
+    let sql = "SELECT true UNION SELECT 1::INT";
+    let steps = vec![Step::ThroughReady(vec![
+        wire::parse_frame_with_types("", sql, &[]),
+        wire::sync_frame(),
+    ])];
+
+    // Act
+    let batches = run_script("set-incompatible-categories", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42804"));
+    assert!(!batches[0].iter().any(|(tag, _)| *tag == b'1'));
+}

@@ -14,6 +14,8 @@ use crate::types::row_identity::{
     is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
 };
 
+use std::borrow::Cow;
+
 #[path = "cte_columns.rs"]
 mod cte_columns;
 use cte_columns::cte_column_aliases;
@@ -94,14 +96,19 @@ pub(super) fn bind_select_with_lateral_fields(
         select.source.clone(),
         catalog,
         &scope,
-        lateral_fields,
+        LateralScope {
+            enclosing: lateral_fields,
+            preceding: &HashSet::new(),
+        },
         context,
     )?;
     select.source = source;
     select.ctes = bound_ctes;
     super::aliases::lower_select(&mut select, catalog, &scope, lateral_fields, set.is_some())?;
-    let mut known_fields = source_fields(catalog, &select.source, &scope)?;
-    known_fields.extend(lateral_fields.iter().cloned());
+    let known_fields = super::references::fields_with_outer_scope(
+        source_fields(catalog, &select.source, &scope)?,
+        lateral_fields,
+    );
     if lateral_fields.is_empty() {
         super::own_qualifier::strip_select_own_qualifiers(&mut select, catalog, context);
     }
@@ -539,11 +546,34 @@ pub(super) fn matches_wildcard(item: &SelectItem) -> bool {
         || matches!(item, SelectItem::Column { name, .. } if crate::sql::ColumnIdentifierPath::is_qualified_wildcard(name))
 }
 
-pub(super) fn bind_query_source_with_lateral_fields(
+/// Preceding FROM items share one namespace. Enclosing SELECTs are searched
+/// only for names that namespace does not supply.
+#[derive(Clone, Copy)]
+struct LateralScope<'a> {
+    enclosing: &'a HashSet<String>,
+    preceding: &'a HashSet<String>,
+}
+
+impl<'a> LateralScope<'a> {
+    fn visible(self) -> Cow<'a, HashSet<String>> {
+        if self.preceding.is_empty() {
+            Cow::Borrowed(self.enclosing)
+        } else if self.enclosing.is_empty() {
+            Cow::Borrowed(self.preceding)
+        } else {
+            Cow::Owned(super::references::fields_with_outer_scope(
+                self.preceding.clone(),
+                self.enclosing,
+            ))
+        }
+    }
+}
+
+fn bind_query_source_with_lateral_fields(
     source: QuerySource,
     catalog: &Catalog,
     scope: &CteScope<'_>,
-    lateral_fields: &HashSet<String>,
+    lateral_scope: LateralScope<'_>,
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     match source {
@@ -561,7 +591,7 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 *source,
                 catalog,
                 scope,
-                lateral_fields,
+                lateral_scope,
                 context,
             )?;
             super::aliases::columns(&source, &column_aliases, catalog, scope)?;
@@ -581,7 +611,7 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 *source,
                 catalog,
                 scope,
-                lateral_fields,
+                lateral_scope,
                 context,
             )?;
             Ok(QuerySource::TableSample {
@@ -595,20 +625,23 @@ pub(super) fn bind_query_source_with_lateral_fields(
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
         QuerySource::SingleRow => Ok(QuerySource::SingleRow),
         source @ QuerySource::TableFunction { .. } => {
-            bind_table_function(source, catalog, lateral_fields, context)
+            bind_table_function(source, catalog, &lateral_scope.visible(), context)
         }
         QuerySource::Subquery {
             alias,
             select,
             lateral,
         } => {
-            let empty = HashSet::new();
-            let visible_lateral_fields = if lateral { lateral_fields } else { &empty };
+            let visible_lateral_fields = if lateral {
+                lateral_scope.visible()
+            } else {
+                Cow::Owned(HashSet::new())
+            };
             let select = bind_select_with_lateral_fields(
                 *select,
                 catalog,
                 scope,
-                visible_lateral_fields,
+                &visible_lateral_fields,
                 context,
             )?;
             Ok(QuerySource::Subquery {
@@ -618,7 +651,7 @@ pub(super) fn bind_query_source_with_lateral_fields(
             })
         }
         join @ QuerySource::Join { .. } => {
-            bind_join_source_with_lateral_fields(join, catalog, scope, lateral_fields, context)
+            bind_join_source_with_lateral_fields(join, catalog, scope, lateral_scope, context)
         }
     }
 }
@@ -627,7 +660,7 @@ fn bind_join_source_with_lateral_fields(
     source: QuerySource,
     catalog: &Catalog,
     scope: &CteScope<'_>,
-    lateral_fields: &HashSet<String>,
+    lateral_scope: LateralScope<'_>,
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     let QuerySource::Join {
@@ -640,16 +673,21 @@ fn bind_join_source_with_lateral_fields(
         unreachable!("join source helper receives only joins")
     };
     let left =
-        bind_query_source_with_lateral_fields(*left, catalog, scope, lateral_fields, context)?;
-    let mut right_lateral_fields = lateral_fields.clone();
-    right_lateral_fields.extend(source_fields(catalog, &left, scope)?);
+        bind_query_source_with_lateral_fields(*left, catalog, scope, lateral_scope, context)?;
+    let preceding = join_fields(
+        lateral_scope.preceding.clone(),
+        source_fields(catalog, &left, scope)?,
+    );
     let mut right = *right;
     super::aliases::lower_lateral(&left, &mut right, catalog, scope)?;
     let right = bind_query_source_with_lateral_fields(
         right,
         catalog,
         scope,
-        &right_lateral_fields,
+        LateralScope {
+            preceding: &preceding,
+            ..lateral_scope
+        },
         context,
     )?;
     let mut joined = QuerySource::Join {
@@ -758,34 +796,39 @@ pub(super) fn source_fields(
             alias,
             projected_column_names(&select.projection),
         )),
-        QuerySource::Join { left, right, .. } => {
-            let mut fields = source_fields(catalog, left, scope)?;
-            let right_fields = source_fields(catalog, right, scope)?;
-            // Both sides of a join resolve the internal identity the same way
-            // (see `planner::logical::reserved_id`), so `_id`, and a bare `id`
-            // that means the identity on either side, are never ambiguous.
-            let id_is_identity = fields.contains(IDENTITY_ALIAS_MARKER)
-                || right_fields.contains(IDENTITY_ALIAS_MARKER);
-            let ambiguous = fields
-                .intersection(&right_fields)
-                .filter(|field| {
-                    !field.starts_with("__cassie_ambiguous__.")
-                        && crate::sql::ColumnIdentifierPath::parse(field)
-                            .is_ok_and(|column| !column.is_qualified())
-                })
-                .filter(|field| {
-                    !(is_row_identity_column(field)
-                        || (id_is_identity && is_legacy_id_column(field)))
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            for field in ambiguous {
-                fields.insert(format!("__cassie_ambiguous__.{field}"));
-            }
-            fields.extend(right_fields);
-            Ok(fields)
-        }
+        QuerySource::Join { left, right, .. } => Ok(join_fields(
+            source_fields(catalog, left, scope)?,
+            source_fields(catalog, right, scope)?,
+        )),
     }
+}
+
+fn join_fields(mut fields: HashSet<String>, right_fields: HashSet<String>) -> HashSet<String> {
+    if fields.is_empty() {
+        return right_fields;
+    }
+    // Both sides of a join resolve the internal identity the same way
+    // (see `planner::logical::reserved_id`), so `_id`, and a bare `id`
+    // that means the identity on either side, are never ambiguous.
+    let id_is_identity =
+        fields.contains(IDENTITY_ALIAS_MARKER) || right_fields.contains(IDENTITY_ALIAS_MARKER);
+    let ambiguous = fields
+        .intersection(&right_fields)
+        .filter(|field| {
+            !field.starts_with("__cassie_ambiguous__.")
+                && crate::sql::ColumnIdentifierPath::parse(field)
+                    .is_ok_and(|column| !column.is_qualified())
+        })
+        .filter(|field| {
+            !(is_row_identity_column(field) || (id_is_identity && is_legacy_id_column(field)))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    for field in ambiguous {
+        fields.insert(format!("__cassie_ambiguous__.{field}"));
+    }
+    fields.extend(right_fields);
+    fields
 }
 
 /// Marks a field set whose bare `id` is the internal-identity alias rather

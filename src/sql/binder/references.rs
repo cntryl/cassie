@@ -143,6 +143,27 @@ pub(super) fn validate_order_by_references(
     Ok(())
 }
 
+/// A local field shadows both the outer field and its ambiguity diagnostic.
+/// A duplicate in the local scope retains its own diagnostic.
+pub(super) fn fields_with_outer_scope(
+    local: HashSet<String>,
+    outer: &HashSet<String>,
+) -> HashSet<String> {
+    if outer.is_empty() {
+        return local;
+    }
+    let mut visible = outer
+        .iter()
+        .filter(|name| {
+            name.strip_prefix("__cassie_ambiguous__.")
+                .is_none_or(|field| !local.contains(field))
+        })
+        .cloned()
+        .collect::<HashSet<_>>();
+    visible.extend(local);
+    visible
+}
+
 pub(super) fn validate_column_reference(
     name: &str,
     known_fields: &HashSet<String>,

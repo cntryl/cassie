@@ -404,14 +404,14 @@ fn should_resolve_bare_lateral_columns_at_the_nearest_query_level() {
         "SELECT q.v FROM {outer} CROSS JOIN LATERAL \
          (SELECT y.v FROM orders o CROSS JOIN LATERAL (SELECT id AS v) y) q"
     ));
-    let inherited = fixture.execute(
-        "SELECT q.v FROM orders o CROSS JOIN LATERAL (SELECT seq AS v) q",
-    );
+    let inherited =
+        fixture.execute("SELECT q.v FROM orders o CROSS JOIN LATERAL (SELECT seq AS v) q");
     let ambiguous = [
         format!("SELECT q.v FROM {outer} CROSS JOIN LATERAL (SELECT id AS v) q"),
         format!("SELECT q.v FROM {outer}, orders o CROSS JOIN LATERAL (SELECT id AS v) q"),
         "SELECT q.v FROM customers c CROSS JOIN LATERAL \
-         (SELECT id AS v FROM orders o JOIN orders p ON o.id=p.id) q".to_owned(),
+         (SELECT id AS v FROM orders o JOIN orders p ON o.id=p.id) q"
+            .to_owned(),
     ]
     .map(|sql| fixture.error(&sql));
     let forward = fixture.error(
@@ -421,9 +421,15 @@ fn should_resolve_bare_lateral_columns_at_the_nearest_query_level() {
 
     // Assert
     for result in [local, shadowed, nested] {
-        assert_eq!(result.expect("nearest order id").rows(), &[vec![Value::Int64(12)]]);
+        assert_eq!(
+            result.expect("nearest order id").rows(),
+            &[vec![Value::Int64(12)]]
+        );
     }
-    assert_eq!(inherited.expect("outer sequence").rows(), &[vec![Value::Int64(6)]]);
+    assert_eq!(
+        inherited.expect("outer sequence").rows(),
+        &[vec![Value::Int64(6)]]
+    );
     for error in ambiguous {
         assert!(matches!(error, CassieError::AmbiguousColumn(name) if name == "id"));
     }

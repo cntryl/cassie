@@ -340,3 +340,41 @@ fn should_resolve_a_lateral_body_column_qualified_by_its_own_table() {
     );
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_preserve_lateral_inner_id_with_two_outer_id_columns() {
+    // Arrange
+    let fixture = super::support_sql_fixture::sql_fixture(
+        "lateral-inner-id-joined-outer",
+        &[
+            "CREATE TABLE customers (id INT PRIMARY KEY)",
+            "CREATE TABLE orders (id INT PRIMARY KEY, customer INT, seq INT)",
+            "INSERT INTO customers (id) VALUES (1),(2),(3)",
+            "INSERT INTO orders (id,customer,seq) VALUES (10,1,7),(11,1,7),(12,2,6)",
+        ],
+    );
+    let outer_sources = ["customers c", "customers c JOIN customers d ON c.id=d.id"];
+
+    // Act
+    let results = outer_sources.map(|outer| {
+        fixture.execute(&format!(
+            "SELECT c.id,q.latest FROM {outer} LEFT JOIN LATERAL \
+             (SELECT o.id AS latest FROM orders o WHERE o.customer=c.id \
+              ORDER BY o.seq DESC,o.id DESC LIMIT 1) q ON true ORDER BY c.id"
+        ))
+    });
+
+    // Assert
+    for (outer, result) in outer_sources.into_iter().zip(results) {
+        let result = result.unwrap_or_else(|error| panic!("{outer}: {error}"));
+        assert_eq!(
+            result.rows(),
+            [
+                vec![Value::Int64(1), Value::Int64(11)],
+                vec![Value::Int64(2), Value::Int64(12)],
+                vec![Value::Int64(3), Value::Null],
+            ],
+            "{outer}"
+        );
+    }
+}

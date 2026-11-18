@@ -25,12 +25,15 @@ the published owner before retiring it. Native `Internal` remains terminal and
 [Upstream fix and controlled regression](https://github.com/cntryl/midge/pull/1048)
 
 The package regression `should_return_retryable_create_when_drain_starts_strict_group`
-holds the native sync and checks the absent family before retry. Cassie's
-`should_preserve_concurrent_database_creates_across_retry_restart` synchronizes
-two real creators at catalog finalization. It checks the losing name is absent,
-retries that create once, and compares both physical owners and distinct
-sentinel values at the same key across a local reopen. The native and Cassie
-schedules are independently controlled. Broader native/background durability
+holds the native sync and checks that the physical family is absent from the
+Midge manifest before retry. Cassie's
+`should_preserve_concurrent_database_creates_across_retry_restart` coordinates
+two real creators with a catalog-finalization barrier. A worker whose create
+returns early joins the barrier after receiving its error. Before retrying the
+losing create once, the test checks that the logical database name has no
+registered metadata or routable handle. It then compares both physical owners
+and their distinct sentinel values at the same key across a local reopen.
+Broader native/background durability
 and physical power-loss or real-provider recovery remain open.
 [Cassie #1188](https://github.com/cntryl/cassie/issues/1188) · [Cassie #1271](https://github.com/cntryl/cassie/issues/1271)
 

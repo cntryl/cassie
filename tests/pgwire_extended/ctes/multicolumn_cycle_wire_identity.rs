@@ -89,3 +89,48 @@ fn should_return_typed_cycle_marks_for_multicolumn_keys() {
         ]
     );
 }
+
+#[test]
+fn should_describe_generated_cycle_columns_for_a_parameterized_walk() {
+    // Arrange
+    let sql = "WITH RECURSIVE walk(id) AS (SELECT $1::INT UNION ALL \
+               SELECT id FROM walk WHERE id=1) CYCLE id SET cy USING path \
+               SELECT id,cy,path FROM walk ORDER BY cy";
+    let frames = vec![
+        wire::parse_frame_with_types("", sql, &[23]),
+        wire::describe_statement_frame(""),
+        wire::bind_frame_with_formats("", "", &[0], &[Some(b"1")], &[]),
+        wire::describe_portal_frame(""),
+        wire::execute_frame(""),
+        wire::sync_frame(),
+    ];
+
+    // Act
+    let batches = run_script("cte-cycle-bound-seed", vec![Step::ThroughReady(frames)]);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let descriptions = result
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .map(|(_, body)| wire::parse_row_description(body))
+        .collect::<Vec<_>>();
+    assert_eq!(descriptions.len(), 2);
+    for columns in descriptions {
+        assert_eq!(
+            columns
+                .iter()
+                .map(|c| (c.name.as_str(), c.type_oid))
+                .collect::<Vec<_>>(),
+            [("id", 23), ("cy", 16), ("path", 2287)]
+        );
+    }
+    assert_eq!(
+        wire::data_rows(result),
+        [
+            vec![Some("1".into()), Some("f".into()), Some("{(1)}".into())],
+            vec![Some("1".into()), Some("t".into()), Some("{(1),(1)}".into())],
+        ]
+    );
+}

@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1787,
-    "rust_files": 1750,
-    "rust_test_declarations": 10611,
+    "files": 1788,
+    "rust_files": 1751,
+    "rust_test_declarations": 10617,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10636,
+    "registered_rust_instances": 10642,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -118586,6 +118586,68 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/conflicts/skipped_conflict_returning.rs::should_apply_only_newer_entity_revisions_over_simple_query",
+      "name": "should_apply_only_newer_entity_revisions_over_simple_query",
+      "current_file": "tests/pgwire_extended/conflicts/skipped_conflict_returning.rs",
+      "line": 197,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "skipped_conflict_returning::should_apply_only_newer_entity_revisions_over_simple_query"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "conflicts",
+        "directory": "tests/pgwire_extended/conflicts",
+        "file": "tests/pgwire_extended/conflicts/skipped_conflict_returning.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/conflicts/skipped_conflict_returning.rs::should_report_parameterized_entity_mutations",
+      "name": "should_report_parameterized_entity_mutations",
+      "current_file": "tests/pgwire_extended/conflicts/skipped_conflict_returning.rs",
+      "line": 224,
+      "end_line": 272,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "skipped_conflict_returning::should_report_parameterized_entity_mutations"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "conflicts",
+        "directory": "tests/pgwire_extended/conflicts",
+        "file": "tests/pgwire_extended/conflicts/skipped_conflict_returning.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/conflicts/unique_validation_errors.rs::should_preserve_predicate_error_given_null_index_key_when_transaction_is_active",
       "name": "should_preserve_predicate_error_given_null_index_key_when_transaction_is_active",
       "current_file": "tests/pgwire_extended/conflicts/unique_validation_errors.rs",
@@ -184368,6 +184430,99 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/transactions/projector_visibility.rs::should_publish_the_projector_pair_at_the_reader_isolation_boundary",
+      "name": "should_publish_the_projector_pair_at_the_reader_isolation_boundary",
+      "current_file": "tests/pgwire_extended/transactions/projector_visibility.rs",
+      "line": 102,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "projector_visibility::should_publish_the_projector_pair_at_the_reader_isolation_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/projector_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/projector_visibility.rs::should_discard_the_projector_pair_on_transaction_abort",
+      "name": "should_discard_the_projector_pair_on_transaction_abort",
+      "current_file": "tests/pgwire_extended/transactions/projector_visibility.rs",
+      "line": 143,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "projector_visibility::should_discard_the_projector_pair_on_transaction_abort"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/projector_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/projector_visibility.rs::should_reopen_the_pair_committed_after_savepoint_recovery",
+      "name": "should_reopen_the_pair_committed_after_savepoint_recovery",
+      "current_file": "tests/pgwire_extended/transactions/projector_visibility.rs",
+      "line": 164,
+      "end_line": 225,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "projector_visibility::should_reopen_the_pair_committed_after_savepoint_recovery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/projector_visibility.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/transactions/repeatable_cancellation.rs::should_recover_to_savepoint_with_the_retained_view_after_canceled_repeatable_read",
       "name": "should_recover_to_savepoint_with_the_retained_view_after_canceled_repeatable_read",
       "current_file": "tests/pgwire_extended/transactions/repeatable_cancellation.rs",
@@ -238717,6 +238872,37 @@
         {
           "suite": "sql_mutations",
           "name": "integration_sql_upsert_concurrency::should_restore_transactional_conflict_intent_with_savepoint_rollback"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "conflicts",
+        "directory": "tests/sql_mutations/conflicts",
+        "file": "tests/sql_mutations/conflicts/upsert_concurrency.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/conflicts/upsert_concurrency.rs::should_keep_the_highest_committed_entity_revision_in_both_writer_orders",
+      "name": "should_keep_the_highest_committed_entity_revision_in_both_writer_orders",
+      "current_file": "tests/sql_mutations/conflicts/upsert_concurrency.rs",
+      "line": 278,
+      "end_line": 351,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "integration_sql_upsert_concurrency::should_keep_the_highest_committed_entity_revision_in_both_writer_orders"
         }
       ],
       "attributes": [
@@ -340470,9 +340656,9 @@
       "current_file": "tests/pgwire_extended/conflicts/skipped_conflict_returning.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 148,
-      "sha256": "af745694102e20dc26b7fc2235c4bede4bf841859a4935d530aadbe66fb83494",
-      "test_declarations": 3,
+      "lines": 272,
+      "sha256": "2f5d7d43b055c2ac4160a3117c065b156024d82fc5dd4e58c99b37a886efd9bd",
+      "test_declarations": 5,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -344369,6 +344555,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/transactions/projector_visibility.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 225,
+      "sha256": "19af326dd7abbdfd36fa85ef5c879e2b81439c182ed13d4a8cdf5f8626b8bbca",
+      "test_declarations": 3,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/transactions/projector_visibility.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/transactions/repeatable_cancellation.rs",
       "role": "test_module",
       "action": "keep",
@@ -347533,8 +347734,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 235,
-      "sha256": "a02d4106208ba693ba49c239392de830a3d9214ac090287d767a702e4a570486",
+      "lines": 238,
+      "sha256": "6b816c393edd18e74ff335b7fd5e8b473380e42082bf1c05e06b88e405e82636",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -349258,9 +349459,9 @@
       "current_file": "tests/sql_mutations/conflicts/upsert_concurrency.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 277,
-      "sha256": "bc4baa8b516dc4fd5ce1bd80a8d749814d41ae65225d4f5334d84a3ec883de8e",
-      "test_declarations": 5,
+      "lines": 351,
+      "sha256": "e29191683ce6d69c6aa429afda60257aafbdc82c8e226cb87b0fd75cd83fa39f",
+      "test_declarations": 6,
       "registered_suites": [
         "sql_mutations"
       ],

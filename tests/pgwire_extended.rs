@@ -60,6 +60,9 @@ mod coalesce_promotion;
 #[path = "pgwire_extended/transactions/transaction_errors.rs"]
 mod transaction_errors;
 
+#[path = "pgwire_extended/transactions/projector_visibility.rs"]
+mod projector_visibility;
+
 #[path = "pgwire_extended/protocol/vector_carriers.rs"]
 mod pgwire_type_vector_carriers;
 

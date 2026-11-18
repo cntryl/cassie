@@ -96,8 +96,8 @@ impl Analyzer<'_> {
                 }
             }
         }
-        // SEARCH and CYCLE columns are exported by the completed CTE. Its
-        // recursive term binds only the declared input columns above.
+        // Generated columns belong to the exported schema, outside the
+        // declared column count used by the numeric fixed point above.
         if cte.search.is_some() || cte.cycle.is_some() {
             let mut schema = fields
                 .iter()

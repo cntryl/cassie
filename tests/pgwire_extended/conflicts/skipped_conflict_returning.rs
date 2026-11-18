@@ -221,7 +221,7 @@ fn bound_entity_command(statement: &str, parameters: &[&str]) -> Vec<Vec<u8>> {
 }
 
 #[test]
-fn should_report_applied_entity_revisions_and_crud_over_parameter_bind() {
+fn should_report_parameterized_entity_mutations() {
     // Arrange
     let parse = vec![
         wire::parse_frame_with_types(

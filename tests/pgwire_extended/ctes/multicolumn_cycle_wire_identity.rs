@@ -159,6 +159,18 @@ fn should_apply_cycle_field_oids_only_to_their_source() {
             ],
             vec!["2.5", "9", "1", "f", "{(1)}"],
         ),
+        (
+            "SELECT *,42::INT AS path FROM siblings CROSS JOIN walk ORDER BY walk.cy",
+            vec![
+                ("path", 1700),
+                ("cy", 23),
+                ("id", 23),
+                ("cy", 16),
+                ("path", 2287),
+                ("path", 23),
+            ],
+            vec!["2.5", "9", "1", "f", "{(1)}", "42"],
+        ),
     ];
     let mut steps = Vec::new();
     for (select, _, _) in &cases {

@@ -514,3 +514,91 @@ fn finite_f32(value: f64, context: &str) -> Result<f32, QueryError> {
     crate::vector::f64_to_finite_f32(value)
         .ok_or_else(|| QueryError::General(format!("{context} is outside f32 range")))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::CassieError;
+    use crate::config::CassieRuntimeLimits;
+    use crate::sql::ast::{CastIdentity, OrderExpr};
+    use crate::types::Vector;
+    use std::time::Instant;
+
+    #[test]
+    fn should_reserve_cast_query_vector_and_release_order_scratch() {
+        // Arrange
+        let distance = |operand| FunctionCall {
+            name: "vector_distance".into(),
+            args: vec![
+                Expr::Column("embedding".into()),
+                Expr::Cast {
+                    expr: Box::new(operand),
+                    data_type: DataType::Vector(Some(3)),
+                    source_type: None,
+                    identity: CastIdentity::Scalar,
+                },
+            ],
+            ..FunctionCall::default()
+        };
+        let plan = LogicalPlan {
+            command: None,
+            source: QuerySource::Collection("vectors".into()),
+            collection: "vectors".into(),
+            ctes: vec![],
+            distinct: false,
+            distinct_on: vec![],
+            projection: vec![
+                SelectItem::Column {
+                    name: "_id".into(),
+                    alias: None,
+                },
+                SelectItem::Function {
+                    function: distance(Expr::Param(0)),
+                    alias: Some("score".into()),
+                },
+            ],
+            filter: None,
+            group_by: vec![],
+            having: None,
+            order: vec![OrderExpr {
+                expr: Expr::Function(distance(Expr::StringLiteral("[1,0,0]".into()))),
+                direction: SortDirection::Asc,
+                nulls: None,
+            }],
+            limit: Some(Expr::IntegerLiteral(1)),
+            offset: None,
+            set: None,
+        };
+        let params = [Value::Vector(Vector::new(vec![1.0, 0.0, 0.0]))];
+        let vector_bytes = 3 * std::mem::size_of::<f32>();
+        let controls = |budget| {
+            QueryExecutionControls::from_limits(
+                &CassieRuntimeLimits {
+                    query_memory_budget_bytes: budget,
+                    ..CassieRuntimeLimits::default()
+                },
+                Instant::now(),
+            )
+        };
+        let just_below = controls(2 * vector_bytes - 1);
+        let exact = controls(2 * vector_bytes);
+
+        // Act
+        let rejected = vector_distance_top_k_spec(&plan, &params, &just_below);
+        let admitted = vector_distance_top_k_spec(&plan, &params, &exact)
+            .expect("admit exactly two query-vector buffers")
+            .expect("select native vector top-k");
+
+        // Assert
+        assert!(matches!(
+            rejected.map_err(CassieError::from),
+            Err(CassieError::ResourceLimit(_))
+        ));
+        assert_eq!(just_below.current_query_memory_bytes(), 0);
+        assert_eq!(exact.peak_query_memory_bytes(), 2 * vector_bytes);
+        assert_eq!(exact.current_query_memory_bytes(), vector_bytes);
+        assert_eq!(admitted.query, vec![1.0, 0.0, 0.0]);
+        drop(admitted);
+        assert_eq!(exact.current_query_memory_bytes(), 0);
+    }
+}

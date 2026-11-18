@@ -2,11 +2,14 @@ use super::support_sql as support;
 
 use std::sync::{Arc, Barrier};
 
-use cassie::app::{Cassie, CassieError};
+use cassie::app::{Cassie, CassieError, StorageRetryKind};
+use cassie::catalog::DatabaseMeta;
+use cassie::config::CassieRuntimeConfig;
 use cassie::midge::adapter::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
     set_schema_write_commit_barriers, SchemaWritePausePoint,
 };
+use cntryl_midge::{TransactionMode, WriteOptions};
 
 #[test]
 fn should_abort_one_conflicting_table_create_before_reusing_object_id() {
@@ -156,10 +159,13 @@ fn should_retry_one_conflicting_nextval_before_returning_unique_values() {
 #[test]
 fn should_preserve_concurrent_database_creates_across_retry_restart() {
     // Arrange
-    support::use_local_storage();
     let _test_guard = schema_write_conflict_test_guard();
     let path = support::data_dir("database-write-conflicts");
-    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+    let open = || {
+        Cassie::new_local_with_data_dir_and_config(&path, CassieRuntimeConfig::default())
+            .expect("open local Cassie")
+    };
+    let cassie = Arc::new(open());
     cassie.startup().expect("start Cassie");
     let ready = Arc::new(Barrier::new(3));
     let resume = Arc::new(Barrier::new(3));
@@ -183,52 +189,97 @@ fn should_preserve_concurrent_database_creates_across_retry_restart() {
     // Act
     resume.wait();
     let outcomes = workers.map(|worker| worker.join().expect("join database worker"));
-    let mut successes = 0_usize;
-    let mut losing_database = None;
-    for (database, result) in outcomes {
-        match result {
-            Ok(()) => successes += 1,
-            Err(CassieError::StorageRetryable(message))
-                if message
-                    .to_ascii_lowercase()
-                    .starts_with("midge write conflict") =>
-            {
-                losing_database = Some(database);
-            }
-            Err(error) => panic!("unexpected database creation error: {error}"),
+    let (winner, loser, error) = match outcomes {
+        [(winner, Ok(())), (loser, Err(error))] | [(loser, Err(error)), (winner, Ok(()))] => {
+            (winner, loser, error)
         }
-    }
-    assert_eq!(successes, 1, "one database creation should commit");
+        other => panic!("expected one successful create and one conflict or stall: {other:?}"),
+    };
+    let CassieError::StorageRetryable(retry) = error else {
+        panic!("unexpected database creation error: {error}");
+    };
+    assert!(
+        matches!(
+            retry.kind(),
+            StorageRetryKind::WriteConflict | StorageRetryKind::WriteStall
+        ),
+        "unexpected retryable error: {retry}"
+    );
+    eprintln!(
+        "concurrent create: {winner} succeeded, {loser} returned {:?}",
+        retry.kind()
+    );
+    assert!(cassie.midge.get_database(loser).unwrap().is_none());
+    assert!(matches!(
+        cassie.midge.database_family(loser),
+        Err(CassieError::NotFound(_))
+    ));
+
+    let winner_owner = write_database_sentinel(&cassie, winner);
     cassie
         .midge
-        .create_database(losing_database.expect("one losing database creation"), None)
-        .expect("retry database creation");
-    let names_before_restart = cassie
-        .midge
-        .list_databases()
-        .expect("list databases before restart")
-        .into_iter()
-        .map(|database| database.name)
-        .collect::<Vec<_>>();
-    assert!(names_before_restart.contains(&"database_conflict_alpha".to_string()));
-    assert!(names_before_restart.contains(&"database_conflict_beta".to_string()));
+        .create_database(loser, None)
+        .expect("retry losing create");
+    let loser_owner = write_database_sentinel(&cassie, loser);
+    assert_ne!(winner_owner.physical_family, loser_owner.physical_family);
+    let owners = [winner_owner, loser_owner];
+    assert_database_sentinels(&cassie, &owners);
+    let registry = cassie.midge.list_databases().expect("read live registry");
+    assert!(owners.iter().all(|owner| registry.contains(owner)));
     drop(cassie);
-    let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    let restarted = open();
     restarted.startup().expect("restart Cassie");
 
     // Assert
-    let names_after_restart = restarted
-        .midge
-        .list_databases()
-        .expect("list databases after restart")
-        .into_iter()
-        .map(|database| database.name)
-        .collect::<Vec<_>>();
-    assert!(names_after_restart.contains(&"database_conflict_alpha".to_string()));
-    assert!(names_after_restart.contains(&"database_conflict_beta".to_string()));
-    assert!(restarted.catalog.database_exists("database_conflict_alpha"));
-    assert!(restarted.catalog.database_exists("database_conflict_beta"));
-
+    assert_eq!(restarted.midge.list_databases().unwrap(), registry);
+    for owner in &owners {
+        assert_eq!(
+            restarted.catalog.get_database(&owner.name).as_ref(),
+            Some(owner)
+        );
+    }
+    assert_database_sentinels(&restarted, &owners);
     drop(restarted);
-    let _ = std::fs::remove_dir_all(path);
+    std::fs::remove_dir_all(path).expect("remove reopened local store");
+}
+
+const DATABASE_SENTINEL: &[u8] = b"database-create-retry-sentinel";
+
+fn write_database_sentinel(cassie: &Cassie, database: &str) -> DatabaseMeta {
+    let owner = cassie
+        .midge
+        .get_database(database)
+        .unwrap()
+        .expect("registered owner");
+    assert_eq!(owner.name, database);
+    let mut tx = cassie
+        .midge
+        .database_tx(database, TransactionMode::ReadWrite)
+        .expect("open database for sentinel");
+    tx.put(
+        DATABASE_SENTINEL.to_vec(),
+        database.as_bytes().to_vec(),
+        None,
+    )
+    .unwrap();
+    tx.commit(WriteOptions::sync()).expect("persist sentinel");
+    owner
+}
+
+fn assert_database_sentinels(cassie: &Cassie, owners: &[DatabaseMeta]) {
+    for owner in owners {
+        let family = cassie
+            .midge
+            .database_family(&owner.name)
+            .expect("resolve physical family");
+        assert_eq!(family.name(), owner.physical_family);
+        assert_eq!(
+            cassie
+                .midge
+                .raw_get_database(&owner.name, DATABASE_SENTINEL)
+                .unwrap()
+                .as_deref(),
+            Some(owner.name.as_bytes())
+        );
+    }
 }

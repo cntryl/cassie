@@ -292,7 +292,7 @@ fn should_infer_text_type_for_all_unknown_union_branches() {
 }
 
 #[test]
-fn should_describe_and_encode_mixed_integer_set_outputs_as_bigint() {
+fn should_expose_mixed_integer_set_outputs_as_bigint() {
     // Arrange
     let sql = "SELECT NULL::INT AS n UNION ALL SELECT 9007199254740993::BIGINT \
                ORDER BY n NULLS FIRST";

@@ -99,7 +99,7 @@ async fn close_connection(mut socket: TcpStream) {
 }
 
 #[test]
-fn should_publish_the_order_and_checkpoint_at_the_reader_isolation_boundary() {
+fn should_publish_the_projector_pair_at_the_reader_isolation_boundary() {
     // Arrange
     for (begin, after_commit) in [
         (
@@ -140,7 +140,7 @@ fn should_publish_the_order_and_checkpoint_at_the_reader_isolation_boundary() {
 }
 
 #[test]
-fn should_discard_the_order_and_checkpoint_on_rollback_and_disconnect() {
+fn should_discard_the_projector_pair_on_transaction_abort() {
     // Arrange
     run(async {
         let (server, mut writer, mut reader) =

@@ -444,7 +444,14 @@ fn should_parse_chained_set_operation() {
         panic!("expected select statement");
     };
     let set = statement.set.expect("set operation expected");
-    assert!(set.right.set.is_some());
+    let QuerySource::Subquery { select: left, .. } = statement.source else {
+        panic!("the first pair must resolve its common type before the third operand");
+    };
+    assert!(matches!(set.operator, SetOperator::UnionAll));
+    assert!(set.right.set.is_none());
+    let first_pair = left.set.expect("left operand contains the first UNION ALL");
+    assert!(matches!(first_pair.operator, SetOperator::UnionAll));
+    assert!(first_pair.right.set.is_none());
 }
 
 #[test]

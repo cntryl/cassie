@@ -5,6 +5,12 @@ use super::{
     DatabaseLifecycleRecord, DatabaseMeta, Midge, Query, TransactionMode, Uuid,
 };
 
+enum FamilyRecovery {
+    Keep,
+    EnsurePresent,
+    DropIfPresent,
+}
+
 impl Midge {
     pub(super) fn replay_database_lifecycle_under_guard(
         &self,
@@ -28,40 +34,22 @@ impl Midge {
         }
         drop(tx);
 
-        for record in records {
-            match record.kind {
-                DatabaseLifecycleKind::Create => {
-                    let metadata = self.load_database_without_layout(&record.name, schema)?;
-                    match metadata {
-                        Some(metadata) => {
-                            if metadata.physical_family != record.physical_family {
-                                self.validate_replacement_owner(schema, &record, &metadata)?;
-                            } else if self
-                                .engine
-                                .get_column_family(&record.physical_family)
-                                .is_none()
-                            {
-                                let _ = self.create_physical_family(&record.physical_family)?;
-                            }
-                        }
-                        None => {
-                            self.drop_physical_family_if_present(&record.physical_family)?;
-                        }
-                    }
+        // Decide against the recovered state before an earlier journal entry can
+        // create or drop a family which a later mismatch requires us to inspect.
+        let actions = records
+            .iter()
+            .map(|record| self.family_recovery(schema, record, &records))
+            .collect::<Result<Vec<_>, _>>()?;
+        for (record, action) in records.into_iter().zip(actions) {
+            match action {
+                FamilyRecovery::Keep => {}
+                FamilyRecovery::EnsurePresent => {
+                    self.create_physical_family(&record.physical_family)?;
                 }
-                DatabaseLifecycleKind::Drop => {
-                    // A drop journal is only destructive once the catalog record
-                    // is gone. If recovery finds it still present, preserve the
-                    // active database and discard the stale journal.
-                    if self
-                        .load_database_without_layout(&record.name, schema)?
-                        .is_none()
-                    {
-                        self.drop_physical_family_if_present(&record.physical_family)?;
-                    }
+                FamilyRecovery::DropIfPresent => {
+                    self.drop_physical_family_if_present(&record.physical_family)?;
                 }
             }
-
             let mut cleanup =
                 self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
             Self::delete_lifecycle_record(&mut cleanup, &record.operation_id)?;
@@ -70,6 +58,36 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
         Ok(())
+    }
+
+    fn family_recovery(
+        &self,
+        schema: &ColumnFamilyHandle,
+        record: &DatabaseLifecycleRecord,
+        journal: &[DatabaseLifecycleRecord],
+    ) -> Result<FamilyRecovery, CassieError> {
+        let metadata = self.load_database_without_layout(&record.name, schema)?;
+        match (&record.kind, metadata) {
+            (_, None) => Ok(FamilyRecovery::DropIfPresent),
+            (DatabaseLifecycleKind::Drop, Some(_)) => Ok(FamilyRecovery::Keep),
+            (DatabaseLifecycleKind::Create, Some(owner))
+                if owner.physical_family == record.physical_family =>
+            {
+                Ok(FamilyRecovery::EnsurePresent)
+            }
+            (DatabaseLifecycleKind::Create, Some(replacement)) => {
+                self.validate_replacement_owner(schema, record, &replacement)?;
+                if journal.iter().any(|other| {
+                    other.name != record.name
+                        && (other.physical_family == record.physical_family
+                            || other.physical_family == replacement.physical_family)
+                }) {
+                    return Err(record
+                        .family_mismatch("another database journal references the same family"));
+                }
+                Ok(FamilyRecovery::Keep)
+            }
+        }
     }
 
     // Called only for a mismatched Create during cold bootstrap. The schema

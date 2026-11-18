@@ -36,8 +36,11 @@ operation ID and validates the generated family identities. The recovered
 registry must identify exactly one owner for the replacement family, under the
 same database name, and no owner for the journaled family. A successful Midge
 family listing must show the replacement present and the journaled family
-absent. Under the schema publication guard, Cassie then synchronously deletes
-only that intent. The published family retains its identity and rows across
+absent. Cassie checks this evidence under the schema publication guard before
+replaying any entry, so another pending operation cannot change the evidence.
+A journal for a different database that claims either family makes ownership
+ambiguous. For a proven replacement, Cassie synchronously deletes only the
+obsolete intent. The published family retains its identity and rows across
 subsequent restarts. Ambiguous ownership, invalid records, and storage errors
 fail startup.
 This layout has not shipped. No migration utility is required: every

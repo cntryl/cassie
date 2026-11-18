@@ -478,7 +478,17 @@ pub(super) fn lower_select(
         .projection
         .iter()
         .any(|item| qualified_wildcard_name(item).is_some());
-    if !has_alias(&select.source) && !has_qualified_wildcard {
+    // Expand a generated CTE's bare wildcard while each input column still
+    // has a source. Output labels may repeat across a join or a later item.
+    let generated_wildcard = select
+        .projection
+        .iter()
+        .any(|item| matches!(item, SelectItem::Wildcard))
+        && select.ctes.iter().any(|cte| {
+            (cte.search.is_some() || cte.cycle.is_some())
+                && super::validation::source_cte_reference_count(&select.source, &cte.name) > 0
+        });
+    if !has_alias(&select.source) && !has_qualified_wildcard && !generated_wildcard {
         return Ok(());
     }
     let mut spaces = Vec::new();

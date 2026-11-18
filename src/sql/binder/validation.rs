@@ -952,7 +952,7 @@ pub(super) fn recursive_cte_reference_count(statement: &ParsedStatement, cte_nam
     }
 }
 
-fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
+pub(super) fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
     match source {
         QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
             source_cte_reference_count(source, cte_name)

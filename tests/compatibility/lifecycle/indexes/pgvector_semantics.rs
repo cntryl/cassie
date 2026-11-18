@@ -373,7 +373,8 @@ fn should_enforce_vector_casts_with_or_without_ann_index() {
                 "INSERT INTO unindexed_vectors VALUES (1, '[1,0,0]'::vector), (2, '[0,1,0]'::vector)",
                 "CREATE TABLE indexed_vectors (id INT, embedding VECTOR(3))",
                 "INSERT INTO indexed_vectors VALUES (1, '[1,0,0]'::vector), (2, '[0,1,0]'::vector)",
-                "CREATE INDEX indexed_vectors_hnsw ON indexed_vectors +                 USING hnsw (embedding vector_l2_ops) WITH (m = 4, ef_construction = 16)",
+                "CREATE INDEX indexed_vectors_hnsw ON indexed_vectors \
+                 USING hnsw (embedding vector_l2_ops) WITH (m = 4, ef_construction = 16)",
             ],
         )
         .await

@@ -71,7 +71,7 @@ pub(super) fn resolve<S: BuildHasher>(
         .iter()
         .map(|entry| entry.map_or(1, |stats| stats.row_count.max(1)))
         .collect();
-    let labels = sources.iter().map(|source| source.to_string()).collect();
+    let labels = sources.iter().map(ToString::to_string).collect();
     let mut resolver = Resolver {
         sources,
         stats,

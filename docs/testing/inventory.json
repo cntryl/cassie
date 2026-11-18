@@ -329805,8 +329805,8 @@
       }
     },
     {
-      "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_respect_distinct_ordering_vector_and_cast_in_top_k",
-      "name": "should_respect_distinct_ordering_vector_and_cast_in_top_k",
+      "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_validate_top_k_given_a_distinct_ordering_operand",
+      "name": "should_validate_top_k_given_a_distinct_ordering_operand",
       "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
       "line": 208,
       "end_line": 242,
@@ -329817,7 +329817,7 @@
       "instances": [
         {
           "suite": "vector_embeddings",
-          "name": "vector_read_equivalence::should_respect_distinct_ordering_vector_and_cast_in_top_k"
+          "name": "vector_read_equivalence::should_validate_top_k_given_a_distinct_ordering_operand"
         }
       ],
       "attributes": [
@@ -357423,7 +357423,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 374,
-      "sha256": "49dd4e99ae1103d01e659ddb78b7b43ebe8ac95c3c288dc8e49ff606b398dff6",
+      "sha256": "2ef43c30cf157fc3aa8cc40052c76bb9923487e148c0768af2e8185f2695a558",
       "test_declarations": 10,
       "registered_suites": [
         "vector_embeddings"

@@ -136,21 +136,32 @@ pub(super) fn bind_select_with_lateral_fields(
     super::coalesce_results::validate_select(&select, catalog, context)?;
 
     if let Some(set) = set {
-        // The right branch of a lateral derived table sees the same outer-row columns.
-        let right =
-            bind_select_with_lateral_fields(*set.right, catalog, &scope, lateral_fields, context)?;
-        select.set = Some(Box::new(SelectSet {
-            operator: set.operator,
-            right: Box::new(right),
-        }));
-        super::set_width::validate_set_operand_widths(&select, catalog)?;
-        super::set_width::validate_set_operand_types(&select, catalog, context, &scope)?;
+        bind_set_operand(&mut select, *set, catalog, &scope, lateral_fields, context)?;
     }
 
     validate_functions(&select, catalog, context)?;
     super::search_field_case::canonicalize_search_field_arguments(&mut select, catalog);
 
     Ok(select)
+}
+
+fn bind_set_operand(
+    select: &mut SelectStatement,
+    set: SelectSet,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    lateral_fields: &HashSet<String>,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    // The right branch of a lateral derived table sees the same outer-row columns.
+    let right =
+        bind_select_with_lateral_fields(*set.right, catalog, scope, lateral_fields, context)?;
+    select.set = Some(Box::new(SelectSet {
+        operator: set.operator,
+        right: Box::new(right),
+    }));
+    super::set_width::validate_set_operand_widths(select, catalog)?;
+    super::set_width::validate_set_operand_types(select, catalog, context, scope)
 }
 
 fn register_cte_name(name: &str, local_names: &mut HashSet<String>) -> Result<String, CassieError> {

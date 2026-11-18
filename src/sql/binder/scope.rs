@@ -19,12 +19,17 @@ impl CteBinding {
 pub(super) struct CteScope<'a> {
     bindings: HashMap<String, CteBinding>,
     controls: Option<&'a QueryExecutionControls>,
+    pub(super) declared_oids: &'a [i32],
 }
 impl<'a> CteScope<'a> {
-    pub(super) fn new(controls: Option<&'a QueryExecutionControls>) -> Self {
+    pub(super) fn new(
+        controls: Option<&'a QueryExecutionControls>,
+        declared_oids: &'a [i32],
+    ) -> Self {
         Self {
             bindings: HashMap::new(),
             controls,
+            declared_oids,
         }
     }
     pub(super) fn controls(&self) -> Option<&'a QueryExecutionControls> {
@@ -46,7 +51,7 @@ impl FromIterator<(String, CteBinding)> for CteScope<'_> {
     fn from_iter<T: IntoIterator<Item = (String, CteBinding)>>(iter: T) -> Self {
         Self {
             bindings: iter.into_iter().collect(),
-            controls: None,
+            ..Self::default()
         }
     }
 }

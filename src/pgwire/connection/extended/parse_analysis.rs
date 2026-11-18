@@ -50,9 +50,12 @@ pub(super) fn admit(
     .map_err(|error| ExtendedQueryError::parameter_admission(error, controls))?;
     // Bind source/name/input semantics without planning, before final slot
     // validation and before making the prepared statement visible.
-    crate::sql::parse_analysis::validate(
+    // An omitted Parse OID may have a legacy fallback in the admitted list.
+    // Set category checks must distinguish that from an explicit type declaration.
+    crate::sql::parse_analysis::validate_with_declared_types(
         parsed,
         admitted.types(),
+        parameter_type_oids,
         &scoped_cassie.catalog,
         &scoped_cassie.binding_context_for_session(Some(session)),
         controls,

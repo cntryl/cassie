@@ -65,7 +65,7 @@ pub(in crate::sql::binder) fn validate(
             catalog,
             &ctes,
             &functions,
-            &[],
+            scope.declared_oids,
             None,
             inference::ProjectionMode::SetOperand,
         )

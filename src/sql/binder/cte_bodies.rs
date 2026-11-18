@@ -131,7 +131,7 @@ fn bind_owned(
         }
         if let CteQuery::Simple(statement) = cte.query {
             let statement =
-                super::bind_statement(*statement, catalog, &super::CteScope::new(None), context)?;
+                super::bind_statement(*statement, catalog, &super::CteScope::default(), context)?;
             cte.query = CteQuery::Simple(Box::new(statement));
         }
         bound.push(cte);

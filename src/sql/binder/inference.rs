@@ -8,10 +8,14 @@ pub(crate) use expressions::{
 #[path = "inference_types.rs"]
 mod types;
 pub(crate) use types::common_case_type;
+#[path = "inference_projection.rs"]
+mod projection;
+use projection::projection_schema;
 #[path = "inference_aliases.rs"]
 mod aliases;
 #[path = "inference_set.rs"]
 mod set;
+pub(super) use set::common_set_numeric_type;
 
 use super::{
     virtual_views, BinaryOp, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr,
@@ -95,6 +99,41 @@ pub(super) fn infer_select_schema_with_outer(
     parameter_types: &[i32],
     outer_fields: Option<&Schema>,
 ) -> Result<Schema, CassieError> {
+    select_schema(
+        select,
+        catalog,
+        outer_ctes,
+        user_functions,
+        parameter_types,
+        outer_fields,
+        ProjectionMode::Output,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ProjectionMode {
+    Output,
+    SetOperand,
+}
+
+impl ProjectionMode {
+    fn unresolved(self) -> DataType {
+        match self {
+            Self::Output => DataType::Text,
+            Self::SetOperand => DataType::Null,
+        }
+    }
+}
+
+pub(super) fn select_schema(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    outer_ctes: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+    outer_fields: Option<&Schema>,
+    mode: ProjectionMode,
+) -> Result<Schema, CassieError> {
     let mut cte_schemas = outer_ctes.clone();
     for cte in &select.ctes {
         let schema = infer_cte_schema_with_parameters(
@@ -149,16 +188,18 @@ pub(super) fn infer_select_schema_with_outer(
         user_functions,
         parameter_types,
         &wildcard_context,
+        mode,
     )?;
 
     if let Some(set) = &select.set {
-        let right_schema = infer_select_schema_with_outer(
+        let right_schema = select_schema(
             &set.right,
             catalog,
             &cte_schemas,
             user_functions,
             parameter_types,
             outer_fields,
+            mode,
         )?;
         if fields.fields.len() != right_schema.fields.len() {
             return Err(CassieError::Planner(format!(
@@ -167,7 +208,7 @@ pub(super) fn infer_select_schema_with_outer(
                 right_schema.fields.len()
             )));
         }
-        set::inherit_unknown_union_types(&mut fields, &right_schema, set.operator);
+        set::resolve_set_types(&mut fields, &right_schema, set.operator);
     }
 
     for group_expr in &select.group_by {
@@ -560,71 +601,13 @@ pub(super) fn infer_projection_schema_with_parameters(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
 ) -> Schema {
-    let mut fields = Vec::new();
-    for item in projection {
-        match item {
-            SelectItem::Wildcard => fields.extend(source_schema.fields.iter().cloned()),
-            SelectItem::Column { name, alias } => {
-                let output_name = alias.clone().unwrap_or_else(|| {
-                    crate::sql::ColumnIdentifierPath::parse(name)
-                        .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
-                });
-                fields.push(FieldSchema {
-                    name: output_name,
-                    data_type: schema_field_type(source_schema, name).unwrap_or(DataType::Text),
-                    nullable: true,
-                });
-            }
-            SelectItem::Function { function, alias } => {
-                let output_name = alias
-                    .as_deref()
-                    .unwrap_or(function.name.as_str())
-                    .to_string();
-                fields.push(FieldSchema {
-                    name: output_name,
-                    data_type: infer_function_return_type(
-                        function,
-                        source_schema,
-                        user_functions,
-                        parameter_types,
-                    )
-                    .unwrap_or(DataType::Text),
-                    nullable: true,
-                });
-            }
-            SelectItem::Expr { expr, alias } => {
-                fields.push(FieldSchema {
-                    name: alias.as_deref().unwrap_or("expr").to_string(),
-                    data_type: infer_expr_type(
-                        expr,
-                        source_schema,
-                        user_functions,
-                        parameter_types,
-                    )
-                    .unwrap_or(DataType::Text),
-                    nullable: true,
-                });
-            }
-            SelectItem::WindowFunction { function, alias } => {
-                let data_type = super::infer_window_return_type(
-                    function,
-                    source_schema,
-                    user_functions,
-                    parameter_types,
-                );
-                fields.push(FieldSchema {
-                    name: alias
-                        .as_deref()
-                        .unwrap_or(function.name.as_str())
-                        .to_string(),
-                    data_type,
-                    nullable: false,
-                });
-            }
-        }
-    }
-
-    Schema { fields }
+    projection_schema(
+        projection,
+        source_schema,
+        user_functions,
+        parameter_types,
+        ProjectionMode::Output,
+    )
 }
 
 pub(crate) fn infer_projection_expr_type(
@@ -649,6 +632,7 @@ fn infer_select_projection_schema(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
     wildcard_context: &QualifiedWildcardContext<'_, '_>,
+    mode: ProjectionMode,
 ) -> Result<Schema, CassieError> {
     let mut fields = Vec::new();
     for item in projection {
@@ -671,11 +655,12 @@ fn infer_select_projection_schema(
             _ => std::slice::from_ref(item).to_vec(),
         };
         fields.extend(
-            infer_projection_schema_with_parameters(
+            projection_schema(
                 &expanded,
                 wildcard_context.lookup,
                 user_functions,
                 parameter_types,
+                mode,
             )
             .fields,
         );

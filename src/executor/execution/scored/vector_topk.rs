@@ -4,6 +4,8 @@ use super::{
     SortDirection, Value,
 };
 use crate::runtime::QueryExecutionControls;
+use crate::types::DataType;
+use crate::vector::text::visit_components_with_dimension;
 
 #[path = "vector_topk/candidate.rs"]
 mod candidate;
@@ -299,10 +301,16 @@ fn vector_distance_top_k_spec(
     }
     let (id_column, function, score_column) =
         vector_distance_projection(plan.projection.as_slice())?;
-    if !order_matches_vector_distance_score(&plan.order[0], function, &score_column, params) {
+    let (vector_field, query) = vector_distance_args(function, params)?;
+    if !order_matches_vector_distance_score(
+        &plan.order[0],
+        &score_column,
+        &vector_field,
+        &query,
+        params,
+    ) {
         return None;
     }
-    let (vector_field, query) = vector_distance_args(function, params)?;
     Some(VectorDistanceTopKSpec {
         collection: collection.to_string(),
         vector_field,
@@ -344,9 +352,9 @@ fn operator_top_k_spec(
             score_alias.is_some()
                 && crate::sql::ColumnIdentifierPath::matches_stored_field(column, &score_column)
         }
-        other => {
-            operator_l2_args(other, params).as_ref() == Some(&(vector_field.clone(), query.clone()))
-        }
+        other => operator_l2_args(other, params).is_some_and(|(order_field, order_query)| {
+            order_field == vector_field && order_query == query
+        }),
     };
     if !order_matches {
         return None;
@@ -376,20 +384,7 @@ fn operator_l2_args(expr: &Expr, params: &[Value]) -> Option<(String, Vec<f32>)>
     let Expr::Column(vector_field) = left.as_ref() else {
         return None;
     };
-    let mut literal = right.as_ref();
-    while let Expr::Cast { expr, .. } = literal {
-        literal = expr.as_ref();
-    }
-    let query = match literal {
-        Expr::StringLiteral(query) => parse_vector_literal(query)?,
-        Expr::Param(index) => match params.get(*index)? {
-            Value::String(query) => parse_vector_literal(query)?,
-            Value::Vector(query) => crate::vector::finite_f32_vector(&query.values)?,
-            _ => return None,
-        },
-        _ => return None,
-    };
-    Some((vector_field.clone(), query))
+    Some((vector_field.clone(), vector_query_operand(right, params)?))
 }
 
 fn vector_distance_projection(
@@ -420,8 +415,9 @@ fn vector_distance_projection(
 
 fn order_matches_vector_distance_score(
     order: &crate::sql::ast::OrderExpr,
-    function: &FunctionCall,
     score_column: &str,
+    vector_field: &str,
+    query: &[f32],
     params: &[Value],
 ) -> bool {
     match &order.expr {
@@ -430,30 +426,68 @@ fn order_matches_vector_distance_score(
         }
         Expr::Function(order_function) => {
             order_function.name.eq_ignore_ascii_case("vector_distance")
-                && vector_distance_args(order_function, params)
-                    == vector_distance_args(function, params)
+                && vector_distance_args(order_function, params).is_some_and(
+                    |(order_field, order_query)| {
+                        order_field == vector_field && order_query.as_slice() == query
+                    },
+                )
         }
         _ => false,
     }
 }
 
 fn vector_distance_args(function: &FunctionCall, params: &[Value]) -> Option<(String, Vec<f32>)> {
-    if function.args.len() != 2 {
-        return None;
-    }
-    let Expr::Column(vector_field) = &function.args[0] else {
+    let [Expr::Column(vector_field), operand] = function.args.as_slice() else {
         return None;
     };
-    let query = match &function.args[1] {
-        Expr::StringLiteral(query) => parse_vector_literal(query)?,
+    Some((vector_field.clone(), vector_query_operand(operand, params)?))
+}
+
+fn vector_query_operand(mut operand: &Expr, params: &[Value]) -> Option<Vec<f32>> {
+    let explicit_cast = matches!(operand, Expr::Cast { .. });
+    let mut expected_dimensions = None;
+    // Only vector casts preserve the operand. Enforce every fixed dimension
+    // in a cast chain and leave failed casts to the generic evaluator.
+    while let Expr::Cast {
+        expr, data_type, ..
+    } = operand
+    {
+        let DataType::Vector(dimensions) = data_type else {
+            return None;
+        };
+        if let Some(dimensions) = *dimensions {
+            if expected_dimensions.is_some_and(|expected| expected != dimensions) {
+                return None;
+            }
+            expected_dimensions = Some(dimensions);
+        }
+        operand = expr;
+    }
+    let text = match operand {
+        Expr::StringLiteral(query) => query,
         Expr::Param(index) => match params.get(*index)? {
-            Value::String(query) => parse_vector_literal(query)?,
-            Value::Vector(query) => crate::vector::finite_f32_vector(&query.values)?,
+            Value::String(query) => query,
+            Value::Vector(query) => {
+                let dimensions = query.dimension();
+                if explicit_cast
+                    && (!(1..=16_000).contains(&dimensions)
+                        || expected_dimensions.is_some_and(|expected| expected != dimensions))
+                {
+                    return None;
+                }
+                return crate::vector::finite_f32_vector(&query.values);
+            }
             _ => return None,
         },
         _ => return None,
     };
-    Some((vector_field.clone(), query))
+    if !explicit_cast {
+        return parse_vector_literal(text);
+    }
+    let dimensions = visit_components_with_dimension(text, expected_dimensions, |_| {}).ok()?;
+    let mut query = Vec::with_capacity(dimensions);
+    visit_components_with_dimension(text, Some(dimensions), |value| query.push(value)).ok()?;
+    Some(query)
 }
 
 pub(crate) fn parse_vector_literal(value: &str) -> Option<Vec<f32>> {

@@ -38,12 +38,22 @@ pub(crate) fn cte_row_fields(
     catalog: &Catalog,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> Result<Vec<FieldSchema>, CassieError> {
+    cte_row_fields_with_parameters(cte, scope, catalog, user_functions, &[])
+}
+
+pub(super) fn cte_row_fields_with_parameters(
+    cte: &CommonTableExpression,
+    scope: &WildcardScope,
+    catalog: &Catalog,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Result<Vec<FieldSchema>, CassieError> {
     let resolved = cte_scope(
         std::slice::from_ref(cte),
         scope,
         catalog,
         user_functions,
-        &[],
+        parameter_types,
     )?;
     Ok(resolved.get(&cte.name).cloned().unwrap_or_default())
 }

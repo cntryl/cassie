@@ -76,6 +76,12 @@ fn should_preserve_published_database_after_interrupted_create_retry_on_restart(
     let cassie = open(&path);
     cassie.startup().expect("initialize local store");
     let (intent, replacement) = retry_create(&cassie);
+    let key = key_encoding::database_lifecycle_key(&intent.operation_id);
+    let mut expected = stored_families(&cassie.midge);
+    expected
+        .get_mut(super::super::SCHEMA_FAMILY_NAME)
+        .unwrap()
+        .retain(|(entry, _)| entry != &key);
     drop(cassie);
 
     // Act
@@ -85,19 +91,160 @@ fn should_preserve_published_database_after_interrupted_create_retry_on_restart(
         .expect("recover the published replacement");
 
     // Assert
+    assert_eq!(stored_families(&restarted.midge), expected);
     assert_owner_and_row(&restarted, &replacement);
-    let key = key_encoding::database_lifecycle_key(&intent.operation_id);
-    assert!(restarted
-        .midge
-        .begin_schema_readonly_tx()
-        .unwrap()
-        .get(&key)
-        .unwrap()
-        .is_none());
     drop(restarted);
     let reopened = open(&path);
     reopened.startup().expect("second cold startup");
     assert_owner_and_row(&reopened, &replacement);
     drop(reopened);
     std::fs::remove_dir_all(path).unwrap();
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Ambiguity {
+    StagedFamilyStillPresent,
+    StagedFamilyOwned,
+    ReplacementMissing,
+    ReplacementShared,
+    UnlistedReplacementOwner,
+    ReplacementUnlisted,
+    WrongJournalKey,
+    InvalidStagedFamily,
+    InvalidReplacementFamily,
+    RegistryKeyMismatch,
+}
+
+impl Ambiguity {
+    fn persist(
+        self,
+        midge: &Midge,
+        mut intent: DatabaseLifecycleRecord,
+        replacement: &DatabaseMeta,
+    ) {
+        let mut tx = midge.begin_schema_rw_tx().unwrap();
+        match self {
+            Self::StagedFamilyStillPresent => {
+                midge
+                    .create_physical_family(&intent.physical_family)
+                    .unwrap();
+            }
+            Self::StagedFamilyOwned | Self::ReplacementShared | Self::UnlistedReplacementOwner => {
+                let family = if matches!(self, Self::StagedFamilyOwned) {
+                    &intent.physical_family
+                } else {
+                    &replacement.physical_family
+                };
+                let other = DatabaseMeta::with_physical_family("other", None, family);
+                if matches!(self, Self::UnlistedReplacementOwner) {
+                    tx.put(
+                        Midge::database_key(&other.name),
+                        serde_json::to_vec(&other).unwrap(),
+                        None,
+                    )
+                    .unwrap();
+                } else {
+                    Midge::write_database_metadata(&mut tx, &other).unwrap();
+                }
+            }
+            Self::ReplacementMissing => {
+                midge
+                    .drop_physical_family_if_present(&replacement.physical_family)
+                    .unwrap();
+            }
+            Self::ReplacementUnlisted => {
+                let mut names = Midge::load_databases(&tx).unwrap();
+                names.retain(|name| name != DATABASE);
+                assert!(!names.is_empty());
+                Midge::save_databases(&mut tx, &names).unwrap();
+            }
+            Self::WrongJournalKey => {
+                Midge::delete_lifecycle_record(&mut tx, &intent.operation_id).unwrap();
+                tx.put(
+                    key_encoding::database_lifecycle_key(&Uuid::new_v4().to_string()),
+                    serde_json::to_vec(&intent).unwrap(),
+                    None,
+                )
+                .unwrap();
+            }
+            Self::InvalidStagedFamily => {
+                intent.physical_family = "db-invalid".to_owned();
+                Midge::write_lifecycle_record(&mut tx, &intent).unwrap();
+            }
+            Self::InvalidReplacementFamily => {
+                let meta = DatabaseMeta::with_physical_family(DATABASE, None, "cf0");
+                Midge::write_database_metadata(&mut tx, &meta).unwrap();
+            }
+            Self::RegistryKeyMismatch => {
+                let meta =
+                    DatabaseMeta::with_physical_family("other", None, &replacement.physical_family);
+                tx.put(
+                    Midge::database_key(DATABASE),
+                    serde_json::to_vec(&meta).unwrap(),
+                    None,
+                )
+                .unwrap();
+            }
+        }
+        tx.commit(midge.write_options_sync()).unwrap();
+    }
+}
+
+// Read every durable key in this tiny fixture without invoking bootstrap a second time.
+fn stored_families(
+    midge: &Midge,
+) -> std::collections::BTreeMap<String, Vec<super::RawStorageEntry>> {
+    midge
+        .engine
+        .list_column_families()
+        .unwrap()
+        .into_iter()
+        .map(|family| {
+            let tx = midge
+                .begin_raw_adapter_tx(family.id(), super::TransactionMode::ReadOnly)
+                .unwrap();
+            let entries = super::collect_scan(tx.scan(&super::Query::new()).unwrap()).unwrap();
+            (family.name().to_owned(), entries)
+        })
+        .collect()
+}
+
+#[test]
+fn should_preserve_journal_and_families_when_create_retry_cannot_be_proven() {
+    for problem in [
+        Ambiguity::StagedFamilyStillPresent,
+        Ambiguity::StagedFamilyOwned,
+        Ambiguity::ReplacementMissing,
+        Ambiguity::ReplacementShared,
+        Ambiguity::UnlistedReplacementOwner,
+        Ambiguity::ReplacementUnlisted,
+        Ambiguity::WrongJournalKey,
+        Ambiguity::InvalidStagedFamily,
+        Ambiguity::InvalidReplacementFamily,
+        Ambiguity::RegistryKeyMismatch,
+    ] {
+        // Arrange
+        let path = std::env::temp_dir().join(format!("cassie-create-retry-{}", Uuid::new_v4()));
+        let cassie = open(&path);
+        cassie.startup().unwrap();
+        let (intent, replacement) = retry_create(&cassie);
+        problem.persist(&cassie.midge, intent, &replacement);
+        let before = stored_families(&cassie.midge);
+        drop(cassie);
+
+        // Act
+        let restarted = open(&path);
+        let attempted = restarted.startup();
+
+        // Assert
+        assert!(
+            matches!(attempted, Err(crate::app::CassieError::StorageBootstrap(_))),
+            "{problem:?}: {attempted:?}"
+        );
+        drop(restarted);
+        let retained = open(&path);
+        assert_eq!(stored_families(&retained.midge), before, "{problem:?}");
+        drop(retained);
+        std::fs::remove_dir_all(path).unwrap();
+    }
 }

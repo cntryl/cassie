@@ -173,3 +173,40 @@ fn first_registration_query() {
     assert_eq!(events[0].path, "native_primitive_keys");
     assert_eq!(events[0].state, "accounted_blocking");
 }
+
+#[test]
+fn should_complete_native_sort_for_compound_output_ordinal() {
+    // Arrange
+    use cassie::types::Value;
+
+    let fixture = fixture();
+    let queries = [
+        "SELECT n FROM sa UNION ALL SELECT n FROM sb ORDER BY n DESC NULLS LAST",
+        "SELECT n FROM sa UNION ALL SELECT n FROM sb ORDER BY 1 DESC NULLS LAST",
+    ];
+    let expected = [
+        Value::Int64(2),
+        Value::Int64(1),
+        Value::Int64(1),
+        Value::Int64(1),
+        Value::Null,
+        Value::Null,
+        Value::Null,
+    ]
+    .map(|value| vec![value]);
+
+    // Act
+    let observations =
+        queries.map(|sql| capture(|| fixture.cassie.execute_sql(&fixture.session, sql, vec![])));
+
+    // Assert
+    for (sql, (result, events)) in queries.into_iter().zip(observations) {
+        assert_eq!(result.expect(sql).rows(), expected, "{sql}");
+        assert!(
+            events.iter().any(|event| event.operator == "sort"
+                && event.path == "native_primitive_keys"
+                && event.state == "accounted_blocking"),
+            "{sql}: {events:?}"
+        );
+    }
+}

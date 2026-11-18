@@ -2,7 +2,7 @@
 
 use super::{CassieError, Catalog, CteQuery, HashMap, QuerySource};
 
-/// Mixed-case CTE names need the same case-preserving row qualifier as an
+/// Delimited CTE names need the same component-preserving row qualifier as an
 /// explicit same-name alias. Keep producer identity on the inner Cte source.
 pub(super) fn preserve_implicit_qualifiers(
     source: &mut QuerySource,
@@ -19,10 +19,11 @@ pub(super) fn preserve_implicit_qualifiers(
         // Explicit aliases own their namespace. Subqueries bind their own scope.
         _ => None,
     };
-    if let Some(name) = name.filter(|name| {
-        name.bytes().any(|byte| byte.is_ascii_uppercase()) && scope.contains_key(*name)
-    }) {
-        let alias = crate::sql::cte_identity::qualifier(name);
+    let Some(name) = name.filter(|name| scope.contains_key(*name)) else {
+        return;
+    };
+    let alias = crate::sql::cte_identity::qualifier(name);
+    if alias != name {
         *source = QuerySource::Aliased {
             source: Box::new(QuerySource::Cte(name.to_owned())),
             alias,

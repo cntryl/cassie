@@ -116,9 +116,8 @@ pub(super) fn null_row(
     let namespace = super::super::cte::context_fields(context, env.controls)?;
     let inferred_copy = if let QuerySource::Cte(name) = unaliased(source) {
         let _name_memory = env.controls.reserve_query_memory(name.len())?;
-        let key = name.to_ascii_lowercase();
         context
-            .get(&key)
+            .get(name)
             .map(|relation| {
                 super::super::cte::source_fields_bytes(&relation.fields)
                     .and_then(|bytes| env.controls.reserve_query_memory(bytes).map_err(Into::into))
@@ -208,9 +207,8 @@ pub(super) fn attach_types(
     let namespace = super::super::cte::context_fields(context, env.controls)?;
     let _inferred_copy = if let QuerySource::Cte(name) = unaliased(source) {
         let _name_memory = env.controls.reserve_query_memory(name.len())?;
-        let key = name.to_ascii_lowercase();
         context
-            .get(&key)
+            .get(name)
             .map(|relation| {
                 super::super::cte::source_fields_bytes(&relation.fields)
                     .and_then(|bytes| env.controls.reserve_query_memory(bytes).map_err(Into::into))
@@ -280,7 +278,8 @@ fn source_qualifier(source: &QuerySource) -> Option<String> {
         QuerySource::Aliased { alias, .. } => Some(crate::sql::binder::alias_row_qualifier(alias)),
         QuerySource::TableSample { source, .. } => source_qualifier(source),
         QuerySource::Collection(name) => Some(name.to_string()),
-        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => Some(name.clone()),
+        QuerySource::Cte(name) => Some(crate::sql::cte_identity::qualifier(name)),
+        QuerySource::TableFunction { name, .. } => Some(name.clone()),
         QuerySource::Subquery { alias, .. } => Some(alias.clone()),
         QuerySource::Values { .. } | QuerySource::SingleRow | QuerySource::Join { .. } => None,
     }
@@ -308,6 +307,13 @@ fn aliased_cte_template(
         let (qualifier, _scratch) = super::source_qualification::alias_qualifier(env, alias)?;
         known_cte_template(env, fields, memory, &qualifier)
     } else {
-        known_cte_template(env, fields, memory, fallback_qualifier)
+        let _scratch = env.controls.reserve_query_memory(
+            crate::executor::retained_memory::add(
+                crate::executor::retained_memory::mul(fallback_qualifier.len(), 2)?,
+                2,
+            )?,
+        )?;
+        let qualifier = crate::sql::cte_identity::qualifier(fallback_qualifier);
+        known_cte_template(env, fields, memory, &qualifier)
     }
 }

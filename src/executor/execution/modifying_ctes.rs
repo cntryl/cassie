@@ -227,7 +227,7 @@ fn replace(ctes: &mut [CommonTableExpression], relations: &[CommonTableExpressio
     for cte in ctes {
         if let Some(relation) = relations
             .iter()
-            .find(|relation| relation.name.eq_ignore_ascii_case(&cte.name))
+            .find(|relation| relation.name == cte.name)
         {
             *cte = relation.clone();
         }

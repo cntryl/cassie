@@ -175,7 +175,7 @@ pub(super) fn fulltext_base_collection<'a>(
         QuerySource::Cte(name) => {
             let position = ctes
                 .iter()
-                .position(|cte| cte.name.eq_ignore_ascii_case(name))?;
+                .position(|cte| cte.name == *name)?;
             let CteQuery::Simple(statement) = &ctes[position].query else {
                 return None;
             };

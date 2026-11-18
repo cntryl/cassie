@@ -275,10 +275,18 @@ fn table_bindings(
     source: &QuerySource,
     catalog: &Catalog,
     context: &BindingContext,
+    ctes: &[&str],
     out: &mut Vec<(String, Vec<String>)>,
 ) {
-    let columns_of = |path: &str| {
-        let canonical = super::resolve_relation_name(path, catalog, context).ok()?;
+    let columns_of = |path: &crate::sql::IdentifierPath| {
+        // Classify the actual source before catalog names or aliases are folded.
+        // A qualified table remains a catalog source even beside a local CTE.
+        if crate::sql::cte_identity::reference_name(path)
+            .is_some_and(|local| ctes.contains(&local))
+        {
+            return None;
+        }
+        let canonical = super::resolve_relation_name(path.as_str(), catalog, context).ok()?;
         let schema = catalog.get_schema(&canonical)?;
         Some((
             crate::catalog::local_name(&canonical),
@@ -287,21 +295,21 @@ fn table_bindings(
     };
     match source {
         QuerySource::Collection(path) => {
-            if let Some((name, columns)) = columns_of(path.as_str()) {
+            if let Some((name, columns)) = columns_of(path) {
                 out.push((name.to_ascii_lowercase(), columns));
             }
         }
         QuerySource::Aliased { source, alias, .. } => {
             if let QuerySource::Collection(path) = source.as_ref() {
-                if let Some((_, columns)) = columns_of(path.as_str()) {
+                if let Some((_, columns)) = columns_of(path) {
                     out.push((alias.to_ascii_lowercase(), columns));
                 }
             }
         }
-        QuerySource::TableSample { source, .. } => table_bindings(source, catalog, context, out),
+        QuerySource::TableSample { source, .. } => table_bindings(source, catalog, context, ctes, out),
         QuerySource::Join { left, right, .. } => {
-            table_bindings(left, catalog, context, out);
-            table_bindings(right, catalog, context, out);
+            table_bindings(left, catalog, context, ctes, out);
+            table_bindings(right, catalog, context, ctes, out);
         }
         _ => {}
     }
@@ -459,14 +467,12 @@ fn select_bindings(
     if !columns_all_known(&select.source) {
         return bindings;
     }
-    table_bindings(&select.source, catalog, context, &mut bindings);
-    bindings.retain(|(binding, _)| {
-        !ctes.iter().any(|cte| cte.eq_ignore_ascii_case(binding))
-            && !select
-                .ctes
-                .iter()
-                .any(|cte| cte.name.eq_ignore_ascii_case(binding))
-    });
+    let cte_names = ctes
+        .iter()
+        .map(String::as_str)
+        .chain(select.ctes.iter().map(|cte| cte.name.as_str()))
+        .collect::<Vec<_>>();
+    table_bindings(&select.source, catalog, context, &cte_names, &mut bindings);
     bindings
 }
 

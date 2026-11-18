@@ -187,7 +187,7 @@ impl Scope<'_> {
                 }
             }
             if let Ok(schema) = infer_cte_schema(cte, self.catalog, &ctes, &self.functions) {
-                ctes.insert(cte.name.to_ascii_lowercase(), schema);
+                ctes.insert(cte.name.clone(), schema);
             }
         }
         self.source(&mut select.source, &ctes, outer)?;

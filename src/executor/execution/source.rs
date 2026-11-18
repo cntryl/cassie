@@ -339,19 +339,24 @@ fn execute_cte_source(
     name: &str,
     qualify: bool,
 ) -> SourceExecution {
-    let _key_memory = env.controls.reserve_query_memory(name.len())?;
-    let key = name.to_ascii_lowercase();
+    let _key_memory = env.controls.reserve_query_memory(
+        crate::executor::retained_memory::add(
+            crate::executor::retained_memory::mul(name.len(), 2)?,
+            2,
+        )?,
+    )?;
+    let qualifier = crate::sql::cte_identity::qualifier(name);
     let relation = cte_context
-        .get(&key)
+        .get(name)
         .ok_or_else(|| QueryError::General(format!("relation '{name}' does not exist")))?;
-    let rows = super::cte::copy_source_rows(relation, env.controls, qualify.then_some(name))?;
+    let rows = super::cte::copy_source_rows(relation, env.controls, qualify.then_some(qualifier.as_str()))?;
     let text_fields = deduce_text_fields(&rows);
     finalize_source_batches(
         env,
         batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
         text_fields,
         qualify,
-        name,
+        &qualifier,
     )
 }
 

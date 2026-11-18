@@ -89,6 +89,9 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     if let Some(result) = borrowed_object_keys_argument(&name, function, row, context) {
         return result;
     }
+    if matches!(name.as_str(), "cardinality" | "pg_catalog.cardinality") {
+        return cardinality::evaluate(function, row, context);
+    }
 
     let args = evaluate_argument_values(function, row, argument_context, &name)?;
 

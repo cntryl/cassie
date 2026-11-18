@@ -221,8 +221,8 @@ fn push_leaf(
 }
 
 fn names_cte(ctes: &[CommonTableExpression], name: &IdentifierPath) -> bool {
-    let name = name.to_string();
-    ctes.iter().any(|cte| cte.name.eq_ignore_ascii_case(&name))
+    crate::sql::cte_identity::reference_name(name)
+        .is_some_and(|local| ctes.iter().any(|cte| cte.name == local))
 }
 
 fn leaf_columns(
@@ -231,8 +231,10 @@ fn leaf_columns(
     catalog: &Catalog,
 ) -> Result<Vec<(String, DataType)>, CassieError> {
     if let QuerySource::Collection(name) = source {
-        if names_cte(ctes, name) {
-            return leaf_columns(&QuerySource::Cte(name.to_string()), ctes, catalog);
+        if let Some(local) = crate::sql::cte_identity::reference_name(name)
+            .filter(|_| names_cte(ctes, name))
+        {
+            return leaf_columns(&QuerySource::Cte(local.to_owned()), ctes, catalog);
         }
         if let Some(schema) = catalog.get_schema(name) {
             return Ok(schema

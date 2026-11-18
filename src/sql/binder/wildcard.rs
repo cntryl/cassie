@@ -46,7 +46,7 @@ pub(crate) fn cte_row_fields(
         &[],
     )?;
     Ok(resolved
-        .get(&cte.name.to_ascii_lowercase())
+        .get(&cte.name.clone())
         .cloned()
         .unwrap_or_default())
 }
@@ -162,7 +162,7 @@ fn cte_scope(
             }
         }
         append_generated_cte_fields(cte, &mut fields, user_functions)?;
-        scope.insert(cte.name.to_ascii_lowercase(), fields);
+        scope.insert(cte.name.clone(), fields);
     }
     Ok(scope)
 }
@@ -397,16 +397,18 @@ fn source_fields(
             )
         }
         QuerySource::Collection(name) => {
-            if let Some(fields) = scope.get(&name.to_ascii_lowercase()) {
+            if let Some(fields) = crate::sql::cte_identity::reference_name(name)
+                .and_then(|local| scope.get(local))
+            {
                 return Ok(fields.clone());
             }
             relation_fields(catalog, name)
         }
         QuerySource::Cte(name) => {
-            if let Some(fields) = scope.get(&name.to_ascii_lowercase()) {
+            if let Some(fields) = scope.get(name) {
                 return Ok(fields.clone());
             }
-            relation_fields(catalog, name)
+            Err(CassieError::CollectionNotFound(name.clone()))
         }
         QuerySource::SingleRow => Ok(Vec::new()),
         QuerySource::TableFunction { .. } => Ok(super::table_functions::typed_columns(

@@ -264,7 +264,7 @@ impl ResultTypes {
                     &functions,
                     parameter_types,
                 )?;
-                schemas.insert(cte.name.to_ascii_lowercase(), schema);
+                schemas.insert(cte.name.clone(), schema);
             }
             super::inference::infer_source_schema_with_parameters(
                 source,

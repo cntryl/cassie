@@ -66,7 +66,7 @@ pub(crate) fn wildcard_shape_for_plan(
         let names_cte = logical
             .ctes
             .iter()
-            .any(|cte| cte.name.eq_ignore_ascii_case(name));
+            .any(|cte| crate::sql::cte_identity::reference_name(name) == Some(cte.name.as_str()));
         if !names_cte
             && catalog.get_view(name).is_none()
             && catalog.get_materialized_projection(name).is_none()
@@ -447,7 +447,7 @@ pub(crate) fn apply_recursive_cte_record_oids_for_query(
     collect_cte_sources(source, &mut referenced);
     let mut identities = HashMap::<String, Option<i64>>::new();
     for cte in ctes {
-        if !referenced.contains(&cte.name.to_ascii_lowercase()) {
+        if !referenced.contains(&cte.name) {
             continue;
         }
         if let Some(search) = &cte.search {
@@ -548,7 +548,7 @@ fn direct_column_name(item: &SelectItem) -> Option<String> {
 fn collect_cte_sources(source: &QuerySource, names: &mut HashSet<String>) {
     match source {
         QuerySource::Cte(name) => {
-            names.insert(name.to_ascii_lowercase());
+            names.insert(name.clone());
         }
         QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
             collect_cte_sources(source, names);

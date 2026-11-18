@@ -16,7 +16,7 @@ pub(crate) fn percentile_function_for_column(
         QuerySource::Cte(name) => {
             let cte = ctes
                 .iter()
-                .find(|cte| cte.name.eq_ignore_ascii_case(name))?;
+                .find(|cte| cte.name == *name)?;
             let select = cte_select(cte)?;
             select
                 .projection
@@ -62,7 +62,7 @@ fn direct_percentile_function_for_source_index(
         QuerySource::Cte(name) => {
             let cte = ctes
                 .iter()
-                .find(|cte| cte.name.eq_ignore_ascii_case(name))?;
+                .find(|cte| cte.name == *name)?;
             direct_percentile_function(cte_select(cte)?.projection.get(index)?)
         }
         QuerySource::Subquery { select, .. } => {

@@ -20,7 +20,9 @@ pub(super) fn strip_select_own_qualifiers(
 ) {
     let qualifiers = match &select.source {
         QuerySource::Collection(name) => collection_qualifiers(name, catalog, context),
-        QuerySource::Cte(name) => crate::catalog::qualifier_variants(name),
+        QuerySource::Cte(name) => {
+            crate::catalog::qualifier_variants(&crate::sql::cte_identity::qualifier(name))
+        }
         _ => return,
     };
     for item in &mut select.projection {

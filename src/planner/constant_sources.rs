@@ -277,7 +277,7 @@ fn constant_cte<'a>(
     let (name, alias) = cte_source(source)?;
     let cte = ctes
         .iter()
-        .find(|cte| cte.name.eq_ignore_ascii_case(name))?;
+        .find(|cte| cte.name == *name)?;
     if cte.materialization == crate::sql::ast::CteMaterialization::Materialized {
         return None;
     }

@@ -45,7 +45,7 @@ pub(super) fn source_fields(
     if identity_alias {
         names.push(LEGACY_ID_COLUMN.to_owned());
     }
-    let mut fields = super::qualified_fields(name, names);
+    let mut fields = super::qualified_fields(&crate::sql::cte_identity::qualifier(name), names);
     if identity_alias {
         fields.insert(super::IDENTITY_ALIAS_MARKER.to_owned());
     }

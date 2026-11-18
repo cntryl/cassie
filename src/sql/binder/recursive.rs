@@ -29,7 +29,7 @@ pub(super) fn bind_recursive_cte_query(
             "recursive CTE binding received a non-recursive query".into(),
         ));
     };
-    let cte_name_lc = cte_name.to_ascii_lowercase();
+    let cte_key = cte_name.to_owned();
     if recursive_cte_references_self(base.as_ref(), cte_name) {
         return Err(CassieError::Planner(format!(
             "recursive CTE '{cte_name}' anchor cannot reference itself"
@@ -70,7 +70,7 @@ pub(super) fn bind_recursive_cte_query(
     let visible = row_fields.iter().map(|field| field.name.clone()).collect();
     let mut recursive_scope = outer_scope.clone();
     recursive_scope.insert(
-        cte_name_lc,
+        cte_key,
         super::CteBinding {
             visible,
             row_fields,

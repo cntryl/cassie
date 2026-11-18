@@ -42,8 +42,8 @@ pub(super) fn bind_select_with_lateral_fields(
 
     let mut bound_ctes = Vec::with_capacity(ctes.len());
     for cte in ctes {
-        let cte_name = cte.name.trim();
-        let cte_name_lc = register_cte_name(cte_name, &mut local_names)?;
+        let cte_name = cte.name.as_str();
+        let cte_key = register_cte_name(cte_name, &mut local_names)?;
 
         let declared_aliases = cte.aliases.clone();
         let query = match cte.query {
@@ -84,7 +84,7 @@ pub(super) fn bind_select_with_lateral_fields(
             cycle: cte.cycle,
         };
         let binding = cte_columns::binding(&bound_cte, &scope, catalog, context)?;
-        scope.insert(cte_name_lc, binding);
+        scope.insert(cte_key, binding);
         bound_ctes.push(bound_cte);
     }
 
@@ -150,7 +150,7 @@ fn register_cte_name(name: &str, local_names: &mut HashSet<String>) -> Result<St
     if name.is_empty() {
         return Err(CassieError::Planner("CTE name cannot be empty".into()));
     }
-    let normalized = name.to_ascii_lowercase();
+    let normalized = name.to_owned();
     if !local_names.insert(normalized.clone()) {
         return Err(CassieError::Planner(format!("duplicate CTE name '{name}'")));
     }
@@ -433,7 +433,7 @@ pub(super) fn validate_recursive_cte_shape(
         field.name.clone_from(alias);
     }
     let mut recursive_schemas = outer_schemas;
-    recursive_schemas.insert(cte_name.to_ascii_lowercase(), base_schema.clone());
+    recursive_schemas.insert(cte_name.to_owned(), base_schema.clone());
     let recursive_schema = super::inference::infer_select_schema_with_scope(
         recursive_select,
         catalog,
@@ -744,7 +744,7 @@ pub(super) fn source_fields(
             }
         }
         QuerySource::Cte(name) => scope
-            .get(&name.to_ascii_lowercase())
+            .get(name)
             .map(|binding| cte_columns::source_fields(name, binding))
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
         QuerySource::SingleRow => Ok(HashSet::new()),
@@ -823,15 +823,15 @@ fn bind_collection_source(
     scope: &CteScope<'_>,
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
-    let source_name_lc = name.to_ascii_lowercase();
-    if scope.contains_key(&source_name_lc) {
-        Ok(QuerySource::Cte(name.to_string()))
-    } else {
-        let resolved = resolve_relation_path(name, catalog, context)?;
-        Ok(QuerySource::Collection(
-            IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
-        ))
+    if let Some(local) = crate::sql::cte_identity::reference_name(name) {
+        if scope.contains_key(local) {
+            return Ok(QuerySource::Cte(local.to_owned()));
+        }
     }
+    let resolved = resolve_relation_path(name, catalog, context)?;
+    Ok(QuerySource::Collection(
+        IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
+    ))
 }
 
 #[cfg(test)]

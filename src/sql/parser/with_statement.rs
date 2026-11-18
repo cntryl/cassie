@@ -130,7 +130,7 @@ fn prepend(select: &mut SelectStatement, ctes: &[CommonTableExpression]) {
             !select
                 .ctes
                 .iter()
-                .any(|inner| inner.name.eq_ignore_ascii_case(&cte.name))
+                .any(|inner| inner.name == cte.name)
         })
         .cloned()
         .collect::<Vec<_>>();

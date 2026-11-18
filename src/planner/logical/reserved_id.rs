@@ -129,7 +129,7 @@ fn source_resolves_id_to_identity(
             for (scope_index, ctes) in scopes.iter().enumerate().rev() {
                 let Some(index) = ctes
                     .iter()
-                    .rposition(|cte| cte.name.eq_ignore_ascii_case(name))
+                    .rposition(|cte| cte.name == *name)
                 else {
                     continue;
                 };

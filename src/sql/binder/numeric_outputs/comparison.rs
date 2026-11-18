@@ -50,7 +50,7 @@ impl ComparisonTypes {
         }
         for cte in ctes {
             let fields = analyzer.cte(cte, &origins)?;
-            origins.insert(cte.name.to_ascii_lowercase(), fields);
+            origins.insert(cte.name.clone(), fields);
         }
         let lookup = analyzer
             .source(source, &origins, outer.map(|scope| scope.lookup.as_slice()))?

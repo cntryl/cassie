@@ -202,7 +202,7 @@ impl<'a> Walk<'a> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(index) = scope.ctes[..scope.visible]
                 .iter()
-                .position(|cte| cte.name.eq_ignore_ascii_case(name))
+                .position(|cte| cte.name == *name)
             {
                 if scope.live.states[index] == 0 {
                     scope.live.states[index] = 1;

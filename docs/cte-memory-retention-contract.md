@@ -120,3 +120,10 @@ outer definition. This changes neither existing alias/column qualification nor
 materialization, recursion or modifying-CTE capabilities. Rebuildable compiled
 plans require invalidation after the fresh-binding and stale-cache regressions;
 the authoritative AST and storage formats remain unchanged.
+
+Existing interfaces that consume SQL-text qualifiers render the resolved CTE
+value as one quoted identifier component. Field lookup keeps its existing
+qualifier folding, while interfaces receiving a parsed namespace component
+compare that data directly. Rendered qualifiers never become CTE producer keys
+or LogicalPlan identity labels. This includes parameter namespaces, alias
+admission, lateral filters, correlated EXISTS and mutation row subqueries.

@@ -189,9 +189,13 @@ impl Walk<'_> {
                     .extend(crate::catalog::qualifier_variants(name));
                 false
             }
-            QuerySource::Cte(name)
-            | QuerySource::TableFunction { name, .. }
-            | QuerySource::Subquery { alias: name, .. } => {
+            QuerySource::Cte(name) => {
+                names
+                    .folded
+                    .insert(crate::sql::cte_identity::folded_qualifier(name));
+                false
+            }
+            QuerySource::TableFunction { name, .. } | QuerySource::Subquery { alias: name, .. } => {
                 names
                     .folded
                     .extend(crate::catalog::qualifier_variants(name));
@@ -378,4 +382,30 @@ impl Walk<'_> {
 fn target_alias(alias: &str) -> String {
     ColumnIdentifierPath::parse(alias)
         .map_or_else(|_| alias.to_ascii_lowercase(), |path| path.declared_name())
+}
+
+#[cfg(test)]
+mod cte_identity_tests {
+    #[test]
+    fn should_keep_a_resolved_cte_in_one_qualification_component() {
+        // Arrange
+        let catalog = super::Catalog::new();
+        let context = super::BindingContext::default();
+        let walk = super::Walk {
+            catalog: &catalog,
+            context: &context,
+            controls: None,
+            depth: 0,
+        };
+        let source = super::QuerySource::Cte("part.one".into());
+        let mut names = super::Names::default();
+
+        // Act
+        walk.source_names(&source, &mut names)
+            .expect("source namespace");
+
+        // Assert
+        assert!(names.folded.contains("\"part.one\""));
+        assert!(!names.folded.contains("one"));
+    }
 }

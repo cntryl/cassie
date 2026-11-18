@@ -231,8 +231,8 @@ fn leaf_columns(
     catalog: &Catalog,
 ) -> Result<Vec<(String, DataType)>, CassieError> {
     if let QuerySource::Collection(name) = source {
-        if let Some(local) = crate::sql::cte_identity::reference_name(name)
-            .filter(|_| names_cte(ctes, name))
+        if let Some(local) =
+            crate::sql::cte_identity::reference_name(name).filter(|_| names_cte(ctes, name))
         {
             return leaf_columns(&QuerySource::Cte(local.to_owned()), ctes, catalog);
         }

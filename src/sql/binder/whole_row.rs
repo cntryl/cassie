@@ -281,8 +281,7 @@ fn table_bindings(
     let columns_of = |path: &crate::sql::IdentifierPath| {
         // Classify the actual source before catalog names or aliases are folded.
         // A qualified table remains a catalog source even beside a local CTE.
-        if crate::sql::cte_identity::reference_name(path)
-            .is_some_and(|local| ctes.contains(&local))
+        if crate::sql::cte_identity::reference_name(path).is_some_and(|local| ctes.contains(&local))
         {
             return None;
         }
@@ -306,7 +305,9 @@ fn table_bindings(
                 }
             }
         }
-        QuerySource::TableSample { source, .. } => table_bindings(source, catalog, context, ctes, out),
+        QuerySource::TableSample { source, .. } => {
+            table_bindings(source, catalog, context, ctes, out)
+        }
         QuerySource::Join { left, right, .. } => {
             table_bindings(left, catalog, context, ctes, out);
             table_bindings(right, catalog, context, ctes, out);

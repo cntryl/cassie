@@ -242,7 +242,10 @@ fn collect_qualifiers(sources: &[&QuerySource], out: &mut Vec<String>) {
             }
             QuerySource::TableSample { source, .. } => collect_qualifiers(&[&**source], out),
             QuerySource::Join { left, right, .. } => collect_qualifiers(&[&**left, &**right], out),
-            QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+            QuerySource::Cte(name) => {
+                out.push(crate::sql::cte_identity::qualifier(name));
+            }
+            QuerySource::TableFunction { name, .. } => {
                 out.push(name.clone());
             }
             QuerySource::Values { .. } | QuerySource::SingleRow => {}
@@ -267,4 +270,22 @@ fn owned_by(term: &Expr, own: &[String], scope: &[String], outer: &dyn Fn(&str) 
                 qualifies(own, qualifier) || (!qualifies(scope, qualifier) && outer(name))
             })
         })
+}
+
+#[cfg(test)]
+mod cte_identity_tests {
+    #[test]
+    fn should_recognize_a_rendered_cte_qualifier_in_lateral_filters() {
+        // Arrange
+        let source = super::QuerySource::Cte("part.one".into());
+        let term = super::Expr::Column("\"part.one\".x".into());
+        let mut qualifiers = Vec::new();
+
+        // Act
+        super::collect_qualifiers(&[&source], &mut qualifiers);
+        let owned = super::owned_by(&term, &qualifiers, &qualifiers, &|_| false);
+
+        // Assert
+        assert!(owned);
+    }
 }

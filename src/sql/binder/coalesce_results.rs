@@ -833,7 +833,7 @@ fn plan_contains_coalesce(plan: &crate::planner::logical::LogicalPlan) -> bool {
 fn source_references_cte(source: &crate::sql::ast::QuerySource, name: &str) -> bool {
     match source {
         crate::sql::ast::QuerySource::Aliased { source, .. } => source_references_cte(source, name),
-        crate::sql::ast::QuerySource::Cte(candidate) => candidate.eq_ignore_ascii_case(name),
+        crate::sql::ast::QuerySource::Cte(candidate) => candidate == name,
         crate::sql::ast::QuerySource::Subquery { select, .. } => {
             source_references_cte(&select.source, name)
                 || select.ctes.iter().any(|cte| cte_references_name(cte, name))
@@ -855,5 +855,22 @@ fn cte_references_name(cte: &crate::sql::ast::CommonTableExpression, name: &str)
         crate::sql::ast::CteQuery::Recursive {
             base, recursive, ..
         } => references(base) || references(recursive),
+    }
+}
+
+#[cfg(test)]
+mod cte_identity_tests {
+    #[test]
+    fn should_trace_only_the_resolved_cte_producer_identity() {
+        // Arrange
+        let source = crate::sql::ast::QuerySource::Cte("Base".into());
+
+        // Act
+        let exact = super::source_references_cte(&source, "Base");
+        let folded = super::source_references_cte(&source, "base");
+
+        // Assert
+        assert!(exact);
+        assert!(!folded);
     }
 }

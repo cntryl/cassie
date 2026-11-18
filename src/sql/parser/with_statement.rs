@@ -126,12 +126,7 @@ fn statement(query: &mut ParsedStatement, ctes: &[CommonTableExpression]) {
 fn prepend(select: &mut SelectStatement, ctes: &[CommonTableExpression]) {
     let inherited = ctes
         .iter()
-        .filter(|cte| {
-            !select
-                .ctes
-                .iter()
-                .any(|inner| inner.name == cte.name)
-        })
+        .filter(|cte| !select.ctes.iter().any(|inner| inner.name == cte.name))
         .cloned()
         .collect::<Vec<_>>();
     select.recursive |= inherited

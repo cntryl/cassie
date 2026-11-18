@@ -199,8 +199,7 @@ fn scope_names(
         QuerySource::Cte(name) => visible.extend(crate::catalog::qualifier_variants(
             &crate::sql::cte_identity::qualifier(name),
         )),
-        QuerySource::TableFunction { name, .. }
-        | QuerySource::Subquery { alias: name, .. } => {
+        QuerySource::TableFunction { name, .. } | QuerySource::Subquery { alias: name, .. } => {
             visible.extend(crate::catalog::qualifier_variants(name));
         }
         QuerySource::Values { .. } | QuerySource::SingleRow => {}

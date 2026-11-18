@@ -86,7 +86,8 @@ fn collect_source(source: &QuerySource, relations: &mut Collected) {
     match source {
         QuerySource::Collection(name) => {
             if !crate::sql::cte_identity::reference_name(name)
-                .is_some_and(|local| relations.ctes.contains(local)) {
+                .is_some_and(|local| relations.ctes.contains(local))
+            {
                 relations.relations.insert(name.to_string());
             }
         }

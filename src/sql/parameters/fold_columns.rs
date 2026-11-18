@@ -81,9 +81,8 @@ impl Fold<'_, '_> {
             ast::QuerySource::TableSample { source, .. } => {
                 matches!(source.as_ref(), ast::QuerySource::Collection(name) if crate::catalog::qualifier_variants(name).iter().any(|candidate| candidate == qualifier))
             }
-            ast::QuerySource::Cte(name) | ast::QuerySource::Subquery { alias: name, .. } => {
-                owns_alias(name, namespace)
-            }
+            ast::QuerySource::Cte(name) => owns_cte_namespace(name, namespace),
+            ast::QuerySource::Subquery { alias: name, .. } => owns_alias(name, namespace),
             // Aliases expose their exact visible/physical keys above. A join's
             // bare map can belong to another relation, so never borrow its leaf.
             ast::QuerySource::Aliased { .. }
@@ -163,11 +162,15 @@ impl Fold<'_, '_> {
     }
 }
 
-// Subquery/CTE names can retain raw delimiters. Reuse the existing identifier
-// projection for their visible namespace; never expose their inner relation.
+// Subquery aliases retain SQL delimiters; CTE names are resolved data.
+// Neither namespace exposes its inner relation.
 fn owns_alias(alias: &str, requested: &str) -> bool {
     ColumnIdentifierPath::parse(alias)
         .is_ok_and(|path| !path.is_qualified() && path.namespace_key() == requested)
+}
+
+fn owns_cte_namespace(name: &str, requested: &str) -> bool {
+    ColumnIdentifierPath::from_field_name(name).namespace_key() == requested
 }
 
 /// Whether `source` exposes a relation called `name` (a whole-row reference).
@@ -186,5 +189,24 @@ fn source_named(source: &ast::QuerySource, name: &str) -> bool {
         ast::QuerySource::TableFunction { .. }
         | ast::QuerySource::Values { .. }
         | ast::QuerySource::SingleRow => false,
+    }
+}
+
+#[cfg(test)]
+mod cte_identity_tests {
+    #[test]
+    fn should_match_resolved_cte_namespace_data() {
+        // Arrange
+        let names = [
+            ("Base", "\"Base\""),
+            ("part.one", "\"part.one\""),
+            ("say\"Hi", "\"say\"\"Hi\""),
+        ];
+
+        // Act
+        let matches = names.map(|(name, requested)| super::owns_cte_namespace(name, requested));
+
+        // Assert
+        assert_eq!(matches, [true; 3]);
     }
 }

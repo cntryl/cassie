@@ -16,3 +16,8 @@ pub(crate) fn reference_name(path: &IdentifierPath) -> Option<&str> {
 pub(crate) fn qualifier(name: &str) -> String {
     crate::catalog::canonical_identifier_component(name)
 }
+
+/// Existing row lookup folds qualifier case, while preserving one component.
+pub(crate) fn folded_qualifier(name: &str) -> String {
+    crate::catalog::canonical_identifier_component(&name.to_ascii_lowercase())
+}

@@ -307,12 +307,12 @@ fn aliased_cte_template(
         let (qualifier, _scratch) = super::source_qualification::alias_qualifier(env, alias)?;
         known_cte_template(env, fields, memory, &qualifier)
     } else {
-        let _scratch = env.controls.reserve_query_memory(
-            crate::executor::retained_memory::add(
+        let _scratch = env
+            .controls
+            .reserve_query_memory(crate::executor::retained_memory::add(
                 crate::executor::retained_memory::mul(fallback_qualifier.len(), 2)?,
                 2,
-            )?,
-        )?;
+            )?)?;
         let qualifier = crate::sql::cte_identity::qualifier(fallback_qualifier);
         known_cte_template(env, fields, memory, &qualifier)
     }

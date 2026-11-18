@@ -45,10 +45,7 @@ pub(crate) fn cte_row_fields(
         user_functions,
         &[],
     )?;
-    Ok(resolved
-        .get(&cte.name.clone())
-        .cloned()
-        .unwrap_or_default())
+    Ok(resolved.get(&cte.name).cloned().unwrap_or_default())
 }
 
 /// Returns the fields `SELECT *` over `source` yields, in row order. The
@@ -397,8 +394,8 @@ fn source_fields(
             )
         }
         QuerySource::Collection(name) => {
-            if let Some(fields) = crate::sql::cte_identity::reference_name(name)
-                .and_then(|local| scope.get(local))
+            if let Some(fields) =
+                crate::sql::cte_identity::reference_name(name).and_then(|local| scope.get(local))
             {
                 return Ok(fields.clone());
             }

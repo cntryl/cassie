@@ -275,9 +275,7 @@ fn constant_cte<'a>(
 ) -> Option<(&'a [Expr], Option<&'a str>, &'a [String])> {
     use crate::sql::ast::{CteQuery, QueryStatement};
     let (name, alias) = cte_source(source)?;
-    let cte = ctes
-        .iter()
-        .find(|cte| cte.name == *name)?;
+    let cte = ctes.iter().find(|cte| cte.name == *name)?;
     if cte.materialization == crate::sql::ast::CteMaterialization::Materialized {
         return None;
     }

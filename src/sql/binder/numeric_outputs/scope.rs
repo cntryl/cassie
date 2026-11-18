@@ -143,7 +143,10 @@ impl Analyzer<'_> {
                     .get(name)
                     .cloned()
                     .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
-                Ok(exported_scope(fields, &[crate::sql::cte_identity::qualifier(name)]))
+                Ok(exported_scope(
+                    fields,
+                    &[crate::sql::cte_identity::qualifier(name)],
+                ))
             }
             QuerySource::TableFunction { name, .. } => {
                 let outer = outer_fields.map(|fields| crate::types::Schema {
@@ -202,8 +205,8 @@ impl Analyzer<'_> {
     ) -> Result<SourceScope, CassieError> {
         // Mirrors wildcard::source_fields, including a bound CTE
         // whose source is still represented as a collection.
-        if let Some(fields) = crate::sql::cte_identity::reference_name(name)
-            .and_then(|local| ctes.get(local))
+        if let Some(fields) =
+            crate::sql::cte_identity::reference_name(name).and_then(|local| ctes.get(local))
         {
             return Ok(exported_scope(fields.clone(), &[name.to_string()]));
         }

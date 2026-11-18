@@ -408,9 +408,7 @@ pub(super) fn infer_source_schema_with_outer(
             QuerySource::Cte(name) => {
                 qualify_schema(&schema, &crate::sql::cte_identity::qualifier(name))
             }
-            QuerySource::TableFunction { name, .. } => {
-                qualify_schema(&schema, name)
-            }
+            QuerySource::TableFunction { name, .. } => qualify_schema(&schema, name),
             QuerySource::SingleRow
             | QuerySource::Values { .. }
             | QuerySource::Aliased { .. }

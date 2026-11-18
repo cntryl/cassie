@@ -3,10 +3,11 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use super::{
-    accounting, check_query_controls, chunk_rows_controlled, row_tie_key, sort_rows_by_key,
-    sort_rows_with_controls, top_k_batches_with_context, top_k_by_key, Batch, EvalInput, Expr,
-    KeyPart, OrderExpr, QueryExecutionControls, RowAccess, RowKey, SelectItem, SemanticValue,
-    SortRetentionContext, Value, DEFAULT_BATCH_SIZE,
+    accounting, check_query_controls, chunk_rows_controlled, output_index, output_sort_key,
+    row_tie_key, sort_rows_by_key, sort_rows_with_controls, sort_set_rows_scalar,
+    top_k_batches_with_context, top_k_by_key, Batch, EvalInput, Expr, KeyPart, OrderExpr,
+    QueryExecutionControls, RowAccess, RowKey, SelectItem, SemanticValue, SortRetentionContext,
+    Value, DEFAULT_BATCH_SIZE,
 };
 use crate::executor::batch::BatchRow;
 use crate::executor::retained_memory::{add, lookup_bytes, mul};
@@ -27,18 +28,18 @@ pub(super) fn sort_batches(
         return Ok(Vec::new());
     }
     let (rows, _flatten_memory) = flatten(batches, controls)?;
-    let (rows, path) = ordered_rows(rows, eval, controls)?;
+    let (rows, path) = ordered_rows(rows, eval, controls, false)?;
     let output = chunk_rows_controlled(rows.into_iter(), controls)?;
     relational_diagnostics::publish("sort", path);
     Ok(output)
 }
 
-pub(super) fn sort_rows(
+pub(super) fn sort_set_rows(
     rows: Vec<BatchRow>,
     eval: &EvalInput<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, crate::executor::QueryError> {
-    let (rows, path) = ordered_rows(rows, eval, controls)?;
+    let (rows, path) = ordered_rows(rows, eval, controls, true)?;
     relational_diagnostics::publish("sort", path);
     Ok(rows)
 }
@@ -47,23 +48,28 @@ fn ordered_rows(
     rows: Vec<BatchRow>,
     eval: &EvalInput<'_>,
     controls: &QueryExecutionControls,
+    set_order: bool,
 ) -> Result<(Vec<BatchRow>, &'static str), crate::executor::QueryError> {
     check_query_controls(controls)?;
     if rows.is_empty() || eval.order.is_empty() {
         return Ok((rows, "empty_relation"));
     }
+    let scalar_sort = |rows| {
+        if set_order {
+            sort_set_rows_scalar(rows, eval, controls)
+        } else {
+            sort_rows_with_controls(rows, eval, controls)
+        }
+    };
     if controls.uses_relational_cte_boundary() {
-        return sort_rows_with_controls(rows, eval, controls)
-            .map(|rows| (rows, "scalar_cte_materialization"));
+        return scalar_sort(rows).map(|rows| (rows, "scalar_cte_materialization"));
     }
-    let Some(order) = DirectOrder::new(eval, controls)? else {
-        return sort_rows_with_controls(rows, eval, controls)
-            .map(|rows| (rows, "scalar_expression_order"));
+    let Some(order) = DirectOrder::new(eval, controls, set_order)? else {
+        return scalar_sort(rows).map(|rows| (rows, "scalar_expression_order"));
     };
     let memory = admit_rows(&rows, rows.len(), &order.order, controls)?;
     let Some(columns) = direct_columns(&rows, &order.order, controls)? else {
-        return sort_rows_with_controls(rows, eval, controls)
-            .map(|rows| (rows, "scalar_expression_order"));
+        return scalar_sort(rows).map(|rows| (rows, "scalar_expression_order"));
     };
     let batch = row_bridge::from_rows(controls, &rows, &columns)?;
     let path = key_path(batch.as_ref());
@@ -105,7 +111,7 @@ pub(super) fn top_k_batches(
         relational_diagnostics::publish("top_k", "scalar_cte_materialization");
         return Ok(output);
     }
-    let Some(order) = DirectOrder::new(eval, controls)? else {
+    let Some(order) = DirectOrder::new(eval, controls, false)? else {
         let output = top_k_batches_with_context(
             batches,
             eval,
@@ -210,11 +216,10 @@ fn admit_rows(
         output.div_ceil(DEFAULT_BATCH_SIZE).max(1),
         size_of::<Batch>(),
     )?;
-    let lookup_scratch = order.iter().try_fold(0, |bytes, order| {
-        let Expr::Column(name) = &order.expr else {
-            unreachable!("resolved direct order")
-        };
-        add(bytes, add(512, mul(name.len(), 32)?)?)
+    let lookup_scratch = order.iter().try_fold(0, |bytes, order| match &order.expr {
+        Expr::Column(name) => add(bytes, add(512, mul(name.len(), 32)?)?),
+        Expr::IntegerLiteral(_) => Ok(bytes),
+        _ => unreachable!("resolved direct order"),
     })?;
     let bytes = rows.iter().try_fold(
         add(
@@ -262,20 +267,17 @@ impl DirectOrder {
     fn new(
         eval: &EvalInput<'_>,
         controls: &QueryExecutionControls,
+        set_order: bool,
     ) -> Result<Option<Self>, crate::executor::QueryError> {
-        if eval
-            .order
-            .iter()
-            .any(|order| !matches!(order.expr, Expr::Column(_)))
-        {
-            return Ok(None);
+        let mut names = 0;
+        for order in eval.order {
+            match &order.expr {
+                Expr::Column(name) => names = add(names, name.len())?,
+                // The compound tail is parsed against the final output tuple.
+                Expr::IntegerLiteral(_) if set_order => {}
+                _ => return Ok(None),
+            }
         }
-        let names = eval.order.iter().try_fold(0, |bytes, order| {
-            let Expr::Column(name) = &order.expr else {
-                unreachable!("column checked")
-            };
-            add(bytes, name.len())
-        })?;
         let names = eval
             .projection
             .iter()
@@ -301,7 +303,8 @@ impl DirectOrder {
         for item in eval.order {
             check_query_controls(controls)?;
             let Expr::Column(name) = &item.expr else {
-                unreachable!("column checked")
+                order.push(item.clone());
+                continue;
             };
             let qualified =
                 crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|path| path.is_qualified());
@@ -350,20 +353,21 @@ fn direct_columns(
 ) -> Result<Option<Vec<usize>>, crate::executor::QueryError> {
     let mut columns = Vec::with_capacity(order.len());
     for order in order {
-        let Expr::Column(name) = &order.expr else {
-            unreachable!("direct order")
-        };
         let mut previous = None;
         for row in rows {
             check_query_controls(controls)?;
-            let Some(value) = row.get(name) else {
-                return Ok(None);
+            let index = match &order.expr {
+                Expr::IntegerLiteral(position) => {
+                    output_index(*position).filter(|index| *index < row.entries().len())
+                }
+                Expr::Column(name) => row.get(name).and_then(|value| {
+                    row.entries()
+                        .iter()
+                        .position(|(_, cell)| std::ptr::eq(cell, value))
+                }),
+                _ => unreachable!("direct order"),
             };
-            let Some(index) = row
-                .entries()
-                .iter()
-                .position(|(_, cell)| std::ptr::eq(cell, value))
-            else {
+            let Some(index) = index else {
                 return Ok(None);
             };
             if previous.is_some_and(|previous| previous != index) {
@@ -400,6 +404,10 @@ fn direct_key(
                 Cell::Scalar(value) => SemanticValue::from_value(value),
                 Cell::Text(_) => unreachable!("primitive bridge eligibility"),
             }
+        } else if let Expr::IntegerLiteral(position) = order.expr {
+            let (semantic, part_memory) = output_sort_key(row, position, controls, || Ok(()))?;
+            memory.absorb(part_memory);
+            semantic
         } else {
             let Expr::Column(name) = &order.expr else {
                 unreachable!("direct order")

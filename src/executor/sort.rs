@@ -187,16 +187,16 @@ pub(crate) fn sort_set_rows_with_controls(
     eval: &EvalInput<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<crate::executor::batch::BatchRow>, crate::executor::QueryError> {
-    if rows.is_empty()
-        || !eval
-            .order
-            .iter()
-            .any(|item| matches!(item.expr, Expr::IntegerLiteral(_)))
-    {
-        return typed::sort_rows(rows, eval, controls);
-    }
+    typed::sort_set_rows(rows, eval, controls)
+}
+
+fn sort_set_rows_scalar(
+    rows: Vec<crate::executor::batch::BatchRow>,
+    eval: &EvalInput<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<crate::executor::batch::BatchRow>, crate::executor::QueryError> {
     let retention = SortRetentionContext::default();
-    let rows = sort_rows_by_key(rows, controls, &retention, |row| {
+    sort_rows_by_key(rows, controls, &retention, |row| {
         eval.row_key_with_source(
             row,
             eval.order,
@@ -205,14 +205,7 @@ pub(crate) fn sort_set_rows_with_controls(
             true,
             |row, expr| eval.value(row, expr),
         )
-    })?;
-    let path = if controls.uses_relational_cte_boundary() {
-        "scalar_cte_materialization"
-    } else {
-        "scalar_expression_order"
-    };
-    crate::executor::typed_batch::relational_diagnostics::publish("sort", path);
-    Ok(rows)
+    })
 }
 
 fn top_k_batches_with_context(
@@ -583,6 +576,10 @@ impl RowAccess for OutputSortCell<'_> {
     }
 }
 
+fn output_index(position: i64) -> Option<usize> {
+    usize::try_from(position).ok()?.checked_sub(1)
+}
+
 fn output_sort_key(
     row: &impl RowAccess,
     position: i64,
@@ -591,10 +588,7 @@ fn output_sort_key(
 ) -> Result<(SemanticValue, crate::runtime::QueryMemoryReservation), crate::executor::QueryError> {
     use crate::executor::retained_memory::{add, value_clone_bytes};
 
-    let index = usize::try_from(position)
-        .ok()
-        .and_then(|position| position.checked_sub(1));
-    let (index, entry) = index
+    let (index, entry) = output_index(position)
         .and_then(|index| row.entries().get(index).map(|entry| (index, entry)))
         .ok_or_else(|| {
             crate::executor::QueryError::General(format!(

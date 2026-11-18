@@ -169,7 +169,7 @@ fn should_order_compound_duplicate_names_by_position_before_pagination() {
 }
 
 #[test]
-fn should_order_compound_nested_and_outer_tails_independently() {
+fn should_order_compound_nested_tails_independently() {
     // Arrange
     let fixture = sql_fixture("set_order_nested_ordinal", &[]);
 
@@ -177,9 +177,21 @@ fn should_order_compound_nested_and_outer_tails_independently() {
     let rows = ints(fixture.rows(
         "(SELECT 1 UNION SELECT 3 ORDER BY 1 DESC LIMIT 1) UNION ALL SELECT 2 ORDER BY 1 ASC",
     ));
-    let invalid = fixture.execute("SELECT 1 UNION SELECT 2 ORDER BY 2");
-
     // Assert
     assert_eq!(rows, vec![2, 3]);
-    assert!(invalid.is_err());
+}
+
+#[test]
+fn should_reject_compound_order_position_outside_output() {
+    // Arrange
+    let fixture = sql_fixture("set_order_invalid_ordinal", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT 1 UNION SELECT 2 ORDER BY 2");
+
+    // Assert
+    let error = result.expect_err("invalid order position");
+    assert!(error
+        .to_string()
+        .contains("ORDER BY position 2 is not in select list"));
 }

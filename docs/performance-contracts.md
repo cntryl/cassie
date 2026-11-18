@@ -179,12 +179,13 @@ under #769 CON-05.
 
 Inner-join planning exhaustively enumerates deterministic relation orders through eight relations and uses deterministic greedy expansion above eight. Outer, full, cross, lateral, and correlated dependencies remain explicit legality barriers unless a semantics-preserving proof applies. Missing statistics use a stable conservative fallback and lexical tie-breaking, so identical schema and statistics snapshots produce identical plans and reusable plan-cache entries.
 
-### Selected bounded join-selectivity increment
+### Bounded join selectivity and whole-ON placement
 
-The following increment is authored for the current graph/query repair bundle.
-Its 26 regressions have 20 observed baseline assertion failures and six passing
-controls. The implementation still awaits integrated review and the complete
-combined local gate; no GREEN or universal speed improvement is claimed.
+The finite [NDV-based ordering model](https://github.com/cntryl/cassie/issues/1341)
+uses eligible field statistics to estimate intermediate rows. Its
+[whole-ON placement rule](https://github.com/cntryl/cassie/issues/1342) preserves
+the context required by correlated predicates. These estimates do not promise
+general cardinality accuracy or a speed improvement for every query.
 
 The existing unaliased base-table, all-inner join boundary stays unchanged.
 Exact component-aware relation statistics take precedence over suffix matches;
@@ -199,9 +200,13 @@ and no NULL or missing cells. Unsupported or ambiguous fields and expressions
 decline that estimate. Only bare qualified-column equalities under `AND` are
 eligible; `OR`, casts, functions, and `WHERE` selectivity do not supply join
 reductions. Each equality retains the complete dependencies of its original
-`ON` expression. It becomes usable only when the unchanged join rebuild can
-attach that whole expression; conjunctions are not split to invent earlier
-filtering.
+`ON` expression. It becomes usable only when the pre-resolved dependencies of
+that whole expression are ready; conjunctions are not split to invent earlier
+filtering. An unknown or correlated whole-ON dependency set declines that
+parent's NDV estimate and keeps its complete predicate at the final join.
+Other known parents retain their eligibility and readiness. Rebuilding uses
+those same pre-resolved identities without partial raw-dot dependency guesses.
+This repair preserves the existing alias, executor and SQL eligibility bounds.
 
 Each extension starts with the prior estimated rows times the next base count.
 At most one ready equality supplies the largest eligible NDV divisor, using
@@ -215,13 +220,15 @@ or publication guarantee is decided by an estimate.
 Products and sums use checked `u128` arithmetic. Ceiling division uses quotient
 and remainder, avoiding an overflowing `raw + divisor - 1`. An overflow returns
 the legacy saturating cost for the entire candidate order. The private compiled
-plan cache epoch must advance with this increment so L1 and L2 plans carrying
-the prior order are recompiled; authoritative stored data and formats do not
-change. Focused witnesses live in `join_selectivity`, the private cost
-observations and the join-cost cache tests. Exact baseline receipts are retained
-under the isolated worktree's `target/assembly-line/query-join-cost/` directory.
-Implementation review and the combined ordered local gate remain required before
-promotion.
+plan namespace invalidates earlier join-order plans in both L1 and L2;
+authoritative data and formats do not change. Cache regressions require a fresh
+NDV-order plan and a schema-valid legacy-order plan to return the same rows.
+After seeding and independently reading back the actual prior-epoch artifact,
+the normal query path must select the fresh order. Focused witnesses live in
+`join_selectivity`, the private cost observations, the join-cost cache tests and
+the memo lexical-tie test.
+Historical failures and exact-source qualification evidence belong to the
+owning issues and assembly/PR records.
 
 ## Retrieval Access Paths
 

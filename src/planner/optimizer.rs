@@ -1,4 +1,4 @@
-use crate::catalog::{local_name, name_matches, CollectionCardinalityStats};
+use crate::catalog::{local_name, CollectionCardinalityStats};
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{BinaryOp, Expr, JoinKind, QuerySource};
 use std::collections::{BTreeSet, HashMap};
@@ -57,29 +57,17 @@ impl InnerJoinTerms {
     fn rebuild(self, order: &[usize], inputs: &inputs::JoinInputs) -> QuerySource {
         let mut unused = self.predicates.into_iter().enumerate().collect::<Vec<_>>();
         let first = order[0];
-        let mut joined = BTreeSet::from([inputs.labels[first].to_ascii_lowercase()]);
         let mut source = self.relations[first].clone();
 
         for (position, index) in order.iter().copied().enumerate().skip(1) {
-            let next_name = inputs.labels[index].to_ascii_lowercase();
-            let mut available = joined.clone();
-            available.insert(next_name.clone());
             let last = position + 1 == order.len();
             let mut selected = Vec::new();
             let mut remaining = Vec::new();
             for (predicate_index, predicate) in unused {
                 let ready = inputs.predicates[predicate_index]
                     .ready(&order[..position], index, last)
-                    .unwrap_or_else(|| {
-                        let references = predicate_relations(&predicate);
-                        last || (references
-                            .iter()
-                            .all(|name| relation_set_contains(&available, name))
-                            && relation_set_contains(&references, &next_name)
-                            && references
-                                .iter()
-                                .any(|name| relation_set_contains(&joined, name)))
-                    });
+                    // Keep an unknown whole ON intact until all inputs exist.
+                    .unwrap_or(last);
                 if ready {
                     selected.push(predicate);
                 } else {
@@ -93,7 +81,6 @@ impl InnerJoinTerms {
                 kind: JoinKind::Inner,
                 on: combine_predicates(selected),
             };
-            joined.insert(next_name);
         }
         source
     }
@@ -207,27 +194,6 @@ fn greedy_order(inputs: &inputs::JoinInputs) -> Vec<usize> {
         order.push(index);
     }
     order
-}
-
-fn predicate_relations(expr: &Expr) -> BTreeSet<String> {
-    let mut relations = BTreeSet::new();
-    collect_predicate_relations(expr, &mut relations);
-    relations
-}
-
-fn collect_predicate_relations(expr: &Expr, relations: &mut BTreeSet<String>) {
-    if let Expr::Column(column) = expr {
-        if let Some((qualifier, _)) = column.rsplit_once('.') {
-            relations.insert(qualifier.to_ascii_lowercase());
-        }
-    }
-    expr.for_each_child(|child| collect_predicate_relations(child, relations));
-}
-
-fn relation_set_contains(relations: &BTreeSet<String>, requested: &str) -> bool {
-    relations
-        .iter()
-        .any(|stored| name_matches(stored, requested) || name_matches(requested, stored))
 }
 
 fn combine_predicates(mut predicates: Vec<Expr>) -> Expr {

@@ -61,7 +61,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | JSON finite path functions | `json_extract_path`/`jsonb_extract_path` and their `_text` variants traverse variadic TEXT components with the extraction operator rules. Missing paths and NULL components return SQL NULL. At least one path component is required; explicit `VARIADIC text[]` invocation is supported (a non-`TEXT[]` or unmarked array returns `42883`). JSON-valued results preserve native document identity and document null; text extraction converts document null to SQL NULL and preserves exact number text. Document and selector parameters infer native document and TEXT identities. Decode, traversal and output scratch are admitted, with cancellation checks. Evidence: [finite path parameters and boundaries](../tests/pgwire_extended/types/json/path_function_native.rs) and [legacy overloads](../tests/pgwire_extended/types/json/json_legacy_builders_and_paths.rs). Native JSONPath remains pending. |
 | <a name="jsonpath-expressions-and-operators"></a>JSONPath expressions and operators | JSONPath uses expression-only OID 4072. `@?` returns whether a path produces items; `@@` returns a predicate result, including SQL NULL for unknown. `jsonb_path_match`, `jsonb_path_exists`, `jsonb_path_query_array` and `jsonb_path_query_first` accept JSONB, JSONPath, optional JSONB variables and optional silent flag; `_tz` forms use the statement-start session-zone offset. `jsonb_path_query` is supported as a FROM table function yielding one JSONB `value` per match. Structural errors are reported unless the silent form suppresses that error class. Variables currently support the selected unquoted `$identifier` substitution. OID 4072 is expression-only: persisted columns and arrays are excluded. TZ evaluation uses a fixed offset and does not qualify historical/DST transitions. Query SRF projection expansion is not selected. `JSON_TABLE` is a FROM source (see its row) and is not accepted as an expression; cancellation test completion depends on the `pg_stat_activity` catalog view tracked by [#817](https://github.com/cntryl/cassie/issues/817). Evidence: [operators and selected functions](../tests/pgwire_extended/types/json/jsonpath/jsonpath_operator_semantics.rs), [item methods](../tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs), [accessor grammar](../tests/pgwire_extended/types/json/jsonpath/jsonpath_accessor_grammar.rs), [timezone variants](../tests/pgwire_extended/types/json/jsonpath_timezone.rs), and [cancellation boundary](../tests/pgwire_extended/types/json/jsonpath/cancellation.rs). |
 | JSON finite mutation and formatting | `jsonb_set`, `jsonb_set_lax` and `jsonb_insert` traverse TEXT[] paths without creating missing intermediate containers. Negative array indexes count from the end; out-of-range final insertion uses the nearest end. Lax mutation distinguishes SQL NULL replacement treatment from document null. `json_strip_nulls` preserves non-NULL member order and duplicates; its JSONB counterpart canonicalizes. Both optionally strip array nulls. `jsonb_pretty` returns indented TEXT with exact decimal values. Decode and output scratch are admitted before allocation. Evidence: [mutation, error recovery and formatting](../tests/pgwire_extended/types/json/mutation_native.rs) and focused resource probes. |
-| Ordering and pagination | `ORDER BY`, null placement, `LIMIT`, `OFFSET` |
+| Ordering and pagination | `ORDER BY`, null placement, `LIMIT`, `OFFSET`. See [paging a feed](#paging-a-feed). |
 | SQL-standard pagination spelling | Selected integer `FETCH FIRST/NEXT … ROW/ROWS ONLY` and `OFFSET … ROW/ROWS`, including omitted FETCH count, checked parameters, and local/global set-query bounds. `WITH TIES` rejects 0A000 and remains pending. |
 | Deduplication | `DISTINCT`, `DISTINCT ON` |
 | Aggregation | `count`, `sum`, `avg`, `min`, `max`, grouping and `HAVING` |
@@ -231,6 +231,24 @@ confirms both statements leave stored values unchanged. These exact forms were
 historical failures recorded in
 [#796](https://github.com/cntryl/cassie/issues/796); other forms in that issue
 remain open.
+
+### Paging a feed
+
+Use a unique column as the last sort key so that ties cannot change page
+boundaries. In this example, `id` is the feed's primary key. Prepare the query
+and bind the page size and offset as BIGINT values.
+
+```sql
+SELECT id
+FROM feed
+ORDER BY priority DESC NULLS LAST, id ASC
+LIMIT $1 OFFSET $2;
+```
+
+To read every page from one snapshot, begin a `REPEATABLE READ` transaction and
+fetch all pages on that connection before committing. A commit on another
+connection between pages does not change the results in that snapshot. Start a
+new transaction to include newly committed rows.
 
 ### JSON Document Null and SQL NULL
 

@@ -396,6 +396,16 @@ fn should_enforce_vector_casts_with_or_without_ann_index() {
                 )
                 .await
                 .expect("rank a correctly sized vector");
+            let ranked_text = client
+                .query_one(
+                    &format!(
+                        "SELECT id, embedding <-> '[ 1e+0 , -0 , 0.0 ]'::vector(3) AS score \
+                         FROM {table} ORDER BY score LIMIT 1"
+                    ),
+                    &[],
+                )
+                .await
+                .expect("rank valid vector text with whitespace and exponent notation");
             let mut errors = Vec::new();
             for (operand, params) in [
                 ("'[1,0,0]'::vector(2)", &[][..]),
@@ -416,10 +426,24 @@ fn should_enforce_vector_casts_with_or_without_ann_index() {
                         .expect_err("invalid operand casts must fail before ranking"),
                 );
             }
+            errors.push(
+                client
+                    .query(
+                        &format!(
+                            "SELECT id, embedding <-> '[1,0,0]'::vector AS score \
+                             FROM {table} ORDER BY embedding <-> $1::vector(2) LIMIT 1"
+                        ),
+                        binary,
+                    )
+                    .await
+                    .expect_err("ORDER BY must validate its own vector cast"),
+            );
 
             // Assert
-            assert_eq!(ranked.get::<_, i32>(0), 1);
-            assert!(ranked.get::<_, f64>(1).abs() < f64::EPSILON);
+            for row in [ranked, ranked_text] {
+                assert_eq!(row.get::<_, i32>(0), 1);
+                assert!(row.get::<_, f64>(1).abs() < f64::EPSILON);
+            }
             for error in &errors {
                 let diagnostic = db_error(error);
                 assert_eq!(diagnostic.code().code(), "22000");
@@ -432,7 +456,7 @@ fn should_enforce_vector_casts_with_or_without_ann_index() {
         let after = server.cassie.metrics()["vector"]["hnsw_executions"]
             .as_u64()
             .expect("HNSW execution counter");
-        assert_eq!(after - before, 1, "only the valid indexed query uses HNSW");
+        assert_eq!(after - before, 2, "only the valid indexed queries use HNSW");
 
         drop(client);
         server.shutdown(connection).await;

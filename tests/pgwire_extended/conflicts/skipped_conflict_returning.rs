@@ -146,3 +146,127 @@ fn should_match_skipped_conflict_returning_over_declared_binary_bind() {
     // Assert
     assert_transcript(&transcript, true);
 }
+
+const ENTITY_TABLE: &str =
+    "CREATE TABLE entities (id BIGINT PRIMARY KEY, rev BIGINT, payload TEXT)";
+const APPLY_REVISION: &str = "ON CONFLICT (id) DO UPDATE SET rev = EXCLUDED.rev, \
+    payload = EXCLUDED.payload WHERE target.rev < EXCLUDED.rev RETURNING id, rev, payload";
+const ENTITY_READBACK: &str = "SELECT id, rev, payload FROM entities";
+
+fn assert_entity_result(frames: &Frames, command: &str, expected: Option<[&str; 3]>) {
+    let descriptions = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .map(|(_, payload)| wire::parse_row_description(payload))
+        .collect::<Vec<_>>();
+    let [columns] = descriptions.as_slice() else {
+        panic!("expected one row description for {command}: {frames:?}");
+    };
+    assert_eq!(
+        columns
+            .iter()
+            .map(|c| (c.name.as_str(), c.type_oid))
+            .collect::<Vec<_>>(),
+        [("id", 20), ("rev", 20), ("payload", 25)]
+    );
+    let commands = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'C')
+        .map(|(_, payload)| payload.as_slice())
+        .collect::<Vec<_>>();
+    assert_eq!(commands, [format!("{command}\0").as_bytes()]);
+    let expected = expected
+        .into_iter()
+        .map(|row| row.map(|value| Some(value.to_owned())).to_vec())
+        .collect::<Vec<_>>();
+    assert_eq!(wire::data_rows(frames), expected, "{command}");
+}
+
+fn assert_replayed_events(responses: &[Frames]) {
+    let [initial, newer, duplicate, stale, readback] = responses else {
+        panic!("expected four writes and one readback");
+    };
+    assert_entity_result(initial, "INSERT 0 1", Some(["1", "1", "initial"]));
+    assert_entity_result(newer, "INSERT 0 1", Some(["1", "3", "new"]));
+    assert_entity_result(duplicate, "INSERT 0 0", None);
+    assert_entity_result(stale, "INSERT 0 0", None);
+    assert_entity_result(readback, "SELECT 1", Some(["1", "3", "new"]));
+}
+
+#[test]
+fn should_apply_only_newer_entity_revisions_over_simple_query() {
+    // Arrange
+    let mut script = Vec::new();
+    for (rev, payload) in [(1, "initial"), (3, "new"), (3, "duplicate"), (2, "stale")] {
+        script.push(vec![wire::simple_query_frame(&format!(
+            "INSERT INTO entities AS target VALUES (1, {rev}, '{payload}') {APPLY_REVISION}"
+        ))]);
+    }
+    script.push(vec![wire::simple_query_frame(ENTITY_READBACK)]);
+
+    // Act
+    let responses = crate::support_repeatable_read::run_own_script(&[ENTITY_TABLE], script);
+
+    // Assert
+    assert_replayed_events(&responses);
+}
+
+fn bound_entity_command(statement: &str, parameters: &[&str]) -> Vec<Vec<u8>> {
+    vec![
+        wire::bind_frame("", statement, parameters),
+        wire::describe_portal_frame(""),
+        wire::execute_frame(""),
+        wire::sync_frame(),
+    ]
+}
+
+#[test]
+fn should_report_applied_entity_revisions_and_crud_over_parameter_bind() {
+    // Arrange
+    let parse = vec![
+        wire::parse_frame_with_types(
+            "upsert",
+            &format!("INSERT INTO entities AS target VALUES ($1, $2, $3) {APPLY_REVISION}"),
+            &[20, 20, 25],
+        ),
+        wire::parse_frame_with_types(
+            "revise",
+            "UPDATE entities SET payload = $2 WHERE id = $1 RETURNING id, rev, payload",
+            &[20, 25],
+        ),
+        wire::parse_frame_with_types(
+            "remove",
+            "DELETE FROM entities WHERE id = $1 RETURNING id, rev, payload",
+            &[20],
+        ),
+        wire::sync_frame(),
+    ];
+    let mut script = vec![parse];
+    for (rev, payload) in [
+        ("1", "initial"),
+        ("3", "new"),
+        ("3", "duplicate"),
+        ("2", "stale"),
+    ] {
+        script.push(bound_entity_command("upsert", &["1", rev, payload]));
+    }
+    script.extend([
+        vec![wire::simple_query_frame(ENTITY_READBACK)],
+        bound_entity_command("revise", &["2", "missing"]),
+        bound_entity_command("remove", &["2"]),
+        bound_entity_command("revise", &["1", "revised"]),
+        bound_entity_command("remove", &["1"]),
+        vec![wire::simple_query_frame(ENTITY_READBACK)],
+    ]);
+
+    // Act
+    let responses = crate::support_repeatable_read::run_own_script(&[ENTITY_TABLE], script);
+
+    // Assert
+    assert_replayed_events(&responses[1..6]);
+    assert_entity_result(&responses[6], "UPDATE 0", None);
+    assert_entity_result(&responses[7], "DELETE 0", None);
+    assert_entity_result(&responses[8], "UPDATE 1", Some(["1", "3", "revised"]));
+    assert_entity_result(&responses[9], "DELETE 1", Some(["1", "3", "revised"]));
+    assert_entity_result(&responses[10], "SELECT 0", None);
+}

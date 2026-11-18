@@ -437,6 +437,7 @@ fn vector_distance_projection(
     ))
 }
 
+#[derive(Clone, Copy)]
 enum VectorOrder<'a> {
     ScoreColumn,
     QueryOperand(&'a Expr),
@@ -502,6 +503,7 @@ struct VectorQuery {
     memory: Option<QueryMemoryReservation>,
 }
 
+#[derive(Clone, Copy)]
 enum VectorQueryInput<'a> {
     UncastText(&'a str),
     UncastNative(&'a [f32]),

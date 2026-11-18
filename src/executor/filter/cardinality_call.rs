@@ -150,7 +150,7 @@ mod tests {
     }
 
     #[test]
-    fn should_release_fallback_native_owners_after_success_and_error() {
+    fn should_release_fallback_native_owners_at_the_call_boundary() {
         for deletion_only in [false, true] {
             for invalid_arity in [false, true] {
                 // Arrange

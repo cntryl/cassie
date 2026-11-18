@@ -216,7 +216,7 @@ fn stored_families(
 }
 
 #[test]
-fn should_preserve_journal_and_families_when_create_retry_cannot_be_proven() {
+fn should_preserve_durable_state_when_create_retry_cannot_be_proven() {
     for problem in [
         Ambiguity::StagedFamilyStillPresent,
         Ambiguity::StagedFamilyOwned,

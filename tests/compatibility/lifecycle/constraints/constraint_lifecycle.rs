@@ -142,3 +142,97 @@ fn should_reject_check_constraint_rename_without_mutating_catalog() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_enforce_compact_column_check() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("compact_column_check").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute("CREATE TABLE compat_compact_column (n INT CHECK(n>0))")
+            .await
+            .expect("create compact CHECK");
+        client
+            .batch_execute("INSERT INTO compat_compact_column (n) VALUES (1), (NULL)")
+            .await
+            .expect("allow true and UNKNOWN");
+        let violation = client
+            .batch_execute("INSERT INTO compat_compact_column (n) VALUES (0)")
+            .await
+            .expect_err("reject false");
+
+        // Assert
+        assert_eq!(db_error(&violation).code().code(), "23514");
+        let count: i64 = client
+            .query_one("SELECT COUNT(*) FROM compat_compact_column", &[])
+            .await
+            .expect("read after rejected insert")
+            .get(0);
+        assert_eq!(count, 2);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_enforce_compact_comparison_in_table_check() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("compact_table_check").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute("CREATE TABLE compat_compact_table (n INT, CHECK(n>=0))")
+            .await
+            .expect("create compact table CHECK");
+        let violation = client
+            .batch_execute("INSERT INTO compat_compact_table (n) VALUES (-1)")
+            .await
+            .expect_err("reject false");
+
+        // Assert
+        assert_eq!(db_error(&violation).code().code(), "23514");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_keep_operator_text_inside_check_literal() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("compact_check_literal").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute(
+                "CREATE TABLE compat_compact_literal (label TEXT CHECK (label<>'it''s >= x'))",
+            )
+            .await
+            .expect("create CHECK with operator text in literal");
+        client
+            .batch_execute("INSERT INTO compat_compact_literal (label) VALUES ('ok')")
+            .await
+            .expect("allow a different label");
+        let violation = client
+            .batch_execute("INSERT INTO compat_compact_literal (label) VALUES ('it''s >= x')")
+            .await
+            .expect_err("reject the exact literal");
+
+        // Assert
+        assert_eq!(db_error(&violation).code().code(), "23514");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

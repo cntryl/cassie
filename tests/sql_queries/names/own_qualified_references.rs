@@ -378,3 +378,54 @@ fn should_preserve_lateral_inner_id_with_two_outer_id_columns() {
         );
     }
 }
+
+#[test]
+fn should_resolve_bare_lateral_columns_at_the_nearest_query_level() {
+    // Arrange
+    let fixture = super::support_sql_fixture::sql_fixture(
+        "lateral-nearest-scope",
+        &[
+            "CREATE TABLE customers (id INT PRIMARY KEY)",
+            "CREATE TABLE orders (id INT PRIMARY KEY, seq INT)",
+            "INSERT INTO customers (id) VALUES (1)",
+            "INSERT INTO orders (id,seq) VALUES (12,6)",
+        ],
+    );
+    let outer = "customers c JOIN customers d ON c.id=d.id";
+
+    // Act
+    let local = fixture.execute(&format!(
+        "SELECT q.v FROM {outer} CROSS JOIN LATERAL (SELECT id AS v FROM orders) q"
+    ));
+    let shadowed = fixture.execute(&format!(
+        "SELECT q.v FROM {outer} CROSS JOIN LATERAL (SELECT c.id AS v FROM orders c) q"
+    ));
+    let nested = fixture.execute(&format!(
+        "SELECT q.v FROM {outer} CROSS JOIN LATERAL \
+         (SELECT y.v FROM orders o CROSS JOIN LATERAL (SELECT id AS v) y) q"
+    ));
+    let inherited = fixture.execute(
+        "SELECT q.v FROM orders o CROSS JOIN LATERAL (SELECT seq AS v) q",
+    );
+    let ambiguous = [
+        format!("SELECT q.v FROM {outer} CROSS JOIN LATERAL (SELECT id AS v) q"),
+        format!("SELECT q.v FROM {outer}, orders o CROSS JOIN LATERAL (SELECT id AS v) q"),
+        "SELECT q.v FROM customers c CROSS JOIN LATERAL \
+         (SELECT id AS v FROM orders o JOIN orders p ON o.id=p.id) q".to_owned(),
+    ]
+    .map(|sql| fixture.error(&sql));
+    let forward = fixture.error(
+        "SELECT c.id FROM customers c LEFT JOIN LATERAL (SELECT d.id AS v) q ON true \
+         JOIN customers d ON d.id=c.id",
+    );
+
+    // Assert
+    for result in [local, shadowed, nested] {
+        assert_eq!(result.expect("nearest order id").rows(), &[vec![Value::Int64(12)]]);
+    }
+    assert_eq!(inherited.expect("outer sequence").rows(), &[vec![Value::Int64(6)]]);
+    for error in ambiguous {
+        assert!(matches!(error, CassieError::AmbiguousColumn(name) if name == "id"));
+    }
+    assert!(matches!(forward, CassieError::UndefinedColumn(_)));
+}

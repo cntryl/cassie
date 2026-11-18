@@ -139,3 +139,47 @@ fn should_resolve_global_clauses_over_a_regrouped_set_chain() {
     assert_eq!(cte_right, vec![2, 3]);
     assert_eq!(cte_left, vec![2, 3]);
 }
+
+#[test]
+fn should_order_compound_constants_by_output_ordinal() {
+    // Arrange
+    let fixture = sql_fixture("set_order_constant_ordinal", &[]);
+
+    // Act
+    let ordinal = ints(fixture.rows("SELECT 1 UNION SELECT 2 ORDER BY 1 DESC"));
+    let named = ints(fixture.rows("SELECT 1 AS n UNION SELECT 2 ORDER BY n DESC"));
+
+    // Assert
+    assert_eq!(named, vec![2, 1]);
+    assert_eq!(ordinal, named);
+}
+
+#[test]
+fn should_order_compound_duplicate_names_by_position_before_pagination() {
+    // Arrange
+    let fixture = sql_fixture("set_order_duplicate_names", &[]);
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT 1 AS x, 3 + 0 AS x UNION ALL SELECT 2, 1 UNION ALL SELECT 3, 2              ORDER BY 2 DESC LIMIT 1 OFFSET 1",
+    );
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(3), Value::Int64(2)]]);
+}
+
+#[test]
+fn should_order_compound_nested_and_outer_tails_independently() {
+    // Arrange
+    let fixture = sql_fixture("set_order_nested_ordinal", &[]);
+
+    // Act
+    let rows = ints(fixture.rows(
+        "(SELECT 1 UNION SELECT 3 ORDER BY 1 DESC LIMIT 1) UNION ALL SELECT 2 ORDER BY 1 ASC",
+    ));
+    let invalid = fixture.execute("SELECT 1 UNION SELECT 2 ORDER BY 2");
+
+    // Assert
+    assert_eq!(rows, vec![2, 3]);
+    assert!(invalid.is_err());
+}

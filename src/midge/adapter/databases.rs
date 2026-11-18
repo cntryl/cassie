@@ -18,6 +18,8 @@ use super::{
     TransactionMode,
 };
 
+mod lifecycle_recovery;
+
 /// The resolved physical owner of one logical database.
 #[derive(Debug, Clone)]
 pub struct DatabaseFamily {
@@ -86,69 +88,9 @@ impl Midge {
         &self,
         schema: &ColumnFamilyHandle,
     ) -> Result<(), CassieError> {
-        let tx = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadOnly)?;
-        let entries = collect_scan(
-            tx.scan(&Query::new().prefix(key_encoding::database_lifecycle_prefix().into()))
-                .map_err(CassieError::from)?,
-        )?;
-        let mut records = Vec::new();
-        for (_key, value) in entries {
-            let record: DatabaseLifecycleRecord =
-                serde_json::from_slice(&value).map_err(|error| {
-                    CassieError::StorageBootstrap(format!(
-                        "invalid database lifecycle journal record: {error}"
-                    ))
-                })?;
-            records.push(record);
-        }
-        drop(tx);
-
-        for record in records {
-            match record.kind {
-                DatabaseLifecycleKind::Create => {
-                    let metadata = self.load_database_without_layout(&record.name, schema)?;
-                    match metadata {
-                        Some(metadata) => {
-                            if metadata.physical_family != record.physical_family {
-                                return Err(CassieError::StorageBootstrap(format!(
-                                    "database '{}' lifecycle family mismatch",
-                                    record.name
-                                )));
-                            }
-                            if self
-                                .engine
-                                .get_column_family(&record.physical_family)
-                                .is_none()
-                            {
-                                let _ = self.create_physical_family(&record.physical_family)?;
-                            }
-                        }
-                        None => {
-                            self.drop_physical_family_if_present(&record.physical_family)?;
-                        }
-                    }
-                }
-                DatabaseLifecycleKind::Drop => {
-                    // A drop journal is only destructive once the catalog record
-                    // is gone. If recovery finds it still present, preserve the
-                    // active database and discard the stale journal.
-                    if self
-                        .load_database_without_layout(&record.name, schema)?
-                        .is_none()
-                    {
-                        self.drop_physical_family_if_present(&record.physical_family)?;
-                    }
-                }
-            }
-
-            let mut cleanup =
-                self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
-            Self::delete_lifecycle_record(&mut cleanup, &record.operation_id)?;
-            cleanup
-                .commit(self.write_options_sync())
-                .map_err(CassieError::from)?;
-        }
-        Ok(())
+        self.publication
+            .family(schema.id())
+            .with_current_operation(|| self.replay_database_lifecycle_under_guard(schema))
     }
 
     pub(super) fn load_database_families(
@@ -822,3 +764,7 @@ mod tests {
 #[cfg(test)]
 #[path = "databases/publication_tests.rs"]
 mod publication_tests;
+
+#[cfg(test)]
+#[path = "databases/create_retry_tests.rs"]
+mod create_retry_tests;

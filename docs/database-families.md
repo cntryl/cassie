@@ -28,7 +28,21 @@ records.
 Database creation journals the intended family before creating it and commits
 the catalog record only after the family exists. Empty-only database drops use
 the same journal so startup can finish an interrupted drop or remove an
-orphaned create/restore family. A registry/family mismatch is a startup error.
+orphaned create/restore family.
+
+A create retry can publish a new family while the first create intent is still
+in the journal. During cold startup, Cassie checks the journal key against the
+operation ID and validates the generated family identities. The recovered
+registry must identify exactly one owner for the replacement family, under the
+same database name, and no owner for the journaled family. A successful Midge
+family listing must show the replacement present and the journaled family
+absent. Cassie checks this evidence under the schema publication guard before
+replaying any entry, so another pending operation cannot change the evidence.
+A journal for a different database that claims either family makes ownership
+ambiguous. For a proven replacement, Cassie synchronously deletes only the
+obsolete intent. The published family retains its identity and rows across
+subsequent restarts. Ambiguous ownership, invalid records, and storage errors
+fail startup.
 This layout has not shipped. No migration utility is required: every
 pre-0.1.0 Cassie directory must be recreated before use. The unique 0.1.0
 marker prevents older development layouts, including any earlier v1 marker,

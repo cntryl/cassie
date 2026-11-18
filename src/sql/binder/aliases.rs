@@ -50,7 +50,7 @@ pub(super) fn columns(
         }
         QuerySource::Cte(name) => {
             let binding = scope
-                .get(&name.to_ascii_lowercase())
+                .get(name)
                 .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
             if aliases.len() > binding.visible.len() {
                 return Err(CassieError::Planner(
@@ -173,7 +173,17 @@ fn namespaces(
             fields: columns(source, &[], catalog, scope)?,
             reserved_identity: base_identity(source, catalog, scope),
         }),
-        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+        QuerySource::Cte(name) => {
+            result.push(Namespace {
+                qualifier_only: false,
+                name: name.clone(),
+                qualifier: crate::sql::cte_identity::qualifier(name),
+                hidden: Vec::new(),
+                fields: columns(source, &[], catalog, scope)?,
+                reserved_identity: base_identity(source, catalog, scope),
+            });
+        }
+        QuerySource::TableFunction { name, .. } => {
             result.push(Namespace {
                 qualifier_only: false,
                 name: name.clone(),
@@ -660,7 +670,7 @@ fn has_alias(source: &QuerySource) -> bool {
 fn base_identity(source: &QuerySource, catalog: &Catalog, scope: &CteScope<'_>) -> bool {
     if let QuerySource::Cte(name) = source {
         return scope
-            .get(&name.to_ascii_lowercase())
+            .get(name)
             .is_some_and(super::CteBinding::has_implicit_identity);
     }
     let QuerySource::Collection(name) = source else {

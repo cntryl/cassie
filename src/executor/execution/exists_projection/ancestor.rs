@@ -22,9 +22,8 @@ fn source_claims(source: &QuerySource, qualifier: &str) -> bool {
         }
         QuerySource::TableSample { source, .. } => source_claims(source, qualifier),
         QuerySource::Subquery { alias, .. } => alias.to_ascii_lowercase() == qualifier,
-        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
-            name.to_ascii_lowercase() == qualifier
-        }
+        QuerySource::Cte(name) => name == qualifier,
+        QuerySource::TableFunction { name, .. } => name.to_ascii_lowercase() == qualifier,
         QuerySource::Join { left, right, .. } => {
             source_claims(left, qualifier) || source_claims(right, qualifier)
         }
@@ -257,3 +256,20 @@ pub(super) fn contains_nested(statement: &ParsedStatement) -> bool {
 #[cfg(test)]
 #[path = "ancestor_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod cte_identity_tests {
+    #[test]
+    fn should_claim_the_parsed_cte_qualifier_identity() {
+        // Arrange
+        let source = super::QuerySource::Cte("Base".into());
+
+        // Act
+        let exact = super::source_claims(&source, "Base");
+        let folded = super::source_claims(&source, "base");
+
+        // Assert
+        assert!(exact);
+        assert!(!folded);
+    }
+}

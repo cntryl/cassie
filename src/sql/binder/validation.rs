@@ -957,8 +957,10 @@ fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
         QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
             source_cte_reference_count(source, cte_name)
         }
-        QuerySource::Cte(name) => usize::from(name.eq_ignore_ascii_case(cte_name)),
-        QuerySource::Collection(name) => usize::from(name.as_str().eq_ignore_ascii_case(cte_name)),
+        QuerySource::Cte(name) => usize::from(name == cte_name),
+        QuerySource::Collection(name) => {
+            usize::from(crate::sql::cte_identity::reference_name(name) == Some(cte_name))
+        }
         QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {
             0
         }

@@ -852,9 +852,6 @@ pub(super) fn resolve_nested_sources(
 ) -> Result<(), CassieError> {
     let mut names = outer.clone();
     for cte in &mut select.ctes {
-        if matches!(cte.query, super::CteQuery::Recursive { .. }) {
-            names.insert(cte.name.to_ascii_lowercase());
-        }
         match &mut cte.query {
             super::CteQuery::Simple(statement) => {
                 resolve_nested_statement_sources(statement, &names, catalog, context)?;
@@ -863,10 +860,12 @@ pub(super) fn resolve_nested_sources(
                 base, recursive, ..
             } => {
                 resolve_nested_statement_sources(base, &names, catalog, context)?;
-                resolve_nested_statement_sources(recursive, &names, catalog, context)?;
+                let mut recursive_names = names.clone();
+                recursive_names.insert(cte.name.clone());
+                resolve_nested_statement_sources(recursive, &recursive_names, catalog, context)?;
             }
         }
-        names.insert(cte.name.to_ascii_lowercase());
+        names.insert(cte.name.clone());
     }
     resolve_nested_source(&mut select.source, &names, catalog, context)?;
     if let Some(set) = &mut select.set {
@@ -898,8 +897,10 @@ fn resolve_nested_source(
             resolve_nested_source(source, names, catalog, context)?;
         }
         QuerySource::Collection(name) => {
-            if names.contains(&name.to_ascii_lowercase()) {
-                *source = QuerySource::Cte(name.to_string());
+            if let Some(local) = crate::sql::cte_identity::reference_name(name)
+                .filter(|local| names.contains(*local))
+            {
+                *source = QuerySource::Cte(local.to_owned());
             } else if !(name.components().len() == 3
                 && name.components()[0]
                     .value()

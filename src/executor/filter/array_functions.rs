@@ -376,7 +376,7 @@ fn value_text(value: &Value) -> Option<String> {
     })
 }
 
-fn cardinality(args: &[Value]) -> Result<Value, QueryError> {
+pub(super) fn cardinality(args: &[Value]) -> Result<Value, QueryError> {
     let [value] = args else {
         return Err(invalid_call("cardinality"));
     };

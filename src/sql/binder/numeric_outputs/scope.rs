@@ -23,7 +23,7 @@ impl Analyzer<'_> {
         let mut ctes = outer_ctes.clone();
         for cte in &select.ctes {
             let fields = self.cte(cte, &ctes)?;
-            ctes.insert(cte.name.to_ascii_lowercase(), fields);
+            ctes.insert(cte.name.clone(), fields);
         }
         let mut source = self.source(&select.source, &ctes, outer_fields)?;
         if let Some(outer) = outer_fields {
@@ -80,7 +80,7 @@ impl Analyzer<'_> {
                 self.check_controls()?;
                 let previous = fields.clone();
                 let mut scope = outer_ctes.clone();
-                scope.insert(cte.name.to_ascii_lowercase(), fields.clone());
+                scope.insert(cte.name.clone(), fields.clone());
                 let mut next = self.select(recursive, &scope, None)?;
                 rename_cte_fields(&mut next, cte)?;
                 require_width(&fields, &next)?;
@@ -140,10 +140,13 @@ impl Analyzer<'_> {
             QuerySource::Collection(name) => self.collection_source(name, ctes),
             QuerySource::Cte(name) => {
                 let fields = ctes
-                    .get(&name.to_ascii_lowercase())
+                    .get(name)
                     .cloned()
                     .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
-                Ok(exported_scope(fields, std::slice::from_ref(name)))
+                Ok(exported_scope(
+                    fields,
+                    &[crate::sql::cte_identity::qualifier(name)],
+                ))
             }
             QuerySource::TableFunction { name, .. } => {
                 let outer = outer_fields.map(|fields| crate::types::Schema {
@@ -195,10 +198,16 @@ impl Analyzer<'_> {
         }
     }
 
-    fn collection_source(&self, name: &str, ctes: &CteScope) -> Result<SourceScope, CassieError> {
+    fn collection_source(
+        &self,
+        name: &crate::sql::IdentifierPath,
+        ctes: &CteScope,
+    ) -> Result<SourceScope, CassieError> {
         // Mirrors wildcard::source_fields, including a bound CTE
         // whose source is still represented as a collection.
-        if let Some(fields) = ctes.get(&name.to_ascii_lowercase()) {
+        if let Some(fields) =
+            crate::sql::cte_identity::reference_name(name).and_then(|local| ctes.get(local))
+        {
             return Ok(exported_scope(fields.clone(), &[name.to_string()]));
         }
         let schema = inference::relation_output_schema(self.catalog, name)?;

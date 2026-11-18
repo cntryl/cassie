@@ -93,9 +93,8 @@ pub(super) fn outer_qualifier(source: &QuerySource) -> Option<String> {
             Some(crate::catalog::local_name(name).to_ascii_lowercase())
         }
         QuerySource::Subquery { alias, .. } => Some(alias.to_ascii_lowercase()),
-        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
-            Some(name.to_ascii_lowercase())
-        }
+        QuerySource::Cte(name) => Some(crate::sql::cte_identity::folded_qualifier(name)),
+        QuerySource::TableFunction { name, .. } => Some(name.to_ascii_lowercase()),
         QuerySource::Aliased { alias, .. } => Some(crate::sql::binder::alias_row_qualifier(alias)),
         _ => None,
     }
@@ -288,3 +287,18 @@ mod joined_tests;
 #[cfg(test)]
 #[path = "exists_ancestor_tests.rs"]
 mod ancestor_tests;
+
+#[cfg(test)]
+mod cte_identity_tests {
+    #[test]
+    fn should_render_resolved_cte_data_for_correlated_outer_fields() {
+        // Arrange
+        let source = super::QuerySource::Cte("part.one".into());
+
+        // Act
+        let qualifier = super::outer_qualifier(&source);
+
+        // Assert
+        assert_eq!(qualifier.as_deref(), Some("\"part.one\""));
+    }
+}

@@ -72,5 +72,8 @@ mod endpoint_indexes;
 #[path = "graph_table/view_dependencies.rs"]
 mod view_dependencies;
 
+#[path = "graph_table/cte_view_dependencies.rs"]
+mod cte_view_dependencies;
+
 #[path = "graph_table/portal_preflight.rs"]
 mod portal_preflight;

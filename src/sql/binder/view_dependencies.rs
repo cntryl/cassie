@@ -31,7 +31,7 @@ fn collect_select(statement: &SelectStatement, relations: &mut Collected) {
     for cte in &statement.ctes {
         // A nonrecursive body sees prior definitions, not its own new name.
         collect_cte(cte, relations);
-        relations.ctes.insert(cte.name.to_ascii_lowercase());
+        relations.ctes.insert(cte.name.clone());
     }
     collect_source(&statement.source, relations);
     for item in &statement.projection {
@@ -65,7 +65,7 @@ fn collect_cte(cte: &CommonTableExpression, relations: &mut Collected) {
         } => {
             collect_parsed_statement(base, relations);
             let inherited = relations.ctes.clone();
-            relations.ctes.insert(cte.name.to_ascii_lowercase());
+            relations.ctes.insert(cte.name.clone());
             collect_parsed_statement(recursive, relations);
             relations.ctes = inherited;
         }
@@ -85,10 +85,8 @@ fn collect_parsed_statement(statement: &ParsedStatement, relations: &mut Collect
 fn collect_source(source: &QuerySource, relations: &mut Collected) {
     match source {
         QuerySource::Collection(name) => {
-            // Match bind_collection_source's rendered lookup key, retaining quotes.
-            // Stripping them would hide catalog reads unsupported as local CTE reads.
-            if name.components().len() != 1
-                || !relations.ctes.contains(&name.as_str().to_ascii_lowercase())
+            if !crate::sql::cte_identity::reference_name(name)
+                .is_some_and(|local| relations.ctes.contains(local))
             {
                 relations.relations.insert(name.to_string());
             }

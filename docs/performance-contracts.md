@@ -128,6 +128,15 @@ digit scanning and rendering check cancellation at bounded intervals. These
 bounds cover SQL scalar execution; they do not include process RSS or a single
 native bigint operation's internal latency.
 
+The native `cardinality` and `pg_catalog.cardinality` paths read SQL array element
+counts without reserving NUMERIC decimal-rendering scratch. Their argument Value
+directory and direct Param/Column native payload copies are admitted before
+allocation on the active expression owner, which spans the argument lifetime.
+Computed operands keep their existing evaluation controls and ownership; other
+functions and schema-qualified UDFs keep their required generic workspace. NULL,
+empty and multidimensional counts, cancellation and the default query budget
+are unchanged (#1337).
+
 Cancellation and deadline checkpoints bracket storage/decode calls and row conversion, and
 check aggregate merge and adaptive replacement before success diagnostics. Checkpoints do not
 interrupt an individual Midge, decoder or native sorting call, so this contract specifies

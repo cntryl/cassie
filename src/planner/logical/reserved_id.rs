@@ -127,10 +127,7 @@ fn source_resolves_id_to_identity(
         }
         QuerySource::Cte(name) => {
             for (scope_index, ctes) in scopes.iter().enumerate().rev() {
-                let Some(index) = ctes
-                    .iter()
-                    .rposition(|cte| cte.name.eq_ignore_ascii_case(name))
-                else {
+                let Some(index) = ctes.iter().rposition(|cte| cte.name == *name) else {
                     continue;
                 };
                 let cte = &ctes[index];

@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1781 |
-| Rust files | 1744 |
-| Rust test declarations | 10574 |
+| Files under `tests/` | 1785 |
+| Rust files | 1748 |
+| Rust test declarations | 10593 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10599 |
+| Static Rust registration instances | 10618 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -42,7 +42,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [graph_guide](inventory/graph_guide.md) | 11 | 0 |
-| [graph_table](inventory/graph_table.md) | 150 | 0 |
+| [graph_table](inventory/graph_table.md) | 151 | 0 |
 | [graph_types](inventory/graph_types.md) | 115 | 0 |
 | [graph_weighted](inventory/graph_weighted.md) | 97 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
@@ -64,7 +64,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
 | [sql_mutations](inventory/sql_mutations.md) | 494 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 1961 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 1979 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
 | [storage_indexes](inventory/storage_indexes.md) | 267 | 0 |

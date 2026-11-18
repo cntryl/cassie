@@ -101,12 +101,12 @@ pub(super) fn execute_cte<'a>(
     let controls = env.controls;
     check_timeout(controls)?;
     let _name_memory = controls.reserve_query_memory(cte.name.len())?;
-    let cte_name = cte.name.to_ascii_lowercase();
+    let cte_name = &cte.name;
     // A nonrecursive definition may read an outer CTE with the same name.
     // Only recursive evaluation installs a private working relation here.
     let recursive = matches!(cte.query, CteQuery::Recursive { .. });
     let previous = if recursive {
-        cte_context.remove(&cte_name)
+        cte_context.remove(cte_name)
     } else {
         None
     };
@@ -133,13 +133,13 @@ pub(super) fn execute_cte<'a>(
 
     let mut output = output;
     if cte.search.is_some() || cte.cycle.is_some() {
-        search_cycle::remove_lineage(&mut output, &cte_name, cte.search.is_some(), controls)?;
+        search_cycle::remove_lineage(&mut output, cte_name, cte.search.is_some(), controls)?;
     }
     let output = output.rename(&cte.aliases, controls)?;
     if let Some(previous_rows) = previous {
-        cte_context.insert(&cte_name, previous_rows, controls)?;
+        cte_context.insert(cte_name, previous_rows, controls)?;
     } else if recursive {
-        cte_context.remove(&cte_name);
+        cte_context.remove(cte_name);
     }
 
     Ok(CteRelation {
@@ -170,11 +170,11 @@ fn execute_recursive_cte(
             "recursive CTE execution received a non-recursive query".into(),
         ));
     };
-    let cte_name = cte.name.to_ascii_lowercase();
+    let cte_name = &cte.name;
     let base_plan = build_logical_plan(&environment.env.cassie.catalog, base.as_ref())?;
     let recursive_statement = search_cycle::add_lineage_projection(
         recursive.as_ref(),
-        &cte_name,
+        cte_name,
         cte.search.as_ref(),
         cte.cycle.as_ref(),
     )?;
@@ -183,7 +183,7 @@ fn execute_recursive_cte(
     rows = rows.rename(&cte.aliases, environment.env.controls)?;
     search_cycle::append_base_metadata(
         &mut rows,
-        &cte_name,
+        cte_name,
         cte.search.as_ref(),
         cte.cycle.as_ref(),
         fields,
@@ -196,10 +196,10 @@ fn execute_recursive_cte(
     }
     let mut delta = RetainedRows::copy(&rows.rows, environment.env.controls)?;
     let working_fields =
-        search_cycle::working_fields(fields, &cte_name, cte.search.as_ref(), cte.cycle.as_ref());
+        search_cycle::working_fields(fields, cte_name, cte.search.as_ref(), cte.cycle.as_ref());
     store_working_rows(
         environment.cte_context,
-        &cte_name,
+        cte_name,
         &delta.rows,
         &working_fields,
         environment.env.controls,
@@ -243,7 +243,7 @@ fn execute_recursive_cte_steps(
         let mut recursive_rows = recursive_rows.rename(&cte.aliases, environment.env.controls)?;
         search_cycle::append_recursive_metadata(
             &mut recursive_rows,
-            &cte.name.to_ascii_lowercase(),
+            &cte.name,
             cte.search.as_ref(),
             cte.cycle.as_ref(),
             working_fields,
@@ -269,7 +269,7 @@ fn execute_recursive_cte_steps(
         if cte.cycle.is_some() {
             search_cycle::prune_cycle_rows(
                 &mut recursive_rows,
-                &cte.name.to_ascii_lowercase(),
+                &cte.name,
                 environment.env.controls,
             )?;
         }
@@ -280,7 +280,7 @@ fn execute_recursive_cte_steps(
         *delta = recursive_rows;
         store_working_rows(
             environment.cte_context,
-            &cte.name.to_ascii_lowercase(),
+            &cte.name,
             &delta.rows,
             working_fields,
             environment.env.controls,

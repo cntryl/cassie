@@ -57,7 +57,7 @@ fn substitute_select(select: &mut SelectStatement, outer: &BatchRow, params: &mu
     let mut inner = HashSet::new();
     source_qualifiers(&select.source, &mut inner);
     for cte in &select.ctes {
-        inner.insert(cte.name.to_ascii_lowercase());
+        inner.insert(crate::sql::cte_identity::folded_qualifier(&cte.name));
     }
     let bare_outer = matches!(select.source, QuerySource::SingleRow);
     let context = Substitution {
@@ -120,7 +120,10 @@ fn source_qualifiers(source: &QuerySource, out: &mut HashSet<String>) {
             out.insert(crate::catalog::local_name(name).to_ascii_lowercase());
             out.insert(name.to_string().to_ascii_lowercase());
         }
-        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+        QuerySource::Cte(name) => {
+            out.insert(crate::sql::cte_identity::folded_qualifier(name));
+        }
+        QuerySource::TableFunction { name, .. } => {
             out.insert(name.to_ascii_lowercase());
         }
         QuerySource::Aliased { alias, .. } | QuerySource::Subquery { alias, .. } => {
@@ -223,6 +226,20 @@ fn literal(value: Value, params: &mut Vec<Value>) -> Expr {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_preserve_cte_components_in_row_subquery_qualifiers() {
+        // Arrange
+        let source = QuerySource::Cte("part.one".into());
+        let mut names = HashSet::new();
+
+        // Act
+        source_qualifiers(&source, &mut names);
+
+        // Assert
+        assert!(names.contains("\"part.one\""));
+        assert!(!names.contains("part.one"));
+    }
 
     #[test]
     fn should_substitute_outer_reference_in_window_filter() {

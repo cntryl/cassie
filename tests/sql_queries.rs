@@ -11,6 +11,15 @@ mod sql_parameter_signatures;
 #[path = "support/alias_fixture.rs"]
 mod support_alias_fixture;
 
+#[path = "support/query_correctness_fixture.rs"]
+mod query_correctness_fixture;
+
+#[path = "sql_queries/cte_identity.rs"]
+mod cte_identity;
+
+#[path = "sql_queries/cardinality_admission.rs"]
+mod cardinality_admission;
+
 #[path = "sql_queries/expressions/alias_integration.rs"]
 mod alias_integration;
 

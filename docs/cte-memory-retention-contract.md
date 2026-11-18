@@ -78,8 +78,8 @@ hashes and Jev's specific questions/actions in ignored target evidence. This pri
 ordered validation and exact-head hosted checks and review remain required;
 focused qualification is not full-suite, hosted or closure proof.
 
-Map insertion admits borrowed name bytes before cloning the key. Lowercase-name
-scratch is admitted before normalization. ARRAY source descriptor replacement
+Map insertion admits borrowed resolved-name bytes before cloning the key.
+ARRAY source descriptor replacement
 uses borrowed nested-type estimates and retains a distinct owner on returned
 owned rows; value and logical descriptor shapes remain unchanged.
 
@@ -101,3 +101,29 @@ owner after existing field inference. Admit the owned inferred fields before
 NULL-row/type/lookup/qualification construction and retain them until template
 drop. This does not qualify binder inference internal schema/field copies;
 direct CTE field-copy admission remains before binder construction.
+
+## Resolved CTE identity (#1338)
+
+CTE declarations already contain parser-resolved identifier values. Use those
+values directly as namespace keys: unquoted `BASE`, `base` and quoted `"base"`
+are the same name, while quoted `"Base"` is distinct. A bound `QuerySource::Cte`
+contains that resolved value, including any embedded dot or quote as data;
+consumers must not parse it again or lowercase it. Only an unbound Collection
+reference uses its single parsed identifier component to find a local CTE.
+Qualified references continue to read the catalog.
+
+Binding, inferred descriptors, producer selection, runtime contexts and graph
+view dependencies share this identity. Nonrecursive bodies see prior definitions;
+recursive anchors see the prior scope and recursive arms additionally see self.
+Nested definitions shadow the same resolved name without removing a case-distinct
+outer definition. This changes neither existing alias/column qualification nor
+materialization, recursion or modifying-CTE capabilities. Rebuildable compiled
+plans require invalidation after the fresh-binding and stale-cache regressions;
+the authoritative AST and storage formats remain unchanged.
+
+Existing interfaces that consume SQL-text qualifiers render the resolved CTE
+value as one quoted identifier component. Field lookup keeps its existing
+qualifier folding, while interfaces receiving a parsed namespace component
+compare that data directly. Rendered qualifiers never become CTE producer keys
+or LogicalPlan identity labels. This includes parameter namespaces, alias
+admission, lateral filters, correlated EXISTS and mutation row subqueries.

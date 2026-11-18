@@ -196,9 +196,10 @@ fn scope_names(
             scope_names(right, aliases, visible);
         }
         QuerySource::Collection(name) => visible.extend(crate::catalog::qualifier_variants(name)),
-        QuerySource::Cte(name)
-        | QuerySource::TableFunction { name, .. }
-        | QuerySource::Subquery { alias: name, .. } => {
+        QuerySource::Cte(name) => visible.extend(crate::catalog::qualifier_variants(
+            &crate::sql::cte_identity::qualifier(name),
+        )),
+        QuerySource::TableFunction { name, .. } | QuerySource::Subquery { alias: name, .. } => {
             visible.extend(crate::catalog::qualifier_variants(name));
         }
         QuerySource::Values { .. } | QuerySource::SingleRow => {}
@@ -309,7 +310,9 @@ fn source_names(source: &QuerySource, names: &mut HashSet<String>) {
             expression_names(on, names);
         }
         QuerySource::Collection(name) => names.extend(crate::catalog::qualifier_variants(name)),
-        QuerySource::Cte(name) => names.extend(crate::catalog::qualifier_variants(name)),
+        QuerySource::Cte(name) => names.extend(crate::catalog::qualifier_variants(
+            &crate::sql::cte_identity::qualifier(name),
+        )),
         QuerySource::Subquery { alias, select, .. } => {
             names.extend(crate::catalog::qualifier_variants(alias));
             query_names(select, names);

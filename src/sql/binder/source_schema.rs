@@ -83,7 +83,7 @@ pub(crate) fn derived_source_schema_with_parameters(
         QuerySource::Cte(name) => {
             let schemas =
                 cte_schemas_with_parameters(ctes, catalog, user_functions, parameter_types);
-            (name, schemas.get(&name.to_ascii_lowercase())?.clone())
+            (name, schemas.get(name)?.clone())
         }
         QuerySource::Subquery { alias, select, .. } => {
             let schemas =
@@ -159,7 +159,7 @@ fn cte_schemas(
         let Ok(schema) = infer_cte_schema(cte, catalog, &schemas, user_functions) else {
             break;
         };
-        schemas.insert(cte.name.to_ascii_lowercase(), schema);
+        schemas.insert(cte.name.clone(), schema);
     }
     schemas
 }
@@ -177,7 +177,7 @@ fn cte_schemas_with_parameters(
         ) else {
             break;
         };
-        schemas.insert(cte.name.to_ascii_lowercase(), schema);
+        schemas.insert(cte.name.clone(), schema);
     }
     schemas
 }

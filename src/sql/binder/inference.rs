@@ -104,7 +104,7 @@ pub(super) fn infer_select_schema_with_outer(
             user_functions,
             parameter_types,
         )?;
-        cte_schemas.insert(cte.name.to_ascii_lowercase(), schema);
+        cte_schemas.insert(cte.name.clone(), schema);
     }
 
     let source_schema = infer_source_schema_with_outer(
@@ -219,13 +219,11 @@ pub(crate) fn cte_collection_schema_with_functions(
     catalog: &Catalog,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> Option<crate::catalog::CollectionSchema> {
-    let wanted = name.to_ascii_lowercase();
-
     let mut in_scope: HashMap<String, Schema> = HashMap::new();
     for cte in ctes {
         let schema = infer_cte_schema(cte, catalog, &in_scope, user_functions).ok()?;
-        let cte_name = cte.name.to_ascii_lowercase();
-        if cte_name == wanted {
+        let cte_name = cte.name.clone();
+        if cte_name == name {
             return Some(crate::catalog::CollectionSchema {
                 collection: name.to_string(),
                 fields: schema
@@ -358,7 +356,7 @@ pub(super) fn infer_source_schema_with_outer(
         )?,
         QuerySource::Collection(name) => relation_output_schema(catalog, name)?,
         QuerySource::Cte(name) => cte_schemas
-            .get(&name.to_ascii_lowercase())
+            .get(name)
             .cloned()
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
         QuerySource::SingleRow => Schema { fields: Vec::new() },
@@ -407,9 +405,10 @@ pub(super) fn infer_source_schema_with_outer(
     if qualify {
         Ok(match source {
             QuerySource::Collection(name) => qualify_schema(&schema, name),
-            QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
-                qualify_schema(&schema, name)
+            QuerySource::Cte(name) => {
+                qualify_schema(&schema, &crate::sql::cte_identity::qualifier(name))
             }
+            QuerySource::TableFunction { name, .. } => qualify_schema(&schema, name),
             QuerySource::SingleRow
             | QuerySource::Values { .. }
             | QuerySource::Aliased { .. }

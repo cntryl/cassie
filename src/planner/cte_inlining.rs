@@ -180,8 +180,7 @@ fn candidate(source: &QuerySource, ctes: &[CommonTableExpression]) -> Option<usi
         _ => return None,
     };
     ctes.iter().rposition(|cte| {
-        cte.name.eq_ignore_ascii_case(name)
-            && cte.materialization == CteMaterialization::NotMaterialized
+        cte.name == *name && cte.materialization == CteMaterialization::NotMaterialized
     })
 }
 
@@ -201,8 +200,7 @@ fn references(
         }
         QuerySource::Cte(name) => {
             let Some(cte) = ctes.iter().rev().find(|cte| {
-                cte.name.eq_ignore_ascii_case(name)
-                    && cte.materialization == CteMaterialization::NotMaterialized
+                cte.name == *name && cte.materialization == CteMaterialization::NotMaterialized
             }) else {
                 return Ok(false);
             };

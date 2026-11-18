@@ -389,7 +389,8 @@ fn should_enforce_vector_casts_with_or_without_ann_index() {
             let ranked = client
                 .query_one(
                     &format!(
-                        "SELECT id, embedding <-> $1::vector(3)::vector AS score +                         FROM {table} ORDER BY score LIMIT 1"
+                        "SELECT id, embedding <-> $1::vector(3)::vector AS score \
+                         FROM {table} ORDER BY score LIMIT 1"
                     ),
                     binary,
                 )
@@ -406,7 +407,8 @@ fn should_enforce_vector_casts_with_or_without_ann_index() {
                     client
                         .query(
                             &format!(
-                                "SELECT id, embedding <-> {operand} AS score +                                 FROM {table} ORDER BY score LIMIT 1"
+                                "SELECT id, embedding <-> {operand} AS score \
+                                 FROM {table} ORDER BY score LIMIT 1"
                             ),
                             params,
                         )

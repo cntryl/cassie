@@ -8,7 +8,7 @@ use crate::sql::parser::clauses::{
     find_top_level_keyword, find_top_level_union, parse_clauses, Clause, ClauseMatch, ClauseToken,
 };
 use crate::sql::parser::expr::{parse_expression, parse_order_by, split_csv};
-use crate::sql::parser::order_ordinals::resolve_order_ordinals;
+use crate::sql::parser::order_ordinals::{resolve_order_ordinals, validate_set_order_ordinals};
 
 #[path = "query_select/grouping_sets.rs"]
 mod grouping_sets;
@@ -133,7 +133,8 @@ pub(super) fn parse_set_select_statement(
     let mut root = build_set_tree(operands, &operators);
     root.ctes = withs;
     root.recursive = recursive;
-    root.order = resolve_order_ordinals(global_order, &first_projection)?;
+    validate_set_order_ordinals(&global_order, &first_projection)?;
+    root.order = global_order;
     root.limit = global_limit;
     root.offset = global_offset;
     Ok(ParsedStatement {
@@ -200,45 +201,24 @@ fn build_set_tree(operands: Vec<SelectStatement>, operators: &[SetOperator]) -> 
     root
 }
 
-/// Returns `left <operator> right`. A left operand that is already a set
-/// operation is regrouped only when the result is unchanged
-/// (`(A op B) op C == A op (B op C)` for a repeated associative operator);
-/// otherwise it is wrapped as a derived table so it evaluates first.
+/// Keep the left operand intact when it contains a completed set operation.
+/// Repeated UNIONs are associative over rows, but their pairwise type
+/// resolution is observable (two unknown inputs resolve to text).
 fn combine_set_operands(
-    mut left: SelectStatement,
+    left: SelectStatement,
     operator: SetOperator,
     right: SelectStatement,
 ) -> SelectStatement {
-    let associative = matches!(
+    let mut root = if left.set.is_some() {
+        derived_set_operand(left)
+    } else {
+        left
+    };
+    root.set = Some(Box::new(SelectSet {
         operator,
-        SetOperator::Union
-            | SetOperator::UnionAll
-            | SetOperator::Intersect
-            | SetOperator::IntersectAll
-    );
-    match left.set.take() {
-        None => {
-            left.set = Some(Box::new(SelectSet {
-                operator,
-                right: Box::new(right),
-            }));
-            left
-        }
-        Some(mut set) if associative && set.operator == operator => {
-            set.right = Box::new(combine_set_operands(*set.right, operator, right));
-            left.set = Some(set);
-            left
-        }
-        Some(set) => {
-            left.set = Some(set);
-            let mut wrapped = derived_set_operand(left);
-            wrapped.set = Some(Box::new(SelectSet {
-                operator,
-                right: Box::new(right),
-            }));
-            wrapped
-        }
-    }
+        right: Box::new(right),
+    }));
+    root
 }
 
 fn derived_set_operand(select: SelectStatement) -> SelectStatement {

@@ -35,15 +35,16 @@ impl Analyzer<'_> {
         if let Some(set) = &select.set {
             let right = self.select(&set.right, &ctes, outer_fields)?;
             require_width(&output, &right)?;
-            match set.operator {
-                SetOperator::Union | SetOperator::UnionAll => join_fields(&mut output, &right),
-                // These operators return existing left rows, not RHS values.
-                // Source: execution/source_rows.rs301/318. RHS is still
-                // analyzed for metadata shape, but its origins do not export.
-                SetOperator::Intersect
-                | SetOperator::Except
-                | SetOperator::IntersectAll
-                | SetOperator::ExceptAll => numeric_set_types(&mut output, &right),
+            // INTERSECT and EXCEPT emit only the left origin. The common
+            // numeric descriptor still depends on the types of both operands.
+            if matches!(set.operator, SetOperator::Union | SetOperator::UnionAll) {
+                join_fields(
+                    &mut output,
+                    &right,
+                    super::inference::common_set_numeric_type,
+                );
+            } else {
+                numeric_set_types(&mut output, &right);
             }
         }
         Ok(output)
@@ -85,7 +86,11 @@ impl Analyzer<'_> {
                 rename_cte_fields(&mut next, cte)?;
                 require_width(&fields, &next)?;
                 require_recursive_numeric_types(&cte.name, &fields, &next)?;
-                join_fields(&mut fields, &next);
+                join_fields(
+                    &mut fields,
+                    &next,
+                    crate::types::extended::numeric_types::common,
+                );
                 if fields == previous {
                     break;
                 }
@@ -420,19 +425,22 @@ fn require_width(left: &[OutputField], right: &[OutputField]) -> Result<(), Cass
 }
 
 /// EXCEPT/INTERSECT emit left rows, but PostgreSQL still resolves each
-/// column's type over both operands when either is `numeric` or `real`.
+/// column's type over both operands including mixed integer widths.
 fn numeric_set_types(left: &mut [OutputField], right: &[OutputField]) {
     for (left, right) in left.iter_mut().zip(right) {
-        if let Some(common) = crate::types::extended::numeric_types::common(
-            &left.value.data_type,
-            &right.value.data_type,
-        ) {
+        if let Some(common) =
+            super::inference::common_set_numeric_type(&left.value.data_type, &right.value.data_type)
+        {
             left.value = super::OutputType::fixed(common);
         }
     }
 }
 
-fn join_fields(left: &mut [OutputField], right: &[OutputField]) {
+fn join_fields(
+    left: &mut [OutputField],
+    right: &[OutputField],
+    common_numeric: fn(&DataType, &DataType) -> Option<DataType>,
+) {
     for (left, right) in left.iter_mut().zip(right) {
         match (&left.value.data_type, &right.value.data_type) {
             (DataType::Null, DataType::Null) => {
@@ -446,7 +454,8 @@ fn join_fields(left: &mut [OutputField], right: &[OutputField]) {
             (_, DataType::Null) => continue,
             _ => {}
         }
-        left.value.join(&right.value);
+        let common = common_numeric(&left.value.data_type, &right.value.data_type);
+        left.value.join(&right.value, common);
     }
 }
 

@@ -18,7 +18,13 @@ pub(super) fn binding(
         .iter()
         .map(|(name, binding)| (name.clone(), binding.row_fields.clone()))
         .collect();
-    let row_fields = super::super::wildcard::cte_row_fields(cte, &row_scope, catalog, &functions)?;
+    let row_fields = super::super::wildcard::cte_row_fields_with_parameters(
+        cte,
+        &row_scope,
+        catalog,
+        &functions,
+        scope.declared_oids,
+    )?;
     let visible = row_fields
         .iter()
         .map(|field| field.name.clone())

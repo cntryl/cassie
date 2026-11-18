@@ -290,3 +290,178 @@ fn should_infer_text_type_for_all_unknown_union_branches() {
     assert_eq!(descriptions[1][0].type_oid, 25, "PostgreSQL text OID");
     assert_eq!(wire::data_rows(frames), vec![vec![None], vec![None]]);
 }
+
+#[test]
+fn should_expose_mixed_integer_set_outputs_as_bigint() {
+    // Arrange
+    let sql = "SELECT NULL::INT AS n UNION ALL SELECT 9007199254740993::BIGINT \
+               ORDER BY n NULLS FIRST";
+    let cycle = fixture::execute_cycle(sql, None, 1, true);
+
+    // Act
+    let batches = fixture::run_cycles("set-mixed-integer-width", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (20, 8, -1), 1, true);
+    let mut wide_integer = vec![0, 1, 0, 0, 0, 8];
+    wide_integer.extend_from_slice(&9_007_199_254_740_993_i64.to_be_bytes());
+    assert_eq!(
+        fixture::data_row_payloads(frames),
+        vec![vec![0, 1, 255, 255, 255, 255], wide_integer]
+    );
+}
+
+#[test]
+fn should_reject_incompatible_set_categories_during_parse() {
+    // Arrange
+    let sql = "SELECT true UNION SELECT 1::INT";
+    let steps = vec![Step::ThroughReady(vec![
+        wire::parse_frame_with_types("", sql, &[]),
+        wire::sync_frame(),
+    ])];
+
+    // Act
+    let batches = run_script("set-incompatible-categories", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42804"));
+    assert!(!batches[0].iter().any(|(tag, _)| *tag == b'1'));
+}
+
+#[test]
+fn should_use_declared_parameter_categories_when_parsing_set_operands() {
+    // Arrange
+    let sql = "SELECT $1 AS n UNION ALL SELECT 2::INT ORDER BY n";
+    let reject = vec![
+        wire::parse_frame_with_types("", sql, &[16]),
+        wire::sync_frame(),
+    ];
+    let wide_integer = b"9007199254740993";
+    let accept = fixture::execute_cycle(sql, Some((20, 0, Some(wide_integer))), 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("set-declared-parameter-types", &[], vec![reject, accept]);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42804"));
+    assert!(!batches[0].iter().any(|(tag, _)| *tag == b'1'));
+    fixture::assert_success(&batches[1]);
+    fixture::assert_single_column_descriptors(&batches[1], (20, 8, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![
+            vec![Some("2".into())],
+            vec![Some("9007199254740993".into())]
+        ]
+    );
+}
+
+#[test]
+fn should_preserve_declared_set_operand_types_across_query_sources() {
+    // Arrange
+    let cases = [
+        "WITH c(v) AS (SELECT $1) SELECT 2::INT AS n UNION ALL SELECT v FROM c ORDER BY n",
+        "WITH c(v) AS (SELECT $1) SELECT v AS n FROM c UNION ALL SELECT 2::INT ORDER BY n",
+        "WITH c(v) AS (SELECT $1), d(w) AS (SELECT v FROM c) \
+         SELECT 2::INT AS n UNION ALL SELECT w FROM d ORDER BY n",
+        "SELECT 2::INT AS n UNION ALL SELECT v FROM (SELECT $1 AS v) AS d ORDER BY n",
+    ];
+    let mut cycles = Vec::new();
+    for sql in cases {
+        cycles.push(vec![
+            wire::parse_frame_with_types("", sql, &[16]),
+            wire::sync_frame(),
+        ]);
+        cycles.push(fixture::execute_cycle(
+            sql,
+            Some((20, 0, Some(b"9007199254740993"))),
+            0,
+            true,
+        ));
+    }
+    let sibling = "WITH c(v,n) AS (SELECT $1,3::INT) \
+                   SELECT 2::INT AS n UNION ALL SELECT n FROM c ORDER BY n";
+    cycles.push(fixture::execute_cycle(
+        sibling,
+        Some((16, 0, Some(b"t"))),
+        0,
+        true,
+    ));
+
+    // Act
+    let batches = fixture::run_cycles("set-parameter-query-sources", &[], cycles);
+
+    // Assert
+    let (pairs, control) = batches.as_chunks::<2>();
+    assert_eq!(pairs.len(), cases.len());
+    for (sql, [rejected, accepted]) in cases.into_iter().zip(pairs) {
+        assert_eq!(
+            wire::error_code(rejected).as_deref(),
+            Some("42804"),
+            "{sql}"
+        );
+        assert!(!rejected.iter().any(|(tag, _)| *tag == b'1'), "{sql}");
+        fixture::assert_success(accepted);
+        fixture::assert_single_column_descriptors(accepted, (20, 8, -1), 0, true);
+        assert_eq!(
+            wire::data_rows(accepted),
+            vec![
+                vec![Some("2".into())],
+                vec![Some("9007199254740993".into())]
+            ],
+            "{sql}"
+        );
+    }
+    let [accepted] = control else {
+        panic!("missing sibling result")
+    };
+    fixture::assert_success(accepted);
+    fixture::assert_single_column_descriptors(accepted, (23, 4, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(accepted),
+        vec![vec![Some("2".into())], vec![Some("3".into())]]
+    );
+}
+
+#[test]
+fn should_resolve_union_column_types_in_pairwise_grouping_order() {
+    // Arrange
+    let accepted = [
+        "SELECT 2::INT AS n UNION SELECT NULL UNION SELECT NULL ORDER BY n NULLS FIRST",
+        "(SELECT 2::INT AS n UNION SELECT NULL) UNION SELECT NULL ORDER BY n NULLS FIRST",
+        "SELECT NULL AS n UNION (SELECT NULL UNION SELECT 2::INT) ORDER BY n NULLS FIRST",
+    ];
+    let rejected = [
+        "SELECT NULL UNION SELECT NULL UNION SELECT 2::INT",
+        "SELECT 2::INT UNION (SELECT NULL UNION SELECT NULL)",
+    ];
+    let mut cycles = accepted
+        .map(|sql| fixture::execute_cycle(sql, None, 0, true))
+        .to_vec();
+    cycles.extend(rejected.map(|sql| {
+        vec![
+            wire::parse_frame_with_types("", sql, &[]),
+            wire::sync_frame(),
+        ]
+    }));
+
+    // Act
+    let batches = fixture::run_cycles("set-pairwise-unknown-types", &[], cycles);
+
+    // Assert
+    for (sql, frames) in accepted.into_iter().zip(&batches) {
+        fixture::assert_success(frames);
+        fixture::assert_single_column_descriptors(frames, (23, 4, -1), 0, true);
+        assert_eq!(
+            wire::data_rows(frames),
+            vec![vec![None], vec![Some("2".into())]],
+            "{sql}"
+        );
+    }
+    for (sql, frames) in rejected.into_iter().zip(&batches[accepted.len()..]) {
+        assert_eq!(wire::error_code(frames).as_deref(), Some("42804"), "{sql}");
+        assert!(!frames.iter().any(|(tag, _)| *tag == b'1'), "{sql}");
+    }
+}

@@ -47,13 +47,9 @@ impl OutputType {
     /// A monotone union: neither AST aliases nor recursive iteration can lose
     /// an existing candidate/origin. The caller decides which operand emits
     /// values (UNION both, EXCEPT/INTERSECT left only).
-    pub(super) fn join(&mut self, other: &Self) {
+    pub(super) fn join(&mut self, other: &Self, common_numeric: Option<DataType>) {
         self.proven_float8 &= other.proven_float8;
-        // A `numeric`/`real` branch resolves the set result type the way
-        // PostgreSQL's UNION/CASE resolution does.
-        if let Some(common) =
-            crate::types::extended::numeric_types::common(&self.data_type, &other.data_type)
-        {
+        if let Some(common) = common_numeric {
             self.candidates = vec![common.clone()];
             self.data_type = common;
             self.unresolved_numeric = false;

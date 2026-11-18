@@ -340,3 +340,98 @@ fn should_resolve_a_lateral_body_column_qualified_by_its_own_table() {
     );
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_preserve_lateral_inner_id_with_two_outer_id_columns() {
+    // Arrange
+    let fixture = super::support_sql_fixture::sql_fixture(
+        "lateral-inner-id-joined-outer",
+        &[
+            "CREATE TABLE customers (id INT PRIMARY KEY)",
+            "CREATE TABLE orders (id INT PRIMARY KEY, customer INT, seq INT)",
+            "INSERT INTO customers (id) VALUES (1),(2),(3)",
+            "INSERT INTO orders (id,customer,seq) VALUES (10,1,7),(11,1,7),(12,2,6)",
+        ],
+    );
+    let outer_sources = ["customers c", "customers c JOIN customers d ON c.id=d.id"];
+
+    // Act
+    let results = outer_sources.map(|outer| {
+        fixture.execute(&format!(
+            "SELECT c.id,q.latest FROM {outer} LEFT JOIN LATERAL \
+             (SELECT o.id AS latest FROM orders o WHERE o.customer=c.id \
+              ORDER BY o.seq DESC,o.id DESC LIMIT 1) q ON true ORDER BY c.id"
+        ))
+    });
+
+    // Assert
+    for (outer, result) in outer_sources.into_iter().zip(results) {
+        let result = result.unwrap_or_else(|error| panic!("{outer}: {error}"));
+        assert_eq!(
+            result.rows(),
+            [
+                vec![Value::Int64(1), Value::Int64(11)],
+                vec![Value::Int64(2), Value::Int64(12)],
+                vec![Value::Int64(3), Value::Null],
+            ],
+            "{outer}"
+        );
+    }
+}
+
+#[test]
+fn should_resolve_bare_lateral_columns_at_the_nearest_query_level() {
+    // Arrange
+    let fixture = super::support_sql_fixture::sql_fixture(
+        "lateral-nearest-scope",
+        &[
+            "CREATE TABLE customers (id INT PRIMARY KEY)",
+            "CREATE TABLE orders (id INT PRIMARY KEY, seq INT)",
+            "INSERT INTO customers (id) VALUES (1)",
+            "INSERT INTO orders (id,seq) VALUES (12,6)",
+        ],
+    );
+    let outer = "customers c JOIN customers d ON c.id=d.id";
+
+    // Act
+    let local = fixture.execute(&format!(
+        "SELECT q.v FROM {outer} CROSS JOIN LATERAL (SELECT id AS v FROM orders) q"
+    ));
+    let shadowed = fixture.execute(&format!(
+        "SELECT q.v FROM {outer} CROSS JOIN LATERAL (SELECT c.id AS v FROM orders c) q"
+    ));
+    let nested = fixture.execute(&format!(
+        "SELECT q.v FROM {outer} CROSS JOIN LATERAL \
+         (SELECT y.v FROM orders o CROSS JOIN LATERAL (SELECT id AS v) y) q"
+    ));
+    let inherited =
+        fixture.execute("SELECT q.v FROM orders o CROSS JOIN LATERAL (SELECT seq AS v) q");
+    let ambiguous = [
+        format!("SELECT q.v FROM {outer} CROSS JOIN LATERAL (SELECT id AS v) q"),
+        format!("SELECT q.v FROM {outer}, orders o CROSS JOIN LATERAL (SELECT id AS v) q"),
+        "SELECT q.v FROM customers c CROSS JOIN LATERAL \
+         (SELECT id AS v FROM orders o JOIN orders p ON o.id=p.id) q"
+            .to_owned(),
+    ]
+    .map(|sql| fixture.error(&sql));
+    let forward = fixture.error(
+        "SELECT c.id FROM customers c LEFT JOIN LATERAL (SELECT d.id AS v) q ON true \
+         JOIN customers d ON d.id=c.id",
+    );
+
+    // Assert
+    for result in [local, shadowed, nested] {
+        assert_eq!(
+            result.expect("nearest order id").rows(),
+            &[vec![Value::Int64(12)]]
+        );
+    }
+    assert_eq!(
+        inherited.expect("outer sequence").rows(),
+        &[vec![Value::Int64(6)]]
+    );
+    for error in ambiguous {
+        assert!(matches!(error, CassieError::AmbiguousColumn(name) if name == "id"));
+    }
+    assert!(matches!(forward, CassieError::UndefinedColumn(_)));
+}

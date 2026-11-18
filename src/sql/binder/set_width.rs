@@ -10,8 +10,7 @@ use super::{CassieError, Catalog, CommonTableExpression, HashMap, SelectItem, Se
 #[path = "set_enum_types.rs"]
 mod enum_types;
 
-/// Rejects a set operation whose paired output columns are two different
-/// named enum types (`42846`).
+/// Rejects a set operation whose paired output columns are incompatible known type categories or enum identities.
 ///
 /// # Errors
 ///
@@ -20,8 +19,9 @@ pub(super) fn validate_set_operand_types(
     select: &SelectStatement,
     catalog: &Catalog,
     context: &super::BindingContext,
+    scope: &super::CteScope<'_>,
 ) -> Result<(), CassieError> {
-    enum_types::validate(select, catalog, context)
+    enum_types::validate(select, catalog, context, scope)
 }
 
 /// Rejects a set operation whose left operand and right operand (the right

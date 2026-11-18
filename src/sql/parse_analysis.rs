@@ -23,6 +23,17 @@ pub(crate) fn validate(
     context: &super::binder::BindingContext,
     controls: &QueryExecutionControls,
 ) -> Result<(), CassieError> {
+    validate_with_declared_types(parsed, parameter_types, &[], catalog, context, controls)
+}
+
+pub(crate) fn validate_with_declared_types(
+    parsed: &ParsedStatement,
+    parameter_types: &[i32],
+    declared_oids: &[i32],
+    catalog: &crate::catalog::Catalog,
+    context: &super::binder::BindingContext,
+    controls: &QueryExecutionControls,
+) -> Result<(), CassieError> {
     if !is_select(parsed, controls)? {
         return Ok(());
     }
@@ -38,8 +49,13 @@ pub(crate) fn validate(
     let mut analysis = parsed.clone();
     super::binder::values::bind_input_types(&mut analysis, &parameter_types)?;
     super::binder::coerce_parameterized_boolean_case_results(&mut analysis, &parameter_types);
-    let mut bound =
-        super::binder::bind_initial_with_controls(analysis, catalog, context, Some(controls))?;
+    let mut bound = super::binder::bind_initial_with_declared_types(
+        analysis,
+        catalog,
+        context,
+        Some(controls),
+        declared_oids,
+    )?;
     super::binder::bind_boolean_parameters(
         &mut bound.statement,
         catalog,

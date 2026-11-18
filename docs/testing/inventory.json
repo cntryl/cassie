@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10617,
+    "rust_test_declarations": 10629,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10642,
+    "registered_rust_instances": 10654,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -91236,7 +91236,7 @@
       "name": "should_parse_chained_set_operation",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
       "line": 435,
-      "end_line": 448,
+      "end_line": 455,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91266,8 +91266,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_parse_row_number_window_function_query",
       "name": "should_parse_row_number_window_function_query",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 451,
-      "end_line": 467,
+      "line": 458,
+      "end_line": 474,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91297,8 +91297,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_parse_value_window_function_query",
       "name": "should_parse_value_window_function_query",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 470,
-      "end_line": 485,
+      "line": 477,
+      "end_line": 492,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91328,8 +91328,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_reject_unsupported_rollup_query",
       "name": "should_reject_unsupported_rollup_query",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 488,
-      "end_line": 498,
+      "line": 495,
+      "end_line": 505,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91359,8 +91359,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_parse_a_single_expression_grouping_set",
       "name": "should_parse_a_single_expression_grouping_set",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 501,
-      "end_line": 516,
+      "line": 508,
+      "end_line": 523,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91390,8 +91390,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_parse_a_single_expression_grouping_set_given_comments_when_separating_keywords",
       "name": "should_parse_a_single_expression_grouping_set_given_comments_when_separating_keywords",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 519,
-      "end_line": 534,
+      "line": 526,
+      "end_line": 541,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91421,8 +91421,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_preserve_grouping_keywords_inside_a_string_literal",
       "name": "should_preserve_grouping_keywords_inside_a_string_literal",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 537,
-      "end_line": 552,
+      "line": 544,
+      "end_line": 559,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91452,8 +91452,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_preserve_group_by_expression_given_unsupported_keywords_in_a_comment",
       "name": "should_preserve_group_by_expression_given_unsupported_keywords_in_a_comment",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 555,
-      "end_line": 570,
+      "line": 562,
+      "end_line": 577,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91483,8 +91483,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_reject_multiple_grouping_sets_when_only_one_set_is_selected",
       "name": "should_reject_multiple_grouping_sets_when_only_one_set_is_selected",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 573,
-      "end_line": 583,
+      "line": 580,
+      "end_line": 590,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91514,8 +91514,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_reject_trailing_tokens_after_a_single_grouping_set",
       "name": "should_reject_trailing_tokens_after_a_single_grouping_set",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 586,
-      "end_line": 596,
+      "line": 593,
+      "end_line": 603,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187902,6 +187902,161 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/type_resolution/unknown_metadata.rs::should_expose_mixed_integer_set_outputs_as_bigint",
+      "name": "should_expose_mixed_integer_set_outputs_as_bigint",
+      "current_file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+      "line": 295,
+      "end_line": 314,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_unknown_metadata::should_expose_mixed_integer_set_outputs_as_bigint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "type_resolution",
+        "directory": "tests/pgwire_extended/type_resolution",
+        "file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/type_resolution/unknown_metadata.rs::should_reject_incompatible_set_categories_during_parse",
+      "name": "should_reject_incompatible_set_categories_during_parse",
+      "current_file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+      "line": 317,
+      "end_line": 331,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_unknown_metadata::should_reject_incompatible_set_categories_during_parse"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "type_resolution",
+        "directory": "tests/pgwire_extended/type_resolution",
+        "file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/type_resolution/unknown_metadata.rs::should_use_declared_parameter_categories_when_parsing_set_operands",
+      "name": "should_use_declared_parameter_categories_when_parsing_set_operands",
+      "current_file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+      "line": 334,
+      "end_line": 359,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_unknown_metadata::should_use_declared_parameter_categories_when_parsing_set_operands"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "type_resolution",
+        "directory": "tests/pgwire_extended/type_resolution",
+        "file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/type_resolution/unknown_metadata.rs::should_preserve_declared_set_operand_types_across_query_sources",
+      "name": "should_preserve_declared_set_operand_types_across_query_sources",
+      "current_file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+      "line": 362,
+      "end_line": 426,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_unknown_metadata::should_preserve_declared_set_operand_types_across_query_sources"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "type_resolution",
+        "directory": "tests/pgwire_extended/type_resolution",
+        "file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/type_resolution/unknown_metadata.rs::should_resolve_union_column_types_in_pairwise_grouping_order",
+      "name": "should_resolve_union_column_types_in_pairwise_grouping_order",
+      "current_file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+      "line": 429,
+      "end_line": 467,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_unknown_metadata::should_resolve_union_column_types_in_pairwise_grouping_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "type_resolution",
+        "directory": "tests/pgwire_extended/type_resolution",
+        "file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/types/arrays/aggregate_identity/semantics.rs::should_aggregate_integer_rows_into_a_postgresql_int4_array",
       "name": "should_aggregate_integer_rows_into_a_postgresql_int4_array",
       "current_file": "tests/pgwire_extended/types/arrays/aggregate_identity/semantics.rs",
@@ -230223,6 +230378,37 @@
         {
           "suite": "relational_qualification",
           "name": "paths::should_capture_a_callsite_first_registered_by_an_untraced_thread"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "relational_qualification",
+        "category": "semantics",
+        "directory": "tests/relational_qualification",
+        "file": "tests/relational_qualification/paths.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/relational_qualification/paths.rs::should_complete_native_sort_for_compound_output_ordinal",
+      "name": "should_complete_native_sort_for_compound_output_ordinal",
+      "current_file": "tests/relational_qualification/paths.rs",
+      "line": 178,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "relational_qualification",
+          "name": "paths::should_complete_native_sort_for_compound_output_ordinal"
         }
       ],
       "attributes": [
@@ -289730,6 +289916,68 @@
       }
     },
     {
+      "id": "tests/sql_queries/names/own_qualified_references.rs::should_preserve_lateral_inner_id_with_two_outer_id_columns",
+      "name": "should_preserve_lateral_inner_id_with_two_outer_id_columns",
+      "current_file": "tests/sql_queries/names/own_qualified_references.rs",
+      "line": 345,
+      "end_line": 380,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "own_qualified_references::should_preserve_lateral_inner_id_with_two_outer_id_columns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "names",
+        "directory": "tests/sql_queries/names",
+        "file": "tests/sql_queries/names/own_qualified_references.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/names/own_qualified_references.rs::should_resolve_bare_lateral_columns_at_the_nearest_query_level",
+      "name": "should_resolve_bare_lateral_columns_at_the_nearest_query_level",
+      "current_file": "tests/sql_queries/names/own_qualified_references.rs",
+      "line": 383,
+      "end_line": 437,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "own_qualified_references::should_resolve_bare_lateral_columns_at_the_nearest_query_level"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "names",
+        "directory": "tests/sql_queries/names",
+        "file": "tests/sql_queries/names/own_qualified_references.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/names/reserved_id_alter_table_shadowing.rs::should_shadow_the_identity_alias_after_adding_an_id_column",
       "name": "should_shadow_the_identity_alias_after_adding_an_id_column",
       "current_file": "tests/sql_queries/names/reserved_id_alter_table_shadowing.rs",
@@ -315150,6 +315398,130 @@
       }
     },
     {
+      "id": "tests/sql_set_operations/set_operations/set_operation_chains.rs::should_order_compound_constants_by_output_ordinal",
+      "name": "should_order_compound_constants_by_output_ordinal",
+      "current_file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
+      "line": 144,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_set_operations",
+          "name": "set_operation_chains::should_order_compound_constants_by_output_ordinal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_set_operations",
+        "category": "set_operations",
+        "directory": "tests/sql_set_operations/set_operations",
+        "file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_set_operations/set_operations/set_operation_chains.rs::should_order_compound_duplicate_names_by_position_before_pagination",
+      "name": "should_order_compound_duplicate_names_by_position_before_pagination",
+      "current_file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
+      "line": 158,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_set_operations",
+          "name": "set_operation_chains::should_order_compound_duplicate_names_by_position_before_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_set_operations",
+        "category": "set_operations",
+        "directory": "tests/sql_set_operations/set_operations",
+        "file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_set_operations/set_operations/set_operation_chains.rs::should_order_compound_nested_tails_independently",
+      "name": "should_order_compound_nested_tails_independently",
+      "current_file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
+      "line": 172,
+      "end_line": 182,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_set_operations",
+          "name": "set_operation_chains::should_order_compound_nested_tails_independently"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_set_operations",
+        "category": "set_operations",
+        "directory": "tests/sql_set_operations/set_operations",
+        "file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_set_operations/set_operations/set_operation_chains.rs::should_reject_compound_order_position_outside_output",
+      "name": "should_reject_compound_order_position_outside_output",
+      "current_file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
+      "line": 185,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_set_operations",
+          "name": "set_operation_chains::should_reject_compound_order_position_outside_output"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_set_operations",
+        "category": "set_operations",
+        "directory": "tests/sql_set_operations/set_operations",
+        "file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_set_operations/set_operations/set_operation_row_caps.rs::should_materialize_the_whole_right_branch_under_a_result_row_cap",
       "name": "should_materialize_the_whole_right_branch_under_a_result_row_cap",
       "current_file": "tests/sql_set_operations/set_operations/set_operation_row_caps.rs",
@@ -338851,8 +339223,8 @@
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 596,
-      "sha256": "baaf46c128312aaa39c22fe8d59633db8fec899f7bf5e052857247dfec074ada",
+      "lines": 603,
+      "sha256": "b8a34ad4f7274fa6a14b44c6ff482e3851ec18f461556553b43fe91d25a241d4",
       "test_declarations": 32,
       "registered_suites": [
         "parser_types"
@@ -344918,9 +345290,9 @@
       "current_file": "tests/pgwire_extended/type_resolution/unknown_metadata.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 292,
-      "sha256": "2a3a17bb9775a141cb61a9fe8005cc9af7af6fa857cb74c0dcf12a8dbdffabf1",
-      "test_declarations": 8,
+      "lines": 467,
+      "sha256": "8775bbbd0760fe4db59f16c51e467610cb38d996f22315612ebc8162340f8a1f",
+      "test_declarations": 13,
       "registered_suites": [
         "pgwire_types"
       ],
@@ -348499,9 +348871,9 @@
       "current_file": "tests/relational_qualification/paths.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 175,
-      "sha256": "bd9ccb4d11503790417b339f063dd229500efebffbba7e1d169951ab78545595",
-      "test_declarations": 4,
+      "lines": 212,
+      "sha256": "d5e190e65831606dead10a16bbad893eaa768ba029b0564b99eb542fe9faa5d3",
+      "test_declarations": 5,
       "registered_suites": [
         "relational_qualification"
       ],
@@ -352789,9 +353161,9 @@
       "current_file": "tests/sql_queries/names/own_qualified_references.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 342,
-      "sha256": "ff70515d8e46ce63696ce56e4d7a54f53c6fb00fe5dae719d45bc6619680be32",
-      "test_declarations": 12,
+      "lines": 437,
+      "sha256": "ec4886064161caaa9bf7856ba208e4fcb08402652d3b2998d4268b2e5e2c5ca1",
+      "test_declarations": 14,
       "registered_suites": [
         "sql_queries"
       ],
@@ -353959,9 +354331,9 @@
       "current_file": "tests/sql_set_operations/set_operations/set_operation_chains.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 141,
-      "sha256": "98c356507a8fff12824eab1055ff1c3b0834ba79cc9f7781cec243d324d64c75",
-      "test_declarations": 3,
+      "lines": 197,
+      "sha256": "f89d66dbfa440e591292fb3d7ecb987903e674cbf94bd7268608c7015fe14b0a",
+      "test_declarations": 7,
       "registered_suites": [
         "sql_set_operations"
       ],

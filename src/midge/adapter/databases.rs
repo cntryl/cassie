@@ -822,3 +822,7 @@ mod tests {
 #[cfg(test)]
 #[path = "databases/publication_tests.rs"]
 mod publication_tests;
+
+#[cfg(test)]
+#[path = "databases/create_retry_tests.rs"]
+mod create_retry_tests;

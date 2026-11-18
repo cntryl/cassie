@@ -236,3 +236,57 @@ fn should_keep_operator_text_inside_check_literal() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_keep_existing_limits_for_compact_check_declarations() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("compact_check_limits").await;
+        let (client, connection) = server.connect().await;
+        let cases = [
+            (
+                "CREATE TABLE compat_compact_limit (n INT CHECK(n>0) CHECK (n<10))",
+                "multiple CHECK constraints on one field",
+            ),
+            (
+                "CREATE TABLE compat_compact_limit (n INT, m INT CHECK(n>0))",
+                "column CHECK constraints may reference only their owning field",
+            ),
+            (
+                "CREATE TABLE compat_compact_limit (n INT CHECK(n>0) NOT ENFORCED)",
+                "CHECK constraint enforcement attributes are not supported",
+            ),
+        ];
+
+        // Act
+        let mut errors = Vec::new();
+        for (sql, _) in cases {
+            errors.push(
+                client
+                    .batch_execute(sql)
+                    .await
+                    .expect_err("reject unsupported CHECK declaration"),
+            );
+        }
+        let published: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables                          WHERE table_name = 'compat_compact_limit')",
+                &[],
+            )
+            .await
+            .expect("inspect catalog after rejected declarations")
+            .get(0);
+
+        // Assert
+        assert!(!published);
+        for ((_, expected), error) in cases.into_iter().zip(&errors) {
+            let error = db_error(error);
+            assert_eq!(error.code().code(), "0A000");
+            assert!(error.message().contains(expected), "{error}");
+        }
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

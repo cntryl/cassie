@@ -8,7 +8,7 @@ use crate::sql::parser::clauses::{
     find_top_level_keyword, find_top_level_union, parse_clauses, Clause, ClauseMatch, ClauseToken,
 };
 use crate::sql::parser::expr::{parse_expression, parse_order_by, split_csv};
-use crate::sql::parser::order_ordinals::resolve_order_ordinals;
+use crate::sql::parser::order_ordinals::{resolve_order_ordinals, validate_set_order_ordinals};
 
 #[path = "query_select/grouping_sets.rs"]
 mod grouping_sets;
@@ -133,7 +133,8 @@ pub(super) fn parse_set_select_statement(
     let mut root = build_set_tree(operands, &operators);
     root.ctes = withs;
     root.recursive = recursive;
-    root.order = resolve_order_ordinals(global_order, &first_projection)?;
+    validate_set_order_ordinals(&global_order, &first_projection)?;
+    root.order = global_order;
     root.limit = global_limit;
     root.offset = global_offset;
     Ok(ParsedStatement {

@@ -25,6 +25,20 @@ pub(super) fn resolve_order_ordinals(
         .collect()
 }
 
+/// The compound sorter sees the output tuple after both operands have run.
+/// Keep validated positions instead of substituting a first-operand expression.
+pub(super) fn validate_set_order_ordinals(
+    order: &[OrderExpr],
+    projection: &[SelectItem],
+) -> Result<(), SqlError> {
+    for item in order {
+        if let Expr::IntegerLiteral(position) = item.expr {
+            output_column_at(position, projection)?;
+        }
+    }
+    Ok(())
+}
+
 /// ORDER BY column references resolve to the first select-list alias with
 /// that name, so a rewritten position must not be captured by a different
 /// item's alias (for example `SELECT g, v AS g ... ORDER BY 1`).

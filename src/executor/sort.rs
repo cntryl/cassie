@@ -10,7 +10,7 @@ use crate::executor::filter::SearchContext;
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
-use crate::types::Value;
+use crate::types::{DataType, Value};
 
 #[cfg(test)]
 mod bit_key_tests;
@@ -182,12 +182,37 @@ pub(crate) fn top_k_batches_with_controls(
     typed::top_k_batches(batches, eval, top_needed, controls)
 }
 
-pub(crate) fn sort_batch_rows_with_controls(
+pub(crate) fn sort_set_rows_with_controls(
     rows: Vec<crate::executor::batch::BatchRow>,
     eval: &EvalInput<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<crate::executor::batch::BatchRow>, crate::executor::QueryError> {
-    typed::sort_rows(rows, eval, controls)
+    if rows.is_empty()
+        || !eval
+            .order
+            .iter()
+            .any(|item| matches!(item.expr, Expr::IntegerLiteral(_)))
+    {
+        return typed::sort_rows(rows, eval, controls);
+    }
+    let retention = SortRetentionContext::default();
+    let rows = sort_rows_by_key(rows, controls, &retention, |row| {
+        eval.row_key_with_source(
+            row,
+            eval.order,
+            &retention,
+            Some(controls),
+            true,
+            |row, expr| eval.value(row, expr),
+        )
+    })?;
+    let path = if controls.uses_relational_cte_boundary() {
+        "scalar_cte_materialization"
+    } else {
+        "scalar_expression_order"
+    };
+    crate::executor::typed_batch::relational_diagnostics::publish("sort", path);
+    Ok(rows)
 }
 
 fn top_k_batches_with_context(
@@ -421,6 +446,18 @@ impl EvalInput<'_> {
         controls: Option<&QueryExecutionControls>,
         evaluate: impl Fn(&R, &Expr) -> Result<Value, crate::executor::QueryError>,
     ) -> Result<RowKey, crate::executor::QueryError> {
+        self.row_key_with_source(row, order, retention, controls, false, evaluate)
+    }
+
+    fn row_key_with_source<R: RowAccess>(
+        &self,
+        row: &R,
+        order: &[OrderExpr],
+        retention: &SortRetentionContext<'_>,
+        controls: Option<&QueryExecutionControls>,
+        use_output_ordinals: bool,
+        evaluate: impl Fn(&R, &Expr) -> Result<Value, crate::executor::QueryError>,
+    ) -> Result<RowKey, crate::executor::QueryError> {
         use crate::executor::retained_memory::{add, mul};
 
         let mut memory = controls
@@ -433,19 +470,25 @@ impl EvalInput<'_> {
             .transpose()?;
         let mut parts = Vec::with_capacity(order.len());
         for order in order {
-            let value = evaluate(row, &order.expr)?;
-            if let Some(controls) = controls {
-                check_query_controls(controls)?;
-            }
             let semantic = if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
-                let (semantic, part_memory) = key_part::convert(
-                    row,
-                    &order.expr,
-                    value,
-                    self.user_functions,
-                    controls,
-                    || retention.before(SortRetentionPhase::SemanticPart),
-                )?;
+                let before_key = || retention.before(SortRetentionPhase::SemanticPart);
+                let (semantic, part_memory) = match &order.expr {
+                    Expr::IntegerLiteral(position) if use_output_ordinals => {
+                        output_sort_key(row, *position, controls, before_key)?
+                    }
+                    expr => {
+                        let value = evaluate(row, expr)?;
+                        check_query_controls(controls)?;
+                        key_part::convert(
+                            row,
+                            expr,
+                            value,
+                            self.user_functions,
+                            controls,
+                            before_key,
+                        )?
+                    }
+                };
                 if !part_memory.belongs_to(controls) {
                     drop(semantic);
                     drop(part_memory);
@@ -457,6 +500,7 @@ impl EvalInput<'_> {
                 memory.absorb(part_memory);
                 semantic
             } else {
+                let value = evaluate(row, &order.expr)?;
                 retention.before(SortRetentionPhase::SemanticPart)?;
                 super::array_order::key(row, &order.expr, &value, self.user_functions, None)?
             };
@@ -509,6 +553,68 @@ impl EvalInput<'_> {
             None,
         )
     }
+}
+
+/// Present the selected cell and its declared type to the existing key converter.
+struct OutputSortCell<'a> {
+    entry: &'a (String, Value),
+    data_type: Option<&'a DataType>,
+}
+
+impl RowAccess for OutputSortCell<'_> {
+    fn get(&self, name: &str) -> Option<&Value> {
+        (self.entry.0 == name).then_some(&self.entry.1)
+    }
+
+    fn entries(&self) -> &[(String, Value)] {
+        std::slice::from_ref(self.entry)
+    }
+
+    fn column_type(&self, name: &str) -> Option<&DataType> {
+        (self.entry.0 == name).then_some(self.data_type).flatten()
+    }
+
+    fn has_array_types(&self) -> bool {
+        matches!(self.data_type, Some(DataType::Array(_)))
+    }
+
+    fn entry_type(&self, index: usize) -> Option<&DataType> {
+        (index == 0).then_some(self.data_type).flatten()
+    }
+}
+
+fn output_sort_key(
+    row: &impl RowAccess,
+    position: i64,
+    controls: &QueryExecutionControls,
+    before_key: impl FnOnce() -> Result<(), crate::executor::QueryError>,
+) -> Result<(SemanticValue, crate::runtime::QueryMemoryReservation), crate::executor::QueryError> {
+    use crate::executor::retained_memory::{add, value_clone_bytes};
+
+    let index = usize::try_from(position)
+        .ok()
+        .and_then(|position| position.checked_sub(1));
+    let (index, entry) = index
+        .and_then(|index| row.entries().get(index).map(|entry| (index, entry)))
+        .ok_or_else(|| {
+            crate::executor::QueryError::General(format!(
+                "ORDER BY position {position} is not in select list"
+            ))
+        })?;
+    let _scratch =
+        controls.reserve_query_memory(add(entry.0.len(), value_clone_bytes(&entry.1)?)?)?;
+    let cell = OutputSortCell {
+        entry,
+        data_type: row.entry_type(index),
+    };
+    key_part::convert(
+        &cell,
+        &Expr::Column(entry.0.clone()),
+        entry.1.clone(),
+        &HashMap::new(),
+        controls,
+        before_key,
+    )
 }
 
 struct KeyPart {

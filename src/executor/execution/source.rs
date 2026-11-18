@@ -898,7 +898,7 @@ fn finalize_plan_rows(
             user_functions: env.user_functions,
             session: env.session,
         };
-        rows = sort::sort_batch_rows_with_controls(rows, &eval, env.controls)?;
+        rows = sort::sort_set_rows_with_controls(rows, &eval, env.controls)?;
     }
     Ok(super::owned_rows::OwnedRows::untracked(slice_rows(
         rows,

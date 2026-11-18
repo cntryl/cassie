@@ -10,6 +10,7 @@ pub mod ast;
 pub mod binder;
 pub(crate) mod catalog_scope;
 mod column_identifier;
+pub(crate) mod cte_identity;
 pub(crate) mod definition_guard;
 pub mod functions;
 mod identifier_text;

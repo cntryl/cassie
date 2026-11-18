@@ -1,4 +1,6 @@
 //! Scalar call evaluation preserves argument order and context-owned scratch.
+#[path = "cardinality_call.rs"]
+mod cardinality;
 #[cfg(test)]
 #[path = "array_constructor_memory_tests.rs"]
 mod array_constructor_memory_tests;

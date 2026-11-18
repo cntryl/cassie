@@ -306,7 +306,7 @@ fn table_bindings(
             }
         }
         QuerySource::TableSample { source, .. } => {
-            table_bindings(source, catalog, context, ctes, out)
+            table_bindings(source, catalog, context, ctes, out);
         }
         QuerySource::Join { left, right, .. } => {
             table_bindings(left, catalog, context, ctes, out);

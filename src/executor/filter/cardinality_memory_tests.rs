@@ -7,10 +7,10 @@ use crate::executor::filter::{evaluate_source_argument, EvaluationMemory};
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::sql::ast::{Expr, FunctionCall};
 use crate::types::typed::TypedValue;
-use crate::types::{ArrayDimension, SqlArray};
+use crate::types::SqlArray;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::mem::size_of;
+use std::mem::{size_of, size_of_val};
 use std::time::Instant;
 
 #[derive(Clone, Copy, Default)]
@@ -49,7 +49,7 @@ impl Observe {
         Self
     }
 
-    fn evidence(&self) -> Observation {
+    fn evidence() -> Observation {
         OBSERVATION.with(|slot| slot.borrow().as_ref().expect("active observation").evidence)
     }
 }
@@ -79,7 +79,7 @@ pub(super) fn observe_native_dispatch(context: EvalContext<'_>, args: &[Value]) 
         if let Some(active) = slot.borrow_mut().as_mut() {
             active.evidence.dispatches += 1;
             active.evidence.dispatch_native_bytes =
-                args.len() * size_of::<Value>() + args.iter().map(native_bytes).sum::<usize>();
+                size_of_val(args) + args.iter().map(native_bytes).sum::<usize>();
             active.evidence.dispatch_owner_bytes =
                 context.memory.map_or(0, EvaluationMemory::bytes);
             active.evidence.same_owner = context
@@ -102,7 +102,7 @@ pub(super) fn observe_argument_directory(context: EvalContext<'_>) {
 fn native_bytes(value: &Value) -> usize {
     match value {
         Value::Array(array) => {
-            array.dimensions().len() * size_of::<ArrayDimension>()
+            size_of_val(array.dimensions())
                 + array.len() * size_of::<Value>()
                 + array.elements().iter().map(native_bytes).sum::<usize>()
         }
@@ -244,13 +244,13 @@ fn should_admit_a_native_argument_before_copying_its_leaf() {
     let native = native_bytes(&params[0]);
     let input = controls.reserve_query_memory(native).expect("input owner");
     let memory = EvaluationMemory::new(&controls).expect("expression owner");
-    let observation = Observe::start(&controls);
+    let _observation = Observe::start(&controls);
     let expression = expression("cardinality", Expr::Param(0));
     let row = BatchRow::new(Vec::new());
 
     // Act
     let result = evaluate(&row, &expression, &params, &controls, &memory);
-    let evidence = observation.evidence();
+    let evidence = Observe::evidence();
 
     // Assert
     assert_eq!(result.expect("native count"), Value::Int64(2));
@@ -272,12 +272,12 @@ fn should_admit_a_native_column_before_copying_its_leaf() {
     let input = controls.reserve_query_memory(native).expect("input owner");
     let row = BatchRow::new(vec![("numbers".into(), value)]);
     let memory = EvaluationMemory::new(&controls).expect("expression owner");
-    let observation = Observe::start(&controls);
+    let _observation = Observe::start(&controls);
     let expression = expression("cardinality", Expr::Column("numbers".into()));
 
     // Act
     let result = evaluate(&row, &expression, &[], &controls, &memory);
-    let evidence = observation.evidence();
+    let evidence = Observe::evidence();
 
     // Assert
     assert_eq!(result.expect("native column count"), Value::Int64(2));
@@ -295,7 +295,7 @@ fn should_admit_the_native_argument_directory_before_collecting_values() {
     // Arrange
     let controls = controls(1024 * 1024);
     let memory = EvaluationMemory::new(&controls).expect("expression owner");
-    let observation = Observe::start(&controls);
+    let _observation = Observe::start(&controls);
     let expression = expression("cardinality", Expr::Param(0));
     let params = [Value::Array(
         SqlArray::from_elements(vec![]).expect("empty array"),
@@ -304,7 +304,7 @@ fn should_admit_the_native_argument_directory_before_collecting_values() {
 
     // Act
     let result = evaluate(&row, &expression, &params, &controls, &memory);
-    let evidence = observation.evidence();
+    let evidence = Observe::evidence();
 
     // Assert
     assert_eq!(result.expect("empty native count"), Value::Int64(0));
@@ -322,13 +322,13 @@ fn should_retain_native_argument_admission_through_dispatch() {
         .reserve_query_memory(native_bytes(&params[0]))
         .expect("input owner");
     let memory = EvaluationMemory::new(&controls).expect("expression owner");
-    let observation = Observe::start(&controls);
+    let _observation = Observe::start(&controls);
     let expression = expression("cardinality", Expr::Param(0));
     let row = BatchRow::new(Vec::new());
 
     // Act
     let result = evaluate(&row, &expression, &params, &controls, &memory);
-    let evidence = observation.evidence();
+    let evidence = Observe::evidence();
 
     // Assert
     assert_eq!(result.expect("native count"), Value::Int64(2));
@@ -349,13 +349,13 @@ fn should_reject_unadmitted_native_input_before_copying_it() {
     let controls = controls(2 * native - 1);
     let input = controls.reserve_query_memory(native).expect("input owner");
     let memory = EvaluationMemory::new(&controls).expect("expression owner");
-    let observation = Observe::start(&controls);
+    let _observation = Observe::start(&controls);
     let expression = expression("cardinality", Expr::Param(0));
     let row = BatchRow::new(Vec::new());
 
     // Act
     let result = evaluate(&row, &expression, &params, &controls, &memory);
-    let evidence = observation.evidence();
+    let evidence = Observe::evidence();
 
     // Assert
     assert!(matches!(
@@ -435,12 +435,12 @@ fn should_cancel_native_counting_before_copying_input() {
         evaluate(&row, &expression, &params, &controls, &memory).expect("uncanceled control"),
         Value::Int64(1)
     );
-    let observation = Observe::start(&controls);
+    let _observation = Observe::start(&controls);
     cancellation.cancel();
 
     // Act
     let result = evaluate(&row, &expression, &params, &controls, &memory);
-    let evidence = observation.evidence();
+    let evidence = Observe::evidence();
 
     // Assert
     assert!(matches!(

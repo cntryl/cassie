@@ -94,31 +94,7 @@ fn probe(layer: Layer) -> Evidence {
     assert_eq!(legacy_rows, vec![vec![Value::Int64(2)]]);
     let mut old_key = current_key.clone();
     old_key.cost_model_version = 35;
-    match layer {
-        Layer::L1 => cassie
-            .runtime
-            .plan_cache_store(old_key.clone(), Arc::clone(&legacy), true),
-        Layer::L2 => {
-            let outcome = query_cache::observe_non_durable_plan_usage(
-                &cassie.midge,
-                &cassie.runtime,
-                &old_key,
-                &legacy,
-                true,
-            )
-            .expect("store legacy bound CTE in L2");
-            assert!(matches!(
-                outcome,
-                query_cache::NonDurablePlanOutcome::Durable
-            ));
-            assert!(cassie.runtime.plan_cache_lookup(&old_key).is_none());
-            assert!(
-                query_cache::lookup_plan(&cassie.midge, &cassie.runtime, &old_key)
-                    .expect("read old derived artifact")
-                    .is_some()
-            );
-        }
-    }
+    seed_legacy_plan(&cassie, &old_key, &legacy, layer);
     let before = cassie.runtime.snapshot().plan_cache.misses;
     let rows = cassie
         .execute_sql(&session, SQL, vec![])
@@ -154,6 +130,39 @@ fn probe(layer: Layer) -> Evidence {
         selected_rows,
         compile_misses,
         old_plan_still_readable,
+    }
+}
+
+fn seed_legacy_plan(
+    cassie: &Cassie,
+    old_key: &PlanCacheKey,
+    legacy: &Arc<crate::planner::physical::PhysicalPlan>,
+    layer: Layer,
+) {
+    match layer {
+        Layer::L1 => cassie
+            .runtime
+            .plan_cache_store(old_key.clone(), Arc::clone(legacy), true),
+        Layer::L2 => {
+            let outcome = query_cache::observe_non_durable_plan_usage(
+                &cassie.midge,
+                &cassie.runtime,
+                old_key,
+                legacy,
+                true,
+            )
+            .expect("store legacy bound CTE in L2");
+            assert!(matches!(
+                outcome,
+                query_cache::NonDurablePlanOutcome::Durable
+            ));
+            assert!(cassie.runtime.plan_cache_lookup(old_key).is_none());
+            assert!(
+                query_cache::lookup_plan(&cassie.midge, &cassie.runtime, old_key)
+                    .expect("read old derived artifact")
+                    .is_some()
+            );
+        }
     }
 }
 

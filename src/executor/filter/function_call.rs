@@ -1,9 +1,9 @@
 //! Scalar call evaluation preserves argument order and context-owned scratch.
-#[path = "cardinality_call.rs"]
-mod cardinality;
 #[cfg(test)]
 #[path = "array_constructor_memory_tests.rs"]
 mod array_constructor_memory_tests;
+#[path = "cardinality_call.rs"]
+mod cardinality;
 #[cfg(test)]
 #[path = "cardinality_memory_tests.rs"]
 mod cardinality_memory_tests;
@@ -136,19 +136,23 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
 
     let result = evaluate_builtin_function(&name, function, row, &args, context)
         .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))?;
-    let retained_bytes = match (&result, local_name) {
-        (Value::String(text), "to_char") => text.capacity(),
-        (Value::Typed(value @ crate::types::typed::TypedValue::Numeric(_)), "power" | "pow") => {
-            value.heap_bytes()
-        }
-        _ => 0,
-    };
+    let retained_bytes = retained_result_bytes(&result, local_name);
     if retained_bytes > 0 {
         if let Some(scope) = argument_memory_scope.as_mut() {
             scope.retain_existing(retained_bytes)?;
         }
     }
     Ok(result)
+}
+
+fn retained_result_bytes(result: &Value, local_name: &str) -> usize {
+    match (result, local_name) {
+        (Value::String(text), "to_char") => text.capacity(),
+        (Value::Typed(value @ crate::types::typed::TypedValue::Numeric(_)), "power" | "pow") => {
+            value.heap_bytes()
+        }
+        _ => 0,
+    }
 }
 
 fn reserve_argument_workspace(context: EvalContext<'_>, args: &[Value]) -> Result<(), QueryError> {

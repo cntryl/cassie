@@ -136,7 +136,7 @@ fn should_resolve_transactional_do_nothing_when_competing_commit_wins() {
         .expect("commit resolved waiter");
 
     // Assert
-    assert_eq!(changed, "INSERT 0 0");
+    assert_eq!(changed.command(), "INSERT 0 0");
     let rows = cassie
         .execute_sql(&setup, "SELECT email FROM transaction_upserts", vec![])
         .expect("read winner");
@@ -178,7 +178,7 @@ fn should_resolve_transactional_do_update_against_committed_winner() {
         .expect("commit resolved waiter");
 
     // Assert
-    assert_eq!(changed, "INSERT 0 1");
+    assert_eq!(changed.command(), "INSERT 0 1");
     let rows = cassie
         .execute_sql(
             &setup,
@@ -241,7 +241,7 @@ fn finish_waiting_upsert(
     owner: &cassie::app::CassieSession,
     waiter: &cassie::app::CassieSession,
     sql: &str,
-) -> String {
+) -> cassie::executor::QueryResult {
     std::thread::scope(|scope| {
         let worker = scope.spawn(|| cassie.execute_sql(waiter, sql, vec![]));
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -271,7 +271,81 @@ fn finish_waiting_upsert(
             .join()
             .expect("waiting worker")
             .expect("recheck owner commit")
-            .command()
-            .to_owned()
     })
+}
+
+#[test]
+fn should_keep_the_highest_committed_entity_revision_in_both_writer_orders() {
+    // Arrange
+    use cassie::types::Value;
+    let row = |revision, payload: &str| {
+        vec![
+            Value::Int64(1),
+            Value::Int64(revision),
+            Value::String(payload.to_owned()),
+        ]
+    };
+    let write = |revision, payload: &str| {
+        format!(
+            "INSERT INTO entities AS target VALUES (1, {revision}, '{payload}') \
+            ON CONFLICT (id) DO UPDATE SET rev = EXCLUDED.rev, payload = EXCLUDED.payload \
+            WHERE target.rev < EXCLUDED.rev RETURNING id, rev, payload"
+        )
+    };
+    for (first, second) in [((4, "four"), (5, "five")), ((5, "five"), (4, "four"))] {
+        let fixture = crate::support_sql_fixture::sql_fixture(
+            "entity-revision-writers",
+            &[
+                "CREATE TABLE entities (id BIGINT PRIMARY KEY, rev BIGINT, payload TEXT)",
+                "INSERT INTO entities VALUES (1, 3, 'three')",
+            ],
+        );
+        let cassie = &fixture.cassie;
+        let owner = &fixture.session;
+        let waiter = cassie.create_session("waiter", None);
+        for session in [owner, &waiter] {
+            cassie
+                .execute_sql(session, "BEGIN ISOLATION LEVEL READ COMMITTED", vec![])
+                .expect("begin projector transaction");
+        }
+
+        // Act
+        let owner_result = fixture
+            .execute(&write(first.0, first.1))
+            .expect("stage owner revision");
+        let waiter_result =
+            finish_waiting_upsert(cassie, owner, &waiter, &write(second.0, second.1));
+        cassie
+            .execute_sql(&waiter, "COMMIT", vec![])
+            .expect("commit resolved waiter");
+        let readback = "SELECT id, rev, payload FROM entities";
+        let committed = fixture.rows(readback);
+        fixture
+            .execute("BEGIN")
+            .expect("begin rolled-back delivery");
+        let provisional = fixture
+            .execute(&write(6, "provisional"))
+            .expect("stage later delivery");
+        fixture
+            .execute("ROLLBACK")
+            .expect("roll back later revision");
+        let fresh = cassie.create_session("fresh", None);
+        let after_rollback = cassie
+            .execute_sql(&fresh, readback, vec![])
+            .expect("read after rollback");
+
+        // Assert
+        assert_eq!(owner_result.command(), "INSERT 0 1");
+        assert_eq!(owner_result.rows(), [row(first.0, first.1)]);
+        if second.0 > first.0 {
+            assert_eq!(waiter_result.command(), "INSERT 0 1");
+            assert_eq!(waiter_result.rows(), [row(second.0, second.1)]);
+        } else {
+            assert_eq!(waiter_result.command(), "INSERT 0 0");
+            assert!(waiter_result.rows().is_empty());
+        }
+        assert_eq!(committed, [row(5, "five")]);
+        assert_eq!(provisional.rows(), [row(6, "provisional")]);
+        assert_eq!(after_rollback.rows(), [row(5, "five")]);
+    }
 }

@@ -182,9 +182,9 @@
     ],
     "files": 1787,
     "rust_files": 1750,
-    "rust_test_declarations": 10609,
+    "rust_test_declarations": 10611,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10634,
+    "registered_rust_instances": 10636,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -223700,8 +223700,8 @@
       }
     },
     {
-      "id": "tests/planner_controls/planning/join_selectivity.rs::should_preserve_duplicate_commuted_and_cyclic_join_predicates",
-      "name": "should_preserve_duplicate_commuted_and_cyclic_join_predicates",
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_preserve_the_complete_join_predicate_bag",
+      "name": "should_preserve_the_complete_join_predicate_bag",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
       "line": 100,
       "end_line": 121,
@@ -223712,7 +223712,7 @@
       "instances": [
         {
           "suite": "planner_controls",
-          "name": "join_selectivity::should_preserve_duplicate_commuted_and_cyclic_join_predicates"
+          "name": "join_selectivity::should_preserve_the_complete_join_predicate_bag"
         }
       ],
       "attributes": [
@@ -223762,11 +223762,42 @@
       }
     },
     {
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_defer_a_whole_correlated_on_until_the_final_join",
+      "name": "should_defer_a_whole_correlated_on_until_the_final_join",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 156,
+      "end_line": 195,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_defer_a_whole_correlated_on_until_the_final_join"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_exact_qualified_base_statistics_before_suffix_matches",
       "name": "should_use_exact_qualified_base_statistics_before_suffix_matches",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 149,
-      "end_line": 175,
+      "line": 198,
+      "end_line": 224,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -223796,8 +223827,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_a_stable_default_for_ambiguous_base_statistics",
       "name": "should_use_a_stable_default_for_ambiguous_base_statistics",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 178,
-      "end_line": 203,
+      "line": 227,
+      "end_line": 252,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -223827,8 +223858,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_keep_a_quoted_relation_distinct_in_base_statistics",
       "name": "should_keep_a_quoted_relation_distinct_in_base_statistics",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 206,
-      "end_line": 221,
+      "line": 255,
+      "end_line": 270,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -223858,8 +223889,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_exact_quoted_field_statistics_for_selectivity",
       "name": "should_use_exact_quoted_field_statistics_for_selectivity",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 224,
-      "end_line": 286,
+      "line": 273,
+      "end_line": 335,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -223889,8 +223920,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_unique_qualified_statistics_for_unqualified_sources",
       "name": "should_use_unique_qualified_statistics_for_unqualified_sources",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 289,
-      "end_line": 301,
+      "line": 338,
+      "end_line": 350,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -223920,8 +223951,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_accept_either_measurement_signal_for_distinct_statistics",
       "name": "should_accept_either_measurement_signal_for_distinct_statistics",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 304,
-      "end_line": 322,
+      "line": 353,
+      "end_line": 371,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -223951,8 +223982,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_decline_unusable_field_statistics_without_discarding_base_counts",
       "name": "should_decline_unusable_field_statistics_without_discarding_base_counts",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 325,
-      "end_line": 380,
+      "line": 374,
+      "end_line": 429,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -223982,8 +224013,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_keep_where_selectivity_out_of_join_intermediate_estimates",
       "name": "should_keep_where_selectivity_out_of_join_intermediate_estimates",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 383,
-      "end_line": 393,
+      "line": 432,
+      "end_line": 442,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -224013,8 +224044,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_preserve_existing_join_reordering_legality_boundaries",
       "name": "should_preserve_existing_join_reordering_legality_boundaries",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 396,
-      "end_line": 419,
+      "line": 445,
+      "end_line": 468,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -224044,8 +224075,8 @@
       "id": "tests/planner_controls/planning/join_selectivity.rs::should_use_the_same_selectivity_estimate_for_greedy_expansion",
       "name": "should_use_the_same_selectivity_estimate_for_greedy_expansion",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 422,
-      "end_line": 441,
+      "line": 471,
+      "end_line": 490,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -224072,11 +224103,11 @@
       }
     },
     {
-      "id": "tests/planner_controls/planning/join_selectivity.rs::should_explain_the_selective_order_and_preserve_parameterized_sql_rows",
-      "name": "should_explain_the_selective_order_and_preserve_parameterized_sql_rows",
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_preserve_rows_after_reordering_a_correlated_on",
+      "name": "should_preserve_rows_after_reordering_a_correlated_on",
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
-      "line": 471,
-      "end_line": 499,
+      "line": 549,
+      "end_line": 583,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -224084,7 +224115,7 @@
       "instances": [
         {
           "suite": "planner_controls",
-          "name": "join_selectivity::should_explain_the_selective_order_and_preserve_parameterized_sql_rows"
+          "name": "join_selectivity::should_preserve_rows_after_reordering_a_correlated_on"
         }
       ],
       "attributes": [
@@ -224103,8 +224134,39 @@
       }
     },
     {
-      "id": "tests/planner_controls/planning/optimizer_memo.rs::should_enumerate_three_relation_inner_join_by_cardinality",
-      "name": "should_enumerate_three_relation_inner_join_by_cardinality",
+      "id": "tests/planner_controls/planning/join_selectivity.rs::should_preserve_parameterized_rows_in_the_explained_selective_order",
+      "name": "should_preserve_parameterized_rows_in_the_explained_selective_order",
+      "current_file": "tests/planner_controls/planning/join_selectivity.rs",
+      "line": 586,
+      "end_line": 614,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "join_selectivity::should_preserve_parameterized_rows_in_the_explained_selective_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "joins",
+        "directory": "tests/planner_controls/joins",
+        "file": "tests/planner_controls/joins/join_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/planner_controls/planning/optimizer_memo.rs::should_break_equal_ndv_join_costs_lexically",
+      "name": "should_break_equal_ndv_join_costs_lexically",
       "current_file": "tests/planner_controls/planning/optimizer_memo.rs",
       "line": 39,
       "end_line": 75,
@@ -224115,7 +224177,7 @@
       "instances": [
         {
           "suite": "planner_controls",
-          "name": "optimizer_memo::should_enumerate_three_relation_inner_join_by_cardinality"
+          "name": "optimizer_memo::should_break_equal_ndv_join_costs_lexically"
         }
       ],
       "attributes": [
@@ -347606,9 +347668,9 @@
       "current_file": "tests/planner_controls/planning/join_selectivity.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 499,
-      "sha256": "42817f00084ff81aee607669a2208be23446c064eb816a7c52ddffa911a0968b",
-      "test_declarations": 16,
+      "lines": 614,
+      "sha256": "6e429c392b1e67a073ec1233561bdccc9ac9c44da82b9fa43ec6ab2bed348598",
+      "test_declarations": 18,
       "registered_suites": [
         "planner_controls"
       ],
@@ -347622,7 +347684,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 310,
-      "sha256": "e60ffb84050d7522ee649fe401dc513740d151684a55fa36d9f1a7dfa5b03ac3",
+      "sha256": "8c39b0724e04e813679238df173800cb35bfa529af95b530c555be3dae7886b2",
       "test_declarations": 7,
       "registered_suites": [
         "planner_controls"
@@ -354969,8 +355031,8 @@
       "current_file": "tests/support/join_cost_stats.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 51,
-      "sha256": "7b9c14d03c87f027dc4e48bde6ee2266f075a8a88721e965fc8e90e64d0bfd7b",
+      "lines": 64,
+      "sha256": "3002f58d3ffd3fefb188693997f58ce518b2f32470b9d345e58d1eff5f763fa7",
       "test_declarations": 0,
       "registered_suites": [
         "planner_controls"

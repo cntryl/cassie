@@ -1194,7 +1194,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/planner_controls/indexes/planner_indexes.rs` | test_module | 490 | 9 | planner_controls | keep | `tests/planner_controls/indexes/planner_indexes.rs` |
 | `tests/planner_controls/planning/adaptive_promotion_evidence.rs` | test_module | 18 | 1 | planner_controls | keep | `tests/planner_controls/planning/adaptive_promotion_evidence.rs` |
 | `tests/planner_controls/planning/execution_result_cache.rs` | test_module | 805 | 18 | planner_controls | keep | `tests/planner_controls/planning/execution_result_cache.rs` |
-| `tests/planner_controls/planning/join_selectivity.rs` | test_module | 499 | 16 | planner_controls | move_with_module_alias | `tests/planner_controls/joins/join_selectivity.rs` |
+| `tests/planner_controls/planning/join_selectivity.rs` | test_module | 614 | 18 | planner_controls | move_with_module_alias | `tests/planner_controls/joins/join_selectivity.rs` |
 | `tests/planner_controls/planning/optimizer_memo.rs` | test_module | 310 | 7 | planner_controls | keep | `tests/planner_controls/planning/optimizer_memo.rs` |
 | `tests/planner_controls/planning/plan_cache/errors.rs` | test_module | 146 | 2 | planner_controls | keep | `tests/planner_controls/planning/plan_cache/errors.rs` |
 | `tests/planner_controls/planning/plan_cache/mod.rs` | module_registration | 27 | 0 | planner_controls | keep | `tests/planner_controls/planning/plan_cache/mod.rs` |
@@ -1684,7 +1684,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/graph_oracle/tests.rs` | shared_support | 471 | 19 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/tests.rs` |
 | `tests/support/graph_oracle/weighted.rs` | shared_support | 123 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/weighted.rs` |
 | `tests/support/graph_view_fixture.rs` | shared_support | 24 | 0 | graph_table | keep | `tests/support/graph_view_fixture.rs` |
-| `tests/support/join_cost_stats.rs` | shared_support | 51 | 0 | planner_controls | keep | `tests/support/join_cost_stats.rs` |
+| `tests/support/join_cost_stats.rs` | shared_support | 64 | 0 | planner_controls | keep | `tests/support/join_cost_stats.rs` |
 | `tests/support/local_storage.rs` | shared_support | 5 | 0 | sql_mutations, storage_indexes | keep | `tests/support/local_storage.rs` |
 | `tests/support/metrics.rs` | shared_support | 8 | 0 | metrics, planner_controls | keep | `tests/support/metrics.rs` |
 | `tests/support/mixed_numeric.rs` | shared_support | 24 | 0 | pgwire_types, sql_queries | keep | `tests/support/mixed_numeric.rs` |

@@ -201,45 +201,24 @@ fn build_set_tree(operands: Vec<SelectStatement>, operators: &[SetOperator]) -> 
     root
 }
 
-/// Returns `left <operator> right`. A left operand that is already a set
-/// operation is regrouped only when the result is unchanged
-/// (`(A op B) op C == A op (B op C)` for a repeated associative operator);
-/// otherwise it is wrapped as a derived table so it evaluates first.
+/// Keep the left operand intact when it contains a completed set operation.
+/// Repeated UNIONs are associative over rows, but their pairwise type
+/// resolution is observable (two unknown inputs resolve to text).
 fn combine_set_operands(
-    mut left: SelectStatement,
+    left: SelectStatement,
     operator: SetOperator,
     right: SelectStatement,
 ) -> SelectStatement {
-    let associative = matches!(
+    let mut root = if left.set.is_some() {
+        derived_set_operand(left)
+    } else {
+        left
+    };
+    root.set = Some(Box::new(SelectSet {
         operator,
-        SetOperator::Union
-            | SetOperator::UnionAll
-            | SetOperator::Intersect
-            | SetOperator::IntersectAll
-    );
-    match left.set.take() {
-        None => {
-            left.set = Some(Box::new(SelectSet {
-                operator,
-                right: Box::new(right),
-            }));
-            left
-        }
-        Some(mut set) if associative && set.operator == operator => {
-            set.right = Box::new(combine_set_operands(*set.right, operator, right));
-            left.set = Some(set);
-            left
-        }
-        Some(set) => {
-            left.set = Some(set);
-            let mut wrapped = derived_set_operand(left);
-            wrapped.set = Some(Box::new(SelectSet {
-                operator,
-                right: Box::new(right),
-            }));
-            wrapped
-        }
-    }
+        right: Box::new(right),
+    }));
+    root
 }
 
 fn derived_set_operand(select: SelectStatement) -> SelectStatement {

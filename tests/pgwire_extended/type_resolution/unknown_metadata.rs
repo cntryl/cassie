@@ -357,3 +357,70 @@ fn should_use_declared_parameter_categories_when_parsing_set_operands() {
         ]
     );
 }
+
+#[test]
+fn should_preserve_declared_set_operand_types_across_query_sources() {
+    // Arrange
+    let cases = [
+        "WITH c(v) AS (SELECT $1) SELECT 2::INT AS n UNION ALL SELECT v FROM c ORDER BY n",
+        "WITH c(v) AS (SELECT $1) SELECT v AS n FROM c UNION ALL SELECT 2::INT ORDER BY n",
+        "WITH c(v) AS (SELECT $1), d(w) AS (SELECT v FROM c) \
+         SELECT 2::INT AS n UNION ALL SELECT w FROM d ORDER BY n",
+        "SELECT 2::INT AS n UNION ALL SELECT v FROM (SELECT $1 AS v) AS d ORDER BY n",
+    ];
+    let mut cycles = Vec::new();
+    for sql in cases {
+        cycles.push(vec![
+            wire::parse_frame_with_types("", sql, &[16]),
+            wire::sync_frame(),
+        ]);
+        cycles.push(fixture::execute_cycle(
+            sql,
+            Some((20, 0, Some(b"9007199254740993"))),
+            0,
+            true,
+        ));
+    }
+    let sibling = "WITH c(v,n) AS (SELECT $1,3::INT) \
+                   SELECT 2::INT AS n UNION ALL SELECT n FROM c ORDER BY n";
+    cycles.push(fixture::execute_cycle(
+        sibling,
+        Some((16, 0, Some(b"t"))),
+        0,
+        true,
+    ));
+
+    // Act
+    let batches = fixture::run_cycles("set-parameter-query-sources", &[], cycles);
+
+    // Assert
+    let (pairs, control) = batches.as_chunks::<2>();
+    assert_eq!(pairs.len(), cases.len());
+    for (sql, [rejected, accepted]) in cases.into_iter().zip(pairs) {
+        assert_eq!(
+            wire::error_code(rejected).as_deref(),
+            Some("42804"),
+            "{sql}"
+        );
+        assert!(!rejected.iter().any(|(tag, _)| *tag == b'1'), "{sql}");
+        fixture::assert_success(accepted);
+        fixture::assert_single_column_descriptors(accepted, (20, 8, -1), 0, true);
+        assert_eq!(
+            wire::data_rows(accepted),
+            vec![
+                vec![Some("2".into())],
+                vec![Some("9007199254740993".into())]
+            ],
+            "{sql}"
+        );
+    }
+    let [accepted] = control else {
+        panic!("missing sibling result")
+    };
+    fixture::assert_success(accepted);
+    fixture::assert_single_column_descriptors(accepted, (23, 4, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(accepted),
+        vec![vec![Some("2".into())], vec![Some("3".into())]]
+    );
+}

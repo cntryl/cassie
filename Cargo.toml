@@ -28,7 +28,7 @@ serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] 
 parking_lot = { version = "0.13", features = ["arc_lock"] }
 thiserror = "2.0"
 uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-cntryl-midge = "0.5.2"
+cntryl-midge = "0.5.3"
 cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
 hyper = { version = "1.12", features = ["full"] }
 tracing = "0.1"

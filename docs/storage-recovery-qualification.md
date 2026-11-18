@@ -12,6 +12,30 @@ Named witnesses qualify their exercised boundaries, rather than every possible
 interleaving or deployment profile. Full ordered validation and exact-head hosted
 checks remain publication requirements.
 
+## Concurrent database creation
+
+Cassie uses the published Midge 0.5.3 package. When a native column-family
+create drains a pending strict write and leaves an unfenced WAL group in flight,
+the native barrier returns `WriteStall` before publishing the family. The caller
+can submit a new create after the group settles. Cassie propagates
+`StorageRetryKind::WriteStall` at that boundary. An earlier lifecycle intent
+can already be durable. Recovery checks its recorded physical identity against
+the published owner before retiring it. Native `Internal` remains terminal and
+`OutcomeUnknown` requires reconciliation after recovery.
+[Upstream fix and controlled regression](https://github.com/cntryl/midge/pull/1048)
+
+The package regression `should_return_retryable_create_when_drain_starts_strict_group`
+holds the native sync and checks the absent family before retry. Cassie's
+`should_preserve_concurrent_database_creates_across_retry_restart` synchronizes
+two real creators at catalog finalization. It checks the losing name is absent,
+retries that create once, and compares both physical owners and distinct
+sentinel values at the same key across a local reopen. The native and Cassie
+schedules are independently controlled. Broader native/background durability
+and physical power-loss or real-provider recovery remain open.
+[Cassie #1188](https://github.com/cntryl/cassie/issues/1188) · [Cassie #1271](https://github.com/cntryl/cassie/issues/1271)
+
+## Qualification obligations
+
 | Obligation | Qualification owner and finite disposition |
 | --- | --- |
 | STO-01 | `midge_baseline_database_families` and catalog duplicate-name restart witnesses exercise stable opaque owners; each database's rows and catalog share its family, while `transactions.rs` keeps transactions within one physical family. |

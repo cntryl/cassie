@@ -329,3 +329,31 @@ fn should_reject_incompatible_set_categories_during_parse() {
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42804"));
     assert!(!batches[0].iter().any(|(tag, _)| *tag == b'1'));
 }
+
+#[test]
+fn should_use_declared_parameter_categories_when_parsing_set_operands() {
+    // Arrange
+    let sql = "SELECT $1 AS n UNION ALL SELECT 2::INT ORDER BY n";
+    let reject = vec![
+        wire::parse_frame_with_types("", sql, &[16]),
+        wire::sync_frame(),
+    ];
+    let wide_integer = b"9007199254740993";
+    let accept = fixture::execute_cycle(sql, Some((20, 0, Some(wide_integer))), 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("set-declared-parameter-types", &[], vec![reject, accept]);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42804"));
+    assert!(!batches[0].iter().any(|(tag, _)| *tag == b'1'));
+    fixture::assert_success(&batches[1]);
+    fixture::assert_single_column_descriptors(&batches[1], (20, 8, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![
+            vec![Some("2".into())],
+            vec![Some("9007199254740993".into())]
+        ]
+    );
+}

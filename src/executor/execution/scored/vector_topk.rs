@@ -633,7 +633,7 @@ mod tests {
     use super::*;
     use crate::app::CassieError;
     use crate::config::CassieRuntimeLimits;
-    use crate::sql::ast::{CastIdentity, OrderExpr};
+    use crate::sql::ast::{CastIdentity, IdentifierPath, OrderExpr};
     use crate::types::Vector;
     use std::time::Instant;
 
@@ -655,7 +655,9 @@ mod tests {
         };
         let plan = LogicalPlan {
             command: None,
-            source: QuerySource::Collection("vectors".into()),
+            source: QuerySource::Collection(
+                IdentifierPath::parse("vectors").expect("relation path"),
+            ),
             collection: "vectors".into(),
             ctes: vec![],
             distinct: false,
@@ -674,7 +676,7 @@ mod tests {
             group_by: vec![],
             having: None,
             order: vec![OrderExpr {
-                expr: Expr::Function(distance(Expr::StringLiteral("[1,0,0]".into()))),
+                expr: Expr::Function(Box::new(distance(Expr::StringLiteral("[1,0,0]".into())))),
                 direction: SortDirection::Asc,
                 nulls: None,
             }],
@@ -697,7 +699,8 @@ mod tests {
         let exact = controls(2 * vector_bytes);
         let invalid = controls(vector_bytes - 1);
         let mut invalid_order = plan.clone();
-        invalid_order.order[0].expr = Expr::Function(distance(Expr::StringLiteral("[1,0]".into())));
+        invalid_order.order[0].expr =
+            Expr::Function(Box::new(distance(Expr::StringLiteral("[1,0]".into()))));
 
         // Act
         let rejected = vector_distance_top_k_spec(&plan, &params, &just_below);

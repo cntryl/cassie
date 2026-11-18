@@ -1,5 +1,5 @@
 use super::super::Midge;
-use crate::app::CassieError;
+use crate::app::{CassieError, StorageRetryKind};
 use crate::config::CassieRuntimeLimits;
 use crate::midge::adapter::PublicationControlScope;
 use crate::runtime::QueryExecutionControls;
@@ -149,6 +149,38 @@ fn should_preserve_native_create_error_when_family_becomes_visible() {
         }));
         assert_eq!(midge.check_storage_recovery_required().is_err(), unknown);
     }
+}
+
+#[test]
+fn should_preserve_retryable_stall_before_physical_family_publication() {
+    // Arrange
+    let midge = Midge::new_in_memory("postgres").expect("memory adapter");
+    midge.ensure_families_ready().expect("bootstrap");
+    let name = "stalled-family";
+
+    // Act
+    let stalled = midge.create_physical_family_with(name, || {
+        Err(cntryl_midge::MidgeError::WriteStall(
+            "held WAL group".into(),
+        ))
+    });
+
+    // Assert
+    assert_eq!(
+        stalled.unwrap_err().storage_retry_kind(),
+        Some(StorageRetryKind::WriteStall)
+    );
+    assert!(midge.engine.get_column_family(name).is_none());
+    midge
+        .check_storage_recovery_required()
+        .expect("known stall permits retry");
+    let handle = midge
+        .create_physical_family(name)
+        .expect("explicit create retry");
+    assert_eq!(
+        midge.engine.get_column_family(name).unwrap().id(),
+        handle.id()
+    );
 }
 
 #[test]

@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10629,
+    "rust_test_declarations": 10633,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10654,
+    "registered_rust_instances": 10658,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -27075,6 +27075,130 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::exclusion_constraints::constraint_lifecycle::should_reject_check_constraint_rename_without_mutating_catalog"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/constraints",
+        "directory": "tests/compatibility/lifecycle/constraints",
+        "file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs::should_enforce_compact_column_check",
+      "name": "should_enforce_compact_column_check",
+      "current_file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
+      "line": 147,
+      "end_line": 180,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::exclusion_constraints::constraint_lifecycle::should_enforce_compact_column_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/constraints",
+        "directory": "tests/compatibility/lifecycle/constraints",
+        "file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs::should_enforce_compact_comparison_in_table_check",
+      "name": "should_enforce_compact_comparison_in_table_check",
+      "current_file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
+      "line": 183,
+      "end_line": 206,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::exclusion_constraints::constraint_lifecycle::should_enforce_compact_comparison_in_table_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/constraints",
+        "directory": "tests/compatibility/lifecycle/constraints",
+        "file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs::should_keep_operator_text_inside_check_literal",
+      "name": "should_keep_operator_text_inside_check_literal",
+      "current_file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
+      "line": 209,
+      "end_line": 238,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::exclusion_constraints::constraint_lifecycle::should_keep_operator_text_inside_check_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/constraints",
+        "directory": "tests/compatibility/lifecycle/constraints",
+        "file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs::should_keep_existing_limits_for_compact_check_declarations",
+      "name": "should_keep_existing_limits_for_compact_check_declarations",
+      "current_file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
+      "line": 241,
+      "end_line": 292,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::exclusion_constraints::constraint_lifecycle::should_keep_existing_limits_for_compact_check_declarations"
         }
       ],
       "attributes": [
@@ -333152,9 +333276,9 @@
       "current_file": "tests/compatibility/lifecycle/constraints/constraint_lifecycle.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 144,
-      "sha256": "4d65ba8aa859bbc67ddce4dda4a0cf1deb21140f3179a4bec4e9e770ab014199",
-      "test_declarations": 3,
+      "lines": 292,
+      "sha256": "dc3965987573fc9d551291c7bca56f630aa9861de6e561c81c8a037f08c03087",
+      "test_declarations": 7,
       "registered_suites": [
         "compatibility"
       ],

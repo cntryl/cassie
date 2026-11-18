@@ -161,7 +161,7 @@ impl Ambiguity {
             Self::ReplacementUnlisted => {
                 let mut names = Midge::load_databases(&tx).unwrap();
                 names.retain(|name| name != DATABASE);
-                assert!(!names.is_empty());
+                assert_eq!(names, [midge.default_database.as_str()]);
                 Midge::save_databases(&mut tx, &names).unwrap();
             }
             Self::WrongJournalKey => {
@@ -346,9 +346,8 @@ fn should_replay_independent_intents_alongside_a_valid_create_retry() {
         .any(|f| f.name() == orphan.physical_family));
     let read = restarted.midge.begin_schema_readonly_tx().unwrap();
     let query = super::Query::new().prefix(key_encoding::database_lifecycle_prefix().into());
-    assert!(super::collect_scan(read.scan(&query).unwrap())
-        .unwrap()
-        .is_empty());
+    let remaining = super::collect_scan(read.scan(&query).unwrap()).unwrap();
+    assert_eq!(remaining, [] as [super::RawStorageEntry; 0]);
     drop(read);
     drop(restarted);
     std::fs::remove_dir_all(path).unwrap();

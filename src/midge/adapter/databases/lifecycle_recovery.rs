@@ -163,8 +163,8 @@ impl DatabaseLifecycleRecord {
         if matches!(self.kind, DatabaseLifecycleKind::Create)
             && (self.name.is_empty()
                 || !is_generated_family(&self.physical_family)
-                || !generated_uuid(&self.operation_id)
-                    .is_some_and(|id| id.to_string() == self.operation_id))
+                || generated_uuid(&self.operation_id)
+                    .is_none_or(|id| id.to_string() != self.operation_id))
         {
             return Err(CassieError::StorageBootstrap(
                 "invalid database create lifecycle identity".to_owned(),

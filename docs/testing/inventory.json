@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10638,
+    "rust_test_declarations": 10641,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10663,
+    "registered_rust_instances": 10666,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -119591,6 +119591,68 @@
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::postgresql18_cte_compat::multicolumn_cycle_wire_identity::should_return_typed_cycle_marks_for_multicolumn_keys"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs::should_describe_generated_cycle_columns_for_a_parameterized_walk",
+      "name": "should_describe_generated_cycle_columns_for_a_parameterized_walk",
+      "current_file": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs",
+      "line": 94,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_cte_compat::multicolumn_cycle_wire_identity::should_describe_generated_cycle_columns_for_a_parameterized_walk"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ctes",
+        "directory": "tests/pgwire_extended/ctes",
+        "file": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs::should_apply_cycle_field_oids_only_to_their_source",
+      "name": "should_apply_cycle_field_oids_only_to_their_source",
+      "current_file": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs",
+      "line": 139,
+      "end_line": 221,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_cte_compat::multicolumn_cycle_wire_identity::should_apply_cycle_field_oids_only_to_their_source"
         }
       ],
       "attributes": [
@@ -272773,6 +272835,37 @@
       }
     },
     {
+      "id": "tests/sql_queries/cte_identity.rs::should_resolve_implicit_qualifiers_of_case_distinct_ctes",
+      "name": "should_resolve_implicit_qualifiers_of_case_distinct_ctes",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 191,
+      "end_line": 220,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_resolve_implicit_qualifiers_of_case_distinct_ctes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/ctes/ctes.rs::should_share_materialized_cte_rows_across_references",
       "name": "should_share_materialized_cte_rows_across_references",
       "current_file": "tests/sql_queries/ctes/ctes.rs",
@@ -341427,9 +341520,9 @@
       "current_file": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 91,
-      "sha256": "20179cf774a06964e28ea79edd0fcd859617cf2548f1fc3751067c27137e1b6f",
-      "test_declarations": 1,
+      "lines": 221,
+      "sha256": "5bab5d3d621dce6a649576a8fa18bc54235ad5c9beef6acf96d0fe5cf98704a2",
+      "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -352764,9 +352857,9 @@
       "current_file": "tests/sql_queries/cte_identity.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 188,
-      "sha256": "c3842b4a9bc974e493ce811f5c54b24eaf5995851ac018b649f1435e90de25a8",
-      "test_declarations": 12,
+      "lines": 220,
+      "sha256": "de22088e4499de9c7a642eb8791514780cdfebc1c394f96e0d08d8e9676a5363",
+      "test_declarations": 13,
       "registered_suites": [
         "sql_queries"
       ],

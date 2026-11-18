@@ -39,6 +39,9 @@ mod planner_commands;
 #[path = "planner_controls/planning/planner_costs.rs"]
 mod planner_costs;
 
+#[path = "planner_controls/planning/join_selectivity.rs"]
+mod join_selectivity;
+
 // Formerly tests/planner_estimates.rs.
 #[path = "planner_controls/planning/planner_estimates.rs"]
 mod planner_estimates;

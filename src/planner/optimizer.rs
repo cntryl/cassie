@@ -1,8 +1,17 @@
-use crate::catalog::{local_name, name_matches, CollectionCardinalityStats};
+use crate::catalog::{local_name, CollectionCardinalityStats};
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{BinaryOp, Expr, JoinKind, QuerySource};
 use std::collections::{BTreeSet, HashMap};
 use std::hash::BuildHasher;
+
+#[path = "optimizer/cost.rs"]
+mod cost;
+#[path = "optimizer/inputs.rs"]
+mod inputs;
+
+#[cfg(test)]
+#[path = "optimizer/cost_observation_tests.rs"]
+mod cost_observation_tests;
 
 #[must_use]
 pub fn optimize(plan: LogicalPlan) -> LogicalPlan {
@@ -16,8 +25,9 @@ pub fn optimize_with_stats<S: BuildHasher>(
 ) -> LogicalPlan {
     if let Some(terms) = InnerJoinTerms::from_source(&plan.source) {
         if terms.relations.len() >= 3 {
-            let order = enumerate_join_order(&terms.relations, cardinality_stats);
-            plan.source = terms.rebuild(&order);
+            let inputs = inputs::resolve(&terms.relations, &terms.predicates, cardinality_stats);
+            let order = enumerate_join_order(&inputs);
+            plan.source = terms.rebuild(&order, &inputs);
         }
     }
     plan
@@ -44,33 +54,24 @@ impl InnerJoinTerms {
         })
     }
 
-    fn rebuild(self, order: &[usize]) -> QuerySource {
-        let mut unused = self.predicates;
+    fn rebuild(self, order: &[usize], inputs: &inputs::JoinInputs) -> QuerySource {
+        let mut unused = self.predicates.into_iter().enumerate().collect::<Vec<_>>();
         let first = order[0];
-        let mut joined = BTreeSet::from([relation_name(&self.relations[first])]);
         let mut source = self.relations[first].clone();
 
         for (position, index) in order.iter().copied().enumerate().skip(1) {
-            let next_name = relation_name(&self.relations[index]);
-            let mut available = joined.clone();
-            available.insert(next_name.clone());
             let last = position + 1 == order.len();
             let mut selected = Vec::new();
             let mut remaining = Vec::new();
-            for predicate in unused {
-                let references = predicate_relations(&predicate);
-                let ready = references
-                    .iter()
-                    .all(|name| relation_set_contains(&available, name))
-                    && (last
-                        || (relation_set_contains(&references, &next_name)
-                            && references
-                                .iter()
-                                .any(|name| relation_set_contains(&joined, name))));
+            for (predicate_index, predicate) in unused {
+                let ready = inputs.predicates[predicate_index]
+                    .ready(&order[..position], index, last)
+                    // Keep an unknown whole ON intact until all inputs exist.
+                    .unwrap_or(last);
                 if ready {
                     selected.push(predicate);
                 } else {
-                    remaining.push(predicate);
+                    remaining.push((predicate_index, predicate));
                 }
             }
             unused = remaining;
@@ -80,7 +81,6 @@ impl InnerJoinTerms {
                 kind: JoinKind::Inner,
                 on: combine_predicates(selected),
             };
-            joined.insert(next_name);
         }
         source
     }
@@ -118,111 +118,82 @@ fn flatten_inner_joins(
     }
 }
 
-fn enumerate_join_order<S: BuildHasher>(
-    relations: &[QuerySource],
-    cardinality_stats: &HashMap<String, CollectionCardinalityStats, S>,
-) -> Vec<usize> {
-    let rows = relations
-        .iter()
-        .map(|source| relation_rows(source, cardinality_stats))
-        .collect::<Vec<_>>();
-    let labels = relations.iter().map(relation_name).collect::<Vec<_>>();
-    if relations.len() <= 8 {
+fn enumerate_join_order(inputs: &inputs::JoinInputs) -> Vec<usize> {
+    let count = inputs.rows.len();
+    if count <= 8 {
         let mut best = None;
         enumerate_permutations(
-            &mut Vec::with_capacity(relations.len()),
-            &mut vec![false; relations.len()],
-            &rows,
-            &labels,
+            &mut Vec::with_capacity(count),
+            &mut vec![false; count],
+            inputs,
             &mut best,
         );
-        best.map_or_else(Vec::new, |(_, _, order)| order)
+        best.map_or_else(Vec::new, |(_, order)| order)
     } else {
-        let mut order = (0..relations.len()).collect::<Vec<_>>();
-        order.sort_by_key(|index| (rows[*index], labels[*index].clone()));
-        order
+        greedy_order(inputs)
     }
 }
 
 fn enumerate_permutations(
     current: &mut Vec<usize>,
     used: &mut [bool],
-    rows: &[u64],
-    labels: &[String],
-    best: &mut Option<(u128, Vec<String>, Vec<usize>)>,
+    inputs: &inputs::JoinInputs,
+    best: &mut Option<(u128, Vec<usize>)>,
 ) {
-    if current.len() == rows.len() {
-        let cost = join_order_cost(current, rows);
-        let label_order = current
-            .iter()
-            .map(|index| labels[*index].clone())
-            .collect::<Vec<_>>();
-        if best.as_ref().is_none_or(|(best_cost, best_labels, _)| {
-            (cost, &label_order) < (*best_cost, best_labels)
+    if current.len() == inputs.rows.len() {
+        let cost = join_order_cost(current, inputs);
+        if best.as_ref().is_none_or(|(best_cost, best_order)| {
+            cost < *best_cost
+                || (cost == *best_cost
+                    && current
+                        .iter()
+                        .map(|index| &inputs.labels[*index])
+                        .cmp(best_order.iter().map(|index| &inputs.labels[*index]))
+                        .is_lt())
         }) {
-            *best = Some((cost, label_order, current.clone()));
+            *best = Some((cost, current.clone()));
         }
         return;
     }
-    for index in 0..rows.len() {
+    for index in 0..inputs.rows.len() {
         if used[index] {
             continue;
         }
         used[index] = true;
         current.push(index);
-        enumerate_permutations(current, used, rows, labels, best);
+        enumerate_permutations(current, used, inputs, best);
         current.pop();
         used[index] = false;
     }
 }
 
-fn join_order_cost(order: &[usize], rows: &[u64]) -> u128 {
-    let mut intermediate = 1u128;
-    let mut cost = 0u128;
-    for index in order {
-        intermediate = intermediate.saturating_mul(u128::from(rows[*index].max(1)));
-        cost = cost.saturating_add(intermediate);
-    }
-    cost
+fn join_order_cost(order: &[usize], inputs: &inputs::JoinInputs) -> u128 {
+    cost::order_cost(order, inputs)
 }
 
-fn relation_rows<S: BuildHasher>(
-    source: &QuerySource,
-    cardinality_stats: &HashMap<String, CollectionCardinalityStats, S>,
-) -> u64 {
-    let name = relation_name(source);
-    cardinality_stats
-        .iter()
-        .find(|(stored, _)| name_matches(stored, &name) || name_matches(&name, stored))
-        .map_or(1, |(_, stats)| stats.row_count.max(1))
-}
-
-fn relation_name(source: &QuerySource) -> String {
-    match source {
-        QuerySource::Collection(name) => name.to_ascii_lowercase(),
-        _ => "derived".to_string(),
-    }
-}
-
-fn predicate_relations(expr: &Expr) -> BTreeSet<String> {
-    let mut relations = BTreeSet::new();
-    collect_predicate_relations(expr, &mut relations);
-    relations
-}
-
-fn collect_predicate_relations(expr: &Expr, relations: &mut BTreeSet<String>) {
-    if let Expr::Column(column) = expr {
-        if let Some((qualifier, _)) = column.rsplit_once('.') {
-            relations.insert(qualifier.to_ascii_lowercase());
+fn greedy_order(inputs: &inputs::JoinInputs) -> Vec<usize> {
+    let mut order = Vec::with_capacity(inputs.rows.len());
+    let mut used = vec![false; inputs.rows.len()];
+    while order.len() < inputs.rows.len() {
+        let mut best: Option<(u128, usize)> = None;
+        for (index, is_used) in used.iter().enumerate() {
+            if *is_used {
+                continue;
+            }
+            order.push(index);
+            let cost = join_order_cost(&order, inputs);
+            order.pop();
+            if best.is_none_or(|(best_cost, best_index)| {
+                (cost, &inputs.labels[index]) < (best_cost, &inputs.labels[best_index])
+            }) {
+                best = Some((cost, index));
+            }
         }
+        let index = best.expect("one unused relation remains").1;
+        used[index] = true;
+        order.push(index);
     }
-    expr.for_each_child(|child| collect_predicate_relations(child, relations));
-}
-
-fn relation_set_contains(relations: &BTreeSet<String>, requested: &str) -> bool {
-    relations
-        .iter()
-        .any(|stored| name_matches(stored, requested) || name_matches(requested, stored))
+    order
 }
 
 fn combine_predicates(mut predicates: Vec<Expr>) -> Expr {

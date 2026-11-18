@@ -36,7 +36,7 @@ fn seed_relation(cassie: &Cassie, name: &str, rows: usize) {
 }
 
 #[test]
-fn should_enumerate_three_relation_inner_join_by_cardinality() {
+fn should_break_equal_ndv_join_costs_lexically() {
     // Arrange
     let path = data_dir("memo_three_relation_order");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
@@ -59,7 +59,7 @@ fn should_enumerate_three_relation_inner_join_by_cardinality() {
     // Assert
     assert!(plan.contains("join_enumeration=exhaustive"), "plan={plan}");
     assert!(
-        plan.contains("join_order=memo_small>memo_medium>memo_large"),
+        plan.contains("join_order=memo_small>memo_large>memo_medium"),
         "plan={plan}"
     );
 

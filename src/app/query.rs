@@ -14,7 +14,7 @@ use super::{
 // Catalog read-model schemas and scalar helper signatures share this rebuildable compiled-plan cache epoch.
 // Exact admitted parameter OIDs and distinct JSONB semantics also namespace rebuildable plans.
 // Graph identifier binding and typed key-part argument admission require fresh bound plans.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 36;
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 37;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,
@@ -972,6 +972,10 @@ mod cache_semantics_tests;
 #[cfg(test)]
 #[path = "query_cte_cache_semantics_tests.rs"]
 mod cte_cache_semantics_tests;
+
+#[cfg(test)]
+#[path = "query_join_cost_cache_tests.rs"]
+mod join_cost_cache_tests;
 
 #[cfg(test)]
 #[path = "query_parameter_cache_tests.rs"]

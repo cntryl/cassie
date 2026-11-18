@@ -179,6 +179,57 @@ under #769 CON-05.
 
 Inner-join planning exhaustively enumerates deterministic relation orders through eight relations and uses deterministic greedy expansion above eight. Outer, full, cross, lateral, and correlated dependencies remain explicit legality barriers unless a semantics-preserving proof applies. Missing statistics use a stable conservative fallback and lexical tie-breaking, so identical schema and statistics snapshots produce identical plans and reusable plan-cache entries.
 
+### Bounded join selectivity and whole-ON placement
+
+The finite [NDV-based ordering model](https://github.com/cntryl/cassie/issues/1341)
+uses eligible field statistics to estimate intermediate rows. Its
+[whole-ON placement rule](https://github.com/cntryl/cassie/issues/1342) preserves
+the context required by correlated predicates. These estimates do not promise
+general cardinality accuracy or a speed improvement for every query.
+
+The existing unaliased base-table, all-inner join boundary stays unchanged.
+Exact component-aware relation statistics take precedence over suffix matches;
+otherwise a match must be unique. Missing or ambiguous base statistics use one
+row, while a uniquely resolved entry retains its existing `row_count.max(1)`
+fallback even when its field statistics cannot support selectivity. Quoted
+relation and field spellings retain their supported identity.
+
+An NDV (distinct-value count) estimate requires a hydrated collection and a
+measured, non-stale field with `0 < distinct_count <= non_null_count == row_count`
+and no NULL or missing cells. Unsupported or ambiguous fields and expressions
+decline that estimate. Only bare qualified-column equalities under `AND` are
+eligible; `OR`, casts, functions, and `WHERE` selectivity do not supply join
+reductions. Each equality retains the complete dependencies of its original
+`ON` expression. It becomes usable only when the pre-resolved dependencies of
+that whole expression are ready; conjunctions are not split to invent earlier
+filtering. An unknown or correlated whole-ON dependency set declines that
+parent's NDV estimate and keeps its complete predicate at the final join.
+Other known parents retain their eligibility and readiness. Rebuilding uses
+those same pre-resolved identities without partial raw-dot dependency guesses.
+This repair preserves the existing alias, executor and SQL eligibility bounds.
+
+Each extension starts with the prior estimated rows times the next base count.
+At most one ready equality supplies the largest eligible NDV divisor, using
+the prior NDV capped by the current prefix estimate and the next relation's
+NDV. Duplicate, correlated and cyclic equalities are not multiplied. The cost
+sums estimated intermediate rows; a cheaper Cartesian prefix remains legal.
+Both bounded exhaustive enumeration and greedy expansion use this heuristic,
+with deterministic lexical ties. No predicate, row limit, admission decision,
+or publication guarantee is decided by an estimate.
+
+Products and sums use checked `u128` arithmetic. Ceiling division uses quotient
+and remainder, avoiding an overflowing `raw + divisor - 1`. An overflow returns
+the legacy saturating cost for the entire candidate order. The private compiled
+plan namespace invalidates earlier join-order plans in both L1 and L2;
+authoritative data and formats do not change. Cache regressions require a fresh
+NDV-order plan and a schema-valid legacy-order plan to return the same rows.
+After seeding and independently reading back the actual prior-epoch artifact,
+the normal query path must select the fresh order. Focused witnesses live in
+`join_selectivity`, the private cost observations, the join-cost cache tests and
+the memo lexical-tie test.
+Historical failures and exact-source qualification evidence belong to the
+owning issues and assembly/PR records.
+
 ## Retrieval Access Paths
 
 Full-text indexed execution reads persisted posting blocks and document statistics, computes exact BM25 scores, maintains a bounded result window, renders snippets from fetched candidates, and fetches only candidate rows. Eligible scalar equality indexes are intersected before row fetch. Transaction overlays and missing, stale, corrupt, or incomplete artifacts use an explicitly labelled row fallback under the same cancellation and memory controls.

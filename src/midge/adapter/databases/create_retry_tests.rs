@@ -248,3 +248,102 @@ fn should_preserve_journal_and_families_when_create_retry_cannot_be_proven() {
         std::fs::remove_dir_all(path).unwrap();
     }
 }
+
+#[test]
+fn should_reject_overlapping_journal_ownership_before_either_entry_is_replayed() {
+    for sibling_first in [false, true] {
+        // Arrange
+        let path = std::env::temp_dir().join(format!("cassie-create-retry-{}", Uuid::new_v4()));
+        let cassie = open(&path);
+        cassie.startup().unwrap();
+        let (mut intent, replacement) = retry_create(&cassie);
+        let first = "00000000-0000-4000-8000-000000000001";
+        let last = "ffffffff-ffff-4fff-bfff-fffffffffffe";
+        let mut tx = cassie.midge.begin_schema_rw_tx().unwrap();
+        Midge::delete_lifecycle_record(&mut tx, &intent.operation_id).unwrap();
+        intent.operation_id = if sibling_first { last } else { first }.to_owned();
+        let sibling = DatabaseLifecycleRecord {
+            operation_id: if sibling_first { first } else { last }.to_owned(),
+            kind: if sibling_first {
+                DatabaseLifecycleKind::Create
+            } else {
+                DatabaseLifecycleKind::Drop
+            },
+            name: "unpublished".to_owned(),
+            physical_family: replacement.physical_family,
+        };
+        Midge::write_lifecycle_record(&mut tx, &intent).unwrap();
+        Midge::write_lifecycle_record(&mut tx, &sibling).unwrap();
+        tx.commit(cassie.midge.write_options_sync()).unwrap();
+        let before = stored_families(&cassie.midge);
+        drop(cassie);
+
+        // Act
+        let reopened = open(&path);
+        let result = reopened.startup();
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(crate::app::CassieError::StorageBootstrap(_))
+        ));
+        drop(reopened);
+        let retained = open(&path);
+        assert_eq!(stored_families(&retained.midge), before);
+        drop(retained);
+        std::fs::remove_dir_all(path).unwrap();
+    }
+}
+
+#[test]
+fn should_replay_independent_intents_alongside_a_valid_create_retry() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-create-retry-{}", Uuid::new_v4()));
+    let cassie = open(&path);
+    cassie.startup().unwrap();
+    let (_, replacement) = retry_create(&cassie);
+    let orphan = DatabaseMeta::new("abandoned", None);
+    let mut tx = cassie.midge.begin_schema_rw_tx().unwrap();
+    // Exercise the existing raw-metadata fallback for a store without a name list.
+    tx.delete(Midge::databases_key()).unwrap();
+    for (meta, kind) in [
+        (&orphan, DatabaseLifecycleKind::Create),
+        (&replacement, DatabaseLifecycleKind::Drop),
+    ] {
+        let record = DatabaseLifecycleRecord {
+            operation_id: Uuid::new_v4().to_string(),
+            kind,
+            name: meta.name.clone(),
+            physical_family: meta.physical_family.clone(),
+        };
+        Midge::write_lifecycle_record(&mut tx, &record).unwrap();
+    }
+    tx.commit(cassie.midge.write_options_sync()).unwrap();
+    cassie
+        .midge
+        .create_physical_family(&orphan.physical_family)
+        .unwrap();
+    drop(cassie);
+
+    // Act
+    let restarted = open(&path);
+    restarted.startup().expect("recover the mixed journal");
+
+    // Assert
+    assert_owner_and_row(&restarted, &replacement);
+    assert!(!restarted
+        .midge
+        .engine
+        .list_column_families()
+        .unwrap()
+        .iter()
+        .any(|f| f.name() == orphan.physical_family));
+    let read = restarted.midge.begin_schema_readonly_tx().unwrap();
+    let query = super::Query::new().prefix(key_encoding::database_lifecycle_prefix().into());
+    assert!(super::collect_scan(read.scan(&query).unwrap())
+        .unwrap()
+        .is_empty());
+    drop(read);
+    drop(restarted);
+    std::fs::remove_dir_all(path).unwrap();
+}

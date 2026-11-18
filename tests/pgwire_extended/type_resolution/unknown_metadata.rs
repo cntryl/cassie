@@ -424,3 +424,44 @@ fn should_preserve_declared_set_operand_types_across_query_sources() {
         vec![vec![Some("2".into())], vec![Some("3".into())]]
     );
 }
+
+#[test]
+fn should_resolve_union_column_types_in_pairwise_grouping_order() {
+    // Arrange
+    let accepted = [
+        "SELECT 2::INT AS n UNION SELECT NULL UNION SELECT NULL ORDER BY n NULLS FIRST",
+        "(SELECT 2::INT AS n UNION SELECT NULL) UNION SELECT NULL ORDER BY n NULLS FIRST",
+        "SELECT NULL AS n UNION (SELECT NULL UNION SELECT 2::INT) ORDER BY n NULLS FIRST",
+    ];
+    let rejected = [
+        "SELECT NULL UNION SELECT NULL UNION SELECT 2::INT",
+        "SELECT 2::INT UNION (SELECT NULL UNION SELECT NULL)",
+    ];
+    let mut cycles = accepted
+        .map(|sql| fixture::execute_cycle(sql, None, 0, true))
+        .to_vec();
+    cycles.extend(rejected.map(|sql| {
+        vec![
+            wire::parse_frame_with_types("", sql, &[]),
+            wire::sync_frame(),
+        ]
+    }));
+
+    // Act
+    let batches = fixture::run_cycles("set-pairwise-unknown-types", &[], cycles);
+
+    // Assert
+    for (sql, frames) in accepted.into_iter().zip(&batches) {
+        fixture::assert_success(frames);
+        fixture::assert_single_column_descriptors(frames, (23, 4, -1), 0, true);
+        assert_eq!(
+            wire::data_rows(frames),
+            vec![vec![None], vec![Some("2".into())]],
+            "{sql}"
+        );
+    }
+    for (sql, frames) in rejected.into_iter().zip(&batches[accepted.len()..]) {
+        assert_eq!(wire::error_code(frames).as_deref(), Some("42804"), "{sql}");
+        assert!(!frames.iter().any(|(tag, _)| *tag == b'1'), "{sql}");
+    }
+}

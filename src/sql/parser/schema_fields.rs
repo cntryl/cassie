@@ -38,18 +38,6 @@ pub(super) fn parse_field_definition_for_table(
         constraint.default_expression =
             Some(crate::catalog::canonical_nextval_expression(&sequence));
     }
-    let remaining_parts = parts.collect::<Vec<_>>();
-    if remaining_parts
-        .iter()
-        .filter(|token| token.eq_ignore_ascii_case("check"))
-        .count()
-        > 1
-    {
-        return Err(SqlError::unsupported(
-            "multiple CHECK constraints on one field are not supported".into(),
-        ));
-    }
-    let mut parts = remaining_parts.into_iter();
     let mut pending_constraint_name: Option<String> = None;
     while let Some(token) = parts.next() {
         if apply_field_constraint(
@@ -234,6 +222,11 @@ fn apply_field_constraint(
         *saw_constraint = true;
         return apply_column_storage_option(token, parts, constraint).map(|()| false);
     }
+    if let Some(suffix) = check_expression_suffix(token) {
+        apply_check_constraint(suffix, parts, constraint, pending_constraint_name)?;
+        *saw_constraint = true;
+        return Ok(true);
+    }
     match token.to_lowercase().as_str() {
         "constraint" => {
             let name = parts
@@ -280,23 +273,6 @@ fn apply_field_constraint(
                 .ok_or_else(|| SqlError::new("DEFAULT requires a value".into()))?;
             apply_default_constraint(constraint, &value)?;
         }
-        "check" => {
-            *saw_constraint = true;
-            let expression = parts
-                .next()
-                .ok_or_else(|| SqlError::new("CHECK requires an expression".into()))?;
-            let remaining = parts.collect::<Vec<_>>().join(" ");
-            let expression = if remaining.is_empty() {
-                expression
-            } else {
-                format!("{expression} {remaining}")
-            };
-            let constraint_check = parse_check_constraint(&expression)?;
-            constraint.definition_semantics_version = 1;
-            constraint.check = Some(constraint_check);
-            constraint.check_name = pending_constraint_name.take();
-            return Ok(true);
-        }
         "references" => {
             *saw_constraint = true;
             let reference = parts.next().ok_or_else(|| {
@@ -322,6 +298,47 @@ fn apply_field_constraint(
         other => return Err(SqlError::new(format!("unsupported constraint '{other}'"))),
     }
     Ok(false)
+}
+
+/// Column declaration tokens keep text next to an opening parenthesis together.
+fn check_expression_suffix(token: &str) -> Option<&str> {
+    let prefix = token.get(.."check".len())?;
+    let suffix = &token[prefix.len()..];
+    (prefix.eq_ignore_ascii_case("check") && (suffix.is_empty() || suffix.starts_with('(')))
+        .then_some(suffix)
+}
+
+fn apply_check_constraint(
+    suffix: &str,
+    parts: &mut impl Iterator<Item = String>,
+    constraint: &mut FieldConstraint,
+    pending_constraint_name: &mut Option<String>,
+) -> Result<(), SqlError> {
+    let expression = if suffix.is_empty() {
+        parts
+            .next()
+            .ok_or_else(|| SqlError::new("CHECK requires an expression".into()))?
+    } else {
+        suffix.to_string()
+    };
+    let remaining = parts.collect::<Vec<_>>();
+    if remaining
+        .iter()
+        .any(|token| check_expression_suffix(token).is_some())
+    {
+        return Err(SqlError::unsupported(
+            "multiple CHECK constraints on one field are not supported".into(),
+        ));
+    }
+    let expression = if remaining.is_empty() {
+        expression
+    } else {
+        format!("{expression} {}", remaining.join(" "))
+    };
+    constraint.check = Some(parse_check_constraint(&expression)?);
+    constraint.definition_semantics_version = 1;
+    constraint.check_name = pending_constraint_name.take();
+    Ok(())
 }
 
 fn apply_not_null_constraint(

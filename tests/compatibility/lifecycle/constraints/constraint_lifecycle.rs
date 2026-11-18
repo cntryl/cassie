@@ -142,3 +142,151 @@ fn should_reject_check_constraint_rename_without_mutating_catalog() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_enforce_compact_column_check() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("compact_column_check").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute("CREATE TABLE compat_compact_column (n INT CHECK(n>0))")
+            .await
+            .expect("create compact CHECK");
+        client
+            .batch_execute("INSERT INTO compat_compact_column (n) VALUES (1), (NULL)")
+            .await
+            .expect("allow true and UNKNOWN");
+        let violation = client
+            .batch_execute("INSERT INTO compat_compact_column (n) VALUES (0)")
+            .await
+            .expect_err("reject false");
+
+        // Assert
+        assert_eq!(db_error(&violation).code().code(), "23514");
+        let count: i64 = client
+            .query_one("SELECT COUNT(*) FROM compat_compact_column", &[])
+            .await
+            .expect("read after rejected insert")
+            .get(0);
+        assert_eq!(count, 2);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_enforce_compact_comparison_in_table_check() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("compact_table_check").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute("CREATE TABLE compat_compact_table (n INT, CHECK(n>=0))")
+            .await
+            .expect("create compact table CHECK");
+        let violation = client
+            .batch_execute("INSERT INTO compat_compact_table (n) VALUES (-1)")
+            .await
+            .expect_err("reject false");
+
+        // Assert
+        assert_eq!(db_error(&violation).code().code(), "23514");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_keep_operator_text_inside_check_literal() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("compact_check_literal").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute(
+                "CREATE TABLE compat_compact_literal (label TEXT CHECK (label<>'it''s >= x'))",
+            )
+            .await
+            .expect("create CHECK with operator text in literal");
+        client
+            .batch_execute("INSERT INTO compat_compact_literal (label) VALUES ('ok')")
+            .await
+            .expect("allow a different label");
+        let violation = client
+            .batch_execute("INSERT INTO compat_compact_literal (label) VALUES ('it''s >= x')")
+            .await
+            .expect_err("reject the exact literal");
+
+        // Assert
+        assert_eq!(db_error(&violation).code().code(), "23514");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_keep_existing_limits_for_compact_check_declarations() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("compact_check_limits").await;
+        let (client, connection) = server.connect().await;
+        let cases = [
+            (
+                "CREATE TABLE compat_compact_limit (n INT CHECK(n>0) CHECK (n<10))",
+                "multiple CHECK constraints on one field",
+            ),
+            (
+                "CREATE TABLE compat_compact_limit (n INT, m INT CHECK(n>0))",
+                "column CHECK constraints may reference only their owning field",
+            ),
+            (
+                "CREATE TABLE compat_compact_limit (n INT CHECK(n>0) NOT ENFORCED)",
+                "CHECK constraint enforcement attributes are not supported",
+            ),
+        ];
+
+        // Act
+        let mut errors = Vec::new();
+        for (sql, _) in cases {
+            errors.push(
+                client
+                    .batch_execute(sql)
+                    .await
+                    .expect_err("reject unsupported CHECK declaration"),
+            );
+        }
+        let published: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables                          WHERE table_name = 'compat_compact_limit')",
+                &[],
+            )
+            .await
+            .expect("inspect catalog after rejected declarations")
+            .get(0);
+
+        // Assert
+        assert!(!published);
+        for ((_, expected), error) in cases.into_iter().zip(&errors) {
+            let error = db_error(error);
+            assert_eq!(error.code().code(), "0A000");
+            assert!(error.message().contains(expected), "{error}");
+        }
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

@@ -1,4 +1,5 @@
 //! Selected simple field/literal CHECK predicates.
+use super::super::lexical::{find_top_level_span, trim_separators};
 use super::{
     parse_constant_literal, strip_parentheses, ConstraintCheck, ConstraintOperator, SqlError, Value,
 };
@@ -53,37 +54,36 @@ pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlEr
     })
 }
 
-pub(super) fn parse_simple_comparison(raw: &str) -> Option<(String, ConstraintOperator, Value)> {
+fn parse_simple_comparison(raw: &str) -> Option<(String, ConstraintOperator, Value)> {
+    // Match overlapping symbols longest-first. The shared scanner skips strings,
+    // delimited identifiers, comments, and nested expressions.
     let candidates = [
         (
-            " is not distinct from ",
+            "is not distinct from",
             ConstraintOperator::IsNotDistinctFrom,
         ),
-        (" is distinct from ", ConstraintOperator::IsDistinctFrom),
-        (" <=", ConstraintOperator::Lte),
-        (" >=", ConstraintOperator::Gte),
-        (" <> ", ConstraintOperator::NotEq),
-        (" != ", ConstraintOperator::NotEq),
-        (" like ", ConstraintOperator::Like),
-        (" < ", ConstraintOperator::Lt),
-        (" > ", ConstraintOperator::Gt),
-        (" = ", ConstraintOperator::Eq),
+        ("is distinct from", ConstraintOperator::IsDistinctFrom),
+        ("<=", ConstraintOperator::Lte),
+        (">=", ConstraintOperator::Gte),
+        ("<>", ConstraintOperator::NotEq),
+        ("!=", ConstraintOperator::NotEq),
+        ("like", ConstraintOperator::Like),
+        ("<", ConstraintOperator::Lt),
+        (">", ConstraintOperator::Gt),
+        ("=", ConstraintOperator::Eq),
     ];
-
     for (operator, kind) in candidates {
-        let lower = raw.to_lowercase();
-        if let Some(position) = lower.find(operator) {
-            let left = raw[..position].trim();
-            let right = raw[position + operator.len()..].trim();
-            if left.is_empty() || right.is_empty() {
-                continue;
-            }
-
-            if let Ok(value) = parse_constant_literal(right) {
-                return Some((left.to_string(), kind, value));
-            }
+        let Some((start, end)) = find_top_level_span(raw, 0, operator) else {
+            continue;
+        };
+        let left = trim_separators(&raw[..start]);
+        let right = trim_separators(&raw[end..]);
+        if left.is_empty() {
+            continue;
+        }
+        if let Ok(value) = parse_constant_literal(right) {
+            return Some((left.to_string(), kind, value));
         }
     }
-
     None
 }

@@ -76,6 +76,12 @@ fn should_preserve_published_database_after_interrupted_create_retry_on_restart(
     let cassie = open(&path);
     cassie.startup().expect("initialize local store");
     let (intent, replacement) = retry_create(&cassie);
+    // Cold catalog hydration also rebuilds stale statistics. Materialize the
+    // sentinel's current generation before comparing every persisted key.
+    let table = "retry_db.public.sentinel";
+    cassie.refresh_cardinality_stats(table).unwrap();
+    let stats = cassie.midge.get_cardinality_stats(table).unwrap().unwrap();
+    assert_eq!(stats.row_count, 1);
     let key = key_encoding::database_lifecycle_key(&intent.operation_id);
     let mut expected = stored_families(&cassie.midge);
     expected

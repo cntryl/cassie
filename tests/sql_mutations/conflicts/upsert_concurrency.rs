@@ -342,7 +342,7 @@ fn should_keep_the_highest_committed_entity_revision_in_both_writer_orders() {
             assert_eq!(waiter_result.rows(), [row(second.0, second.1)]);
         } else {
             assert_eq!(waiter_result.command(), "INSERT 0 0");
-            assert!(waiter_result.rows().is_empty());
+            assert_eq!(waiter_result.rows(), [] as [Vec<Value>; 0]);
         }
         assert_eq!(committed, [row(5, "five")]);
         assert_eq!(provisional.rows(), [row(6, "provisional")]);

@@ -7,6 +7,8 @@ use std::collections::{BTreeMap, HashMap};
 
 pub(super) type Stats = HashMap<String, CollectionCardinalityStats>;
 
+pub(super) const CORRELATED_ON_SQL: &str = "SELECT probe_b_a.id,probe_c_b.id,probe_a_c.id FROM probe_b_a JOIN probe_c_b ON probe_b_a.id=probe_c_b.a_id JOIN probe_a_c ON probe_b_a.id=probe_a_c.id AND EXISTS(SELECT 1 FROM probe_lookup WHERE probe_lookup.c_id=probe_a_c.id AND probe_lookup.b_id=probe_c_b.id) ORDER BY probe_c_b.id";
+
 pub(super) fn plan(sql: &str) -> LogicalPlan {
     logical::plan(&BoundStatement {
         statement: parse_statement(sql).expect("synthetic planner SQL"),
@@ -47,5 +49,16 @@ pub(super) fn star_stats(distinct: bool) -> Stats {
             "c".to_string(),
             collection(1_000, &[("ak", ndvs[2]), ("bk", ndvs[2])]),
         ),
+    ])
+}
+
+pub(super) fn correlated_on_stats() -> Stats {
+    HashMap::from([
+        ("probe_b_a".to_string(), collection(2, &[("id", 2)])),
+        (
+            "probe_c_b".to_string(),
+            collection(3, &[("id", 3), ("a_id", 2)]),
+        ),
+        ("probe_a_c".to_string(), collection(1, &[("id", 1)])),
     ])
 }

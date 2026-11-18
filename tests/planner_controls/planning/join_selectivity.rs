@@ -97,7 +97,7 @@ fn should_keep_a_cheaper_cartesian_prefix_for_duplicate_heavy_joins() {
 }
 
 #[test]
-fn should_preserve_duplicate_commuted_and_cyclic_join_predicates() {
+fn should_preserve_the_complete_join_predicate_bag() {
     // Arrange
     let stats = fixture::star_stats(true);
     let cases = [
@@ -139,6 +139,55 @@ fn should_wait_for_a_whole_compound_on_expression_before_using_its_selectivity()
 
     // Assert
     assert_eq!(source_order(&after.source), ["a", "b", "c"]);
+    assert_eq!(
+        predicate_atoms(&after.source),
+        predicate_atoms(&before.source)
+    );
+}
+
+fn matching_subexpressions(expr: &Expr, expected: &serde_json::Value) -> usize {
+    let mut matches =
+        usize::from(serde_json::to_value(expr).expect("whole expression identity") == *expected);
+    expr.for_each_child(|child| matches += matching_subexpressions(child, expected));
+    matches
+}
+
+#[test]
+fn should_defer_a_whole_correlated_on_until_the_final_join() {
+    // Arrange
+    let before = fixture::plan(fixture::CORRELATED_ON_SQL);
+    let QuerySource::Join {
+        on: original_on, ..
+    } = &before.source
+    else {
+        panic!("original final join");
+    };
+    let expected_on = serde_json::to_value(original_on).expect("original whole correlated ON");
+    let stats = fixture::correlated_on_stats();
+
+    // Act
+    let after = optimizer::optimize_with_stats(before.clone(), &stats);
+
+    // Assert
+    assert_eq!(
+        source_order(&after.source),
+        ["probe_a_c", "probe_b_a", "probe_c_b"]
+    );
+    let QuerySource::Join {
+        left, on: final_on, ..
+    } = &after.source
+    else {
+        panic!("reordered final join");
+    };
+    let QuerySource::Join { on: first_on, .. } = left.as_ref() else {
+        panic!("reordered prefix join");
+    };
+    assert_eq!(matching_subexpressions(first_on, &expected_on), 0);
+    assert_eq!(matching_subexpressions(final_on, &expected_on), 1);
+    assert_eq!(
+        serde_json::to_value(first_on).expect("prefix ON"),
+        serde_json::to_value(Expr::BoolLiteral(true)).expect("unfiltered prefix")
+    );
     assert_eq!(
         predicate_atoms(&after.source),
         predicate_atoms(&before.source)
@@ -467,8 +516,74 @@ fn sql_fixture() -> Cassie {
     cassie
 }
 
+fn correlated_sql_fixture() -> Cassie {
+    let cassie = super::support_sql::new_in_memory_cassie().expect("memory correlated fixture");
+    cassie.startup().expect("start correlated fixture");
+    let session = cassie.create_session("root", None);
+    for sql in [
+        "CREATE TABLE probe_b_a(id INT NOT NULL)",
+        "CREATE TABLE probe_c_b(id INT NOT NULL,a_id INT NOT NULL)",
+        "CREATE TABLE probe_a_c(id INT NOT NULL)",
+        "CREATE TABLE probe_lookup(c_id INT NOT NULL,b_id INT NOT NULL)",
+        "INSERT INTO probe_b_a VALUES(1),(2)",
+        "INSERT INTO probe_c_b VALUES(10,1),(20,1),(30,2)",
+        "INSERT INTO probe_a_c VALUES(1)",
+        "INSERT INTO probe_lookup VALUES(1,10)",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("correlated fixture statement");
+    }
+    for name in ["probe_b_a", "probe_c_b", "probe_a_c"] {
+        let canonical = canonical_relation_name("postgres", "public", name);
+        let stats = cassie
+            .midge
+            .rebuild_cardinality_stats_for_collection(&canonical)
+            .expect("fresh correlated statistics");
+        cassie.catalog.hydrate_cardinality_stats(&canonical, stats);
+    }
+    cassie
+}
+
 #[test]
-fn should_explain_the_selective_order_and_preserve_parameterized_sql_rows() {
+fn should_preserve_rows_after_reordering_a_correlated_on() {
+    // Arrange
+    let cassie = correlated_sql_fixture();
+    let session = cassie.create_session("root", None);
+    let expected = vec![vec![Value::Int64(1), Value::Int64(10), Value::Int64(1)]];
+    let aliased = cassie.execute_sql(&session,
+        "SELECT aa.id,bb.id,cc.id FROM probe_b_a AS aa JOIN probe_c_b AS bb ON aa.id=bb.a_id JOIN probe_a_c AS cc ON aa.id=cc.id AND EXISTS(SELECT 1 FROM probe_lookup WHERE probe_lookup.c_id=cc.id AND probe_lookup.b_id=bb.id) ORDER BY bb.id",
+        vec![]).expect("accepted alias barrier control");
+    assert_eq!(aliased.rows(), expected);
+    let final_on = cassie.execute_sql(&session,
+        "SELECT probe_b_a.id,probe_c_b.id,probe_a_c.id FROM probe_a_c JOIN probe_b_a ON probe_b_a.id=probe_a_c.id JOIN probe_c_b ON probe_b_a.id=probe_c_b.a_id AND EXISTS(SELECT 1 FROM probe_lookup WHERE probe_lookup.c_id=probe_a_c.id AND probe_lookup.b_id=probe_c_b.id) ORDER BY probe_c_b.id",
+        vec![]).expect("accepted same-name final-placement control");
+    assert_eq!(final_on.rows(), expected);
+    let explained = cassie
+        .execute_sql(
+            &session,
+            &format!("EXPLAIN {}", fixture::CORRELATED_ON_SQL),
+            vec![],
+        )
+        .expect("accepted correlated query");
+    let plan = explained.rows()[0][0].as_str().expect("text explain");
+    assert!(
+        plan.contains("join_order=probe_a_c>probe_b_a>probe_c_b"),
+        "{plan}"
+    );
+
+    // Act
+    let result = cassie.execute_sql(&session, fixture::CORRELATED_ON_SQL, vec![]);
+
+    // Assert
+    assert_eq!(
+        result.expect("reordered correlated ON executes").rows(),
+        expected
+    );
+}
+
+#[test]
+fn should_preserve_parameterized_rows_in_the_explained_selective_order() {
     // Arrange
     let cassie = sql_fixture();
     let session = cassie.create_session("root", None);

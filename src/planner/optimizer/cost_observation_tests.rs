@@ -60,7 +60,23 @@ fn should_wait_for_all_relations_of_the_owning_on_expression() {
 }
 
 #[test]
-fn should_decline_nonconjunctive_and_computed_equality_edges() {
+fn should_keep_known_parent_selectivity_beside_a_correlated_on() {
+    // Arrange
+    let stats = fixture::correlated_on_stats();
+
+    // Act
+    let cost = observed_cost(
+        fixture::CORRELATED_ON_SQL,
+        &stats,
+        &["probe_a_c", "probe_b_a", "probe_c_b"],
+    );
+
+    // Assert
+    assert_eq!(cost, 6);
+}
+
+#[test]
+fn should_decline_unsupported_equality_edges() {
     // Arrange
     let stats = fixture::star_stats(true);
     let predicates = [

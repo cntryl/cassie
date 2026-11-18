@@ -359,6 +359,112 @@ fn should_infer_vector_type_for_untyped_operator_parameters() {
 }
 
 #[test]
+fn should_enforce_vector_casts_with_or_without_ann_index() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pgvector_ann_cast_validation").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE EXTENSION vector",
+                "CREATE TABLE unindexed_vectors (id INT, embedding VECTOR(3))",
+                "INSERT INTO unindexed_vectors VALUES (1, '[1,0,0]'::vector), (2, '[0,1,0]'::vector)",
+                "CREATE TABLE indexed_vectors (id INT, embedding VECTOR(3))",
+                "INSERT INTO indexed_vectors VALUES (1, '[1,0,0]'::vector), (2, '[0,1,0]'::vector)",
+                "CREATE INDEX indexed_vectors_hnsw ON indexed_vectors \
+                 USING hnsw (embedding vector_l2_ops) WITH (m = 4, ef_construction = 16)",
+            ],
+        )
+        .await
+        .expect("insert identical vectors and index one table");
+        let before = server.cassie.metrics()["vector"]["hnsw_executions"]
+            .as_u64()
+            .expect("HNSW execution counter");
+
+        // Act
+        let vector = VectorParam(vec![1.0, 0.0, 0.0]);
+        let binary: &[&(dyn ToSql + Sync)] = &[&vector];
+        for table in ["unindexed_vectors", "indexed_vectors"] {
+            let ranked = client
+                .query_one(
+                    &format!(
+                        "SELECT id, embedding <-> $1::vector(3)::vector AS score \
+                         FROM {table} ORDER BY score LIMIT 1"
+                    ),
+                    binary,
+                )
+                .await
+                .expect("rank a correctly sized vector");
+            let ranked_text = client
+                .query_one(
+                    &format!(
+                        "SELECT id, embedding <-> '[ 1e+0 , -0 , 0.0 ]'::vector(3) AS score \
+                         FROM {table} ORDER BY score LIMIT 1"
+                    ),
+                    &[],
+                )
+                .await
+                .expect("rank valid vector text with whitespace and exponent notation");
+            let mut errors = Vec::new();
+            for (operand, params) in [
+                ("'[1,0,0]'::vector(2)", &[][..]),
+                ("$1::vector(2)", binary),
+                ("'[1,0,0]'::vector(2)::vector", &[][..]),
+                ("'[1,0,0]'::varchar(1)::vector", &[][..]),
+            ] {
+                errors.push(
+                    client
+                        .query(
+                            &format!(
+                                "SELECT id, embedding <-> {operand} AS score \
+                                 FROM {table} ORDER BY score LIMIT 1"
+                            ),
+                            params,
+                        )
+                        .await
+                        .expect_err("invalid operand casts must fail before ranking"),
+                );
+            }
+            errors.push(
+                client
+                    .query(
+                        &format!(
+                            "SELECT id, embedding <-> '[1,0,0]'::vector AS score \
+                             FROM {table} ORDER BY embedding <-> $1::vector(2) LIMIT 1"
+                        ),
+                        binary,
+                    )
+                    .await
+                    .expect_err("ORDER BY must validate its own vector cast"),
+            );
+
+            // Assert
+            for row in [ranked, ranked_text] {
+                assert_eq!(row.get::<_, i32>(0), 1);
+                assert!(row.get::<_, f64>(1).abs() < f64::EPSILON);
+            }
+            for error in &errors {
+                let diagnostic = db_error(error);
+                assert_eq!(diagnostic.code().code(), "22000");
+                assert_eq!(
+                    diagnostic.message(),
+                    "invalid vector: VECTOR input has invalid shape or dimension"
+                );
+            }
+        }
+        let after = server.cassie.metrics()["vector"]["hnsw_executions"]
+            .as_u64()
+            .expect("HNSW execution counter");
+        assert_eq!(after - before, 2, "only the valid indexed queries use HNSW");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_reject_deferred_pgvector_surface() {
     // Arrange
     let runtime = current_thread_runtime();

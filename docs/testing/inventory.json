@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10633,
+    "rust_test_declarations": 10638,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10658,
+    "registered_rust_instances": 10663,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -33789,11 +33789,42 @@
       }
     },
     {
+      "id": "tests/compatibility/lifecycle/indexes/pgvector_semantics.rs::should_enforce_vector_casts_with_or_without_ann_index",
+      "name": "should_enforce_vector_casts_with_or_without_ann_index",
+      "current_file": "tests/compatibility/lifecycle/indexes/pgvector_semantics.rs",
+      "line": 362,
+      "end_line": 465,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::pgvector_semantics::should_enforce_vector_casts_with_or_without_ann_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/indexes",
+        "directory": "tests/compatibility/lifecycle/indexes",
+        "file": "tests/compatibility/lifecycle/indexes/pgvector_semantics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/compatibility/lifecycle/indexes/pgvector_semantics.rs::should_reject_deferred_pgvector_surface",
       "name": "should_reject_deferred_pgvector_surface",
       "current_file": "tests/compatibility/lifecycle/indexes/pgvector_semantics.rs",
-      "line": 362,
-      "end_line": 403,
+      "line": 468,
+      "end_line": 509,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -329653,8 +329684,8 @@
       "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_preserve_vector_top_k_identity_output_alias",
       "name": "should_preserve_vector_top_k_identity_output_alias",
       "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
-      "line": 26,
-      "end_line": 52,
+      "line": 28,
+      "end_line": 54,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -329681,11 +329712,135 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_rank_cast_vector_queries_with_native_top_k",
+      "name": "should_rank_cast_vector_queries_with_native_top_k",
+      "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
+      "line": 57,
+      "end_line": 128,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_read_equivalence::should_rank_cast_vector_queries_with_native_top_k"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_preserve_cast_validation_in_vector_top_k",
+      "name": "should_preserve_cast_validation_in_vector_top_k",
+      "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
+      "line": 131,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_read_equivalence::should_preserve_cast_validation_in_vector_top_k"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_preserve_finite_boundary_in_cast_typed_vector_query",
+      "name": "should_preserve_finite_boundary_in_cast_typed_vector_query",
+      "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
+      "line": 177,
+      "end_line": 205,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_read_equivalence::should_preserve_finite_boundary_in_cast_typed_vector_query"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_validate_top_k_given_a_distinct_ordering_operand",
+      "name": "should_validate_top_k_given_a_distinct_ordering_operand",
+      "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
+      "line": 208,
+      "end_line": 242,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_read_equivalence::should_validate_top_k_given_a_distinct_ordering_operand"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_preserve_zero_limit_in_vector_top_k",
       "name": "should_preserve_zero_limit_in_vector_top_k",
       "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
-      "line": 55,
-      "end_line": 73,
+      "line": 245,
+      "end_line": 263,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -329715,8 +329870,8 @@
       "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_preserve_zero_limit_in_hybrid_top_k",
       "name": "should_preserve_zero_limit_in_hybrid_top_k",
       "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
-      "line": 76,
-      "end_line": 92,
+      "line": 266,
+      "end_line": 282,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -329746,8 +329901,8 @@
       "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_not_record_ivfflat_fallback_without_an_index",
       "name": "should_not_record_ivfflat_fallback_without_an_index",
       "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
-      "line": 95,
-      "end_line": 107,
+      "line": 285,
+      "end_line": 297,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -329777,8 +329932,8 @@
       "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_preserve_descending_vector_order_with_ivfflat_indexes",
       "name": "should_preserve_descending_vector_order_with_ivfflat_indexes",
       "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
-      "line": 110,
-      "end_line": 168,
+      "line": 300,
+      "end_line": 358,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -329808,8 +329963,8 @@
       "id": "tests/vector_embeddings/vectors/vector_read_equivalence.rs::should_preserve_zero_limit_in_rest_vector_search_execution",
       "name": "should_preserve_zero_limit_in_rest_vector_search_execution",
       "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
-      "line": 171,
-      "end_line": 184,
+      "line": 361,
+      "end_line": 374,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -334191,9 +334346,9 @@
       "current_file": "tests/compatibility/lifecycle/indexes/pgvector_semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 407,
-      "sha256": "b6a2f151b87acb1c0ce1b461cff184c9fcb57c1df433a7d3c7b386b2f113d00b",
-      "test_declarations": 9,
+      "lines": 513,
+      "sha256": "83006128931e73c5907cb91fa0cc31a34b2e7fff60f32aab65453f85729fb158",
+      "test_declarations": 10,
       "registered_suites": [
         "compatibility"
       ],
@@ -357267,9 +357422,9 @@
       "current_file": "tests/vector_embeddings/vectors/vector_read_equivalence.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 184,
-      "sha256": "6029ecc95d8e40bd880e97c85390220859ab6720225143da03e2d60fb5756150",
-      "test_declarations": 6,
+      "lines": 374,
+      "sha256": "2ef43c30cf157fc3aa8cc40052c76bb9923487e148c0768af2e8185f2695a558",
+      "test_declarations": 10,
       "registered_suites": [
         "vector_embeddings"
       ],

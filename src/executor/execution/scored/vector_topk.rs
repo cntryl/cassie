@@ -638,7 +638,7 @@ mod tests {
     use std::time::Instant;
 
     #[test]
-    fn should_reserve_cast_query_vector_and_release_order_scratch() {
+    fn should_release_order_scratch_after_matching_cast_vectors() {
         // Arrange
         let distance = |operand| FunctionCall {
             name: "vector_distance".into(),

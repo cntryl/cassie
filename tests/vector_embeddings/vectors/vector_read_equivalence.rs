@@ -205,7 +205,7 @@ fn should_preserve_finite_boundary_in_cast_typed_vector_query() {
 }
 
 #[test]
-fn should_respect_distinct_ordering_vector_and_cast_in_top_k() {
+fn should_validate_top_k_given_a_distinct_ordering_operand() {
     // Arrange
     with_vector_fixture("vector_cast_distinct_order", |cassie, session| {
         seed(cassie, session, "vector_cast_distinct_order");

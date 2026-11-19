@@ -145,7 +145,7 @@ fn should_validate_grouping_arguments_in_their_query_level() {
     // Assert
     assert_eq!(wire::error_code(&batches[0]), None);
     let (pairs, remainder) = batches[1..].as_chunks::<2>();
-    assert!(remainder.is_empty());
+    assert_eq!(remainder, []);
     assert_eq!(pairs.len(), cases.len());
     for ((sql, code), pair) in cases.iter().zip(pairs) {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some(*code), "{sql}");

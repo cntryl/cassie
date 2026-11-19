@@ -20,6 +20,9 @@ Both templates take seven parameters in this order:
 | `$6` | `timestamptz` / 1184 | Exclusive calendar-grid end, aligned to a local boundary |
 | `$7` | `text` / 25 | Explicit IANA time zone, such as `America/New_York` or `UTC` |
 
+`$1` and `$2` must identify distinct devices. The query uses `UNION ALL` for both input and grid
+branches, so equal IDs would double the matching observations and duplicate every calendar row.
+
 The event range and calendar grid are independent. Both event predicates are half-open UTC
 instants, `event_at >= $3 AND event_at < $4`; a row whose `event_at` is NULL cannot match. Grid
 start and end must be instants for local day or month boundaries in `$7`. The four-argument,

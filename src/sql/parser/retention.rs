@@ -1,9 +1,10 @@
 use super::schema::{parse_if_exists, parse_if_not_exists};
 use super::{
-    AlterRetentionPolicyAction, AlterRetentionPolicyStatement, CreateRetentionPolicyStatement,
+    find_top_level_keyword, AlterRetentionPolicyStatement, CreateRetentionPolicyStatement,
     DropRetentionPolicyStatement, EnforceRetentionPolicyStatement, ParsedStatement, QueryStatement,
-    RetentionEnforcementMode, SqlError, find_top_level_keyword,
+    SqlError,
 };
+use crate::sql::ast::{AlterRetentionPolicyAction, RetentionEnforcementMode};
 
 pub(super) fn parse_create_retention_policy_statement(
     sql: &str,

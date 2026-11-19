@@ -228,8 +228,8 @@ fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
     let path = data_dir("retention_scheduled_resume");
 
     // Act
-    let first = record_first_resume_batch(&path);
-    let replay = resume_after_restart(&path);
+    let first = record_first_resume_batch(std::path::Path::new(&path));
+    let replay = resume_after_restart(std::path::Path::new(&path));
 
     // Assert
     assert_first_resume_batch(&first);
@@ -863,8 +863,8 @@ fn should_preserve_last_scheduled_failure_across_successful_replay_and_restart()
     let path = data_dir("retention_scheduled_sticky_failure");
 
     // Act
-    let first_failure = record_failure_then_successful_replay(&path);
-    let recovered = reopen_after_successful_replay(&path, &first_failure);
+    let first_failure = record_failure_then_successful_replay(std::path::Path::new(&path));
+    let recovered = reopen_after_successful_replay(std::path::Path::new(&path), &first_failure);
     let second_failure = record_new_failure_after_restart(&recovered, &first_failure);
 
     // Assert

@@ -1,7 +1,7 @@
 use crate::app::CassieSession;
 use crate::catalog::{
-    Catalog, DatabaseMeta, FieldConstraint, local_name, relation_belongs_to_database,
-    relation_database_name, relation_schema_name, schema_belongs_to_database,
+    local_name, relation_belongs_to_database, relation_database_name, relation_schema_name,
+    schema_belongs_to_database, Catalog, DatabaseMeta, FieldConstraint,
 };
 use crate::midge::adapter::Midge;
 use crate::types::{DataType, Value};
@@ -736,7 +736,7 @@ fn is_not_nullable(constraint: Option<&FieldConstraint>) -> bool {
 }
 
 fn udt_name(data_type: &DataType) -> String {
-    use crate::types::builtin::{TypeMetadata, type_metadata};
+    use crate::types::builtin::{type_metadata, TypeMetadata};
 
     if let Some((_, name)) = virtual_views_pg::enum_catalogs::column_udt(data_type) {
         return name;

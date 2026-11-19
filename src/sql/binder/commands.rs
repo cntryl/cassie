@@ -1,8 +1,8 @@
 use super::{
+    bind_select, collect_item, normalize_relation_name, resolve_relation_name,
+    resolve_relation_path, validate_expression, validate_function_calls, virtual_views,
     BindingContext, CassieError, Catalog, CatalogObjectKind, CollectionSchema, DataType, Expr,
-    HashMap, HashSet, InsertSource, SelectItem, bind_select, collect_item, normalize_relation_name,
-    resolve_relation_name, resolve_relation_path, validate_expression, validate_function_calls,
-    virtual_views,
+    HashMap, HashSet, InsertSource, SelectItem,
 };
 use crate::sql::ast::IdentifierPath;
 

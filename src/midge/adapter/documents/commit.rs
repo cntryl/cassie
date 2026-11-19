@@ -164,7 +164,7 @@ pub(in crate::midge::adapter) fn document_write_retry_delay(
 
 #[cfg(test)]
 mod tests {
-    use super::{DOCUMENT_WRITE_BATCH_ATTEMPTS, Duration, document_write_retry_delay};
+    use super::{document_write_retry_delay, Duration, DOCUMENT_WRITE_BATCH_ATTEMPTS};
     use crate::app::CassieError;
 
     #[test]

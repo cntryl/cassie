@@ -1,6 +1,6 @@
 use super::{
-    Cassie, CassieSession, FunctionMeta, HashMap, LogicalCommand, ProcedureMeta, QueryError,
-    QueryExecutionControls, QueryResult, Value, Volatility, catalog, check_timeout, filter,
+    catalog, check_timeout, filter, Cassie, CassieSession, FunctionMeta, HashMap, LogicalCommand,
+    ProcedureMeta, QueryError, QueryExecutionControls, QueryResult, Value, Volatility,
 };
 
 pub(super) fn execute_command(

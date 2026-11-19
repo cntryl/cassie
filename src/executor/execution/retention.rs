@@ -5,8 +5,8 @@ use time::OffsetDateTime;
 mod scheduled;
 
 use super::{
-    BatchRow, Cassie, CassieSession, FunctionMeta, HashMap, QueryError, QueryExecutionControls,
-    QueryResult, Value, batch, check_timeout, scan,
+    batch, check_timeout, scan, BatchRow, Cassie, CassieSession, FunctionMeta, HashMap, QueryError,
+    QueryExecutionControls, QueryResult, Value,
 };
 
 pub(super) fn create_retention_policy(

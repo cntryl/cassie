@@ -13,7 +13,6 @@ pub(crate) struct RollupSourceChangeReport {
 
 #[derive(Debug, Clone)]
 pub(crate) struct RollupSourceRowChange {
-    pub(crate) id: String,
     pub(crate) before: Option<Map<String, Value>>,
     pub(crate) after: Option<Map<String, Value>>,
 }
@@ -21,7 +20,6 @@ pub(crate) struct RollupSourceRowChange {
 impl RollupSourceChangeReport {
     pub(crate) fn record(
         &mut self,
-        id: &str,
         before: Option<&Value>,
         after: Option<&Value>,
         fields: &[String],
@@ -41,11 +39,7 @@ impl RollupSourceChangeReport {
             self.exceed_limit();
             return;
         };
-        let Some(row_bytes) = id
-            .len()
-            .checked_add(before_bytes)
-            .and_then(|bytes| bytes.checked_add(after_bytes))
-        else {
+        let Some(row_bytes) = before_bytes.checked_add(after_bytes) else {
             self.exceed_limit();
             return;
         };
@@ -93,11 +87,7 @@ impl RollupSourceChangeReport {
             self.exceed_limit();
             return;
         };
-        let row = RollupSourceRowChange {
-            id: id.to_owned(),
-            before,
-            after,
-        };
+        let row = RollupSourceRowChange { before, after };
         self.rows.push(row);
         self.retained_bytes = total_bytes;
     }

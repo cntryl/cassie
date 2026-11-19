@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use super::{MAX_AFFECTED_GROUPS, affected_groups};
+use super::{affected_groups, MAX_AFFECTED_GROUPS};
 use crate::catalog::{RollupDefinition, RollupMeta};
 use crate::midge::adapter::documents::RollupSourceChangeReport;
 
@@ -25,7 +25,7 @@ fn should_fallback_when_a_bounded_change_report_targets_more_than_256_groups() {
             "device": format!("{index:03}"),
             "event_at": "2026-01-01T01:00:00Z"
         });
-        report.record(&index.to_string(), None, Some(&payload), &fields);
+        report.record(None, Some(&payload), &fields);
     }
 
     // Act

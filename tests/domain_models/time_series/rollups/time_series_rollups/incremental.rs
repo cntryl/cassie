@@ -81,7 +81,8 @@ fn assert_incremental_group_delta(cassie: &Cassie, before: u64, expected: u64) {
 }
 
 fn assert_last_incremental_groups(cassie: &Cassie, expected: &[(&str, &str)]) {
-    let actual = cassie.metrics()["rollups"]["last_incremental_groups"]
+    let metrics = cassie.metrics();
+    let actual = metrics["rollups"]["last_incremental_groups"]
         .as_array()
         .expect("last affected group identities");
     let actual = actual

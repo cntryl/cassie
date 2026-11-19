@@ -1,7 +1,7 @@
 use serde_json::json;
 
 use super::{
-    MAX_ROLLUP_CHANGE_REPORT_BYTES, RollupSourceChangeReport, projected_payload_size_within,
+    projected_payload_size_within, RollupSourceChangeReport, MAX_ROLLUP_CHANGE_REPORT_BYTES,
 };
 
 #[test]
@@ -16,8 +16,8 @@ fn should_drop_partial_rollup_change_report_after_size_limit() {
     let mut report = RollupSourceChangeReport::default();
 
     // Act
-    report.record("first", None, Some(&row), &fields);
-    report.record("oversized", None, Some(&oversized), &fields);
+    report.record(None, Some(&row), &fields);
+    report.record(None, Some(&oversized), &fields);
 
     // Assert
     assert!(report.exceeded_limit);
@@ -63,6 +63,6 @@ fn report_with_partition_bytes(bytes: usize) -> RollupSourceChangeReport {
     let fields = vec!["d".to_owned()];
     let payload = json!({ "d": "x".repeat(bytes) });
     let mut report = RollupSourceChangeReport::default();
-    report.record("id", None, Some(&payload), &fields);
+    report.record(None, Some(&payload), &fields);
     report
 }

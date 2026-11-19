@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem::size_of;
 
-use crate::catalog::{IndexKind, RollupAggregateMeta, RollupMeta, RollupState};
+use crate::catalog::{IndexKind, RollupMeta, RollupState};
 use crate::midge::adapter::documents::RollupSourceChangeReport;
 use crate::midge::adapter::time_series_indexes::{
     ControlledTimeSeriesDocumentScanOutcome, ControlledTimeSeriesIndexScanOutcome,
@@ -9,7 +9,7 @@ use crate::midge::adapter::time_series_indexes::{
 use crate::midge::adapter::{DocumentRef, DocumentWriteOp};
 use crate::runtime::RollupGroupSnapshot;
 use crate::sql::ast::{AggregateQuantifier, Expr};
-use crate::types::{DataType, temporal::parse_timestamp_utc};
+use crate::types::{temporal::parse_timestamp_utc, DataType};
 
 use super::{Cassie, QueryError, QueryExecutionControls};
 
@@ -547,10 +547,10 @@ fn scan_selected_group(
         else {
             return Ok(SelectedGroupScan::Fallback("unsupported-rollup-definition"));
         };
-        if let Some(Expr::Column(field)) = function.args.first()
-            && field != "*"
-        {
-            fields.insert(field.clone());
+        if let Some(Expr::Column(field)) = function.args.first() {
+            if field != "*" {
+                fields.insert(field.clone());
+            }
         }
     }
     let fields = fields.into_iter().collect::<Vec<_>>();

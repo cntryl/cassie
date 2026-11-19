@@ -1,7 +1,6 @@
 use super::super::{Cassie, QueryError, QueryExecutionControls, QueryResult};
 use crate::catalog::{RetentionPolicyMeta, RetentionScheduleState};
 use crate::midge::adapter::{OrderedRowBound, OrderedRowScanRequest, RowDecode};
-use crate::types::Value;
 
 const BATCH_ROWS: usize = 256;
 const MICROS_PER_DAY: i64 = 86_400_000_000;
@@ -255,11 +254,10 @@ fn account_retention_row(
         staged.skipped = increment(staged.skipped)?;
         return Ok(());
     };
-    let raw = match value {
-        Value::Typed(typed) => crate::types::extended::temporal_legacy_text(typed),
-        other => other.as_str().map(str::to_owned),
-    };
-    let Some(timestamp) = raw.and_then(|raw| super::parse_timestamp(&raw).ok()) else {
+    let Some(timestamp) = value
+        .as_str()
+        .and_then(|raw| super::parse_timestamp(raw).ok())
+    else {
         staged.skipped = increment(staged.skipped)?;
         return Ok(());
     };
@@ -303,19 +301,25 @@ fn command_count(
 ) -> Result<QueryResult, QueryError> {
     let mut output = QueryResult::try_builder(controls)?;
     super::super::command_output::set_counted(&mut output, "ENFORCE RETENTION", deleted)?;
-    output.finish()
+    Ok(output.finish()?)
 }
 
 fn persist_failure(cassie: &Cassie, mut metadata: RetentionPolicyMeta, error: &QueryError) {
-    if let Ok(persisted) = cassie.midge.list_retention_policies()
-        && let Some(current) = persisted
-            .into_iter()
-            .find(|policy| policy.name == metadata.name)
-        && (current.last_successful_cutoff_us != metadata.last_successful_cutoff_us
+    let persisted = cassie
+        .midge
+        .list_retention_policies()
+        .ok()
+        .and_then(|policies| {
+            policies
+                .into_iter()
+                .find(|policy| policy.name == metadata.name)
+        });
+    if let Some(current) = persisted.filter(|current| {
+        current.last_successful_cutoff_us != metadata.last_successful_cutoff_us
             || current.pending_scanned_rows > metadata.pending_scanned_rows
             || current.pending_deleted_rows > metadata.pending_deleted_rows
-            || current.pending_skipped_rows > metadata.pending_skipped_rows)
-    {
+            || current.pending_skipped_rows > metadata.pending_skipped_rows
+    }) {
         metadata = current;
     }
     let message = error.to_string();

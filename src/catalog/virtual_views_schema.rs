@@ -1,10 +1,10 @@
 //! Lazy descriptors for the authoritative virtual-schema dispatchers.
 use super::{
-    DataType, INFORMATION_SCHEMA_TABLES, bool, int, text, virtual_views_constraints,
-    virtual_views_dependencies, virtual_views_empty, virtual_views_extensions, virtual_views_pg,
-    virtual_views_procedures, virtual_views_projections, virtual_views_property_graphs,
-    virtual_views_relations, virtual_views_sequences, virtual_views_session_objects,
-    virtual_views_shared_dependencies, virtual_views_storage, virtual_views_timezones,
+    bool, int, text, virtual_views_constraints, virtual_views_dependencies, virtual_views_empty,
+    virtual_views_extensions, virtual_views_pg, virtual_views_procedures,
+    virtual_views_projections, virtual_views_property_graphs, virtual_views_relations,
+    virtual_views_sequences, virtual_views_session_objects, virtual_views_shared_dependencies,
+    virtual_views_storage, virtual_views_timezones, DataType, INFORMATION_SCHEMA_TABLES,
 };
 
 pub(super) type SchemaFactory = fn() -> Vec<(String, DataType)>;

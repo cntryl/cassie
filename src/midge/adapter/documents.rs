@@ -1,7 +1,7 @@
 use super::{
-    CassieError, DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind,
-    IndexMeta, Midge, NormalizedVectorRecord, RowSchema, Schema, Uuid,
-    check_document_write_failure_point, decode_row, encode_row, key_encoding,
+    check_document_write_failure_point, decode_row, encode_row, key_encoding, CassieError,
+    DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind, IndexMeta, Midge,
+    NormalizedVectorRecord, RowSchema, Schema, Uuid,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -671,7 +671,6 @@ impl Midge {
         )?;
         if !rollup_change_fields.is_empty() {
             report.rollup_changes.record(
-                &prepared.id,
                 existing.payload.as_ref(),
                 prepared.payload.as_ref(),
                 rollup_change_fields,

@@ -70,25 +70,25 @@ pub use ast_row::{RowComparison, RowComparisonOp};
 #[path = "ast_subquery.rs"]
 mod ast_subquery;
 pub use ast_subquery::{
-    SUBQUERY_MULTIPLE_ROWS, SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows,
+    SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows, SUBQUERY_MULTIPLE_ROWS,
 };
 #[path = "ast_dml.rs"]
 mod ast_dml;
 #[path = "ast_visit.rs"]
 mod ast_visit;
 pub use ast_dml::{
-    DEFAULT_ASSIGNMENT_MARKER, MERGE_ACTION_COLUMN, MergeAction, MergeClause, MergeMatch,
-    MergeStatement, MutationSource, MutationSourceField, ReturningAliases, RowSubqueryAssignment,
-    TruncateStatement,
+    MergeAction, MergeClause, MergeMatch, MergeStatement, MutationSource, MutationSourceField,
+    ReturningAliases, RowSubqueryAssignment, TruncateStatement, DEFAULT_ASSIGNMENT_MARKER,
+    MERGE_ACTION_COLUMN,
 };
 pub use ast_query::{
-    ARRAY_CONSTRUCTOR_FUNCTION, AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params,
+    is_record_syntax_function, AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params,
     CastIdentity, CommonTableExpression, CteCycle, CteMaterialization, CteQuery, CteSearch,
-    CteSearchOrder, Expr, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, FunctionCall, JoinKind,
-    NullsOrder, OrderExpr, QuerySource, ROW_CONSTRUCTOR_FUNCTION, SelectItem, SelectSet,
-    SelectStatement, SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp,
-    VARIADIC_ARRAY_ARGUMENT_FUNCTION, WindowFrame, WindowFrameBound, WindowFrameExclusion,
-    WindowFrameUnit, WindowFunctionCall, is_record_syntax_function,
+    CteSearchOrder, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem,
+    SelectSet, SelectStatement, SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp,
+    WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
+    ARRAY_CONSTRUCTOR_FUNCTION, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION,
+    VARIADIC_ARRAY_ARGUMENT_FUNCTION,
 };
 
 /// Array subscripts attached to one UPDATE assignment target.

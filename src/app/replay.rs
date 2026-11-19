@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::midge::adapter::{
-    DocumentWriteOp, PublicationControlScope, documents::ReplayBatchCommit,
+    documents::ReplayBatchCommit, DocumentWriteOp, PublicationControlScope,
 };
 
 use super::{Cassie, CassieError};

@@ -1,8 +1,8 @@
 use super::{
-    CassieError, CollectionCardinalityStats, FieldConstraint, IndexKind, IndexMeta, Midge,
-    ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily,
     check_index_drop_failure_point, collect_scan, key_encoding, payload_contains_index_membership,
-    payload_contains_vector_membership,
+    payload_contains_vector_membership, CassieError, CollectionCardinalityStats, FieldConstraint,
+    IndexKind, IndexMeta, Midge, ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta,
+    Schema, StorageFamily,
 };
 use crate::catalog::name_matches;
 

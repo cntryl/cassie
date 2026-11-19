@@ -106,7 +106,7 @@ impl PreparedClient {
         }
     }
 
-    async fn execute(&mut self, name: &str, query: &str, values: &[&str]) -> Frames {
+    async fn execute(&mut self, name: &str, query: &str, values: &[Option<&str>]) -> Frames {
         if let Some(existing) = self.statements.get(name) {
             assert_eq!(existing, query, "prepared statement SQL changed");
         }
@@ -115,10 +115,15 @@ impl PreparedClient {
             frames.push(wire::parse_frame_with_types(name, query, &PARAMETER_OIDS));
             self.statements.insert(name.to_owned(), query.to_owned());
         }
+        frames.push(wire::describe_statement_frame(name));
         let portal = format!("calendar_portal_{}", self.next_portal);
         self.next_portal += 1;
+        let encoded_values = values
+            .iter()
+            .map(|value| value.as_ref().map(|value| value.as_bytes()))
+            .collect::<Vec<_>>();
         frames.extend([
-            wire::bind_frame(&portal, name, values),
+            wire::bind_frame_with_formats(&portal, name, &[0], &encoded_values, &[]),
             wire::describe_portal_frame(&portal),
             wire::execute_frame(&portal),
             wire::sync_frame(),
@@ -135,8 +140,10 @@ impl PreparedClient {
 
 struct Range {
     label: &'static str,
-    lower: &'static str,
-    upper: &'static str,
+    event_start: &'static str,
+    event_end: &'static str,
+    grid_start: &'static str,
+    grid_end: &'static str,
     zone: &'static str,
 }
 
@@ -196,8 +203,16 @@ fn query(template: &str, table: &str) -> String {
     template.replace("{table}", table)
 }
 
-fn values(range: &Range) -> [&str; 7] {
-    ["a", "b", range.lower, range.upper, range.lower, range.upper, range.zone]
+fn values(range: &Range) -> [Option<&str>; 7] {
+    [
+        Some("a"),
+        Some("b"),
+        Some(range.event_start),
+        Some(range.event_end),
+        Some(range.grid_start),
+        Some(range.grid_end),
+        Some(range.zone),
+    ]
 }
 
 fn row(
@@ -238,14 +253,14 @@ fn expected_day(range: &str) -> Vec<Vec<Option<String>>> {
             row("a", "2024-11-01", "2024-11-01 04:00:00", "0", None, None),
             row("a", "2024-11-02", "2024-11-02 04:00:00", "1", Some("20"), Some("20")),
             row("a", "2024-11-03", "2024-11-03 04:00:00", "2", Some("43"), Some("43")),
-            row("a", "2024-11-04", "2024-11-04 05:00:00", "1", Some("30"), Some("30")),
+            row("a", "2024-11-04", "2024-11-04 05:00:00", "0", None, Some("43")),
             row("b", "2024-11-01", "2024-11-01 04:00:00", "0", None, None),
             row("b", "2024-11-02", "2024-11-02 04:00:00", "0", None, None),
             row("b", "2024-11-03", "2024-11-03 04:00:00", "1", Some("70"), Some("70")),
             row("b", "2024-11-04", "2024-11-04 05:00:00", "0", None, Some("70")),
         ],
         "utc-leap" => vec![
-            row("a", "2024-02-28", "2024-02-28 00:00:00", "2", Some("35"), Some("35")),
+            row("a", "2024-02-28", "2024-02-28 00:00:00", "1", Some("30"), Some("30")),
             row("a", "2024-02-29", "2024-02-29 00:00:00", "1", Some("40"), Some("40")),
             row("a", "2024-03-01", "2024-03-01 00:00:00", "0", None, Some("40")),
             row("b", "2024-02-28", "2024-02-28 00:00:00", "0", None, None),
@@ -254,6 +269,38 @@ fn expected_day(range: &str) -> Vec<Vec<Option<String>>> {
         ],
         _ => panic!("unknown day range {range}"),
     }
+}
+
+fn expected_empty_day(range: &str) -> Vec<Vec<Option<String>>> {
+    let boundaries: &[(&str, &str)] = match range {
+        "spring" => &[
+            ("2024-03-08", "2024-03-08 05:00:00"),
+            ("2024-03-09", "2024-03-09 05:00:00"),
+            ("2024-03-10", "2024-03-10 05:00:00"),
+            ("2024-03-11", "2024-03-11 04:00:00"),
+            ("2024-03-12", "2024-03-12 04:00:00"),
+        ],
+        "fall" => &[
+            ("2024-11-01", "2024-11-01 04:00:00"),
+            ("2024-11-02", "2024-11-02 04:00:00"),
+            ("2024-11-03", "2024-11-03 04:00:00"),
+            ("2024-11-04", "2024-11-04 05:00:00"),
+        ],
+        "utc-leap" => &[
+            ("2024-02-28", "2024-02-28 00:00:00"),
+            ("2024-02-29", "2024-02-29 00:00:00"),
+            ("2024-03-01", "2024-03-01 00:00:00"),
+        ],
+        _ => panic!("unknown empty day range {range}"),
+    };
+    ["a", "b"]
+        .into_iter()
+        .flat_map(|device| {
+            boundaries
+                .iter()
+                .map(move |(date, utc)| row(device, date, utc, "0", None, None))
+        })
+        .collect()
 }
 
 fn expected_month() -> Vec<Vec<Option<String>>> {
@@ -269,6 +316,12 @@ fn expected_month() -> Vec<Vec<Option<String>>> {
 
 fn assert_dashboard(frames: &Frames, expected: &[Vec<Option<String>>], label: &str) {
     assert_eq!(wire::error_code(frames), None, "{label}: {frames:?}");
+    let parameters = frames
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .map(|(_, payload)| wire::parse_parameter_description(payload))
+        .expect("prepared statement ParameterDescription");
+    assert_eq!(parameters, PARAMETER_OIDS, "{label} parameter OIDs");
     let description = frames
         .iter()
         .find(|(tag, _)| *tag == b'T')
@@ -295,50 +348,61 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
     assert_eq!(jiff_tzdb::VERSION, Some("2026e"));
     let path = cassie_test_support::support_sql::data_dir("prepared-calendar-dashboard");
     let cassie = open_local(&path, 100_000);
-    let day_rows = "(1,'a','2024-03-08T05:00:00Z',9),(2,'a','2024-03-09T22:00:00Z',10), \
+    let day_rows = "(1,'a','2024-03-08T06:00:00Z',9),(2,'a','2024-03-09T22:00:00Z',10), \
         (3,'a','2024-03-10T06:30:00Z',11),(4,'a','2024-03-10T07:30:00Z',12), \
-        (5,'a','2024-03-12T12:00:00Z',NULL),(6,'a','2024-03-13T04:00:00Z',999), \
+        (5,'a','2024-03-12T12:00:00Z',NULL),(6,'a','2024-03-12T14:00:00Z',999), \
         (7,'a',NULL,888),(8,'b','2024-03-10T08:00:00Z',50), \
         (9,'a','2024-11-02T16:00:00Z',20),(10,'a','2024-11-03T05:30:00Z',21), \
         (11,'a','2024-11-03T06:30:00Z',22),(12,'a','2024-11-04T17:00:00Z',30), \
         (13,'b','2024-11-03T06:45:00Z',70),(14,'a','2024-02-28T00:00:00Z',5), \
         (15,'a','2024-02-28T12:00:00Z',30),(16,'a','2024-02-29T12:00:00Z',40), \
-        (17,'b','2024-02-29T13:00:00Z',80)";
+        (17,'b','2024-02-29T13:00:00Z',80),(18,'a','2024-03-01T12:00:00Z',888), \
+        (19,'a','2024-03-08T05:59:59Z',999),(20,'a','2024-11-02T15:59:00Z',999)";
     for (table, indexed) in [("day_exact", false), ("day_indexed", true)] {
         create_table(&cassie, table, indexed, day_rows);
     }
-    let month_rows = "(1,'a','2024-01-01T05:00:00Z',1),(2,'a','2024-01-15T12:00:00Z',100), \
-        (3,'a','2024-02-29T12:00:00Z',40),(4,'a','2024-03-31T22:00:00Z',300), \
-        (5,'b','2024-02-29T12:00:00Z',200),(6,'a','2024-04-01T04:00:00Z',999)";
+    let month_rows = "(1,'a','2024-01-01T06:00:00Z',1),(2,'a','2024-01-15T12:00:00Z',100), \
+        (3,'a','2024-02-29T12:00:00Z',40),(4,'a','2024-03-31T21:59:59Z',300), \
+        (5,'b','2024-02-29T12:00:00Z',200),(6,'a','2024-04-01T04:00:00Z',999), \
+        (7,'a','2024-03-31T22:00:00Z',888),(8,'a','2024-01-01T05:00:00Z',777)";
     for (table, indexed) in [("month_exact", false), ("month_indexed", true)] {
         create_table(&cassie, table, indexed, month_rows);
     }
     let ranges = [
         Range {
             label: "spring",
-            lower: "2024-03-08T05:00:00Z",
-            upper: "2024-03-13T04:00:00Z",
+            event_start: "2024-03-08T06:00:00Z",
+            event_end: "2024-03-12T14:00:00Z",
+            grid_start: "2024-03-08T05:00:00Z",
+            grid_end: "2024-03-13T04:00:00Z",
             zone: "America/New_York",
         },
         Range {
             label: "fall",
-            lower: "2024-11-01T04:00:00Z",
-            upper: "2024-11-05T05:00:00Z",
+            event_start: "2024-11-02T16:00:00Z",
+            event_end: "2024-11-04T17:00:00Z",
+            grid_start: "2024-11-01T04:00:00Z",
+            grid_end: "2024-11-05T05:00:00Z",
             zone: "America/New_York",
         },
         Range {
             label: "utc-leap",
-            lower: "2024-02-28T00:00:00Z",
-            upper: "2024-03-02T00:00:00Z",
+            event_start: "2024-02-28T12:00:00Z",
+            event_end: "2024-03-01T12:00:00Z",
+            grid_start: "2024-02-28T00:00:00Z",
+            grid_end: "2024-03-02T00:00:00Z",
             zone: "UTC",
         },
     ];
     let month_range = Range {
         label: "month",
-        lower: "2024-01-01T05:00:00Z",
-        upper: "2024-04-01T04:00:00Z",
+        event_start: "2024-01-01T06:00:00Z",
+        event_end: "2024-03-31T22:00:00Z",
+        grid_start: "2024-01-01T05:00:00Z",
+        grid_end: "2024-04-01T04:00:00Z",
         zone: "America/New_York",
     };
+    let month_parameters = values(&month_range);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -368,7 +432,18 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
             assert_eq!(counter(&after, "bucket_native_hits") - counter(&before, "bucket_native_hits"), 2);
             assert_eq!(counter(&after, "fallback_scans") - counter(&before, "fallback_scans"), 0);
         }
-        let month_parameters = values(&month_range);
+        let mut null_event_start = values(&ranges[2]);
+        null_event_start[2] = None;
+        let null_bound = client
+            .execute("day_null_event_start", &exact_day_sql, &null_event_start)
+            .await;
+
+        // Assert
+        assert_dashboard(
+            &null_bound,
+            &expected_empty_day("utc-leap"),
+            "NULL UTC event bound leaves calendar grid empty",
+        );
         let exact_month = client
             .execute("month_exact", &query(MONTH_TEMPLATE, "month_exact"), &month_parameters)
             .await;
@@ -429,8 +504,10 @@ fn should_fail_calendar_grid_before_any_prepared_wire_rows_over_result_limit() {
     create_table(&cassie, "calendar_limited", true, "");
     let range = Range {
         label: "eight rows",
-        lower: "2024-01-01T00:00:00Z",
-        upper: "2024-01-05T00:00:00Z",
+        event_start: "2024-01-01T00:00:00Z",
+        event_end: "2024-01-05T00:00:00Z",
+        grid_start: "2024-01-01T00:00:00Z",
+        grid_end: "2024-01-05T00:00:00Z",
         zone: "UTC",
     };
     let runtime = tokio::runtime::Builder::new_current_thread()

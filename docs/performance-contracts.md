@@ -190,6 +190,14 @@ continue. LIMIT counts rows after these checks. Queries without a covering
 source, matching order, visible indexes, or compatible integer join keys
 use the ordinary join planner.
 
+Stored timestamps include extended years and BC text whose byte ordering can
+differ from SQL ordering. For a timestamp sort key, the executor reads at
+most twice the requested window plus one sentinel from the tenant prefix. A
+complete prefix containing only fixed-width UTC timestamp keys supplies both
+the order proof and the retained rows for the dimension probes. Reaching the
+sentinel or finding another encoding falls back to SQL ordering. EXPLAIN
+ANALYZE reports the proof size and outcome, including unsuccessful attempts.
+
 For this path, pgwire EXPLAIN names `ordered_index_nested_loop`.
 EXPLAIN ANALYZE reports the source index entries visited, skipped entries,
 qualifying source rows, source base fetches, dimension probes and base

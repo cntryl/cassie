@@ -134,6 +134,12 @@ pub(crate) struct OrderedJoinCounts {
     pub joined_rows: usize,
 }
 
+#[derive(Debug, Default)]
+struct OrderedReadObservation {
+    join: Option<OrderedJoinCounts>,
+    proof: Option<(usize, &'static str)>,
+}
+
 #[derive(Debug, Clone)]
 pub struct QueryExecutionControls {
     pub deadline: Option<Instant>,
@@ -142,7 +148,7 @@ pub struct QueryExecutionControls {
     pub cte_recursion_depth: usize,
     cancellation: QueryCancellationHandle,
     relational_cte_boundary: bool,
-    ordered_join: Option<Arc<parking_lot::Mutex<Option<OrderedJoinCounts>>>>,
+    ordered_join: Option<Arc<parking_lot::Mutex<OrderedReadObservation>>>,
     memory: Arc<QueryMemoryTracker>,
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
     /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
@@ -278,14 +284,26 @@ impl QueryExecutionControls {
         }
     }
 
+    pub(crate) fn record_order_proof(&self, visited: usize, reason: &'static str) {
+        if let Some(slot) = &self.ordered_join {
+            slot.lock().proof = Some((visited, reason));
+        }
+    }
+
+    pub(crate) fn order_proof(&self) -> Option<(usize, &'static str)> {
+        self.ordered_join
+            .as_ref()
+            .and_then(|slot| slot.lock().proof)
+    }
+
     pub(crate) fn record_ordered_join(&self, counts: OrderedJoinCounts) {
         if let Some(slot) = &self.ordered_join {
-            *slot.lock() = Some(counts);
+            slot.lock().join = Some(counts);
         }
     }
 
     pub(crate) fn ordered_join_counts(&self) -> Option<OrderedJoinCounts> {
-        self.ordered_join.as_ref().and_then(|slot| *slot.lock())
+        self.ordered_join.as_ref().and_then(|slot| slot.lock().join)
     }
 
     pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {

@@ -31,28 +31,60 @@ impl crate::app::Cassie {
         let mut output = AccountedVec::try_new(env.controls)?;
         let mut counts = OrderedJoinCounts::default();
         let mut stages = vec![Stage::default(); join.probes.len()];
-        self.midge.visit_scalar_index_documents(
-            &join.index,
-            &join.request,
-            env.controls,
-            |document| {
-                counts.order_index_entries += 1;
-                let row = project(&env, &join.source, &document)?;
-                counts.order_rows += 1;
-                if let Some(row) = probe(&env, &join, row, &mut stages, &mut counts)? {
-                    if output.len() >= env.controls.max_result_rows {
-                        return Err(crate::app::CassieError::ResourceLimit(format!(
-                            "query result row limit exceeded: {} > {}",
-                            output.len().saturating_add(1),
-                            env.controls.max_result_rows
-                        ))
-                        .into());
-                    }
-                    output.try_push_with(0, || row)?;
+        let mut consume = |document: DocumentRef| {
+            let row = project(&env, &join.source, &document)?;
+            counts.order_rows += 1;
+            if let Some(row) = probe(&env, &join, row, &mut stages, &mut counts)? {
+                if output.len() >= env.controls.max_result_rows {
+                    return Err(crate::app::CassieError::ResourceLimit(format!(
+                        "query result row limit exceeded: {} > {}",
+                        output.len().saturating_add(1),
+                        env.controls.max_result_rows
+                    ))
+                    .into());
                 }
-                Ok::<_, QueryError>(output.len() < join.limit)
-            },
-        )?;
+                output.try_push_with(0, || row)?;
+            }
+            Ok::<_, QueryError>(output.len() < join.limit)
+        };
+        let entries = if join.timestamp_fields.is_empty() || join.limit == 0 {
+            let mut visited = 0;
+            self.midge.visit_scalar_index_documents(
+                &join.index,
+                &join.request,
+                env.controls,
+                |doc| {
+                    visited += 1;
+                    consume(doc)
+                },
+            )?;
+            visited
+        } else {
+            let Some(hits) = crate::executor::execution::index_read::key_order::timestamp_page(
+                self,
+                &join.index,
+                &join.request,
+                &join.timestamp_fields,
+                join.limit,
+                env.controls,
+            )?
+            else {
+                return Ok(None);
+            };
+            let (hits, _memory) = hits.into_parts();
+            let entries = hits.len();
+            for hit in hits {
+                check_timeout(env.controls)?;
+                if !consume(DocumentRef {
+                    id: hit.id,
+                    payload: serde_json::Value::Object(hit.fields),
+                })? {
+                    break;
+                }
+            }
+            entries
+        };
+        counts.order_index_entries = entries;
         let (rows, _slots) = output.into_parts();
         let mut batches = vec![rows];
         let rows = projected_read::finalize_projected_filtered_read(

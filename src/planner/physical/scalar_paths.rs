@@ -640,7 +640,8 @@ fn order_shape(
         });
     }
 
-    if matched + 1 == effective_order.len()
+    if matched == remaining.len()
+        && matched + 1 == effective_order.len()
         && super::is_row_id_column(
             &effective_order
                 .last()

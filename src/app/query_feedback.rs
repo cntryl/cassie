@@ -380,6 +380,10 @@ impl Cassie {
             physical.join.sort_required = false;
             physical.join.fallback_reason = None;
             physical.join.vectorized.candidate = false;
+            physical.read.access_path =
+                crate::planner::physical::ReadAccessPath::OrderedBoundedScan;
+            physical.read.early_stop = crate::planner::physical::EarlyStopMode::JoinedLimit;
+            physical.read.fallback_reason = None;
             physical.read.access_path_reason = "ordered-source-unique-probes".into();
             physical.read.selected_index = Some(index);
             physical.read.covered_index = true;

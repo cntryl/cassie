@@ -56,6 +56,7 @@ pub(in crate::executor::execution) struct OrderedJoin {
     pub source: Relation,
     pub index: IndexMeta,
     pub request: ScalarIndexScanRequest,
+    pub timestamp_fields: Vec<String>,
     pub probes: Vec<Probe>,
     pub residuals: Vec<Expr>,
     pub limit: usize,
@@ -125,7 +126,8 @@ pub(in crate::executor::execution) fn prepare(
     let Some(shape) = join_shape(cassie, session, plan) else {
         return Ok(None);
     };
-    let Some(spec) = scalar_index_read_spec(cassie, session, None, &shape.source_plan, &[])? else {
+    let Some(spec) = scalar_index_read_spec(cassie, session, None, &shape.source_plan, &[], true)?
+    else {
         return Ok(None);
     };
     if spec.path != ScalarIndexPlanPath::OrderedBoundedScan
@@ -150,6 +152,7 @@ pub(in crate::executor::execution) fn prepare(
         source: shape.source,
         index: spec.index,
         request,
+        timestamp_fields: spec.timestamp_fields,
         probes: shape.probes,
         residuals: shape.residuals,
         limit,

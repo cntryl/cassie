@@ -303,6 +303,13 @@ pub(crate) fn append_explain_analyze(
         deltas.operator_switch_fallbacks
     ))
     })?;
+    if let Some((entries, proof)) = controls.order_proof() {
+        plan.try_append(controls, |allocation| {
+            allocation.format(format_args!(
+                " order_proof_entries={entries} order_proof={proof}"
+            ))
+        })?;
+    }
     if let Some(counts) = report.ordered_join {
         plan.try_append(controls, |allocation| {
             allocation.format(format_args!(

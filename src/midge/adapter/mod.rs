@@ -412,7 +412,7 @@ mod repair;
 mod scalar_indexes;
 pub(crate) use scalar_indexes::canonical_field_value;
 mod storage_config;
-pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
+pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanHit, ScalarIndexScanRequest};
 mod namespaces;
 mod scan_types;
 mod schema_cleanup;

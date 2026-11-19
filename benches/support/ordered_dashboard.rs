@@ -62,9 +62,34 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, indexed: bool) {
     seed(&cassie, &session, indexed);
     let setup_ns = setup.elapsed().as_nanos().to_string();
 
+    assert_preflight(&cassie, &session, indexed);
+    let path = if indexed {
+        "ordered_index_nested_loop"
+    } else {
+        "unindexed_join"
+    };
+    let fallback = if indexed { "none" } else { "index_absent" };
+    let case = case
+        .metadata("setup_time_ns", setup_ns)
+        .metadata("query_memory_budget_bytes", BUDGET.to_string())
+        .metadata("unrelated_orders", NOISE_ORDERS.to_string())
+        .metadata("storage_mode", store)
+        .preflight_evidence(path, fallback)
+        .runtime_evidence(Arc::clone(&cassie));
+    runner.measure_batch(case, 1, || {
+        let result = cassie
+            .execute_sql(&session, QUERY, Vec::new())
+            .expect("dashboard query");
+        assert_eq!(result.rows().len(), 10);
+        std::hint::black_box(result.rows().len())
+    });
+    cassie.shutdown();
+}
+
+fn assert_preflight(cassie: &Cassie, session: &CassieSession, indexed: bool) {
     let before = cassie.metrics();
     let result = cassie
-        .execute_sql(&session, QUERY, Vec::new())
+        .execute_sql(session, QUERY, Vec::new())
         .expect("dashboard preflight");
     let expected = (3_i64..=12)
         .rev()
@@ -81,7 +106,7 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, indexed: bool) {
     assert_eq!(result.rows(), expected);
     let after = cassie.metrics();
     let plan = cassie
-        .execute_sql(&session, &format!("EXPLAIN ANALYZE {QUERY}"), Vec::new())
+        .execute_sql(session, &format!("EXPLAIN ANALYZE {QUERY}"), Vec::new())
         .expect("dashboard preflight plan");
     let plan = format!("{:?}", plan.rows());
     assert_eq!(
@@ -115,27 +140,6 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, indexed: bool) {
             "expected high-work unindexed scan"
         );
     }
-    let path = if indexed {
-        "ordered_index_nested_loop"
-    } else {
-        "unindexed_join"
-    };
-    let fallback = if indexed { "none" } else { "index_absent" };
-    let case = case
-        .metadata("setup_time_ns", setup_ns)
-        .metadata("query_memory_budget_bytes", BUDGET.to_string())
-        .metadata("unrelated_orders", NOISE_ORDERS.to_string())
-        .metadata("storage_mode", store)
-        .preflight_evidence(path, fallback)
-        .runtime_evidence(Arc::clone(&cassie));
-    runner.measure_batch(case, 1, || {
-        let result = cassie
-            .execute_sql(&session, QUERY, Vec::new())
-            .expect("dashboard query");
-        assert_eq!(result.rows().len(), 10);
-        std::hint::black_box(result.rows().len())
-    });
-    cassie.shutdown();
 }
 
 fn counter(plan: &str, name: &str) -> usize {

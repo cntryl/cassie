@@ -315,6 +315,11 @@ Current limitation:
   Unsupported index DDL and supported-index artifact fallback are separate outcomes. This
   index-width restriction does not expand or narrow the scalar `time_bucket` or rollup contracts.
 
+Calendar-local dashboard grouping remains query composition over existing SQL functions; it
+does not add calendar-aware index metadata. The prepared day and month templates, bind contract,
+gap-fill behavior, and output limits are documented in
+[Time-series calendar dashboards](time-series-calendar-dashboards.md).
+
 ## Column-Batch Indexes
 
 Column-batch indexes are optional analytical acceleration.

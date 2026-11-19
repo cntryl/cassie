@@ -29,13 +29,6 @@ pub(super) fn try_execute_time_series_read(
     let Some(spec) = super::projected_read::projected_filtered_read_spec(plan) else {
         return Ok(None);
     };
-    if cassie
-        .catalog
-        .collection_storage_mode(&spec.collection)
-        .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage)
-    {
-        return Ok(None);
-    }
     let Some(index) = selected_time_series_index(cassie, plan) else {
         return Ok(None);
     };
@@ -53,7 +46,7 @@ pub(super) fn try_execute_time_series_read(
     }
 
     let timestamp_field = index.primary_field();
-    let scan_fields = scan_fields_with_timestamp(&spec.scan_fields, &timestamp_field);
+    let scan_fields = scan_fields_with_index_fields(&spec.scan_fields, &index);
 
     let schema = cassie.catalog.get_schema(&spec.collection);
     let range = plan
@@ -269,13 +262,27 @@ fn filter_time_series_batches(
     Ok((filtered_batches, cloned_input_memory))
 }
 
-fn scan_fields_with_timestamp(scan_fields: &[String], timestamp_field: &str) -> Vec<String> {
+fn scan_fields_with_index_fields(
+    scan_fields: &[String],
+    index: &catalog::IndexMeta,
+) -> Vec<String> {
     let mut fields = scan_fields.to_vec();
-    if !fields
-        .iter()
-        .any(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(field, timestamp_field))
-    {
-        fields.push(timestamp_field.to_string());
+    let mut required_fields = vec![index.primary_field()];
+    if let Some(partition_fields) = index.options.get("partition_by") {
+        required_fields.extend(
+            partition_fields
+                .split(',')
+                .map(str::trim)
+                .filter(|field| !field.is_empty())
+                .map(str::to_owned),
+        );
+    }
+    for required_field in required_fields {
+        if !fields.iter().any(|field| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(field, &required_field)
+        }) {
+            fields.push(required_field);
+        }
     }
     fields
 }

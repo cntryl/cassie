@@ -55,6 +55,7 @@ sql-json-path = "0.2.0"
 
 [dev-dependencies]
 cntryl-stress = "0.5.1"
+jiff-tzdb = "0.1.9"
 rcgen = "0.14"
 tokio-postgres = "0.7"
 # A second real PostgreSQL driver for the graph type round trips (plaintext local connection).

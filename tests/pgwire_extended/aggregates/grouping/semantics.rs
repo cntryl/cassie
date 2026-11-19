@@ -143,10 +143,9 @@ fn should_validate_grouping_arguments_in_their_query_level() {
     let batches = run_script("invalid-one-dimensional-grouping", steps);
 
     // Assert
+    assert_eq!(batches.len(), 1 + cases.len() * 2);
     assert_eq!(wire::error_code(&batches[0]), None);
-    let (pairs, remainder) = batches[1..].as_chunks::<2>();
-    assert_eq!(remainder, []);
-    assert_eq!(pairs.len(), cases.len());
+    let (pairs, _) = batches[1..].as_chunks::<2>();
     for ((sql, code), pair) in cases.iter().zip(pairs) {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some(*code), "{sql}");
     }

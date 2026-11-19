@@ -158,3 +158,30 @@ fn should_count_only_joined_survivors_toward_the_ordered_limit() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_preserve_sql_order_for_decimal_and_extended_timestamp_keys() {
+    // Arrange
+    current_thread_runtime().block_on(async {
+        let server = CompatibilityServer::start("typed_partial_order").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(&client, &[
+            "CREATE TABLE typed_orders (id INT PRIMARY KEY, tenant INT NOT NULL, status TEXT NOT NULL, amount NUMERIC NOT NULL, instant TIMESTAMP NOT NULL)",
+            "INSERT INTO typed_orders VALUES (1,7,'open',2,'9999-01-01'),(2,7,'open',10,'10000-01-01')",
+            "CREATE INDEX decimal_feed ON typed_orders(tenant,amount,id) WHERE status='open'",
+            "CREATE INDEX timestamp_feed ON typed_orders(tenant,instant,id) WHERE status='open'",
+        ]).await.expect("create index values with reversed text and SQL order");
+
+        // Act
+        let mut ids = Vec::new();
+        for column in ["amount", "instant"] {
+            let sql = format!("SELECT id FROM typed_orders WHERE tenant=7 AND status='open' ORDER BY {column} DESC,id DESC LIMIT 1");
+            ids.push(client.query_one(&sql, &[]).await.unwrap().get::<_,i32>(0));
+        }
+
+        // Assert
+        assert_eq!(ids, [2,2]);
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

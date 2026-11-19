@@ -181,7 +181,7 @@ fn assert_matches_oracle(rows: &[Vec<Value>], expected: &[(String, f64)], contex
 const QUERY: [f32; 3] = [1.0, 0.2, 0.0];
 
 #[test]
-fn should_serve_every_algorithm_and_metric_from_a_matching_ann_index() {
+fn should_serve_each_algorithm_metric_pair_from_a_matching_ann_index() {
     // Arrange
     for (algorithm, options) in ALGORITHMS {
         for metric in [Metric::L2, Metric::Cosine, Metric::Dot] {
@@ -248,7 +248,7 @@ fn should_rank_non_unit_cosine_match_ahead_of_euclidean_nearest_neighbor() {
 }
 
 #[test]
-fn should_apply_offset_after_cosine_and_inner_product_ann_ranking() {
+fn should_apply_offset_after_non_l2_ann_ranking() {
     // Arrange
     for (algorithm, options) in ALGORITHMS {
         for metric in [Metric::Cosine, Metric::Dot] {
@@ -312,7 +312,7 @@ fn should_diagnose_exact_fallback_when_operator_and_index_metrics_differ() {
 }
 
 #[test]
-fn should_fall_back_to_exact_scoring_for_descending_cosine_and_dot_order() {
+fn should_fall_back_to_exact_scoring_for_descending_non_l2_order() {
     // Arrange
     for (algorithm, options) in ALGORITHMS {
         for metric in [Metric::Cosine, Metric::Dot] {
@@ -342,7 +342,7 @@ fn should_fall_back_to_exact_scoring_for_descending_cosine_and_dot_order() {
 }
 
 #[test]
-fn should_keep_identity_tie_order_for_zero_cosine_and_dot_queries() {
+fn should_keep_identity_tie_order_for_zero_non_l2_queries() {
     // Arrange
     let zero = [0.0, 0.0, 0.0];
     for (algorithm, options) in ALGORITHMS {

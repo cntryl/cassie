@@ -533,13 +533,101 @@ fn should_fallback_to_complete_columnar_page_given_missing_bucket_membership() {
     });
 }
 
-#[test]
-fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and_reopen() {
-    // Arrange
-    let path = support_sql::data_dir("prepared-columnar-time-series-reopen");
-    let cassie = prepared_local_fixture(&path, 8 * 1024 * 1024, 100_000);
-    seed_prepared_page_twins(&cassie);
-    let setup = cassie.create_session("tester", None);
+fn apply_prepared_corrections(cassie: &Cassie, setup: &cassie::app::CassieSession) {
+    for table in PREPARED_PAGE_TABLES {
+        support_sql::run(
+            cassie,
+            setup,
+            &format!(
+                "INSERT INTO {table} VALUES \
+                 (7,'a','bc','1969-12-31T23:10:00Z',70)"
+            ),
+            vec![],
+        )
+        .expect("insert a late event");
+        support_sql::run(
+            cassie,
+            setup,
+            &format!(
+                "UPDATE {table} SET tenant='ab', device='c', \
+                 event_at='1970-01-01T00:15:00Z', amount=330 WHERE id=3"
+            ),
+            vec![],
+        )
+        .expect("move one event across partition and bucket");
+    }
+}
+
+async fn assert_prepared_corrected_pages(client: &mut PreparedPgwireClient) {
+    for table in PREPARED_PAGE_TABLES {
+        for (tenant, device) in [("a", "bc"), ("ab", "c")] {
+            let frames = client.prepared_page(table, tenant, device, 99, 0).await;
+            let expected = expected_corrected_page(tenant, device, "40");
+            assert_eq!(prepared_page_rows(&frames), expected, "{table}");
+        }
+    }
+}
+
+async fn assert_staged_correction_rollback(client: &mut PreparedPgwireClient) {
+    assert_eq!(wire::error_code(&client.simple_query("BEGIN").await), None);
+    let update = client
+        .simple_query("UPDATE col_idx SET amount=777 WHERE id=4")
+        .await;
+    assert_eq!(wire::error_code(&update), None);
+    let staged = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
+    assert_eq!(
+        prepared_page_rows(&staged),
+        expected_corrected_page("a", "bc", "777"),
+        "the writing session must see its staged correction"
+    );
+    assert_eq!(
+        wire::error_code(&client.simple_query("ROLLBACK").await),
+        None
+    );
+    let rolled_back = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
+    assert_eq!(
+        prepared_page_rows(&rolled_back),
+        expected_corrected_page("a", "bc", "40"),
+        "rollback must restore the authoritative source and bucket membership"
+    );
+}
+
+async fn assert_suspended_portal_snapshot(
+    cassie: &Cassie,
+    setup: &cassie::app::CassieSession,
+    client: &mut PreparedPgwireClient,
+) {
+    let (portal_name, first_page) = client.suspended_page("col_idx", "a", "bc", 2).await;
+    assert_eq!(wire::error_code(&first_page), None);
+    assert_eq!(
+        wire::data_rows(&first_page),
+        expected_corrected_page("a", "bc", "40")[..2]
+    );
+    assert!(first_page.iter().any(|(tag, _)| *tag == b's'));
+    support_sql::run(
+        cassie,
+        setup,
+        "UPDATE col_idx SET amount=888 WHERE id=4",
+        vec![],
+    )
+    .expect("commit a source update while the portal is suspended");
+
+    let resumed = client.resume_portal(&portal_name).await;
+    assert_eq!(wire::error_code(&resumed), None);
+    assert_eq!(
+        wire::data_rows(&resumed),
+        expected_corrected_page("a", "bc", "40")[2..],
+        "the suspended portal must retain its statement snapshot"
+    );
+    let after_portal = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
+    assert_eq!(
+        prepared_page_rows(&after_portal),
+        expected_corrected_page("a", "bc", "888"),
+        "a new statement must observe the committed source update"
+    );
+}
+
+fn run_prepared_correction_portal_checks(cassie: &Cassie, setup: &cassie::app::CassieSession) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -547,106 +635,30 @@ fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and
     runtime.block_on(async {
         let server = wire::spawn_server(cassie.clone()).await;
         let mut client = PreparedPgwireClient::connect(&server).await;
-
-        // Act
-        for table in PREPARED_PAGE_TABLES {
-            support_sql::run(
-                &cassie,
-                &setup,
-                &format!(
-                    "INSERT INTO {table} VALUES \
-                     (7,'a','bc','1969-12-31T23:10:00Z',70)"
-                ),
-                vec![],
-            )
-            .expect("insert a late event");
-            support_sql::run(
-                &cassie,
-                &setup,
-                &format!(
-                    "UPDATE {table} SET tenant='ab', device='c', \
-                     event_at='1970-01-01T00:15:00Z', amount=330 WHERE id=3"
-                ),
-                vec![],
-            )
-            .expect("move one event across partition and bucket");
-        }
-        for table in PREPARED_PAGE_TABLES {
-            for (tenant, device) in [("a", "bc"), ("ab", "c")] {
-                let frames = client.prepared_page(table, tenant, device, 99, 0).await;
-                let expected = expected_corrected_page(tenant, device, "40");
-                assert_eq!(prepared_page_rows(&frames), expected, "{table}");
-            }
-        }
-
-        // Assert
-        assert_eq!(wire::error_code(&client.simple_query("BEGIN").await), None);
-        assert_eq!(
-            wire::error_code(
-                &client
-                    .simple_query("UPDATE col_idx SET amount=777 WHERE id=4")
-                    .await
-            ),
-            None
-        );
-        let staged = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
-        assert_eq!(
-            prepared_page_rows(&staged),
-            expected_corrected_page("a", "bc", "777"),
-            "the writing session must see its staged correction"
-        );
-        assert_eq!(
-            wire::error_code(&client.simple_query("ROLLBACK").await),
-            None
-        );
-        let rolled_back = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
-        assert_eq!(
-            prepared_page_rows(&rolled_back),
-            expected_corrected_page("a", "bc", "40"),
-            "rollback must restore the authoritative source and bucket membership"
-        );
-
-        let (portal_name, first_page) = client.suspended_page("col_idx", "a", "bc", 2).await;
-        assert_eq!(wire::error_code(&first_page), None);
-        assert_eq!(
-            wire::data_rows(&first_page),
-            expected_corrected_page("a", "bc", "40")[..2]
-        );
-        assert!(first_page.iter().any(|(tag, _)| *tag == b's'));
-        support_sql::run(
-            &cassie,
-            &setup,
-            "UPDATE col_idx SET amount=888 WHERE id=4",
-            vec![],
-        )
-        .expect("commit a source update while the portal is suspended");
-
-        // Act
-        let resumed = client.resume_portal(&portal_name).await;
-
-        // Assert
-        assert_eq!(wire::error_code(&resumed), None);
-        assert_eq!(
-            wire::data_rows(&resumed),
-            expected_corrected_page("a", "bc", "40")[2..],
-            "the suspended portal must retain its statement snapshot"
-        );
-        let after_portal = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
-        assert_eq!(
-            prepared_page_rows(&after_portal),
-            expected_corrected_page("a", "bc", "888"),
-            "a new statement must observe the committed source update"
-        );
-
+        apply_prepared_corrections(cassie, setup);
+        assert_prepared_corrected_pages(&mut client).await;
+        assert_staged_correction_rollback(&mut client).await;
+        assert_suspended_portal_snapshot(cassie, setup, &mut client).await;
         client.terminate().await;
         drop(client);
         server.stop().await;
     });
-    drop(setup);
-    drop(cassie);
+}
 
-    // Arrange
-    let restarted = prepared_local_fixture(&path, 8 * 1024 * 1024, 100_000);
+async fn assert_reopened_prepared_pages(client: &mut PreparedPgwireClient) {
+    for table in PREPARED_PAGE_TABLES {
+        let frames = client.prepared_page(table, "a", "bc", 99, 0).await;
+        let expected_amount = if table == "col_idx" { "888" } else { "40" };
+        assert_eq!(
+            prepared_page_rows(&frames),
+            expected_corrected_page("a", "bc", expected_amount),
+            "reopened table {table}"
+        );
+    }
+}
+
+fn assert_prepared_local_reopen(path: &str) {
+    let restarted = prepared_local_fixture(path, 8 * 1024 * 1024, 100_000);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -654,31 +666,34 @@ fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and
     runtime.block_on(async {
         let server = wire::spawn_server(restarted.clone()).await;
         let mut client = PreparedPgwireClient::connect(&server).await;
-
-        // Act
-        for table in PREPARED_PAGE_TABLES {
-            let frames = client.prepared_page(table, "a", "bc", 99, 0).await;
-            let expected_amount = if table == "col_idx" { "888" } else { "40" };
-
-            // Assert
-            assert_eq!(
-                prepared_page_rows(&frames),
-                expected_corrected_page("a", "bc", expected_amount),
-                "reopened table {table}"
-            );
-        }
+        assert_reopened_prepared_pages(&mut client).await;
+        client.terminate().await;
+        drop(client);
         server.stop().await;
     });
+    drop(runtime);
     drop(restarted);
-    std::fs::remove_dir_all(path).expect("remove local time-series fixture");
 }
 
 #[test]
-fn should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads() {
+fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and_reopen() {
     // Arrange
-    let cassie = prepared_fixture(8 * 1024 * 1024);
-    let session = cassie.create_session("tester", None);
-    let tables = ["f_heap_ref", "f_heap_idx", "f_col_ref", "f_col_idx"];
+    let path = support_sql::data_dir("prepared-columnar-time-series-reopen");
+    let cassie = prepared_local_fixture(&path, 8 * 1024 * 1024, 100_000);
+    seed_prepared_page_twins(&cassie);
+    let setup = cassie.create_session("tester", None);
+
+    // Act
+    run_prepared_correction_portal_checks(&cassie, &setup);
+    drop(setup);
+    drop(cassie);
+
+    // Assert
+    assert_prepared_local_reopen(&path);
+    std::fs::remove_dir_all(path).expect("remove local time-series fixture");
+}
+
+fn seed_signed_zero_tables(cassie: &Cassie, session: &cassie::app::CassieSession, tables: &[&str]) {
     for table in tables {
         let storage = if table.starts_with("f_col_") {
             " WITH (storage = column_store)"
@@ -721,7 +736,139 @@ fn should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads(
             .expect("create FLOAT time-series index");
         }
     }
-    let observed = cassie.clone();
+}
+
+fn insert_signed_zero_noise(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+    tables: &[&str],
+) {
+    for table in tables {
+        support_sql::run(
+            cassie,
+            session,
+            &format!(
+                "INSERT INTO {table} VALUES \
+                 (5,9.0,'1970-01-01T00:00:00Z',50), \
+                 (6,1.5,'1970-01-04T00:00:00Z',60)"
+            ),
+            vec![],
+        )
+        .expect("insert nonzero and out-of-range noise rows");
+    }
+}
+
+fn signed_zero_query(table: &str) -> String {
+    format!(
+        "SELECT id,amount FROM {table} WHERE device=$1 \
+         AND event_at >= $2 AND event_at < $3 ORDER BY event_at,id \
+         LIMIT $4 OFFSET $5"
+    )
+}
+
+fn expected_signed_zero_rows(partition: &str) -> Vec<Vec<Option<String>>> {
+    let values = if partition == "1.5" {
+        [("1", "10"), ("2", "20")]
+    } else {
+        [("3", "30"), ("4", "40")]
+    };
+    values
+        .into_iter()
+        .map(|(id, amount)| vec![Some(id.to_owned()), Some(amount.to_owned())])
+        .collect()
+}
+
+fn assert_signed_zero_index_counters(
+    before: &serde_json::Value,
+    after: &serde_json::Value,
+    table: &str,
+    partition: &str,
+    after_noise: bool,
+) {
+    if !table.ends_with("_idx") {
+        return;
+    }
+    assert_eq!(
+        time_series_counter(after, "bucket_native_hits")
+            - time_series_counter(before, "bucket_native_hits"),
+        1,
+        "indexed FLOAT query {table} {partition}"
+    );
+    assert_eq!(
+        time_series_counter(after, "fallback_scans")
+            - time_series_counter(before, "fallback_scans"),
+        0
+    );
+    let expected_candidates = match (partition, after_noise) {
+        ("1.5", _) => 2,
+        (_, false) => 4,
+        (_, true) => 6,
+    };
+    let expected_point_fetches = match (partition, after_noise) {
+        ("1.5", _) => 2,
+        (_, false) => 4,
+        (_, true) => 5,
+    };
+    assert_eq!(
+        time_series_counter(after, "index_entries_scanned")
+            - time_series_counter(before, "index_entries_scanned"),
+        expected_candidates,
+        "preserve the signed-zero broad-candidate exception for {table}"
+    );
+    assert_eq!(
+        time_series_counter(after, "row_point_fetches")
+            - time_series_counter(before, "row_point_fetches"),
+        expected_point_fetches,
+        "out-of-range membership is counted as scanned but pruned before row fetch"
+    );
+}
+
+async fn assert_signed_zero_prepared_query(
+    client: &mut PreparedPgwireClient,
+    observed: &Cassie,
+    table: &str,
+    partition: &str,
+    after_noise: bool,
+) {
+    let before = observed.metrics();
+    let query = signed_zero_query(table);
+    let frames = client
+        .prepared_query(
+            &format!("signed_zero_{table}"),
+            &query,
+            &PREPARED_FLOAT_PAGE_OIDS,
+            &[partition, PREPARED_PAGE_START, PREPARED_PAGE_END, "9", "0"],
+        )
+        .await;
+    let after = observed.metrics();
+
+    assert_eq!(wire::error_code(&frames), None, "{table} {partition}");
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .map(|(_, payload)| wire::parse_row_description(payload))
+        .expect("prepared FLOAT result description");
+    assert_eq!(
+        description
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23]
+    );
+    assert_eq!(
+        wire::data_rows(&frames),
+        expected_signed_zero_rows(partition),
+        "{table} {partition}"
+    );
+    assert_signed_zero_index_counters(&before, &after, table, partition, after_noise);
+}
+
+fn run_signed_zero_prepared_probes(
+    cassie: &Cassie,
+    observed: &Cassie,
+    session: &cassie::app::CassieSession,
+    tables: &[&str],
+) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -729,108 +876,42 @@ fn should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads(
     runtime.block_on(async {
         let server = wire::spawn_server(cassie.clone()).await;
         let mut client = PreparedPgwireClient::connect(&server).await;
-        let query = |table: &str| {
-            format!(
-                "SELECT id,amount FROM {table} WHERE device=$1 \
-                 AND event_at >= $2 AND event_at < $3 ORDER BY event_at,id \
-                 LIMIT $4 OFFSET $5"
-            )
-        };
 
-        // Act
         for after_noise in [false, true] {
             if after_noise {
-                for table in tables {
-                    support_sql::run(
-                        &observed,
-                        &session,
-                        &format!(
-                            "INSERT INTO {table} VALUES \
-                             (5,9.0,'1970-01-01T00:00:00Z',50), \
-                             (6,1.5,'1970-01-04T00:00:00Z',60)"
-                        ),
-                        vec![],
-                    )
-                    .expect("insert nonzero and out-of-range noise rows");
-                }
+                insert_signed_zero_noise(cassie, session, tables);
             }
             for table in tables {
                 for partition in ["1.5", "-0.0", "0.0"] {
-                    let before = observed.metrics();
-                    let frames = client
-                        .prepared_query(
-                            &format!("signed_zero_{table}"),
-                            &query(table),
-                            &PREPARED_FLOAT_PAGE_OIDS,
-                            &[partition, PREPARED_PAGE_START, PREPARED_PAGE_END, "9", "0"],
-                        )
-                        .await;
-                    let after = observed.metrics();
-
-                    // Assert
-                    let expected = if partition == "1.5" {
-                        vec![
-                            vec![Some("1".to_owned()), Some("10".to_owned())],
-                            vec![Some("2".to_owned()), Some("20".to_owned())],
-                        ]
-                    } else {
-                        vec![
-                            vec![Some("3".to_owned()), Some("30".to_owned())],
-                            vec![Some("4".to_owned()), Some("40".to_owned())],
-                        ]
-                    };
-                    assert_eq!(wire::error_code(&frames), None, "{table} {partition}");
-                    let description = frames
-                        .iter()
-                        .find(|(tag, _)| *tag == b'T')
-                        .map(|(_, payload)| wire::parse_row_description(payload))
-                        .expect("prepared FLOAT result description");
-                    assert_eq!(
-                        description
-                            .iter()
-                            .map(|column| column.type_oid)
-                            .collect::<Vec<_>>(),
-                        vec![23, 23]
-                    );
-                    assert_eq!(wire::data_rows(&frames), expected, "{table} {partition}");
-                    if table.ends_with("_idx") {
-                        assert_eq!(
-                            time_series_counter(&after, "bucket_native_hits")
-                                - time_series_counter(&before, "bucket_native_hits"),
-                            1,
-                            "indexed FLOAT query {table} {partition}"
-                        );
-                        assert_eq!(
-                            time_series_counter(&after, "fallback_scans")
-                                - time_series_counter(&before, "fallback_scans"),
-                            0
-                        );
-                        let expected_candidates = match (partition, after_noise) {
-                            ("1.5", _) => 2,
-                            (_, false) => 4,
-                            (_, true) => 6,
-                        };
-                        let expected_point_fetches = match (partition, after_noise) {
-                            ("1.5", _) => 2,
-                            (_, false) => 4,
-                            (_, true) => 5,
-                        };
-                        assert_eq!(
-                            time_series_counter(&after, "index_entries_scanned")
-                                - time_series_counter(&before, "index_entries_scanned"),
-                            expected_candidates,
-                            "preserve the signed-zero broad-candidate exception for {table}"
-                        );
-                        assert_eq!(
-                            time_series_counter(&after, "row_point_fetches")
-                                - time_series_counter(&before, "row_point_fetches"),
-                            expected_point_fetches,
-                            "out-of-range membership is counted as scanned but pruned before row fetch"
-                        );
-                    }
+                    assert_signed_zero_prepared_query(
+                        &mut client,
+                        observed,
+                        table,
+                        partition,
+                        after_noise,
+                    )
+                    .await;
                 }
             }
         }
+        client.terminate().await;
+        drop(client);
         server.stop().await;
     });
+}
+
+#[test]
+fn should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads() {
+    // Arrange
+    let cassie = prepared_fixture(8 * 1024 * 1024);
+    let session = cassie.create_session("tester", None);
+    let tables = ["f_heap_ref", "f_heap_idx", "f_col_ref", "f_col_idx"];
+    seed_signed_zero_tables(&cassie, &session, &tables);
+    let observed = cassie.clone();
+
+    // Act
+    run_signed_zero_prepared_probes(&cassie, &observed, &session, &tables);
+
+    // Assert
+    // Each prepared probe asserts rows, result types, and indexed candidate deltas.
 }

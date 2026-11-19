@@ -87,7 +87,40 @@ Focused evidence already present in the repository includes:
 - `case_folding`: Boolean, default `true`; `accent_folding`: Boolean, default
   `false`. Both accept `true`/`false`, `on`/`off`, or `1`/`0`.
 - `stop_words`: `english` (default) or `none`.
-- `stemming`: `none` (default).
+- `stemming`: `none` (default) or `english`.
+- `synonyms`: absent (default) or a quoted string of symmetric equivalence
+  groups (see below).
+
+### Analysis and language normalization contract (#1366)
+
+- **Language scope.** `stemming = english` applies the Snowball English
+  (Porter2) stemmer. No other language is supported; other values are rejected.
+- **Default preservation.** An index without `stemming`/`synonyms` (or with
+  `stemming = none` and no synonyms) keeps its exact current token stream and
+  rankings.
+- **Normalization order.** case fold, accent fold, tokenize, stop words, stem,
+  then synonym expansion matched on stemmed forms. Indexing, `search()`,
+  `search_score()`, snippets and highlighting all use this one pipeline.
+- **Highlighting.** Spans are the source byte ranges of the original tokens
+  whose analyzed (stemmed/synonym-expanded) form equals a query term.
+- **Synonym format.** `synonyms = 'car,auto;tv,television'`: groups separated by
+  `;`, members separated by `,`. Each group is a symmetric equivalence set: a
+  member matches every other member. Groups are not directional and members are
+  analyzed through the pipeline up to stemming before comparison. Any other
+  syntax (for example `=>`) is rejected with an error. A term in two groups,
+  an empty group or a group with fewer than two members is rejected, so
+  expansion cannot cycle or chain.
+- **Limits.** At most 256 groups, 16 members per group, 64 bytes per member, and
+  16 KiB for the whole option string. Violations are rejected before publication.
+- **Expansion.** Synonyms expand at index time: a document token that belongs to
+  a group is indexed under the group's canonical (lexicographically smallest
+  stemmed) member. Query terms are mapped to the same canonical member.
+- **Versioning and rebuild.** The persisted analyzer metadata records the
+  analyzer configuration, including `stemming` and the synonym groups. Changing
+  `synonyms` or `stemming` with `ALTER INDEX ... SET` rebuilds the postings and
+  publishes a new `built_generation` beside the old one. Readers see exactly one
+  published generation; BM25 statistics are recomputed over the new generation.
+  Different indexes and databases keep independent configurations.
 
 Unknown keys, unsupported values, `UNIQUE`, partial predicates, multiple
 fields, expressions, ordered modifiers, operator classes, and `INCLUDE` are

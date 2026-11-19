@@ -630,7 +630,7 @@ fn assert_reopened_calendar_dashboard(
 }
 
 #[test]
-fn should_qualify_prepared_calendar_day_and_month_dashboards() {
+fn should_qualify_prepared_calendar_templates() {
     // Arrange
     assert_eq!(jiff_tzdb::VERSION, Some("2026e"));
     let path = cassie_test_support::support_sql::data_dir("prepared-calendar-dashboard");

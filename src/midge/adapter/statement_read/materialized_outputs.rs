@@ -88,6 +88,21 @@ impl StatementDataRead {
     }
 }
 
+impl StorageOverlay {
+    pub(crate) fn rename_private_materialized_output(&mut self, previous: &str, next: &str) {
+        if let Some(outputs) = self
+            .private_outputs
+            .as_mut()
+            .filter(|map| map.contains_key(previous))
+        {
+            let outputs = Arc::make_mut(outputs);
+            if let Some(read) = outputs.remove(previous) {
+                outputs.insert(next.to_owned(), read);
+            }
+        }
+    }
+}
+
 impl PrivateOutput {
     pub(in crate::midge::adapter) fn accounted_bytes(&self) -> Result<usize, CassieError> {
         add(

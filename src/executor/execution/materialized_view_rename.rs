@@ -6,6 +6,7 @@ use crate::sql::ast::RenameMaterializedViewStatement;
 
 pub(super) fn rename(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     statement: &RenameMaterializedViewStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -67,6 +68,12 @@ pub(super) fn rename(
             cassie
                 .midge
                 .rename_sql_materialized_view_metadata(&statement.name, &metadata)?;
+            if let Some(session) = session.filter(|s| s.is_repeatable_read_write()) {
+                session
+                    .transaction_storage_overlay()?
+                    .lock()
+                    .rename_private_materialized_output(&statement.name, new_name);
+            }
             cassie
                 .catalog
                 .rename_materialized_view_metadata(&statement.name, metadata);

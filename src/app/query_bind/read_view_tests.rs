@@ -48,7 +48,8 @@ fn should_prove_a_constant_bind_does_not_require_statement_data() {
     let needs_data = cassie
         .validate_pgwire_bind_with_controls(&session, parsed, fingerprint, &[], &[], &controls)
         .expect("actual Bind validation")
-        .expect("query read shape");
+        .expect("query read shape")
+        .needs_data;
     let owner = session
         .capture_bound_read_view(
             &cassie.midge,

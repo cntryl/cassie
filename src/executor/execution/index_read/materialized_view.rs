@@ -61,6 +61,19 @@ fn unique_point_index(cassie: &Cassie, output: &str, field: &str) -> Option<Inde
 }
 
 impl Cassie {
+    /// Simple projected heap/view reads have no transitive SQL sources.
+    /// Other query shapes conservatively retain the entire private directory.
+    pub(crate) fn direct_materialized_read_source(&self, plan: &LogicalPlan) -> Option<String> {
+        if !matches!(plan.source, QuerySource::Collection(_))
+            || plan.limit.is_some()
+            || plan.offset.is_some()
+            || self.catalog.get_view(&plan.collection).is_some()
+        {
+            return None;
+        }
+        projected_read::projected_filtered_read_spec(plan).map(|spec| spec.collection)
+    }
+
     /// Only the logical name is retained in a cached plan. Execute binds the version anew.
     pub(crate) fn logical_materialized_view_index(
         &self,

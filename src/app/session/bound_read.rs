@@ -45,7 +45,7 @@ impl CassieSession {
         &self,
         midge: &Arc<Midge>,
         database: &str,
-        needs_data: bool,
+        requirement: impl Into<crate::app::query_bind::BoundReadData>,
         controls: &QueryExecutionControls,
         retention: &QueryExecutionControls,
     ) -> Result<Option<Arc<BoundReadView>>, CassieError> {
@@ -63,10 +63,15 @@ impl CassieSession {
         let catalog = self
             .command_catalog_snapshot(controls)?
             .expect("retained catalog");
-        let data = needs_data
+        let requirement = requirement.into();
+        let mut data = requirement
+            .needs_data
             .then(|| self.repeatable_statement_read(midge, database, controls))
             .transpose()?
             .flatten();
+        if let (Some(data), Some(source)) = (&mut data, &requirement.single_source) {
+            StatementDataRead::retain_bound_output(data, source);
+        }
         let header = add(
             size_of::<BoundReadView>() + 2 * size_of::<usize>(),
             size_of::<Mutex<SessionTransactionState>>() + 2 * size_of::<usize>(),

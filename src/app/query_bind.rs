@@ -5,6 +5,21 @@ use super::{Cassie, CassieError, CassieSession};
 use crate::runtime::{ExecutionMode, QueryCancellationHandle, QueryExecutionControls};
 use crate::sql::{ParsedStatement, QueryStatement};
 
+#[derive(Debug)]
+pub(crate) struct BoundReadData {
+    pub(super) needs_data: bool,
+    pub(super) single_source: Option<String>,
+}
+
+impl From<bool> for BoundReadData {
+    fn from(needs_data: bool) -> Self {
+        Self {
+            needs_data,
+            single_source: None,
+        }
+    }
+}
+
 impl Cassie {
     pub(crate) fn validate_pgwire_bind(
         &self,
@@ -58,7 +73,7 @@ impl Cassie {
         parameter_types: &[i32],
         parameters: &[crate::types::Value],
         controls: &QueryExecutionControls,
-    ) -> Result<Option<bool>, CassieError> {
+    ) -> Result<Option<BoundReadData>, CassieError> {
         self.check_storage_statement_admission(&parsed.statement)?;
         if self.check_storage_recovery_required().is_err() {
             return Ok(None);
@@ -77,7 +92,7 @@ impl Cassie {
         ) {
             return Ok(
                 (Self::analysis_requires_snapshot(&parsed) || !parameters.is_empty())
-                    .then_some(true),
+                    .then(|| true.into()),
             );
         }
         let _publication = self.catalog_publication.read();
@@ -123,10 +138,11 @@ impl Cassie {
             };
         crate::executor::check_bound_plan_constants(&physical.logical, controls, parameters)?;
         controls.check_interruption()?;
-        Ok(Some(
-            physical.logical.command.is_some()
+        Ok(Some(BoundReadData {
+            needs_data: physical.logical.command.is_some()
                 || crate::executor::plan_needs_statement_data(&physical.logical),
-        ))
+            single_source: scoped_cassie.direct_materialized_read_source(&physical.logical),
+        }))
     }
 }
 

@@ -3,156 +3,51 @@ use super::{
     ResultCachePolicy,
 };
 
+#[path = "performance_benchmark_catalog_tier5_graph.rs"]
+mod graph;
 #[path = "performance_benchmark_catalog_tier5_legacy.rs"]
 mod legacy;
 
 pub use legacy::SCENARIOS as LEGACY_SCENARIOS;
 
-pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
-    scenario!(
-        "perf.scale.graph.degree.16",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_degree_scaling_query",
-        "degree-16",
-        33,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
-        "perf.scale.graph.degree.64",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_degree_scaling_query",
-        "degree-64",
-        129,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
-        "perf.scale.graph.degree.256",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_degree_scaling_query",
-        "degree-256",
-        513,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
-        "perf.scale.graph.depth.2",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_depth_scaling_query",
-        "depth-2",
-        5,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
-        "perf.scale.graph.depth.4",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_depth_scaling_query",
-        "depth-4",
-        9,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
-        "perf.scale.graph.depth.8",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_depth_scaling_query",
-        "depth-8",
-        17,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
-        "perf.scale.graph.fanout.2",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_fanout_scaling_query",
-        "fanout-2",
-        29,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
-        "perf.scale.graph.fanout.4",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_fanout_scaling_query",
-        "fanout-4",
-        169,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
-    scenario!(
-        "perf.scale.graph.fanout.8",
-        "graph",
-        "graph_table_indexed_read",
-        "tier5_scaling_graph",
-        "graph_fanout_scaling_query",
-        "fanout-8",
-        1169,
-        Tier5,
-        Batch,
-        Scaling,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
+#[derive(Clone, Copy)]
+pub struct ScenarioCatalog;
+
+pub const SCENARIOS: ScenarioCatalog = ScenarioCatalog;
+
+pub struct ScenarioCatalogIter {
+    graph: std::slice::Iter<'static, PerformanceBenchmarkScenario>,
+    remaining: std::slice::Iter<'static, PerformanceBenchmarkScenario>,
+}
+
+impl IntoIterator for ScenarioCatalog {
+    type Item = &'static PerformanceBenchmarkScenario;
+    type IntoIter = ScenarioCatalogIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ScenarioCatalogIter {
+            graph: graph::SCENARIOS.iter(),
+            remaining: REMAINING_SCENARIOS.iter(),
+        }
+    }
+}
+
+impl Iterator for ScenarioCatalogIter {
+    type Item = &'static PerformanceBenchmarkScenario;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.graph.next().or_else(|| self.remaining.next())
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.graph.len() + self.remaining.len();
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for ScenarioCatalogIter {}
+
+const REMAINING_SCENARIOS: &[PerformanceBenchmarkScenario] = &[
     scenario!(
         "perf.read_path.ordered_dashboard.indexed.10k",
         "core_read",

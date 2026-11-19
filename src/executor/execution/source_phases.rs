@@ -12,7 +12,31 @@ pub(super) fn window(
     plan: &LogicalPlan,
     search: Option<&filter::SearchContext>,
 ) -> Result<Vec<Batch>, QueryError> {
-    let deferred = plan.projection.iter().any(|item| match item {
+    let grouped_windows = (!plan.group_by.is_empty()
+        && plan
+            .projection
+            .iter()
+            .any(|item| matches!(item, crate::sql::ast::SelectItem::WindowFunction { .. })))
+    .then(|| {
+        let mut items = plan.projection.clone();
+        for item in &mut items {
+            if let crate::sql::ast::SelectItem::WindowFunction { function, .. } = item {
+                for expression in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                    .chain(function.order_by.iter_mut().map(|key| &mut key.expr))
+                {
+                    *expression =
+                        aggregate_exec::rewrite_aggregate_expr(expression, &plan.group_by);
+                }
+            }
+        }
+        items
+    });
+    let projection = grouped_windows.as_deref().unwrap_or(&plan.projection);
+    let deferred = projection.iter().any(|item| match item {
         crate::sql::ast::SelectItem::WindowFunction { function, .. } => function
             .args
             .iter()
@@ -21,11 +45,11 @@ pub(super) fn window(
         _ => false,
     });
     let batches = if deferred {
-        window_exec::apply_resolving(env, ctes, &plan.source, batches, &plan.projection, search)?
+        window_exec::apply_resolving(env, ctes, &plan.source, batches, projection, search)?
     } else {
         window_exec::apply_window_functions(
             batches,
-            &plan.projection,
+            projection,
             env.params,
             search,
             env.user_functions,

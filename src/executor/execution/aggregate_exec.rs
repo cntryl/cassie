@@ -623,9 +623,18 @@ fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSpec> {
                 }
             }
             SelectItem::Expr { expr, .. } => collect_aggregate_specs_from_expr(expr, &mut specs),
-            SelectItem::Wildcard
-            | SelectItem::Column { .. }
-            | SelectItem::WindowFunction { .. } => {}
+            SelectItem::WindowFunction { function, .. } => {
+                for expression in function
+                    .args
+                    .iter()
+                    .chain(function.filter.as_deref())
+                    .chain(&function.partition_by)
+                    .chain(function.order_by.iter().map(|key| &key.expr))
+                {
+                    collect_aggregate_specs_from_expr(expression, &mut specs);
+                }
+            }
+            SelectItem::Wildcard | SelectItem::Column { .. } => {}
         }
     }
     if let Some(having) = &plan.having {

@@ -5,6 +5,11 @@ use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem, SelectStateme
 
 pub(super) fn validate(select: &SelectStatement) -> Result<(), CassieError> {
     let keys = &select.group_by;
+    if select.grouping_subtotal && !matches!(keys.as_slice(), [Expr::Column(_)]) {
+        return Err(
+            DiagnosticError::new("0A000", "subtotal grouping requires one input column").into(),
+        );
+    }
     validate_source(&select.source)?;
     for expression in select
         .filter
@@ -27,7 +32,7 @@ pub(super) fn validate(select: &SelectStatement) -> Result<(), CassieError> {
                     .chain(function.filter.as_deref())
                     .chain(function.order_by.iter().map(|key| &key.expr))
                 {
-                    validate_expr(expr, None)?;
+                    validate_expr(expr, Some(keys))?;
                 }
             }
             SelectItem::Wildcard | SelectItem::Column { .. } => {}

@@ -4,6 +4,9 @@ use crate::sql::ast::{AggregateQuantifier, Expr, FunctionCall};
 
 pub(super) fn prepare(mut function: FunctionCall) -> Result<FunctionCall, SqlError> {
     let name = function.name.to_ascii_lowercase();
+    if name == "grouping" {
+        return Err(SqlError::syntax("OVER is not supported on GROUPING".into()));
+    }
     let local = name.strip_prefix("pg_catalog.").unwrap_or(&name);
     let aggregate = crate::sql::functions::aggregate_window_function(&name).is_some();
     if aggregate {

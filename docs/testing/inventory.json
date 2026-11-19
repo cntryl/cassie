@@ -32704,8 +32704,8 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs::should_preserve_sql_order_for_decimal_and_extended_timestamp_keys",
-      "name": "should_preserve_sql_order_for_decimal_and_extended_timestamp_keys",
+      "id": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs::should_preserve_sql_order_given_noncanonical_partial_index_keys",
+      "name": "should_preserve_sql_order_given_noncanonical_partial_index_keys",
       "current_file": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs",
       "line": 163,
       "end_line": 187,
@@ -32716,7 +32716,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::included_partial_indexes::should_preserve_sql_order_for_decimal_and_extended_timestamp_keys"
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::included_partial_indexes::should_preserve_sql_order_given_noncanonical_partial_index_keys"
         }
       ],
       "attributes": [
@@ -334398,7 +334398,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 187,
-      "sha256": "ff9658de5c1caa9b9abc52e1c36bbdfebfbc390d1067c00be093699d26505ada",
+      "sha256": "747cbcf20369b3d516b6609613646de829fc3c503f305c9a4f27fc5f52dce29b",
       "test_declarations": 4,
       "registered_suites": [
         "compatibility"

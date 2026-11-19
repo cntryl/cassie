@@ -114,6 +114,8 @@ include!("restart.rs");
 
 include!("errors.rs");
 
+include!("incremental.rs");
+
 fn inject_rollup_refresh_failure(
     cassie: &Cassie,
     session: &cassie::app::CassieSession,

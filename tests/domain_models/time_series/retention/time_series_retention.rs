@@ -411,6 +411,8 @@ fn should_mark_materialized_projection_stale_after_retention() {
         });
 }
 
+include!("scheduled.rs");
+
 #[test]
 fn should_refresh_rollup_after_retention_enforcement() {
     // Arrange

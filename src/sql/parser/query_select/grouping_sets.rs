@@ -1,4 +1,5 @@
 use super::SqlError;
+use crate::sql::parser::clauses::strip_parentheses;
 
 /// Return the grouping key and whether the grammar includes a grand total.
 pub(super) fn grouping_key(raw: &str) -> Result<Option<(&str, bool)>, SqlError> {
@@ -28,15 +29,10 @@ pub(super) fn grouping_key(raw: &str) -> Result<Option<(&str, bool)>, SqlError> 
             crate::sql::parser::lexical::trim_separators(key),
             rollup.is_some(),
         ),
-        [detail, total]
-            if rollup.is_none() && super::super::clauses::strip_parentheses(total) == Some("") =>
-        {
-            (
-                super::super::clauses::strip_parentheses(detail)
-                    .ok_or_else(unsupported_group_by)?,
-                true,
-            )
-        }
+        [detail, total] if rollup.is_none() && strip_parentheses(total) == Some("") => (
+            strip_parentheses(detail).ok_or_else(unsupported_group_by)?,
+            true,
+        ),
         _ => return Err(unsupported_group_by()),
     };
     if expression.is_empty()

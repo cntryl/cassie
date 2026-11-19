@@ -360,17 +360,19 @@ impl Walk<'_> {
         if !path.is_qualified() {
             return Ok(());
         }
-        let qualifier = path.namespace_qualifier().unwrap_or_else(|| {
-            path.lookup_key()
-                .strip_suffix(&format!(".{}", path.field_lookup_key()))
-                .expect("qualified path")
-                .to_string()
-        });
-        if visible.aliases.contains(&qualifier)
-            || visible.folded.contains(&qualifier.to_ascii_lowercase())
+        let key = path.lookup_key();
+        let folded = key
+            .strip_suffix(&format!(".{}", path.field_lookup_key()))
+            .expect("qualified path");
+        let qualifier = path.namespace_qualifier();
+        if qualifier
+            .as_ref()
+            .is_some_and(|name| visible.aliases.contains(name))
+            || visible.folded.contains(folded)
         {
             Ok(())
         } else {
+            let qualifier = qualifier.as_deref().unwrap_or(folded);
             Err(CassieError::Planner(format!(
                 "unresolvable column reference '{name}': unknown relation qualifier '{qualifier}'"
             )))
@@ -380,8 +382,10 @@ impl Walk<'_> {
 
 /// A mutation target alias is visible to the statement's subqueries.
 fn target_alias(alias: &str) -> String {
-    ColumnIdentifierPath::parse(alias)
-        .map_or_else(|_| alias.to_ascii_lowercase(), |path| path.declared_name())
+    ColumnIdentifierPath::parse(alias).map_or_else(
+        |_| alias.to_ascii_lowercase(),
+        |path| crate::catalog::canonical_identifier_component(&path.declared_name()),
+    )
 }
 
 #[cfg(test)]

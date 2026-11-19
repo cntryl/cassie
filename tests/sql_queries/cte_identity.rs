@@ -186,3 +186,35 @@ fn should_restore_outer_cte_identity_after_a_nested_shadow() {
     // Assert
     assert_eq!(rows, vec![vec![Value::Int64(77), Value::Int64(88)]]);
 }
+
+#[test]
+fn should_resolve_implicit_qualifiers_of_case_distinct_ctes() {
+    // Arrange
+    let fixture = started("cte-implicit-case-qualifiers", CATALOG);
+    let queries = [
+        r#"WITH "Walk"(n) AS (SELECT 4), "walk"(n) AS (SELECT 9)
+           SELECT "Walk".n, "walk".n FROM "Walk" CROSS JOIN "walk""#,
+        r#"WITH "A.B"(n) AS (SELECT 4::INT), "a.b"(n) AS (SELECT 9::INT)
+           SELECT "A.B".n,"a.b".n FROM "A.B" CROSS JOIN "a.b""#,
+        r#"WITH "A.B"(n) AS (SELECT 4::INT), "a.b"(n) AS (SELECT 9::INT)
+           SELECT u.n,"a.b".n FROM "A.B" u CROSS JOIN "a.b""#,
+        r#"WITH "walk"(n) AS (SELECT 9), "Walk"(n) AS (SELECT 4)
+           SELECT "Walk".n, walk.n FROM walk CROSS JOIN "Walk""#,
+        r#"WITH "Walk"(n) AS (SELECT 4), walk(n) AS (SELECT 9)
+           SELECT a.n,b.n FROM "Walk" a CROSS JOIN walk b"#,
+    ];
+
+    // Act
+    let results = queries.map(|sql| fixture.execute(sql));
+
+    // Assert
+    for (sql, result) in queries.into_iter().zip(results) {
+        assert_eq!(
+            result
+                .unwrap_or_else(|error| panic!("{sql}: {error}"))
+                .rows(),
+            [vec![Value::Int64(4), Value::Int64(9)]],
+            "{sql}"
+        );
+    }
+}

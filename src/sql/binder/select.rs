@@ -91,6 +91,7 @@ pub(super) fn bind_select_with_lateral_fields(
     }
 
     super::values::validate_aliases(&select.source)?;
+    cte_columns::preserve_implicit_qualifiers(&mut select.source, &scope);
     super::aliases::allocate_scope(&mut select)?;
     let source = bind_query_source_with_lateral_fields(
         select.source.clone(),

@@ -89,3 +89,134 @@ fn should_return_typed_cycle_marks_for_multicolumn_keys() {
         ]
     );
 }
+
+#[test]
+fn should_describe_generated_cycle_columns_for_a_parameterized_walk() {
+    // Arrange
+    let sql = "WITH RECURSIVE walk(id) AS (SELECT $1::INT UNION ALL \
+               SELECT id FROM walk WHERE id=1) CYCLE id SET cy USING path \
+               SELECT id,cy,path FROM walk ORDER BY cy";
+    let frames = vec![
+        wire::parse_frame_with_types("", sql, &[23]),
+        wire::describe_statement_frame(""),
+        wire::bind_frame_with_formats("", "", &[0], &[Some(b"1")], &[]),
+        wire::describe_portal_frame(""),
+        wire::execute_frame(""),
+        wire::sync_frame(),
+    ];
+
+    // Act
+    let batches = run_script("cte-cycle-bound-seed", vec![Step::ThroughReady(frames)]);
+
+    // Assert
+    let result = &batches[0];
+    assert_eq!(wire::error_code(result), None);
+    let descriptions = result
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .map(|(_, body)| wire::parse_row_description(body))
+        .collect::<Vec<_>>();
+    assert_eq!(descriptions.len(), 2);
+    for columns in descriptions {
+        assert_eq!(
+            columns
+                .iter()
+                .map(|c| (c.name.as_str(), c.type_oid))
+                .collect::<Vec<_>>(),
+            [("id", 23), ("cy", 16), ("path", 2287)]
+        );
+    }
+    assert_eq!(
+        wire::data_rows(result),
+        [
+            vec![Some("1".into()), Some("f".into()), Some("{(1)}".into())],
+            vec![Some("1".into()), Some("t".into()), Some("{(1),(1)}".into())],
+        ]
+    );
+}
+
+#[test]
+fn should_apply_cycle_field_oids_only_to_their_source() {
+    // Arrange
+    let prefix = "WITH RECURSIVE walk(id) AS (SELECT $1::INT UNION ALL \
+                  SELECT id FROM walk WHERE id=1) CYCLE id SET cy USING path, \
+                  siblings(path,cy) AS (SELECT 2.5::NUMERIC,9::INT) ";
+    let cases = [
+        (
+            "SELECT w.path AS x,s.path AS x,w.cy AS y,s.cy AS y \
+             FROM walk w CROSS JOIN siblings s ORDER BY w.cy",
+            vec![("x", 2287), ("x", 1700), ("y", 16), ("y", 23)],
+            vec!["{(1)}", "2.5", "f", "9"],
+        ),
+        (
+            "SELECT s.*,w.* FROM siblings s CROSS JOIN walk w ORDER BY w.cy",
+            vec![
+                ("path", 1700),
+                ("cy", 23),
+                ("id", 23),
+                ("cy", 16),
+                ("path", 2287),
+            ],
+            vec!["2.5", "9", "1", "f", "{(1)}"],
+        ),
+        (
+            "SELECT *,42::INT AS path FROM siblings CROSS JOIN walk ORDER BY walk.cy",
+            vec![
+                ("path", 1700),
+                ("cy", 23),
+                ("id", 23),
+                ("cy", 16),
+                ("path", 2287),
+                ("path", 23),
+            ],
+            vec!["2.5", "9", "1", "f", "{(1)}", "42"],
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (select, _, _) in &cases {
+        let sql = format!("{prefix}{select}");
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            &sql.replace("$1", "1"),
+        )]));
+        steps.push(Step::ThroughReady(vec![
+            wire::parse_frame_with_types("", &sql, &[23]),
+            wire::describe_statement_frame(""),
+            wire::bind_frame_with_formats("", "", &[0], &[Some(b"1")], &[]),
+            wire::describe_portal_frame(""),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("cte-cycle-field-source", steps);
+
+    // Assert
+    assert_eq!(batches.len(), cases.len() * 2);
+    for ((_, expected, first_row), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0) {
+        for (batch, count) in pair.iter().zip([1, 2]) {
+            assert_eq!(wire::error_code(batch), None);
+            let descriptions = batch
+                .iter()
+                .filter(|(tag, _)| *tag == b'T')
+                .collect::<Vec<_>>();
+            assert_eq!(descriptions.len(), count);
+            for (_, body) in descriptions {
+                let columns = wire::parse_row_description(body);
+                assert_eq!(
+                    columns
+                        .iter()
+                        .map(|c| (c.name.as_str(), c.type_oid))
+                        .collect::<Vec<_>>(),
+                    expected
+                );
+            }
+            let rows = wire::data_rows(batch);
+            assert_eq!(rows.len(), 2);
+            assert_eq!(
+                rows[0].iter().map(Option::as_deref).collect::<Vec<_>>(),
+                first_row.iter().copied().map(Some).collect::<Vec<_>>()
+            );
+        }
+    }
+}

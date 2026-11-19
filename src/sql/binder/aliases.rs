@@ -474,11 +474,7 @@ pub(super) fn lower_select(
     lateral_fields: &std::collections::HashSet<String>,
     set_result: bool,
 ) -> Result<(), CassieError> {
-    let has_qualified_wildcard = select
-        .projection
-        .iter()
-        .any(|item| qualified_wildcard_name(item).is_some());
-    if !has_alias(&select.source) && !has_qualified_wildcard {
+    if !needs_namespace_lowering(select) {
         return Ok(());
     }
     let mut spaces = Vec::new();
@@ -574,6 +570,24 @@ pub(super) fn lower_select(
         }
     }
     Ok(())
+}
+
+fn needs_namespace_lowering(select: &SelectStatement) -> bool {
+    let has_qualified_wildcard = select
+        .projection
+        .iter()
+        .any(|item| qualified_wildcard_name(item).is_some());
+    // Expand a generated CTE's bare wildcard while each input column still
+    // has a source. Output labels may repeat across a join or a later item.
+    let generated_wildcard = select
+        .projection
+        .iter()
+        .any(|item| matches!(item, SelectItem::Wildcard))
+        && select.ctes.iter().any(|cte| {
+            (cte.search.is_some() || cte.cycle.is_some())
+                && super::validation::source_cte_reference_count(&select.source, &cte.name) > 0
+        });
+    has_alias(&select.source) || has_qualified_wildcard || generated_wildcard
 }
 
 fn qualified_wildcard_namespace<'a>(

@@ -2,6 +2,36 @@
 
 use super::{CassieError, Catalog, CteQuery, HashMap, QuerySource};
 
+/// Delimited CTE names need the same component-preserving row qualifier as an
+/// explicit same-name alias. Keep producer identity on the inner Cte source.
+pub(super) fn preserve_implicit_qualifiers(
+    source: &mut QuerySource,
+    scope: &super::super::CteScope<'_>,
+) {
+    let name = match source {
+        QuerySource::Join { left, right, .. } => {
+            preserve_implicit_qualifiers(left, scope);
+            preserve_implicit_qualifiers(right, scope);
+            return;
+        }
+        QuerySource::Collection(path) => crate::sql::cte_identity::reference_name(path),
+        QuerySource::Cte(name) => Some(name.as_str()),
+        // Explicit aliases own their namespace. Subqueries bind their own scope.
+        _ => None,
+    };
+    let Some(name) = name.filter(|name| scope.contains_key(*name)) else {
+        return;
+    };
+    let alias = crate::sql::cte_identity::qualifier(name);
+    if alias != name {
+        *source = QuerySource::Aliased {
+            source: Box::new(QuerySource::Cte(name.to_owned())),
+            alias,
+            column_aliases: Vec::new(),
+        };
+    }
+}
+
 pub(super) fn binding(
     cte: &crate::sql::ast::CommonTableExpression,
     scope: &super::super::CteScope<'_>,

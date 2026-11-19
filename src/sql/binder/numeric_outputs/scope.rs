@@ -96,6 +96,23 @@ impl Analyzer<'_> {
                 }
             }
         }
+        // Generated columns belong to the exported schema, outside the
+        // declared column count used by the numeric fixed point above.
+        if cte.search.is_some() || cte.cycle.is_some() {
+            let mut schema = fields
+                .iter()
+                .map(OutputField::schema_field)
+                .collect::<Vec<_>>();
+            super::super::wildcard::append_search_cycle_fields(
+                &cte.name,
+                &mut schema,
+                cte.search.as_ref(),
+                cte.cycle.as_ref(),
+                self.functions,
+            )?;
+            let generated = schema.into_iter().skip(fields.len());
+            fields.extend(generated.map(OutputField::from_schema));
+        }
         Ok(fields)
     }
 

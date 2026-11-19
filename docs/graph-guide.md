@@ -840,9 +840,13 @@ first named one must also be named; omitted trailing arguments use their default
 
 Each row has `path_rank` (1 for the cheapest), `cost`, the `path` as a `graph_path`, and
 `edge_costs`, one validated cost per traversed edge in path order. Equal-cost paths are ranked
-by the same stable identity order that `GRAPH_TABLE` uses. The paths are simple: no vertex
-repeats, except that a zero-hop path is returned when source and target are the same vertex,
-with cost zero.
+by the same stable identity order that `GRAPH_TABLE` uses. Paths are `SIMPLE`. Only the first
+vertex may repeat, and only as the last vertex. When source and target are the same vertex,
+the zero-hop path has cost zero.
+
+Suppose the selected edges are `A -> B` and `B -> A`, each with cost zero. With source and
+target both `A`, `direction => 'out'`, `max_hops => 2` and `k => 2`, the zero-hop path
+`[A]` ranks first and the closing cycle `[A, B, A]` ranks second. Both paths have cost zero.
 
 The functions `cassie_graph.weighted_path_steps(path, edge_costs)` expand a result into steps
 and add the running total in `cumulative_cost`.

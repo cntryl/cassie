@@ -12,7 +12,7 @@ use crate::midge::adapter::{
 pub(super) struct PrivateOutputs {
     names: Vec<String>,
     read: Arc<StatementDataRead>,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 impl StatementDataRead {
@@ -46,6 +46,13 @@ impl StatementDataRead {
 }
 
 impl PrivateOutputs {
+    pub(super) fn accounted_bytes(&self) -> Result<usize, CassieError> {
+        add(
+            self.memory.bytes(),
+            add(self.read.memory.bytes(), self.read.snapshot._memory.bytes())?,
+        )
+    }
+
     fn capture(
         retained: &StatementDataRead,
         storage: &StorageOverlay,
@@ -106,30 +113,7 @@ impl PrivateOutputs {
                         .begin_tx(snapshot.family_id, TransactionMode::ReadWrite)?,
                 ),
             };
-            // A private build creates a fresh durable relation ID. Copy only its
-            // descriptors, row blobs and scalar keys, never an unrelated current row.
-            for prefix in [
-                metadata_key,
-                key::collection_schema_key(output),
-                key::row_schema_key(output),
-                key::index_collection_prefix(output),
-                key::row_prefix(relation.storage_id),
-                key::scalar_index_collection_prefix(relation.storage_id),
-            ] {
-                for (key, change) in storage
-                    .changes
-                    .range(prefix.clone()..)
-                    .take_while(|(key, _)| key.starts_with(&prefix))
-                {
-                    controls.check_interruption()?;
-                    if let Some(value) = &change.value {
-                        memory.try_grow(add(256, add(key.len(), value.len())?)?)?;
-                        tx.put(key.clone(), value.clone(), None)?;
-                    } else {
-                        tx.delete(key.clone())?;
-                    }
-                }
-            }
+            copy_output(storage, &relation, tx, controls, &mut memory)?;
             memory.try_grow(add(output.len(), 2 * size_of::<String>())?)?;
             names.push(output.to_owned());
         }
@@ -157,9 +141,47 @@ impl PrivateOutputs {
         });
         memory.try_grow(size_of::<Self>() + 2 * size_of::<usize>())?;
         Ok(Some(Self {
-            read,
             names,
-            _memory: memory,
+            read,
+            memory,
         }))
     }
+}
+
+fn copy_output(
+    storage: &StorageOverlay,
+    relation: &crate::catalog::CollectionMeta,
+    tx: &mut cntryl_midge::Transaction,
+    controls: &QueryExecutionControls,
+    memory: &mut QueryMemoryReservation,
+) -> Result<(), CassieError> {
+    let output = &relation.name;
+    // A private build creates a fresh durable relation ID. Copy only its
+    // descriptors, row blobs and scalar keys, never an unrelated current row.
+    for prefix in [
+        key::collection_metadata_key(output),
+        key::collection_schema_key(output),
+        key::row_schema_key(output),
+        key::index_collection_prefix(output),
+        key::row_prefix(relation.storage_id),
+        key::scalar_index_collection_prefix(relation.storage_id),
+    ] {
+        for (key, change) in storage
+            .changes
+            .range(prefix.clone()..)
+            .take_while(|(key, _)| key.starts_with(&prefix))
+        {
+            controls.check_interruption()?;
+            memory.try_grow(add(
+                256,
+                add(key.len(), change.value.as_ref().map_or(0, Vec::len))?,
+            )?)?;
+            if let Some(value) = &change.value {
+                tx.put(key.clone(), value.clone(), None)?;
+            } else {
+                tx.delete(key.clone())?;
+            }
+        }
+    }
+    Ok(())
 }

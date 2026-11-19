@@ -49,11 +49,17 @@ impl StatementDataRead {
     /// Additional per-command retained backing; the immutable transaction core
     /// is shared with the transaction owner and is admitted there once.
     pub(crate) fn command_accounted_bytes(&self) -> Result<usize, CassieError> {
-        crate::executor::retained_memory::add(
+        let command = crate::executor::retained_memory::add(
             self.memory.bytes(),
             self.overlay
                 .as_ref()
                 .map_or(0, |owner| owner.accounted_bytes()),
+        )?;
+        crate::executor::retained_memory::add(
+            command,
+            self.private_outputs
+                .as_ref()
+                .map_or(Ok(0), |outputs| outputs.accounted_bytes())?,
         )
     }
 

@@ -1,9 +1,9 @@
 //! PostgreSQL's `simplify_EXISTS_query`: `EXISTS` only asks whether its
-//! subquery yields a row, so the target list, `GROUP BY`, `DISTINCT`,
+//! subquery yields a row, so the target list, ordinary `GROUP BY`, `DISTINCT`,
 //! `ORDER BY` and a positive constant `LIMIT` cannot change the answer and are
-//! never evaluated. Aggregates, `HAVING`, window functions, set operations,
-//! `OFFSET` and any other `LIMIT` can change the row count, so a subquery that
-//! uses one keeps every clause.
+//! never evaluated. Subtotal grouping, aggregates, `HAVING`, window functions,
+//! set operations, `OFFSET` and any other `LIMIT` can change the row count, so
+//! a subquery that uses one keeps every clause.
 
 use super::{Expr, LogicalPlan, SelectItem};
 use crate::sql::ast::{OrderExpr, SelectStatement};
@@ -15,6 +15,7 @@ pub(super) struct ExistsClauses<'a> {
     pub(super) order: &'a [OrderExpr],
     pub(super) limit: Option<&'a Expr>,
     pub(super) offset: Option<&'a Expr>,
+    has_subtotal: bool,
     pub(super) has_set: bool,
 }
 
@@ -26,6 +27,7 @@ impl<'a> ExistsClauses<'a> {
             order: &plan.order,
             limit: plan.limit.as_ref(),
             offset: plan.offset.as_ref(),
+            has_subtotal: plan.grouping_subtotal,
             has_set: plan.set.is_some(),
         }
     }
@@ -37,6 +39,7 @@ impl<'a> ExistsClauses<'a> {
             order: &select.order,
             limit: select.limit.as_ref(),
             offset: select.offset.as_ref(),
+            has_subtotal: select.grouping_subtotal,
             has_set: select.set.is_some(),
         }
     }
@@ -44,7 +47,8 @@ impl<'a> ExistsClauses<'a> {
     /// Returns whether only row existence matters, so the target list and the
     /// clauses that depend on it can be discarded.
     pub(super) fn target_is_irrelevant(&self) -> bool {
-        !self.has_set
+        !self.has_subtotal
+            && !self.has_set
             && self.having.is_none()
             && self.offset.is_none()
             && limit_is_irrelevant(self.limit)

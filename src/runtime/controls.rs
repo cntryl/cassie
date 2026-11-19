@@ -599,6 +599,30 @@ mod tests {
     }
 
     #[test]
+    fn should_keep_explain_observation_across_read_capture_and_reset_only_the_executor_cache() {
+        // Arrange
+        let controls = controls_with_budget(1024);
+        controls.with_statement_state(|slot| *slot = Some(Box::new(7_usize)));
+        let explain = controls.observe_ordered_join();
+        let independent = controls.observe_ordered_join();
+
+        // Act
+        let same_cache = explain.with_statement_state(|slot| {
+            slot.as_ref().and_then(|value| value.downcast_ref::<usize>()).copied()
+        });
+        let captured = explain.with_statement_read(None);
+        let fresh_cache = captured.with_statement_state(|slot| slot.is_none());
+        captured.record_order_proof(12, "canonical_timestamp_prefix");
+
+        // Assert
+        assert_eq!(same_cache, Some(7));
+        assert!(fresh_cache);
+        assert_eq!(explain.order_proof(), Some((12, "canonical_timestamp_prefix")));
+        assert_eq!(independent.order_proof(), None);
+        assert_eq!(controls.order_proof(), None);
+    }
+
+    #[test]
     fn should_observe_cancellation_that_precedes_wait_registration() {
         // Arrange
         let runtime = tokio::runtime::Builder::new_current_thread()

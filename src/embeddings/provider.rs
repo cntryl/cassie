@@ -128,9 +128,24 @@ pub(crate) fn controlled_backoff(
     while started.elapsed() < delay {
         check_controls(provider, controls)?;
         let remaining = delay.saturating_sub(started.elapsed());
-        std::thread::sleep(remaining.min(Duration::from_millis(5)));
+        let deadline_remaining = controls
+            .deadline
+            .map(|deadline| deadline.saturating_duration_since(Instant::now()));
+        let sleep_for = next_backoff_sleep(remaining, deadline_remaining);
+        std::thread::sleep(sleep_for);
     }
     check_controls(provider, controls)
+}
+
+fn next_backoff_sleep(
+    backoff_remaining: Duration,
+    deadline_remaining: Option<Duration>,
+) -> Duration {
+    deadline_remaining
+        .map_or(backoff_remaining, |deadline| {
+            backoff_remaining.min(deadline)
+        })
+        .min(Duration::from_millis(5))
 }
 
 enum ControlledRequestOutcome<T, E> {

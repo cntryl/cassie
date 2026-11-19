@@ -67,7 +67,7 @@ fn assert_one_transient_request(server: std::thread::JoinHandle<(usize, usize)>)
     assert_eq!(
         server.join().expect("transient server"),
         (1, 1),
-        "the deadline probe should send one request and receive one successful 429 response"
+        "the deadline probe should send one request and get one successful 429 write"
     );
 }
 
@@ -171,10 +171,10 @@ fn assert_deadline_interrupts_retry(
     );
     let response_written_at = response_written
         .recv_timeout(SCHEDULER_TOLERANT_LIMIT)
-        .expect("provider received a bounded transient response");
+        .expect("server wrote the 429 response");
     assert!(
         response_written_at <= deadline,
-        "the transient response arrived after the query deadline: {response_written_at:?} > {deadline:?}"
+        "the server wrote the 429 after the query deadline: {response_written_at:?} > {deadline:?}"
     );
 }
 

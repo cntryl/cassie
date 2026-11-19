@@ -280,4 +280,20 @@ mod tests {
         assert!(matches!(result, Err(EmbeddingError::Canceled { .. })));
         assert!(!provider.0.load(Ordering::Acquire));
     }
+
+    #[test]
+    fn should_cap_backoff_sleep_to_remaining_query_deadline() {
+        // Arrange
+        let backoff_remaining = Duration::from_millis(50);
+
+        // Act
+        let three_millis_remaining =
+            next_backoff_sleep(backoff_remaining, Some(Duration::from_millis(3)));
+        let ten_millis_remaining =
+            next_backoff_sleep(backoff_remaining, Some(Duration::from_millis(10)));
+
+        // Assert
+        assert_eq!(three_millis_remaining, Duration::from_millis(3));
+        assert_eq!(ten_millis_remaining, Duration::from_millis(10));
+    }
 }

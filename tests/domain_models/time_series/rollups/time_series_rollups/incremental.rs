@@ -66,6 +66,13 @@ fn incremental_groups_recomputed(cassie: &Cassie) -> u64 {
         .unwrap_or_default()
 }
 
+fn assert_no_incremental_fallback(cassie: &Cassie) {
+    assert_eq!(
+        cassie.metrics()["rollups"]["last_incremental_fallback_reason"],
+        ""
+    );
+}
+
 fn assert_incremental_group_delta(cassie: &Cassie, before: u64, expected: u64) {
     assert_eq!(
         incremental_groups_recomputed(cassie).saturating_sub(before),
@@ -133,6 +140,7 @@ fn should_recompute_only_changed_daily_groups_after_committed_mutations() {
         assert_incremental_group_delta(&cassie, before, 1);
         assert_last_incremental_groups(&cassie, &[("a", "2026-01-01T00:00:00Z")]);
         assert_daily_incremental_parity(&cassie, &session, "incremental_events");
+        assert_no_incremental_fallback(&cassie);
 
         let before = incremental_groups_recomputed(&cassie);
         cassie
@@ -295,6 +303,7 @@ fn should_keep_daily_recompute_work_constant_as_unrelated_partitions_grow_tenfol
         assert_incremental_group_delta(&cassie, before, 1);
         assert_last_incremental_groups(&cassie, &[("selected", "2026-01-01T00:00:00Z")]);
         assert_daily_incremental_parity(&cassie, &session, "incremental_scale_events");
+        assert_no_incremental_fallback(&cassie);
     });
 }
 
@@ -401,6 +410,11 @@ fn should_skip_rollup_recompute_for_a_duplicate_projection_replay_event() {
             "incremental_replay_events",
             "incremental_replay_events_daily",
         );
+        let mut projection =
+            ::cassie::catalog::ProjectionMeta::new(canonical_name("incremental_replay_events"), 1);
+        projection.source_identity = Some("incremental-event-stream".to_owned());
+        cassie.midge.put_projection_metadata(&projection).unwrap();
+        cassie.catalog.register_projection_metadata(projection);
         let batch = cassie::app::ProjectionReplayBatch {
             projection: canonical_name("incremental_replay_events"),
             source_identity: "incremental-event-stream".to_owned(),
@@ -439,5 +453,6 @@ fn should_skip_rollup_recompute_for_a_duplicate_projection_replay_event() {
         );
         assert_last_incremental_groups(&cassie, &[("replayed", "2026-01-01T00:00:00Z")]);
         assert_daily_incremental_parity(&cassie, &session, "incremental_replay_events");
+        assert_no_incremental_fallback(&cassie);
     });
 }

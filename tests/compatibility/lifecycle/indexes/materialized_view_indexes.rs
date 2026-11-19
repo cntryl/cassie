@@ -301,3 +301,59 @@ fn should_keep_materialized_view_reads_on_the_repeatable_read_generation() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_read_the_private_refresh_in_a_repeatable_read_transaction() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("private_rr_mv").await;
+        let (writer, connection) = server.connect().await;
+        execute_statements(
+            &writer,
+            &[
+                "CREATE TABLE mv_private_src (k INT, label TEXT)",
+                "INSERT INTO mv_private_src VALUES (1, 'old')",
+                "CREATE MATERIALIZED VIEW mv_private AS SELECT k, label FROM mv_private_src",
+                "CREATE UNIQUE INDEX mv_private_idx ON mv_private (k)",
+                "UPDATE mv_private_src SET label='new' WHERE k=1",
+                "BEGIN ISOLATION LEVEL REPEATABLE READ",
+            ],
+        )
+        .await
+        .unwrap();
+        let old = writer
+            .query_one("SELECT label FROM mv_private WHERE k=1", &[])
+            .await
+            .unwrap();
+
+        // Act
+        writer
+            .batch_execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_private")
+            .await
+            .unwrap();
+        let point = writer
+            .query("SELECT label FROM mv_private WHERE k=$1", &[&1_i32])
+            .await
+            .unwrap();
+        let scan = writer
+            .query("SELECT label FROM mv_private ORDER BY k", &[])
+            .await
+            .unwrap();
+        writer.batch_execute("ROLLBACK").await.unwrap();
+        let restored = writer
+            .query_one("SELECT label FROM mv_private WHERE k=$1", &[&1_i32])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(old.get::<_, String>(0), "old");
+        for rows in [point, scan] {
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].get::<_, String>(0), "new");
+        }
+        assert_eq!(restored.get::<_, String>(0), "old");
+        drop(writer);
+        server.shutdown(connection).await;
+    });
+}

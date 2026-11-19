@@ -622,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_explain_observation_across_read_capture_and_reset_only_the_executor_cache() {
+    fn should_keep_explain_observation_when_capturing_the_statement_read() {
         // Arrange
         let controls = controls_with_budget(1024);
         controls.with_statement_state(|slot| *slot = Some(Box::new(7_usize)));

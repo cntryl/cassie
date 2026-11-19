@@ -160,7 +160,7 @@ fn should_count_only_joined_survivors_toward_the_ordered_limit() {
 }
 
 #[test]
-fn should_preserve_sql_order_for_decimal_and_extended_timestamp_keys() {
+fn should_preserve_sql_order_given_noncanonical_partial_index_keys() {
     // Arrange
     current_thread_runtime().block_on(async {
         let server = CompatibilityServer::start("typed_partial_order").await;

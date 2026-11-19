@@ -110,7 +110,7 @@ fn assert_preflight(cassie: &Cassie, session: &CassieSession, indexed: bool) {
         .expect("dashboard preflight plan");
     let plan = format!("{:?}", plan.rows());
     assert_eq!(
-        plan.contains("ordered_index_nested_loop"),
+        plan.contains("actual_join_strategy=ordered_index_nested_loop"),
         indexed,
         "{plan}"
     );

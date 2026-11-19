@@ -303,3 +303,41 @@ fn should_preserve_empty_subtotals_in_exists_subqueries() {
         assert_eq!(wire::data_rows(batch), [[Some(expected.to_owned())]]);
     }
 }
+
+#[test]
+fn should_evaluate_correlated_subtotal_inputs_per_aggregate_call() {
+    // Arrange
+    let input = "(SELECT nextval('correlated_inputs') FROM (VALUES(1)) x(i) WHERE report.region IS NOT NULL)";
+    let subtotal = format!(
+        "SELECT grouping(report.region),sum({input}),sum({input}),sum({input}) FILTER (WHERE report.region IS NULL) FROM report GROUP BY ROLLUP(report.region) ORDER BY 1"
+    );
+    let queries = [
+        "CREATE TABLE report(region text)",
+        "CREATE SEQUENCE correlated_inputs START WITH 1",
+        "INSERT INTO report VALUES ('A'),('A')",
+        &subtotal,
+        "SELECT currval('correlated_inputs')",
+    ];
+    let steps = queries
+        .iter()
+        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+        .collect();
+
+    // Act
+    let batches = run_script("correlated-subtotal-inputs", steps);
+
+    // Assert
+    for batch in &batches {
+        assert_eq!(wire::error_code(batch), None);
+    }
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        ["0", "1"].map(|flag| [
+            Some(flag.to_owned()),
+            Some("4".to_owned()),
+            Some("6".to_owned()),
+            None,
+        ])
+    );
+    assert_eq!(wire::data_rows(&batches[4]), [[Some("4".to_owned())]]);
+}

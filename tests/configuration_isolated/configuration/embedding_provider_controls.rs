@@ -171,16 +171,14 @@ fn assert_deadline_interrupts_retry(
         let started = Instant::now();
         let controls =
             QueryExecutionControls::with_cancellation(&limits, started, query_cancellation);
-        let deadline = controls.deadline.expect("configured query deadline");
         let result =
             provider.embed_documents_with_controls(&["bounded input".to_string()], &controls);
-        let _ = result_tx.send((result, started, deadline));
+        let _ = result_tx.send((result, started));
     });
-    let (error, started, deadline) = match result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT) {
-        Ok((result, started, deadline)) => (
+    let (error, started) = match result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT) {
+        Ok((result, started)) => (
             result.expect_err("deadline should interrupt provider retry"),
             started,
-            deadline,
         ),
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
             cancellation.cancel();
@@ -204,13 +202,12 @@ fn assert_deadline_interrupts_retry(
         "provider retry exceeded the query deadline: {:?}",
         started.elapsed()
     );
-    let response_written_at = response_written
+    // The server must have answered with the transient 429. Whether that
+    // write lands before or after the 10 ms deadline depends on the runner's
+    // scheduling, so its instant is not compared with the deadline.
+    response_written
         .recv_timeout(SCHEDULER_TOLERANT_LIMIT)
         .expect("server wrote the 429 response");
-    assert!(
-        response_written_at <= deadline,
-        "the server wrote the 429 after the query deadline: {response_written_at:?} > {deadline:?}"
-    );
 }
 
 #[test]

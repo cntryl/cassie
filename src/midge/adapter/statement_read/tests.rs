@@ -520,7 +520,7 @@ fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() 
         &session,
         "SELECT n FROM unrelated_small",
         vec![],
-        crate::app::ExecutionMode::SimpleQuery,
+        crate::runtime::ExecutionMode::SimpleQuery,
         &small,
     );
 

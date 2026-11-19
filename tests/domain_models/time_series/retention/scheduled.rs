@@ -19,19 +19,59 @@ fn scheduled_policy_progress(
 #[test]
 fn should_hydrate_legacy_retention_metadata_as_unscheduled() {
     // Arrange
-    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    let path = data_dir("retention_legacy_metadata");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE legacy_events (id INT PRIMARY KEY, event_at TIMESTAMP)",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE RETENTION POLICY legacy_policy ON legacy_events USING event_at RETAIN FOR '1 day'",
+            vec![],
+        )
+        .unwrap();
+    let policy_name = canonical_name("legacy_policy");
+    let entries = cassie
+        .midge
+        .raw_scan_prefix_database("postgres", b"")
+        .unwrap();
+    let key = entries
+        .iter()
+        .find(|(_, value)| {
+            value
+                .windows(policy_name.len())
+                .any(|window| window == policy_name.as_bytes())
+                && value
+                    .windows(b"retention_duration".len())
+                    .any(|window| window == b"retention_duration")
+        })
+        .map(|(key, _)| key.clone())
+        .expect("persisted retention metadata key");
     let legacy_json = format!(
-        "{{\"name\":\"{}\",\"collection\":\"postgres.public.legacy_events\",\"timestamp_field\":\"event_at\",\"retention_duration\":\"1 day\",\"enforcement_mode\":\"Explicit\",\"state\":\"Ready\",\"last_enforced_ms\":null,\"last_deleted_rows\":0,\"last_skipped_rows\":0,\"last_error\":null}}",
-        canonical_name("legacy_policy")
+        "{{\"name\":\"{policy_name}\",\"collection\":\"postgres.public.legacy_events\",\"timestamp_field\":\"event_at\",\"retention_duration\":\"1 day\",\"enforcement_mode\":\"Explicit\",\"state\":\"Ready\",\"last_enforced_ms\":null,\"last_deleted_rows\":0,\"last_skipped_rows\":0,\"last_error\":null}}"
     );
-    let legacy_metadata: cassie::catalog::RetentionPolicyMeta =
-        serde_json::from_str(&legacy_json).expect("legacy explicit retention metadata");
-    cassie.catalog.register_retention_policy(legacy_metadata);
 
     // Act
-    let progress = scheduled_policy_progress(&cassie, &session, "legacy_policy");
+    cassie
+        .midge
+        .raw_put(
+            cassie::midge::adapter::StorageFamily::Data,
+            &key,
+            legacy_json.as_bytes(),
+        )
+        .unwrap();
+    drop(cassie);
+    let recovered = Cassie::new_with_data_dir(&path).unwrap();
+    recovered.startup().unwrap();
+    let recovered_session = recovered.create_session("tester", None);
+    let progress = scheduled_policy_progress(&recovered, &recovered_session, "legacy_policy");
 
     // Assert
     assert_eq!(progress.len(), 1);
@@ -42,13 +82,15 @@ fn should_hydrate_legacy_retention_metadata_as_unscheduled() {
     assert_eq!(progress[0][4], Value::Int64(0));
     assert_eq!(progress[0][5], Value::Int64(0));
     assert_eq!(progress[0][6], Value::Null);
-    assert_eq!(progress[0][7], Value::Null);
+    assert_eq!(progress[0][7], Value::String(String::new()));
     assert_eq!(progress[0][8], Value::Null);
     assert_eq!(progress[0][9], Value::Null);
     assert_eq!(progress[0][10], Value::Null);
     assert_eq!(progress[0][11], Value::Null);
     assert_eq!(progress[0][12], Value::String("explicit".to_owned()));
     assert_eq!(progress[0][13], Value::String("ready".to_owned()));
+    drop(recovered);
+    let _ = std::fs::remove_dir_all(path);
 }
 
 fn assert_timestamptz_value(
@@ -495,6 +537,8 @@ fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
         assert_eq!(first_progress[0][3], Value::Int64(256));
         assert_eq!(first_progress[0][4], Value::Int64(256));
         assert_eq!(first_progress[0][5], Value::Int64(0));
+        assert_eq!(first_progress[0][6], Value::Null);
+        assert_eq!(first_progress[0][11], Value::Null);
         assert_eq!(first_progress[0][7], Value::String(String::new()));
         assert_eq!(first_progress[0][8], Value::Null);
         assert_eq!(suspended_tick.command(), "ENFORCE RETENTION 0");
@@ -503,6 +547,8 @@ fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
         assert_eq!(suspended_progress[0][2], first_progress[0][2]);
         assert_eq!(suspended_progress[0][3], first_progress[0][3]);
         assert_eq!(suspended_progress[0][4], first_progress[0][4]);
+        assert_eq!(suspended_progress[0][6], Value::Null);
+        assert_eq!(suspended_progress[0][11], Value::Null);
         assert_eq!(same_time_replay.command(), "ENFORCE RETENTION 256");
         assert_eq!(
             rows_after_same_replay.rows(),
@@ -516,6 +562,8 @@ fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
         assert_explicit_ready_policy(&same_replay_progress[0]);
         assert_eq!(same_replay_progress[0][3], Value::Int64(512));
         assert_eq!(same_replay_progress[0][4], Value::Int64(512));
+        assert_eq!(same_replay_progress[0][6], Value::Null);
+        assert_eq!(same_replay_progress[0][11], Value::Null);
         assert_eq!(different_time_replay.command(), "ENFORCE RETENTION 1");
         assert_eq!(
             rows_after_old_window.rows(),
@@ -707,6 +755,8 @@ fn should_advance_scheduled_cursor_when_a_bounded_batch_deletes_no_rows() {
         assert_eq!(first_progress[0][3], Value::Int64(256));
         assert_eq!(first_progress[0][4], Value::Int64(0));
         assert_eq!(first_progress[0][5], Value::Int64(0));
+        assert_eq!(first_progress[0][6], Value::Null);
+        assert_eq!(first_progress[0][11], Value::Null);
         assert_eq!(finish_pending_window.command(), "ENFORCE RETENTION 0");
         assert_explicit_ready_policy(&completed_first_progress[0]);
         assert_timestamptz_value(&completed_first_progress[0], 1, 9, "2026-01-04T00:00:00Z");

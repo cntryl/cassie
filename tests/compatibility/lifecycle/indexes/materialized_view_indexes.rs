@@ -340,6 +340,31 @@ fn should_read_the_private_refresh_in_a_repeatable_read_transaction() {
             .query("SELECT label FROM mv_private ORDER BY k", &[])
             .await
             .unwrap();
+        execute_statements(
+            &writer,
+            &[
+                "SAVEPOINT before_rename",
+                "ALTER MATERIALIZED VIEW mv_private RENAME TO mv_changed",
+            ],
+        )
+        .await
+        .unwrap();
+        let renamed = writer
+            .query("SELECT label FROM mv_changed WHERE k=$1", &[&1_i32])
+            .await
+            .unwrap();
+        let renamed_scan = writer
+            .query("SELECT label FROM mv_changed ORDER BY k", &[])
+            .await
+            .unwrap();
+        writer
+            .batch_execute("ROLLBACK TO SAVEPOINT before_rename")
+            .await
+            .unwrap();
+        let reverted = writer
+            .query("SELECT label FROM mv_private WHERE k=1", &[])
+            .await
+            .unwrap();
         writer.batch_execute("ROLLBACK").await.unwrap();
         let restored = writer
             .query_one("SELECT label FROM mv_private WHERE k=$1", &[&1_i32])
@@ -348,7 +373,7 @@ fn should_read_the_private_refresh_in_a_repeatable_read_transaction() {
 
         // Assert
         assert_eq!(old.get::<_, String>(0), "old");
-        for rows in [point, scan] {
+        for rows in [point, scan, renamed, renamed_scan, reverted] {
             assert_eq!(rows.len(), 1);
             assert_eq!(rows[0].get::<_, String>(0), "new");
         }

@@ -1,6 +1,8 @@
 use serde_json::json;
 
-use super::{MAX_ROLLUP_CHANGE_REPORT_BYTES, RollupSourceChangeReport};
+use super::{
+    MAX_ROLLUP_CHANGE_REPORT_BYTES, RollupSourceChangeReport, projected_payload_size_within,
+};
 
 #[test]
 fn should_drop_partial_rollup_change_report_after_size_limit() {
@@ -20,6 +22,20 @@ fn should_drop_partial_rollup_change_report_after_size_limit() {
     // Assert
     assert!(report.exceeded_limit);
     assert!(report.rows.is_empty());
+}
+
+#[test]
+fn should_reject_oversized_projected_scalars_during_size_preflight() {
+    // Arrange
+    let fields = vec!["device".to_owned()];
+    let payload = json!({ "device": "x".repeat(MAX_ROLLUP_CHANGE_REPORT_BYTES + 1) });
+
+    // Act
+    let admitted =
+        projected_payload_size_within(Some(&payload), &fields, MAX_ROLLUP_CHANGE_REPORT_BYTES);
+
+    // Assert
+    assert_eq!(admitted, None);
 }
 
 #[test]

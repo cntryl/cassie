@@ -50002,8 +50002,8 @@
       }
     },
     {
-      "id": "tests/domain_models/time_series/queries/calendar_dashboard.rs::should_qualify_prepared_calendar_day_and_month_dashboards",
-      "name": "should_qualify_prepared_calendar_day_and_month_dashboards",
+      "id": "tests/domain_models/time_series/queries/calendar_dashboard.rs::should_qualify_prepared_calendar_templates",
+      "name": "should_qualify_prepared_calendar_templates",
       "current_file": "tests/domain_models/time_series/queries/calendar_dashboard.rs",
       "line": 633,
       "end_line": 724,
@@ -50014,7 +50014,7 @@
       "instances": [
         {
           "suite": "domain_models",
-          "name": "calendar_dashboard::should_qualify_prepared_calendar_day_and_month_dashboards"
+          "name": "calendar_dashboard::should_qualify_prepared_calendar_templates"
         }
       ],
       "attributes": [
@@ -337052,7 +337052,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 762,
-      "sha256": "6ee6dbe7265bcd23aee75a95547ab97a0a1084b61e01114f59c4d1d0810a9d0d",
+      "sha256": "e979af58924bcb7876920aced9180d1fb14402a4faee54f99b1405d378f736c3",
       "test_declarations": 2,
       "registered_suites": [
         "domain_models"

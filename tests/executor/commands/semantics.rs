@@ -242,6 +242,7 @@ fn should_fail_unknown_function_during_execution() {
             }],
             filter: None,
             group_by: vec![],
+            grouping_subtotal: false,
             having: None,
             order: vec![],
             limit: Some(Expr::IntegerLiteral(10)),

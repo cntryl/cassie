@@ -1,11 +1,14 @@
 use super::SqlError;
 
-/// Returns the expression for the selected one-element GROUPING SETS form.
-pub(super) fn single_expression(raw: &str) -> Result<Option<&str>, SqlError> {
+/// Return the grouping key and whether the grammar includes a grand total.
+pub(super) fn grouping_key(raw: &str) -> Result<Option<(&str, bool)>, SqlError> {
     let keyword_start = crate::sql::parser::lexical::separator_end(raw, 0);
-    let Some(keyword_end) =
-        crate::sql::parser::lexical::pattern_end(raw, keyword_start, "grouping sets")
-    else {
+    let lexical = crate::sql::parser::lexical::pattern_end;
+    let rollup = lexical(raw, keyword_start, "rollup").filter(|end| {
+        let open = crate::sql::parser::lexical::separator_end(raw, *end);
+        raw.as_bytes().get(open) == Some(&b'(')
+    });
+    let Some(keyword_end) = rollup.or_else(|| lexical(raw, keyword_start, "grouping sets")) else {
         return Ok(None);
     };
     let open = crate::sql::parser::lexical::separator_end(raw, keyword_end);
@@ -20,14 +23,33 @@ pub(super) fn single_expression(raw: &str) -> Result<Option<&str>, SqlError> {
     }
 
     let elements = super::split_csv(&raw[open + 1..close]);
-    if elements.len() != 1 {
+    let (expression, subtotal) = match elements.as_slice() {
+        [key] => (
+            crate::sql::parser::lexical::trim_separators(key),
+            rollup.is_some(),
+        ),
+        [detail, total]
+            if rollup.is_none() && super::super::clauses::strip_parentheses(total) == Some("") =>
+        {
+            (
+                super::super::clauses::strip_parentheses(detail)
+                    .ok_or_else(unsupported_group_by)?,
+                true,
+            )
+        }
+        _ => return Err(unsupported_group_by()),
+    };
+    if expression.is_empty()
+        || contains_unsupported_syntax(expression)
+        || (subtotal
+            && !matches!(
+                super::parse_expression(expression),
+                Ok(super::Expr::Column(_))
+            ))
+    {
         return Err(unsupported_group_by());
     }
-    let expression = crate::sql::parser::lexical::trim_separators(elements[0]);
-    if expression.is_empty() {
-        return Err(unsupported_group_by());
-    }
-    Ok(Some(expression))
+    Ok(Some((expression, subtotal)))
 }
 
 pub(super) fn contains_unsupported_syntax(raw: &str) -> bool {

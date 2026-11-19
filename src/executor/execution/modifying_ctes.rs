@@ -200,6 +200,7 @@ fn relation(
         projection: vec![SelectItem::Wildcard],
         filter: empty.then_some(Expr::BoolLiteral(false)),
         group_by: Vec::new(),
+        grouping_subtotal: false,
         having: None,
         order: Vec::new(),
         limit: None,

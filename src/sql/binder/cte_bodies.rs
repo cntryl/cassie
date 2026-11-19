@@ -73,6 +73,7 @@ pub(crate) fn select_view(statement: &ParsedStatement) -> Option<Cow<'_, SelectS
         projection: returning.iter().map(view_item).collect(),
         filter: None,
         group_by: Vec::new(),
+        grouping_subtotal: false,
         having: None,
         order: Vec::new(),
         limit: None,

@@ -676,6 +676,7 @@ mod tests {
             ],
             filter: None,
             group_by: vec![],
+            grouping_subtotal: false,
             having: None,
             order: vec![OrderExpr {
                 expr: Expr::Function(Box::new(distance(Expr::StringLiteral("[1,0,0]".into())))),

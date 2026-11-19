@@ -56,6 +56,7 @@ pub(super) fn parse(
             projection,
             filter: None,
             group_by: Vec::new(),
+            grouping_subtotal: false,
             having: None,
             order,
             limit: parsed.limit,

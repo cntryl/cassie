@@ -56,7 +56,10 @@ pub(super) fn prepare(
 ) -> Result<HashSet<String>, CassieError> {
     let projection_aliases = super::collect_projection_aliases(select);
     resolve_group_by_output_references(select, known_fields)?;
-    expand_primary_key_dependent_columns(select, &projection_aliases, catalog, scope)?;
+    super::grouping_indicator::validate(select)?;
+    if !select.grouping_subtotal {
+        expand_primary_key_dependent_columns(select, &projection_aliases, catalog, scope)?;
+    }
     Ok(projection_aliases)
 }
 

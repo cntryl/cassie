@@ -118,6 +118,7 @@ pub(crate) fn infer_plan_output_contract(
             projection: logical.projection.clone(),
             filter: logical.filter.clone(),
             group_by: logical.group_by.clone(),
+            grouping_subtotal: logical.grouping_subtotal,
             having: logical.having.clone(),
             order: logical.order.clone(),
             limit: logical.limit.clone(),

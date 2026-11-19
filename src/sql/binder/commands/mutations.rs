@@ -82,6 +82,7 @@ fn select_over(source: QuerySource, ctes: Vec<CommonTableExpression>) -> SelectS
         projection: vec![SelectItem::Wildcard],
         filter: None,
         group_by: Vec::new(),
+        grouping_subtotal: false,
         having: None,
         order: Vec::new(),
         limit: None,

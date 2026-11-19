@@ -341,6 +341,7 @@ fn execute_subquery_source(
         projection: select.projection.clone(),
         filter: select.filter.clone(),
         group_by: select.group_by.clone(),
+        grouping_subtotal: select.grouping_subtotal,
         having: select.having.clone(),
         order: select.order.clone(),
         limit: select.limit.clone(),

@@ -7,6 +7,7 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 mod materialized_outputs;
+pub(super) use materialized_outputs::PrivateOutputs;
 
 thread_local! {
     static CURRENT_READ: RefCell<Option<Arc<StatementDataRead>>> = const { RefCell::new(None) };
@@ -57,9 +58,11 @@ impl StatementDataRead {
         )?;
         crate::executor::retained_memory::add(
             command,
-            self.private_outputs
-                .as_ref()
-                .map_or(Ok(0), |outputs| outputs.accounted_bytes())?,
+            self.private_outputs.as_ref().map_or(Ok(0), |outputs| {
+                outputs.values().try_fold(0, |sum, output| {
+                    crate::executor::retained_memory::add(sum, output.accounted_bytes()?)
+                })
+            })?,
         )
     }
 

@@ -746,6 +746,7 @@ fn table_like_index_name(
 
 pub(super) fn create_index(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     statement: &CreateIndexStatement,
     controls: &QueryExecutionControls,
 ) -> Result<CreationOutcome, QueryError> {
@@ -828,6 +829,14 @@ pub(super) fn create_index(
     } else {
         cassie.midge.put_index(&metadata)?;
         cassie.catalog.register_index(metadata);
+    }
+    if logical_table != storage_table {
+        cassie.midge.retain_private_materialized_output(
+            session,
+            &logical_table,
+            &storage_table,
+            controls,
+        )?;
     }
     super::schema_command::refresh_table_cardinality_stats(cassie, &storage_table)?;
     Ok(CreationOutcome::created(output))

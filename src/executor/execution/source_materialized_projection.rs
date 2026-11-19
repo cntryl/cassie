@@ -51,6 +51,7 @@ pub(super) fn execute(
     };
     let _read = crate::midge::adapter::StatementDataRead::enter_materialized_output(
         env.controls,
+        name,
         output_collection,
     );
     let output_collection = output_collection.to_string();

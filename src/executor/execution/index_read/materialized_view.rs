@@ -91,8 +91,11 @@ pub(in crate::executor::execution) fn execute(
     let Some(output) = publication.active_output_collection() else {
         return Ok(None);
     };
-    let _read =
-        crate::midge::adapter::StatementDataRead::enter_materialized_output(env.controls, output);
+    let _read = crate::midge::adapter::StatementDataRead::enter_materialized_output(
+        env.controls,
+        &plan.collection,
+        output,
+    );
     let Some(candidate) = unique_point_index(env.cassie, output, &field) else {
         return Ok(None);
     };

@@ -379,7 +379,7 @@ fn execute_schema_object_group(
             super::role_command::revoke_database_connect(cassie, session, statement, controls),
         )),
         LogicalCommand::CreateIndex(statement) => Some(CommandExecution::creation(
-            super::schema_creation::create_index(cassie, statement, controls),
+            super::schema_creation::create_index(cassie, session, statement, controls),
         )),
         LogicalCommand::DropIndex(statement) => Some(CommandExecution::invalidating(
             super::schema_command::drop_index(cassie, statement, controls),

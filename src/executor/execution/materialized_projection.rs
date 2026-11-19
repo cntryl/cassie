@@ -199,6 +199,11 @@ fn create_materialized_relation(
                 }
             }
 
+            if let Some(output) = metadata.active_output_collection() {
+                cassie
+                    .midge
+                    .retain_private_materialized_output(session, name, output, controls)?;
+            }
             if let Err(error) = cassie.midge.put_projection_metadata(&metadata) {
                 if with_data
                     && matches!(
@@ -287,7 +292,7 @@ pub(super) fn refresh_materialized_projection(
 
 pub(super) fn refresh_materialized_view(
     cassie: &Cassie,
-    _session: Option<&crate::app::CassieSession>,
+    session: Option<&crate::app::CassieSession>,
     statement: &crate::sql::ast::RefreshMaterializedViewStatement,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -301,6 +306,7 @@ pub(super) fn refresh_materialized_view(
             if statement.with_data {
                 super::materialized_view_concurrent::refresh_materialized_view_versioned(
                     cassie,
+                    session,
                     &statement.name,
                     user_functions,
                     controls,

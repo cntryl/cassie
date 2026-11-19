@@ -487,6 +487,7 @@ impl Cassie {
         let user_functions = self.user_functions_for_session(Some(session));
         let result = crate::executor::refresh_materialized_view_concurrently_external(
             self,
+            session,
             &statement,
             &user_functions,
             controls,

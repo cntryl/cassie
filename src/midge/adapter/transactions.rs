@@ -67,6 +67,7 @@ pub(crate) use row_fence::RetainedRowFence;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StorageOverlay {
+    pub(super) private_outputs: Option<Arc<super::statement_read::PrivateOutputs>>,
     pub(crate) changes: BTreeMap<Vec<u8>, StorageMutation>,
     sequence_cursors: Arc<sequence_owner::SequenceOwner>,
     sequence_epochs: Option<Arc<sequence_owner::EpochSelections>>,

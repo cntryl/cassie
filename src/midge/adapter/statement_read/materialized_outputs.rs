@@ -9,11 +9,16 @@ use crate::midge::adapter::{
     key_encoding as key, transactions::ExpectedStorageValue, AdapterTransaction, StorageOverlay,
 };
 
-pub(super) struct PrivateOutputs {
-    names: Vec<String>,
+#[derive(Debug)]
+pub(crate) struct PrivateOutput {
+    name: String,
     read: Arc<StatementDataRead>,
     memory: QueryMemoryReservation,
 }
+
+/// Keyed by logical relation. Older generations live only while a savepoint or a
+/// previously bound command still owns its directory.
+pub(crate) type PrivateOutputs = std::collections::BTreeMap<String, Arc<PrivateOutput>>;
 
 impl StatementDataRead {
     pub(crate) fn with_materialized_outputs(
@@ -23,128 +28,102 @@ impl StatementDataRead {
         controls: &QueryExecutionControls,
     ) -> Result<Arc<Self>, CassieError> {
         let mut owner = Self::with_overlay(retained, Some(overlay), controls)?;
-        let Some(private) = PrivateOutputs::capture(retained, storage, controls)? else {
-            return Ok(owner);
-        };
         Arc::get_mut(&mut owner)
             .expect("new command owner")
-            .private_outputs = Some(Arc::new(private));
+            .private_outputs
+            .clone_from(&storage.private_outputs);
         Ok(owner)
     }
 
     pub(crate) fn enter_materialized_output(
         controls: &QueryExecutionControls,
+        logical: &str,
         output: &str,
     ) -> Option<StatementReadScope> {
-        let outputs = controls.statement_read()?.private_outputs.as_ref()?;
-        outputs
-            .names
-            .iter()
-            .any(|name| name == output)
-            .then(|| StatementReadScope::enter(Some(&outputs.read)))
+        let private = controls
+            .statement_read()?
+            .private_outputs
+            .as_ref()?
+            .get(logical)?;
+        (private.name == output).then(|| StatementReadScope::enter(Some(&private.read)))
     }
 }
 
-impl PrivateOutputs {
-    pub(super) fn accounted_bytes(&self) -> Result<usize, CassieError> {
+impl PrivateOutput {
+    pub(in crate::midge::adapter) fn accounted_bytes(&self) -> Result<usize, CassieError> {
         add(
             self.memory.bytes(),
             add(self.read.memory.bytes(), self.read.snapshot._memory.bytes())?,
         )
     }
+}
 
-    fn capture(
-        retained: &StatementDataRead,
-        storage: &StorageOverlay,
+impl Midge {
+    /// A refreshed output is immutable. Build its native read owner once, while
+    /// the transaction owns the new physical relation and its completed indexes.
+    pub(crate) fn retain_private_materialized_output(
+        self: &Arc<Self>,
+        session: Option<&crate::app::CassieSession>,
+        logical: &str,
+        output: &str,
         controls: &QueryExecutionControls,
-    ) -> Result<Option<Self>, CassieError> {
-        if storage.changes.is_empty() {
-            return Ok(None);
-        }
-        let projection_prefix = key::projection_prefix();
-        let mut memory = controls.reserve_query_memory(0)?;
-        let mut names = Vec::new();
-        let mut native = None;
-        let snapshot = &retained.snapshot;
-        for (key, change) in storage
-            .changes
-            .range(projection_prefix.clone()..)
-            .take_while(|(key, _)| key.starts_with(&projection_prefix))
-        {
-            controls.check_interruption()?;
-            let Some(value) = &change.value else {
-                continue;
-            };
-            let _scratch = controls
-                .reserve_query_memory(crate::executor::retained_memory::mul(value.len(), 8)?)?;
-            let projection: crate::catalog::ProjectionMeta = serde_json::from_slice(value)
-                .map_err(|error| CassieError::Parse(error.to_string()))?;
-            let Some(output) = projection.active_output_collection().filter(|_| {
-                projection.materialized.as_ref().is_some_and(
-                    crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
-                )
-            }) else {
-                continue;
-            };
-            if *key != Midge::projection_key(&projection.collection) {
-                continue;
-            }
-            let metadata_key = key::collection_metadata_key(output);
-            let Some(change) = storage.changes.get(&metadata_key) else {
-                continue;
-            };
-            if !matches!(change.expected, ExpectedStorageValue::Missing) {
-                continue;
-            }
-            let Some(metadata) = &change.value else {
-                continue;
-            };
-            let relation: crate::catalog::CollectionMeta = serde_json::from_slice(metadata)
-                .map_err(|error| CassieError::Parse(error.to_string()))?;
-            if relation.name != output || relation.storage_id == 0 {
-                continue;
-            }
-            let tx = match &mut native {
-                Some(tx) => tx,
-                slot @ None => slot.insert(
-                    snapshot
-                        .midge
-                        .engine
-                        .begin_tx(snapshot.family_id, TransactionMode::ReadWrite)?,
-                ),
-            };
-            copy_output(storage, &relation, tx, controls, &mut memory)?;
-            memory.try_grow(add(output.len(), 2 * size_of::<String>())?)?;
-            names.push(output.to_owned());
-        }
-        let Some(native) = native else {
-            return Ok(None);
+    ) -> Result<(), CassieError> {
+        let Some(session) = session.filter(|s| s.is_repeatable_read_write()) else {
+            return Ok(());
         };
-        let snapshot_memory = controls.reserve_query_memory(add(
-            size_of::<StatementDataSnapshot>() + 2 * size_of::<usize>(),
-            snapshot.database.len(),
+        let overlay = session.transaction_storage_overlay()?;
+        let mut storage = overlay.lock();
+        let Some(change) = storage.changes.get(&key::collection_metadata_key(output)) else {
+            return Ok(());
+        };
+        let Some(metadata) = &change.value else {
+            return Ok(());
+        };
+        if !matches!(change.expected, ExpectedStorageValue::Missing) {
+            return Ok(());
+        }
+        let relation: crate::catalog::CollectionMeta =
+            serde_json::from_slice(metadata).map_err(|e| CassieError::Parse(e.to_string()))?;
+        if relation.name != output || relation.storage_id == 0 {
+            return Ok(());
+        }
+        let database = session.current_database().unwrap_or(&self.default_database);
+        let family_id = self.database_family(database)?.id();
+        let mut native = self
+            .engine
+            .begin_tx(family_id, TransactionMode::ReadWrite)?;
+        let mut memory = controls.reserve_query_memory(add(
+            1024 + size_of::<PrivateOutput>(),
+            add(output.len(), logical.len())?,
         )?)?;
+        copy_output(&storage, &relation, &mut native, controls, &mut memory)?;
+        let native = AdapterTransaction::raw(native);
         let read = Arc::new(StatementDataRead {
             snapshot: Arc::new(StatementDataSnapshot {
-                tx: AdapterTransaction::raw(native),
-                midge: Arc::clone(&snapshot.midge),
-                database: snapshot.database.clone(),
-                family_id: snapshot.family_id,
-                data_epoch: snapshot.data_epoch,
+                data_epoch: Self::load_data_epoch_from_tx(&native)?,
+                tx: native,
+                midge: Arc::clone(self),
+                database: database.to_owned(),
+                family_id,
                 descriptor_authority: DescriptorAuthority::StatementSnapshot,
-                _memory: snapshot_memory,
+                _memory: controls.reserve_query_memory(add(
+                    size_of::<StatementDataSnapshot>() + 2 * size_of::<usize>(),
+                    database.len(),
+                )?)?,
             }),
             overlay: None,
             private_outputs: None,
             memory: controls
                 .reserve_query_memory(size_of::<StatementDataRead>() + 2 * size_of::<usize>())?,
         });
-        memory.try_grow(size_of::<Self>() + 2 * size_of::<usize>())?;
-        Ok(Some(Self {
-            names,
+        let next = PrivateOutput {
+            name: output.to_owned(),
             read,
             memory,
-        }))
+        };
+        Arc::make_mut(storage.private_outputs.get_or_insert_with(Arc::default))
+            .insert(logical.to_owned(), Arc::new(next));
+        Ok(())
     }
 }
 

@@ -6,6 +6,7 @@ use super::{catalog, Cassie, FunctionMeta, QueryError, QueryExecutionControls, Q
 
 pub(crate) fn refresh_materialized_view_concurrently_external(
     cassie: &Cassie,
+    session: &crate::app::CassieSession,
     statement: &crate::sql::ast::RefreshMaterializedViewStatement,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -18,13 +19,21 @@ pub(crate) fn refresh_materialized_view_concurrently_external(
     cassie
         .midge
         .with_collection_gates(std::slice::from_ref(&name), || {
-            refresh_materialized_view_versioned(cassie, &name, user_functions, controls, true)
+            refresh_materialized_view_versioned(
+                cassie,
+                Some(session),
+                &name,
+                user_functions,
+                controls,
+                true,
+            )
         })?;
     Ok(output)
 }
 
 pub(super) fn refresh_materialized_view_versioned(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     name: &str,
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -94,6 +103,12 @@ pub(super) fn refresh_materialized_view_versioned(
         cassie.catalog.register_index(replacement);
     }
 
+    cassie.midge.retain_private_materialized_output(
+        session,
+        name,
+        &version.output_collection,
+        controls,
+    )?;
     #[cfg(test)]
     tests::cancel_before_activation_if_armed();
 

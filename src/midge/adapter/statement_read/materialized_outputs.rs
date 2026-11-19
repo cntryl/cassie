@@ -20,7 +20,44 @@ pub(crate) struct PrivateOutput {
 /// previously bound command still owns its directory.
 pub(crate) type PrivateOutputs = std::collections::BTreeMap<String, Arc<PrivateOutput>>;
 
+#[derive(Clone)]
+pub(super) enum MaterializedReads {
+    All(Arc<PrivateOutputs>),
+    One(Arc<PrivateOutput>),
+}
+
+impl MaterializedReads {
+    fn get(&self, logical: &str) -> Option<&Arc<PrivateOutput>> {
+        match self {
+            Self::All(outputs) => outputs.get(logical),
+            Self::One(selected) => Some(selected),
+        }
+    }
+
+    pub(super) fn accounted_bytes(&self) -> Result<usize, CassieError> {
+        match self {
+            Self::All(outputs) => outputs
+                .values()
+                .try_fold(0, |sum, output| add(sum, output.accounted_bytes()?)),
+            Self::One(output) => output.accounted_bytes(),
+        }
+    }
+}
+
 impl StatementDataRead {
+    pub(crate) fn retain_bound_output(owner: &mut Arc<Self>, logical: &str) {
+        if owner.private_outputs.is_some() {
+            // Only a freshly captured, writable RR command has private outputs.
+            let data = Arc::get_mut(owner).expect("new private command owner");
+            data.private_outputs = data
+                .private_outputs
+                .as_ref()
+                .and_then(|outputs| outputs.get(logical))
+                .cloned()
+                .map(MaterializedReads::One);
+        }
+    }
+
     pub(crate) fn with_materialized_outputs(
         retained: &Self,
         overlay: Arc<crate::app::StatementOverlay>,
@@ -30,8 +67,10 @@ impl StatementDataRead {
         let mut owner = Self::with_overlay(retained, Some(overlay), controls)?;
         Arc::get_mut(&mut owner)
             .expect("new command owner")
+            .private_outputs = storage
             .private_outputs
-            .clone_from(&storage.private_outputs);
+            .as_ref()
+            .map(|outputs| MaterializedReads::All(Arc::clone(outputs)));
         Ok(owner)
     }
 

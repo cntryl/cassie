@@ -33,7 +33,7 @@ struct StatementDataSnapshot {
 pub(crate) struct StatementDataRead {
     snapshot: Arc<StatementDataSnapshot>,
     overlay: Option<Arc<crate::app::StatementOverlay>>,
-    private_outputs: Option<Arc<materialized_outputs::PrivateOutputs>>,
+    private_outputs: Option<materialized_outputs::MaterializedReads>,
     memory: QueryMemoryReservation,
 }
 
@@ -58,11 +58,10 @@ impl StatementDataRead {
         )?;
         crate::executor::retained_memory::add(
             command,
-            self.private_outputs.as_ref().map_or(Ok(0), |outputs| {
-                outputs.values().try_fold(0, |sum, output| {
-                    crate::executor::retained_memory::add(sum, output.accounted_bytes()?)
-                })
-            })?,
+            self.private_outputs.as_ref().map_or(
+                Ok(0),
+                materialized_outputs::MaterializedReads::accounted_bytes,
+            )?,
         )
     }
 

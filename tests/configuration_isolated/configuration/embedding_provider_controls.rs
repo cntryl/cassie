@@ -87,9 +87,9 @@ fn delayed_tei_server() -> (
         std::thread::sleep(Duration::from_millis(150));
         let body = r"[[0.1,0.2,0.3]]";
         let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-                body.len()
-            );
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        );
         let _ = stream.write_all(response.as_bytes());
     });
     (base_url, accepted_rx, thread)
@@ -138,16 +138,15 @@ fn assert_mid_body_reset_is_not_retried(
     assert_eq!(server.join().expect("reset server"), 1);
 }
 
-fn deadline_controls() -> QueryExecutionControls {
-    let limits = CassieRuntimeLimits {
+fn deadline_limits() -> CassieRuntimeLimits {
+    CassieRuntimeLimits {
         query_timeout_ms: 10,
         ..CassieRuntimeLimits::default()
-    };
-    QueryExecutionControls::from_limits(&limits, Instant::now())
+    }
 }
 
 fn assert_deadline_interrupts_retry(
-    provider: &dyn EmbeddingProvider,
+    provider: Box<dyn EmbeddingProvider>,
     response_written: &std::sync::mpsc::Receiver<Instant>,
 ) {
     // Shared runners can deschedule the test thread after the 10 ms deadline;
@@ -157,12 +156,36 @@ fn assert_deadline_interrupts_retry(
     let _guard = CONTROLLED_REQUEST_WORKER_GUARD
         .lock()
         .expect("lock controlled request worker guard");
-    let controls = deadline_controls();
-    let deadline = controls.deadline.expect("configured query deadline");
+    let limits = deadline_limits();
+    let cancellation = QueryCancellationHandle::new();
     let started = Instant::now();
-    let error = provider
-        .embed_documents_with_controls(&["bounded input".to_string()], &controls)
-        .expect_err("deadline should interrupt provider retry");
+    let controls =
+        QueryExecutionControls::with_cancellation(&limits, started, cancellation.clone());
+    let deadline = controls.deadline.expect("configured query deadline");
+    let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
+    let query_worker = std::thread::spawn(move || {
+        let result =
+            provider.embed_documents_with_controls(&["bounded input".to_string()], &controls);
+        let _ = result_tx.send(result);
+    });
+    let error = match result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT) {
+        Ok(result) => result.expect_err("deadline should interrupt provider retry"),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            cancellation.cancel();
+            let cleanup = result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT);
+            drop(query_worker);
+            assert!(
+                cleanup.is_ok(),
+                "provider worker did not stop within the bounded cancellation cleanup"
+            );
+            panic!("provider call exceeded its bounded wait");
+        }
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            drop(query_worker);
+            panic!("provider worker exited without reporting its result");
+        }
+    };
+    drop(query_worker);
     assert!(matches!(error, EmbeddingError::Timeout { .. }));
     assert!(
         started.elapsed() < SCHEDULER_TOLERANT_LIMIT,
@@ -193,7 +216,7 @@ fn should_clamp_openai_retry_backoff_to_query_deadline() {
     .expect("configure OpenAI provider");
 
     // Act
-    assert_deadline_interrupts_retry(&provider, &response_written);
+    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
 
     // Assert
     assert_one_transient_request(server);
@@ -215,7 +238,7 @@ fn should_clamp_openai_compatible_retry_backoff_to_query_deadline() {
     .expect("configure compatible provider");
 
     // Act
-    assert_deadline_interrupts_retry(&provider, &response_written);
+    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
 
     // Assert
     assert_one_transient_request(server);
@@ -236,7 +259,7 @@ fn should_clamp_tei_retry_backoff_to_query_deadline() {
     .expect("configure TEI provider");
 
     // Act
-    assert_deadline_interrupts_retry(&provider, &response_written);
+    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
 
     // Assert
     assert_one_transient_request(server);
@@ -257,7 +280,7 @@ fn should_clamp_ollama_retry_backoff_to_query_deadline() {
     .expect("configure Ollama provider");
 
     // Act
-    assert_deadline_interrupts_retry(&provider, &response_written);
+    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
 
     // Assert
     assert_one_transient_request(server);
@@ -279,7 +302,7 @@ fn should_clamp_voyage_retry_backoff_to_query_deadline() {
     .expect("configure Voyage provider");
 
     // Act
-    assert_deadline_interrupts_retry(&provider, &response_written);
+    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
 
     // Assert
     assert_one_transient_request(server);
@@ -301,7 +324,7 @@ fn should_clamp_cohere_retry_backoff_to_query_deadline() {
     .expect("configure Cohere provider");
 
     // Act
-    assert_deadline_interrupts_retry(&provider, &response_written);
+    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
 
     // Assert
     assert_one_transient_request(server);

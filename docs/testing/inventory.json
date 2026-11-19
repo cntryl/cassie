@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10641,
+    "rust_test_declarations": 10644,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10666,
+    "registered_rust_instances": 10669,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -32624,6 +32624,99 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::ddl_extensions::index_contracts::included_partial_indexes::should_publish_partial_btree_index_clause_metadata"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/indexes",
+        "directory": "tests/compatibility/lifecycle/indexes",
+        "file": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs::should_bound_tenant_order_reads_only_when_the_partial_predicate_is_proven",
+      "name": "should_bound_tenant_order_reads_only_when_the_partial_predicate_is_proven",
+      "current_file": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs",
+      "line": 95,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::included_partial_indexes::should_bound_tenant_order_reads_only_when_the_partial_predicate_is_proven"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/indexes",
+        "directory": "tests/compatibility/lifecycle/indexes",
+        "file": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs::should_count_only_joined_survivors_toward_the_ordered_limit",
+      "name": "should_count_only_joined_survivors_toward_the_ordered_limit",
+      "current_file": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs",
+      "line": 128,
+      "end_line": 160,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::included_partial_indexes::should_count_only_joined_survivors_toward_the_ordered_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/indexes",
+        "directory": "tests/compatibility/lifecycle/indexes",
+        "file": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs::should_preserve_sql_order_for_decimal_and_extended_timestamp_keys",
+      "name": "should_preserve_sql_order_for_decimal_and_extended_timestamp_keys",
+      "current_file": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs",
+      "line": 163,
+      "end_line": 187,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::included_partial_indexes::should_preserve_sql_order_for_decimal_and_extended_timestamp_keys"
         }
       ],
       "attributes": [
@@ -334304,9 +334397,9 @@
       "current_file": "tests/compatibility/lifecycle/indexes/included_partial_indexes.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 92,
-      "sha256": "369bac795b85465d4a075d9a82d6a9e7978274f7a3ef5190c9db8602dd36392c",
-      "test_declarations": 1,
+      "lines": 187,
+      "sha256": "ff9658de5c1caa9b9abc52e1c36bbdfebfbc390d1067c00be093699d26505ada",
+      "test_declarations": 4,
       "registered_suites": [
         "compatibility"
       ],

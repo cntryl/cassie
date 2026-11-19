@@ -257,8 +257,8 @@ fn join_shape(
         .collect();
     Some(JoinShape {
         source,
-        source_plan,
         probes,
+        source_plan,
         residuals,
     })
 }

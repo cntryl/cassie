@@ -373,24 +373,7 @@ impl Cassie {
             adaptive_plan,
         );
         if let Some(index) = ordered_join {
-            physical.join.strategy = Some("ordered_index_nested_loop".into());
-            physical.join.enumeration = "ordered_source".into();
-            physical.join.properties.bounded = true;
-            physical.join.properties.parameterized = true;
-            physical.join.sort_required = false;
-            physical.join.fallback_reason = None;
-            physical.join.vectorized.candidate = false;
-            physical.read.access_path =
-                crate::planner::physical::ReadAccessPath::OrderedBoundedScan;
-            physical.read.early_stop = crate::planner::physical::EarlyStopMode::JoinedLimit;
-            physical.read.fallback_reason = None;
-            physical.read.access_path_reason = "ordered-source-unique-probes".into();
-            physical.read.selected_index = Some(index);
-            physical.read.covered_index = true;
-            physical.top_k.mode = crate::planner::physical::TopKMode::Storage;
-            physical
-                .operators
-                .retain(|op| !matches!(op, crate::planner::physical::Operator::Sort));
+            apply_ordered_join(&mut physical, index);
         }
         physical.collection_schema = self.catalog.get_schema(&physical.logical.collection);
         Ok(Arc::new(physical))
@@ -478,4 +461,24 @@ impl Cassie {
         let _persistence = self.feedback_persistence_lock.lock();
         self.hydrate_runtime_feedback()
     }
+}
+
+fn apply_ordered_join(physical: &mut crate::planner::physical::PhysicalPlan, index: String) {
+    physical.join.strategy = Some("ordered_index_nested_loop".into());
+    physical.join.enumeration = "ordered_source".into();
+    physical.join.properties.bounded = true;
+    physical.join.properties.parameterized = true;
+    physical.join.sort_required = false;
+    physical.join.fallback_reason = None;
+    physical.join.vectorized.candidate = false;
+    physical.read.access_path = crate::planner::physical::ReadAccessPath::OrderedBoundedScan;
+    physical.read.early_stop = crate::planner::physical::EarlyStopMode::JoinedLimit;
+    physical.read.fallback_reason = None;
+    physical.read.access_path_reason = "ordered-source-unique-probes".into();
+    physical.read.selected_index = Some(index);
+    physical.read.covered_index = true;
+    physical.top_k.mode = crate::planner::physical::TopKMode::Storage;
+    physical
+        .operators
+        .retain(|op| !matches!(op, crate::planner::physical::Operator::Sort));
 }

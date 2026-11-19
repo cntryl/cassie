@@ -33,7 +33,7 @@ pub(super) fn timestamp_fields(
                 if position >= shape.equality_prefix_len
                     && shape.range_field_index != Some(position) =>
             {
-                timestamps.push(field)
+                timestamps.push(field);
             }
             _ => return None,
         }

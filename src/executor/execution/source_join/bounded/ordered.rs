@@ -31,7 +31,7 @@ impl crate::app::Cassie {
         let mut output = AccountedVec::try_new(env.controls)?;
         let mut counts = OrderedJoinCounts::default();
         let mut stages = vec![Stage::default(); join.probes.len()];
-        let mut consume = |document: DocumentRef| {
+        let consume = |document: DocumentRef| {
             let row = project(&env, &join.source, &document)?;
             counts.order_rows += 1;
             if let Some(row) = probe(&env, &join, row, &mut stages, &mut counts)? {
@@ -47,42 +47,8 @@ impl crate::app::Cassie {
             }
             Ok::<_, QueryError>(output.len() < join.limit)
         };
-        let entries = if join.timestamp_fields.is_empty() || join.limit == 0 {
-            let mut visited = 0;
-            self.midge.visit_scalar_index_documents(
-                &join.index,
-                &join.request,
-                env.controls,
-                |doc| {
-                    visited += 1;
-                    consume(doc)
-                },
-            )?;
-            visited
-        } else {
-            let Some(hits) = crate::executor::execution::index_read::key_order::timestamp_page(
-                self,
-                &join.index,
-                &join.request,
-                &join.timestamp_fields,
-                join.limit,
-                env.controls,
-            )?
-            else {
-                return Ok(None);
-            };
-            let (hits, _memory) = hits.into_parts();
-            let entries = hits.len();
-            for hit in hits {
-                check_timeout(env.controls)?;
-                if !consume(DocumentRef {
-                    id: hit.id,
-                    payload: serde_json::Value::Object(hit.fields),
-                })? {
-                    break;
-                }
-            }
-            entries
+        let Some(entries) = visit_ordered_source(&env, &join, consume)? else {
+            return Ok(None);
         };
         counts.order_index_entries = entries;
         let (rows, _slots) = output.into_parts();
@@ -120,6 +86,50 @@ impl crate::app::Cassie {
         }
         env.controls.record_ordered_join(counts);
         Ok(Some(rows))
+    }
+}
+
+fn visit_ordered_source(
+    env: &SourceExecutionEnv<'_>,
+    join: &OrderedJoin,
+    mut consume: impl FnMut(DocumentRef) -> Result<bool, QueryError>,
+) -> Result<Option<usize>, QueryError> {
+    if join.timestamp_fields.is_empty() || join.limit == 0 {
+        let mut visited = 0;
+        env.cassie.midge.visit_scalar_index_documents(
+            &join.index,
+            &join.request,
+            env.controls,
+            |doc| {
+                visited += 1;
+                consume(doc)
+            },
+        )?;
+        Ok(Some(visited))
+    } else {
+        let Some(hits) = crate::executor::execution::index_read::key_order::timestamp_page(
+            env.cassie,
+            &join.index,
+            &join.request,
+            &join.timestamp_fields,
+            join.limit,
+            env.controls,
+        )?
+        else {
+            return Ok(None);
+        };
+        let (hits, _memory) = hits.into_parts();
+        let entries = hits.len();
+        for hit in hits {
+            check_timeout(env.controls)?;
+            if !consume(DocumentRef {
+                id: hit.id,
+                payload: serde_json::Value::Object(hit.fields),
+            })? {
+                break;
+            }
+        }
+        Ok(Some(entries))
     }
 }
 

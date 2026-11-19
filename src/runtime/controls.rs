@@ -140,6 +140,21 @@ struct OrderedReadObservation {
     proof: Option<(usize, &'static str)>,
 }
 
+type ExecutorCache = parking_lot::Mutex<Option<Box<dyn std::any::Any + Send>>>;
+
+#[derive(Debug, Default)]
+struct StatementControlState {
+    // A plain SQL request needs neither the graph cache nor an EXPLAIN observer.
+    executor: std::sync::OnceLock<Arc<ExecutorCache>>,
+    ordered_join: Option<Arc<parking_lot::Mutex<OrderedReadObservation>>>,
+}
+
+impl StatementControlState {
+    fn executor(&self) -> &Arc<ExecutorCache> {
+        self.executor.get_or_init(Arc::default)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct QueryExecutionControls {
     pub deadline: Option<Instant>,
@@ -148,14 +163,13 @@ pub struct QueryExecutionControls {
     pub cte_recursion_depth: usize,
     cancellation: QueryCancellationHandle,
     relational_cte_boundary: bool,
-    ordered_join: Option<Arc<parking_lot::Mutex<OrderedReadObservation>>>,
     memory: Arc<QueryMemoryTracker>,
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
     /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
     temporal: Arc<parking_lot::RwLock<TemporalSlot>>,
     /// Statement-scoped state of one executor subsystem, shared by clones and released with
     /// the last clone, so its reservations end with the statement.
-    statement_state: Arc<parking_lot::Mutex<Option<Box<dyn std::any::Any + Send>>>>,
+    statement_state: Arc<StatementControlState>,
 }
 
 #[derive(Debug, Default)]
@@ -279,31 +293,38 @@ impl Drop for QueryMemoryReservation {
 impl QueryExecutionControls {
     pub(crate) fn observe_ordered_join(&self) -> Self {
         Self {
-            ordered_join: Some(Arc::default()),
+            statement_state: Arc::new(StatementControlState {
+                executor: Arc::clone(self.statement_state.executor()).into(),
+                ordered_join: Some(Arc::default()),
+            }),
             ..self.clone()
         }
     }
 
     pub(crate) fn record_order_proof(&self, visited: usize, reason: &'static str) {
-        if let Some(slot) = &self.ordered_join {
+        if let Some(slot) = &self.statement_state.ordered_join {
             slot.lock().proof = Some((visited, reason));
         }
     }
 
     pub(crate) fn order_proof(&self) -> Option<(usize, &'static str)> {
-        self.ordered_join
+        self.statement_state
+            .ordered_join
             .as_ref()
             .and_then(|slot| slot.lock().proof)
     }
 
     pub(crate) fn record_ordered_join(&self, counts: OrderedJoinCounts) {
-        if let Some(slot) = &self.ordered_join {
+        if let Some(slot) = &self.statement_state.ordered_join {
             slot.lock().join = Some(counts);
         }
     }
 
     pub(crate) fn ordered_join_counts(&self) -> Option<OrderedJoinCounts> {
-        self.ordered_join.as_ref().and_then(|slot| slot.lock().join)
+        self.statement_state
+            .ordered_join
+            .as_ref()
+            .and_then(|slot| slot.lock().join)
     }
 
     pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {
@@ -352,8 +373,11 @@ impl QueryExecutionControls {
     ) -> Self {
         Self {
             statement_read: owner,
-            // Statement state is valid for one captured read only.
-            statement_state: Arc::default(),
+            // Each captured read owns its cache. EXPLAIN observes the whole statement.
+            statement_state: Arc::new(StatementControlState {
+                executor: std::sync::OnceLock::new(),
+                ordered_join: self.statement_state.ordered_join.clone(),
+            }),
             ..self.clone()
         }
     }
@@ -388,7 +412,6 @@ impl QueryExecutionControls {
             query_memory_budget_bytes: limits.query_memory_budget_bytes,
             cte_recursion_depth: limits.cte_recursion_depth,
             cancellation,
-            ordered_join: None,
             relational_cte_boundary: false,
             temporal: Arc::default(),
             statement_state: Arc::default(),
@@ -405,7 +428,7 @@ impl QueryExecutionControls {
         &self,
         visit: impl FnOnce(&mut Option<Box<dyn std::any::Any + Send>>) -> R,
     ) -> R {
-        visit(&mut self.statement_state.lock())
+        visit(&mut self.statement_state.executor().lock())
     }
 
     /// Installs the statement's temporal session for evaluation and output.
@@ -608,7 +631,9 @@ mod tests {
 
         // Act
         let same_cache = explain.with_statement_state(|slot| {
-            slot.as_ref().and_then(|value| value.downcast_ref::<usize>()).copied()
+            slot.as_ref()
+                .and_then(|value| value.downcast_ref::<usize>())
+                .copied()
         });
         let captured = explain.with_statement_read(None);
         let fresh_cache = captured.with_statement_state(|slot| slot.is_none());
@@ -617,7 +642,10 @@ mod tests {
         // Assert
         assert_eq!(same_cache, Some(7));
         assert!(fresh_cache);
-        assert_eq!(explain.order_proof(), Some((12, "canonical_timestamp_prefix")));
+        assert_eq!(
+            explain.order_proof(),
+            Some((12, "canonical_timestamp_prefix"))
+        );
         assert_eq!(independent.order_proof(), None);
         assert_eq!(controls.order_proof(), None);
     }

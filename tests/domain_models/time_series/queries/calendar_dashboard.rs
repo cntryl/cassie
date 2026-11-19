@@ -195,7 +195,11 @@ fn create_table(cassie: &Cassie, table: &str, indexed: bool, rows: &str) {
         .expect("create dashboard source table");
     if !rows.is_empty() {
         cassie
-            .execute_sql(&session, &format!("INSERT INTO {table} VALUES {rows}"), vec![])
+            .execute_sql(
+                &session,
+                &format!("INSERT INTO {table} VALUES {rows}"),
+                vec![],
+            )
             .expect("seed dashboard source rows");
     }
     if indexed {
@@ -251,34 +255,153 @@ fn row(
 fn expected_day(range: &str) -> Vec<Vec<Option<String>>> {
     match range {
         "spring" => vec![
-            row("a", "2024-03-08", "2024-03-08 05:00:00", "1", Some("9"), Some("9")),
-            row("a", "2024-03-09", "2024-03-09 05:00:00", "1", Some("10"), Some("10")),
-            row("a", "2024-03-10", "2024-03-10 05:00:00", "2", Some("23"), Some("23")),
-            row("a", "2024-03-11", "2024-03-11 04:00:00", "0", None, Some("23")),
+            row(
+                "a",
+                "2024-03-08",
+                "2024-03-08 05:00:00",
+                "1",
+                Some("9"),
+                Some("9"),
+            ),
+            row(
+                "a",
+                "2024-03-09",
+                "2024-03-09 05:00:00",
+                "1",
+                Some("10"),
+                Some("10"),
+            ),
+            row(
+                "a",
+                "2024-03-10",
+                "2024-03-10 05:00:00",
+                "2",
+                Some("23"),
+                Some("23"),
+            ),
+            row(
+                "a",
+                "2024-03-11",
+                "2024-03-11 04:00:00",
+                "0",
+                None,
+                Some("23"),
+            ),
             row("a", "2024-03-12", "2024-03-12 04:00:00", "1", None, None),
             row("b", "2024-03-08", "2024-03-08 05:00:00", "0", None, None),
             row("b", "2024-03-09", "2024-03-09 05:00:00", "0", None, None),
-            row("b", "2024-03-10", "2024-03-10 05:00:00", "1", Some("50"), Some("50")),
-            row("b", "2024-03-11", "2024-03-11 04:00:00", "0", None, Some("50")),
-            row("b", "2024-03-12", "2024-03-12 04:00:00", "0", None, Some("50")),
+            row(
+                "b",
+                "2024-03-10",
+                "2024-03-10 05:00:00",
+                "1",
+                Some("50"),
+                Some("50"),
+            ),
+            row(
+                "b",
+                "2024-03-11",
+                "2024-03-11 04:00:00",
+                "0",
+                None,
+                Some("50"),
+            ),
+            row(
+                "b",
+                "2024-03-12",
+                "2024-03-12 04:00:00",
+                "0",
+                None,
+                Some("50"),
+            ),
         ],
         "fall" => vec![
             row("a", "2024-11-01", "2024-11-01 04:00:00", "0", None, None),
-            row("a", "2024-11-02", "2024-11-02 04:00:00", "1", Some("20"), Some("20")),
-            row("a", "2024-11-03", "2024-11-03 04:00:00", "2", Some("43"), Some("43")),
-            row("a", "2024-11-04", "2024-11-04 05:00:00", "0", None, Some("43")),
+            row(
+                "a",
+                "2024-11-02",
+                "2024-11-02 04:00:00",
+                "1",
+                Some("20"),
+                Some("20"),
+            ),
+            row(
+                "a",
+                "2024-11-03",
+                "2024-11-03 04:00:00",
+                "2",
+                Some("43"),
+                Some("43"),
+            ),
+            row(
+                "a",
+                "2024-11-04",
+                "2024-11-04 05:00:00",
+                "0",
+                None,
+                Some("43"),
+            ),
             row("b", "2024-11-01", "2024-11-01 04:00:00", "0", None, None),
             row("b", "2024-11-02", "2024-11-02 04:00:00", "0", None, None),
-            row("b", "2024-11-03", "2024-11-03 04:00:00", "1", Some("70"), Some("70")),
-            row("b", "2024-11-04", "2024-11-04 05:00:00", "0", None, Some("70")),
+            row(
+                "b",
+                "2024-11-03",
+                "2024-11-03 04:00:00",
+                "1",
+                Some("70"),
+                Some("70"),
+            ),
+            row(
+                "b",
+                "2024-11-04",
+                "2024-11-04 05:00:00",
+                "0",
+                None,
+                Some("70"),
+            ),
         ],
         "utc-leap" => vec![
-            row("a", "2024-02-28", "2024-02-28 00:00:00", "1", Some("30"), Some("30")),
-            row("a", "2024-02-29", "2024-02-29 00:00:00", "1", Some("40"), Some("40")),
-            row("a", "2024-03-01", "2024-03-01 00:00:00", "0", None, Some("40")),
+            row(
+                "a",
+                "2024-02-28",
+                "2024-02-28 00:00:00",
+                "1",
+                Some("30"),
+                Some("30"),
+            ),
+            row(
+                "a",
+                "2024-02-29",
+                "2024-02-29 00:00:00",
+                "1",
+                Some("40"),
+                Some("40"),
+            ),
+            row(
+                "a",
+                "2024-03-01",
+                "2024-03-01 00:00:00",
+                "0",
+                None,
+                Some("40"),
+            ),
             row("b", "2024-02-28", "2024-02-28 00:00:00", "0", None, None),
-            row("b", "2024-02-29", "2024-02-29 00:00:00", "1", Some("80"), Some("80")),
-            row("b", "2024-03-01", "2024-03-01 00:00:00", "0", None, Some("80")),
+            row(
+                "b",
+                "2024-02-29",
+                "2024-02-29 00:00:00",
+                "1",
+                Some("80"),
+                Some("80"),
+            ),
+            row(
+                "b",
+                "2024-03-01",
+                "2024-03-01 00:00:00",
+                "0",
+                None,
+                Some("80"),
+            ),
         ],
         _ => panic!("unknown day range {range}"),
     }
@@ -318,12 +441,47 @@ fn expected_empty_day(range: &str) -> Vec<Vec<Option<String>>> {
 
 fn expected_month() -> Vec<Vec<Option<String>>> {
     vec![
-        row("a", "2024-01-01", "2024-01-01 05:00:00", "2", Some("101"), Some("101")),
-        row("a", "2024-02-01", "2024-02-01 05:00:00", "1", Some("40"), Some("40")),
-        row("a", "2024-03-01", "2024-03-01 05:00:00", "1", Some("300"), Some("300")),
+        row(
+            "a",
+            "2024-01-01",
+            "2024-01-01 05:00:00",
+            "2",
+            Some("101"),
+            Some("101"),
+        ),
+        row(
+            "a",
+            "2024-02-01",
+            "2024-02-01 05:00:00",
+            "1",
+            Some("40"),
+            Some("40"),
+        ),
+        row(
+            "a",
+            "2024-03-01",
+            "2024-03-01 05:00:00",
+            "1",
+            Some("300"),
+            Some("300"),
+        ),
         row("b", "2024-01-01", "2024-01-01 05:00:00", "0", None, None),
-        row("b", "2024-02-01", "2024-02-01 05:00:00", "1", Some("200"), Some("200")),
-        row("b", "2024-03-01", "2024-03-01 05:00:00", "0", None, Some("200")),
+        row(
+            "b",
+            "2024-02-01",
+            "2024-02-01 05:00:00",
+            "1",
+            Some("200"),
+            Some("200"),
+        ),
+        row(
+            "b",
+            "2024-03-01",
+            "2024-03-01 05:00:00",
+            "0",
+            None,
+            Some("200"),
+        ),
     ]
 }
 
@@ -355,12 +513,7 @@ fn counter(metrics: &serde_json::Value, name: &str) -> u64 {
     metrics["time_series"][name].as_u64().unwrap_or_default()
 }
 
-#[test]
-fn should_qualify_prepared_calendar_day_and_month_dashboards() {
-    // Arrange
-    assert_eq!(jiff_tzdb::VERSION, Some("2026e"));
-    let path = cassie_test_support::support_sql::data_dir("prepared-calendar-dashboard");
-    let cassie = open_local(&path, 100_000);
+fn create_calendar_fixture(cassie: &Cassie) -> ([Range; 3], Range) {
     let day_rows = "(1,'a','2024-03-08T06:00:00Z',9),(2,'a','2024-03-09T22:00:00Z',10), \
         (3,'a','2024-03-10T06:30:00Z',11),(4,'a','2024-03-10T07:30:00Z',12), \
         (5,'a','2024-03-12T12:00:00Z',NULL),(6,'a','2024-03-12T14:00:00Z',999), \
@@ -372,14 +525,14 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
         (17,'b','2024-02-29T13:00:00Z',80),(18,'a','2024-03-01T12:00:00Z',888), \
         (19,'a','2024-03-08T05:59:59Z',999),(20,'a','2024-11-02T15:59:00Z',999)";
     for (table, indexed) in [("day_exact", false), ("day_indexed", true)] {
-        create_table(&cassie, table, indexed, day_rows);
+        create_table(cassie, table, indexed, day_rows);
     }
     let month_rows = "(1,'a','2024-01-01T06:00:00Z',1),(2,'a','2024-01-15T12:00:00Z',100), \
         (3,'a','2024-02-29T12:00:00Z',40),(4,'a','2024-03-31T21:59:59Z',300), \
         (5,'b','2024-02-29T12:00:00Z',200),(6,'a','2024-04-01T04:00:00Z',999), \
         (7,'a','2024-03-31T22:00:00Z',888),(8,'a','2024-01-01T05:00:00Z',777)";
     for (table, indexed) in [("month_exact", false), ("month_indexed", true)] {
-        create_table(&cassie, table, indexed, month_rows);
+        create_table(cassie, table, indexed, month_rows);
     }
     let ranges = [
         Range {
@@ -415,6 +568,62 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
         grid_end: "2024-04-01T04:00:00Z",
         zone: "America/New_York",
     };
+    (ranges, month_range)
+}
+
+fn assert_reopened_calendar_dashboard(
+    path: &str,
+    ranges: &[Range; 3],
+    month_parameters: &[Option<&str>; 7],
+) {
+    // Arrange
+    let reopened = open_local(path, 100_000);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("reopen runtime");
+    runtime.block_on(async {
+        let server = wire::spawn_server(reopened).await;
+        let mut client = PreparedClient::connect(&server).await;
+        assert_eq!(
+            wire::error_code(
+                &client
+                    .simple_query("SET TIME ZONE 'Pacific/Honolulu'")
+                    .await
+            ),
+            None
+        );
+        let spring = values(&ranges[0]);
+        let day = client
+            .execute("reopened_day", &query(DAY_TEMPLATE, "day_indexed"), &spring)
+            .await;
+        let month = client
+            .execute(
+                "reopened_month",
+                &query(MONTH_TEMPLATE, "month_indexed"),
+                month_parameters,
+            )
+            .await;
+
+        // Assert
+        assert_dashboard(
+            &day,
+            &expected_day("spring"),
+            "reopened explicit New York zone",
+        );
+        assert_dashboard(&month, &expected_month(), "reopened explicit month zone");
+        client.close().await;
+        server.stop().await;
+    });
+}
+
+#[test]
+fn should_qualify_prepared_calendar_day_and_month_dashboards() {
+    // Arrange
+    assert_eq!(jiff_tzdb::VERSION, Some("2026e"));
+    let path = cassie_test_support::support_sql::data_dir("prepared-calendar-dashboard");
+    let cassie = open_local(&path, 100_000);
+    let (ranges, month_range) = create_calendar_fixture(&cassie);
     let month_parameters = values(&month_range);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -442,8 +651,14 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
             let expected = expected_day(range.label);
             assert_dashboard(&exact, &expected, range.label);
             assert_dashboard(&indexed, &expected, range.label);
-            assert_eq!(counter(&after, "bucket_native_hits") - counter(&before, "bucket_native_hits"), 2);
-            assert_eq!(counter(&after, "fallback_scans") - counter(&before, "fallback_scans"), 0);
+            assert_eq!(
+                counter(&after, "bucket_native_hits") - counter(&before, "bucket_native_hits"),
+                2
+            );
+            assert_eq!(
+                counter(&after, "fallback_scans") - counter(&before, "fallback_scans"),
+                0
+            );
         }
         let mut null_event_start = values(&ranges[2]);
         null_event_start[2] = None;
@@ -458,7 +673,11 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
             "NULL UTC event bound leaves calendar grid empty",
         );
         let exact_month = client
-            .execute("month_exact", &query(MONTH_TEMPLATE, "month_exact"), &month_parameters)
+            .execute(
+                "month_exact",
+                &query(MONTH_TEMPLATE, "month_exact"),
+                &month_parameters,
+            )
             .await;
         let before = cassie.metrics();
         let indexed_month_sql = query(MONTH_TEMPLATE, "month_indexed");
@@ -470,8 +689,14 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
         // Assert
         assert_dashboard(&exact_month, &expected_month(), "exact month");
         assert_dashboard(&indexed_month, &expected_month(), "indexed month");
-        assert_eq!(counter(&after, "bucket_native_hits") - counter(&before, "bucket_native_hits"), 2);
-        assert_eq!(counter(&after, "fallback_scans") - counter(&before, "fallback_scans"), 0);
+        assert_eq!(
+            counter(&after, "bucket_native_hits") - counter(&before, "bucket_native_hits"),
+            2
+        );
+        assert_eq!(
+            counter(&after, "fallback_scans") - counter(&before, "fallback_scans"),
+            0
+        );
         // The listener does not join its detached connection worker; close it
         // before reopening the same local Midge path.
         client.close().await;
@@ -481,37 +706,8 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
     // worker has finished cleanup before this Midge path is opened again.
     drop(cassie);
 
-    // Arrange
-    let reopened = open_local(&path, 100_000);
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("reopen runtime");
-    runtime.block_on(async {
-        let server = wire::spawn_server(reopened).await;
-        let mut client = PreparedClient::connect(&server).await;
-        assert_eq!(
-            wire::error_code(&client.simple_query("SET TIME ZONE 'Pacific/Honolulu'").await),
-            None
-        );
-        let spring = values(&ranges[0]);
-        let day = client
-            .execute("reopened_day", &query(DAY_TEMPLATE, "day_indexed"), &spring)
-            .await;
-        let month = client
-            .execute(
-                "reopened_month",
-                &query(MONTH_TEMPLATE, "month_indexed"),
-                &month_parameters,
-            )
-            .await;
-
-        // Assert
-        assert_dashboard(&day, &expected_day("spring"), "reopened explicit New York zone");
-        assert_dashboard(&month, &expected_month(), "reopened explicit month zone");
-        client.close().await;
-        server.stop().await;
-    });
+    // Assert
+    assert_reopened_calendar_dashboard(&path, &ranges, &month_parameters);
     std::fs::remove_dir_all(path).expect("remove local dashboard fixture");
 }
 
@@ -538,12 +734,16 @@ fn should_fail_calendar_grid_before_any_prepared_wire_rows_over_result_limit() {
 
         // Act
         let frames = client
-            .execute("limited_calendar", &query(DAY_TEMPLATE, "calendar_limited"), &values(&range))
+            .execute(
+                "limited_calendar",
+                &query(DAY_TEMPLATE, "calendar_limited"),
+                &values(&range),
+            )
             .await;
 
         // Assert
         assert_eq!(wire::error_code(&frames).as_deref(), Some("54000"));
-        assert!(wire::data_rows(&frames).is_empty());
+        assert_eq!(wire::data_rows(&frames), [] as [Vec<Option<String>>; 0]);
         client.close().await;
         server.stop().await;
     });

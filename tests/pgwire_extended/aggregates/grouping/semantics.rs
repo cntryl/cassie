@@ -248,3 +248,32 @@ fn should_rank_subtotal_rows_by_the_grouping_indicator() {
         [[None, Some("1".to_owned())], [None, Some("2".to_owned())]]
     );
 }
+
+#[test]
+fn should_select_one_report_row_per_grouping_level() {
+    // Arrange
+    let sql = [
+        "CREATE TABLE report(region text)",
+        "INSERT INTO report VALUES ('A'),(NULL)",
+        "SELECT DISTINCT ON (grouping(region)) grouping(region) AS g,region FROM report GROUP BY ROLLUP(region) ORDER BY grouping(region),region NULLS LAST",
+    ];
+    let steps = sql
+        .iter()
+        .map(|statement| Step::ThroughReady(vec![wire::simple_query_frame(statement)]))
+        .collect();
+
+    // Act
+    let batches = run_script("distinct-subtotal-level", steps);
+
+    // Assert
+    for batch in &batches {
+        assert_eq!(wire::error_code(batch), None);
+    }
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        [
+            [Some("0".to_owned()), Some("A".to_owned())],
+            [Some("1".to_owned()), None],
+        ]
+    );
+}

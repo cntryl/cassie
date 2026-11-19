@@ -49,7 +49,7 @@ pub(super) fn execute_scalar_index_read(
         user_functions,
         params,
         controls,
-        spec,
+        &spec,
     )
 }
 
@@ -60,7 +60,7 @@ fn execute_scalar_spec(
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
     controls: &QueryExecutionControls,
-    spec: ScalarIndexReadSpec,
+    spec: &ScalarIndexReadSpec,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if spec.request.limit == Some(0) {
         return Ok(Some(Vec::new()));
@@ -126,7 +126,7 @@ fn execute_scalar_spec(
         rows.push(scan::hydrate_character_arrays(row, controls)?);
     }
 
-    record_scalar_index_read_path(cassie, &spec, visited);
+    record_scalar_index_read_path(cassie, spec, visited);
 
     let access_plan = crate::planner::physical::partial_index::access_plan(plan, &spec.index);
     let plan = access_plan.as_ref();

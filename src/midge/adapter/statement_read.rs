@@ -27,7 +27,7 @@ struct StatementDataSnapshot {
     family_id: cntryl_midge::ColumnFamilyId,
     data_epoch: u64,
     descriptor_authority: DescriptorAuthority,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 pub(crate) struct StatementDataRead {
@@ -184,7 +184,7 @@ impl StatementDataRead {
             family_id,
             data_epoch,
             descriptor_authority,
-            _memory: memory,
+            memory,
         });
         Ok(Arc::new(Self {
             snapshot,

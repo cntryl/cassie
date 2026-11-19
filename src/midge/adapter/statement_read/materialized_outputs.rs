@@ -107,7 +107,7 @@ impl PrivateOutput {
     pub(in crate::midge::adapter) fn accounted_bytes(&self) -> Result<usize, CassieError> {
         add(
             self.memory.bytes(),
-            add(self.read.memory.bytes(), self.read.snapshot._memory.bytes())?,
+            add(self.read.memory.bytes(), self.read.snapshot.memory.bytes())?,
         )
     }
 }
@@ -160,7 +160,7 @@ impl Midge {
                 database: database.to_owned(),
                 family_id,
                 descriptor_authority: DescriptorAuthority::StatementSnapshot,
-                _memory: controls.reserve_query_memory(add(
+                memory: controls.reserve_query_memory(add(
                     size_of::<StatementDataSnapshot>() + 2 * size_of::<usize>(),
                     database.len(),
                 )?)?,

@@ -23,9 +23,10 @@ fn lookup_field(
     else {
         return None;
     };
-    let (field, value) = match (left.as_ref(), right.as_ref()) {
-        (Expr::Column(field), value) | (value, Expr::Column(field)) => (field, value),
-        _ => return None,
+    let ((Expr::Column(field), value) | (value, Expr::Column(field))) =
+        (left.as_ref(), right.as_ref())
+    else {
+        return None;
     };
     let exact = match value {
         Expr::IntegerLiteral(_) => true,
@@ -147,7 +148,7 @@ pub(in crate::executor::execution) fn execute(
     {
         return Ok(None);
     }
-    projected.collection = output.to_owned();
+    output.clone_into(&mut projected.collection);
     let covered = crate::planner::physical::plan_is_covered_by_index(plan, &index);
     let Some(spec) = selected_scalar_spec(
         env.cassie, projected, plan, env.params, index, covered, false,
@@ -165,6 +166,6 @@ pub(in crate::executor::execution) fn execute(
         env.user_functions,
         env.params,
         env.controls,
-        spec,
+        &spec,
     )
 }

@@ -20,6 +20,8 @@ use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
 
 #[path = "rollups/incremental.rs"]
 mod incremental;
+#[path = "rollups/output_order.rs"]
+mod output_order;
 #[path = "rollup_expression.rs"]
 mod rollup_expression;
 #[path = "rollup_payload.rs"]
@@ -32,10 +34,11 @@ pub(super) fn create_rollup(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output_collection = crate::catalog::output_collection_name(&statement.name);
-    let collections = [statement.source.to_string(), output_collection];
-    cassie.midge.with_collection_gates(&collections, || {
-        create_rollup_gated(cassie, statement, user_functions, controls)
-    })
+    cassie
+        .midge
+        .with_collection_gates(std::slice::from_ref(&output_collection), || {
+            create_rollup_gated(cassie, statement, user_functions, controls)
+        })
 }
 
 fn create_rollup_gated(
@@ -149,11 +152,13 @@ fn publish_rollup_rows(
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     let output_collection = meta.output_collection.clone();
-    let source_collection = meta.source_collection.clone();
-    let collections = [source_collection, output_collection];
-    cassie.midge.with_collection_gates(&collections, || {
-        publish_rollup_rows_gated(cassie, meta, rows, source_generation, controls)
-    })
+    // Gate only the output. Source writes must keep committing while a
+    // publication is in flight; the generation checks mark it stale instead.
+    cassie
+        .midge
+        .with_collection_gates(std::slice::from_ref(&output_collection), || {
+            publish_rollup_rows_gated(cassie, meta, rows, source_generation, controls)
+        })
 }
 
 fn publish_rollup_rows_gated(
@@ -373,9 +378,10 @@ pub(super) fn try_execute_rollup_query(
 
     let mut batches = scan::scan(cassie, None, &rollup.output_collection, controls)?;
     if !plan.order.is_empty() {
+        let order = output_order::rollup_output_order(&rollup, plan);
         let eval = sort::EvalInput {
-            order: &plan.order,
-            projection: &plan.projection,
+            order: &order,
+            projection: &[],
             params,
             user_functions,
             search_context: None,

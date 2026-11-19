@@ -43,21 +43,30 @@ fn assert_daily_incremental_parity(
     session: &cassie::app::CassieSession,
     table: &str,
 ) {
+    assert_daily_incremental_rows_match_source(cassie, session, table);
+    let rollup_query = daily_incremental_query(table);
+    let plan = cassie
+        .execute_sql(session, &format!("EXPLAIN {rollup_query}"), vec![])
+        .unwrap();
+    let expected_name = canonical_name(&format!("{table}_daily"));
+    assert!(matches!(
+        &plan.rows()[0][0],
+        Value::String(plan) if plan.contains(&format!("rollup_rewrite={expected_name}"))
+    ));
+}
+
+fn assert_daily_incremental_rows_match_source(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+    table: &str,
+) {
     let rollup_query = daily_incremental_query(table);
     let source_query = format!(
         "SELECT time_bucket('1 day', event_at) AS bucket, device, COUNT(*) AS total, SUM(amount) AS amount_sum, MIN(amount) AS amount_min, MAX(amount) AS amount_max FROM {table} WHERE id >= 0 GROUP BY time_bucket('1 day', event_at), device ORDER BY bucket, device"
     );
     let rollup = cassie.execute_sql(session, &rollup_query, vec![]).unwrap();
     let source = cassie.execute_sql(session, &source_query, vec![]).unwrap();
-    let plan = cassie
-        .execute_sql(session, &format!("EXPLAIN {rollup_query}"), vec![])
-        .unwrap();
     assert_eq!(rollup.rows(), source.rows());
-    let expected_name = canonical_name(&format!("{table}_daily"));
-    assert!(matches!(
-        &plan.rows()[0][0],
-        Value::String(plan) if plan.contains(&format!("rollup_rewrite={expected_name}"))
-    ));
 }
 
 fn incremental_groups_recomputed(cassie: &Cassie) -> u64 {
@@ -240,9 +249,11 @@ fn assert_move_delete_duplicate_and_rollback_changes(
         .unwrap();
     cassie.execute_sql(session, "ROLLBACK", vec![]).unwrap();
 
+    // A rolled-back write leaves the rollup stale until the next committed
+    // write, so this read is answered from the authoritative source.
     assert_incremental_group_delta(cassie, before, 0);
     assert_last_incremental_groups(cassie, &[("a", "2026-01-01T00:00:00Z")]);
-    assert_daily_incremental_parity(cassie, session, "incremental_events");
+    assert_daily_incremental_rows_match_source(cassie, session, "incremental_events");
 }
 
 #[test]
@@ -612,7 +623,7 @@ fn should_record_unsupported_aggregate_fallback_reason() {
         cassie
             .execute_sql(
                 &session,
-                "CREATE ROLLUP incremental_unsupported_daily ON incremental_unsupported USING time_bucket('1 day', event_at) GROUP BY device AGGREGATES AVG(amount) AS amount_avg",
+                "CREATE ROLLUP incremental_unsupported_daily ON incremental_unsupported USING time_bucket('1 day', event_at) GROUP BY device AGGREGATES COUNT(amount) AS amount_count",
                 vec![],
             )
             .unwrap();
@@ -628,14 +639,14 @@ fn should_record_unsupported_aggregate_fallback_reason() {
         let rollup = cassie
             .execute_sql(
                 &session,
-                "SELECT time_bucket('1 day', event_at) AS bucket, device, AVG(amount) AS amount_avg FROM incremental_unsupported GROUP BY time_bucket('1 day', event_at), device ORDER BY bucket, device",
+                "SELECT time_bucket('1 day', event_at) AS bucket, device, COUNT(amount) AS amount_count FROM incremental_unsupported GROUP BY time_bucket('1 day', event_at), device ORDER BY bucket, device",
                 vec![],
             )
             .unwrap();
         let source = cassie
             .execute_sql(
                 &session,
-                "SELECT time_bucket('1 day', event_at) AS bucket, device, AVG(amount) AS amount_avg FROM incremental_unsupported WHERE id >= 0 GROUP BY time_bucket('1 day', event_at), device ORDER BY bucket, device",
+                "SELECT time_bucket('1 day', event_at) AS bucket, device, COUNT(amount) AS amount_count FROM incremental_unsupported WHERE id >= 0 GROUP BY time_bucket('1 day', event_at), device ORDER BY bucket, device",
                 vec![],
             )
             .unwrap();

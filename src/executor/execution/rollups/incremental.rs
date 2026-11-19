@@ -157,13 +157,20 @@ fn matching_index(cassie: &Cassie, meta: &RollupMeta) -> Option<crate::catalog::
         .fields
         .iter()
         .find(|field| field.name.eq_ignore_ascii_case(group_key))?;
-    if timestamp.nullable
+    // NOT NULL is a catalog constraint; the stored field schema stays nullable.
+    let not_null = cassie.catalog.not_null_fields(&meta.source_collection);
+    let is_not_null = |name: &str| {
+        not_null
+            .iter()
+            .any(|field| field.eq_ignore_ascii_case(name))
+    };
+    if !is_not_null(&timestamp.name)
         || !matches!(
             &timestamp.data_type,
             DataType::Timestamp
                 | DataType::Extended(crate::types::extended::ExtendedType::TimestampTz { .. })
         )
-        || partition.nullable
+        || !is_not_null(&partition.name)
         || !matches!(&partition.data_type, DataType::Text)
     {
         return None;

@@ -536,6 +536,16 @@ fn advance_cursor_with_late_correction(
         .unwrap()
         .command()
         .to_owned();
+    // The first batch of the second window scanned a full page of 256 rows,
+    // so the window completes on the following metadata-only tick.
+    let completion = cassie
+        .execute_sql(
+            session,
+            "ENFORCE RETENTION POLICY scheduled_cursor_policy DUE AT '2026-01-04T00:00:00Z'",
+            vec![],
+        )
+        .unwrap();
+    assert_eq!(completion.command(), "ENFORCE RETENTION 0");
     let completed_second_progress =
         scheduled_policy_progress(cassie, session, "scheduled_cursor_policy");
     let final_count = sql_rows(
@@ -839,7 +849,9 @@ fn should_preserve_scheduled_failure_after_failed_one_off_at() {
             vec![],
         )
         .unwrap_err()
-        .to_string();
+        .to_string()
+        .trim_start_matches("execution error: ")
+        .to_owned();
     let progress = scheduled_policy_progress(&cassie, &session, "scheduled_one_off_failure_policy");
 
     // Assert
@@ -908,7 +920,9 @@ fn record_failure_then_successful_replay(path: &std::path::Path) -> String {
             vec![],
         )
         .unwrap_err()
-        .to_string();
+        .to_string()
+        .trim_start_matches("execution error: ")
+        .to_owned();
     let failed_progress = scheduled_policy_progress(&cassie, &session, "scheduled_failure_policy");
     assert_eq!(failed_progress[0][7], Value::String(first_failure.clone()));
     assert_eq!(failed_progress[0][8], Value::String(first_failure.clone()));
@@ -965,7 +979,9 @@ fn record_new_failure_after_restart(
             vec![],
         )
         .unwrap_err()
-        .to_string();
+        .to_string()
+        .trim_start_matches("execution error: ")
+        .to_owned();
     let progress = scheduled_policy_progress(
         &recovered.cassie,
         &recovered.session,

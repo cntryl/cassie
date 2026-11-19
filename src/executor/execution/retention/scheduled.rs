@@ -16,37 +16,41 @@ pub(super) fn enforce_due(
     let collections = cassie.referential_write_collections(&metadata.collection);
     let mut attempted = metadata.clone();
     let result = cassie.midge.with_collection_write_gates(&collections, || {
-        let mut current = current_policy(cassie, &metadata);
-        attempted.clone_from(&current);
-        if current.schedule_state == RetentionScheduleState::Unscheduled {
-            return Err(QueryError::General(format!(
-                "retention policy '{}' has no schedule",
-                current.name
-            )));
-        }
-        if current.schedule_state == RetentionScheduleState::Suspended {
-            return Ok(0);
-        }
-        if current.pending_cutoff_us.is_none() {
-            let Some(next_due_at_us) = current.next_due_at_us else {
+        let outcome = (|| {
+            let mut current = current_policy(cassie, &metadata);
+            attempted.clone_from(&current);
+            if current.schedule_state == RetentionScheduleState::Unscheduled {
                 return Err(QueryError::General(format!(
-                    "retention policy '{}' is missing its next due time",
+                    "retention policy '{}' has no schedule",
                     current.name
                 )));
-            };
-            if tick < super::timestamp_from_micros(next_due_at_us)? {
+            }
+            if current.schedule_state == RetentionScheduleState::Suspended {
                 return Ok(0);
             }
-            current.pending_cutoff_us = Some(tick_us);
-            current.pending_last_row_id = None;
-            current.pending_scanned_rows = 0;
-            current.pending_deleted_rows = 0;
-            current.pending_skipped_rows = 0;
-            attempted.clone_from(&current);
-        }
-        stage_and_publish_batch(cassie, current, controls)
+            if current.pending_cutoff_us.is_none() {
+                let Some(next_due_at_us) = current.next_due_at_us else {
+                    return Err(QueryError::General(format!(
+                        "retention policy '{}' is missing its next due time",
+                        current.name
+                    )));
+                };
+                if tick < super::timestamp_from_micros(next_due_at_us)? {
+                    return Ok(0);
+                }
+                current.pending_cutoff_us = Some(tick_us);
+                current.pending_last_row_id = None;
+                current.pending_scanned_rows = 0;
+                current.pending_deleted_rows = 0;
+                current.pending_skipped_rows = 0;
+                attempted.clone_from(&current);
+            }
+            stage_and_publish_batch(cassie, current, controls)
+        })();
+        record_failed_attempt(cassie, &attempted, &outcome);
+        outcome
     });
-    finish_attempt(cassie, attempted, result, controls)
+    result.and_then(|deleted| command_count(deleted, controls))
 }
 
 pub(super) fn replay_pending(
@@ -61,14 +65,18 @@ pub(super) fn replay_pending(
     let collections = cassie.referential_write_collections(&metadata.collection);
     let mut attempted = metadata.clone();
     let result = cassie.midge.with_collection_write_gates(&collections, || {
-        let current = current_policy(cassie, &metadata);
-        attempted.clone_from(&current);
-        if current.pending_cutoff_us.is_none() {
-            return Ok(0);
-        }
-        stage_and_publish_batch(cassie, current, controls)
+        let outcome = (|| {
+            let current = current_policy(cassie, &metadata);
+            attempted.clone_from(&current);
+            if current.pending_cutoff_us.is_none() {
+                return Ok(0);
+            }
+            stage_and_publish_batch(cassie, current, controls)
+        })();
+        record_failed_attempt(cassie, &attempted, &outcome);
+        outcome
     });
-    finish_attempt(cassie, attempted, result, controls)
+    result.and_then(|deleted| command_count(deleted, controls))
 }
 
 fn current_policy(cassie: &Cassie, fallback: &RetentionPolicyMeta) -> RetentionPolicyMeta {
@@ -78,18 +86,16 @@ fn current_policy(cassie: &Cassie, fallback: &RetentionPolicyMeta) -> RetentionP
         .unwrap_or_else(|| fallback.clone())
 }
 
-fn finish_attempt(
+/// Records a failed attempt while the caller still holds the collection write
+/// gates, so an overlapping tick cannot commit progress between the durable
+/// reread in [`persist_failure`] and its metadata write.
+fn record_failed_attempt(
     cassie: &Cassie,
-    metadata: RetentionPolicyMeta,
-    result: Result<u64, QueryError>,
-    controls: &QueryExecutionControls,
-) -> Result<QueryResult, QueryError> {
-    match result {
-        Ok(deleted) => command_count(deleted, controls),
-        Err(error) => {
-            persist_failure(cassie, metadata, &error);
-            Err(error)
-        }
+    attempted: &RetentionPolicyMeta,
+    outcome: &Result<u64, QueryError>,
+) {
+    if let Err(error) = outcome {
+        persist_failure(cassie, attempted.clone(), error);
     }
 }
 

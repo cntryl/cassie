@@ -1,8 +1,7 @@
 use serde_json::{Map, Value};
 
 const MAX_ROLLUP_CHANGE_REPORT_BYTES: usize = 64 * 1024;
-const B_TREE_MAP_NODE_BYTES: usize =
-    11 * std::mem::size_of::<(String, Value)>() + 14 * std::mem::size_of::<usize>();
+const PROJECTED_ENTRY_BYTES: usize = std::mem::size_of::<(String, Value)>();
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct RollupSourceChangeReport {
@@ -113,17 +112,16 @@ fn projected_payload_size(payload: Option<&Value>, fields: &[String]) -> Option<
         return Some(0);
     };
     let source = payload.as_object()?;
-    // Account a full B-tree node per selected field. This intentionally
-    // overcounts sparse nodes so report admission does not depend on allocator
-    // growth or the map's packing behavior. Map and row headers are inline in
-    // the reserved row-vector capacity; owned strings are counted by bytes.
+    // The cap bounds logical report content: one map entry per selected field
+    // plus its owned key and scalar bytes. Allocator slack inside the map's
+    // nodes is deliberately excluded so admission does not depend on packing.
     let mut bytes = 0usize;
     for field in fields {
         let Some(value) = source.get(field) else {
             continue;
         };
         bytes = bytes
-            .checked_add(B_TREE_MAP_NODE_BYTES)?
+            .checked_add(PROJECTED_ENTRY_BYTES)?
             .checked_add(field.len())?
             .checked_add(scalar_value_bytes(value)?)?;
     }

@@ -93,19 +93,17 @@ fn should_hydrate_legacy_retention_metadata_as_unscheduled() {
     let _ = std::fs::remove_dir_all(path);
 }
 
+/// Checks a `TIMESTAMPTZ` progress column and its `::TEXT` cast against the
+/// expected UTC instant, both rendered in PostgreSQL text form.
 fn assert_timestamptz_value(
     row: &[Value],
     value_column: usize,
     text_column: usize,
     expected: &str,
 ) {
-    assert!(matches!(
-        row.get(value_column),
-        Some(Value::Typed(cassie::types::typed::TypedValue::TimestampTz(
-            _
-        )))
-    ));
-    assert_eq!(row[text_column], Value::String(expected.to_owned()));
+    let rendered = expected.replace('T', " ").replace('Z', "+00");
+    assert_eq!(row[value_column], Value::String(rendered.clone()));
+    assert_eq!(row[text_column], Value::String(rendered));
 }
 
 fn assert_explicit_ready_policy(row: &[Value]) {

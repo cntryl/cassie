@@ -8,12 +8,67 @@ fn scheduled_policy_progress(
         .execute_sql(
             session,
             &format!(
-                "SELECT schedule_state, next_due_at, pending_cutoff, pending_scanned_rows, pending_deleted_rows, pending_skipped_rows, last_successful_cutoff, last_failure FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                "SELECT schedule_state, next_due_at, pending_cutoff, pending_scanned_rows, pending_deleted_rows, pending_skipped_rows, last_successful_cutoff, last_error, last_failure, next_due_at::TEXT, pending_cutoff::TEXT, last_successful_cutoff::TEXT, enforcement_mode, state FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
             ),
             vec![],
         )
         .expect("scheduled retention progress");
     result.rows().to_vec()
+}
+
+#[test]
+fn should_hydrate_legacy_retention_metadata_as_unscheduled() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    let legacy_json = format!(
+        "{{\"name\":\"{}\",\"collection\":\"postgres.public.legacy_events\",\"timestamp_field\":\"event_at\",\"retention_duration\":\"1 day\",\"enforcement_mode\":\"Explicit\",\"state\":\"Ready\",\"last_enforced_ms\":null,\"last_deleted_rows\":0,\"last_skipped_rows\":0,\"last_error\":null}}",
+        canonical_name("legacy_policy")
+    );
+    let legacy_metadata: cassie::catalog::RetentionPolicyMeta =
+        serde_json::from_str(&legacy_json).expect("legacy explicit retention metadata");
+    cassie.catalog.register_retention_policy(legacy_metadata);
+
+    // Act
+    let progress = scheduled_policy_progress(&cassie, &session, "legacy_policy");
+
+    // Assert
+    assert_eq!(progress.len(), 1);
+    assert_eq!(progress[0][0], Value::String("unscheduled".to_owned()));
+    assert_eq!(progress[0][1], Value::Null);
+    assert_eq!(progress[0][2], Value::Null);
+    assert_eq!(progress[0][3], Value::Int64(0));
+    assert_eq!(progress[0][4], Value::Int64(0));
+    assert_eq!(progress[0][5], Value::Int64(0));
+    assert_eq!(progress[0][6], Value::Null);
+    assert_eq!(progress[0][7], Value::Null);
+    assert_eq!(progress[0][8], Value::Null);
+    assert_eq!(progress[0][9], Value::Null);
+    assert_eq!(progress[0][10], Value::Null);
+    assert_eq!(progress[0][11], Value::Null);
+    assert_eq!(progress[0][12], Value::String("explicit".to_owned()));
+    assert_eq!(progress[0][13], Value::String("ready".to_owned()));
+}
+
+fn assert_timestamptz_value(
+    row: &[Value],
+    value_column: usize,
+    text_column: usize,
+    expected: &str,
+) {
+    assert!(matches!(
+        row.get(value_column),
+        Some(Value::Typed(cassie::types::typed::TypedValue::TimestampTz(
+            _
+        )))
+    ));
+    assert_eq!(row[text_column], Value::String(expected.to_owned()));
+}
+
+fn assert_explicit_ready_policy(row: &[Value]) {
+    assert_eq!(row[12], Value::String("explicit".to_owned()));
+    assert_eq!(row[13], Value::String("ready".to_owned()));
 }
 
 fn create_scheduled_effect_source(
@@ -27,9 +82,7 @@ fn create_scheduled_effect_source(
         format!(
             "CREATE TABLE {table} (id INT PRIMARY KEY, device TEXT NOT NULL, event_at TIMESTAMP NOT NULL, amount INT)"
         ),
-        format!(
-            "CREATE TABLE {table}_restrict (parent_id INT REFERENCES {table}(id), label TEXT)"
-        ),
+        format!("CREATE TABLE {table}_restrict (parent_id INT REFERENCES {table}(id), label TEXT)"),
         format!(
             "CREATE TABLE {table}_cascade (parent_id INT, label TEXT, CONSTRAINT {table}_cascade_fk FOREIGN KEY (parent_id) REFERENCES {table}(id) ON DELETE CASCADE)"
         ),
@@ -37,33 +90,19 @@ fn create_scheduled_effect_source(
         cassie.execute_sql(session, &sql, vec![]).unwrap();
     }
     for sql in [
-        format!(
-            "INSERT INTO {table} VALUES (1, 'a', '2026-01-01T01:00:00Z', 1)"
-        ),
-        format!(
-            "INSERT INTO {table} VALUES (2, 'b', '2026-01-01T02:00:00Z', 2)"
-        ),
-        format!(
-            "INSERT INTO {table} VALUES (3, 'a', '2026-01-02T00:00:00Z', 3)"
-        ),
-        format!(
-            "INSERT INTO {table} VALUES (4, 'b', '2026-01-03T00:00:00Z', 4)"
-        ),
-        format!(
-            "INSERT INTO {table}_restrict VALUES (2, 'keep parent')"
-        ),
-        format!(
-            "INSERT INTO {table}_cascade VALUES (1, 'remove with parent')"
-        ),
+        format!("INSERT INTO {table} VALUES (1, 'a', '2026-01-01T01:00:00Z', 1)"),
+        format!("INSERT INTO {table} VALUES (2, 'b', '2026-01-01T02:00:00Z', 2)"),
+        format!("INSERT INTO {table} VALUES (3, 'a', '2026-01-02T00:00:00Z', 3)"),
+        format!("INSERT INTO {table} VALUES (4, 'b', '2026-01-03T00:00:00Z', 4)"),
+        format!("INSERT INTO {table}_restrict VALUES (2, 'keep parent')"),
+        format!("INSERT INTO {table}_cascade VALUES (1, 'remove with parent')"),
         format!(
             "CREATE INDEX {table}_time ON {table} USING time_series (event_at) WITH (bucket_width = '1 day', partition_by = device)"
         ),
         format!(
             "CREATE ROLLUP {table}_daily ON {table} USING time_bucket('1 day', event_at) GROUP BY device AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum"
         ),
-        format!(
-            "CREATE RETENTION POLICY {policy} ON {table} USING event_at RETAIN FOR '1 day'"
-        ),
+        format!("CREATE RETENTION POLICY {policy} ON {table} USING event_at RETAIN FOR '1 day'"),
     ] {
         cassie.execute_sql(session, &sql, vec![]).unwrap();
     }
@@ -265,13 +304,15 @@ fn should_enforce_due_window_with_foreign_key_index_and_rollup_parity() {
         assert_eq!(manual_rollup, manual_rollup_oracle);
         assert_eq!(progress.len(), 1);
         assert_eq!(progress[0][0], Value::String("active".to_string()));
-        assert_eq!(progress[0][1], Value::String("2026-01-04T00:00:00Z".to_string()));
+        assert_explicit_ready_policy(&progress[0]);
+        assert_timestamptz_value(&progress[0], 1, 9, "2026-01-04T00:00:00Z");
         assert_eq!(progress[0][2], Value::Null);
         assert_eq!(progress[0][3], Value::Int64(0));
         assert_eq!(progress[0][4], Value::Int64(0));
         assert_eq!(progress[0][5], Value::Int64(0));
-        assert_eq!(progress[0][6], Value::String("2026-01-02T00:00:00Z".to_string()));
-        assert_eq!(progress[0][7], Value::Null);
+        assert_timestamptz_value(&progress[0], 6, 11, "2026-01-03T00:00:00Z");
+        assert_eq!(progress[0][7], Value::String(String::new()));
+        assert_eq!(progress[0][8], Value::Null);
     });
 }
 
@@ -322,6 +363,16 @@ fn create_scheduled_batch_fixture(
     }
 }
 
+fn replace_retention_duration(cassie: &Cassie, policy: &str, duration: &str) {
+    let mut metadata = cassie
+        .catalog
+        .get_retention_policy(&canonical_name(policy))
+        .expect("retention policy metadata");
+    metadata.retention_duration = duration.to_owned();
+    cassie.midge.put_retention_policy(&metadata).unwrap();
+    cassie.catalog.register_retention_policy(metadata);
+}
+
 #[test]
 fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
     // Arrange
@@ -337,7 +388,7 @@ fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
             &session,
             "scheduled_resume_events",
             "scheduled_resume_policy",
-            257,
+            513,
             2,
         );
 
@@ -379,7 +430,23 @@ fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
         let restarted = Cassie::new_with_data_dir(&path).unwrap();
         restarted.startup().unwrap();
         let restarted_session = restarted.create_session("tester", None);
-        let manual_replay = restarted
+        let same_time_replay = restarted
+            .execute_sql(
+                &restarted_session,
+                "ENFORCE RETENTION POLICY scheduled_resume_policy AT '2026-01-03T00:00:00Z'",
+                vec![],
+            )
+            .unwrap();
+        let rows_after_same_replay = restarted
+            .execute_sql(
+                &restarted_session,
+                "SELECT id FROM scheduled_resume_events ORDER BY id",
+                vec![],
+            )
+            .unwrap();
+        let same_replay_progress =
+            scheduled_policy_progress(&restarted, &restarted_session, "scheduled_resume_policy");
+        let different_time_replay = restarted
             .execute_sql(
                 &restarted_session,
                 "ENFORCE RETENTION POLICY scheduled_resume_policy AT '2026-01-04T00:00:00Z'",
@@ -421,55 +488,143 @@ fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
 
         // Assert
         assert_eq!(first_batch.command(), "ENFORCE RETENTION 256");
-        assert_eq!(first_count.rows(), vec![vec![Value::Int64(3)]]);
-        assert_eq!(
-            first_progress[0][2],
-            Value::String("2026-01-02T00:00:00Z".to_string())
-        );
-        assert_eq!(
-            first_progress[0][1],
-            Value::String("2026-01-03T00:00:00Z".to_string())
-        );
+        assert_eq!(first_count.rows(), vec![vec![Value::Int64(259)]]);
+        assert_explicit_ready_policy(&first_progress[0]);
+        assert_timestamptz_value(&first_progress[0], 2, 10, "2026-01-03T00:00:00Z");
+        assert_timestamptz_value(&first_progress[0], 1, 9, "2026-01-03T00:00:00Z");
         assert_eq!(first_progress[0][3], Value::Int64(256));
         assert_eq!(first_progress[0][4], Value::Int64(256));
         assert_eq!(first_progress[0][5], Value::Int64(0));
-        assert_eq!(first_progress[0][7], Value::Null);
+        assert_eq!(first_progress[0][7], Value::String(String::new()));
+        assert_eq!(first_progress[0][8], Value::Null);
         assert_eq!(suspended_tick.command(), "ENFORCE RETENTION 0");
+        assert_explicit_ready_policy(&suspended_progress[0]);
         assert_eq!(suspended_progress[0][1], first_progress[0][1]);
         assert_eq!(suspended_progress[0][2], first_progress[0][2]);
         assert_eq!(suspended_progress[0][3], first_progress[0][3]);
         assert_eq!(suspended_progress[0][4], first_progress[0][4]);
-        assert_eq!(manual_replay.command(), "ENFORCE RETENTION 1");
+        assert_eq!(same_time_replay.command(), "ENFORCE RETENTION 256");
+        assert_eq!(
+            rows_after_same_replay.rows(),
+            vec![
+                vec![Value::Int64(513)],
+                vec![Value::Int64(514)],
+                vec![Value::Int64(515)]
+            ]
+        );
+        assert_timestamptz_value(&same_replay_progress[0], 2, 10, "2026-01-03T00:00:00Z");
+        assert_explicit_ready_policy(&same_replay_progress[0]);
+        assert_eq!(same_replay_progress[0][3], Value::Int64(512));
+        assert_eq!(same_replay_progress[0][4], Value::Int64(512));
+        assert_eq!(different_time_replay.command(), "ENFORCE RETENTION 1");
         assert_eq!(
             rows_after_old_window.rows(),
-            vec![vec![Value::Int64(258)], vec![Value::Int64(259)]]
+            vec![vec![Value::Int64(514)], vec![Value::Int64(515)]]
         );
         assert_eq!(old_window_progress[0][2], Value::Null);
-        assert_eq!(
-            old_window_progress[0][1],
-            Value::String("2026-01-04T00:00:00Z".to_string())
-        );
-        assert_eq!(
-            old_window_progress[0][6],
-            Value::String("2026-01-02T00:00:00Z".to_string())
-        );
+        assert_explicit_ready_policy(&old_window_progress[0]);
+        assert_timestamptz_value(&old_window_progress[0], 1, 9, "2026-01-04T00:00:00Z");
+        assert_timestamptz_value(&old_window_progress[0], 6, 11, "2026-01-03T00:00:00Z");
         assert_eq!(second_window.command(), "ENFORCE RETENTION 1");
+        assert_explicit_ready_policy(&second_window_progress[0]);
         assert_eq!(
             rows_after_second_window.rows(),
             vec![vec![Value::Int64(259)]]
         );
-        assert_eq!(
-            second_window_progress[0][6],
-            Value::String("2026-01-03T00:00:00Z".to_string())
-        );
-        assert_eq!(
-            second_window_progress[0][1],
-            Value::String("2026-01-05T00:00:00Z".to_string())
-        );
+        assert_timestamptz_value(&second_window_progress[0], 6, 11, "2026-01-04T00:00:00Z");
+        assert_timestamptz_value(&second_window_progress[0], 1, 9, "2026-01-05T00:00:00Z");
 
         drop(restarted);
         let _ = std::fs::remove_dir_all(path);
     });
+}
+
+#[test]
+fn should_preserve_last_scheduled_failure_across_successful_replay() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    create_scheduled_batch_fixture(
+        &cassie,
+        &session,
+        "scheduled_failure_events",
+        "scheduled_failure_policy",
+        257,
+        0,
+    );
+
+    // Act
+    let first_batch = cassie
+        .execute_sql(
+            &session,
+            "ENFORCE RETENTION POLICY scheduled_failure_policy DUE AT '2026-01-03T00:00:00Z'",
+            vec![],
+        )
+        .unwrap();
+    replace_retention_duration(&cassie, "scheduled_failure_policy", "1 fortnight");
+    let first_failure = cassie
+        .execute_sql(
+            &session,
+            "ENFORCE RETENTION POLICY scheduled_failure_policy AT '2026-01-03T00:00:00Z'",
+            vec![],
+        )
+        .unwrap_err()
+        .to_string();
+    let failure_progress = scheduled_policy_progress(&cassie, &session, "scheduled_failure_policy");
+    cassie
+        .execute_sql(
+            &session,
+            "ALTER RETENTION POLICY scheduled_failure_policy RETAIN FOR '1 day'",
+            vec![],
+        )
+        .unwrap();
+    let resumed = cassie
+        .execute_sql(
+            &session,
+            "ENFORCE RETENTION POLICY scheduled_failure_policy AT '2026-01-03T00:00:00Z'",
+            vec![],
+        )
+        .unwrap();
+    let success_progress = scheduled_policy_progress(&cassie, &session, "scheduled_failure_policy");
+    replace_retention_duration(&cassie, "scheduled_failure_policy", "invalid duration");
+    let second_failure = cassie
+        .execute_sql(
+            &session,
+            "ENFORCE RETENTION POLICY scheduled_failure_policy DUE AT '2026-01-04T00:00:00Z'",
+            vec![],
+        )
+        .unwrap_err()
+        .to_string();
+    let latest_failure_progress =
+        scheduled_policy_progress(&cassie, &session, "scheduled_failure_policy");
+
+    // Assert
+    assert_eq!(first_batch.command(), "ENFORCE RETENTION 256");
+    assert_eq!(failure_progress[0][7], Value::String(first_failure.clone()));
+    assert_eq!(failure_progress[0][8], Value::String(first_failure.clone()));
+    assert_eq!(failure_progress[0][13], Value::String("error".to_owned()));
+    assert_timestamptz_value(&failure_progress[0], 2, 10, "2026-01-03T00:00:00Z");
+    assert_eq!(resumed.command(), "ENFORCE RETENTION 1");
+    assert_eq!(success_progress[0][7], Value::String(String::new()));
+    assert_eq!(success_progress[0][8], Value::String(first_failure));
+    assert_eq!(success_progress[0][13], Value::String("ready".to_owned()));
+    assert_timestamptz_value(&success_progress[0], 6, 11, "2026-01-03T00:00:00Z");
+    assert_ne!(
+        Value::String(second_failure.clone()),
+        success_progress[0][8]
+    );
+    assert_eq!(
+        latest_failure_progress[0][7],
+        Value::String(second_failure.clone())
+    );
+    assert_eq!(latest_failure_progress[0][8], Value::String(second_failure));
+    assert_eq!(
+        latest_failure_progress[0][13],
+        Value::String("error".to_owned())
+    );
+    assert_timestamptz_value(&latest_failure_progress[0], 6, 11, "2026-01-03T00:00:00Z");
+    assert_timestamptz_value(&latest_failure_progress[0], 1, 9, "2026-01-04T00:00:00Z");
 }
 
 #[test]
@@ -546,40 +701,25 @@ fn should_advance_scheduled_cursor_when_a_bounded_batch_deletes_no_rows() {
 
         // Assert
         assert_eq!(metadata_only.command(), "ENFORCE RETENTION 0");
-        assert_eq!(
-            first_progress[0][2],
-            Value::String("2026-01-02T00:00:00Z".to_string())
-        );
-        assert_eq!(
-            first_progress[0][1],
-            Value::String("2026-01-03T00:00:00Z".to_string())
-        );
+        assert_explicit_ready_policy(&first_progress[0]);
+        assert_timestamptz_value(&first_progress[0], 2, 10, "2026-01-03T00:00:00Z");
+        assert_timestamptz_value(&first_progress[0], 1, 9, "2026-01-03T00:00:00Z");
         assert_eq!(first_progress[0][3], Value::Int64(256));
         assert_eq!(first_progress[0][4], Value::Int64(0));
         assert_eq!(first_progress[0][5], Value::Int64(0));
         assert_eq!(finish_pending_window.command(), "ENFORCE RETENTION 0");
-        assert_eq!(
-            completed_first_progress[0][1],
-            Value::String("2026-01-04T00:00:00Z".to_string())
-        );
+        assert_explicit_ready_policy(&completed_first_progress[0]);
+        assert_timestamptz_value(&completed_first_progress[0], 1, 9, "2026-01-04T00:00:00Z");
         assert_eq!(completed_first_progress[0][2], Value::Null);
-        assert_eq!(
-            completed_first_progress[0][6],
-            Value::String("2026-01-02T00:00:00Z".to_string())
-        );
+        assert_timestamptz_value(&completed_first_progress[0], 6, 11, "2026-01-03T00:00:00Z");
         assert_eq!(
             remaining_before_correction_window.rows(),
             vec![vec![Value::Int64(257)]]
         );
         assert_eq!(next_window.command(), "ENFORCE RETENTION 1");
-        assert_eq!(
-            completed_second_progress[0][1],
-            Value::String("2026-01-05T00:00:00Z".to_string())
-        );
-        assert_eq!(
-            completed_second_progress[0][6],
-            Value::String("2026-01-03T00:00:00Z".to_string())
-        );
+        assert_explicit_ready_policy(&completed_second_progress[0]);
+        assert_timestamptz_value(&completed_second_progress[0], 1, 9, "2026-01-05T00:00:00Z");
+        assert_timestamptz_value(&completed_second_progress[0], 6, 11, "2026-01-04T00:00:00Z");
         assert_eq!(remaining.rows(), vec![vec![Value::Int64(256)]]);
         assert!(corrected_row.rows().is_empty());
     });

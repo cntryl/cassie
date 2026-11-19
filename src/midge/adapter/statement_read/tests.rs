@@ -524,9 +524,31 @@ fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() 
         &small,
     );
 
+    let catalog = session
+        .command_catalog_snapshot(&controls(16 * 1024 * 1024))
+        .unwrap()
+        .unwrap();
+    let retention = controls(catalog.accounted_bytes() + 128 * 1024);
+    let bind = |sql: &str| {
+        let parsed = crate::sql::parse_statement(sql).unwrap();
+        let fingerprint = crate::runtime::sql_fingerprint(&parsed);
+        cassie.validate_pgwire_bind(
+            &session,
+            parsed,
+            fingerprint,
+            &[],
+            &[],
+            (&crate::runtime::QueryCancellationHandle::new(), &retention),
+        )
+    };
+    let unrelated = bind("SELECT n FROM unrelated_small");
+    let relevant = bind("SELECT label FROM private_first WHERE k=1");
+
     // Assert
     assert_eq!(
         result.unwrap().rows(),
         vec![vec![crate::types::Value::Int64(7)]]
     );
+    assert!(unrelated.expect("unrelated portal fits").is_some());
+    assert!(matches!(relevant, Err(CassieError::ResourceLimit(_))));
 }

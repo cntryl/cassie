@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10655,
+    "rust_test_declarations": 10657,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10680,
+    "registered_rust_instances": 10682,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -98480,6 +98480,68 @@
         {
           "suite": "pgwire_grammar",
           "name": "pgwire_extended::postgresql18_grammar::should_select_one_report_row_per_grouping_level"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_preserve_empty_subtotals_in_exists_subqueries",
+      "name": "should_preserve_empty_subtotals_in_exists_subqueries",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 282,
+      "end_line": 305,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_preserve_empty_subtotals_in_exists_subqueries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_evaluate_correlated_subtotal_inputs_per_aggregate_call",
+      "name": "should_evaluate_correlated_subtotal_inputs_per_aggregate_call",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 308,
+      "end_line": 343,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_evaluate_correlated_subtotal_inputs_per_aggregate_call"
         }
       ],
       "attributes": [
@@ -340964,9 +341026,9 @@
       "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 279,
-      "sha256": "aff6f1c410245c5e8418afe626b255617592f2e0fd8e4c62555e7d46ff2713ea",
-      "test_declarations": 7,
+      "lines": 343,
+      "sha256": "a5081c0d1b0ea766bcf329452ff99c2d9649ff56c2122a5b53f1f6b4a551bbcc",
+      "test_declarations": 9,
       "registered_suites": [
         "pgwire_grammar"
       ],

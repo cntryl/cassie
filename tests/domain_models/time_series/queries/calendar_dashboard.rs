@@ -136,6 +136,19 @@ impl PreparedClient {
         wire::write_frames(&mut self.writer, vec![wire::simple_query_frame(sql)]).await;
         wire::read_frames_until_ready_within(&mut self.reader, Duration::from_secs(5)).await
     }
+
+    async fn close(mut self) {
+        wire::write_frames(&mut self.writer, vec![vec![b'X', 0, 0, 0, 4]]).await;
+        let mut byte = [0];
+        let read = tokio::time::timeout(
+            Duration::from_secs(5),
+            tokio::io::AsyncReadExt::read(&mut self.reader, &mut byte),
+        )
+        .await
+        .expect("Terminate closes the pgwire connection")
+        .expect("read pgwire close");
+        assert_eq!(read, 0, "Terminate should close after server-side cleanup");
+    }
 }
 
 struct Range {
@@ -459,9 +472,13 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
         assert_dashboard(&indexed_month, &expected_month(), "indexed month");
         assert_eq!(counter(&after, "bucket_native_hits") - counter(&before, "bucket_native_hits"), 2);
         assert_eq!(counter(&after, "fallback_scans") - counter(&before, "fallback_scans"), 0);
-        drop(client);
+        // The listener does not join its detached connection worker; close it
+        // before reopening the same local Midge path.
+        client.close().await;
         server.stop().await;
     });
+    // `support_sql::data_dir` returned a fresh UUID path, and the connection
+    // worker has finished cleanup before this Midge path is opened again.
     drop(cassie);
 
     // Arrange
@@ -492,6 +509,7 @@ fn should_qualify_prepared_calendar_day_and_month_dashboards() {
         // Assert
         assert_dashboard(&day, &expected_day("spring"), "reopened explicit New York zone");
         assert_dashboard(&month, &expected_month(), "reopened explicit month zone");
+        client.close().await;
         server.stop().await;
     });
     std::fs::remove_dir_all(path).expect("remove local dashboard fixture");
@@ -526,6 +544,7 @@ fn should_fail_calendar_grid_before_any_prepared_wire_rows_over_result_limit() {
         // Assert
         assert_eq!(wire::error_code(&frames).as_deref(), Some("54000"));
         assert!(wire::data_rows(&frames).is_empty());
+        client.close().await;
         server.stop().await;
     });
 }

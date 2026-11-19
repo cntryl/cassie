@@ -119644,7 +119644,7 @@
       "name": "should_apply_cycle_field_oids_only_to_their_source",
       "current_file": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs",
       "line": 139,
-      "end_line": 221,
+      "end_line": 222,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -341520,8 +341520,8 @@
       "current_file": "tests/pgwire_extended/ctes/multicolumn_cycle_wire_identity.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 221,
-      "sha256": "5bab5d3d621dce6a649576a8fa18bc54235ad5c9beef6acf96d0fe5cf98704a2",
+      "lines": 222,
+      "sha256": "573bdd171ea8ddacb9db48a2a768579838e22eaa8b37f5447053df77526544c6",
       "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"

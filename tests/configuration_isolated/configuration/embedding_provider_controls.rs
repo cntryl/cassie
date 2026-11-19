@@ -158,18 +158,23 @@ fn assert_deadline_interrupts_retry(
         .expect("lock controlled request worker guard");
     let limits = deadline_limits();
     let cancellation = QueryCancellationHandle::new();
-    let started = Instant::now();
-    let controls =
-        QueryExecutionControls::with_cancellation(&limits, started, cancellation.clone());
-    let deadline = controls.deadline.expect("configured query deadline");
+    let query_cancellation = cancellation.clone();
     let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
     let query_worker = std::thread::spawn(move || {
+        let started = Instant::now();
+        let controls =
+            QueryExecutionControls::with_cancellation(&limits, started, query_cancellation);
+        let deadline = controls.deadline.expect("configured query deadline");
         let result =
             provider.embed_documents_with_controls(&["bounded input".to_string()], &controls);
-        let _ = result_tx.send(result);
+        let _ = result_tx.send((result, started, deadline));
     });
-    let error = match result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT) {
-        Ok(result) => result.expect_err("deadline should interrupt provider retry"),
+    let (error, started, deadline) = match result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT) {
+        Ok((result, started, deadline)) => (
+            result.expect_err("deadline should interrupt provider retry"),
+            started,
+            deadline,
+        ),
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
             cancellation.cancel();
             let cleanup = result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT);

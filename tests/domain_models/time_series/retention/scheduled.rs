@@ -8,7 +8,7 @@ fn scheduled_policy_progress(
         .execute_sql(
             session,
             &format!(
-                "SELECT schedule_state, next_due_at, pending_cutoff, pending_scanned_rows, pending_deleted_rows, pending_skipped_rows, last_successful_cutoff, last_error, last_failure, next_due_at::TEXT, pending_cutoff::TEXT, last_successful_cutoff::TEXT, enforcement_mode, state FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                "SELECT schedule_state, next_due_at, pending_cutoff, pending_scanned_rows, pending_deleted_rows, pending_skipped_rows, last_successful_cutoff, last_error, last_failure, next_due_at::TEXT, pending_cutoff::TEXT, last_successful_cutoff::TEXT, enforcement_mode, state, last_deleted_rows, last_skipped_rows FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
             ),
             vec![],
         )
@@ -355,7 +355,60 @@ fn should_enforce_due_window_with_foreign_key_index_and_rollup_parity() {
         assert_timestamptz_value(&progress[0], 6, 11, "2026-01-03T00:00:00Z");
         assert_eq!(progress[0][7], Value::String(String::new()));
         assert_eq!(progress[0][8], Value::Null);
+        assert_eq!(progress[0][14], Value::Int64(1));
+        assert_eq!(progress[0][15], Value::Int64(1));
     });
+}
+
+#[test]
+fn should_delete_only_rows_strictly_before_due_window_cutoff() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE scheduled_cutoff_events (id INT PRIMARY KEY, event_at TIMESTAMP NOT NULL)",
+            vec![],
+        )
+        .unwrap();
+    for sql in [
+        "INSERT INTO scheduled_cutoff_events VALUES (1, '2026-01-01T23:59:59.999999Z')",
+        "INSERT INTO scheduled_cutoff_events VALUES (2, '2026-01-02T00:00:00Z')",
+        "INSERT INTO scheduled_cutoff_events VALUES (3, '2026-01-02T00:00:00.000001Z')",
+        "CREATE RETENTION POLICY scheduled_cutoff_policy ON scheduled_cutoff_events USING event_at RETAIN FOR '1 day'",
+        "ALTER RETENTION POLICY scheduled_cutoff_policy SCHEDULE DAILY START AT '2026-01-03T00:00:00Z'",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).unwrap();
+    }
+
+    // Act
+    let enforced = cassie
+        .execute_sql(
+            &session,
+            "ENFORCE RETENTION POLICY scheduled_cutoff_policy DUE AT '2026-01-03T00:00:00Z'",
+            vec![],
+        )
+        .unwrap();
+    let remaining = cassie
+        .execute_sql(
+            &session,
+            "SELECT id FROM scheduled_cutoff_events ORDER BY id",
+            vec![],
+        )
+        .unwrap();
+    let progress = scheduled_policy_progress(&cassie, &session, "scheduled_cutoff_policy");
+
+    // Assert
+    assert_eq!(enforced.command(), "ENFORCE RETENTION 1");
+    assert_eq!(
+        remaining.rows(),
+        vec![vec![Value::Int64(2)], vec![Value::Int64(3)]]
+    );
+    assert_eq!(progress[0][14], Value::Int64(1));
+    assert_eq!(progress[0][15], Value::Int64(0));
+    assert_timestamptz_value(&progress[0], 6, 11, "2026-01-03T00:00:00Z");
 }
 
 fn create_scheduled_batch_fixture(

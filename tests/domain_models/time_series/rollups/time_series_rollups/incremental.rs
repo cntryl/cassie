@@ -188,8 +188,8 @@ fn should_recompute_only_changed_daily_groups_after_committed_mutations() {
         assert_last_incremental_groups(&cassie, &[("a", "2026-01-01T00:00:00Z")]);
         assert_daily_incremental_parity(&cassie, &session, "incremental_events");
 
-        let before = incremental_groups_recomputed(&cassie);
         for _ in 0..2 {
+            let before = incremental_groups_recomputed(&cassie);
             cassie
                 .execute_sql(
                     &session,
@@ -384,5 +384,60 @@ fn should_fallback_to_authoritative_rows_then_clear_rollup_debt_after_restart() 
 
         drop(recovered);
         let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_skip_rollup_recompute_for_a_duplicate_projection_replay_event() {
+    // Arrange
+    runtime().block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        create_daily_incremental_fixture(&cassie, &session, "incremental_replay_events");
+        create_daily_incremental_rollup(
+            &cassie,
+            &session,
+            "incremental_replay_events",
+            "incremental_replay_events_daily",
+        );
+        let batch = cassie::app::ProjectionReplayBatch {
+            projection: canonical_name("incremental_replay_events"),
+            source_identity: "incremental-event-stream".to_owned(),
+            batch_id: "incremental-event-1".to_owned(),
+            lag: 0,
+            events: vec![cassie::app::ProjectionReplayEvent {
+                event_id: "incremental-event-1".to_owned(),
+                checkpoint: "checkpoint-1".to_owned(),
+                position: Some(1),
+                document_id: "1".to_owned(),
+                payload: Some(serde_json::json!({
+                    "id": 1,
+                    "device": "replayed",
+                    "event_at": "2026-01-01T01:00:00Z",
+                    "amount": 7
+                })),
+            }],
+        };
+
+        // Act
+        let first_before = incremental_groups_recomputed(&cassie);
+        let first = cassie.replay_projection_batch(batch.clone()).unwrap();
+        let duplicate_before = incremental_groups_recomputed(&cassie);
+        let duplicate = cassie.replay_projection_batch(batch).unwrap();
+
+        // Assert
+        assert_eq!(first.applied_event_count, 1);
+        assert_eq!(duplicate.skipped_duplicate_count, 1);
+        assert_eq!(
+            incremental_groups_recomputed(&cassie).saturating_sub(first_before),
+            1
+        );
+        assert_eq!(
+            incremental_groups_recomputed(&cassie).saturating_sub(duplicate_before),
+            0
+        );
+        assert_last_incremental_groups(&cassie, &[("replayed", "2026-01-01T00:00:00Z")]);
+        assert_daily_incremental_parity(&cassie, &session, "incremental_replay_events");
     });
 }

@@ -801,6 +801,54 @@ fn should_apply_explicit_at_to_scheduled_policy_without_pending_window() {
 }
 
 #[test]
+fn should_preserve_scheduled_failure_after_failed_one_off_at() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    create_scheduled_batch_fixture(
+        &cassie,
+        &session,
+        "scheduled_one_off_failure_events",
+        "scheduled_one_off_failure_policy",
+        1,
+        0,
+    );
+    replace_retention_duration(&cassie, "scheduled_one_off_failure_policy", "1 fortnight");
+    let mut metadata = cassie
+        .catalog
+        .get_retention_policy(&canonical_name("scheduled_one_off_failure_policy"))
+        .expect("scheduled policy metadata");
+    metadata.last_failure = Some("previous scheduled failure".to_owned());
+    cassie.midge.put_retention_policy(&metadata).unwrap();
+    cassie.catalog.register_retention_policy(metadata);
+
+    // Act
+    let error = cassie
+        .execute_sql(
+            &session,
+            "ENFORCE RETENTION POLICY scheduled_one_off_failure_policy AT '2026-01-03T00:00:00Z'",
+            vec![],
+        )
+        .unwrap_err()
+        .to_string();
+    let progress = scheduled_policy_progress(&cassie, &session, "scheduled_one_off_failure_policy");
+
+    // Assert
+    assert!(!error.is_empty());
+    assert_eq!(progress[0][0], Value::String("active".to_owned()));
+    assert_eq!(progress[0][2], Value::Null);
+    assert_eq!(progress[0][13], Value::String("error".to_owned()));
+    assert!(matches!(&progress[0][7], Value::String(value) if value == &error));
+    assert_eq!(
+        progress[0][8],
+        Value::String("previous scheduled failure".to_owned())
+    );
+    assert_timestamptz_value(&progress[0], 1, 9, "2026-01-03T00:00:00Z");
+    assert_eq!(progress[0][6], Value::Null);
+}
+
+#[test]
 fn should_preserve_last_scheduled_failure_across_successful_replay_and_restart() {
     // Arrange
     use_local_storage();

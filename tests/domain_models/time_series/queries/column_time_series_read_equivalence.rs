@@ -498,7 +498,8 @@ fn should_fallback_to_complete_columnar_page_given_missing_bucket_membership() {
     });
 
     // Arrange
-    let cassie = prepared_fixture(512);
+    // Hypothesis: 4 KiB admits fixture setup but not the 48-row authoritative fallback.
+    let cassie = prepared_fixture(4 * 1024);
     seed_prepared_page_twins(&cassie);
     let session = cassie.create_session("tester", None);
     for id in 100..140 {

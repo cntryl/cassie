@@ -337067,7 +337067,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 917,
-      "sha256": "e7c27940da86a027ff3e5bf560215ad7450f7549b5c556f18439dde2ed954028",
+      "sha256": "4894eb89c4439d1546e10575c84a504013151f192c986e1bac64eefec3352833",
       "test_declarations": 5,
       "registered_suites": [
         "domain_models"

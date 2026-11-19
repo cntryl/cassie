@@ -108,11 +108,7 @@ fn should_recompute_only_changed_daily_groups_after_committed_mutations() {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
-        create_daily_incremental_fixture(
-            &cassie,
-            &session,
-            "incremental_events",
-        );
+        create_daily_incremental_fixture(&cassie, &session, "incremental_events");
         for sql in [
             "INSERT INTO incremental_events VALUES (1, 'a', '2026-01-01T01:00:00Z', 1)",
             "INSERT INTO incremental_events VALUES (2, 'a', '2026-01-01T02:00:00Z', 4)",
@@ -129,103 +125,123 @@ fn should_recompute_only_changed_daily_groups_after_committed_mutations() {
         );
 
         // Act
-        let before = incremental_groups_recomputed(&cassie);
-        cassie
-            .execute_sql(
-                &session,
-                "UPDATE incremental_events SET amount = 6 WHERE id = 2",
-                vec![],
-            )
-            .unwrap();
-        assert_incremental_group_delta(&cassie, before, 1);
-        assert_last_incremental_groups(&cassie, &[("a", "2026-01-01T00:00:00Z")]);
-        assert_daily_incremental_parity(&cassie, &session, "incremental_events");
-        assert_no_incremental_fallback(&cassie);
-
-        let before = incremental_groups_recomputed(&cassie);
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO incremental_events VALUES (5, 'a', '2025-12-31T23:00:00Z', 3)",
-                vec![],
-            )
-            .unwrap();
-        assert_incremental_group_delta(&cassie, before, 1);
-        assert_last_incremental_groups(&cassie, &[("a", "2025-12-31T00:00:00Z")]);
-        assert_daily_incremental_parity(&cassie, &session, "incremental_events");
-
-        let before = incremental_groups_recomputed(&cassie);
-        cassie
-            .execute_sql(
-                &session,
-                "UPDATE incremental_events SET device = 'b', event_at = '2026-01-02T00:00:00Z' WHERE id = 1",
-                vec![],
-            )
-            .unwrap();
-        assert_incremental_group_delta(&cassie, before, 2);
-        assert_last_incremental_groups(
-            &cassie,
-            &[
-                ("a", "2026-01-01T00:00:00Z"),
-                ("b", "2026-01-02T00:00:00Z"),
-            ],
-        );
-        assert_daily_incremental_parity(&cassie, &session, "incremental_events");
-
-        let before = incremental_groups_recomputed(&cassie);
-        cassie
-            .execute_sql(
-                &session,
-                "DELETE FROM incremental_events WHERE id = 3",
-                vec![],
-            )
-            .unwrap();
-        assert_incremental_group_delta(&cassie, before, 1);
-        assert_last_incremental_groups(&cassie, &[("b", "2026-01-01T00:00:00Z")]);
-        assert_daily_incremental_parity(&cassie, &session, "incremental_events");
-
-        let before = incremental_groups_recomputed(&cassie);
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO incremental_events VALUES (6, 'a', '2026-01-01T05:00:00Z', NULL)",
-                vec![],
-            )
-            .unwrap();
-        assert_incremental_group_delta(&cassie, before, 1);
-        assert_last_incremental_groups(&cassie, &[("a", "2026-01-01T00:00:00Z")]);
-        assert_daily_incremental_parity(&cassie, &session, "incremental_events");
-
-        for _ in 0..2 {
-            let before = incremental_groups_recomputed(&cassie);
-            cassie
-                .execute_sql(
-                    &session,
-                    "INSERT INTO incremental_events VALUES (6, 'a', '2026-01-01T05:00:00Z', NULL) ON CONFLICT (id) DO UPDATE SET amount = EXCLUDED.amount",
-                    vec![],
-                )
-                .unwrap();
-            assert_incremental_group_delta(&cassie, before, 1);
-            assert_last_incremental_groups(&cassie, &[("a", "2026-01-01T00:00:00Z")]);
-            assert_daily_incremental_parity(&cassie, &session, "incremental_events");
-        }
-
-        let before = incremental_groups_recomputed(&cassie);
-        cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "UPDATE incremental_events SET amount = 99 WHERE id = 2",
-                vec![],
-            )
-            .unwrap();
-        cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
+        let baseline = incremental_groups_recomputed(&cassie);
 
         // Assert
-        assert_incremental_group_delta(&cassie, before, 0);
-        assert_last_incremental_groups(&cassie, &[("a", "2026-01-01T00:00:00Z")]);
-        assert_daily_incremental_parity(&cassie, &session, "incremental_events");
+        assert_daily_incremental_mutation_contract(&cassie, &session, baseline);
     });
+}
+
+fn assert_daily_incremental_mutation_contract(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+    baseline: u64,
+) {
+    assert_update_and_insert_changes(cassie, session, baseline);
+    assert_move_delete_duplicate_and_rollback_changes(cassie, session);
+}
+
+fn assert_update_and_insert_changes(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+    baseline: u64,
+) {
+    cassie
+        .execute_sql(
+            session,
+            "UPDATE incremental_events SET amount = 6 WHERE id = 2",
+            vec![],
+        )
+        .unwrap();
+    assert_incremental_group_delta(cassie, baseline, 1);
+    assert_last_incremental_groups(cassie, &[("a", "2026-01-01T00:00:00Z")]);
+    assert_daily_incremental_parity(cassie, session, "incremental_events");
+    assert_no_incremental_fallback(cassie);
+
+    let before = incremental_groups_recomputed(cassie);
+    cassie
+        .execute_sql(
+            session,
+            "INSERT INTO incremental_events VALUES (5, 'a', '2025-12-31T23:00:00Z', 3)",
+            vec![],
+        )
+        .unwrap();
+    assert_incremental_group_delta(cassie, before, 1);
+    assert_last_incremental_groups(cassie, &[("a", "2025-12-31T00:00:00Z")]);
+    assert_daily_incremental_parity(cassie, session, "incremental_events");
+}
+
+fn assert_move_delete_duplicate_and_rollback_changes(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+) {
+    let before = incremental_groups_recomputed(cassie);
+    cassie
+        .execute_sql(
+            session,
+            "UPDATE incremental_events SET device = 'b', event_at = '2026-01-02T00:00:00Z' WHERE id = 1",
+            vec![],
+        )
+        .unwrap();
+    assert_incremental_group_delta(cassie, before, 2);
+    assert_last_incremental_groups(
+        cassie,
+        &[("a", "2026-01-01T00:00:00Z"), ("b", "2026-01-02T00:00:00Z")],
+    );
+    assert_daily_incremental_parity(cassie, session, "incremental_events");
+
+    let before = incremental_groups_recomputed(cassie);
+    cassie
+        .execute_sql(
+            session,
+            "DELETE FROM incremental_events WHERE id = 3",
+            vec![],
+        )
+        .unwrap();
+    assert_incremental_group_delta(cassie, before, 1);
+    assert_last_incremental_groups(cassie, &[("b", "2026-01-01T00:00:00Z")]);
+    assert_daily_incremental_parity(cassie, session, "incremental_events");
+
+    let before = incremental_groups_recomputed(cassie);
+    cassie
+        .execute_sql(
+            session,
+            "INSERT INTO incremental_events VALUES (6, 'a', '2026-01-01T05:00:00Z', NULL)",
+            vec![],
+        )
+        .unwrap();
+    assert_incremental_group_delta(cassie, before, 1);
+    assert_last_incremental_groups(cassie, &[("a", "2026-01-01T00:00:00Z")]);
+    assert_daily_incremental_parity(cassie, session, "incremental_events");
+
+    for _ in 0..2 {
+        let before = incremental_groups_recomputed(cassie);
+        cassie
+            .execute_sql(
+                session,
+                "INSERT INTO incremental_events VALUES (6, 'a', '2026-01-01T05:00:00Z', NULL) ON CONFLICT (id) DO UPDATE SET amount = EXCLUDED.amount",
+                vec![],
+            )
+            .unwrap();
+        assert_incremental_group_delta(cassie, before, 1);
+        assert_last_incremental_groups(cassie, &[("a", "2026-01-01T00:00:00Z")]);
+        assert_daily_incremental_parity(cassie, session, "incremental_events");
+    }
+
+    let before = incremental_groups_recomputed(cassie);
+    cassie.execute_sql(session, "BEGIN", vec![]).unwrap();
+    cassie
+        .execute_sql(
+            session,
+            "UPDATE incremental_events SET amount = 99 WHERE id = 2",
+            vec![],
+        )
+        .unwrap();
+    cassie.execute_sql(session, "ROLLBACK", vec![]).unwrap();
+
+    assert_incremental_group_delta(cassie, before, 0);
+    assert_last_incremental_groups(cassie, &[("a", "2026-01-01T00:00:00Z")]);
+    assert_daily_incremental_parity(cassie, session, "incremental_events");
 }
 
 #[test]
@@ -454,5 +470,176 @@ fn should_skip_rollup_recompute_for_a_duplicate_projection_replay_event() {
         assert_last_incremental_groups(&cassie, &[("replayed", "2026-01-01T00:00:00Z")]);
         assert_daily_incremental_parity(&cassie, &session, "incremental_replay_events");
         assert_no_incremental_fallback(&cassie);
+    });
+}
+
+#[test]
+fn should_record_group_limit_fallback_after_a_bounded_source_report() {
+    // Arrange
+    let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+    runtime().block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE incremental_group_limit (id INT PRIMARY KEY, d TEXT NOT NULL, t TIMESTAMP NOT NULL)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX incremental_group_limit_time ON incremental_group_limit USING time_series (t) WITH (bucket_width = '1 day', partition_by = d)",
+                vec![],
+            )
+            .unwrap();
+        let values = (0..129)
+            .map(|id| format!("({id}, 'o{id}', '2026-01-01T00:00:00Z')"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let insert = format!("INSERT INTO incremental_group_limit VALUES {values}");
+        cassie.execute_sql(&session, &insert, vec![]).unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE ROLLUP incremental_group_limit_daily ON incremental_group_limit USING time_bucket('1 day', t) GROUP BY d AGGREGATES COUNT(*) AS total",
+                vec![],
+            )
+            .unwrap();
+        let cases = (0..129)
+            .map(|id| format!("WHEN {id} THEN 'n{id}'"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let update = format!(
+            "UPDATE incremental_group_limit SET d = CASE id {cases} ELSE d END"
+        );
+
+        // Act
+        cassie.execute_sql(&session, &update, vec![]).unwrap();
+        let rollup = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('1 day', t) AS bucket, d, COUNT(*) AS total FROM incremental_group_limit GROUP BY time_bucket('1 day', t), d ORDER BY bucket, d",
+                vec![],
+            )
+            .unwrap();
+        let source = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('1 day', t) AS bucket, d, COUNT(*) AS total FROM incremental_group_limit WHERE id >= 0 GROUP BY time_bucket('1 day', t), d ORDER BY bucket, d",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(rollup.rows(), source.rows());
+        assert_eq!(rollup.rows().len(), 129);
+        assert_eq!(
+            cassie.metrics()["rollups"]["incremental_groups_recomputed"],
+            0
+        );
+        assert_eq!(
+            cassie.metrics()["rollups"]["last_incremental_fallback_reason"],
+            "affected-group-limit"
+        );
+    });
+}
+
+#[test]
+fn should_record_change_report_size_fallback_for_many_rows_in_one_group() {
+    // Arrange
+    let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+    runtime().block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        create_daily_incremental_fixture(&cassie, &session, "incremental_report_limit");
+        create_daily_incremental_rollup(
+            &cassie,
+            &session,
+            "incremental_report_limit",
+            "incremental_report_limit_daily",
+        );
+        let values = (1..=600)
+            .map(|id| format!("({id}, 'a', '2026-01-01T00:00:00Z', 1)"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let insert = format!("INSERT INTO incremental_report_limit VALUES {values}");
+
+        // Act
+        cassie.execute_sql(&session, &insert, vec![]).unwrap();
+        let rollup = cassie
+            .execute_sql(
+                &session,
+                &daily_incremental_query("incremental_report_limit"),
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(rollup.rows().len(), 1);
+        assert_eq!(rollup.rows()[0][2], Value::Int64(600));
+        assert_eq!(
+            cassie.metrics()["rollups"]["last_incremental_fallback_reason"],
+            "change-report-limit"
+        );
+    });
+}
+
+#[test]
+fn should_record_unsupported_aggregate_fallback_reason() {
+    // Arrange
+    let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+    runtime().block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        create_daily_incremental_fixture(&cassie, &session, "incremental_unsupported");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO incremental_unsupported VALUES (1, 'a', '2026-01-01T01:00:00Z', 1)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE ROLLUP incremental_unsupported_daily ON incremental_unsupported USING time_bucket('1 day', event_at) GROUP BY device AGGREGATES AVG(amount) AS amount_avg",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "UPDATE incremental_unsupported SET amount = 9 WHERE id = 1",
+                vec![],
+            )
+            .unwrap();
+        let rollup = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('1 day', event_at) AS bucket, device, AVG(amount) AS amount_avg FROM incremental_unsupported GROUP BY time_bucket('1 day', event_at), device ORDER BY bucket, device",
+                vec![],
+            )
+            .unwrap();
+        let source = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('1 day', event_at) AS bucket, device, AVG(amount) AS amount_avg FROM incremental_unsupported WHERE id >= 0 GROUP BY time_bucket('1 day', event_at), device ORDER BY bucket, device",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(rollup.rows(), source.rows());
+        assert_eq!(
+            cassie.metrics()["rollups"]["last_incremental_fallback_reason"],
+            "unsupported-rollup-definition"
+        );
     });
 }

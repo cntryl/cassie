@@ -31,6 +31,9 @@ mod fulltext_retrieval_corruption;
 #[path = "search/retrieval/fulltext_query.rs"]
 mod integration_sql_fulltext_query;
 
+#[path = "search/retrieval/fulltext_stemming.rs"]
+mod fulltext_stemming;
+
 // Formerly tests/search_vector.rs.
 #[path = "search/retrieval/vector.rs"]
 mod search_vector;

@@ -65,7 +65,7 @@ impl AnalyzerConfig {
         }
         if let Some(value) = options.get("stemming") {
             config.stemming = normalize_option(value);
-            if config.stemming != "none" {
+            if !matches!(config.stemming.as_str(), "none" | "english") {
                 return Err(format!("unsupported stemming option '{}'", value.trim()));
             }
         }
@@ -76,6 +76,7 @@ impl AnalyzerConfig {
         Ok(config)
     }
 
+    #[must_use]
     pub fn analyze(&self, input: &str) -> Vec<String> {
         let normalized = if self.case_folding {
             input.to_lowercase()
@@ -88,11 +89,17 @@ impl AnalyzerConfig {
             normalized
         };
         let stop_words = crate::search::tokenizer::stop_words();
+        let stemmer = self.stemmer();
         tokenize_with(&normalized, &self.tokenizer)
             .filter(|token| !token.is_empty())
             .filter(|token| self.stop_words != "english" || !stop_words.contains(*token))
-            .map(ToString::to_string)
+            .map(|token| stem_token(stemmer.as_ref(), token))
             .collect()
+    }
+
+    fn stemmer(&self) -> Option<rust_stemmers::Stemmer> {
+        (self.stemming == "english")
+            .then(|| rust_stemmers::Stemmer::create(rust_stemmers::Algorithm::English))
     }
 
     /// Returns the byte ranges of `input` whose analyzed tokens equal one of `terms`.
@@ -136,6 +143,7 @@ impl AnalyzerConfig {
             origins.resize(folded.len(), (start, end));
         }
 
+        let stemmer = self.stemmer();
         let mut spans: Vec<(usize, usize)> = Vec::new();
         let mut token_start: Option<usize> = None;
         let boundaries = folded
@@ -147,7 +155,8 @@ impl AnalyzerConfig {
                 (None, false) => token_start = Some(index),
                 (Some(start), true) => {
                     token_start = None;
-                    if terms.iter().any(|term| term == &folded[start..index]) {
+                    let token = stem_token(stemmer.as_ref(), &folded[start..index]);
+                    if terms.contains(&token) {
                         let span = (origins[start].0, origins[index - 1].1);
                         if spans.last().is_none_or(|last| span.0 >= last.1) {
                             spans.push(span);
@@ -173,6 +182,13 @@ impl TokenizedText {
             tokens: AnalyzerConfig::default().analyze(input),
         }
     }
+}
+
+fn stem_token(stemmer: Option<&rust_stemmers::Stemmer>, token: &str) -> String {
+    stemmer.map_or_else(
+        || token.to_string(),
+        |stemmer| stemmer.stem(token).into_owned(),
+    )
 }
 
 fn normalize_option(value: &str) -> String {
@@ -315,5 +331,93 @@ mod tests {
 
         // Assert
         assert_eq!(spans, vec![(2, 12)]);
+    }
+
+    fn english_stemming() -> AnalyzerConfig {
+        AnalyzerConfig {
+            stemming: "english".to_string(),
+            ..AnalyzerConfig::default()
+        }
+    }
+
+    #[test]
+    fn should_accept_english_stemming_option() {
+        // Arrange
+        let options = BTreeMap::from([("stemming".to_string(), "'English'".to_string())]);
+
+        // Act
+        let config = AnalyzerConfig::from_index_options(&options).expect("english stemming");
+
+        // Assert
+        assert_eq!(config.stemming, "english");
+    }
+
+    #[test]
+    fn should_reject_unsupported_stemming_language() {
+        // Arrange
+        let options = BTreeMap::from([("stemming".to_string(), "french".to_string())]);
+
+        // Act
+        let result = AnalyzerConfig::from_index_options(&options);
+
+        // Assert
+        assert_eq!(
+            result.expect_err("french is unsupported"),
+            "unsupported stemming option 'french'"
+        );
+    }
+
+    #[test]
+    fn should_stem_inflected_terms_after_stop_words() {
+        // Arrange
+        let config = english_stemming();
+
+        // Act
+        let tokens = config.analyze("The Running accounts");
+
+        // Assert
+        assert_eq!(tokens, vec!["run", "account"]);
+    }
+
+    #[test]
+    fn should_preserve_default_token_stream_without_stemming() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+
+        // Act
+        let tokens = config.analyze("The Running accounts");
+
+        // Assert
+        assert_eq!(tokens, vec!["running", "accounts"]);
+    }
+
+    #[test]
+    fn should_stem_after_accent_folding() {
+        // Arrange
+        let config = AnalyzerConfig {
+            accent_folding: true,
+            ..english_stemming()
+        };
+
+        // Act
+        let tokens = config.analyze("Caf\u{e9}s");
+
+        // Assert
+        assert_eq!(tokens, vec!["cafe"]);
+    }
+
+    #[test]
+    fn should_highlight_original_inflected_spans_with_stemming() {
+        // Arrange
+        let config = english_stemming();
+        let text = "caf\u{e9} Connections and connected";
+        let terms = config.analyze("connect");
+
+        // Act
+        let spans = config.matching_spans(text, &terms);
+
+        // Assert
+        let found: Vec<&str> = spans.iter().map(|(a, b)| &text[*a..*b]).collect();
+        assert_eq!(found, vec!["Connections", "connected"]);
     }
 }

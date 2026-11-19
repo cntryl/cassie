@@ -820,8 +820,16 @@ fn should_preserve_scheduled_failure_after_failed_one_off_at() {
         .get_retention_policy(&canonical_name("scheduled_one_off_failure_policy"))
         .expect("scheduled policy metadata");
     metadata.last_failure = Some("previous scheduled failure".to_owned());
+    metadata.last_successful_cutoff_us = Some(1_767_312_000_000_000);
     cassie.midge.put_retention_policy(&metadata).unwrap();
     cassie.catalog.register_retention_policy(metadata);
+    cassie
+        .execute_sql(
+            &session,
+            "ALTER RETENTION POLICY scheduled_one_off_failure_policy SUSPEND",
+            vec![],
+        )
+        .unwrap();
 
     // Act
     let error = cassie
@@ -836,7 +844,7 @@ fn should_preserve_scheduled_failure_after_failed_one_off_at() {
 
     // Assert
     assert!(!error.is_empty());
-    assert_eq!(progress[0][0], Value::String("active".to_owned()));
+    assert_eq!(progress[0][0], Value::String("suspended".to_owned()));
     assert_eq!(progress[0][2], Value::Null);
     assert_eq!(progress[0][13], Value::String("error".to_owned()));
     assert!(matches!(&progress[0][7], Value::String(value) if value == &error));
@@ -845,7 +853,7 @@ fn should_preserve_scheduled_failure_after_failed_one_off_at() {
         Value::String("previous scheduled failure".to_owned())
     );
     assert_timestamptz_value(&progress[0], 1, 9, "2026-01-03T00:00:00Z");
-    assert_eq!(progress[0][6], Value::Null);
+    assert_timestamptz_value(&progress[0], 6, 11, "2026-01-02T00:00:00Z");
 }
 
 #[test]

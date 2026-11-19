@@ -36,6 +36,7 @@ struct Layout {
 pub(in crate::executor::execution) fn prepare_plan(
     batches: &mut [Batch],
     context: &AggregateExecutionContext<'_>,
+    evaluate_subquery: &InputResolver<'_>,
 ) -> Result<PreparedPlan, QueryError> {
     let original = context.plan;
     let memory = context
@@ -104,6 +105,7 @@ pub(in crate::executor::execution) fn prepare_plan(
                 layout.slots,
                 context,
                 &mut layout.memory,
+                evaluate_subquery,
             )?;
             let source = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
             *row = values.with_outer_scope(Arc::new(source));
@@ -221,6 +223,7 @@ fn snapshot(
     slots: usize,
     context: &AggregateExecutionContext<'_>,
     memory: &mut QueryMemoryReservation,
+    evaluate_subquery: &InputResolver<'_>,
 ) -> Result<BatchRow, QueryError> {
     memory.try_grow(add(
         mul(slots, size_of::<(String, Value)>() + size_of::<DataType>())?,
@@ -230,17 +233,21 @@ fn snapshot(
     let mut types = Vec::with_capacity(slots);
     let mut name_bytes = 0;
     for input in inputs {
-        let included = state_input::row_predicate_matches(
-            input.filter.as_ref().map(|(_, expr)| expr),
-            source,
-            context,
-        )?;
-        if let Some((name, _)) = &input.filter {
+        let included = if let Some((name, expr)) = &input.filter {
+            let included = state_input::predicate_matches(evaluate_input(
+                source,
+                expr,
+                context,
+                evaluate_subquery,
+            )?)?;
             memory.try_grow(name.len())?;
             name_bytes = add(name_bytes, name.len())?;
             types.push(DataType::Boolean);
             values.push((name.clone(), Value::Bool(included)));
-        }
+            included
+        } else {
+            true
+        };
         for (name, expr) in &input.expressions {
             check_timeout(context.controls)?;
             let data_type = array_order::expression_type_with_parameter_oids(
@@ -250,23 +257,21 @@ fn snapshot(
                 context.parameter_type_oids,
             )
             .unwrap_or(DataType::Null);
-            let value =
-                if included {
-                    let _temporary = context.controls.reserve_query_memory(
-                        super::modifiers::expression_bound(expr, source, context)?,
-                    )?;
-                    filter::evaluate_expr_value(
-                        source,
-                        expr,
-                        context.params,
-                        context.search_context,
-                        context.user_functions,
-                        context.session,
-                        None,
-                    )?
-                } else {
-                    Value::Null
-                };
+            let value = if included {
+                let _temporary = (!expr.contains_subquery())
+                    .then(|| {
+                        context
+                            .controls
+                            .reserve_query_memory(super::modifiers::expression_bound(
+                                expr, source, context,
+                            )?)
+                            .map_err(QueryError::from)
+                    })
+                    .transpose()?;
+                evaluate_input(source, expr, context, evaluate_subquery)?
+            } else {
+                Value::Null
+            };
             memory.try_grow(add(
                 add(name.len(), value_clone_bytes(&value)?)?,
                 data_type_clone_bytes(&data_type)?,
@@ -278,4 +283,28 @@ fn snapshot(
     }
     memory.try_grow(lookup_bytes(slots, name_bytes)?)?;
     Ok(BatchRow::from_projected_values(values).with_optional_data_types(Some(Arc::new(types))))
+}
+
+type InputResolver<'a> =
+    dyn Fn(&BatchRow, &Expr, &filter::EvaluationMemory) -> Result<Value, QueryError> + 'a;
+
+fn evaluate_input(
+    source: &BatchRow,
+    expr: &Expr,
+    context: &AggregateExecutionContext<'_>,
+    evaluate_subquery: &InputResolver<'_>,
+) -> Result<Value, QueryError> {
+    if expr.contains_subquery() {
+        let memory = filter::EvaluationMemory::new(context.controls)?;
+        return evaluate_subquery(source, expr, &memory);
+    }
+    filter::evaluate_expr_value(
+        source,
+        expr,
+        context.params,
+        context.search_context,
+        context.user_functions,
+        context.session,
+        None,
+    )
 }

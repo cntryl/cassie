@@ -473,6 +473,10 @@ pub(super) fn execute_source_query_with_outer_row(
         env.session,
         env.controls,
     )?;
+    // Snapshot subtotal inputs before the legacy grouped-subquery pass can
+    // merge structurally equal subqueries from independent aggregate calls.
+    let subtotal = phases::prepare_subtotal(env, &phase_env, cte_context, plan, &mut batches)?;
+    let plan = subtotal.as_ref().map_or(plan, |prepared| &prepared.plan);
     let grouped_subqueries = if plan_uses_aggregate(plan) {
         let search = search_context.as_ref();
         super::subquery_columns::materialize(env, cte_context, plan, &mut batches, search)?
@@ -480,8 +484,6 @@ pub(super) fn execute_source_query_with_outer_row(
         None
     };
     let plan = grouped_subqueries.as_ref().unwrap_or(plan);
-    let subtotal = phases::prepare_subtotal(&phase_env, plan, &mut batches)?;
-    let plan = subtotal.as_ref().map_or(plan, |prepared| &prepared.plan);
     batches = apply_aggregate_phase(&phase_env, batches, plan, cte_context)?;
     batches = phases::window(env, cte_context, batches, plan, search_context.as_ref())?;
     batches = phases::sort(env, cte_context, batches, plan, search_context.as_ref())?;

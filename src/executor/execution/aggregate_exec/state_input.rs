@@ -58,15 +58,7 @@ pub(super) fn row_filter_matches(
     row: &BatchRow,
     context: &AggregateExecutionContext<'_>,
 ) -> Result<bool, QueryError> {
-    row_predicate_matches(function.filter.as_deref(), row, context)
-}
-
-pub(super) fn row_predicate_matches(
-    predicate: Option<&Expr>,
-    row: &BatchRow,
-    context: &AggregateExecutionContext<'_>,
-) -> Result<bool, QueryError> {
-    filter_matches(predicate, row, &value_context(context))
+    filter_matches(function.filter.as_deref(), row, &value_context(context))
 }
 
 pub(super) fn selected_input(
@@ -85,8 +77,8 @@ fn filter_matches(
     row: &BatchRow,
     context: &AggregateValueContext<'_>,
 ) -> Result<bool, QueryError> {
-    if let Some(predicate) = predicate {
-        match filter::evaluate_expr_value(
+    predicate.map_or(Ok(true), |predicate| {
+        predicate_matches(filter::evaluate_expr_value(
             row,
             predicate,
             context.params,
@@ -94,17 +86,18 @@ fn filter_matches(
             context.user_functions,
             context.session,
             None,
-        )? {
-            Value::Bool(true) => {}
-            Value::Bool(false) | Value::Null => return Ok(false),
-            _ => {
-                return Err(QueryError::General(
-                    "FILTER requires BOOLEAN or SQL NULL".into(),
-                ));
-            }
-        }
+        )?)
+    })
+}
+
+pub(super) fn predicate_matches(value: Value) -> Result<bool, QueryError> {
+    match value {
+        Value::Bool(value) => Ok(value),
+        Value::Null => Ok(false),
+        _ => Err(QueryError::General(
+            "FILTER requires BOOLEAN or SQL NULL".into(),
+        )),
     }
-    Ok(true)
 }
 
 fn evaluate_selected_input(

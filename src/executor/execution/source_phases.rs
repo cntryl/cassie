@@ -136,12 +136,30 @@ impl PhaseExecutionEnv<'_> {
 }
 
 pub(super) fn prepare_subtotal(
-    env: &PhaseExecutionEnv<'_>,
+    env: &SourceExecutionEnv<'_>,
+    phase: &PhaseExecutionEnv<'_>,
+    ctes: &CteContext,
     plan: &LogicalPlan,
     batches: &mut [Batch],
 ) -> Result<Option<aggregate_exec::subtotal::PreparedPlan>, QueryError> {
     plan.grouping_subtotal
-        .then(|| aggregate_exec::subtotal::prepare_plan(batches, &env.aggregate_context(plan)))
+        .then(|| {
+            aggregate_exec::subtotal::prepare_plan(
+                batches,
+                &phase.aggregate_context(plan),
+                &|row, expr, memory| {
+                    super::super::exists_phase::evaluate_with_owner(
+                        env,
+                        ctes,
+                        &plan.source,
+                        row,
+                        expr,
+                        phase.search_context,
+                        memory,
+                    )
+                },
+            )
+        })
         .transpose()
 }
 

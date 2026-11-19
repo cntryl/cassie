@@ -4,8 +4,6 @@ use cassie::types::Value;
 
 #[path = "support/fixture_dir.rs"]
 mod fixture_dir;
-#[path = "support/ordered_dashboard.rs"]
-mod ordered_dashboard;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -55,7 +53,6 @@ const LEGACY_JOIN_CASES: [(&str, &str, usize); 7] = [
 
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier5, OWNER);
-    ordered_dashboard::run(&mut runner);
     if !owner_selected(&runner) {
         runner.finish();
         return;

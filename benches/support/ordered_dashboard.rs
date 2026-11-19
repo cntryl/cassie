@@ -23,7 +23,7 @@ pub(crate) fn run(runner: &mut CassieStressRunner) {
             FixtureDeclaration::new(
                 FixtureClass::Scaling,
                 NOISE_ORDERS,
-                "tier5_scaling_query/10k",
+                "tier5_ordered_dashboard/10k",
             ),
             OperationUnit::Query,
         );

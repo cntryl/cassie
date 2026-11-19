@@ -99,6 +99,24 @@ impl<'a> SourceExecutionEnv<'a> {
             self.controls,
         )
     }
+
+    fn phase_env<'phase>(
+        &self,
+        search_context: Option<&'phase filter::SearchContext>,
+    ) -> PhaseExecutionEnv<'phase>
+    where
+        'a: 'phase,
+    {
+        PhaseExecutionEnv {
+            cassie: self.cassie,
+            session: self.session,
+            params: self.params,
+            parameter_type_oids: self.parameter_type_oids,
+            user_functions: self.user_functions,
+            controls: self.controls,
+            search_context,
+        }
+    }
 }
 
 pub(super) fn execute_query_source(
@@ -452,15 +470,7 @@ pub(super) fn execute_source_query_with_outer_row(
     let fulltext_fields = plan_inspection::fulltext_query_fields(plan);
     let search_context =
         build_search_context(env.cassie, plan, &batches, &text_fields, &fulltext_fields)?;
-    let phase_env = PhaseExecutionEnv {
-        cassie: env.cassie,
-        session: env.session,
-        params: env.params,
-        parameter_type_oids: env.parameter_type_oids,
-        user_functions: env.user_functions,
-        controls: env.controls,
-        search_context: search_context.as_ref(),
-    };
+    let phase_env = env.phase_env(search_context.as_ref());
     let resolved_filter;
     (batches, resolved_filter) =
         resolve_filter_or_correlate(env, plan, cte_context, batches, search_context.as_ref())?;

@@ -234,7 +234,7 @@ fn snapshot(
     let mut name_bytes = 0;
     for input in inputs {
         let included = if let Some((name, expr)) = &input.filter {
-            let included = state_input::predicate_matches(evaluate_input(
+            let included = state_input::predicate_matches(&evaluate_input(
                 source,
                 expr,
                 context,

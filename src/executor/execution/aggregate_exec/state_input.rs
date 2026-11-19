@@ -78,7 +78,7 @@ fn filter_matches(
     context: &AggregateValueContext<'_>,
 ) -> Result<bool, QueryError> {
     predicate.map_or(Ok(true), |predicate| {
-        predicate_matches(filter::evaluate_expr_value(
+        predicate_matches(&filter::evaluate_expr_value(
             row,
             predicate,
             context.params,
@@ -90,9 +90,9 @@ fn filter_matches(
     })
 }
 
-pub(super) fn predicate_matches(value: Value) -> Result<bool, QueryError> {
+pub(super) fn predicate_matches(value: &Value) -> Result<bool, QueryError> {
     match value {
-        Value::Bool(value) => Ok(value),
+        Value::Bool(value) => Ok(*value),
         Value::Null => Ok(false),
         _ => Err(QueryError::General(
             "FILTER requires BOOLEAN or SQL NULL".into(),

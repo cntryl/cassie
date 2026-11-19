@@ -31,8 +31,12 @@ pub(super) fn execute_hnsw_vector_top_k(
         cassie.runtime.record_hnsw_fallback("unsupported-sort");
         return Ok(None);
     }
-    if index.metadata.metric != crate::embeddings::DistanceMetric::L2 {
+    if index.metadata.metric != spec.metric {
         cassie.runtime.record_hnsw_fallback("incompatible-metric");
+        return Ok(None);
+    }
+    if spec.is_degenerate_ann_query() {
+        cassie.runtime.record_hnsw_fallback("zero-query-exact");
         return Ok(None);
     }
     let Some(options) = index.metadata.hnsw.as_ref() else {
@@ -171,7 +175,7 @@ fn rerank_hnsw_candidates(
             record_hnsw_concurrent_source_change(cassie);
             return Ok(None);
         }
-        let score = crate::vector::l2_distance(&vector, &spec.query);
+        let score = spec.exact_distance(&vector);
         reranked.try_push_with(candidate.id.len(), || SqlVectorCandidate {
             sort_value: candidate_sort_value(&spec.direction, score),
             score,

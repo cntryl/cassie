@@ -3,6 +3,7 @@ use super::{
     Expr, FunctionCall, FunctionMeta, HashMap, LogicalPlan, QueryError, QuerySource, SelectItem,
     SortDirection, Value,
 };
+use crate::embeddings::DistanceMetric;
 use crate::runtime::{
     owned_memory::try_reserve_vec, QueryExecutionControls, QueryMemoryReservation,
 };
@@ -257,6 +258,9 @@ pub(super) struct VectorDistanceTopKSpec {
     pub(super) collection: String,
     pub(super) vector_field: String,
     pub(super) query: Vec<f32>,
+    /// Distance selected by the SQL operator: `<->` L2, `<=>` cosine, `<#>`
+    /// negative inner product. The `vector_distance` function is always L2.
+    pub(super) metric: DistanceMetric,
     pub(super) id_column: String,
     pub(super) score_column: String,
     pub(super) direction: SortDirection,
@@ -271,6 +275,23 @@ pub(super) struct VectorDistanceTopKSpec {
 impl VectorDistanceTopKSpec {
     pub(super) fn top_needed(&self) -> usize {
         self.limit.saturating_add(self.offset).max(1)
+    }
+
+    /// Exact distance between a stored vector and the query under the
+    /// operator's metric; the authoritative score for every ANN rerank.
+    pub(super) fn exact_distance(&self, vector: &[f32]) -> f64 {
+        match self.metric {
+            DistanceMetric::L2 => crate::vector::l2_distance(vector, &self.query),
+            DistanceMetric::Cosine => crate::vector::cosine_distance(vector, &self.query),
+            DistanceMetric::Dot => crate::vector::dot_distance(vector, &self.query),
+        }
+    }
+
+    /// A zero query ties every cosine and inner-product distance, so the
+    /// ranking is decided by row identity alone and an ANN candidate set cannot
+    /// reproduce it. Such queries are served by exact scoring.
+    pub(super) fn is_degenerate_ann_query(&self) -> bool {
+        self.metric != DistanceMetric::L2 && self.query.iter().all(|value| *value == 0.0)
     }
 }
 
@@ -335,6 +356,7 @@ fn vector_distance_top_k_spec(
         collection: collection.to_string(),
         vector_field: vector_field.to_owned(),
         query: query.values,
+        metric: DistanceMetric::L2,
         id_column,
         score_column,
         direction: plan.order[0].direction.clone(),
@@ -365,14 +387,18 @@ fn operator_top_k_spec(
     else {
         return Ok(None);
     };
-    let Some((vector_field, operand)) = operator_l2_args(expr) else {
+    let Some((metric, vector_field, operand)) = operator_metric_args(expr) else {
         return Ok(None);
     };
     let Some(order) = vector_order_operand(
         &plan.order[0].expr,
         score_alias.as_deref(),
         vector_field,
-        operator_l2_args,
+        |order| {
+            operator_metric_args(order)
+                .filter(|(order_metric, _, _)| *order_metric == metric)
+                .map(|(_, field, operand)| (field, operand))
+        },
     ) else {
         return Ok(None);
     };
@@ -386,6 +412,7 @@ fn operator_top_k_spec(
         collection: collection.to_string(),
         vector_field: vector_field.to_owned(),
         query: query.values,
+        metric,
         id_column: alias.clone().unwrap_or_else(|| name.clone()),
         score_column,
         direction: plan.order[0].direction.clone(),
@@ -396,19 +423,21 @@ fn operator_top_k_spec(
     }))
 }
 
-fn operator_l2_args(expr: &Expr) -> Option<(&str, &Expr)> {
-    let Expr::Binary {
-        left,
-        op: crate::sql::ast::BinaryOp::PgvectorL2,
-        right,
-    } = expr
-    else {
+fn operator_metric_args(expr: &Expr) -> Option<(DistanceMetric, &str, &Expr)> {
+    use crate::sql::ast::BinaryOp;
+    let Expr::Binary { left, op, right } = expr else {
         return None;
+    };
+    let metric = match op {
+        BinaryOp::PgvectorL2 => DistanceMetric::L2,
+        BinaryOp::PgvectorCosine => DistanceMetric::Cosine,
+        BinaryOp::PgvectorDot => DistanceMetric::Dot,
+        _ => return None,
     };
     let Expr::Column(vector_field) = left.as_ref() else {
         return None;
     };
-    Some((vector_field, right))
+    Some((metric, vector_field, right))
 }
 
 fn vector_distance_projection(

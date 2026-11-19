@@ -102,3 +102,6 @@ mod vector_publication_support;
 mod vector_metric_qualification;
 #[path = "support/vector_qualification.rs"]
 mod vector_qualification_support;
+
+#[path = "vector_embeddings/vectors/sql_ann_metrics.rs"]
+mod sql_ann_metrics;

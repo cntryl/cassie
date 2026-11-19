@@ -136,10 +136,14 @@ fn ivfflat_training(
     if index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat {
         return Ok(None);
     }
-    if index.metadata.metric != crate::embeddings::DistanceMetric::L2 {
+    if index.metadata.metric != spec.metric {
         cassie
             .runtime
             .record_ivfflat_fallback("incompatible-metric");
+        return Ok(None);
+    }
+    if spec.is_degenerate_ann_query() {
+        cassie.runtime.record_ivfflat_fallback("zero-query-exact");
         return Ok(None);
     }
     let training = cassie.midge.get_ivfflat_training_manifest_controlled(
@@ -207,7 +211,7 @@ fn rerank_ivfflat_candidates(
             record_ivfflat_concurrent_source_change(cassie);
             return Ok(None);
         }
-        let score = crate::vector::l2_distance(&vector, &spec.query);
+        let score = spec.exact_distance(&vector);
         candidate_count = candidate_count.saturating_add(1);
         top.try_push(
             SqlVectorCandidate {

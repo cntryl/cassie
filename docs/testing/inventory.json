@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1789,
-    "rust_files": 1752,
-    "rust_test_declarations": 10663,
+    "files": 1792,
+    "rust_files": 1755,
+    "rust_test_declarations": 10683,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10688,
+    "registered_rust_instances": 10708,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -48517,8 +48517,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_openai_retry_backoff_to_query_deadline",
       "name": "should_clamp_openai_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 135,
-      "end_line": 153,
+      "line": 210,
+      "end_line": 228,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48548,8 +48548,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_openai_compatible_retry_backoff_to_query_deadline",
       "name": "should_clamp_openai_compatible_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 156,
-      "end_line": 175,
+      "line": 231,
+      "end_line": 250,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48579,8 +48579,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_tei_retry_backoff_to_query_deadline",
       "name": "should_clamp_tei_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 178,
-      "end_line": 196,
+      "line": 253,
+      "end_line": 271,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48610,8 +48610,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_ollama_retry_backoff_to_query_deadline",
       "name": "should_clamp_ollama_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 199,
-      "end_line": 217,
+      "line": 274,
+      "end_line": 292,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48641,8 +48641,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_voyage_retry_backoff_to_query_deadline",
       "name": "should_clamp_voyage_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 220,
-      "end_line": 239,
+      "line": 295,
+      "end_line": 314,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48672,8 +48672,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_cohere_retry_backoff_to_query_deadline",
       "name": "should_clamp_cohere_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 242,
-      "end_line": 261,
+      "line": 317,
+      "end_line": 336,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48703,8 +48703,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_cancel_an_active_provider_request_without_waiting_for_transport_timeout",
       "name": "should_cancel_an_active_provider_request_without_waiting_for_transport_timeout",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 264,
-      "end_line": 313,
+      "line": 339,
+      "end_line": 388,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -48734,8 +48734,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_not_retry_mid_body_reset_for_any_remote_provider",
       "name": "should_not_retry_mid_body_reset_for_any_remote_provider",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 316,
-      "end_line": 411,
+      "line": 391,
+      "end_line": 486,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -50219,6 +50219,409 @@
       }
     },
     {
+      "id": "tests/domain_models/time_series/retention/scheduled.rs::should_hydrate_legacy_retention_metadata_as_unscheduled",
+      "name": "should_hydrate_legacy_retention_metadata_as_unscheduled",
+      "current_file": "tests/domain_models/time_series/retention/scheduled.rs",
+      "line": 20,
+      "end_line": 94,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_hydrate_legacy_retention_metadata_as_unscheduled"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled.rs::should_parse_scheduled_retention_commands",
+      "name": "should_parse_scheduled_retention_commands",
+      "current_file": "tests/domain_models/time_series/retention/scheduled.rs",
+      "line": 204,
+      "end_line": 220,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_parse_scheduled_retention_commands"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled.rs::should_serialize_overlapping_duplicate_due_ticks_without_double_deleting",
+      "name": "should_serialize_overlapping_duplicate_due_ticks_without_double_deleting",
+      "current_file": "tests/domain_models/time_series/retention/scheduled.rs",
+      "line": 280,
+      "end_line": 334,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_serialize_overlapping_duplicate_due_ticks_without_double_deleting"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled.rs::should_deny_scheduled_retention_commands_to_authenticated_non_admin_roles",
+      "name": "should_deny_scheduled_retention_commands_to_authenticated_non_admin_roles",
+      "current_file": "tests/domain_models/time_series/retention/scheduled.rs",
+      "line": 337,
+      "end_line": 397,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_deny_scheduled_retention_commands_to_authenticated_non_admin_roles"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_enforce_due_window_with_foreign_key_index_and_rollup_parity",
+      "name": "should_enforce_due_window_with_foreign_key_index_and_rollup_parity",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 4,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_enforce_due_window_with_foreign_key_index_and_rollup_parity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/windows",
+        "directory": "tests/domain_models/aggregates/windows",
+        "file": "tests/domain_models/aggregates/windows/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_delete_only_rows_strictly_before_due_window_cutoff",
+      "name": "should_delete_only_rows_strictly_before_due_window_cutoff",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 173,
+      "end_line": 222,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_delete_only_rows_strictly_before_due_window_cutoff"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart",
+      "name": "should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 225,
+      "end_line": 237,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_advance_scheduled_cursor_when_a_bounded_batch_deletes_no_rows",
+      "name": "should_advance_scheduled_cursor_when_a_bounded_batch_deletes_no_rows",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 460,
+      "end_line": 479,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_advance_scheduled_cursor_when_a_bounded_batch_deletes_no_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_complete_an_exactly_full_batch_on_a_metadata_only_call",
+      "name": "should_complete_an_exactly_full_batch_on_a_metadata_only_call",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 622,
+      "end_line": 669,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_complete_an_exactly_full_batch_on_a_metadata_only_call"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_keep_older_pending_cutoff_when_newer_due_tick_races_replay",
+      "name": "should_keep_older_pending_cutoff_when_newer_due_tick_races_replay",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 690,
+      "end_line": 734,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_keep_older_pending_cutoff_when_newer_due_tick_races_replay"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_apply_explicit_at_to_scheduled_policy_without_pending_window",
+      "name": "should_apply_explicit_at_to_scheduled_policy_without_pending_window",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 774,
+      "end_line": 811,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_apply_explicit_at_to_scheduled_policy_without_pending_window"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_preserve_scheduled_failure_after_failed_one_off_at",
+      "name": "should_preserve_scheduled_failure_after_failed_one_off_at",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 814,
+      "end_line": 869,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_preserve_scheduled_failure_after_failed_one_off_at"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/retention/scheduled_recovery.rs::should_preserve_last_scheduled_failure_across_successful_replay_and_restart",
+      "name": "should_preserve_last_scheduled_failure_across_successful_replay_and_restart",
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "line": 872,
+      "end_line": 888,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_retention::should_preserve_last_scheduled_failure_across_successful_replay_and_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/retention",
+        "directory": "tests/domain_models/time_series/retention",
+        "file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/domain_models/time_series/retention/time_series_retention.rs::should_parse_retention_policy_commands",
       "name": "should_parse_retention_policy_commands",
       "current_file": "tests/domain_models/time_series/retention/time_series_retention.rs",
@@ -50377,8 +50780,8 @@
       "id": "tests/domain_models/time_series/retention/time_series_retention.rs::should_refresh_rollup_after_retention_enforcement",
       "name": "should_refresh_rollup_after_retention_enforcement",
       "current_file": "tests/domain_models/time_series/retention/time_series_retention.rs",
-      "line": 415,
-      "end_line": 480,
+      "line": 417,
+      "end_line": 482,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -50526,6 +50929,223 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs::should_recompute_only_changed_daily_groups_after_committed_mutations",
+      "name": "should_recompute_only_changed_daily_groups_after_committed_mutations",
+      "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs",
+      "line": 114,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_rollups::should_recompute_only_changed_daily_groups_after_committed_mutations"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/incremental.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs::should_keep_daily_recompute_work_constant_as_unrelated_partitions_grow_tenfold",
+      "name": "should_keep_daily_recompute_work_constant_as_unrelated_partitions_grow_tenfold",
+      "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs",
+      "line": 260,
+      "end_line": 336,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_rollups::should_keep_daily_recompute_work_constant_as_unrelated_partitions_grow_tenfold"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/incremental.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs::should_fallback_to_authoritative_rows_then_clear_rollup_debt_after_restart",
+      "name": "should_fallback_to_authoritative_rows_then_clear_rollup_debt_after_restart",
+      "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs",
+      "line": 339,
+      "end_line": 429,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_rollups::should_fallback_to_authoritative_rows_then_clear_rollup_debt_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/incremental.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs::should_skip_rollup_recompute_for_a_duplicate_projection_replay_event",
+      "name": "should_skip_rollup_recompute_for_a_duplicate_projection_replay_event",
+      "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs",
+      "line": 432,
+      "end_line": 490,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_rollups::should_skip_rollup_recompute_for_a_duplicate_projection_replay_event"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/incremental.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs::should_record_group_limit_fallback_after_a_bounded_source_report",
+      "name": "should_record_group_limit_fallback_after_a_bounded_source_report",
+      "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs",
+      "line": 493,
+      "end_line": 564,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_rollups::should_record_group_limit_fallback_after_a_bounded_source_report"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/incremental.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs::should_record_change_report_size_fallback_for_many_rows_in_one_group",
+      "name": "should_record_change_report_size_fallback_for_many_rows_in_one_group",
+      "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs",
+      "line": 567,
+      "end_line": 605,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_rollups::should_record_change_report_size_fallback_for_many_rows_in_one_group"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/incremental.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs::should_record_unsupported_aggregate_fallback_reason",
+      "name": "should_record_unsupported_aggregate_fallback_reason",
+      "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs",
+      "line": 608,
+      "end_line": 661,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_rollups::should_record_unsupported_aggregate_fallback_reason"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/incremental.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -336618,8 +337238,8 @@
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 411,
-      "sha256": "8dd72f496b1c6d21aa2adcd8aa32e6a450691a776939111a2ba58ff6c53269f6",
+      "lines": 486,
+      "sha256": "778f26dea54a3dd171d2d7a909f0608e5068b7859e18a0dfa8766aad41b86c89",
       "test_declarations": 8,
       "registered_suites": [
         "configuration_isolated"
@@ -337078,11 +337698,42 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/domain_models/time_series/retention/scheduled.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 399,
+      "sha256": "1babf26b74aa327afc05bd92dee90a97dc8d6a6d190f4f9f55186e23a0ffee47",
+      "test_declarations": 4,
+      "registered_suites": [
+        "domain_models"
+      ],
+      "destinations": [
+        "tests/domain_models/time_series/retention/scheduled.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/domain_models/time_series/retention/scheduled_recovery.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 997,
+      "sha256": "31f1370effd9a363378ee8f51f3e25e5969e15bfa6232e09cc941c24800f336a",
+      "test_declarations": 9,
+      "registered_suites": [
+        "domain_models"
+      ],
+      "destinations": [
+        "tests/domain_models/aggregates/windows/scheduled_recovery.rs",
+        "tests/domain_models/time_series/retention/scheduled_recovery.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/domain_models/time_series/retention/time_series_retention.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 480,
-      "sha256": "2ac014585cc918e46da315ff7d1b42ac01bcc9e35bf69ed973f3399464fce51d",
+      "lines": 482,
+      "sha256": "354cd092180f8b85c31fd57a7e5ccf7cfcf30e0ebc1f794d00a631cb6aaf22dc",
       "test_declarations": 6,
       "registered_suites": [
         "domain_models"
@@ -337123,11 +337774,26 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 661,
+      "sha256": "877d206522c7e404c82f9ac283a82f02d16f450c35c22b75277512f6b167ff82",
+      "test_declarations": 7,
+      "registered_suites": [
+        "domain_models"
+      ],
+      "destinations": [
+        "tests/domain_models/aggregates/grouping/incremental.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 133,
-      "sha256": "d5cb8a4077168d486372dbfe13c180fc47caf678716f73a389fd8decbb813e29",
+      "lines": 135,
+      "sha256": "e3c58a5d40952e18f996a464051e0cd86dc1720aab598bade4e4f490aa6085f3",
       "test_declarations": 0,
       "registered_suites": [
         "domain_models"

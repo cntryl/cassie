@@ -215,10 +215,7 @@ fn should_parse_scheduled_retention_commands() {
 
     // Assert
     for result in parsed {
-        assert!(
-            result.is_ok(),
-            "scheduled statement parse failed: {result:?}"
-        );
+        assert!(result.is_ok());
     }
 }
 

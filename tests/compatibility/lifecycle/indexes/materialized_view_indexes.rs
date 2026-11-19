@@ -357,3 +357,42 @@ fn should_read_the_private_refresh_in_a_repeatable_read_transaction() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_filter_materialized_numeric_keys_with_sql_equality() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("mv_decimal_point").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE mv_numeric_src(k NUMERIC, label TEXT)",
+                "INSERT INTO mv_numeric_src VALUES ('1.00', 'yes')",
+                "CREATE MATERIALIZED VIEW mv_numeric AS SELECT k,label FROM mv_numeric_src",
+                "CREATE UNIQUE INDEX mv_numeric_key ON mv_numeric(k)",
+            ],
+        )
+        .await
+        .unwrap();
+
+        // Act
+        let before = server.cassie.metrics();
+        let rows = client
+            .query("SELECT label FROM mv_numeric WHERE k=1", &[])
+            .await
+            .unwrap();
+        let after = server.cassie.metrics();
+
+        // Assert
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, String>(0), "yes");
+        assert_eq!(
+            after["read_paths"]["index_seek_scans"],
+            before["read_paths"]["index_seek_scans"]
+        );
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

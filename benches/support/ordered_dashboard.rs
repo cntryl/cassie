@@ -6,6 +6,7 @@ use cassie::app::{Cassie, CassieSession};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::types::Value;
 
+use crate::fixture_dir::FixtureDir;
 use crate::performance_benchmarks::FixtureClass;
 use crate::stress::{CassieStressRunner, FixtureDeclaration, OperationUnit, StressCase};
 
@@ -34,35 +35,15 @@ pub(crate) fn run(runner: &mut CassieStressRunner) {
 }
 
 fn measure(runner: &mut CassieStressRunner, case: StressCase, indexed: bool) {
+    let store = deployment_storage();
+    {
+        let (_fixture_dir, cassie, session) = create_fixture(store, indexed);
+        assert_preflight(&cassie, &session, indexed);
+        cassie.shutdown();
+    }
     let setup = Instant::now();
-    let mut config = CassieRuntimeConfig::from_env().expect("dashboard benchmark config");
-    config.limits.query_memory_budget_bytes = BUDGET;
-    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-    let store = std::env::var("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID")
-        .ok()
-        .filter(|id| !id.is_empty())
-        .map_or("in_memory_midge_fallback", |id| {
-            crate::performance_benchmarks::deployment_profile_for_id(&id)
-                .expect("deployment profile")
-                .storage_mode
-        });
-    let path =
-        std::env::temp_dir().join(format!("cassie-bench-dashboard-{}", uuid::Uuid::new_v4()));
-    let _fixture_dir = crate::fixture_dir::FixtureDir::new(path.clone());
-    let instance = match store {
-        "in_memory_midge_fallback" => Cassie::new_in_memory_with_config(config),
-        "midge_disk_apfs" | "midge_disk_native_linux" => {
-            Cassie::new_local_with_data_dir_and_config(path, config)
-        }
-        other => panic!("unsupported dashboard storage profile {other}"),
-    };
-    let cassie = Arc::new(instance.expect("dashboard store"));
-    cassie.startup().expect("dashboard startup");
-    let session = cassie.create_session("benchmark", None);
-    seed(&cassie, &session, indexed);
+    let (_fixture_dir, cassie, session) = create_fixture(store, indexed);
     let setup_ns = setup.elapsed().as_nanos().to_string();
-
-    assert_preflight(&cassie, &session, indexed);
     let path = if indexed {
         "ordered_index_nested_loop"
     } else {
@@ -84,6 +65,38 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, indexed: bool) {
         std::hint::black_box(result.rows().len())
     });
     cassie.shutdown();
+}
+
+fn deployment_storage() -> &'static str {
+    std::env::var("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID")
+        .ok()
+        .filter(|id| !id.is_empty())
+        .map_or("in_memory_midge_fallback", |id| {
+            crate::performance_benchmarks::deployment_profile_for_id(&id)
+                .expect("deployment profile")
+                .storage_mode
+        })
+}
+
+fn create_fixture(store: &str, indexed: bool) -> (FixtureDir, Arc<Cassie>, CassieSession) {
+    let mut config = CassieRuntimeConfig::from_env().expect("dashboard benchmark config");
+    config.limits.query_memory_budget_bytes = BUDGET;
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+    let path =
+        std::env::temp_dir().join(format!("cassie-bench-dashboard-{}", uuid::Uuid::new_v4()));
+    let fixture_dir = FixtureDir::new(path.clone());
+    let instance = match store {
+        "in_memory_midge_fallback" => Cassie::new_in_memory_with_config(config),
+        "midge_disk_apfs" | "midge_disk_native_linux" => {
+            Cassie::new_local_with_data_dir_and_config(path, config)
+        }
+        other => panic!("unsupported dashboard storage profile {other}"),
+    };
+    let cassie = Arc::new(instance.expect("dashboard store"));
+    cassie.startup().expect("dashboard startup");
+    let session = cassie.create_session("benchmark", None);
+    seed(&cassie, &session, indexed);
+    (fixture_dir, cassie, session)
 }
 
 fn assert_preflight(cassie: &Cassie, session: &CassieSession, indexed: bool) {

@@ -123,6 +123,17 @@ impl QueryMemoryObservation {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct OrderedJoinCounts {
+    pub order_index_entries: usize,
+    pub order_rows: usize,
+    pub dimension_probes: usize,
+    pub dimension_base_fetches: usize,
+    pub intermediate_rows: usize,
+    pub fully_joined_rows: usize,
+    pub joined_rows: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct QueryExecutionControls {
     pub deadline: Option<Instant>,
@@ -131,6 +142,7 @@ pub struct QueryExecutionControls {
     pub cte_recursion_depth: usize,
     cancellation: QueryCancellationHandle,
     relational_cte_boundary: bool,
+    ordered_join: Option<Arc<parking_lot::Mutex<Option<OrderedJoinCounts>>>>,
     memory: Arc<QueryMemoryTracker>,
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
     /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
@@ -259,6 +271,23 @@ impl Drop for QueryMemoryReservation {
 }
 
 impl QueryExecutionControls {
+    pub(crate) fn observe_ordered_join(&self) -> Self {
+        Self {
+            ordered_join: Some(Arc::default()),
+            ..self.clone()
+        }
+    }
+
+    pub(crate) fn record_ordered_join(&self, counts: OrderedJoinCounts) {
+        if let Some(slot) = &self.ordered_join {
+            *slot.lock() = Some(counts);
+        }
+    }
+
+    pub(crate) fn ordered_join_counts(&self) -> Option<OrderedJoinCounts> {
+        self.ordered_join.as_ref().and_then(|slot| *slot.lock())
+    }
+
     pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {
         if let Some(pause) = self.cancellation.4.as_deref() {
             pause.reach()?;
@@ -341,6 +370,7 @@ impl QueryExecutionControls {
             query_memory_budget_bytes: limits.query_memory_budget_bytes,
             cte_recursion_depth: limits.cte_recursion_depth,
             cancellation,
+            ordered_join: None,
             relational_cte_boundary: false,
             temporal: Arc::default(),
             statement_state: Arc::default(),

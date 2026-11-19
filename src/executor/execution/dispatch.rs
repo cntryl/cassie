@@ -423,6 +423,15 @@ fn analytical_projection_path(context: &mut AccessPathContext<'_>) -> AccessPath
 }
 
 fn scalar_index_path(context: &mut AccessPathContext<'_>) -> AccessPathResult {
+    if context
+        .physical
+        .is_some_and(|p| p.join.strategy.as_deref() == Some(index_read::ordered_join::STRATEGY))
+    {
+        return context
+            .env
+            .cassie
+            .execute_ordered_join(context.env, context.plan);
+    }
     index_read::execute_scalar_index_read(
         context.env.cassie,
         context.env.session,

@@ -19,6 +19,9 @@ use source_retention::{
 #[path = "bounded/side_selection.rs"]
 mod side_selection;
 
+#[path = "bounded/ordered.rs"]
+mod ordered;
+
 #[path = "bounded/indexed.rs"]
 mod indexed;
 

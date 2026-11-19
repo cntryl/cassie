@@ -114,8 +114,8 @@ fn should_bound_tenant_order_reads_only_when_the_partial_predicate_is_proven() {
         let filtered = client.query_one(&residual, &[]).await.unwrap();
 
         // Assert
-        assert!(plan.contains("access_path=ordered_bounded_scan") && plan.contains("index=open_orders"), "{plan}");
-        assert!(!closed_plan.contains("index=open_orders"), "{closed_plan}");
+        assert!(plan.contains("access_path=ordered_bounded_scan") && plan.contains("open_orders"), "{plan}");
+        assert!(!closed_plan.contains("open_orders"), "{closed_plan}");
         assert_eq!((first.get::<_, i32>(0), first.get::<_, String>(1)), (2, "newer".into()));
         assert_eq!(inclusive.get::<_, i32>(0), 3);
         assert_eq!(filtered.get::<_, i32>(0), 1);

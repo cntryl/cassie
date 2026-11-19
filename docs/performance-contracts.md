@@ -179,6 +179,24 @@ under #769 CON-05.
 
 Inner-join planning exhaustively enumerates deterministic relation orders through eight relations and uses deterministic greedy expansion above eight. Outer, full, cross, lateral, and correlated dependencies remain explicit legality barriers unless a semantics-preserving proof applies. Missing statistics use a stable conservative fallback and lexical tie-breaking, so identical schema and statistics snapshots produce identical plans and reusable plan-cache entries.
 
+### Ordered partial-index reads with unique dimension joins
+
+A covering scalar btree can supply a tenant equality prefix and a requested
+ordering when a matching WHERE conjunct proves partial-index membership.
+For an inner join from this ordered source to single-column unique integer
+keys, Cassie can read one index entry at a time and seek each dimension.
+A missing dimension or a rejected joined predicate causes the cursor to
+continue. LIMIT counts rows after these checks. Queries without a covering
+source, matching order, visible indexes, or compatible integer join keys
+use the ordinary join planner.
+
+For this path, pgwire EXPLAIN names `ordered_index_nested_loop`.
+EXPLAIN ANALYZE reports the source index entries visited, skipped entries,
+qualifying source rows, source base fetches, dimension probes and base
+fetches, intermediate rows summed across join stages, and final joined
+rows. These counters belong to the instrumented statement. They measure
+logical row and index operations.
+
 ### Bounded join selectivity and whole-ON placement
 
 The finite [NDV-based ordering model](https://github.com/cntryl/cassie/issues/1341)

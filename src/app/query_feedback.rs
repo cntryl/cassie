@@ -334,7 +334,12 @@ impl Cassie {
             crate::planner::cte_inlining::inline(&mut logical, &self.catalog, source_controls)?;
         let _constant_memory =
             crate::planner::constant_sources::inline(&mut logical, source_controls)?;
-        let optimized = crate::planner::optimizer::optimize_with_stats(logical, &cardinality_stats);
+        let ordered_join = self.ordered_join_source_index(session, &logical)?;
+        let optimized = if ordered_join.is_some() {
+            logical
+        } else {
+            crate::planner::optimizer::optimize_with_stats(logical, &cardinality_stats)
+        };
         let not_null_fields = self.catalog.not_null_fields(&optimized.collection);
         let selection = crate::planner::physical::read_operator_selection(
             &optimized,
@@ -367,6 +372,22 @@ impl Cassie {
             operator_feedback,
             adaptive_plan,
         );
+        if let Some(index) = ordered_join {
+            physical.join.strategy = Some("ordered_index_nested_loop".into());
+            physical.join.enumeration = "ordered_source".into();
+            physical.join.properties.bounded = true;
+            physical.join.properties.parameterized = true;
+            physical.join.sort_required = false;
+            physical.join.fallback_reason = None;
+            physical.join.vectorized.candidate = false;
+            physical.read.access_path_reason = "ordered-source-unique-probes".into();
+            physical.read.selected_index = Some(index);
+            physical.read.covered_index = true;
+            physical.top_k.mode = crate::planner::physical::TopKMode::Storage;
+            physical
+                .operators
+                .retain(|op| !matches!(op, crate::planner::physical::Operator::Sort));
+        }
         physical.collection_schema = self.catalog.get_schema(&physical.logical.collection);
         Ok(Arc::new(physical))
     }

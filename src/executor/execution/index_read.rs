@@ -16,6 +16,8 @@ use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexNullKeys, Sca
 use crate::types::DataType;
 use std::collections::BTreeMap;
 
+pub(super) mod ordered_join;
+
 #[cfg(test)]
 #[path = "index_read/numeric_tests.rs"]
 mod numeric_tests;

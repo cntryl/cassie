@@ -4,7 +4,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 
 | Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| `tests/Cargo.toml` | fixture_data | 233 | 0 | — | keep | `tests/Cargo.toml` |
+| `tests/Cargo.toml` | fixture_data | 234 | 0 | — | keep | `tests/Cargo.toml` |
 | `tests/analytics/aggregates/aggregate_acceleration.rs` | test_module | 522 | 7 | analytics | keep | `tests/analytics/aggregates/aggregate_acceleration.rs` |
 | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 228 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
 | `tests/analytics/column_store/column_batch_encoded_scans.rs` | test_module | 397 | 4 | analytics | keep | `tests/analytics/column_store/column_batch_encoded_scans.rs` |
@@ -376,8 +376,8 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/domain_models/time_series/indexes/time_series_indexes/semantics.rs` | test_module | 717 | 11 | domain_models | keep | `tests/domain_models/time_series/indexes/time_series_indexes/semantics.rs` |
 | `tests/domain_models/time_series/partitions/time_series_partition_delimiters.rs` | test_module | 48 | 1 | domain_models | keep | `tests/domain_models/time_series/partitions/time_series_partition_delimiters.rs` |
 | `tests/domain_models/time_series/qualification.rs` | test_module | 178 | 2 | domain_models | keep | `tests/domain_models/time_series/qualification.rs` |
-| `tests/domain_models/time_series/queries/calendar_dashboard.rs` | test_module | 531 | 2 | domain_models | keep | `tests/domain_models/time_series/queries/calendar_dashboard.rs` |
-| `tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs` | test_module | 798 | 5 | domain_models | keep | `tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs` |
+| `tests/domain_models/time_series/queries/calendar_dashboard.rs` | test_module | 550 | 2 | domain_models | keep | `tests/domain_models/time_series/queries/calendar_dashboard.rs` |
+| `tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs` | test_module | 835 | 5 | domain_models | keep | `tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs` |
 | `tests/domain_models/time_series/retention/time_series_retention.rs` | test_module | 480 | 6 | domain_models | keep | `tests/domain_models/time_series/retention/time_series_retention.rs` |
 | `tests/domain_models/time_series/rollups/boolean_predicates.rs` | test_module | 121 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/boolean_predicates.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/errors.rs` | test_module | 89 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/errors.rs` |

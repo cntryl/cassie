@@ -701,8 +701,8 @@ fn seed_signed_zero_tables(cassie: &Cassie, session: &cassie::app::CassieSession
             ""
         };
         support_sql::run(
-            &cassie,
-            &session,
+            cassie,
+            session,
             &format!(
                 "CREATE TABLE {table} (id INT PRIMARY KEY, device FLOAT, \
                  event_at TIMESTAMP, amount INT){storage}"
@@ -711,8 +711,8 @@ fn seed_signed_zero_tables(cassie: &Cassie, session: &cassie::app::CassieSession
         )
         .expect("create FLOAT signed-zero table");
         support_sql::run(
-            &cassie,
-            &session,
+            cassie,
+            session,
             &format!(
                 "INSERT INTO {table} VALUES \
                  (1,1.5,'1969-12-31T23:00:00Z',10), \
@@ -725,8 +725,8 @@ fn seed_signed_zero_tables(cassie: &Cassie, session: &cassie::app::CassieSession
         .expect("seed signed-zero partition spellings");
         if table.ends_with("_idx") {
             support_sql::run(
-                &cassie,
-                &session,
+                cassie,
+                session,
                 &format!(
                     "CREATE INDEX {table}_ts ON {table} USING time_series(event_at) \
                      WITH (bucket_width='1 hour',partition_by='device')"

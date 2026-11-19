@@ -374,6 +374,56 @@ fn should_use_columnar_bucket_hits_for_prepared_half_open_pages() {
     let cassie = prepared_fixture(8 * 1024 * 1024);
     seed_prepared_page_twins(&cassie);
     let observed = cassie.clone();
+
+    // Act
+    run_prepared_bucket_hit_probes(&cassie, &observed);
+
+    // Assert
+    // The helper checks prepared rows, native hits, and unchanged selected work.
+}
+
+async fn assert_prepared_bucket_counts_after_unrelated_rows(
+    client: &mut PreparedPgwireClient,
+    observed: &Cassie,
+    selected: [u64; 3],
+) {
+    let setup = observed.create_session("tester", None);
+    support_sql::run(
+        observed,
+        &setup,
+        "INSERT INTO col_idx VALUES \
+         (21,'a','bc','1970-01-02T00:00:00Z',210), \
+         (22,'different','device','1970-01-01T00:00:00Z',220)",
+        vec![],
+    )
+    .expect("insert rows outside the selected partition and time range");
+    let before_noise_query = observed.metrics();
+    let after_noise = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
+    let after_noise_metrics = observed.metrics();
+
+    assert_eq!(
+        prepared_page_rows(&after_noise),
+        expected_prepared_page("a", "bc")
+    );
+    assert_eq!(
+        time_series_counter(&after_noise_metrics, "bucket_native_hits").saturating_sub(
+            time_series_counter(&before_noise_query, "bucket_native_hits")
+        ),
+        1
+    );
+    let selected_after = [
+        "buckets_scanned",
+        "index_entries_scanned",
+        "row_point_fetches",
+    ]
+    .map(|name| {
+        time_series_counter(&after_noise_metrics, name)
+            - time_series_counter(&before_noise_query, name)
+    });
+    assert_eq!(selected_after, selected);
+}
+
+fn run_prepared_bucket_hit_probes(cassie: &Cassie, observed: &Cassie) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -382,7 +432,6 @@ fn should_use_columnar_bucket_hits_for_prepared_half_open_pages() {
         let server = wire::spawn_server(cassie.clone()).await;
         let mut client = PreparedPgwireClient::connect(&server).await;
 
-        // Act
         for table in PREPARED_PAGE_TABLES {
             for (tenant, device) in [("a", "bc"), ("ab", "c")] {
                 for (limit, offset) in [(2, 0), (2, 2), (99, 0)] {
@@ -397,7 +446,6 @@ fn should_use_columnar_bucket_hits_for_prepared_half_open_pages() {
             }
         }
 
-        // Assert
         let before = observed.metrics();
         let indexed = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
         let after = observed.metrics();
@@ -423,81 +471,12 @@ fn should_use_columnar_bucket_hits_for_prepared_half_open_pages() {
         ]
         .map(|name| time_series_counter(&after, name) - time_series_counter(&before, name));
 
-        let setup = observed.create_session("tester", None);
-        support_sql::run(
-            &observed,
-            &setup,
-            "INSERT INTO col_idx VALUES \
-             (21,'a','bc','1970-01-02T00:00:00Z',210), \
-             (22,'different','device','1970-01-01T00:00:00Z',220)",
-            vec![],
-        )
-        .expect("insert rows outside the selected partition and time range");
-        let before_noise_query = observed.metrics();
-
-        // Act
-        let after_noise = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
-        let after_noise_metrics = observed.metrics();
-
-        // Assert
-        assert_eq!(
-            prepared_page_rows(&after_noise),
-            expected_prepared_page("a", "bc")
-        );
-        assert_eq!(
-            time_series_counter(&after_noise_metrics, "bucket_native_hits").saturating_sub(
-                time_series_counter(&before_noise_query, "bucket_native_hits")
-            ),
-            1
-        );
-        let selected_after = [
-            "buckets_scanned",
-            "index_entries_scanned",
-            "row_point_fetches",
-        ]
-        .map(|name| {
-            time_series_counter(&after_noise_metrics, name)
-                - time_series_counter(&before_noise_query, name)
-        });
-        assert_eq!(selected_after, selected);
+        assert_prepared_bucket_counts_after_unrelated_rows(&mut client, observed, selected).await;
         server.stop().await;
     });
 }
 
-#[test]
-fn should_fallback_to_complete_columnar_page_given_missing_bucket_membership() {
-    // Arrange
-    let cassie = prepared_fixture(8 * 1024 * 1024);
-    seed_prepared_page_twins(&cassie);
-    corrupt_prepared_membership(&cassie, "col_idx", "2");
-    let observed = cassie.clone();
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
-    runtime.block_on(async {
-        let server = wire::spawn_server(cassie).await;
-        let mut client = PreparedPgwireClient::connect(&server).await;
-
-        // Act
-        let frames = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
-        let metrics = observed.metrics();
-
-        // Assert
-        assert_eq!(
-            prepared_page_rows(&frames),
-            expected_prepared_page("a", "bc"),
-            "the incomplete native candidate set must not become a partial page"
-        );
-        assert_eq!(
-            metrics["time_series"]["last_fallback_reason"].as_str(),
-            Some("incomplete-bucket-membership")
-        );
-        assert_eq!(time_series_counter(&metrics, "fallback_scans"), 1);
-        server.stop().await;
-    });
-
-    // Arrange
+fn run_low_budget_membership_fallback_probe() -> WireFrames {
     // Hypothesis: 4 KiB admits fixture setup but not the 48-row authoritative fallback.
     let cassie = prepared_fixture(4 * 1024);
     seed_prepared_page_twins(&cassie);
@@ -519,18 +498,54 @@ fn should_fallback_to_complete_columnar_page_given_missing_bucket_membership() {
     runtime.block_on(async {
         let server = wire::spawn_server(cassie).await;
         let mut client = PreparedPgwireClient::connect(&server).await;
-
-        // Act
         let frames = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
-
-        // Assert
-        assert_eq!(wire::error_code(&frames).as_deref(), Some("54000"));
-        assert!(
-            wire::data_rows(&frames).is_empty(),
-            "a resource failure must not publish partial DataRow frames"
-        );
         server.stop().await;
+        frames
+    })
+}
+
+#[test]
+fn should_fallback_to_complete_columnar_page_given_missing_bucket_membership() {
+    // Arrange
+    let cassie = prepared_fixture(8 * 1024 * 1024);
+    seed_prepared_page_twins(&cassie);
+    corrupt_prepared_membership(&cassie, "col_idx", "2");
+    let observed = cassie.clone();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    // Act
+    let (frames, metrics) = runtime.block_on(async {
+        let server = wire::spawn_server(cassie).await;
+        let mut client = PreparedPgwireClient::connect(&server).await;
+
+        let frames = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
+        let metrics = observed.metrics();
+        server.stop().await;
+        (frames, metrics)
     });
+    let low_budget_frames = run_low_budget_membership_fallback_probe();
+
+    // Assert
+    assert_eq!(
+        prepared_page_rows(&frames),
+        expected_prepared_page("a", "bc"),
+        "the incomplete native candidate set must not become a partial page"
+    );
+    assert_eq!(
+        metrics["time_series"]["last_fallback_reason"].as_str(),
+        Some("incomplete-bucket-membership")
+    );
+    assert_eq!(time_series_counter(&metrics, "fallback_scans"), 1);
+    assert_eq!(
+        wire::error_code(&low_budget_frames).as_deref(),
+        Some("54000")
+    );
+    assert!(
+        wire::data_rows(&low_budget_frames).is_empty(),
+        "a resource failure must not publish partial DataRow frames"
+    );
 }
 
 fn apply_prepared_corrections(cassie: &Cassie, setup: &cassie::app::CassieSession) {
@@ -676,7 +691,7 @@ fn assert_prepared_local_reopen(path: &str) {
 }
 
 #[test]
-fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and_reopen() {
+fn should_preserve_prepared_columnar_read_lifecycle() {
     // Arrange
     let path = support_sql::data_dir("prepared-columnar-time-series-reopen");
     let cassie = prepared_local_fixture(&path, 8 * 1024 * 1024, 100_000);

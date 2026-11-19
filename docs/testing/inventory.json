@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10648,
+    "rust_test_declarations": 10649,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10673,
+    "registered_rust_instances": 10674,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -33089,6 +33089,37 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::ddl_extensions::index_contracts::materialized_view_indexes::should_filter_materialized_numeric_keys_with_sql_equality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl/materialized_views",
+        "directory": "tests/compatibility/lifecycle/ddl/materialized_views",
+        "file": "tests/compatibility/lifecycle/ddl/materialized_views/materialized_view_indexes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/indexes/materialized_view_indexes.rs::should_publish_the_refreshing_transactions_staged_source_rows",
+      "name": "should_publish_the_refreshing_transactions_staged_source_rows",
+      "current_file": "tests/compatibility/lifecycle/indexes/materialized_view_indexes.rs",
+      "line": 426,
+      "end_line": 475,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::materialized_view_indexes::should_publish_the_refreshing_transactions_staged_source_rows"
         }
       ],
       "attributes": [
@@ -334551,9 +334582,9 @@
       "current_file": "tests/compatibility/lifecycle/indexes/materialized_view_indexes.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 423,
-      "sha256": "3d23f9a90e0441f21c2550f6aba3c92b2c6e1588d33a8d51f151962150e6d8b8",
-      "test_declarations": 7,
+      "lines": 475,
+      "sha256": "08c385f85b2e6405c0837bf3b519708f793626038b3d9b6bbf742635c80df4ca",
+      "test_declarations": 8,
       "registered_suites": [
         "compatibility"
       ],

@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1788,
-    "rust_files": 1751,
-    "rust_test_declarations": 10657,
+    "files": 1789,
+    "rust_files": 1752,
+    "rust_test_declarations": 10663,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10682,
+    "registered_rust_instances": 10688,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -50002,6 +50002,68 @@
       }
     },
     {
+      "id": "tests/domain_models/time_series/queries/calendar_dashboard.rs::should_qualify_prepared_calendar_day_and_month_dashboards",
+      "name": "should_qualify_prepared_calendar_day_and_month_dashboards",
+      "current_file": "tests/domain_models/time_series/queries/calendar_dashboard.rs",
+      "line": 346,
+      "end_line": 498,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "calendar_dashboard::should_qualify_prepared_calendar_day_and_month_dashboards"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/queries",
+        "directory": "tests/domain_models/time_series/queries",
+        "file": "tests/domain_models/time_series/queries/calendar_dashboard.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/queries/calendar_dashboard.rs::should_fail_calendar_grid_before_any_prepared_wire_rows_over_result_limit",
+      "name": "should_fail_calendar_grid_before_any_prepared_wire_rows_over_result_limit",
+      "current_file": "tests/domain_models/time_series/queries/calendar_dashboard.rs",
+      "line": 501,
+      "end_line": 531,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "calendar_dashboard::should_fail_calendar_grid_before_any_prepared_wire_rows_over_result_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/queries",
+        "directory": "tests/domain_models/time_series/queries",
+        "file": "tests/domain_models/time_series/queries/calendar_dashboard.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs::should_preserve_column_store_reads_with_time_series_indexes",
       "name": "should_preserve_column_store_reads_with_time_series_indexes",
       "current_file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
@@ -50015,6 +50077,130 @@
         {
           "suite": "domain_models",
           "name": "column_time_series_read_equivalence::should_preserve_column_store_reads_with_time_series_indexes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/queries",
+        "directory": "tests/domain_models/time_series/queries",
+        "file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs::should_use_columnar_bucket_hits_for_prepared_half_open_pages",
+      "name": "should_use_columnar_bucket_hits_for_prepared_half_open_pages",
+      "current_file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
+      "line": 346,
+      "end_line": 438,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "column_time_series_read_equivalence::should_use_columnar_bucket_hits_for_prepared_half_open_pages"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/queries",
+        "directory": "tests/domain_models/time_series/queries",
+        "file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs::should_fallback_to_complete_columnar_page_given_missing_bucket_membership",
+      "name": "should_fallback_to_complete_columnar_page_given_missing_bucket_membership",
+      "current_file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
+      "line": 441,
+      "end_line": 508,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "column_time_series_read_equivalence::should_fallback_to_complete_columnar_page_given_missing_bucket_membership"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/queries",
+        "directory": "tests/domain_models/time_series/queries",
+        "file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs::should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and_reopen",
+      "name": "should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and_reopen",
+      "current_file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
+      "line": 511,
+      "end_line": 642,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "column_time_series_read_equivalence::should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and_reopen"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/queries",
+        "directory": "tests/domain_models/time_series/queries",
+        "file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs::should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads",
+      "name": "should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads",
+      "current_file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
+      "line": 645,
+      "end_line": 798,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "column_time_series_read_equivalence::should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads"
         }
       ],
       "attributes": [
@@ -336862,12 +337048,27 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/domain_models/time_series/queries/calendar_dashboard.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 531,
+      "sha256": "87ae05d37d908405a5d904b897414bbae3bf857e3226f93f33572053a1d4eddc",
+      "test_declarations": 2,
+      "registered_suites": [
+        "domain_models"
+      ],
+      "destinations": [
+        "tests/domain_models/time_series/queries/calendar_dashboard.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 17,
-      "sha256": "9a1c2f167b4ef1490d2da211b663605ebf345f17091d18badfe6b3f593ea60a8",
-      "test_declarations": 1,
+      "lines": 798,
+      "sha256": "fd65cfb00826454e2a95f6b77ea02733c2db6434fe4bdec83b1008b3578db0c4",
+      "test_declarations": 5,
       "registered_suites": [
         "domain_models"
       ],
@@ -336970,8 +337171,8 @@
       "current_file": "tests/domain_models.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 37,
-      "sha256": "72a6397ebd36f43e1d335e841b55d8cb6664a1e294917987c2eba32b7d2c9375",
+      "lines": 40,
+      "sha256": "ea939893151abbc47ff545ef0212464eff19acd4a1efbea3ecdc59dff249f396",
       "test_declarations": 0,
       "registered_suites": [
         "domain_models"

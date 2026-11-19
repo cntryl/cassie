@@ -33,5 +33,8 @@ use cassie_test_support::support_sql_fixture;
 #[path = "domain_models/time_series/queries/column_time_series_read_equivalence.rs"]
 mod column_time_series_read_equivalence;
 
+#[path = "domain_models/time_series/queries/calendar_dashboard.rs"]
+mod calendar_dashboard;
+
 #[path = "domain_models/time_series/qualification.rs"]
 mod time_series_qualification;

@@ -359,6 +359,8 @@ struct NormalizedPredicateShape {
     filter: Option<NormalizedExprShape>,
     order: Vec<NormalizedOrderShape>,
     group_by: Vec<NormalizedExprShape>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    grouping_subtotal: bool,
     having: Option<NormalizedExprShape>,
     modifiers: NormalizedPredicateModifiers,
 }
@@ -386,6 +388,7 @@ impl From<&LogicalPlan> for NormalizedPredicateShape {
                 .collect(),
             filter: plan.filter.as_ref().map(NormalizedExprShape::from),
             order: plan.order.iter().map(NormalizedOrderShape::from).collect(),
+            grouping_subtotal: plan.grouping_subtotal,
             group_by: plan
                 .group_by
                 .iter()

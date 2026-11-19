@@ -85,6 +85,7 @@ pub(super) fn parse_select_statement(
             projection,
             filter,
             group_by,
+            grouping_subtotal: parsed_clauses.grouping_subtotal,
             having,
             order,
             limit: parsed_clauses.limit,
@@ -235,6 +236,7 @@ fn derived_set_operand(select: SelectStatement) -> SelectStatement {
         projection: vec![super::SelectItem::Wildcard],
         filter: None,
         group_by: Vec::new(),
+        grouping_subtotal: false,
         having: None,
         order: Vec::new(),
         limit: None,
@@ -569,6 +571,7 @@ fn parse_group_by_expression(raw: &str) -> Result<Expr, SqlError> {
 struct ParsedSelectClauses {
     where_sql: Option<String>,
     group_sql: Option<String>,
+    grouping_subtotal: bool,
     having_sql: Option<String>,
     window_sql: Option<String>,
     order_sql: Option<String>,
@@ -585,6 +588,7 @@ fn parse_select_clauses(
     let mut parsed = ParsedSelectClauses {
         where_sql: None,
         group_sql: None,
+        grouping_subtotal: false,
         having_sql: None,
         window_sql: None,
         order_sql: None,
@@ -615,7 +619,8 @@ fn parse_select_clauses(
                     if !seen.insert("group by") {
                         return Err(SqlError::new("duplicate GROUP BY clause".into()));
                     }
-                    if let Some(expression) = grouping_sets::single_expression(raw_value)? {
+                    if let Some((expression, subtotal)) = grouping_sets::grouping_key(raw_value)? {
+                        parsed.grouping_subtotal = subtotal;
                         parsed.group_sql = Some(expression.to_string());
                     } else if grouping_sets::contains_unsupported_syntax(raw_value) {
                         return Err(SqlError::new("unsupported GROUP BY syntax".into()));

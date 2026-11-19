@@ -205,6 +205,8 @@ pub struct SelectStatement {
     pub projection: Vec<SelectItem>,
     pub filter: Option<Expr>,
     pub group_by: Vec<Expr>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub grouping_subtotal: bool,
     pub having: Option<Expr>,
     pub order: Vec<OrderExpr>,
     pub limit: Option<Expr>,

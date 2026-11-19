@@ -80,6 +80,7 @@ pub enum FunctionId {
     Sha512,
     PgcryptoDigest,
     Count,
+    Grouping,
     Sum,
     Avg,
     VarPop,

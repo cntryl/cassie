@@ -394,23 +394,7 @@ impl Expr {
                     && all_structurally_eq(&left.left, &right.left)
                     && all_structurally_eq(&left.right, &right.right)
             }
-            (Self::Function(left), Self::Function(right)) => {
-                left.name.eq_ignore_ascii_case(&right.name)
-                    && all_structurally_eq(&left.args, &right.args)
-                    && left.is_distinct() == right.is_distinct()
-                    && optional_structurally_eq(left.filter.as_deref(), right.filter.as_deref())
-                    && left.order_by.len() == right.order_by.len()
-                    && left
-                        .order_by
-                        .iter()
-                        .zip(&right.order_by)
-                        .all(|(left, right)| {
-                            left.expr.structurally_eq(&right.expr)
-                                && std::mem::discriminant(&left.direction)
-                                    == std::mem::discriminant(&right.direction)
-                                && left.nulls == right.nulls
-                        })
-            }
+            (Self::Function(left), Self::Function(right)) => left.structurally_eq(right),
             (Self::Exists(left), Self::Exists(right)) => {
                 format!("{left:?}") == format!("{right:?}")
             }
@@ -423,6 +407,26 @@ impl Expr {
     /// `EXISTS` subqueries are not searched.
     pub fn any_descendant_or_self(&self, predicate: &mut impl FnMut(&Expr) -> bool) -> bool {
         predicate(self) || self.any_child(|child| child.any_descendant_or_self(predicate))
+    }
+}
+
+impl super::ast_query::FunctionCall {
+    pub(crate) fn structurally_eq(&self, right: &Self) -> bool {
+        self.name.eq_ignore_ascii_case(&right.name)
+            && all_structurally_eq(&self.args, &right.args)
+            && self.is_distinct() == right.is_distinct()
+            && optional_structurally_eq(self.filter.as_deref(), right.filter.as_deref())
+            && self.order_by.len() == right.order_by.len()
+            && self
+                .order_by
+                .iter()
+                .zip(&right.order_by)
+                .all(|(left, right)| {
+                    left.expr.structurally_eq(&right.expr)
+                        && std::mem::discriminant(&left.direction)
+                            == std::mem::discriminant(&right.direction)
+                        && left.nulls == right.nulls
+                })
     }
 }
 

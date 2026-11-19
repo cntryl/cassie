@@ -492,9 +492,9 @@ fn should_parse_value_window_function_query() {
 }
 
 #[test]
-fn should_reject_unsupported_rollup_query() {
+fn should_reject_multidimensional_rollup() {
     // Arrange
-    let sql = "SELECT category, COUNT(*) FROM docs GROUP BY ROLLUP(category)";
+    let sql = "SELECT category, COUNT(*) FROM docs GROUP BY ROLLUP(category, label)";
 
     // Act
     let error = parse_statement(sql).expect_err("ROLLUP should fail");
@@ -577,9 +577,10 @@ fn should_preserve_group_by_expression_given_unsupported_keywords_in_a_comment()
 }
 
 #[test]
-fn should_reject_multiple_grouping_sets_when_only_one_set_is_selected() {
+fn should_reject_unselected_grouping_sets() {
     // Arrange
-    let sql = "SELECT category, COUNT(*) FROM docs GROUP BY GROUPING SETS ((category), ())";
+    let sql =
+        "SELECT category, COUNT(*) FROM docs GROUP BY GROUPING SETS ((category), (label), ())";
 
     // Act
     let error = parse_statement(sql).expect_err("multiple grouping sets are not selected");

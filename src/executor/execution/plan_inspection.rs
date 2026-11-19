@@ -830,6 +830,7 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
         projection: select.projection.clone(),
         filter: select.filter.clone(),
         group_by: select.group_by.clone(),
+        grouping_subtotal: select.grouping_subtotal,
         having: select.having.clone(),
         order: select.order.clone(),
         limit: select.limit.clone(),

@@ -380,6 +380,7 @@ mod tests {
                 projection: Vec::new(),
                 filter: None,
                 group_by: Vec::new(),
+                grouping_subtotal: false,
                 having: None,
                 order: Vec::new(),
                 limit: Some(crate::sql::ast::Expr::IntegerLiteral(20)),

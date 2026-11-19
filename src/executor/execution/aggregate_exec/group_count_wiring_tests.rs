@@ -64,3 +64,29 @@ fn should_release_partial_groups_after_actual_next_group_count_cancellation() {
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_charge_subtotal_expression_storage_before_reading_input() {
+    // Arrange
+    let literal = "x".repeat(4096);
+    let sql =
+        format!("SELECT COUNT(DISTINCT LOWER('{literal}')) FROM events GROUP BY ROLLUP(tenant)");
+    let plan = aggregate_plan(&sql);
+    let functions = HashMap::new();
+    let controls = controls_with_budget(2048);
+    let context = aggregate_context(&plan, &functions, &controls);
+
+    // Act
+    let result = subtotal::prepare_plan(&mut [], &context, &|_, _, _| {
+        unreachable!("the empty-input plan must fail admission before slot evaluation")
+    });
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+            _
+        )))
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

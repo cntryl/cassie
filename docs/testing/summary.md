@@ -6,9 +6,9 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | --- | ---: |
 | Files under `tests/` | 1788 |
 | Rust files | 1751 |
-| Rust test declarations | 10649 |
+| Rust test declarations | 10657 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10674 |
+| Static Rust registration instances | 10682 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -53,7 +53,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [pgwire_catalogs](inventory/pgwire_catalogs.md) | 605 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
 | [pgwire_extended](inventory/pgwire_extended.md) | 988 | 0 |
-| [pgwire_grammar](inventory/pgwire_grammar.md) | 1233 | 8 |
+| [pgwire_grammar](inventory/pgwire_grammar.md) | 1241 | 8 |
 | [pgwire_types](inventory/pgwire_types.md) | 1225 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 142 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 53 | 0 |

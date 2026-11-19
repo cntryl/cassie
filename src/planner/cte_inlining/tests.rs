@@ -94,7 +94,7 @@ fn should_release_unpublished_cte_copy_given_growth_denial_when_clone_was_admitt
     ));
     let before = serde_json::to_value(&plan).unwrap();
     let measuring = controls(1_048_576);
-    let allowance = super::memory::plan(&plan, &measuring).unwrap() * 4 + 16_384;
+    let allowance = super::plan_clone_bytes(&plan, &measuring).unwrap() * 4 + 16_384;
     let controls = controls(allowance);
     // Act
     let result = inline(&mut plan, &Catalog::new(), &controls);
@@ -139,7 +139,7 @@ fn should_admit_dependent_scope_copies_given_wide_producer_when_controls_bound_g
     ));
     let before = serde_json::to_value(&original).unwrap();
     let measuring = controls(64 * 1024 * 1024);
-    let allowance = super::memory::plan(&original, &measuring).unwrap() * 4 + 16_384;
+    let allowance = super::plan_clone_bytes(&original, &measuring).unwrap() * 4 + 16_384;
     let denied_controls = controls(allowance);
     let mut denied_plan = original.clone();
     let mut admitted_plan = original;

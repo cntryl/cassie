@@ -1,7 +1,7 @@
 //! Controlled, unpublished expansion of explicit nonvolatile NOT MATERIALIZED CTEs.
 mod eligibility;
 mod input;
-mod memory;
+use crate::planner::logical::plan_clone_bytes;
 mod producer;
 #[cfg(test)]
 mod tests;
@@ -32,7 +32,7 @@ pub(crate) fn inline(
         return Ok(None);
     }
     let live = crate::executor::reached_plan_ctes(plan, controls)?;
-    let mut memory = controls.reserve_query_memory(mul(memory::plan(plan, controls)?, 4)?)?;
+    let mut memory = controls.reserve_query_memory(mul(plan_clone_bytes(plan, controls)?, 4)?)?;
     controls.check_interruption()?;
     let mut working = plan.clone();
     let mut changed = false;
@@ -293,6 +293,7 @@ fn from_select(select: &SelectStatement, outer: &[CommonTableExpression]) -> Log
         projection: select.projection.clone(),
         filter: select.filter.clone(),
         group_by: select.group_by.clone(),
+        grouping_subtotal: select.grouping_subtotal,
         having: select.having.clone(),
         order: select.order.clone(),
         limit: select.limit.clone(),

@@ -362,6 +362,7 @@ mod tests {
                 right: Box::new(Expr::IntegerLiteral(42)),
             }),
             group_by: Vec::new(),
+            grouping_subtotal: false,
             having: None,
             order: vec![OrderExpr {
                 expr: Expr::Column("id".to_string()),

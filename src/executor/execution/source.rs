@@ -99,6 +99,24 @@ impl<'a> SourceExecutionEnv<'a> {
             self.controls,
         )
     }
+
+    fn phase_env<'phase>(
+        &self,
+        search_context: Option<&'phase filter::SearchContext>,
+    ) -> PhaseExecutionEnv<'phase>
+    where
+        'a: 'phase,
+    {
+        PhaseExecutionEnv {
+            cassie: self.cassie,
+            session: self.session,
+            params: self.params,
+            parameter_type_oids: self.parameter_type_oids,
+            user_functions: self.user_functions,
+            controls: self.controls,
+            search_context,
+        }
+    }
 }
 
 pub(super) fn execute_query_source(
@@ -341,6 +359,7 @@ fn execute_subquery_source(
         projection: select.projection.clone(),
         filter: select.filter.clone(),
         group_by: select.group_by.clone(),
+        grouping_subtotal: select.grouping_subtotal,
         having: select.having.clone(),
         order: select.order.clone(),
         limit: select.limit.clone(),
@@ -451,15 +470,7 @@ pub(super) fn execute_source_query_with_outer_row(
     let fulltext_fields = plan_inspection::fulltext_query_fields(plan);
     let search_context =
         build_search_context(env.cassie, plan, &batches, &text_fields, &fulltext_fields)?;
-    let phase_env = PhaseExecutionEnv {
-        cassie: env.cassie,
-        session: env.session,
-        params: env.params,
-        parameter_type_oids: env.parameter_type_oids,
-        user_functions: env.user_functions,
-        controls: env.controls,
-        search_context: search_context.as_ref(),
-    };
+    let phase_env = env.phase_env(search_context.as_ref());
     let resolved_filter;
     (batches, resolved_filter) =
         resolve_filter_or_correlate(env, plan, cte_context, batches, search_context.as_ref())?;
@@ -472,6 +483,10 @@ pub(super) fn execute_source_query_with_outer_row(
         env.session,
         env.controls,
     )?;
+    // Snapshot subtotal inputs before the legacy grouped-subquery pass can
+    // merge structurally equal subqueries from independent aggregate calls.
+    let subtotal = phases::prepare_subtotal(env, &phase_env, cte_context, plan, &mut batches)?;
+    let plan = subtotal.as_ref().map_or(plan, |prepared| &prepared.plan);
     let grouped_subqueries = if plan_uses_aggregate(plan) {
         let search = search_context.as_ref();
         super::subquery_columns::materialize(env, cte_context, plan, &mut batches, search)?
@@ -751,21 +766,8 @@ fn apply_aggregate_phase(
     if !plan_uses_aggregate(plan) {
         return Ok(batches);
     }
-    let batches = aggregate_exec::aggregate_query_batches(
-        env.cassie,
-        batches,
-        &aggregate_exec::AggregateExecutionContext {
-            plan,
-            params: env.params,
-            parameter_type_oids: env.parameter_type_oids,
-            search_context: env.search_context,
-            user_functions: env.user_functions,
-            session: env.session,
-            controls: env.controls,
-            #[cfg(test)]
-            after_partition_row: None,
-        },
-    )?;
+    let batches =
+        aggregate_exec::aggregate_query_batches(env.cassie, batches, &env.aggregate_context(plan))?;
     ensure_query_memory_budget(env.controls, &batches)?;
     super::exists_phase::having(
         &SourceExecutionEnv {

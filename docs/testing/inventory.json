@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10649,
+    "rust_test_declarations": 10657,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10674,
+    "registered_rust_instances": 10682,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -62530,7 +62530,7 @@
       "name": "should_fail_unknown_function_during_execution",
       "current_file": "tests/executor/commands/semantics.rs",
       "line": 185,
-      "end_line": 280,
+      "end_line": 281,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62560,8 +62560,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_table_lifecycle_commands",
       "name": "should_execute_table_lifecycle_commands",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 283,
-      "end_line": 354,
+      "line": 284,
+      "end_line": 355,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62591,8 +62591,8 @@
       "id": "tests/executor/commands/semantics.rs::should_retry_table_creation_after_primary_key_publication_failure",
       "name": "should_retry_table_creation_after_primary_key_publication_failure",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 357,
-      "end_line": 395,
+      "line": 358,
+      "end_line": 396,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62622,8 +62622,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_alter_table_rename_column_command",
       "name": "should_execute_alter_table_rename_column_command",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 398,
-      "end_line": 457,
+      "line": 399,
+      "end_line": 458,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62653,8 +62653,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_index_lifecycle_commands",
       "name": "should_execute_index_lifecycle_commands",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 460,
-      "end_line": 521,
+      "line": 461,
+      "end_line": 522,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62684,8 +62684,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_create_composite_index_command",
       "name": "should_execute_create_composite_index_command",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 524,
-      "end_line": 579,
+      "line": 525,
+      "end_line": 580,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62715,8 +62715,8 @@
       "id": "tests/executor/commands/semantics.rs::should_evaluate_user_function_body_after_create",
       "name": "should_evaluate_user_function_body_after_create",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 582,
-      "end_line": 661,
+      "line": 583,
+      "end_line": 662,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62746,8 +62746,8 @@
       "id": "tests/executor/commands/semantics.rs::should_reject_function_use_after_drop",
       "name": "should_reject_function_use_after_drop",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 664,
-      "end_line": 721,
+      "line": 665,
+      "end_line": 722,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62777,8 +62777,8 @@
       "id": "tests/executor/commands/semantics.rs::should_execute_procedure_body_with_arguments_after_restart",
       "name": "should_execute_procedure_body_with_arguments_after_restart",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 724,
-      "end_line": 776,
+      "line": 725,
+      "end_line": 777,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62808,8 +62808,8 @@
       "id": "tests/executor/commands/semantics.rs::should_reject_procedure_bodies_with_transaction_control",
       "name": "should_reject_procedure_bodies_with_transaction_control",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 779,
-      "end_line": 807,
+      "line": 780,
+      "end_line": 808,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -62839,8 +62839,8 @@
       "id": "tests/executor/commands/semantics.rs::should_reject_recursive_procedure_calls",
       "name": "should_reject_recursive_procedure_calls",
       "current_file": "tests/executor/commands/semantics.rs",
-      "line": 810,
-      "end_line": 846,
+      "line": 811,
+      "end_line": 847,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91728,8 +91728,8 @@
       }
     },
     {
-      "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_reject_unsupported_rollup_query",
-      "name": "should_reject_unsupported_rollup_query",
+      "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_reject_multidimensional_rollup",
+      "name": "should_reject_multidimensional_rollup",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
       "line": 495,
       "end_line": 505,
@@ -91740,7 +91740,7 @@
       "instances": [
         {
           "suite": "parser_types",
-          "name": "parser_sources_sets::should_reject_unsupported_rollup_query"
+          "name": "parser_sources_sets::should_reject_multidimensional_rollup"
         }
       ],
       "attributes": [
@@ -91883,11 +91883,11 @@
       }
     },
     {
-      "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_reject_multiple_grouping_sets_when_only_one_set_is_selected",
-      "name": "should_reject_multiple_grouping_sets_when_only_one_set_is_selected",
+      "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_reject_unselected_grouping_sets",
+      "name": "should_reject_unselected_grouping_sets",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
       "line": 580,
-      "end_line": 590,
+      "end_line": 591,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -91895,7 +91895,7 @@
       "instances": [
         {
           "suite": "parser_types",
-          "name": "parser_sources_sets::should_reject_multiple_grouping_sets_when_only_one_set_is_selected"
+          "name": "parser_sources_sets::should_reject_unselected_grouping_sets"
         }
       ],
       "attributes": [
@@ -91917,8 +91917,8 @@
       "id": "tests/parser_types/grammar/relations/sources_sets.rs::should_reject_trailing_tokens_after_a_single_grouping_set",
       "name": "should_reject_trailing_tokens_after_a_single_grouping_set",
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
-      "line": 593,
-      "end_line": 603,
+      "line": 594,
+      "end_line": 604,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -98294,6 +98294,254 @@
         {
           "suite": "pgwire_grammar",
           "name": "pgwire_extended::postgresql18_grammar::should_reject_user_defined_collation_index_grouping_over_pgwire"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_return_one_dimensional_subtotals_over_pgwire",
+      "name": "should_return_one_dimensional_subtotals_over_pgwire",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 19,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_return_one_dimensional_subtotals_over_pgwire"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_validate_grouping_arguments_in_their_query_level",
+      "name": "should_validate_grouping_arguments_in_their_query_level",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 100,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_validate_grouping_arguments_in_their_query_level"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_share_volatile_aggregate_inputs_between_grouping_levels",
+      "name": "should_share_volatile_aggregate_inputs_between_grouping_levels",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 155,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_share_volatile_aggregate_inputs_between_grouping_levels"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_keep_distinct_occurrences_of_volatile_subtotal_inputs",
+      "name": "should_keep_distinct_occurrences_of_volatile_subtotal_inputs",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 189,
+      "end_line": 226,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_keep_distinct_occurrences_of_volatile_subtotal_inputs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_rank_subtotal_rows_by_the_grouping_indicator",
+      "name": "should_rank_subtotal_rows_by_the_grouping_indicator",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 229,
+      "end_line": 252,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_rank_subtotal_rows_by_the_grouping_indicator"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_select_one_report_row_per_grouping_level",
+      "name": "should_select_one_report_row_per_grouping_level",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 255,
+      "end_line": 281,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_select_one_report_row_per_grouping_level"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_preserve_empty_subtotals_in_exists_subqueries",
+      "name": "should_preserve_empty_subtotals_in_exists_subqueries",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 284,
+      "end_line": 307,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_preserve_empty_subtotals_in_exists_subqueries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_grammar",
+        "category": "aggregates/grouping",
+        "directory": "tests/pgwire_extended/aggregates/grouping",
+        "file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/grouping/semantics.rs::should_evaluate_correlated_subtotal_inputs_per_aggregate_call",
+      "name": "should_evaluate_correlated_subtotal_inputs_per_aggregate_call",
+      "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
+      "line": 310,
+      "end_line": 345,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_grammar",
+          "name": "pgwire_extended::postgresql18_grammar::should_evaluate_correlated_subtotal_inputs_per_aggregate_call"
         }
       ],
       "attributes": [
@@ -226153,7 +226401,7 @@
       "name": "should_reject_invalid_logical_plan_shape_missing_collection",
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
       "line": 246,
-      "end_line": 284,
+      "end_line": 285,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -226183,8 +226431,8 @@
       "id": "tests/planner_controls/planning/planner_logical.rs::should_reject_invalid_logical_plan_shape_empty_projection",
       "name": "should_reject_invalid_logical_plan_shape_empty_projection",
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
-      "line": 287,
-      "end_line": 323,
+      "line": 288,
+      "end_line": 325,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -226214,8 +226462,8 @@
       "id": "tests/planner_controls/planning/planner_logical.rs::should_reject_invalid_logical_plan_shape_negative_offset",
       "name": "should_reject_invalid_logical_plan_shape_negative_offset",
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
-      "line": 326,
-      "end_line": 365,
+      "line": 328,
+      "end_line": 368,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -226245,8 +226493,8 @@
       "id": "tests/planner_controls/planning/planner_logical.rs::should_reject_invalid_logical_plan_shape_negative_limit",
       "name": "should_reject_invalid_logical_plan_shape_negative_limit",
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
-      "line": 368,
-      "end_line": 407,
+      "line": 371,
+      "end_line": 411,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -226276,8 +226524,8 @@
       "id": "tests/planner_controls/planning/planner_logical.rs::should_be_deterministic_for_repeated_planning_of_same_query",
       "name": "should_be_deterministic_for_repeated_planning_of_same_query",
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
-      "line": 410,
-      "end_line": 433,
+      "line": 414,
+      "end_line": 437,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -226307,8 +226555,8 @@
       "id": "tests/planner_controls/planning/planner_logical.rs::should_be_deterministic_for_repeated_optimization_of_same_logical_plan",
       "name": "should_be_deterministic_for_repeated_optimization_of_same_logical_plan",
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
-      "line": 436,
-      "end_line": 462,
+      "line": 440,
+      "end_line": 466,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -226338,8 +226586,8 @@
       "id": "tests/planner_controls/planning/planner_logical.rs::should_plan_non_recursive_cte_source_as_logical_source",
       "name": "should_plan_non_recursive_cte_source_as_logical_source",
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
-      "line": 465,
-      "end_line": 491,
+      "line": 469,
+      "end_line": 495,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -226369,8 +226617,8 @@
       "id": "tests/planner_controls/planning/planner_logical.rs::should_preserve_recursive_cte_aliases_in_logical_plan",
       "name": "should_preserve_recursive_cte_aliases_in_logical_plan",
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
-      "line": 494,
-      "end_line": 524,
+      "line": 498,
+      "end_line": 528,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -337147,8 +337395,8 @@
       "current_file": "tests/executor/commands/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 846,
-      "sha256": "f5bde715f9271336147a2d3d967117d492d40bc345e3e10734143770a2550d5b",
+      "lines": 847,
+      "sha256": "cdf36bc3e11a3c7ad512ac55fd8181859355ac76cb9d37e27c23c8178a39dd60",
       "test_declarations": 13,
       "registered_suites": [
         "executor"
@@ -339843,8 +340091,8 @@
       "current_file": "tests/parser_types/grammar/relations/sources_sets.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 603,
-      "sha256": "b8a34ad4f7274fa6a14b44c6ff482e3851ec18f461556553b43fe91d25a241d4",
+      "lines": 604,
+      "sha256": "bf82725e6b40fa03b25178cc852b524490ef8ee92f9d03e2d0397b69ac54fae6",
       "test_declarations": 32,
       "registered_suites": [
         "parser_types"
@@ -340778,9 +341026,9 @@
       "current_file": "tests/pgwire_extended/aggregates/grouping/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 16,
-      "sha256": "def9242895ce1a880fc09c9d08d9e0bc0dd5cd6966619252e48ecdb7604eaa0a",
-      "test_declarations": 1,
+      "lines": 345,
+      "sha256": "b5a8c0fb514f30f7aea80b20ea414f26632e984c0caf6d067968722420bed07c",
+      "test_declarations": 9,
       "registered_suites": [
         "pgwire_grammar"
       ],
@@ -349026,8 +349274,8 @@
       "current_file": "tests/planner_controls/planning/planner_logical.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 524,
-      "sha256": "98372dbd776572387d35cff4bba7bf970c12b4b51e3b7d215101031278c7a2ed",
+      "lines": 528,
+      "sha256": "3aa3b6ebea55ecca61a67dba2ad63259d7becd9c6995a53e206a60e0f8885d7a",
       "test_declarations": 13,
       "registered_suites": [
         "planner_controls"

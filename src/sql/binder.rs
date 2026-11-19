@@ -21,6 +21,7 @@ pub(crate) use graph_table::{
 };
 #[path = "binder/grouped_projection.rs"]
 mod grouped_projection;
+mod grouping_indicator;
 #[path = "binder/integer_operators.rs"]
 mod integer_operators;
 #[path = "binder/json_comparison.rs"]

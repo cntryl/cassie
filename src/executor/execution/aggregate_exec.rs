@@ -56,6 +56,7 @@ mod state;
 mod state_input;
 mod state_numeric;
 mod statistical;
+pub(super) mod subtotal;
 #[cfg(test)]
 #[path = "aggregate_exec/tests.rs"]
 mod tests;
@@ -171,6 +172,18 @@ fn aggregate_query_batches_serial(
         memory: GroupMemory::new(context.controls)?,
     };
 
+    let grand_total = if context.plan.grouping_subtotal {
+        let keys = context
+            .plan
+            .group_by
+            .iter()
+            .map(|key| (group_expr_name(key), Value::Null))
+            .collect();
+        Some(finish_serial_group(keys, &rows, specs, true, context)?)
+    } else {
+        None
+    };
+
     for row in rows {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
@@ -211,15 +224,37 @@ fn aggregate_query_batches_serial(
     let mut out = Vec::with_capacity(owned.groups.len());
     for (_signature, (group_values, group_rows)) in owned.groups.into_sorted_entries()? {
         check_timeout(context.controls)?;
-        let mut output = collection_json::OutputRow::new(group_values, specs, context.controls)?;
-        for spec in specs {
-            let value = evaluate_aggregate(&spec.function, &group_rows, context)?;
-            output.append(value, &spec.output_names)?;
-        }
-        out.push(output.finish());
+        out.push(finish_serial_group(
+            group_values,
+            &group_rows,
+            specs,
+            false,
+            context,
+        )?);
     }
+    out.extend(grand_total);
     let out = output_owner::retain_outputs(out, owned.memory, Vec::new(), context.controls)?;
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
+}
+
+fn finish_serial_group(
+    keys: Vec<(String, Value)>,
+    rows: &[BatchRow],
+    specs: &[AggregateSpec],
+    grand_total: bool,
+    context: &AggregateExecutionContext<'_>,
+) -> Result<BatchRow, QueryError> {
+    let mut output = collection_json::OutputRow::new(keys, specs, context.controls)?;
+    for spec in specs {
+        check_timeout(context.controls)?;
+        let value = if spec.function.name.eq_ignore_ascii_case("grouping") {
+            AggregateOutput::from_value(Value::Int64(i64::from(grand_total)))
+        } else {
+            evaluate_aggregate(&spec.function, rows, context)?
+        };
+        output.append(value, &spec.output_names)?;
+    }
+    Ok(output.finish())
 }
 
 /// Fallback reason recorded when a merged aggregate state requires row order.
@@ -464,6 +499,9 @@ fn parallel_aggregation_eligibility(
     specs: &[AggregateSpec],
     user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<(), &'static str> {
+    if plan.grouping_subtotal {
+        return Err("grouping-sets");
+    }
     if plan.distinct || !plan.distinct_on.is_empty() {
         return Err("distinct");
     }
@@ -575,16 +613,30 @@ fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSpec> {
                 }
             }
             SelectItem::Expr { expr, .. } => collect_aggregate_specs_from_expr(expr, &mut specs),
-            SelectItem::Wildcard
-            | SelectItem::Column { .. }
-            | SelectItem::WindowFunction { .. } => {}
+            SelectItem::WindowFunction { function, .. } => {
+                for expression in function
+                    .args
+                    .iter()
+                    .chain(function.filter.as_deref())
+                    .chain(&function.partition_by)
+                    .chain(function.order_by.iter().map(|key| &key.expr))
+                {
+                    collect_aggregate_specs_from_expr(expression, &mut specs);
+                }
+            }
+            SelectItem::Wildcard | SelectItem::Column { .. } => {}
         }
     }
     if let Some(having) = &plan.having {
         collect_aggregate_specs_from_expr(having, &mut specs);
     }
-    for order in &plan.order {
-        collect_aggregate_specs_from_expr(&order.expr, &mut specs);
+    for expr in plan
+        .order
+        .iter()
+        .map(|order| &order.expr)
+        .chain(&plan.distinct_on)
+    {
+        collect_aggregate_specs_from_expr(expr, &mut specs);
     }
     specs
 }

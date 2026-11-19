@@ -20,6 +20,9 @@ use crate::sql::{
 };
 use serde::{Deserialize, Serialize};
 
+mod clone_size;
+pub(crate) use clone_size::plan_clone_bytes;
+
 #[path = "logical/reserved_id.rs"]
 mod reserved_id;
 pub use reserved_id::{
@@ -37,6 +40,8 @@ pub struct LogicalPlan {
     pub projection: Vec<SelectItem>,
     pub filter: Option<Expr>,
     pub group_by: Vec<Expr>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub grouping_subtotal: bool,
     pub having: Option<Expr>,
     pub order: Vec<OrderExpr>,
     pub limit: Option<Expr>,
@@ -496,6 +501,7 @@ fn plan_select(select: &SelectStatement) -> Result<LogicalPlan, CassieError> {
         projection: select.projection.clone(),
         filter: select.filter.clone(),
         group_by: select.group_by.clone(),
+        grouping_subtotal: select.grouping_subtotal,
         having: select.having.clone(),
         order: select.order.clone(),
         limit: select.limit.clone(),
@@ -654,6 +660,7 @@ fn command_plan(
         projection: Vec::new(),
         filter: None,
         group_by: Vec::new(),
+        grouping_subtotal: false,
         having: None,
         order: Vec::new(),
         limit: None,

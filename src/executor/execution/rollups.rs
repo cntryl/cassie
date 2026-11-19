@@ -618,6 +618,7 @@ fn build_rollup_refresh_plan(meta: &RollupMeta) -> Result<LogicalPlan, QueryErro
         projection: rollup_projection(meta)?,
         filter: rollup_filter(meta)?,
         group_by: rollup_group_by(meta)?,
+        grouping_subtotal: false,
         having: None,
         order: Vec::new(),
         limit: None,
@@ -838,6 +839,7 @@ fn plan_aggregate_signatures(plan: &LogicalPlan) -> Vec<String> {
 fn eligible_plan_shape(plan: &LogicalPlan) -> bool {
     matches!(plan.source, QuerySource::Collection(_))
         && plan.command.is_none()
+        && !plan.grouping_subtotal
         && !plan.group_by.is_empty()
         && plan.having.is_none()
         && plan.set.is_none()

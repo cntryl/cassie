@@ -753,6 +753,7 @@ fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
 
 fn plan_supports_parallel_aggregation(plan: &LogicalPlan) -> bool {
     plan_uses_aggregate(plan)
+        && !plan.grouping_subtotal
         && !plan.distinct
         && plan.distinct_on.is_empty()
         && plan.set.is_none()

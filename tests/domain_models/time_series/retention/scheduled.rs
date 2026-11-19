@@ -374,9 +374,9 @@ fn should_delete_only_rows_strictly_before_due_window_cutoff() {
         )
         .unwrap();
     for sql in [
-        "INSERT INTO scheduled_cutoff_events VALUES (1, '2026-01-01T23:59:59.999999Z')",
-        "INSERT INTO scheduled_cutoff_events VALUES (2, '2026-01-02T00:00:00Z')",
-        "INSERT INTO scheduled_cutoff_events VALUES (3, '2026-01-02T00:00:00.000001Z')",
+        "INSERT INTO scheduled_cutoff_events VALUES (1, '2026-01-02T11:59:59.999999Z')",
+        "INSERT INTO scheduled_cutoff_events VALUES (2, '2026-01-02T12:00:00Z')",
+        "INSERT INTO scheduled_cutoff_events VALUES (3, '2026-01-02T12:00:00.000001Z')",
         "CREATE RETENTION POLICY scheduled_cutoff_policy ON scheduled_cutoff_events USING event_at RETAIN FOR '1 day'",
         "ALTER RETENTION POLICY scheduled_cutoff_policy SCHEDULE DAILY START AT '2026-01-03T00:00:00Z'",
     ] {
@@ -387,7 +387,7 @@ fn should_delete_only_rows_strictly_before_due_window_cutoff() {
     let enforced = cassie
         .execute_sql(
             &session,
-            "ENFORCE RETENTION POLICY scheduled_cutoff_policy DUE AT '2026-01-03T00:00:00Z'",
+            "ENFORCE RETENTION POLICY scheduled_cutoff_policy DUE AT '2026-01-03T12:00:00Z'",
             vec![],
         )
         .unwrap();
@@ -408,7 +408,8 @@ fn should_delete_only_rows_strictly_before_due_window_cutoff() {
     );
     assert_eq!(progress[0][14], Value::Int64(1));
     assert_eq!(progress[0][15], Value::Int64(0));
-    assert_timestamptz_value(&progress[0], 6, 11, "2026-01-03T00:00:00Z");
+    assert_timestamptz_value(&progress[0], 1, 9, "2026-01-04T00:00:00Z");
+    assert_timestamptz_value(&progress[0], 6, 11, "2026-01-03T12:00:00Z");
 }
 
 fn create_scheduled_batch_fixture(

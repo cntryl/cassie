@@ -78,9 +78,33 @@ pub(super) fn sort(
         ensure_query_memory_budget(env.controls, &batches)?;
     }
     if !plan.distinct_on.is_empty() {
+        let grouped_keys = if plan_uses_aggregate(plan)
+            && plan
+                .distinct_on
+                .iter()
+                .any(aggregate_exec::contains_aggregate)
+        {
+            let mut memory = env.controls.reserve_query_memory(0)?;
+            let mut keys = Vec::new();
+            for expr in &plan.distinct_on {
+                memory.try_grow(crate::sql::parse_analysis::expression_clone_bytes(
+                    expr,
+                    0,
+                    env.controls,
+                )?)?;
+                crate::runtime::owned_memory::grow_vec(&mut keys, 1, &mut memory)?;
+                keys.push(aggregate_exec::rewrite_aggregate_expr(expr, &plan.group_by));
+            }
+            Some((keys, memory))
+        } else {
+            None
+        };
+        let keys = grouped_keys
+            .as_ref()
+            .map_or(plan.distinct_on.as_slice(), |(keys, _)| keys.as_slice());
         batches = distinct_on_batches(
             batches,
-            &plan.distinct_on,
+            keys,
             env.params,
             search,
             env.user_functions,

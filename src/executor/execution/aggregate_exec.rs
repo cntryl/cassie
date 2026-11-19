@@ -630,8 +630,13 @@ fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSpec> {
     if let Some(having) = &plan.having {
         collect_aggregate_specs_from_expr(having, &mut specs);
     }
-    for order in &plan.order {
-        collect_aggregate_specs_from_expr(&order.expr, &mut specs);
+    for expr in plan
+        .order
+        .iter()
+        .map(|order| &order.expr)
+        .chain(&plan.distinct_on)
+    {
+        collect_aggregate_specs_from_expr(expr, &mut specs);
     }
     specs
 }

@@ -71,22 +71,25 @@ pub(in crate::executor::execution) fn prepare_plan(
     }
     for (order, source) in plan.order.iter_mut().zip(&original.order) {
         context.controls.check_interruption()?;
-        if let Some(index) = original
-            .projection
-            .iter()
-            .position(|item| matches_projection(&source.expr, item))
-        {
-            order.expr = match &plan.projection[index] {
-                SelectItem::Function { function, .. } => Expr::Function(Box::new(function.clone())),
-                SelectItem::Expr { expr, .. } => expr.clone(),
-                _ => unreachable!("only expression projections can match"),
-            };
+        if let Some(bound) = project_reference(&source.expr, original, &plan.projection) {
+            order.expr = bound;
         } else {
             layout.expression(&mut order.expr)?;
         }
     }
-    for expr in &mut plan.distinct_on {
-        layout.expression(expr)?;
+    for (key, source) in plan.distinct_on.iter_mut().zip(&original.distinct_on) {
+        context.controls.check_interruption()?;
+        if let Some(index) = original
+            .order
+            .iter()
+            .position(|order| order.expr.structurally_eq(source))
+        {
+            *key = plan.order[index].expr.clone();
+        } else if let Some(bound) = project_reference(source, original, &plan.projection) {
+            *key = bound;
+        } else {
+            layout.expression(key)?;
+        }
     }
     if layout.slots > 0 {
         for row in batches.iter_mut().flatten() {
@@ -110,6 +113,18 @@ pub(in crate::executor::execution) fn prepare_plan(
         plan,
         _memory: layout.memory,
     })
+}
+
+fn project_reference(source: &Expr, original: &LogicalPlan, bound: &[SelectItem]) -> Option<Expr> {
+    let index = original
+        .projection
+        .iter()
+        .position(|item| matches_projection(source, item))?;
+    match &bound[index] {
+        SelectItem::Function { function, .. } => Some(Expr::Function(Box::new(function.clone()))),
+        SelectItem::Expr { expr, .. } => Some(expr.clone()),
+        _ => None,
+    }
 }
 
 fn matches_projection(expr: &Expr, item: &SelectItem) -> bool {

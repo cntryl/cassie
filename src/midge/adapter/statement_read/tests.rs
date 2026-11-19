@@ -513,7 +513,19 @@ fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() 
     ] {
         cassie.execute_sql(&session, &sql, vec![]).unwrap();
     }
-    let small = controls(128 * 1024);
+    // Admit the two catalog views invalidated by DDL before measuring Data reads.
+    // Neither capture opens a Data reader or sees the private output's row bytes.
+    let catalog_controls = controls(16 * 1024 * 1024);
+    let catalog = session
+        .command_catalog_snapshot(&catalog_controls)
+        .unwrap()
+        .unwrap();
+    let _descriptors = session
+        .command_descriptor_snapshot(&cassie.publication_catalog, &catalog_controls)
+        .unwrap()
+        .unwrap();
+    let data_budget = 128 * 1024;
+    let small = controls(data_budget);
 
     // Act
     let result = cassie.execute_sql_with_controls(
@@ -524,12 +536,8 @@ fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() 
         &small,
     );
 
-    let catalog = session
-        .command_catalog_snapshot(&controls(16 * 1024 * 1024))
-        .unwrap()
-        .unwrap();
-    let retention = controls(catalog.accounted_bytes() + 128 * 1024);
     let bind = |sql: &str| {
+        let retention = controls(catalog.accounted_bytes() + data_budget);
         let parsed = crate::sql::parse_statement(sql).unwrap();
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
         cassie.validate_pgwire_bind(

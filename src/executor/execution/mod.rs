@@ -106,6 +106,7 @@ pub(crate) use entrypoints::{
 };
 pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 pub(crate) use scored::install_ann_rerank_barriers;
+pub(crate) use scored::vector_top_k_shape;
 
 use cte::{execute_cte, CteContext};
 #[cfg(test)]

@@ -6,14 +6,14 @@ use cassie::types::Value;
 use super::support_read_equivalence::{sql, with_fixture};
 
 #[derive(Clone, Copy, PartialEq)]
-enum Metric {
+pub(super) enum Metric {
     L2,
     Cosine,
     Dot,
 }
 
 impl Metric {
-    fn name(self) -> &'static str {
+    pub(super) fn name(self) -> &'static str {
         match self {
             Self::L2 => "l2",
             Self::Cosine => "cosine",
@@ -21,7 +21,7 @@ impl Metric {
         }
     }
 
-    fn operator(self) -> &'static str {
+    pub(super) fn operator(self) -> &'static str {
         match self {
             Self::L2 => "<->",
             Self::Cosine => "<=>",
@@ -29,7 +29,7 @@ impl Metric {
         }
     }
 
-    fn distance(self, vector: &[f32], query: &[f32]) -> f64 {
+    pub(super) fn distance(self, vector: &[f32], query: &[f32]) -> f64 {
         let dot: f64 = vector
             .iter()
             .zip(query)
@@ -62,7 +62,7 @@ impl Metric {
     }
 }
 
-const ALGORITHMS: [(&str, &str); 2] = [
+pub(super) const ALGORITHMS: [(&str, &str); 2] = [
     (
         "hnsw",
         "index_type = hnsw, m = 16, ef_construction = 64, ef_search = 64",
@@ -76,7 +76,7 @@ const ALGORITHMS: [(&str, &str); 2] = [
 /// Deterministic non-unit vectors with varied magnitudes, plus two planted
 /// rows: `aligned_far` is the best cosine match for `[1, 0.2, 0]` while
 /// `near_off` is its Euclidean nearest neighbor.
-fn corpus() -> Vec<(String, [f32; 3])> {
+pub(super) fn corpus() -> Vec<(String, [f32; 3])> {
     let mut state = 0x2545_f491_u32;
     let mut next = move || {
         state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
@@ -96,7 +96,7 @@ fn corpus() -> Vec<(String, [f32; 3])> {
     rows
 }
 
-fn oracle(
+pub(super) fn oracle(
     metric: Metric,
     query: &[f32],
     descending: bool,
@@ -114,13 +114,28 @@ fn oracle(
     ranked
 }
 
-fn seed(cassie: &Cassie, session: &CassieSession, table: &str, metric: Metric, options: &str) {
+pub(super) fn seed(
+    cassie: &Cassie,
+    session: &CassieSession,
+    table: &str,
+    metric: Metric,
+    options: &str,
+) {
+    seed_rows(cassie, session, table, (metric, options), &corpus());
+}
+
+pub(super) fn seed_rows(
+    cassie: &Cassie,
+    session: &CassieSession,
+    table: &str,
+    (metric, options): (Metric, &str),
+    rows: &[(String, [f32; 3])],
+) {
     sql(
         cassie,
         session,
         &format!("CREATE TABLE {table} (body TEXT, label TEXT, embedding VECTOR(3))"),
     );
-    let rows = corpus();
     let documents = rows
         .iter()
         .map(|(label, vector)| {
@@ -149,7 +164,7 @@ fn query_text(query: &[f32]) -> String {
     format!("[{},{},{}]", query[0], query[1], query[2])
 }
 
-fn ranking_sql(table: &str, metric: Metric, query: &[f32], tail: &str) -> String {
+pub(super) fn ranking_sql(table: &str, metric: Metric, query: &[f32], tail: &str) -> String {
     let literal = query_text(query);
     format!(
         "SELECT label, embedding {op} '{literal}' AS distance FROM {table} \
@@ -158,13 +173,17 @@ fn ranking_sql(table: &str, metric: Metric, query: &[f32], tail: &str) -> String
     )
 }
 
-fn counter(cassie: &Cassie, name: &str) -> u64 {
+pub(super) fn counter(cassie: &Cassie, name: &str) -> u64 {
     cassie.metrics()["vector"][name]
         .as_u64()
         .expect("vector counter")
 }
 
-fn assert_matches_oracle(rows: &[Vec<Value>], expected: &[(String, f64)], context: &str) {
+pub(super) fn assert_matches_oracle(
+    rows: &[Vec<Value>],
+    expected: &[(String, f64)],
+    context: &str,
+) {
     assert_eq!(rows.len(), expected.len(), "{context}");
     for (row, (label, distance)) in rows.iter().zip(expected) {
         assert_eq!(row[0], Value::String(label.clone()), "{context}");
@@ -178,7 +197,7 @@ fn assert_matches_oracle(rows: &[Vec<Value>], expected: &[(String, f64)], contex
     }
 }
 
-const QUERY: [f32; 3] = [1.0, 0.2, 0.0];
+pub(super) const QUERY: [f32; 3] = [1.0, 0.2, 0.0];
 
 #[test]
 fn should_serve_each_algorithm_metric_pair_from_a_matching_ann_index() {

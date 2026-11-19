@@ -156,6 +156,56 @@ fn execute_operator_vector_top_k(
     Ok(Some(out))
 }
 
+/// Statement shape EXPLAIN reports for the native vector top-k path. It
+/// mirrors the structural checks of `vector_distance_top_k_spec` without
+/// resolving the query operand, so literal and bound queries describe alike.
+pub(crate) struct VectorTopKShape {
+    pub(crate) collection: String,
+    pub(crate) vector_field: String,
+    pub(crate) metric: DistanceMetric,
+    pub(crate) ascending: bool,
+    pub(crate) filtered: bool,
+}
+
+pub(crate) fn vector_top_k_shape(plan: &LogicalPlan) -> Option<VectorTopKShape> {
+    if plan.command.is_some()
+        || !plan.ctes.is_empty()
+        || plan.distinct
+        || !plan.distinct_on.is_empty()
+        || !plan.group_by.is_empty()
+        || plan.having.is_some()
+        || plan.set.is_some()
+        || plan.order.len() != 1
+        || plan.projection.len() != 2
+        || plan.limit_value().is_none()
+    {
+        return None;
+    }
+    let QuerySource::Collection(collection) = &plan.source else {
+        return None;
+    };
+    let (metric, vector_field) = match (&plan.projection[0], &plan.projection[1]) {
+        (SelectItem::Column { name, .. }, SelectItem::Expr { expr, .. })
+            if !crate::types::row_identity::is_row_identity_column(name) =>
+        {
+            let (metric, field, _) = operator_metric_args(expr)?;
+            (metric, field)
+        }
+        _ => {
+            let (_, function, _) = vector_distance_projection(plan.projection.as_slice())?;
+            let (field, _) = vector_distance_args(function)?;
+            (DistanceMetric::L2, field)
+        }
+    };
+    Some(VectorTopKShape {
+        collection: collection.to_string(),
+        vector_field: vector_field.to_owned(),
+        metric,
+        ascending: matches!(plan.order[0].direction, SortDirection::Asc),
+        filtered: plan.filter.is_some(),
+    })
+}
+
 const ANN_CANDIDATE_OVERSAMPLE: usize = 64;
 
 pub(super) struct AdaptiveCandidateDecision {

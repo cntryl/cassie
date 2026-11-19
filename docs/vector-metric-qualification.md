@@ -163,3 +163,106 @@ validation and fresh exact-head hosted checks; the earlier 3,372-test result
 is prior provenance, not completion of this behavioral fixture correction.
 Exact source snapshots, red/green logs, Jev gap probes, canceled diagnostics
 and final gates are retained under `target/independent-776-review/`.
+
+## Metric-matched ANN for SQL operators (#1362)
+
+This section owns the SQL ANN contract for the pgvector operators. It adds no
+type, OID, public API or persistent encoding.
+
+### Operator, metric and index contract
+
+| SQL operator | Metric | Distance (ascending is nearest) | Matching index metadata |
+|---|---|---|---|
+| `<->` | `l2` | Euclidean distance | `metric = l2` |
+| `<=>` | `cosine` | `1 - cos`; zero operand gives `1` | `metric = cosine` |
+| `<#>` | `dot` | negative inner product | `metric = dot` |
+
+An index is created with `CREATE INDEX ... USING vector (field) WITH (source_field
+= ..., metric = l2|cosine|dot, index_type = hnsw|ivfflat, ...)`. The `metric`
+option is the operator class: there are no pgvector `vector_*_ops` names.
+
+A statement is served from an HNSW or IVFFlat index only when all of these hold:
+
+- Shape: `SELECT <column>, <field> <op> <query> [AS d] FROM t ORDER BY d |
+  <field> <op> <query> LIMIT n [OFFSET m]`, with the same operator, field and
+  query in projection and ORDER BY, and `<column>` an ordinary (non-identity)
+  column. The `vector_distance()` function shape is unchanged and is always L2.
+- No `WHERE` predicate, no open transaction overlay on the collection, ascending
+  order, and a bounded `LIMIT`.
+- The index metric equals the operator metric.
+
+Candidates come from the index; every candidate is then re-read from the source
+row and re-scored exactly with the operator's metric. Ranking is exact distance
+ascending, then case-sensitive row identity; OFFSET follows ranking. Rows whose
+vector is missing or NULL are never index candidates. The REST vector search is
+unchanged: HNSW serves all three metrics and IVFFlat serves L2 only.
+
+### Diagnosed exact fallbacks
+
+Each fallback returns the exact result and increments the algorithm's
+`*_fallbacks` counter; `vector.last_fallback_reason` carries the reason:
+
+| Reason | Condition |
+|---|---|
+| `incompatible-metric` | index metric differs from the operator metric |
+| `unsupported-sort` | `ORDER BY ... DESC` |
+| `zero-query-exact` | cosine or dot query is the zero vector: every distance ties, so the order is row identity alone and cannot be reproduced from a candidate set |
+| `missing-graph` / `missing-training` | HNSW graph or IVFFlat manifest is absent or invalidated |
+| `candidate-exhausted` | fewer candidates than `min(limit + offset, rows)` (for example IVFFlat with too few probed lists) |
+| `concurrent-source-change` | the source row set changed between candidate selection and rerank in a way the captured snapshot cannot serve |
+| `structured-filter-exact`, `transaction-overlay-exact` | existing filtered / transactional fallbacks |
+
+`EXPLAIN` of an eligible-shape statement appends
+`vector_ann=<eligible|incompatible-metric|unsupported-sort|structured-filter-exact|no-ann-index>
+vector_ann_index=<hnsw|ivfflat|bruteforce|none> vector_ann_index_metric=<metric>
+vector_ann_query_metric=<metric>`. It reports plan-time eligibility; run-time
+fallbacks (`zero-query-exact`, exhaustion, missing manifest) appear only in the
+counters above. A reader paused between candidate selection and rerank keeps its
+captured source snapshot and still reports an ANN execution; the next statement
+sees the committed mutation.
+
+### Executable evidence
+
+`tests/vector_embeddings/vectors/sql_ann_metrics.rs`,
+`sql_ann_metric_lifecycle.rs` and `sql_ann_metric_recall.rs`:
+
+- Both algorithms x L2/cosine/dot against an independent f64 oracle on a
+  30-row non-unit fixture: identity, distances (1e-9), execution counter delta of
+  exactly one, positive exact-rerank delta, zero fallbacks.
+- A planted row is the cosine best match but not the Euclidean nearest; an
+  L2-only plan mislabelled as cosine fails the oracle.
+- Metric mismatch (3 pairs x 2 algorithms), DESC, zero query, invalidated
+  manifest, deletion and same-count vector replacement between candidate
+  selection and rerank, candidate exhaustion, OFFSET, and EXPLAIN reporting.
+
+### Recall@20 measurement
+
+Recall is `|ANN top-20 ∩ exact top-20| / 20`, exact top-20 being the f64 oracle
+(distance, then identity). Fixture: deterministic modular 3-D vectors,
+row `i` = `[(7i mod 101)/101, (13i mod 103)/103, (29i mod 107)/107]` mapped to
+`[-1, 1)`; ten fixed queries (see the test file); in-memory storage, native SQL
+path, `LIMIT 20`, floor `0.90`. Settings are the smallest profiles declared in
+`ivfflat-release-evidence.md` and `hnsw-release-evidence.md`. The queries are
+the tuning set; no held-out split was used and no parameter was tuned.
+
+| Algorithm | Rows | Settings | Metric | Mean recall | Worst query |
+|---|---:|---|---|---:|---:|
+| HNSW | 1,024 | m=32, ef_construction=256, ef_search=256 | l2/cosine/dot | 1.0000 each | 1.00 each |
+| HNSW | 10,000 | m=32, ef_construction=256, ef_search=256 | l2 | 1.0000 | 1.00 |
+| HNSW | 10,000 | same | cosine | 1.0000 | 1.00 |
+| HNSW | 10,000 | same | dot | 1.0000 | 1.00 |
+| IVFFlat | 1,024 | lists=16, probes=4, sample=1024, seed=42 | l2 | 1.0000 | 1.00 |
+| IVFFlat | 1,024 | same | cosine | 1.0000 | 1.00 |
+| IVFFlat | 1,024 | same | dot | 0.9050 | 0.55 |
+
+Per-query IVFFlat dot recall: `0.55, 1.0, 1.0, 1.0, 0.75, 0.85, 1.0, 0.9, 1.0,
+1.0`. **Open finding:** the mean clears the floor by 0.005, but four of ten
+queries are below 0.90 and one is 0.55. IVFFlat probes lists by the normalized
+query direction, which ignores magnitude, so inner-product winners can sit in
+unprobed lists. The contract is not changed; a magnitude-aware probe order or a
+higher default `probes` for `dot` is follow-up work. The 1,024-row HNSW rows run in the suite by default; the 10,000-row HNSW rows
+were measured once with `CASSIE_ANN_RECALL_HNSW_ROWS=10000` (about 60 s of index
+build; under heavy machine load a 10,000-row build once hit the default 30 s
+query timeout, so rerun it on an idle machine). The 100k, 768-dimension and
+filtered profiles belong to #1365 and #1363 and were not run here. Timing was
+not measured.

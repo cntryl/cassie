@@ -27,6 +27,7 @@ use fulltext_topk::execute_fulltext_top_k;
 use hybrid::{hybrid_search_documents, select_hybrid_candidate_rows, BoundedHybridContext};
 use posting_candidates::{posting_list_candidate_ids_controlled, PostingListDocument};
 pub(crate) use vector_topk::install_ann_rerank_barriers;
+pub(crate) use vector_topk::vector_top_k_shape;
 use vector_topk::{
     adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
 };

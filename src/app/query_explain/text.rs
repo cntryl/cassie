@@ -11,7 +11,7 @@ pub(super) fn plan_line(
     graph: &[String],
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<String, CassieError> {
-    let mut sections = allocation.vector(10)?;
+    let mut sections = allocation.vector(11)?;
     sections.push(read_plan_section(cassie, physical, allocation)?);
     sections.push(cte_section(physical, allocation)?);
     sections.push(operator_feedback_section(physical, allocation)?);
@@ -21,10 +21,62 @@ pub(super) fn plan_line(
     sections.push(vectorized_join_section(cassie, physical, allocation)?);
     sections.push(acceleration_section(cassie, physical, allocation)?);
     sections.push(cost_section(physical, allocation)?);
+    if let Some(section) = vector_ann_section(cassie, physical, allocation)? {
+        sections.push(section);
+    }
     if !graph.is_empty() {
         sections.push(allocation.join(graph.iter().map(String::as_str), " ")?);
     }
     allocation.join(sections.iter().map(String::as_str), " ")
+}
+
+/// Reports which ANN index and metric a native vector top-k statement selects,
+/// or why it falls back to exact scoring.
+fn vector_ann_section(
+    cassie: &Cassie,
+    physical: &crate::planner::physical::PhysicalPlan,
+    allocation: &mut PlanAllocation<'_>,
+) -> Result<Option<String>, CassieError> {
+    let Some(shape) = crate::executor::vector_top_k_shape(&physical.logical) else {
+        return Ok(None);
+    };
+    let Some(schema) = cassie.catalog.get_schema(&shape.collection) else {
+        return Ok(None);
+    };
+    let field_key = crate::sql::ColumnIdentifierPath::reference_field_key(&shape.vector_field);
+    let Some(field) = schema
+        .fields
+        .iter()
+        .find(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field.name) == field_key)
+    else {
+        return Ok(None);
+    };
+    let index = cassie
+        .midge
+        .get_vector_index_definition(&shape.collection, &field.name)?;
+    let (kind, index_metric) = index.as_ref().map_or(("none", "none"), |record| {
+        (
+            record.metadata.index_type.as_str(),
+            record.metadata.metric.as_str(),
+        )
+    });
+    let reason = if matches!(kind, "none" | "bruteforce") {
+        "no-ann-index"
+    } else if shape.filtered {
+        "structured-filter-exact"
+    } else if !shape.ascending {
+        "unsupported-sort"
+    } else if index_metric != shape.metric.as_str() {
+        "incompatible-metric"
+    } else {
+        "eligible"
+    };
+    allocation
+        .format(format_args!(
+            "vector_ann={reason} vector_ann_index={kind} vector_ann_index_metric={index_metric} vector_ann_query_metric={}",
+            shape.metric.as_str()
+        ))
+        .map(Some)
 }
 
 fn cte_section(

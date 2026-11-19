@@ -291,9 +291,11 @@ mod tests {
             next_backoff_sleep(backoff_remaining, Some(Duration::from_millis(3)));
         let ten_millis_remaining =
             next_backoff_sleep(backoff_remaining, Some(Duration::from_millis(10)));
+        let no_deadline = next_backoff_sleep(backoff_remaining, None);
 
         // Assert
         assert_eq!(three_millis_remaining, Duration::from_millis(3));
-        assert_eq!(ten_millis_remaining, Duration::from_millis(10));
+        assert_eq!(ten_millis_remaining, Duration::from_millis(5));
+        assert_eq!(no_deadline, Duration::from_millis(5));
     }
 }

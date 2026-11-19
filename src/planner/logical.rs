@@ -20,6 +20,9 @@ use crate::sql::{
 };
 use serde::{Deserialize, Serialize};
 
+mod clone_size;
+pub(crate) use clone_size::plan_clone_bytes;
+
 #[path = "logical/reserved_id.rs"]
 mod reserved_id;
 pub use reserved_id::{

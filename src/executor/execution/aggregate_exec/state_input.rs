@@ -58,7 +58,15 @@ pub(super) fn row_filter_matches(
     row: &BatchRow,
     context: &AggregateExecutionContext<'_>,
 ) -> Result<bool, QueryError> {
-    filter_matches(function, row, &value_context(context))
+    row_predicate_matches(function.filter.as_deref(), row, context)
+}
+
+pub(super) fn row_predicate_matches(
+    predicate: Option<&Expr>,
+    row: &BatchRow,
+    context: &AggregateExecutionContext<'_>,
+) -> Result<bool, QueryError> {
+    filter_matches(predicate, row, &value_context(context))
 }
 
 pub(super) fn selected_input(
@@ -66,18 +74,18 @@ pub(super) fn selected_input(
     row: &BatchRow,
     context: &AggregateValueContext<'_>,
 ) -> Result<Option<Value>, QueryError> {
-    if !filter_matches(function, row, context)? {
+    if !filter_matches(function.filter.as_deref(), row, context)? {
         return Ok(None);
     }
     evaluate_selected_input(function, row, context).map(Some)
 }
 
 fn filter_matches(
-    function: &FunctionCall,
+    predicate: Option<&Expr>,
     row: &BatchRow,
     context: &AggregateValueContext<'_>,
 ) -> Result<bool, QueryError> {
-    if let Some(predicate) = &function.filter {
+    if let Some(predicate) = predicate {
         match filter::evaluate_expr_value(
             row,
             predicate,

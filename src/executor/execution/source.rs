@@ -480,6 +480,8 @@ pub(super) fn execute_source_query_with_outer_row(
         None
     };
     let plan = grouped_subqueries.as_ref().unwrap_or(plan);
+    let subtotal = phases::prepare_subtotal(&phase_env, plan, &mut batches)?;
+    let plan = subtotal.as_ref().map_or(plan, |prepared| &prepared.plan);
     batches = apply_aggregate_phase(&phase_env, batches, plan, cte_context)?;
     batches = phases::window(env, cte_context, batches, plan, search_context.as_ref())?;
     batches = phases::sort(env, cte_context, batches, plan, search_context.as_ref())?;
@@ -752,21 +754,8 @@ fn apply_aggregate_phase(
     if !plan_uses_aggregate(plan) {
         return Ok(batches);
     }
-    let batches = aggregate_exec::aggregate_query_batches(
-        env.cassie,
-        batches,
-        &aggregate_exec::AggregateExecutionContext {
-            plan,
-            params: env.params,
-            parameter_type_oids: env.parameter_type_oids,
-            search_context: env.search_context,
-            user_functions: env.user_functions,
-            session: env.session,
-            controls: env.controls,
-            #[cfg(test)]
-            after_partition_row: None,
-        },
-    )?;
+    let batches =
+        aggregate_exec::aggregate_query_batches(env.cassie, batches, &env.aggregate_context(plan))?;
     ensure_query_memory_budget(env.controls, &batches)?;
     super::exists_phase::having(
         &SourceExecutionEnv {

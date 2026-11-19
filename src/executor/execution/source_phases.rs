@@ -1,8 +1,8 @@
 //! Blocking phases borrow the captured statement context and actual input rows.
 use super::{
     aggregate_exec, distinct_on_batches, ensure_query_memory_budget, filter, plan_uses_aggregate,
-    sort, window_exec, Batch, BatchRow, CteContext, Expr, LogicalPlan, QueryError,
-    SourceExecutionEnv,
+    sort, window_exec, Batch, BatchRow, CteContext, Expr, LogicalPlan, PhaseExecutionEnv,
+    QueryError, SourceExecutionEnv,
 };
 
 pub(super) fn window(
@@ -12,30 +12,12 @@ pub(super) fn window(
     plan: &LogicalPlan,
     search: Option<&filter::SearchContext>,
 ) -> Result<Vec<Batch>, QueryError> {
-    let grouped_windows = (!plan.group_by.is_empty()
-        && plan
-            .projection
-            .iter()
-            .any(|item| matches!(item, crate::sql::ast::SelectItem::WindowFunction { .. })))
-    .then(|| {
-        let mut items = plan.projection.clone();
-        for item in &mut items {
-            if let crate::sql::ast::SelectItem::WindowFunction { function, .. } = item {
-                for expression in function
-                    .args
-                    .iter_mut()
-                    .chain(function.filter.as_deref_mut())
-                    .chain(&mut function.partition_by)
-                    .chain(function.order_by.iter_mut().map(|key| &mut key.expr))
-                {
-                    *expression =
-                        aggregate_exec::rewrite_aggregate_expr(expression, &plan.group_by);
-                }
-            }
-        }
-        items
-    });
-    let projection = grouped_windows.as_deref().unwrap_or(&plan.projection);
+    let grouped_windows = grouped_window_inputs(plan, env.controls)?;
+    let projection = grouped_windows
+        .as_ref()
+        .map_or(plan.projection.as_slice(), |(windows, _)| {
+            windows.as_slice()
+        });
     let deferred = projection.iter().any(|item| match item {
         crate::sql::ast::SelectItem::WindowFunction { function, .. } => function
             .args
@@ -108,4 +90,74 @@ pub(super) fn sort(
         ensure_query_memory_budget(env.controls, &batches)?;
     }
     Ok(batches)
+}
+
+impl PhaseExecutionEnv<'_> {
+    pub(super) fn aggregate_context<'a>(
+        &'a self,
+        plan: &'a LogicalPlan,
+    ) -> aggregate_exec::AggregateExecutionContext<'a> {
+        aggregate_exec::AggregateExecutionContext {
+            plan,
+            params: self.params,
+            parameter_type_oids: self.parameter_type_oids,
+            search_context: self.search_context,
+            user_functions: self.user_functions,
+            session: self.session,
+            controls: self.controls,
+            #[cfg(test)]
+            after_partition_row: None,
+        }
+    }
+}
+
+pub(super) fn prepare_subtotal(
+    env: &PhaseExecutionEnv<'_>,
+    plan: &LogicalPlan,
+    batches: &mut [Batch],
+) -> Result<Option<aggregate_exec::subtotal::PreparedPlan>, QueryError> {
+    plan.grouping_subtotal
+        .then(|| aggregate_exec::subtotal::prepare_plan(batches, &env.aggregate_context(plan)))
+        .transpose()
+}
+
+type GroupedWindows = (
+    Vec<crate::sql::ast::SelectItem>,
+    crate::runtime::QueryMemoryReservation,
+);
+
+fn grouped_window_inputs(
+    plan: &LogicalPlan,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<GroupedWindows>, QueryError> {
+    use crate::sql::ast::SelectItem;
+    if plan.group_by.is_empty() || !plan.projection.iter().any(|item| matches!(item, SelectItem::WindowFunction {function,..} if function.args.iter().chain(function.filter.as_deref()).chain(&function.partition_by).chain(function.order_by.iter().map(|key| &key.expr)).any(aggregate_exec::contains_aggregate))) {
+        return Ok(None);
+    }
+    let mut memory = controls.reserve_query_memory(0)?;
+    let mut windows = Vec::new();
+    for item in &plan.projection {
+        if !matches!(item, SelectItem::WindowFunction { .. }) {
+            continue;
+        }
+        memory.try_grow(crate::executor::retained_memory::mul(
+            crate::sql::parse_analysis::item_clone_bytes(item, 0, controls)?,
+            2,
+        )?)?;
+        crate::runtime::owned_memory::grow_vec(&mut windows, 1, &mut memory)?;
+        let mut window = item.clone();
+        if let SelectItem::WindowFunction { function, .. } = &mut window {
+            for expr in function
+                .args
+                .iter_mut()
+                .chain(function.filter.as_deref_mut())
+                .chain(&mut function.partition_by)
+                .chain(function.order_by.iter_mut().map(|key| &mut key.expr))
+            {
+                *expr = aggregate_exec::rewrite_aggregate_expr(expr, &plan.group_by);
+            }
+        }
+        windows.push(window);
+    }
+    Ok(Some((windows, memory)))
 }

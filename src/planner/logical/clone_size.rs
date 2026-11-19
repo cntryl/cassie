@@ -6,7 +6,7 @@ use crate::runtime::QueryExecutionControls;
 use crate::sql::parse_analysis as ast;
 use std::mem::size_of;
 
-pub(super) fn plan(
+pub(crate) fn plan_clone_bytes(
     plan: &LogicalPlan,
     controls: &QueryExecutionControls,
 ) -> Result<usize, CassieError> {

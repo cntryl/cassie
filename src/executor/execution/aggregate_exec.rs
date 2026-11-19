@@ -56,7 +56,7 @@ mod state;
 mod state_input;
 mod state_numeric;
 mod statistical;
-mod subtotal;
+pub(super) mod subtotal;
 #[cfg(test)]
 #[path = "aggregate_exec/tests.rs"]
 mod tests;
@@ -163,7 +163,7 @@ struct SerialGroups {
 }
 
 fn aggregate_query_batches_serial(
-    mut rows: Vec<BatchRow>,
+    rows: Vec<BatchRow>,
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
@@ -172,12 +172,6 @@ fn aggregate_query_batches_serial(
         memory: GroupMemory::new(context.controls)?,
     };
 
-    let subtotal_specs = context
-        .plan
-        .grouping_subtotal
-        .then(|| subtotal::prepare(&mut rows, specs, context, &mut owned.memory))
-        .transpose()?;
-    let specs = subtotal_specs.as_deref().unwrap_or(specs);
     let grand_total = if context.plan.grouping_subtotal {
         let keys = context
             .plan
@@ -194,11 +188,7 @@ fn aggregate_query_batches_serial(
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
         let signature = aggregate_typed_group_signature(&group_values, &row, context)?;
-        let mut added_bytes = if grand_total.is_some() {
-            0 // The prepared input rows are already covered by owned.memory.
-        } else {
-            group_memory::serial_row_bytes(&row, context.controls)?
-        };
+        let mut added_bytes = group_memory::serial_row_bytes(&row, context.controls)?;
         let group = match owned.groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {

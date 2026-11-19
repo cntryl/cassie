@@ -1,94 +1,177 @@
-//! Freeze row-level aggregate inputs once before computing detail and total.
-//! Bare columns already have this lifetime in the source batch. Ordered-set
-//! direct arguments are evaluated once per group by their own aggregate.
-use std::mem::size_of;
-use std::sync::Arc;
-
+//! Snapshot row-level aggregate arguments before the group evaluator addresses its states.
+//! Each call occurrence owns its computed inputs. A sort key naming a projected expression
+//! refers to that same occurrence. Plain columns already have statement lifetime.
+use super::{
+    check_timeout, filter, group_memory, ordered_set, state_input, AggregateExecutionContext,
+    Batch, BatchRow, Expr, QueryError, Value,
+};
 use crate::executor::{
     array_order,
     retained_memory::{add, data_type_clone_bytes, lookup_bytes, mul, value_clone_bytes},
 };
+use crate::planner::logical::{plan_clone_bytes, LogicalPlan};
+use crate::runtime::{owned_memory::grow_vec, QueryMemoryReservation};
+use crate::sql::ast::{FunctionCall, SelectItem};
+use crate::sql::functions::is_aggregate_function;
 use crate::types::DataType;
+use std::{mem::size_of, sync::Arc};
 
-use super::{
-    check_timeout, filter, group_memory, ordered_set, state_input, AggregateExecutionContext,
-    AggregateSpec, BatchRow, Expr, FunctionCall, GroupMemory, QueryError, Value,
-};
-
-struct Inputs<'a> {
-    call: &'a FunctionCall,
-    filter_name: Option<String>,
-    expressions: Vec<(String, &'a Expr)>,
+pub(in crate::executor::execution) struct PreparedPlan {
+    pub(in crate::executor::execution) plan: LogicalPlan,
+    _memory: QueryMemoryReservation,
 }
 
-pub(super) fn prepare(
-    rows: &mut [BatchRow],
-    specs: &[AggregateSpec],
+#[derive(Default)]
+struct Inputs {
+    filter: Option<(String, Expr)>,
+    expressions: Vec<(String, Expr)>,
+}
+
+struct Layout {
+    inputs: Vec<Inputs>,
+    slots: usize,
+    memory: QueryMemoryReservation,
+}
+
+pub(in crate::executor::execution) fn prepare_plan(
+    batches: &mut [Batch],
     context: &AggregateExecutionContext<'_>,
-    memory: &mut GroupMemory,
-) -> Result<Vec<AggregateSpec>, QueryError> {
-    let mut bound = specs.to_vec();
-    let mut inputs = Vec::new();
-    let mut slots = 0;
-    for (spec, original) in bound.iter_mut().zip(specs) {
-        let call = &original.function;
-        let mut input = Inputs {
-            call,
-            filter_name: None,
-            expressions: Vec::new(),
-        };
-        if let Some(filter) = &mut spec.function.filter {
-            let name = slot_name(&mut slots);
-            **filter = Expr::Column(name.clone());
-            input.filter_name = Some(name);
-        }
-        if !ordered_set::is_ordered_set(call) {
-            for (arg, expr) in spec.function.args.iter_mut().zip(&call.args) {
-                input.bind(arg, expr, &mut slots);
+) -> Result<PreparedPlan, QueryError> {
+    let original = context.plan;
+    let memory = context
+        .controls
+        .reserve_query_memory(plan_clone_bytes(original, context.controls)?)?;
+    let mut layout = Layout {
+        inputs: Vec::new(),
+        slots: 0,
+        memory,
+    };
+    let mut plan = original.clone();
+    for item in &mut plan.projection {
+        context.controls.check_interruption()?;
+        match item {
+            SelectItem::Function { function, .. } => layout.call(function)?,
+            SelectItem::Expr { expr, .. } => layout.expression(expr)?,
+            SelectItem::WindowFunction { function, .. } => {
+                for expr in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                    .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
+                {
+                    layout.expression(expr)?;
+                }
             }
-        }
-        for (order, original_order) in spec.function.order_by.iter_mut().zip(&call.order_by) {
-            let shared_argument = (!ordered_set::is_ordered_set(call))
-                .then(|| {
-                    call.args
-                        .iter()
-                        .position(|arg| arg.structurally_eq(&original_order.expr))
-                })
-                .flatten();
-            if let Some(index) = shared_argument {
-                order.expr = spec.function.args[index].clone();
-            } else {
-                input.bind(&mut order.expr, &original_order.expr, &mut slots);
-            }
-        }
-        if input.filter_name.is_some() || !input.expressions.is_empty() {
-            inputs.push(input);
+            SelectItem::Column { .. } | SelectItem::Wildcard => {}
         }
     }
-    for row in rows {
-        check_timeout(context.controls)?;
-        memory.add(group_memory::serial_row_bytes(row, context.controls)?)?;
-        if slots > 0 {
-            let values = snapshot(row, &inputs, slots, context, memory)?;
+    if let Some(having) = &mut plan.having {
+        layout.expression(having)?;
+    }
+    for (order, source) in plan.order.iter_mut().zip(&original.order) {
+        context.controls.check_interruption()?;
+        if let Some(index) = original
+            .projection
+            .iter()
+            .position(|item| matches_projection(&source.expr, item))
+        {
+            order.expr = match &plan.projection[index] {
+                SelectItem::Function { function, .. } => Expr::Function(Box::new(function.clone())),
+                SelectItem::Expr { expr, .. } => expr.clone(),
+                _ => unreachable!("only expression projections can match"),
+            };
+        } else {
+            layout.expression(&mut order.expr)?;
+        }
+    }
+    for expr in &mut plan.distinct_on {
+        layout.expression(expr)?;
+    }
+    if layout.slots > 0 {
+        for row in batches.iter_mut().flatten() {
+            check_timeout(context.controls)?;
+            // The wrapper owns these original entries until the group has consumed its rows.
+            layout
+                .memory
+                .try_grow(group_memory::serial_row_bytes(row, context.controls)?)?;
+            let values = snapshot(
+                row,
+                &layout.inputs,
+                layout.slots,
+                context,
+                &mut layout.memory,
+            )?;
             let source = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
             *row = values.with_outer_scope(Arc::new(source));
         }
     }
-    Ok(bound)
+    Ok(PreparedPlan {
+        plan,
+        _memory: layout.memory,
+    })
 }
 
-// NUL is outside the SQL identifier domain. The slots are local to this
-// physical row and their names never enter SELECT output or a stored plan.
-fn slot_name(slots: &mut usize) -> String {
-    let name = format!("\0subtotal{slots}");
-    *slots += 1;
-    name
+fn matches_projection(expr: &Expr, item: &SelectItem) -> bool {
+    match (expr, item) {
+        (Expr::Function(call), SelectItem::Function { function, .. }) => {
+            call.structurally_eq(function)
+        }
+        (
+            _,
+            SelectItem::Expr {
+                expr: projected, ..
+            },
+        ) => expr.structurally_eq(projected),
+        _ => false,
+    }
 }
 
-impl<'a> Inputs<'a> {
-    fn bind(&mut self, target: &mut Expr, expression: &'a Expr, slots: &mut usize) {
+impl Layout {
+    fn expression(&mut self, expr: &mut Expr) -> Result<(), QueryError> {
+        match expr {
+            Expr::Function(call) => self.call(call),
+            _ => expr.try_visit_children_mut(|child| self.expression(child)),
+        }
+    }
+
+    fn call(&mut self, call: &mut FunctionCall) -> Result<(), QueryError> {
+        if !is_aggregate_function(&call.name) {
+            return call
+                .expressions_mut()
+                .try_for_each(|expr| self.expression(expr));
+        }
+        let mut inputs = Inputs::default();
+        if let Some(filter) = &mut call.filter {
+            inputs.filter = Some(self.take_slot(filter)?);
+        }
+        if !ordered_set::is_ordered_set(call) {
+            for arg in &mut call.args {
+                self.bind(arg, &mut inputs)?;
+            }
+        }
+        let argument_slots = inputs.expressions.len();
+        for order in &mut call.order_by {
+            if let Some((name, _)) = inputs.expressions[..argument_slots]
+                .iter()
+                .find(|(_, expr)| expr.structurally_eq(&order.expr))
+            {
+                self.memory.try_grow(name.len())?;
+                order.expr = Expr::Column(name.clone());
+            } else {
+                self.bind(&mut order.expr, &mut inputs)?;
+            }
+        }
+        if inputs.filter.is_some() || !inputs.expressions.is_empty() {
+            grow_vec(&mut self.inputs, 1, &mut self.memory)?;
+            self.inputs.push(inputs);
+        }
+        Ok(())
+    }
+
+    fn bind(&mut self, expr: &mut Expr, input: &mut Inputs) -> Result<(), QueryError> {
         if matches!(
-            expression,
+            expr,
             Expr::Column(_)
                 | Expr::Param(_)
                 | Expr::StringLiteral(_)
@@ -98,22 +181,33 @@ impl<'a> Inputs<'a> {
                 | Expr::BoolLiteral(_)
                 | Expr::Null
         ) {
-            return;
+            return Ok(());
         }
-        let name = slot_name(slots);
-        *target = Expr::Column(name.clone());
-        self.expressions.push((name, expression));
+        grow_vec(&mut input.expressions, 1, &mut self.memory)?;
+        input.expressions.push(self.take_slot(expr)?);
+        Ok(())
+    }
+
+    fn take_slot(&mut self, expr: &mut Expr) -> Result<(String, Expr), QueryError> {
+        // PostgreSQL identifiers cannot contain NUL. Each name is retained in the input
+        // description and in the executable plan; allow the full decimal usize suffix.
+        const MAX_NAME: usize = 9 + usize::BITS as usize;
+        self.memory.try_grow(2 * MAX_NAME)?;
+        let name = format!("\0subtotal{}", self.slots);
+        self.slots += 1;
+        let source = std::mem::replace(expr, Expr::Column(name.clone()));
+        Ok((name, source))
     }
 }
 
 fn snapshot(
     source: &BatchRow,
-    inputs: &[Inputs<'_>],
+    inputs: &[Inputs],
     slots: usize,
     context: &AggregateExecutionContext<'_>,
-    memory: &mut GroupMemory,
+    memory: &mut QueryMemoryReservation,
 ) -> Result<BatchRow, QueryError> {
-    memory.add(add(
+    memory.try_grow(add(
         mul(slots, size_of::<(String, Value)>() + size_of::<DataType>())?,
         size_of::<BatchRow>() + size_of::<Vec<DataType>>() + 4 * size_of::<usize>(),
     )?)?;
@@ -121,9 +215,13 @@ fn snapshot(
     let mut types = Vec::with_capacity(slots);
     let mut name_bytes = 0;
     for input in inputs {
-        let included = state_input::row_filter_matches(input.call, source, context)?;
-        if let Some(name) = &input.filter_name {
-            memory.add(name.len())?;
+        let included = state_input::row_predicate_matches(
+            input.filter.as_ref().map(|(_, expr)| expr),
+            source,
+            context,
+        )?;
+        if let Some((name, _)) = &input.filter {
+            memory.try_grow(name.len())?;
             name_bytes = add(name_bytes, name.len())?;
             types.push(DataType::Boolean);
             values.push((name.clone(), Value::Bool(included)));
@@ -154,7 +252,7 @@ fn snapshot(
                 } else {
                     Value::Null
                 };
-            memory.add(add(
+            memory.try_grow(add(
                 add(name.len(), value_clone_bytes(&value)?)?,
                 data_type_clone_bytes(&data_type)?,
             )?)?;
@@ -163,6 +261,6 @@ fn snapshot(
             types.push(data_type);
         }
     }
-    memory.add(lookup_bytes(slots, name_bytes)?)?;
+    memory.try_grow(lookup_bytes(slots, name_bytes)?)?;
     Ok(BatchRow::from_projected_values(values).with_optional_data_types(Some(Arc::new(types))))
 }

@@ -277,3 +277,29 @@ fn should_select_one_report_row_per_grouping_level() {
         ]
     );
 }
+
+#[test]
+fn should_preserve_empty_subtotals_in_exists_subqueries() {
+    // Arrange
+    let queries = [
+        "CREATE TABLE report(region text)",
+        "SELECT EXISTS (SELECT 1 FROM report GROUP BY ROLLUP(region) LIMIT 1)",
+        "SELECT EXISTS (SELECT 1 FROM report GROUP BY GROUPING SETS ((region), ()))",
+        "SELECT EXISTS (SELECT 1 FROM report GROUP BY region)",
+        "SELECT EXISTS (SELECT 1 FROM report GROUP BY ROLLUP(region) LIMIT 0)",
+    ];
+    let steps = queries
+        .iter()
+        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+        .collect();
+
+    // Act
+    let batches = run_script("exists-over-empty-subtotal", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    for (batch, expected) in batches[1..].iter().zip(["t", "t", "f", "f"]) {
+        assert_eq!(wire::error_code(batch), None);
+        assert_eq!(wire::data_rows(batch), [[Some(expected.to_owned())]]);
+    }
+}

@@ -16,23 +16,48 @@ use cassie::runtime::{QueryCancellationHandle, QueryExecutionControls};
 
 static CONTROLLED_REQUEST_WORKER_GUARD: Mutex<()> = Mutex::new(());
 
-fn transient_server() -> (String, std::thread::JoinHandle<()>) {
+fn transient_server() -> (String, std::thread::JoinHandle<usize>) {
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind transient server");
+    listener
+        .set_nonblocking(true)
+        .expect("configure transient server");
     let base_url = format!("http://{}", listener.local_addr().expect("server address"));
     let thread = std::thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("accept provider request");
-        let mut request = [0_u8; 8_192];
-        let _ = stream.read(&mut request);
-        let body = r#"{"error":"retry later"}"#;
-        let response = format!(
-                "HTTP/1.1 429 Too Many Requests\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-                body.len()
-            );
-        stream
-            .write_all(response.as_bytes())
-            .expect("write transient response");
+        let deadline = Instant::now() + Duration::from_millis(500);
+        let mut request_count = 0usize;
+        while Instant::now() < deadline {
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    request_count += 1;
+                    stream
+                        .set_read_timeout(Some(Duration::from_millis(100)))
+                        .expect("bound transient request read");
+                    let mut request = [0_u8; 8_192];
+                    let _ = stream.read(&mut request);
+                    let body = r#"{"error":"retry later"}"#;
+                    let response = format!(
+                        "HTTP/1.1 429 Too Many Requests\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("transient server accept failed: {error}"),
+            }
+        }
+        request_count
     });
     (base_url, thread)
+}
+
+fn assert_one_transient_request(server: std::thread::JoinHandle<usize>) {
+    assert_eq!(
+        server.join().expect("transient server"),
+        1,
+        "the deadline probe should send exactly one provider request"
+    );
 }
 
 fn delayed_tei_server() -> (
@@ -149,7 +174,7 @@ fn should_clamp_openai_retry_backoff_to_query_deadline() {
     assert_deadline_interrupts_retry(&provider);
 
     // Assert
-    server.join().expect("transient server");
+    assert_one_transient_request(server);
 }
 
 #[test]
@@ -171,7 +196,7 @@ fn should_clamp_openai_compatible_retry_backoff_to_query_deadline() {
     assert_deadline_interrupts_retry(&provider);
 
     // Assert
-    server.join().expect("transient server");
+    assert_one_transient_request(server);
 }
 
 #[test]
@@ -192,7 +217,7 @@ fn should_clamp_tei_retry_backoff_to_query_deadline() {
     assert_deadline_interrupts_retry(&provider);
 
     // Assert
-    server.join().expect("transient server");
+    assert_one_transient_request(server);
 }
 
 #[test]
@@ -213,7 +238,7 @@ fn should_clamp_ollama_retry_backoff_to_query_deadline() {
     assert_deadline_interrupts_retry(&provider);
 
     // Assert
-    server.join().expect("transient server");
+    assert_one_transient_request(server);
 }
 
 #[test]
@@ -235,7 +260,7 @@ fn should_clamp_voyage_retry_backoff_to_query_deadline() {
     assert_deadline_interrupts_retry(&provider);
 
     // Assert
-    server.join().expect("transient server");
+    assert_one_transient_request(server);
 }
 
 #[test]
@@ -257,7 +282,7 @@ fn should_clamp_cohere_retry_backoff_to_query_deadline() {
     assert_deadline_interrupts_retry(&provider);
 
     // Assert
-    server.join().expect("transient server");
+    assert_one_transient_request(server);
 }
 
 #[test]

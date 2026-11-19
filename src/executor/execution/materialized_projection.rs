@@ -535,6 +535,7 @@ pub(super) fn alter_materialized_projection(
         crate::sql::ast::AlterMaterializedProjectionOperation::BuildVersion => {
             super::materialized_projection_versions::build_projection_version(
                 cassie,
+                None,
                 &statement.name,
                 user_functions,
                 controls,
@@ -660,13 +661,14 @@ fn build_active_version(
                 .map(|version| version.version_id.clone())
         })
         .ok_or_else(|| QueryError::General("projection has no versions".into()))?;
-    build_specific_version(cassie, metadata, &active, user_functions, controls)?;
+    build_specific_version(cassie, None, metadata, &active, user_functions, controls)?;
     activate_built_version(metadata, &active);
     Ok(())
 }
 
 pub(super) fn build_specific_version(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     metadata: &mut catalog::ProjectionMeta,
     version_id: &str,
     user_functions: &HashMap<String, FunctionMeta>,
@@ -695,26 +697,40 @@ pub(super) fn build_specific_version(
         .ok_or_else(|| {
             QueryError::General(format!("projection version '{version_id}' does not exist"))
         })?;
-    let rows = execute_plan(
-        cassie,
-        None,
-        &build.logical,
-        &mut CteContext::new(),
-        user_functions,
-        &[],
-        controls,
-    )?;
-    metadata.source_generations = materialized
-        .source_collections
-        .iter()
-        .filter_map(|source| {
-            cassie
-                .midge
-                .collection_generation(source)
-                .ok()
-                .map(|generation| (source.clone(), generation))
-        })
-        .collect();
+    // Only the defining SELECT borrows the refreshing transaction's snapshot
+    // and row overlay. The subsequent output and index writes use their DDL scope.
+    let rows = {
+        let read_controls = session
+            .filter(|_| super::plan_needs_statement_data(&build.logical))
+            .map(|session| {
+                super::entrypoints::statement_read_controls(cassie, Some(session), controls)
+            })
+            .transpose()?;
+        let _read = read_controls
+            .as_ref()
+            .map(super::entrypoints::enter_statement_read);
+        let rows = execute_plan(
+            cassie,
+            session,
+            &build.logical,
+            &mut CteContext::new(),
+            user_functions,
+            &[],
+            read_controls.as_ref().unwrap_or(controls),
+        )?;
+        metadata.source_generations = materialized
+            .source_collections
+            .iter()
+            .filter_map(|source| {
+                cassie
+                    .midge
+                    .collection_generation(source)
+                    .ok()
+                    .map(|generation| (source.clone(), generation))
+            })
+            .collect();
+        rows
+    };
     let root = replace_output_rows(cassie, &output_collection, &build.schema, rows, controls)?;
     cassie
         .runtime

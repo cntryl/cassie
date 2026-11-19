@@ -39,7 +39,14 @@ pub(super) fn repair_materialized_projection_version(
     };
     persist_projection_metadata(cassie, metadata.clone())?;
 
-    match build_specific_version(cassie, &mut metadata, version_id, user_functions, controls) {
+    match build_specific_version(
+        cassie,
+        None,
+        &mut metadata,
+        version_id,
+        user_functions,
+        controls,
+    ) {
         Ok(()) => {
             if was_active {
                 if let Some(version) = metadata
@@ -74,6 +81,7 @@ pub(super) fn repair_materialized_projection_version(
 
 pub(super) fn build_projection_version(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     name: &str,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -123,7 +131,14 @@ pub(super) fn build_projection_version(
     let output = empty_command("ALTER MATERIALIZED PROJECTION", controls)?;
     persist_projection_metadata(cassie, metadata.clone())?;
 
-    match build_specific_version(cassie, &mut metadata, &version_id, user_functions, controls) {
+    match build_specific_version(
+        cassie,
+        session,
+        &mut metadata,
+        &version_id,
+        user_functions,
+        controls,
+    ) {
         Ok(()) => {
             persist_projection_metadata(cassie, metadata)?;
             Ok(output)

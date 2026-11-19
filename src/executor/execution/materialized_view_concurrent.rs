@@ -61,6 +61,7 @@ pub(super) fn refresh_materialized_view_versioned(
         .collect::<HashSet<_>>();
     if let Err(error) = super::materialized_projection_versions::build_projection_version(
         cassie,
+        session,
         name,
         user_functions,
         controls,

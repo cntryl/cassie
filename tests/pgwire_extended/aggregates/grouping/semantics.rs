@@ -111,6 +111,14 @@ fn should_validate_grouping_arguments_in_their_query_level() {
         ),
         ("SELECT grouping() FROM report GROUP BY region", "42601"),
         (
+            "SELECT grouping(region) OVER () FROM report GROUP BY ROLLUP(region)",
+            "42601",
+        ),
+        (
+            "SELECT amount+1 AS z,count(*) FROM report GROUP BY ROLLUP(z)",
+            "0A000",
+        ),
+        (
             "SELECT count(*) FROM report GROUP BY CUBE(region,amount)",
             "0A000",
         ),
@@ -172,5 +180,71 @@ fn should_share_volatile_aggregate_inputs_between_grouping_levels() {
     assert_eq!(
         wire::data_rows(&batches[5]),
         vec![vec![Some("0".to_owned())]; 3]
+    );
+}
+
+#[test]
+fn should_keep_distinct_occurrences_of_volatile_subtotal_inputs() {
+    // Arrange
+    let queries = [
+        "CREATE TABLE report(region text)",
+        "CREATE SEQUENCE repeated_inputs START WITH 1",
+        "INSERT INTO report VALUES (NULL),(NULL)",
+        "SELECT grouping(region) AS g,sum(nextval('repeated_inputs')) AS s1,sum(nextval('repeated_inputs')) AS s2 FROM report GROUP BY ROLLUP(region) ORDER BY g",
+        "SELECT currval('repeated_inputs')",
+    ];
+    let steps = queries
+        .iter()
+        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+        .collect();
+
+    // Act
+    let batches = run_script("volatile-subtotal-occurrences", steps);
+
+    // Assert
+    for batch in &batches {
+        assert_eq!(wire::error_code(batch), None);
+    }
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        [
+            [
+                Some("0".to_owned()),
+                Some("4".to_owned()),
+                Some("6".to_owned())
+            ],
+            [
+                Some("1".to_owned()),
+                Some("4".to_owned()),
+                Some("6".to_owned())
+            ],
+        ]
+    );
+    assert_eq!(wire::data_rows(&batches[4]), [[Some("4".to_owned())]]);
+}
+
+#[test]
+fn should_rank_subtotal_rows_by_the_grouping_indicator() {
+    // Arrange
+    let queries = [
+        "CREATE TABLE report(region text)",
+        "INSERT INTO report VALUES (NULL),(NULL)",
+        "SELECT region, rank() OVER (ORDER BY grouping(region)) AS n FROM report GROUP BY ROLLUP(region) ORDER BY n",
+    ];
+    let steps = queries
+        .iter()
+        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+        .collect();
+
+    // Act
+    let batches = run_script("window-over-subtotal-level", steps);
+
+    // Assert
+    for batch in &batches {
+        assert_eq!(wire::error_code(batch), None);
+    }
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        [[None, Some("1".to_owned())], [None, Some("2".to_owned())]]
     );
 }

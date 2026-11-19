@@ -439,7 +439,7 @@ fn input_bound(
     })?)
 }
 
-fn expression_bound(
+pub(super) fn expression_bound(
     expression: &Expr,
     row: &BatchRow,
     context: &AggregateExecutionContext<'_>,

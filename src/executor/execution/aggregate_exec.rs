@@ -56,6 +56,7 @@ mod state;
 mod state_input;
 mod state_numeric;
 mod statistical;
+mod subtotal;
 #[cfg(test)]
 #[path = "aggregate_exec/tests.rs"]
 mod tests;
@@ -162,7 +163,7 @@ struct SerialGroups {
 }
 
 fn aggregate_query_batches_serial(
-    rows: Vec<BatchRow>,
+    mut rows: Vec<BatchRow>,
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
@@ -171,11 +172,33 @@ fn aggregate_query_batches_serial(
         memory: GroupMemory::new(context.controls)?,
     };
 
+    let subtotal_specs = context
+        .plan
+        .grouping_subtotal
+        .then(|| subtotal::prepare(&mut rows, specs, context, &mut owned.memory))
+        .transpose()?;
+    let specs = subtotal_specs.as_deref().unwrap_or(specs);
+    let grand_total = if context.plan.grouping_subtotal {
+        let keys = context
+            .plan
+            .group_by
+            .iter()
+            .map(|key| (group_expr_name(key), Value::Null))
+            .collect();
+        Some(finish_serial_group(keys, &rows, specs, true, context)?)
+    } else {
+        None
+    };
+
     for row in rows {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
         let signature = aggregate_typed_group_signature(&group_values, &row, context)?;
-        let mut added_bytes = group_memory::serial_row_bytes(&row, context.controls)?;
+        let mut added_bytes = if grand_total.is_some() {
+            0 // The prepared input rows are already covered by owned.memory.
+        } else {
+            group_memory::serial_row_bytes(&row, context.controls)?
+        };
         let group = match owned.groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
@@ -211,15 +234,37 @@ fn aggregate_query_batches_serial(
     let mut out = Vec::with_capacity(owned.groups.len());
     for (_signature, (group_values, group_rows)) in owned.groups.into_sorted_entries()? {
         check_timeout(context.controls)?;
-        let mut output = collection_json::OutputRow::new(group_values, specs, context.controls)?;
-        for spec in specs {
-            let value = evaluate_aggregate(&spec.function, &group_rows, context)?;
-            output.append(value, &spec.output_names)?;
-        }
-        out.push(output.finish());
+        out.push(finish_serial_group(
+            group_values,
+            &group_rows,
+            specs,
+            false,
+            context,
+        )?);
     }
+    out.extend(grand_total);
     let out = output_owner::retain_outputs(out, owned.memory, Vec::new(), context.controls)?;
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
+}
+
+fn finish_serial_group(
+    keys: Vec<(String, Value)>,
+    rows: &[BatchRow],
+    specs: &[AggregateSpec],
+    grand_total: bool,
+    context: &AggregateExecutionContext<'_>,
+) -> Result<BatchRow, QueryError> {
+    let mut output = collection_json::OutputRow::new(keys, specs, context.controls)?;
+    for spec in specs {
+        check_timeout(context.controls)?;
+        let value = if spec.function.name.eq_ignore_ascii_case("grouping") {
+            AggregateOutput::from_value(Value::Int64(i64::from(grand_total)))
+        } else {
+            evaluate_aggregate(&spec.function, rows, context)?
+        };
+        output.append(value, &spec.output_names)?;
+    }
+    Ok(output.finish())
 }
 
 /// Fallback reason recorded when a merged aggregate state requires row order.
@@ -464,6 +509,9 @@ fn parallel_aggregation_eligibility(
     specs: &[AggregateSpec],
     user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<(), &'static str> {
+    if plan.grouping_subtotal {
+        return Err("grouping-sets");
+    }
     if plan.distinct || !plan.distinct_on.is_empty() {
         return Err("distinct");
     }

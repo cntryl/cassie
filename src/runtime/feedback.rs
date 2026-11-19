@@ -359,6 +359,7 @@ struct NormalizedPredicateShape {
     filter: Option<NormalizedExprShape>,
     order: Vec<NormalizedOrderShape>,
     group_by: Vec<NormalizedExprShape>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
     grouping_subtotal: bool,
     having: Option<NormalizedExprShape>,
     modifiers: NormalizedPredicateModifiers,

@@ -406,6 +406,10 @@ fn should_fallback_to_authoritative_rows_then_clear_rollup_debt_after_restart() 
         assert_eq!(debt.rows(), vec![vec![Value::String("rollup".to_string())]]);
         assert_eq!(after_restart.rows(), expected.rows());
         assert!(after_debt.rows().is_empty());
+        assert_eq!(
+            recovered.metrics()["rollups"]["last_incremental_fallback_reason"],
+            "change-report-unavailable"
+        );
 
         drop(recovered);
         let _ = std::fs::remove_dir_all(path);

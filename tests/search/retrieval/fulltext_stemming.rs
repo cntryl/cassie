@@ -133,3 +133,25 @@ fn should_reject_unsupported_stemming_language_at_create_index() {
     // Assert
     assert!(result.is_err());
 }
+
+#[test]
+fn should_score_stemmed_terms_whose_stem_is_not_idempotent() {
+    // Arrange
+    let cassie = support_fixture(" WITH (stemming = 'english')");
+    run(
+        &cassie,
+        "INSERT INTO kb (id, body) VALUES (9, 'Television listings')",
+        vec![],
+    );
+
+    // Act
+    let rows = run(
+        &cassie,
+        "SELECT id, search_score(body, $1) FROM kb WHERE search(body, $1)",
+        vec![Value::String("television".to_string())],
+    );
+
+    // Assert
+    assert_eq!(rows.len(), 1);
+    assert!(matches!(rows[0][1], Value::Float64(score) if score > 0.0));
+}

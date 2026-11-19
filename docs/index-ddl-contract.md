@@ -115,12 +115,26 @@ Focused evidence already present in the repository includes:
 - **Expansion.** Synonyms expand at index time: a document token that belongs to
   a group is indexed under the group's canonical (lexicographically smallest
   stemmed) member. Query terms are mapped to the same canonical member.
-- **Versioning and rebuild.** The persisted analyzer metadata records the
-  analyzer configuration, including `stemming` and the synonym groups. Changing
-  `synonyms` or `stemming` with `ALTER INDEX ... SET` rebuilds the postings and
-  publishes a new `built_generation` beside the old one. Readers see exactly one
-  published generation; BM25 statistics are recomputed over the new generation.
-  Different indexes and databases keep independent configurations.
+- **Change surface.** `synonyms` is accepted on `CREATE INDEX ... WITH (...)`.
+  `ALTER INDEX name SET (...)` / `RESET (...)` on a full-text index accepts only
+  the analyzer and scoring option keys above and rebuilds the index. The ALTER
+  handler is thin; the rebuild and publication live in
+  `Midge::alter_fulltext_index_analyzer`.
+- **Versioning and rebuild.** Persisted metadata records the analyzer
+  configuration, including `stemming` and the synonym map, under persisted state
+  version 2. An older persisted version is rebuilt from source on open (no
+  migration code). The active analyzer generation is the `analyzer_version`
+  index option (absent means 1, incremented by every ALTER), visible in
+  `pg_class.reloptions` together with non-default `stemming` and `synonyms`.
+- **Publication and writers.** The new postings, manifest and index options
+  commit in one transaction while the collection write gate is held for the whole
+  rebuild. Readers keep the previous generation and analyzer until it commits.
+  Document writers take the same gate and read index metadata after acquiring
+  it, so a writer either commits before the rebuild (and is re-analyzed by it) or
+  waits and maintains the index with the new analyzer; it never waits on the
+  publisher while holding another lock. BM25 statistics are recomputed over the
+  new generation. A rejected change publishes nothing. Different indexes and
+  databases keep independent configurations.
 
 Unknown keys, unsupported values, `UNIQUE`, partial predicates, multiple
 fields, expressions, ordered modifiers, operator classes, and `INCLUDE` are

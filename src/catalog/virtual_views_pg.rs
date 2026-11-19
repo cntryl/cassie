@@ -576,7 +576,9 @@ fn index_reloptions(index: &IndexMeta) -> Option<String> {
     let names = match index.access_method() {
         "hnsw" => &["m", "ef_construction"][..],
         "ivfflat" => &["lists"][..],
-        _ if index.kind == crate::catalog::IndexKind::FullText => &["stemming"][..],
+        _ if index.kind == crate::catalog::IndexKind::FullText => {
+            &["stemming", "synonyms", "analyzer_version"][..]
+        }
         _ => &["deduplicate_items", "fillfactor"][..],
     };
     let options = names

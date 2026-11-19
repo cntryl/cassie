@@ -327,13 +327,6 @@ impl SearchContext {
             .and_then(|terms| terms.get(term).copied())
     }
 
-    fn normalize_term(&self, field: &str, term: &str) -> Option<String> {
-        self.analyzer_for_field(field)
-            .analyze(term)
-            .into_iter()
-            .next()
-    }
-
     fn field_boost(&self, field: &str) -> f64 {
         self.doc_boost
             .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
@@ -406,16 +399,8 @@ impl SearchContext {
 
         let mut score = 0.0;
         for term in query_terms {
-            let normalized_term;
-            let term = if let Some(field) = field.as_deref() {
-                let Some(value) = self.normalize_term(field, term) else {
-                    continue;
-                };
-                normalized_term = value;
-                &normalized_term
-            } else {
-                term
-            };
+            // `query_terms` are already analyzed; analyzing them again would
+            // re-stem them (Snowball stemming is not idempotent).
             let tf = usize_to_f64(source_stats.term_counts.get(term).copied().unwrap_or(0));
             if tf == 0.0 {
                 continue;

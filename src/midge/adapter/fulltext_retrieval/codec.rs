@@ -175,6 +175,14 @@ pub(super) fn encode_metadata(metadata: &FulltextIndexMetadata) -> Vec<u8> {
     }
     out.push(u8::from(metadata.analyzer.case_folding));
     out.push(u8::from(metadata.analyzer.accent_folding));
+    write_varint(
+        u64::try_from(metadata.analyzer.synonyms.len()).unwrap_or(u64::MAX),
+        &mut out,
+    );
+    for (term, canonical) in &metadata.analyzer.synonyms {
+        write_bytes(term.as_bytes(), &mut out);
+        write_bytes(canonical.as_bytes(), &mut out);
+    }
     out
 }
 
@@ -192,6 +200,13 @@ pub(super) fn decode_metadata(bytes: &[u8]) -> Result<FulltextIndexMetadata, Cas
     let stemming = cursor.read_string()?;
     let case_folding = cursor.read_bool()?;
     let accent_folding = cursor.read_bool()?;
+    let synonym_count = cursor.read_usize()?;
+    let mut synonyms = BTreeMap::new();
+    for _ in 0..synonym_count {
+        let term = cursor.read_string()?;
+        let canonical = cursor.read_string()?;
+        synonyms.insert(term, canonical);
+    }
     cursor.finish()?;
     Ok(FulltextIndexMetadata {
         version,
@@ -206,6 +221,7 @@ pub(super) fn decode_metadata(bytes: &[u8]) -> Result<FulltextIndexMetadata, Cas
             stop_words,
             stemming,
             accent_folding,
+            synonyms,
         },
     })
 }
@@ -396,10 +412,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn should_encode_version_one_fulltext_metadata() {
+    fn should_encode_current_version_fulltext_metadata() {
         // Arrange
         let metadata = FulltextIndexMetadata {
-            version: 1,
+            version: super::super::STATE_VERSION,
             built_generation: 2,
             total_documents: 1,
             documents_with_text: 1,
@@ -416,15 +432,15 @@ mod tests {
             decode_metadata(&encoded_metadata)
                 .expect("decode fulltext metadata")
                 .version,
-            1
+            super::super::STATE_VERSION
         );
     }
 
     #[test]
-    fn should_encode_version_one_fulltext_manifest() {
+    fn should_encode_current_version_fulltext_manifest() {
         // Arrange
         let manifest = FulltextManifest {
-            version: 1,
+            version: super::super::STATE_VERSION,
             built_generation: 2,
             total_documents: 1,
             posting_terms: 0,
@@ -441,11 +457,11 @@ mod tests {
             decode_manifest(&encoded_manifest)
                 .expect("decode fulltext manifest")
                 .version,
-            1
+            super::super::STATE_VERSION
         );
-        let mut pre_0_1_manifest = encoded_manifest;
-        pre_0_1_manifest[4] = 2;
-        assert!(decode_manifest(&pre_0_1_manifest).is_err());
+        let mut unknown_version_manifest = encoded_manifest;
+        unknown_version_manifest[4] = 3;
+        assert!(decode_manifest(&unknown_version_manifest).is_err());
     }
 
     #[test]

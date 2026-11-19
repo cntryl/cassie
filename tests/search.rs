@@ -33,6 +33,8 @@ mod integration_sql_fulltext_query;
 
 #[path = "search/retrieval/fulltext_stemming.rs"]
 mod fulltext_stemming;
+#[path = "search/retrieval/fulltext_synonyms.rs"]
+mod fulltext_synonyms;
 
 // Formerly tests/search_vector.rs.
 #[path = "search/retrieval/vector.rs"]

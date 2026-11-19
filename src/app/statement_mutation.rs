@@ -22,6 +22,9 @@ mod retry_policy_tests;
 #[path = "statement_mutation_maintenance.rs"]
 mod maintenance;
 
+/// A database name and the extra Data writes committed with a batch.
+type AdditionalDataWrites = (String, Vec<(Vec<u8>, Option<Vec<u8>>)>);
+
 struct CommittedCollection {
     collection: String,
     relation_id: u64,
@@ -112,7 +115,7 @@ impl Cassie {
             &staging,
             Some(controls),
             None,
-            Some((database, data_writes)),
+            Some(&(database, data_writes)),
         )?;
         self.finish_staged_write_batches(committed, Some(controls));
         Ok(())
@@ -132,7 +135,7 @@ impl Cassie {
         staging: &CassieSession,
         controls: Option<&QueryExecutionControls>,
         transactional_ddl: Option<(&str, &crate::midge::adapter::StorageOverlay)>,
-        additional_data: Option<(String, Vec<(Vec<u8>, Option<Vec<u8>>)>)>,
+        additional_data: Option<&AdditionalDataWrites>,
     ) -> Result<CommittedWriteBatch, CassieError> {
         let mut writes = transaction_write_batches(staging);
         if let Some((database, overlay)) = transactional_ddl {
@@ -157,9 +160,9 @@ impl Cassie {
         } else {
             self.document_write_options_for_collections(&collections)
         };
-        if let Some((database, data_writes)) = &additional_data {
+        if let Some((database, data_writes)) = additional_data {
             options.data_database = Some(database.clone());
-            options.additional_data_writes = data_writes.clone();
+            options.additional_data_writes.clone_from(data_writes);
         }
         options.refresh_after_commit = false;
         self.apply_projection_commit_policy(staging, transactional_ddl.is_some(), &mut options);
@@ -201,9 +204,9 @@ impl Cassie {
                     } else {
                         self.document_write_options_for_collections(&retry_collections)
                     };
-                    if let Some((database, data_writes)) = &additional_data {
+                    if let Some((database, data_writes)) = additional_data {
                         retry_options.data_database = Some(database.clone());
-                        retry_options.additional_data_writes = data_writes.clone();
+                        retry_options.additional_data_writes.clone_from(data_writes);
                     }
                     retry_options.refresh_after_commit = false;
                     // Re-select after conflict resolution: it may have run

@@ -16,6 +16,16 @@ use cassie::runtime::{QueryCancellationHandle, QueryExecutionControls};
 
 static CONTROLLED_REQUEST_WORKER_GUARD: Mutex<()> = Mutex::new(());
 
+/// Serializes tests that run a provider call against a time-bounded local
+/// server. Take it before starting the server so time spent waiting for
+/// another test does not consume the server's accept window. A failed test
+/// must not fail the others, so a poisoned guard is still usable.
+fn controlled_request_guard() -> std::sync::MutexGuard<'static, ()> {
+    CONTROLLED_REQUEST_WORKER_GUARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 fn transient_server() -> (
     String,
     std::sync::mpsc::Receiver<Instant>,
@@ -153,9 +163,6 @@ fn assert_deadline_interrupts_retry(
     // this still distinguishes deadline interruption from the 1 s transport timeout.
     const SCHEDULER_TOLERANT_LIMIT: Duration = Duration::from_millis(250);
 
-    let _guard = CONTROLLED_REQUEST_WORKER_GUARD
-        .lock()
-        .expect("lock controlled request worker guard");
     let limits = deadline_limits();
     let cancellation = QueryCancellationHandle::new();
     let query_cancellation = cancellation.clone();
@@ -209,6 +216,7 @@ fn assert_deadline_interrupts_retry(
 #[test]
 fn should_clamp_openai_retry_backoff_to_query_deadline() {
     // Arrange
+    let _guard = controlled_request_guard();
     let (base_url, response_written, server) = transient_server();
     let provider = OpenAiProvider::with_config(OpenAiProviderConfig {
         api_key: "test-key".to_string(),
@@ -230,6 +238,7 @@ fn should_clamp_openai_retry_backoff_to_query_deadline() {
 #[test]
 fn should_clamp_openai_compatible_retry_backoff_to_query_deadline() {
     // Arrange
+    let _guard = controlled_request_guard();
     let (base_url, response_written, server) = transient_server();
     let provider = OpenAiCompatibleProvider::with_config(OpenAiCompatibleProviderConfig {
         base_url,
@@ -252,6 +261,7 @@ fn should_clamp_openai_compatible_retry_backoff_to_query_deadline() {
 #[test]
 fn should_clamp_tei_retry_backoff_to_query_deadline() {
     // Arrange
+    let _guard = controlled_request_guard();
     let (base_url, response_written, server) = transient_server();
     let provider = TeiProvider::with_config(TeiProviderConfig {
         base_url,
@@ -273,6 +283,7 @@ fn should_clamp_tei_retry_backoff_to_query_deadline() {
 #[test]
 fn should_clamp_ollama_retry_backoff_to_query_deadline() {
     // Arrange
+    let _guard = controlled_request_guard();
     let (base_url, response_written, server) = transient_server();
     let provider = OllamaProvider::with_config(OllamaProviderConfig {
         base_url,
@@ -294,6 +305,7 @@ fn should_clamp_ollama_retry_backoff_to_query_deadline() {
 #[test]
 fn should_clamp_voyage_retry_backoff_to_query_deadline() {
     // Arrange
+    let _guard = controlled_request_guard();
     let (base_url, response_written, server) = transient_server();
     let provider = VoyageProvider::with_config(VoyageProviderConfig {
         api_key: "test-key".to_string(),
@@ -316,6 +328,7 @@ fn should_clamp_voyage_retry_backoff_to_query_deadline() {
 #[test]
 fn should_clamp_cohere_retry_backoff_to_query_deadline() {
     // Arrange
+    let _guard = controlled_request_guard();
     let (base_url, response_written, server) = transient_server();
     let provider = CohereProvider::with_config(CohereProviderConfig {
         api_key: "test-key".to_string(),
@@ -338,9 +351,7 @@ fn should_clamp_cohere_retry_backoff_to_query_deadline() {
 #[test]
 fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeout() {
     // Arrange
-    let _guard = CONTROLLED_REQUEST_WORKER_GUARD
-        .lock()
-        .expect("lock controlled request worker guard");
+    let _guard = controlled_request_guard();
     let baseline_workers = active_controlled_request_workers_for_diagnostics();
     let (base_url, accepted, server) = delayed_tei_server();
     let provider = TeiProvider::with_config(TeiProviderConfig {
@@ -390,9 +401,7 @@ fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeou
 #[test]
 fn should_not_retry_mid_body_reset_for_any_remote_provider() {
     // Arrange
-    let _guard = CONTROLLED_REQUEST_WORKER_GUARD
-        .lock()
-        .expect("lock controlled request worker guard");
+    let _guard = controlled_request_guard();
     let baseline_workers = active_controlled_request_workers_for_diagnostics();
 
     // Act

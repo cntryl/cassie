@@ -7,7 +7,7 @@ const MICROS_PER_DAY: i64 = 86_400_000_000;
 
 pub(super) fn enforce_due(
     cassie: &Cassie,
-    metadata: RetentionPolicyMeta,
+    metadata: &RetentionPolicyMeta,
     due_at: &str,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -17,7 +17,7 @@ pub(super) fn enforce_due(
     let mut attempted = metadata.clone();
     let result = cassie.midge.with_collection_write_gates(&collections, || {
         let outcome = (|| {
-            let mut current = current_policy(cassie, &metadata);
+            let mut current = current_policy(cassie, metadata);
             attempted.clone_from(&current);
             if current.schedule_state == RetentionScheduleState::Unscheduled {
                 return Err(QueryError::General(format!(
@@ -55,7 +55,7 @@ pub(super) fn enforce_due(
 
 pub(super) fn replay_pending(
     cassie: &Cassie,
-    metadata: RetentionPolicyMeta,
+    metadata: &RetentionPolicyMeta,
     at: &str,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -66,7 +66,7 @@ pub(super) fn replay_pending(
     let mut attempted = metadata.clone();
     let result = cassie.midge.with_collection_write_gates(&collections, || {
         let outcome = (|| {
-            let current = current_policy(cassie, &metadata);
+            let current = current_policy(cassie, metadata);
             attempted.clone_from(&current);
             if current.pending_cutoff_us.is_none() {
                 return Ok(0);

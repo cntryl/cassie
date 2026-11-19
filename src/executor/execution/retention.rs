@@ -157,13 +157,13 @@ pub(super) fn enforce_retention_policy(
         })?;
 
     if statement.mode == crate::sql::ast::RetentionEnforcementMode::DueAt {
-        return scheduled::enforce_due(cassie, metadata, &statement.at, controls);
+        return scheduled::enforce_due(cassie, &metadata, &statement.at, controls);
     }
     if metadata.schedule_state != crate::catalog::RetentionScheduleState::Unscheduled
         && metadata.pending_cutoff_us.is_some()
     {
         require_scheduled_policy_admin(session)?;
-        return scheduled::replay_pending(cassie, metadata, &statement.at, controls);
+        return scheduled::replay_pending(cassie, &metadata, &statement.at, controls);
     }
 
     let mut output = QueryResult::try_builder(controls)?;

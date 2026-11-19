@@ -827,6 +827,7 @@ fn stable_rollup_row_id(
     meta: &RollupMeta,
     payload: &serde_json::Value,
 ) -> Result<String, QueryError> {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut identity = Vec::with_capacity(meta.group_keys.len().saturating_add(1));
     identity.push(
         payload
@@ -847,7 +848,6 @@ fn stable_rollup_row_id(
         .ok_or_else(|| QueryError::General("rollup row key size overflow".to_string()))?;
     let mut id = String::with_capacity(id_capacity);
     id.push_str("rollup-key-");
-    const HEX: &[u8; 16] = b"0123456789abcdef";
     for byte in encoded {
         id.push(HEX[usize::from(byte >> 4)] as char);
         id.push(HEX[usize::from(byte & 0x0f)] as char);

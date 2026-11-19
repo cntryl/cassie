@@ -1,7 +1,7 @@
 // Focused scheduled-retention lifecycle and recovery probes included by scheduled.rs.
 
 #[test]
-fn should_enforce_due_window_with_foreign_key_index_and_rollup_parity() {
+fn should_match_manual_enforcement_effects_for_a_due_window() {
     // Arrange
     runtime().block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
@@ -144,9 +144,9 @@ fn assert_scheduled_effects_match_manual(effects: &ScheduledEffectObservation) {
     assert_eq!(effects.scheduled_restrict, effects.manual_restrict);
     assert_eq!(effects.scheduled_restrict, vec![vec![Value::Int64(2)]]);
     assert_eq!(effects.scheduled_cascade, effects.manual_cascade);
-    assert!(effects.scheduled_cascade.is_empty());
+    assert_eq!(effects.scheduled_cascade, Vec::<Vec<Value>>::new());
     assert_eq!(effects.scheduled_index_range, effects.manual_index_range);
-    assert!(effects.scheduled_index_range.is_empty());
+    assert_eq!(effects.scheduled_index_range, Vec::<Vec<Value>>::new());
     assert_eq!(effects.scheduled_rollup, effects.manual_rollup);
     assert_eq!(effects.scheduled_rollup, effects.scheduled_rollup_oracle);
     assert_eq!(effects.manual_rollup, effects.manual_rollup_oracle);
@@ -615,7 +615,7 @@ fn assert_late_correction_waits_for_next_window(evidence: &CursorCorrectionEvide
         "2026-01-04T00:00:00Z",
     );
     assert_eq!(evidence.final_count, vec![vec![Value::Int64(256)]]);
-    assert!(evidence.corrected_row.is_empty());
+    assert_eq!(evidence.corrected_row, Vec::<Vec<Value>>::new());
 }
 
 #[test]
@@ -665,7 +665,7 @@ fn should_complete_an_exactly_full_batch_on_a_metadata_only_call() {
     assert_exact_batch_remains_pending(&pending[0]);
     assert_eq!(second_command, "ENFORCE RETENTION 0");
     assert_exact_batch_completes_metadata_only(&completed[0]);
-    assert!(remaining.is_empty());
+    assert_eq!(remaining, Vec::<Vec<Value>>::new());
 }
 
 fn assert_exact_batch_remains_pending(progress: &[Value]) {
@@ -802,7 +802,7 @@ fn should_apply_explicit_at_to_scheduled_policy_without_pending_window() {
 
     // Assert
     assert_eq!(enforced.command(), "ENFORCE RETENTION 1");
-    assert!(remaining.is_empty());
+    assert_eq!(remaining, Vec::<Vec<Value>>::new());
     assert_eq!(progress[0][0], Value::String("active".to_owned()));
     assert_explicit_ready_policy(&progress[0]);
     assert_timestamptz_value(&progress[0], 1, 9, "2026-01-03T00:00:00Z");
@@ -855,7 +855,7 @@ fn should_preserve_scheduled_failure_after_failed_one_off_at() {
     let progress = scheduled_policy_progress(&cassie, &session, "scheduled_one_off_failure_policy");
 
     // Assert
-    assert!(!error.is_empty());
+    assert_ne!(error, "");
     assert_eq!(progress[0][0], Value::String("suspended".to_owned()));
     assert_eq!(progress[0][2], Value::Null);
     assert_eq!(progress[0][13], Value::String("error".to_owned()));
@@ -869,7 +869,7 @@ fn should_preserve_scheduled_failure_after_failed_one_off_at() {
 }
 
 #[test]
-fn should_preserve_last_scheduled_failure_across_successful_replay_and_restart() {
+fn should_preserve_last_scheduled_failure_across_restart_after_successful_replay() {
     // Arrange
     use_local_storage();
     let path = data_dir("retention_scheduled_sticky_failure");

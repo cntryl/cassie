@@ -78,14 +78,8 @@ impl RollupSourceChangeReport {
             self.exceed_limit();
             return;
         }
-        let Some(before) = clone_projected_payload(before, fields) else {
-            self.exceed_limit();
-            return;
-        };
-        let Some(after) = clone_projected_payload(after, fields) else {
-            self.exceed_limit();
-            return;
-        };
+        let before = before.map(|payload| clone_projected_payload(payload, fields));
+        let after = after.map(|payload| clone_projected_payload(payload, fields));
         let row = RollupSourceRowChange { before, after };
         self.rows.push(row);
         self.retained_bytes = total_bytes;
@@ -128,21 +122,18 @@ fn projected_payload_size(payload: Option<&Value>, fields: &[String]) -> Option<
     Some(bytes)
 }
 
-fn clone_projected_payload(
-    payload: Option<&Value>,
-    fields: &[String],
-) -> Option<Option<Map<String, Value>>> {
-    let Some(payload) = payload else {
-        return Some(None);
-    };
-    let source = payload.as_object()?;
+/// Copies the selected fields. The size preflight has already rejected
+/// payloads that are not objects, so a non-object projects to an empty map.
+fn clone_projected_payload(payload: &Value, fields: &[String]) -> Map<String, Value> {
     let mut projected = Map::new();
-    for field in fields {
-        if let Some(value) = source.get(field) {
-            projected.insert(field.clone(), value.clone());
+    if let Some(source) = payload.as_object() {
+        for field in fields {
+            if let Some(value) = source.get(field) {
+                projected.insert(field.clone(), value.clone());
+            }
         }
     }
-    Some(Some(projected))
+    projected
 }
 
 fn scalar_value_bytes(value: &Value) -> Option<usize> {

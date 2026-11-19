@@ -345,7 +345,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/composite_types/whole_row_names.rs` | test_module | 124 | 7 | composite_types | move_with_module_alias | `tests/composite_types/semantics/whole_row_names.rs` |
 | `tests/composite_types/wire.rs` | test_module | 158 | 6 | composite_types | move_with_module_alias | `tests/composite_types/semantics/wire.rs` |
 | `tests/composite_types.rs` | cargo_target | 67 | 0 | composite_types | keep | `tests/composite_types.rs` |
-| `tests/configuration_isolated/configuration/embedding_provider_controls.rs` | test_module | 486 | 8 | configuration_isolated | keep | `tests/configuration_isolated/configuration/embedding_provider_controls.rs` |
+| `tests/configuration_isolated/configuration/embedding_provider_controls.rs` | test_module | 495 | 8 | configuration_isolated | keep | `tests/configuration_isolated/configuration/embedding_provider_controls.rs` |
 | `tests/configuration_isolated/configuration/runtime_baseline.rs` | test_module | 271 | 7 | configuration_isolated | keep | `tests/configuration_isolated/configuration/runtime_baseline.rs` |
 | `tests/configuration_isolated/configuration/transport_boundaries.rs` | test_module | 312 | 2 | configuration_isolated | keep | `tests/configuration_isolated/configuration/transport_boundaries.rs` |
 | `tests/configuration_isolated.rs` | cargo_target | 19 | 0 | configuration_isolated | keep | `tests/configuration_isolated.rs` |
@@ -379,7 +379,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/domain_models/time_series/queries/calendar_dashboard.rs` | test_module | 762 | 2 | domain_models | keep | `tests/domain_models/time_series/queries/calendar_dashboard.rs` |
 | `tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs` | test_module | 932 | 5 | domain_models | keep | `tests/domain_models/time_series/queries/column_time_series_read_equivalence.rs` |
 | `tests/domain_models/time_series/retention/scheduled.rs` | test_module | 399 | 4 | domain_models | keep | `tests/domain_models/time_series/retention/scheduled.rs` |
-| `tests/domain_models/time_series/retention/scheduled_recovery.rs` | test_module | 997 | 9 | domain_models | split_by_contract | `tests/domain_models/aggregates/windows/scheduled_recovery.rs`; `tests/domain_models/time_series/retention/scheduled_recovery.rs` |
+| `tests/domain_models/time_series/retention/scheduled_recovery.rs` | test_module | 997 | 9 | domain_models | keep | `tests/domain_models/time_series/retention/scheduled_recovery.rs` |
 | `tests/domain_models/time_series/retention/time_series_retention.rs` | test_module | 482 | 6 | domain_models | keep | `tests/domain_models/time_series/retention/time_series_retention.rs` |
 | `tests/domain_models/time_series/rollups/boolean_predicates.rs` | test_module | 121 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/boolean_predicates.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/errors.rs` | test_module | 89 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/errors.rs` |

@@ -238,10 +238,7 @@ impl Midge {
         operations: Vec<DocumentWriteOp>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<DocumentWriteBatchReport, CassieError> {
-        if operations.is_empty()
-            && options.replay.is_none()
-            && options.additional_data_writes.is_empty()
-        {
+        if operations.is_empty() && !options.has_side_writes() {
             return Ok(DocumentWriteBatchReport::default());
         }
         let collection = self.canonical_collection_name(collection);
@@ -312,23 +309,18 @@ impl Midge {
                 write_guards.push(write_gate.lock());
             }
 
-            let database = options
-                .data_database
-                .clone()
-                .or_else(|| {
-                    crate::catalog::relation_database_name(
-                        collections.first().map_or("", |(collection, _)| collection),
-                    )
-                })
-                .unwrap_or_else(|| self.default_database.clone());
-            if collections.iter().any(|(collection, _)| {
-                crate::catalog::relation_database_name(collection)
-                    .is_some_and(|candidate| !candidate.eq_ignore_ascii_case(&database))
-            }) {
-                return Err(CassieError::Unsupported(
-                    "one transaction cannot access multiple databases".to_string(),
-                ));
-            }
+            let database = options.database_for(
+                collections
+                    .first()
+                    .map(|(collection, _)| collection.as_str()),
+                &self.default_database,
+            );
+            options::require_single_database(
+                collections
+                    .iter()
+                    .map(|(collection, _)| collection.as_str()),
+                &database,
+            )?;
             let _overlay_scope = if let Some(overlay) = overlay {
                 let overlay = Arc::new(parking_lot::Mutex::new(overlay.clone()));
                 Some(self.enter_transactional_ddl_scope(&database, overlay, false)?)
@@ -336,10 +328,7 @@ impl Midge {
                 None
             };
             for (collection, operations) in &collections {
-                let context = self.document_write_batch_context(
-                    collection,
-                    !options.rollup_change_fields.is_empty(),
-                )?;
+                let context = self.document_write_batch_context(collection, options)?;
                 let prepared =
                     Self::prepare_document_writes(collection, operations.clone(), &context)?;
                 prepared_writes.push((collection.clone(), context, prepared));
@@ -362,10 +351,7 @@ impl Midge {
                 self.stage_projection_replay_in_tx(&mut tx, replay)?;
             }
 
-            if changed_collections.is_empty()
-                && options.replay.is_none()
-                && options.additional_data_writes.is_empty()
-            {
+            if changed_collections.is_empty() && !options.has_side_writes() {
                 tx.rollback().map_err(CassieError::from)?;
                 if let Some(overlay) = overlay {
                     self.commit_storage_overlay(&database, overlay)?;
@@ -506,8 +492,9 @@ impl Midge {
     fn document_write_batch_context(
         &self,
         collection: &str,
-        capture_rollup_changes: bool,
+        options: &DocumentWriteBatchOptions,
     ) -> Result<DocumentWriteBatchContext, CassieError> {
+        let capture_rollup_changes = !options.rollup_change_fields.is_empty();
         let schema = self
             .collection_schema(collection)
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;

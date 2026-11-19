@@ -140,7 +140,7 @@ fn try_refresh_rollup_inner(
 }
 
 fn matching_index(cassie: &Cassie, meta: &RollupMeta) -> Option<crate::catalog::IndexMeta> {
-    if meta.bucket_width.trim().to_ascii_lowercase() != "1 day"
+    if !meta.bucket_width.trim().eq_ignore_ascii_case("1 day")
         || meta.origin.is_some()
         || meta.filter_expr.is_some()
         || meta.group_keys.len() != 1
@@ -250,13 +250,13 @@ fn affected_groups(report: &RollupSourceChangeReport, meta: &RollupMeta) -> Opti
     let mut groups = AffectedGroups::default();
     let group_key = &meta.group_keys[0];
     for row in &report.rows {
-        let before = group_for_payload(row.before.as_ref(), &meta.timestamp_field, group_key)?;
-        let after = group_for_payload(row.after.as_ref(), &meta.timestamp_field, group_key)?;
-        if let Some(before) = before {
-            add_group_delta(&mut groups, before, -1)?;
+        if let Some(before) = row.before.as_ref() {
+            let group = group_for_payload(before, &meta.timestamp_field, group_key)?;
+            add_group_delta(&mut groups, group, -1)?;
         }
-        if let Some(after) = after {
-            add_group_delta(&mut groups, after, 1)?;
+        if let Some(after) = row.after.as_ref() {
+            let group = group_for_payload(after, &meta.timestamp_field, group_key)?;
+            add_group_delta(&mut groups, group, 1)?;
         }
     }
     (groups.count_delta.len() <= MAX_AFFECTED_GROUPS
@@ -265,22 +265,19 @@ fn affected_groups(report: &RollupSourceChangeReport, meta: &RollupMeta) -> Opti
 }
 
 fn group_for_payload(
-    payload: Option<&serde_json::Map<String, serde_json::Value>>,
+    payload: &serde_json::Map<String, serde_json::Value>,
     timestamp_field: &str,
     group_key: &str,
-) -> Option<Option<GroupKey>> {
-    let Some(payload) = payload else {
-        return Some(None);
-    };
+) -> Option<GroupKey> {
     let timestamp = payload.get(timestamp_field)?.as_str()?;
     let partition = payload.get(group_key)?.as_str()?;
     let timestamp = parse_timestamp_utc(timestamp).ok()?;
     let bucket_seconds =
         timestamp.unix_timestamp().div_euclid(DAILY_BUCKET_SECONDS) * DAILY_BUCKET_SECONDS;
-    Some(Some(GroupKey {
+    Some(GroupKey {
         bucket_seconds,
         partition: partition.to_owned(),
-    }))
+    })
 }
 
 fn add_group_delta(groups: &mut AffectedGroups, group: GroupKey, delta: i64) -> Option<()> {
@@ -354,17 +351,15 @@ fn refresh_selected_groups(
             "incremental rollup group allocation exceeded its admission".to_string(),
         ));
     }
+    let context = RefreshContext {
+        cassie,
+        meta,
+        index,
+        aggregates,
+        controls,
+    };
     for (group, count_delta) in &groups.count_delta {
-        match recompute_group(
-            cassie,
-            meta,
-            index,
-            group,
-            *count_delta,
-            aggregates,
-            controls,
-            &mut operation_memory,
-        )? {
+        match recompute_group(context, group, *count_delta, &mut operation_memory)? {
             RecomputedGroup::Ready {
                 operation,
                 snapshot,
@@ -381,19 +376,31 @@ fn refresh_selected_groups(
     publish_selected_groups(cassie, meta, operations, group_snapshots, source_generation)
 }
 
+/// The fixed inputs shared by every group recomputed in one refresh.
+#[derive(Clone, Copy)]
+struct RefreshContext<'a> {
+    cassie: &'a Cassie,
+    meta: &'a RollupMeta,
+    index: &'a crate::catalog::IndexMeta,
+    aggregates: &'a [AggregateSpec],
+    controls: &'a QueryExecutionControls,
+}
+
 fn recompute_group(
-    cassie: &Cassie,
-    meta: &RollupMeta,
-    index: &crate::catalog::IndexMeta,
+    context: RefreshContext<'_>,
     group: &GroupKey,
     count_delta: i64,
-    aggregates: &[AggregateSpec],
-    controls: &QueryExecutionControls,
     operation_memory: &mut crate::runtime::QueryMemoryReservation,
 ) -> Result<RecomputedGroup, QueryError> {
-    let prior = match prior_group_count(cassie, meta, group, aggregates)? {
-        Some(count) => count,
-        None => return Ok(RecomputedGroup::Fallback("rollup-count-missing")),
+    let RefreshContext {
+        cassie,
+        meta,
+        index,
+        aggregates,
+        controls,
+    } = context;
+    let Some(prior) = prior_group_count(cassie, meta, group, aggregates)? else {
+        return Ok(RecomputedGroup::Fallback("rollup-count-missing"));
     };
     let Some(expected_count) = prior.checked_add(count_delta) else {
         return Ok(RecomputedGroup::Fallback("rollup-count-overflow"));

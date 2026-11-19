@@ -457,3 +457,36 @@ fn should_preserve_atomic_replay_in_pinned_data_snapshot() {
     assert_eq!(new_checkpoint.as_deref(), Some("checkpoint-2"));
     assert_eq!(new_row, serde_json::json!({"value": 2}));
 }
+
+#[test]
+fn should_charge_private_materialized_rows_to_bound_command_retention() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    let payload = "x".repeat(8192);
+    for sql in [
+        "CREATE TABLE bind_mv_src (k INT, label TEXT)".to_string(),
+        format!("INSERT INTO bind_mv_src VALUES (1, '{payload}')"),
+        "CREATE MATERIALIZED VIEW bind_mv AS SELECT k,label FROM bind_mv_src".into(),
+        "CREATE UNIQUE INDEX bind_mv_key ON bind_mv(k)".into(),
+        "BEGIN ISOLATION LEVEL REPEATABLE READ".into(),
+        "SELECT label FROM bind_mv WHERE k=1".into(),
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY bind_mv".into(),
+    ] {
+        cassie.execute_sql(&session, &sql, vec![]).unwrap();
+    }
+    let command = controls(16 * 1024 * 1024);
+
+    // Act
+    let owner = session
+        .capture_statement_read(&cassie.midge, "postgres", &command)
+        .unwrap();
+    let retained = owner.command_accounted_bytes().unwrap();
+
+    // Assert
+    assert!(
+        retained >= payload.len(),
+        "private row bytes in bound command: {retained}"
+    );
+}

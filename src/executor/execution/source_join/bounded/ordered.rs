@@ -209,7 +209,7 @@ fn probe(
             None,
             env.session,
         )?
-        .is_true()
+        .is_true()?
         {
             return Ok(None);
         }

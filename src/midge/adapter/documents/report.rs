@@ -18,3 +18,7 @@ impl DocumentWriteBatchReport {
             || self.stats.metadata_deletes > 0
     }
 }
+
+#[cfg(test)]
+#[path = "report_tests.rs"]
+mod tests;

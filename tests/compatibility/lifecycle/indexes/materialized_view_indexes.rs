@@ -421,3 +421,55 @@ fn should_filter_materialized_numeric_keys_with_sql_equality() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_publish_the_refreshing_transactions_staged_source_rows() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("mv_staged_source").await;
+        let (writer, connection) = server.connect().await;
+        let (reader, reader_connection) = server.connect().await;
+        execute_statements(
+            &writer,
+            &[
+                "CREATE TABLE mv_own_src(k INT, label TEXT)",
+                "INSERT INTO mv_own_src VALUES (1, 'old')",
+                "CREATE MATERIALIZED VIEW mv_own AS SELECT k,label FROM mv_own_src",
+                "CREATE UNIQUE INDEX mv_own_key ON mv_own(k)",
+                "BEGIN ISOLATION LEVEL REPEATABLE READ",
+                "UPDATE mv_own_src SET label='own' WHERE k=1",
+            ],
+        )
+        .await
+        .unwrap();
+
+        // Act
+        writer
+            .batch_execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_own")
+            .await
+            .unwrap();
+        let private = writer
+            .query_one("SELECT label FROM mv_own WHERE k=1", &[])
+            .await
+            .unwrap();
+        let prior = reader
+            .query_one("SELECT label FROM mv_own WHERE k=1", &[])
+            .await
+            .unwrap();
+        writer.batch_execute("COMMIT").await.unwrap();
+        let published = reader
+            .query_one("SELECT label FROM mv_own WHERE k=$1", &[&1_i32])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(prior.get::<_, String>(0), "old");
+        assert_eq!(private.get::<_, String>(0), "own");
+        assert_eq!(published.get::<_, String>(0), "own");
+        drop(reader);
+        reader_connection.await.unwrap();
+        drop(writer);
+        server.shutdown(connection).await;
+    });
+}

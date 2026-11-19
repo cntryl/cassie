@@ -9,6 +9,7 @@ use super::{
     CORRUPT_BUCKET_METADATA, DANGLING_BUCKET_MEMBERSHIP, INCOMPLETE_BUCKET_MEMBERSHIP,
     MISSING_BUCKET_METADATA, STALE_BUCKET_METADATA,
 };
+use crate::midge::adapter::column_store::validation as column_validation;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 const CONTROLLED_PAGE_ENTRIES: usize = 128;
@@ -246,9 +247,8 @@ impl Midge {
         let index = self.resolved_time_series_index(index)?;
         let collection = &index.collection;
         if self.collection_uses_column_store(collection)? {
-            return Ok(ControlledTimeSeriesDocumentScanOutcome::Fallback(
-                super::COLUMN_STORE_AUTHORITATIVE,
-            ));
+            return self
+                .scan_column_store_time_series_hits_controlled(&index, hits, fields, controls);
         }
         let row_schema = self.row_schema(collection)?;
         let projection = fields
@@ -309,6 +309,129 @@ impl Midge {
             ControlledTimeSeriesDocumentScanReport { documents, memory },
         ))
     }
+
+    fn scan_column_store_time_series_hits_controlled(
+        &self,
+        index: &IndexMeta,
+        hits: &[TimeSeriesIndexScanHit],
+        fields: &[String],
+        controls: &QueryExecutionControls,
+    ) -> Result<ControlledTimeSeriesDocumentScanOutcome, CassieError> {
+        let collection = &index.collection;
+        let row_schema = self.row_schema(collection)?;
+        let projection = fields
+            .iter()
+            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
+            .collect::<std::collections::HashSet<_>>();
+        let tx = self.begin_data_readonly_tx_for(collection)?;
+        let mut memory = controls.reserve_query_memory(0)?;
+        let mut documents = Vec::new();
+        for hit in hits {
+            check_controls(controls)?;
+            let marker_key = Self::column_store_row_key(row_schema.relation_id, &hit.id);
+            let marker = tx.get(&marker_key).map_err(CassieError::from)?;
+            check_controlled_entry(self, controls)?;
+            let Some(marker) = marker else {
+                return Ok(ControlledTimeSeriesDocumentScanOutcome::Fallback(
+                    DANGLING_BUCKET_MEMBERSHIP,
+                ));
+            };
+            let marker_version = column_validation::decode_marker(collection, &hit.id, &marker)?;
+            memory.try_grow(checked_column_candidate_bytes(&[
+                marker_key.len(),
+                marker.len(),
+                hit.id.len(),
+                size_of::<DocumentRef>(),
+                size_of::<serde_json::Value>(),
+            ])?)?;
+
+            let mut payload = serde_json::Map::new();
+            for field in row_schema.fields.iter().filter(|field| {
+                !field.retired
+                    && projection.contains(
+                        &crate::sql::ColumnIdentifierPath::from_field_name(&field.name)
+                            .lookup_key(),
+                    )
+            }) {
+                check_controls(controls)?;
+                let field_key =
+                    Self::column_store_field_key(row_schema.relation_id, field.field_id, &hit.id);
+                let raw = tx.get(&field_key).map_err(CassieError::from)?;
+                check_controlled_entry(self, controls)?;
+                let Some(raw) = raw else {
+                    if column_validation::field_is_required(field, marker_version) {
+                        return Err(column_validation::missing_field(collection, &hit.id, field));
+                    }
+                    continue;
+                };
+                memory.try_grow(column_candidate_field_bytes(
+                    field,
+                    field_key.len(),
+                    raw.len(),
+                )?)?;
+                if let Some(value) =
+                    column_validation::decode_field(collection, &hit.id, field, &raw)?
+                {
+                    payload.insert(field.name.clone(), value);
+                }
+            }
+
+            let payload = serde_json::Value::Object(payload);
+            let Some(expected_entry) = Self::time_series_index_entry(index, &hit.id, &payload)?
+            else {
+                return Ok(ControlledTimeSeriesDocumentScanOutcome::Fallback(
+                    DANGLING_BUCKET_MEMBERSHIP,
+                ));
+            };
+            if expected_entry.key != hit.entry_key {
+                return Ok(ControlledTimeSeriesDocumentScanOutcome::Fallback(
+                    DANGLING_BUCKET_MEMBERSHIP,
+                ));
+            }
+            documents.try_reserve_exact(1).map_err(|error| {
+                CassieError::ResourceLimit(format!(
+                    "unable to retain controlled time-series row: {error}"
+                ))
+            })?;
+            documents.push(DocumentRef {
+                id: hit.id.clone(),
+                payload,
+            });
+        }
+        Ok(ControlledTimeSeriesDocumentScanOutcome::Native(
+            ControlledTimeSeriesDocumentScanReport { documents, memory },
+        ))
+    }
+}
+
+fn column_candidate_field_bytes(
+    field: &crate::midge::row_blob::RowFieldMeta,
+    key_bytes: usize,
+    raw_value_bytes: usize,
+) -> Result<usize, CassieError> {
+    let decoded_bytes = raw_value_bytes
+        .checked_mul(super::super::streaming_scans::decode_expansion_factor(
+            &field.data_type,
+        ))
+        .ok_or_else(|| {
+            CassieError::ResourceLimit("time-series column field size overflow".to_string())
+        })?;
+    checked_column_candidate_bytes(&[
+        key_bytes,
+        raw_value_bytes,
+        crate::runtime::accounted::json::JSON_MAP_ENTRY_BYTES,
+        field.name.len(),
+        size_of::<serde_json::Value>(),
+        decoded_bytes,
+    ])
+}
+
+fn checked_column_candidate_bytes(values: &[usize]) -> Result<usize, CassieError> {
+    values.iter().try_fold(0usize, |total, value| {
+        total.checked_add(*value).ok_or_else(|| {
+            CassieError::ResourceLimit("time-series column row size overflow".to_string())
+        })
+    })
 }
 
 fn requested_counts_match(

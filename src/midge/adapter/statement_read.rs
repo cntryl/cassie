@@ -6,6 +6,8 @@ use std::cell::RefCell;
 use std::mem::size_of;
 use std::sync::Arc;
 
+mod materialized_outputs;
+
 thread_local! {
     static CURRENT_READ: RefCell<Option<Arc<StatementDataRead>>> = const { RefCell::new(None) };
 }
@@ -30,6 +32,7 @@ struct StatementDataSnapshot {
 pub(crate) struct StatementDataRead {
     snapshot: Arc<StatementDataSnapshot>,
     overlay: Option<Arc<crate::app::StatementOverlay>>,
+    private_outputs: Option<Arc<materialized_outputs::PrivateOutputs>>,
     memory: QueryMemoryReservation,
 }
 
@@ -93,6 +96,7 @@ impl StatementDataRead {
         let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
         Ok(Arc::new(Self {
             snapshot: Arc::clone(&retained.snapshot),
+            private_outputs: retained.private_outputs.clone(),
             overlay,
             memory,
         }))
@@ -176,6 +180,7 @@ impl StatementDataRead {
         });
         Ok(Arc::new(Self {
             snapshot,
+            private_outputs: None,
             overlay,
             memory: command_memory,
         }))

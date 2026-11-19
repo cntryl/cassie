@@ -55,6 +55,9 @@ pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 #[path = "source_join.rs"]
 mod source_join;
 
+#[path = "source_materialized_projection.rs"]
+mod materialized_source;
+
 #[path = "source_checkpoint.rs"]
 mod source_checkpoint;
 #[path = "source_collection.rs"]
@@ -250,7 +253,7 @@ fn execute_collection_source(
     }
 
     if let Some(projection) = env.cassie.catalog.get_materialized_projection(name) {
-        return execute_materialized_projection_source(env, name, &projection, qualify, row_budget);
+        return materialized_source::execute(env, name, &projection, qualify, row_budget);
     }
 
     let batches =
@@ -281,50 +284,6 @@ fn execute_view_source(
         qualify,
         name,
     )
-}
-
-fn execute_materialized_projection_source(
-    env: &SourceExecutionEnv<'_>,
-    name: &str,
-    projection: &crate::catalog::ProjectionMeta,
-    qualify: bool,
-    row_budget: Option<usize>,
-) -> SourceExecution {
-    if let Some(definition) = &projection.materialized {
-        crate::sql::definition_guard::projection(definition).map_err(QueryError::Cassie)?;
-    }
-    let Some(output_collection) = projection.active_output_collection() else {
-        let is_materialized_view = projection
-            .materialized
-            .as_ref()
-            .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view);
-        if is_materialized_view {
-            return Err(QueryError::Cassie(
-                crate::app::DiagnosticError::new(
-                    "55000",
-                    format!("materialized view '{name}' has not been populated"),
-                )
-                .into(),
-            ));
-        }
-        return Err(QueryError::General(format!(
-            "materialized projection '{name}' has no active version"
-        )));
-    };
-    let output_collection = output_collection.to_string();
-    let batches = source_collection::scan_collection(
-        env,
-        &output_collection,
-        row_budget,
-        qualify,
-        name,
-        crate::midge::adapter::RowTraversal::CompleteSource,
-    )?;
-    let text_fields = projection
-        .materialized
-        .as_ref()
-        .map_or_default(|materialized| schema_text_fields(&materialized.output_schema));
-    Ok((batches, text_fields))
 }
 
 fn execute_single_row_source(env: &SourceExecutionEnv<'_>) -> SourceExecution {
@@ -454,6 +413,11 @@ pub(super) fn execute_source_query_with_outer_row(
     outer_row: Option<&BatchRow>,
 ) -> Result<super::owned_rows::OwnedRows, QueryError> {
     check_timeout(env.controls)?;
+    if outer_row.is_none() {
+        if let Some(rows) = super::index_read::materialized_view::execute(env, plan)? {
+            return Ok(super::owned_rows::OwnedRows::untracked(rows));
+        }
+    }
     if let Some(rows) = source_pull::try_execute(env, plan, cte_context, outer_row)? {
         return Ok(super::owned_rows::OwnedRows::untracked(rows));
     }

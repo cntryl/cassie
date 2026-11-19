@@ -207,7 +207,7 @@ pub(crate) struct AdapterTransaction {
 }
 
 impl AdapterTransaction {
-    fn raw(inner: cntryl_midge::Transaction) -> Self {
+    pub(super) fn raw(inner: cntryl_midge::Transaction) -> Self {
         Self {
             inner: Some(inner),
             overlay: None,

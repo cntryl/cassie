@@ -82,6 +82,9 @@ pub(super) fn refresh_materialized_view_versioned(
         replacement
             .collection
             .clone_from(&version.output_collection);
+        // The logical index keeps its catalog OID. Its physical IDs belong
+        // to the new output; the adapter allocates them during publication.
+        replacement.clear_storage_ids();
         if let Err(error) = cassie.midge.put_index(&replacement) {
             let error = QueryError::from(error);
             discard_output(cassie, &version.output_collection);

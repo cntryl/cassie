@@ -79,6 +79,46 @@ pub(crate) struct ReplayBatchCommit {
 }
 
 impl Midge {
+    /// Resolve the publication from the same statement Data view as its output.
+    pub(crate) fn statement_materialized_view(
+        &self,
+        collection: &str,
+    ) -> Result<Option<ProjectionMeta>, CassieError> {
+        let name = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&name)?;
+        let value = checkpoint_value(
+            &tx,
+            tx.checkpoint_storage().map(AsRef::as_ref),
+            &Self::projection_key(&name),
+        )?;
+        value
+            .map(|raw| {
+                serde_json::from_slice(raw.as_ref()).map_err(|error| {
+                    CassieError::Parse(format!("invalid projection metadata for '{name}': {error}"))
+                })
+            })
+            .transpose()
+    }
+
+    pub(crate) fn published_scalar_index(
+        &self,
+        output: &str,
+        candidate: &crate::catalog::IndexMeta,
+    ) -> Result<Option<crate::catalog::IndexMeta>, CassieError> {
+        let tx = self.begin_data_readonly_tx_for(output)?;
+        let Some(relation) = Self::load_collection_metadata_from_tx(&tx, output)? else {
+            return Ok(None);
+        };
+        Ok(self.get_index(output, &candidate.name)?.filter(|stored| {
+            stored.collection == output
+                && stored.name == candidate.name
+                && stored.read_definition_matches(candidate)
+                && relation.storage_id != 0
+                && stored.relation_id() == Some(relation.storage_id)
+                && stored.storage_id().is_some()
+        }))
+    }
+
     pub(crate) fn checkpoint_rows_for_statement(
         &self,
         database: &str,

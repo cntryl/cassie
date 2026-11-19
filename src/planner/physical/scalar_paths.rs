@@ -79,6 +79,8 @@ pub(crate) fn scalar_index_plan_shape(
         return expression_index_plan_shape(plan, index);
     }
 
+    let access_plan = super::partial_index::access_plan(plan, index);
+    let plan = access_plan.as_ref();
     let constraints = filter_constraint_shapes(plan.filter.as_ref())?;
     let fields = index
         .normalized_fields()

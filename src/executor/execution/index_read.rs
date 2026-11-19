@@ -84,6 +84,8 @@ pub(super) fn execute_scalar_index_read(
 
     record_scalar_index_read_path(cassie, &spec, rows.len());
 
+    let access_plan = crate::planner::physical::partial_index::access_plan(plan, &spec.index);
+    let plan = access_plan.as_ref();
     let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
     let index_usage = if spec.covered {
         projected_read::ProjectedReadIndexUsage::CoveringScalarIndex
@@ -204,6 +206,8 @@ fn scalar_index_read_spec(
     let Some(mut shape) = scalar_index_plan_shape(plan, &index, &not_null_fields) else {
         return Ok(None);
     };
+    let access_plan = crate::planner::physical::partial_index::access_plan(plan, &index);
+    let plan = access_plan.as_ref();
     if scalar_index_order_needs_sql_sort(cassie, &projected.collection, &index, &shape, plan) {
         if shape.path == ScalarIndexPlanPath::OrderedBoundedScan {
             return Ok(None);
@@ -404,6 +408,7 @@ fn scalar_index_requires_json_scan(
         && shape.order_satisfied
         && fields
             .iter()
+            .skip(shape.equality_prefix_len)
             .take(shape.order_columns_used)
             .any(|field| is_json_field(field));
 

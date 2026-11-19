@@ -1,5 +1,5 @@
 use super::{
-    scalar_index_plan_shape, time_series, BTreeSet, CollectionCardinalityStats, Expr, IndexKind,
+    scalar_index_plan_shape, time_series, BTreeSet, CollectionCardinalityStats, IndexKind,
     IndexMeta, LogicalPlan, PlanEstimates, ScalarIndexPlanPath,
 };
 use crate::catalog::name_matches;
@@ -136,7 +136,9 @@ fn scalar_candidates<S: BuildHasher>(
     let mut scalar = indexes
         .iter()
         .filter(|index| collection == index.collection && index.kind == IndexKind::Scalar)
-        .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
+        .filter(|index| {
+            super::partial_index::matches(plan.filter.as_ref(), index.predicate.as_ref())
+        })
         .filter(|index| {
             scalar_index_matches_plan(
                 plan,
@@ -276,19 +278,4 @@ fn index_estimate<S: BuildHasher>(
             ))
         })
         .unwrap_or(u64::MAX)
-}
-
-fn partial_index_matches_query(
-    query_filter: Option<&Expr>,
-    index_predicate: Option<&String>,
-) -> bool {
-    match index_predicate {
-        None => true,
-        Some(predicate) => {
-            query_filter
-                .and_then(|filter| serde_json::to_string(filter).ok())
-                .as_ref()
-                == Some(predicate)
-        }
-    }
 }

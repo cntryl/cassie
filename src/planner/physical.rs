@@ -21,6 +21,7 @@ mod feature_flags;
 mod index_selection;
 #[path = "physical/join_paths.rs"]
 mod join_paths;
+pub(crate) mod partial_index;
 #[path = "physical/read_paths.rs"]
 mod read_paths;
 #[path = "physical/scalar_paths.rs"]
@@ -377,6 +378,8 @@ fn top_k_limit(plan: &LogicalPlan) -> Option<usize> {
 }
 
 fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
+    let access_plan = partial_index::access_plan(plan, index);
+    let plan = access_plan.as_ref();
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct

@@ -457,3 +457,106 @@ fn should_preserve_atomic_replay_in_pinned_data_snapshot() {
     assert_eq!(new_checkpoint.as_deref(), Some("checkpoint-2"));
     assert_eq!(new_row, serde_json::json!({"value": 2}));
 }
+
+#[test]
+fn should_charge_private_materialized_rows_to_bound_command_retention() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    let payload = "x".repeat(8192);
+    for sql in [
+        "CREATE TABLE bind_mv_src (k INT, label TEXT)".to_string(),
+        format!("INSERT INTO bind_mv_src VALUES (1, '{payload}')"),
+        "CREATE MATERIALIZED VIEW bind_mv AS SELECT k,label FROM bind_mv_src".into(),
+        "CREATE UNIQUE INDEX bind_mv_key ON bind_mv(k)".into(),
+        "BEGIN ISOLATION LEVEL REPEATABLE READ".into(),
+        "SELECT label FROM bind_mv WHERE k=1".into(),
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY bind_mv".into(),
+    ] {
+        cassie.execute_sql(&session, &sql, vec![]).unwrap();
+    }
+    let command = controls(16 * 1024 * 1024);
+
+    // Act
+    let owner = session
+        .capture_statement_read(&cassie.midge, "postgres", &command)
+        .unwrap();
+    let retained = owner.command_accounted_bytes().unwrap();
+
+    // Assert
+    assert!(
+        retained >= payload.len(),
+        "private row bytes in bound command: {retained}"
+    );
+}
+
+#[test]
+fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    let payload = "x".repeat(160 * 1024);
+    for sql in [
+        "CREATE TABLE unrelated_mv_src (k INT, label TEXT)".to_owned(),
+        format!("INSERT INTO unrelated_mv_src VALUES (1, '{payload}')"),
+        "CREATE TABLE unrelated_small (n INT)".into(),
+        "INSERT INTO unrelated_small VALUES (7)".into(),
+        "CREATE MATERIALIZED VIEW private_first AS SELECT k,label FROM unrelated_mv_src".into(),
+        "CREATE MATERIALIZED VIEW private_second AS SELECT k,label FROM unrelated_mv_src".into(),
+        "CREATE UNIQUE INDEX private_first_idx ON private_first(k)".into(),
+        "CREATE UNIQUE INDEX private_second_idx ON private_second(k)".into(),
+        "BEGIN ISOLATION LEVEL REPEATABLE READ".into(),
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY private_first".into(),
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY private_second".into(),
+    ] {
+        cassie.execute_sql(&session, &sql, vec![]).unwrap();
+    }
+    // Admit the two catalog views invalidated by DDL before measuring Data reads.
+    // Neither capture opens a Data reader or sees the private output's row bytes.
+    let catalog_controls = controls(16 * 1024 * 1024);
+    let catalog = session
+        .command_catalog_snapshot(&catalog_controls)
+        .unwrap()
+        .unwrap();
+    let _descriptors = session
+        .command_descriptor_snapshot(&cassie.publication_catalog, &catalog_controls)
+        .unwrap()
+        .unwrap();
+    let data_budget = 128 * 1024;
+    let small = controls(data_budget);
+
+    // Act
+    let result = cassie.execute_sql_with_controls(
+        &session,
+        "SELECT n FROM unrelated_small",
+        vec![],
+        crate::runtime::ExecutionMode::SimpleQuery,
+        &small,
+    );
+
+    let bind = |sql: &str| {
+        let retention = controls(catalog.accounted_bytes() + data_budget);
+        let parsed = crate::sql::parse_statement(sql).unwrap();
+        let fingerprint = crate::runtime::sql_fingerprint(&parsed);
+        cassie.validate_pgwire_bind(
+            &session,
+            parsed,
+            fingerprint,
+            &[],
+            &[],
+            (&crate::runtime::QueryCancellationHandle::new(), &retention),
+        )
+    };
+    let unrelated = bind("SELECT n FROM unrelated_small");
+    let relevant = bind("SELECT label FROM private_first WHERE k=1");
+
+    // Assert
+    assert_eq!(
+        result.unwrap().rows(),
+        vec![vec![crate::types::Value::Int64(7)]]
+    );
+    assert!(unrelated.expect("unrelated portal fits").is_some());
+    assert!(matches!(relevant, Err(CassieError::ResourceLimit(_))));
+}

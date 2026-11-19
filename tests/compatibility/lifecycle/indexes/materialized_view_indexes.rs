@@ -183,3 +183,293 @@ fn should_reject_unique_index_when_materialized_view_has_duplicate_keys() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_seek_the_published_materialized_view_output_for_each_point_lookup() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("seek_materialized_view").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE mv_seek_source (k INT, label TEXT)",
+                "INSERT INTO mv_seek_source VALUES (1, 'one'), (2, 'two')",
+                "CREATE MATERIALIZED VIEW mv_seek AS SELECT k, label FROM mv_seek_source",
+                "CREATE UNIQUE INDEX mv_seek_key ON mv_seek (k)",
+            ],
+        )
+        .await
+        .expect("create indexed materialized output");
+
+        // Act
+        for (key, expected) in [(1_i32, Some("one")), (3, None)] {
+            let before = server.cassie.metrics();
+            let rows = client
+                .query("SELECT label FROM mv_seek WHERE k = $1", &[&key])
+                .await
+                .expect("point lookup");
+            let after = server.cassie.metrics();
+
+            // Assert
+            let labels: Vec<String> = rows.iter().map(|row| row.get(0)).collect();
+            assert_eq!(labels, expected.into_iter().collect::<Vec<_>>());
+            let read_count = |metrics: &serde_json::Value, metric: &str| {
+                metrics["read_paths"][metric]
+                    .as_u64()
+                    .expect("read counter")
+            };
+            assert_eq!(
+                read_count(&after, "index_seek_scans") - read_count(&before, "index_seek_scans"),
+                1
+            );
+            assert_eq!(
+                read_count(&after, "collection_scan_rows"),
+                read_count(&before, "collection_scan_rows")
+            );
+        }
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_keep_materialized_view_reads_on_the_repeatable_read_generation() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("retain_materialized_view").await;
+        let (writer, connection) = server.connect().await;
+        let (reader, reader_connection) = server.connect().await;
+        execute_statements(
+            &writer,
+            &[
+                "CREATE TABLE mv_rr_source (k INT, label TEXT)",
+                "INSERT INTO mv_rr_source VALUES (1, 'old')",
+                "CREATE MATERIALIZED VIEW mv_rr AS SELECT k, label FROM mv_rr_source",
+                "CREATE UNIQUE INDEX mv_rr_key ON mv_rr (k)",
+            ],
+        )
+        .await
+        .expect("create initial output");
+        reader
+            .batch_execute("BEGIN ISOLATION LEVEL REPEATABLE READ")
+            .await
+            .unwrap();
+        let initial = reader
+            .query_one("SELECT label FROM mv_rr WHERE k = 1", &[])
+            .await
+            .unwrap();
+
+        // Act
+        execute_statements(
+            &writer,
+            &[
+                "UPDATE mv_rr_source SET label = 'new' WHERE k = 1",
+                "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_rr",
+            ],
+        )
+        .await
+        .expect("publish replacement while the reader is active");
+        let point = reader
+            .query("SELECT label FROM mv_rr WHERE k = $1", &[&1_i32])
+            .await
+            .unwrap();
+        let scan = reader
+            .query("SELECT label FROM mv_rr ORDER BY k", &[])
+            .await
+            .unwrap();
+        reader.batch_execute("COMMIT").await.unwrap();
+        let fresh = reader
+            .query_one("SELECT label FROM mv_rr WHERE k = $1", &[&1_i32])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(initial.get::<_, String>(0), "old");
+        for rows in [point, scan] {
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].get::<_, String>(0), "old");
+        }
+        assert_eq!(fresh.get::<_, String>(0), "new");
+
+        drop(reader);
+        reader_connection.await.unwrap();
+        drop(writer);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_read_the_private_refresh_in_a_repeatable_read_transaction() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("private_rr_mv").await;
+        let (writer, connection) = server.connect().await;
+        execute_statements(
+            &writer,
+            &[
+                "CREATE TABLE mv_private_src (k INT, label TEXT)",
+                "INSERT INTO mv_private_src VALUES (1, 'old')",
+                "CREATE MATERIALIZED VIEW mv_private AS SELECT k, label FROM mv_private_src",
+                "CREATE UNIQUE INDEX mv_private_idx ON mv_private (k)",
+                "UPDATE mv_private_src SET label='new' WHERE k=1",
+                "BEGIN ISOLATION LEVEL REPEATABLE READ",
+            ],
+        )
+        .await
+        .unwrap();
+        let old = writer
+            .query_one("SELECT label FROM mv_private WHERE k=1", &[])
+            .await
+            .unwrap();
+
+        // Act
+        writer
+            .batch_execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_private")
+            .await
+            .unwrap();
+        let point = writer
+            .query("SELECT label FROM mv_private WHERE k=$1", &[&1_i32])
+            .await
+            .unwrap();
+        let scan = writer
+            .query("SELECT label FROM mv_private ORDER BY k", &[])
+            .await
+            .unwrap();
+        execute_statements(
+            &writer,
+            &[
+                "SAVEPOINT before_rename",
+                "ALTER MATERIALIZED VIEW mv_private RENAME TO mv_changed",
+            ],
+        )
+        .await
+        .unwrap();
+        let renamed = writer
+            .query("SELECT label FROM mv_changed WHERE k=$1", &[&1_i32])
+            .await
+            .unwrap();
+        let renamed_scan = writer
+            .query("SELECT label FROM mv_changed ORDER BY k", &[])
+            .await
+            .unwrap();
+        writer
+            .batch_execute("ROLLBACK TO SAVEPOINT before_rename")
+            .await
+            .unwrap();
+        let reverted = writer
+            .query("SELECT label FROM mv_private WHERE k=1", &[])
+            .await
+            .unwrap();
+        writer.batch_execute("ROLLBACK").await.unwrap();
+        let restored = writer
+            .query_one("SELECT label FROM mv_private WHERE k=$1", &[&1_i32])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(old.get::<_, String>(0), "old");
+        for rows in [point, scan, renamed, renamed_scan, reverted] {
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].get::<_, String>(0), "new");
+        }
+        assert_eq!(restored.get::<_, String>(0), "old");
+        drop(writer);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_filter_materialized_numeric_keys_with_sql_equality() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("mv_decimal_point").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE mv_numeric_src(k NUMERIC, label TEXT)",
+                "INSERT INTO mv_numeric_src VALUES ('1.00', 'yes')",
+                "CREATE MATERIALIZED VIEW mv_numeric AS SELECT k,label FROM mv_numeric_src",
+                "CREATE UNIQUE INDEX mv_numeric_key ON mv_numeric(k)",
+            ],
+        )
+        .await
+        .unwrap();
+
+        // Act
+        let before = server.cassie.metrics();
+        let rows = client
+            .query("SELECT label FROM mv_numeric WHERE k=1", &[])
+            .await
+            .unwrap();
+        let after = server.cassie.metrics();
+
+        // Assert
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, String>(0), "yes");
+        assert_eq!(
+            after["read_paths"]["index_seek_scans"],
+            before["read_paths"]["index_seek_scans"]
+        );
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_publish_the_refreshing_transactions_staged_source_rows() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("mv_staged_source").await;
+        let (writer, connection) = server.connect().await;
+        let (reader, reader_connection) = server.connect().await;
+        execute_statements(
+            &writer,
+            &[
+                "CREATE TABLE mv_own_src(k INT, label TEXT)",
+                "INSERT INTO mv_own_src VALUES (1, 'old')",
+                "CREATE MATERIALIZED VIEW mv_own AS SELECT k,label FROM mv_own_src",
+                "CREATE UNIQUE INDEX mv_own_key ON mv_own(k)",
+                "BEGIN ISOLATION LEVEL REPEATABLE READ",
+                "UPDATE mv_own_src SET label='own' WHERE k=1",
+            ],
+        )
+        .await
+        .unwrap();
+
+        // Act
+        writer
+            .batch_execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_own")
+            .await
+            .unwrap();
+        let private = writer
+            .query_one("SELECT label FROM mv_own WHERE k=1", &[])
+            .await
+            .unwrap();
+        let prior = reader
+            .query_one("SELECT label FROM mv_own WHERE k=1", &[])
+            .await
+            .unwrap();
+        writer.batch_execute("COMMIT").await.unwrap();
+        let published = reader
+            .query_one("SELECT label FROM mv_own WHERE k=$1", &[&1_i32])
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(prior.get::<_, String>(0), "old");
+        assert_eq!(private.get::<_, String>(0), "own");
+        assert_eq!(published.get::<_, String>(0), "own");
+        drop(reader);
+        reader_connection.await.unwrap();
+        drop(writer);
+        server.shutdown(connection).await;
+    });
+}

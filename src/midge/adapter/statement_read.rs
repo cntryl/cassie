@@ -6,6 +6,9 @@ use std::cell::RefCell;
 use std::mem::size_of;
 use std::sync::Arc;
 
+mod materialized_outputs;
+pub(super) use materialized_outputs::PrivateOutputs;
+
 thread_local! {
     static CURRENT_READ: RefCell<Option<Arc<StatementDataRead>>> = const { RefCell::new(None) };
 }
@@ -24,12 +27,13 @@ struct StatementDataSnapshot {
     family_id: cntryl_midge::ColumnFamilyId,
     data_epoch: u64,
     descriptor_authority: DescriptorAuthority,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 pub(crate) struct StatementDataRead {
     snapshot: Arc<StatementDataSnapshot>,
     overlay: Option<Arc<crate::app::StatementOverlay>>,
+    private_outputs: Option<materialized_outputs::MaterializedReads>,
     memory: QueryMemoryReservation,
 }
 
@@ -46,11 +50,18 @@ impl StatementDataRead {
     /// Additional per-command retained backing; the immutable transaction core
     /// is shared with the transaction owner and is admitted there once.
     pub(crate) fn command_accounted_bytes(&self) -> Result<usize, CassieError> {
-        crate::executor::retained_memory::add(
+        let command = crate::executor::retained_memory::add(
             self.memory.bytes(),
             self.overlay
                 .as_ref()
                 .map_or(0, |owner| owner.accounted_bytes()),
+        )?;
+        crate::executor::retained_memory::add(
+            command,
+            self.private_outputs.as_ref().map_or(
+                Ok(0),
+                materialized_outputs::MaterializedReads::accounted_bytes,
+            )?,
         )
     }
 
@@ -93,6 +104,7 @@ impl StatementDataRead {
         let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
         Ok(Arc::new(Self {
             snapshot: Arc::clone(&retained.snapshot),
+            private_outputs: retained.private_outputs.clone(),
             overlay,
             memory,
         }))
@@ -172,10 +184,11 @@ impl StatementDataRead {
             family_id,
             data_epoch,
             descriptor_authority,
-            _memory: memory,
+            memory,
         });
         Ok(Arc::new(Self {
             snapshot,
+            private_outputs: None,
             overlay,
             memory: command_memory,
         }))

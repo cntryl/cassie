@@ -17,6 +17,7 @@ use crate::types::DataType;
 use std::collections::BTreeMap;
 
 pub(super) mod key_order;
+pub(super) mod materialized_view;
 pub(super) mod ordered_join;
 
 #[cfg(test)]
@@ -36,6 +37,31 @@ pub(super) fn execute_scalar_index_read(
         return Ok(None);
     };
 
+    if session
+        .is_some_and(|session| !session.transaction_index_visible(&spec.index, &cassie.catalog))
+    {
+        return Ok(None);
+    }
+    execute_scalar_spec(
+        cassie,
+        session,
+        plan,
+        user_functions,
+        params,
+        controls,
+        &spec,
+    )
+}
+
+fn execute_scalar_spec(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+    spec: &ScalarIndexReadSpec,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if spec.request.limit == Some(0) {
         return Ok(Some(Vec::new()));
     }
@@ -44,12 +70,6 @@ pub(super) fn execute_scalar_index_read(
         ScalarIndexPredicateResolution::Unsatisfiable
     ) {
         return Ok(Some(Vec::new()));
-    }
-
-    if session
-        .is_some_and(|session| !session.transaction_index_visible(&spec.index, &cassie.catalog))
-    {
-        return Ok(None);
     }
 
     let hits = if spec.timestamp_fields.is_empty() {
@@ -106,7 +126,7 @@ pub(super) fn execute_scalar_index_read(
         rows.push(scan::hydrate_character_arrays(row, controls)?);
     }
 
-    record_scalar_index_read_path(cassie, &spec, visited);
+    record_scalar_index_read_path(cassie, spec, visited);
 
     let access_plan = crate::planner::physical::partial_index::access_plan(plan, &spec.index);
     let plan = access_plan.as_ref();
@@ -229,6 +249,27 @@ fn scalar_index_read_spec(
     let Some(index) = indexes.into_iter().find(|index| index.name == index_name) else {
         return Ok(None);
     };
+    selected_scalar_spec(
+        cassie,
+        projected,
+        plan,
+        params,
+        index,
+        covered_index,
+        for_ordered_join,
+    )
+}
+
+fn selected_scalar_spec(
+    cassie: &Cassie,
+    projected: projected_read::ProjectedFilteredReadSpec,
+    plan: &LogicalPlan,
+    params: &[Value],
+    index: IndexMeta,
+    covered_index: bool,
+    for_ordered_join: bool,
+) -> Result<Option<ScalarIndexReadSpec>, QueryError> {
+    let not_null_fields = cassie.catalog.not_null_fields(&projected.collection);
     let Some(mut shape) = scalar_index_plan_shape(plan, &index, &not_null_fields) else {
         return Ok(None);
     };

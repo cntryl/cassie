@@ -340,6 +340,9 @@ impl Cassie {
         } else {
             crate::planner::optimizer::optimize_with_stats(logical, &cardinality_stats)
         };
+        if let Some(index) = self.logical_materialized_view_index(&optimized, parameter_type_oids) {
+            bound.indexes.push(index);
+        }
         let not_null_fields = self.catalog.not_null_fields(&optimized.collection);
         let selection = crate::planner::physical::read_operator_selection(
             &optimized,

@@ -268,7 +268,7 @@ fn execute_materialized_view_command(
             ),
         )),
         LogicalCommand::RenameMaterializedView(statement) => Some(CommandExecution::invalidating(
-            super::materialized_view_rename::rename(cassie, statement, controls),
+            super::materialized_view_rename::rename(cassie, session, statement, controls),
         )),
         LogicalCommand::DropMaterializedView(statement) => Some(CommandExecution::invalidating(
             super::materialized_projection::drop_materialized_view(cassie, statement, controls),
@@ -379,7 +379,7 @@ fn execute_schema_object_group(
             super::role_command::revoke_database_connect(cassie, session, statement, controls),
         )),
         LogicalCommand::CreateIndex(statement) => Some(CommandExecution::creation(
-            super::schema_creation::create_index(cassie, statement, controls),
+            super::schema_creation::create_index(cassie, session, statement, controls),
         )),
         LogicalCommand::DropIndex(statement) => Some(CommandExecution::invalidating(
             super::schema_command::drop_index(cassie, statement, controls),

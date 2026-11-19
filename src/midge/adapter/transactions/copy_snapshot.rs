@@ -167,6 +167,7 @@ impl StorageOverlay {
             );
         }
         let mut overlay = StorageOverlay {
+            private_outputs: self.private_outputs.clone(),
             changes,
             sequence_cursors: Arc::clone(&self.sequence_cursors),
             restarted_sequences: self.restarted_sequences.clone(),

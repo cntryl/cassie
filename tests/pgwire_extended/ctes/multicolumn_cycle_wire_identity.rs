@@ -192,7 +192,8 @@ fn should_apply_cycle_field_oids_only_to_their_source() {
     let batches = run_script("cte-cycle-field-source", steps);
 
     // Assert
-    for ((_, expected, first_row), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    assert_eq!(batches.len(), cases.len() * 2);
+    for ((_, expected, first_row), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0) {
         for (batch, count) in pair.iter().zip([1, 2]) {
             assert_eq!(wire::error_code(batch), None);
             let descriptions = batch

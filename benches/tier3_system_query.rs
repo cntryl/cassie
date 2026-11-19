@@ -38,8 +38,6 @@ const ANN_RECALL_FLOOR: f64 = 0.90;
 mod column_diagnostics;
 #[path = "support/fixture_dir.rs"]
 mod fixture_dir;
-#[path = "support/ordered_dashboard.rs"]
-mod ordered_dashboard;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -49,7 +47,6 @@ mod workloads;
 
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier3, BENCHMARK);
-    ordered_dashboard::run(&mut runner);
     let core_cases = CoreCases::select(&runner);
     let join_case = selected_case(&runner, "vectorized_join_query");
     let time_series_cases = TimeSeriesCases::select(&runner);

@@ -153,6 +153,38 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None,
         None
     ),
+    scenario!(
+        "perf.read_path.ordered_dashboard.indexed.10k",
+        "core_read",
+        "join",
+        "tier5_scaling_query",
+        "ordered_dashboard_indexed",
+        "10k",
+        10_000,
+        Tier5,
+        Batch,
+        Scaling,
+        "query",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
+        "perf.read_path.ordered_dashboard.scan.10k",
+        "core_read",
+        "join",
+        "tier5_scaling_query",
+        "ordered_dashboard_scan",
+        "10k",
+        10_000,
+        Tier5,
+        Batch,
+        Scaling,
+        "query",
+        Disabled,
+        None,
+        None
+    ),
     // Tier 5: dataset, worker, and client curves.
     scenario!(
         "perf.scale.query.relational.10k",

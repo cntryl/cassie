@@ -9,44 +9,60 @@ use cassie::types::Value;
 use crate::performance_benchmarks::FixtureClass;
 use crate::stress::{CassieStressRunner, FixtureDeclaration, OperationUnit, StressCase};
 
+const NOISE_ORDERS: usize = 10_000;
 const BUDGET: usize = 512 * 1024 * 1024;
 const QUERY: &str = "SELECT dashboard_orders.id,dashboard_orders.payload,     dashboard_accounts.name,dashboard_products.label,dashboard_products.price FROM dashboard_orders     JOIN dashboard_accounts ON dashboard_orders.account_id=dashboard_accounts.id     JOIN dashboard_products ON dashboard_orders.product_id=dashboard_products.id     WHERE dashboard_orders.tenant_id=7 AND dashboard_orders.status='open'     ORDER BY dashboard_orders.created_at DESC,dashboard_orders.id DESC LIMIT 10";
 const CREATE_INDEX: &str = "CREATE INDEX dashboard_order_feed ON dashboard_orders     (tenant_id,created_at DESC,id DESC) INCLUDE (payload,account_id,product_id) WHERE status='open'";
 
 pub(crate) fn run(runner: &mut CassieStressRunner) {
-    for (scale, noise) in [("1k", 1_000), ("10k", 10_000)] {
-        for (workload, indexed) in [
-            ("ordered_dashboard_indexed", true),
-            ("ordered_dashboard_scan", false),
-        ] {
-            let case = StressCase::new(workload, scale).runtime_contract(
-                FixtureDeclaration::new(
-                    FixtureClass::Representative,
-                    noise,
-                    format!("tier3_system_query/dashboard/{scale}"),
-                ),
-                OperationUnit::Query,
-            );
-            if runner.is_enabled(&case) {
-                measure(runner, case, noise, indexed);
-            }
+    for (workload, indexed) in [
+        ("ordered_dashboard_indexed", true),
+        ("ordered_dashboard_scan", false),
+    ] {
+        let case = StressCase::new(workload, "10k").runtime_contract(
+            FixtureDeclaration::new(
+                FixtureClass::Scaling,
+                NOISE_ORDERS,
+                "tier5_scaling_query/10k",
+            ),
+            OperationUnit::Query,
+        );
+        if runner.is_enabled(&case) {
+            measure(runner, case, indexed);
         }
     }
 }
 
-fn measure(runner: &mut CassieStressRunner, case: StressCase, noise: usize, indexed: bool) {
+fn measure(runner: &mut CassieStressRunner, case: StressCase, indexed: bool) {
     let setup = Instant::now();
-    std::env::set_var("CASSIE_STORAGE_MODE", "memory");
     let mut config = CassieRuntimeConfig::from_env().expect("dashboard benchmark config");
     config.limits.query_memory_budget_bytes = BUDGET;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-    let cassie =
-        Arc::new(Cassie::new_in_memory_with_config(config).expect("dashboard memory store"));
+    let store = std::env::var("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID")
+        .ok()
+        .filter(|id| !id.is_empty())
+        .map_or("in_memory_midge_fallback", |id| {
+            crate::performance_benchmarks::deployment_profile_for_id(&id)
+                .expect("deployment profile")
+                .storage_mode
+        });
+    let path =
+        std::env::temp_dir().join(format!("cassie-bench-dashboard-{}", uuid::Uuid::new_v4()));
+    let _fixture_dir = crate::fixture_dir::FixtureDir::new(path.clone());
+    let instance = match store {
+        "in_memory_midge_fallback" => Cassie::new_in_memory_with_config(config),
+        "midge_disk_apfs" | "midge_disk_native_linux" => {
+            Cassie::new_local_with_data_dir_and_config(path, config)
+        }
+        other => panic!("unsupported dashboard storage profile {other}"),
+    };
+    let cassie = Arc::new(instance.expect("dashboard store"));
     cassie.startup().expect("dashboard startup");
     let session = cassie.create_session("benchmark", None);
-    seed(&cassie, &session, noise, indexed);
+    seed(&cassie, &session, indexed);
     let setup_ns = setup.elapsed().as_nanos().to_string();
 
+    let before = cassie.metrics();
     let result = cassie
         .execute_sql(&session, QUERY, Vec::new())
         .expect("dashboard preflight");
@@ -63,6 +79,7 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, noise: usize, inde
         })
         .collect::<Vec<_>>();
     assert_eq!(result.rows(), expected);
+    let after = cassie.metrics();
     let plan = cassie
         .execute_sql(&session, &format!("EXPLAIN ANALYZE {QUERY}"), Vec::new())
         .expect("dashboard preflight plan");
@@ -72,6 +89,32 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, noise: usize, inde
         indexed,
         "{plan}"
     );
+    let scan = |metrics: &serde_json::Value| {
+        metrics["read_paths"]["collection_scan_rows"]
+            .as_u64()
+            .expect("scan metric")
+    };
+    if indexed {
+        assert_eq!(
+            scan(&after),
+            scan(&before),
+            "indexed query scanned a full table"
+        );
+        assert!(
+            (1..=24).contains(&counter(&plan, "order_index_entries")),
+            "{plan}"
+        );
+        assert!((1..=12).contains(&counter(&plan, "order_rows")), "{plan}");
+        assert!(
+            (1..=24).contains(&counter(&plan, "dimension_probes")),
+            "{plan}"
+        );
+    } else {
+        assert!(
+            scan(&after) - scan(&before) >= 10_012,
+            "expected high-work unindexed scan"
+        );
+    }
     let path = if indexed {
         "ordered_index_nested_loop"
     } else {
@@ -81,8 +124,8 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, noise: usize, inde
     let case = case
         .metadata("setup_time_ns", setup_ns)
         .metadata("query_memory_budget_bytes", BUDGET.to_string())
-        .metadata("unrelated_orders", noise.to_string())
-        .metadata("storage_mode", "memory")
+        .metadata("unrelated_orders", NOISE_ORDERS.to_string())
+        .metadata("storage_mode", store)
         .preflight_evidence(path, fallback)
         .runtime_evidence(Arc::clone(&cassie));
     runner.measure_batch(case, 1, || {
@@ -95,7 +138,20 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, noise: usize, inde
     cassie.shutdown();
 }
 
-fn seed(cassie: &Cassie, session: &CassieSession, noise: usize, indexed: bool) {
+fn counter(plan: &str, name: &str) -> usize {
+    let marker = format!("{name}=");
+    let (_, value) = plan
+        .split_once(&marker)
+        .unwrap_or_else(|| panic!("missing {marker} in {plan}"));
+    let end = value
+        .find(|character: char| !character.is_ascii_digit())
+        .unwrap_or(value.len());
+    value[..end]
+        .parse()
+        .expect("nonnegative dashboard work counter")
+}
+
+fn seed(cassie: &Cassie, session: &CassieSession, indexed: bool) {
     for statement in [
         "CREATE TABLE dashboard_orders (id INTEGER PRIMARY KEY, tenant_id INTEGER NOT NULL, status TEXT NOT NULL, created_at TIMESTAMP NOT NULL, payload TEXT NOT NULL, account_id INTEGER NOT NULL, product_id INTEGER NOT NULL)",
         "CREATE TABLE dashboard_accounts (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
@@ -142,9 +198,9 @@ fn seed(cassie: &Cassie, session: &CassieSession, noise: usize, indexed: bool) {
         session,
         &format!("INSERT INTO dashboard_orders VALUES {}", target.join(",")),
     );
-    for start in (0..noise).step_by(256) {
+    for start in (0..NOISE_ORDERS).step_by(256) {
         let mut sql = String::from("INSERT INTO dashboard_orders VALUES ");
-        for offset in start..(start + 256).min(noise) {
+        for offset in start..(start + 256).min(NOISE_ORDERS) {
             if offset != start {
                 sql.push(',');
             }

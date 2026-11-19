@@ -39,6 +39,7 @@ mod support_sql {
 }
 
 const PREPARED_PAGE_OIDS: [i32; 6] = [25, 25, 1114, 1114, 20, 20];
+const PREPARED_FLOAT_PAGE_OIDS: [i32; 5] = [701, 1114, 1114, 20, 20];
 const PREPARED_PAGE_START: &str = "1969-12-31T23:00:00Z";
 const PREPARED_PAGE_END: &str = "1970-01-01T01:00:00Z";
 const PREPARED_PAGE_TABLES: [&str; 4] = ["heap_ref", "heap_idx", "col_ref", "col_idx"];
@@ -638,4 +639,160 @@ fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and
     });
     drop(restarted);
     std::fs::remove_dir_all(path).expect("remove local time-series fixture");
+}
+
+#[test]
+fn should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads() {
+    // Arrange
+    let cassie = prepared_fixture(8 * 1024 * 1024);
+    let session = cassie.create_session("tester", None);
+    let tables = ["f_heap_ref", "f_heap_idx", "f_col_ref", "f_col_idx"];
+    for table in tables {
+        let storage = if table.starts_with("f_col_") {
+            " WITH (storage = column_store)"
+        } else {
+            ""
+        };
+        support_sql::run(
+            &cassie,
+            &session,
+            &format!(
+                "CREATE TABLE {table} (id INT PRIMARY KEY, device FLOAT, \
+                 event_at TIMESTAMP, amount INT){storage}"
+            ),
+            vec![],
+        )
+        .expect("create FLOAT signed-zero table");
+        support_sql::run(
+            &cassie,
+            &session,
+            &format!(
+                "INSERT INTO {table} VALUES \
+                 (1,1.5,'1969-12-31T23:00:00Z',10), \
+                 (2,1.5,'1970-01-01T00:00:00Z',20), \
+                 (3,0.0,'1970-01-01T00:00:00Z',30), \
+                 (4,-0.0,'1970-01-01T00:00:00Z',40)"
+            ),
+            vec![],
+        )
+        .expect("seed signed-zero partition spellings");
+        if table.ends_with("_idx") {
+            support_sql::run(
+                &cassie,
+                &session,
+                &format!(
+                    "CREATE INDEX {table}_ts ON {table} USING time_series(event_at) \
+                     WITH (bucket_width='1 hour',partition_by='device')"
+                ),
+                vec![],
+            )
+            .expect("create FLOAT time-series index");
+        }
+    }
+    let observed = cassie.clone();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let server = wire::spawn_server(cassie.clone()).await;
+        let mut client = PreparedPgwireClient::connect(&server).await;
+        let query = |table: &str| {
+            format!(
+                "SELECT id,amount FROM {table} WHERE device=$1 \
+                 AND event_at >= $2 AND event_at < $3 ORDER BY event_at,id \
+                 LIMIT $4 OFFSET $5"
+            )
+        };
+
+        // Act
+        for after_noise in [false, true] {
+            if after_noise {
+                for table in tables {
+                    support_sql::run(
+                        &observed,
+                        &session,
+                        &format!(
+                            "INSERT INTO {table} VALUES \
+                             (5,9.0,'1970-01-01T00:00:00Z',50), \
+                             (6,1.5,'1970-01-04T00:00:00Z',60)"
+                        ),
+                        vec![],
+                    )
+                    .expect("insert nonzero and out-of-range noise rows");
+                }
+            }
+            for table in tables {
+                for partition in ["1.5", "-0.0", "0.0"] {
+                    let before = observed.metrics();
+                    let frames = client
+                        .prepared_query(
+                            &format!("signed_zero_{table}"),
+                            &query(table),
+                            &PREPARED_FLOAT_PAGE_OIDS,
+                            &[partition, PREPARED_PAGE_START, PREPARED_PAGE_END, "9", "0"],
+                        )
+                        .await;
+                    let after = observed.metrics();
+
+                    // Assert
+                    let expected = if partition == "1.5" {
+                        vec![
+                            vec![Some("1".to_owned()), Some("10".to_owned())],
+                            vec![Some("2".to_owned()), Some("20".to_owned())],
+                        ]
+                    } else {
+                        vec![
+                            vec![Some("3".to_owned()), Some("30".to_owned())],
+                            vec![Some("4".to_owned()), Some("40".to_owned())],
+                        ]
+                    };
+                    assert_eq!(wire::error_code(&frames), None, "{table} {partition}");
+                    let description = frames
+                        .iter()
+                        .find(|(tag, _)| *tag == b'T')
+                        .map(|(_, payload)| wire::parse_row_description(payload))
+                        .expect("prepared FLOAT result description");
+                    assert_eq!(
+                        description
+                            .iter()
+                            .map(|column| column.type_oid)
+                            .collect::<Vec<_>>(),
+                        vec![23, 23]
+                    );
+                    assert_eq!(wire::data_rows(&frames), expected, "{table} {partition}");
+                    if table.ends_with("_idx") {
+                        assert_eq!(
+                            time_series_counter(&after, "bucket_native_hits")
+                                - time_series_counter(&before, "bucket_native_hits"),
+                            1,
+                            "indexed FLOAT query {table} {partition}"
+                        );
+                        assert_eq!(
+                            time_series_counter(&after, "fallback_scans")
+                                - time_series_counter(&before, "fallback_scans"),
+                            0
+                        );
+                        let expected_candidates = match (partition, after_noise) {
+                            ("1.5", _) => 2,
+                            (_, false) => 4,
+                            (_, true) => 6,
+                        };
+                        assert_eq!(
+                            time_series_counter(&after, "index_entries_scanned")
+                                - time_series_counter(&before, "index_entries_scanned"),
+                            expected_candidates,
+                            "preserve the signed-zero broad-candidate exception for {table}"
+                        );
+                        assert_eq!(
+                            time_series_counter(&after, "row_point_fetches")
+                                - time_series_counter(&before, "row_point_fetches"),
+                            expected_candidates
+                        );
+                    }
+                }
+            }
+        }
+        server.stop().await;
+    });
 }

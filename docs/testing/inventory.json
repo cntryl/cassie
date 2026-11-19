@@ -182,9 +182,9 @@
     ],
     "files": 1788,
     "rust_files": 1751,
-    "rust_test_declarations": 10647,
+    "rust_test_declarations": 10648,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10672,
+    "registered_rust_instances": 10673,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -33058,6 +33058,37 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::ddl_extensions::index_contracts::materialized_view_indexes::should_read_the_private_refresh_in_a_repeatable_read_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl/materialized_views",
+        "directory": "tests/compatibility/lifecycle/ddl/materialized_views",
+        "file": "tests/compatibility/lifecycle/ddl/materialized_views/materialized_view_indexes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/indexes/materialized_view_indexes.rs::should_filter_materialized_numeric_keys_with_sql_equality",
+      "name": "should_filter_materialized_numeric_keys_with_sql_equality",
+      "current_file": "tests/compatibility/lifecycle/indexes/materialized_view_indexes.rs",
+      "line": 362,
+      "end_line": 398,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::materialized_view_indexes::should_filter_materialized_numeric_keys_with_sql_equality"
         }
       ],
       "attributes": [
@@ -334520,9 +334551,9 @@
       "current_file": "tests/compatibility/lifecycle/indexes/materialized_view_indexes.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 359,
-      "sha256": "5b6dc4d51c4f6d2f2eb9b64de5717cb94638bdd8ad85292ed3edc350bec962a7",
-      "test_declarations": 6,
+      "lines": 398,
+      "sha256": "235b04fe04a6041848303f1520b1dd98e0f29ff2cf2d03127bd8007f75a31baa",
+      "test_declarations": 7,
       "registered_suites": [
         "compatibility"
       ],

@@ -490,3 +490,43 @@ fn should_charge_private_materialized_rows_to_bound_command_retention() {
         "private row bytes in bound command: {retained}"
     );
 }
+
+#[test]
+fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    let payload = "x".repeat(160 * 1024);
+    for sql in [
+        "CREATE TABLE unrelated_mv_src (k INT, label TEXT)".to_owned(),
+        format!("INSERT INTO unrelated_mv_src VALUES (1, '{payload}')"),
+        "CREATE TABLE unrelated_small (n INT)".into(),
+        "INSERT INTO unrelated_small VALUES (7)".into(),
+        "CREATE MATERIALIZED VIEW private_first AS SELECT k,label FROM unrelated_mv_src".into(),
+        "CREATE MATERIALIZED VIEW private_second AS SELECT k,label FROM unrelated_mv_src".into(),
+        "CREATE UNIQUE INDEX private_first_idx ON private_first(k)".into(),
+        "CREATE UNIQUE INDEX private_second_idx ON private_second(k)".into(),
+        "BEGIN ISOLATION LEVEL REPEATABLE READ".into(),
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY private_first".into(),
+        "REFRESH MATERIALIZED VIEW CONCURRENTLY private_second".into(),
+    ] {
+        cassie.execute_sql(&session, &sql, vec![]).unwrap();
+    }
+    let small = controls(128 * 1024);
+
+    // Act
+    let result = cassie.execute_sql_with_controls(
+        &session,
+        "SELECT n FROM unrelated_small",
+        vec![],
+        crate::app::ExecutionMode::SimpleQuery,
+        &small,
+    );
+
+    // Assert
+    assert_eq!(
+        result.unwrap().rows(),
+        vec![vec![crate::types::Value::Int64(7)]]
+    );
+}

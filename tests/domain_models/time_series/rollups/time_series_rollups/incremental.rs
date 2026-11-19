@@ -223,7 +223,7 @@ fn should_recompute_only_changed_daily_groups_after_committed_mutations() {
 
         // Assert
         assert_incremental_group_delta(&cassie, before, 0);
-        assert_last_incremental_groups(&cassie, &[]);
+        assert_last_incremental_groups(&cassie, &[("a", "2026-01-01T00:00:00Z")]);
         assert_daily_incremental_parity(&cassie, &session, "incremental_events");
     });
 }

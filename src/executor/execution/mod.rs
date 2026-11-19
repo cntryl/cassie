@@ -100,24 +100,25 @@ mod result;
 
 pub(crate) use entrypoints::{
     mark_source_projections_stale_external, refresh_rollups_for_source_external,
-    rollup_rewrite_name_for_plan, run_with_session_controls,
-    run_with_session_parameter_oids_for_operation, sync_derived_maintenance_debt_external,
+    refresh_rollups_for_source_with_report_external, rollup_rewrite_name_for_plan,
+    run_with_session_controls, run_with_session_parameter_oids_for_operation,
+    sync_derived_maintenance_debt_external,
 };
 pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 pub(crate) use scored::install_ann_rerank_barriers;
 
-use cte::{execute_cte, CteContext};
+use cte::{CteContext, execute_cte};
 #[cfg(test)]
 use dispatch::execute_physical_plan;
-use dispatch::{
-    build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_query_memory_budget,
-    execute_physical_plan_with_parameter_oids, execute_plan, execute_plan_with_execution_breakdown,
-    execute_plan_with_outer_row, execute_plan_with_parameter_oids,
-    plan_execution_env_with_parameter_oids, reserve_projection_output_before_building,
-    resolve_exists_expr, resolve_statement_exists, ExistsResolutionContext, PlanExecutionEnv,
-};
 #[cfg(test)]
-use dispatch::{preferred_access_path_route, AccessPathRoute};
+use dispatch::{AccessPathRoute, preferred_access_path_route};
+use dispatch::{
+    ExistsResolutionContext, PlanExecutionEnv, build_logical_plan, build_logical_plan_in_session,
+    check_timeout, ensure_query_memory_budget, execute_physical_plan_with_parameter_oids,
+    execute_plan, execute_plan_with_execution_breakdown, execute_plan_with_outer_row,
+    execute_plan_with_parameter_oids, plan_execution_env_with_parameter_oids,
+    reserve_projection_output_before_building, resolve_exists_expr, resolve_statement_exists,
+};
 use result::{build_select_result, compare_query_values, deduce_text_fields, row_signature};
 
 mod dml;

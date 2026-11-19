@@ -1,6 +1,24 @@
-use super::RuntimeState;
+use super::{RollupGroupSnapshot, RuntimeState};
 
 impl RuntimeState {
+    pub(crate) fn record_incremental_rollup_groups(&self, groups: Vec<RollupGroupSnapshot>) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        let recomputed = u64::try_from(groups.len()).unwrap_or(u64::MAX);
+        metrics.rollups.incremental_groups_recomputed = metrics
+            .rollups
+            .incremental_groups_recomputed
+            .saturating_add(recomputed);
+        metrics.rollups.last_incremental_groups = groups;
+    }
+
+    pub(crate) fn record_incremental_rollup_fallback(&self, reason: impl Into<String>) {
+        self.metrics
+            .lock()
+            .expect("runtime metrics")
+            .rollups
+            .last_incremental_fallback_reason = reason.into();
+    }
+
     /// # Panics
     ///
     /// Panics if an internal invariant required by this operation is violated.

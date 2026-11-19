@@ -214,12 +214,13 @@ active branch protection.
 
 The durable expression and recovery contract is in [Rollup Lifecycle](rollup-lifecycle.md).
 
-Rollup refresh and retention enforcement are explicit, local, single-node maintenance commands.
-Run `ENFORCE RETENTION POLICY <policy> AT '<timestamp>'` with a recorded cutoff, inspect the
-policy catalog row and runtime metrics, then run `REFRESH ROLLUP <rollup>` when an explicit
-refresh is required. Repeating either command over unchanged state is supported: subsequent
-retention windows delete zero additional eligible rows, and repeated rollup refreshes preserve
-the same aggregates and source generation.
+Rollup refresh and retention enforcement are local, single-node maintenance operations.
+Rollups can be refreshed explicitly with `REFRESH ROLLUP <rollup>`. Retention supports explicit
+`AT` enforcement and an externally ticked daily schedule; Cassie does not run a background
+scheduler. Configure and operate the external tick loop using the
+[retention scheduler guide](time-series-retention-scheduler.md). Repeating explicit retention
+enforcement over unchanged state is supported: it deletes zero additional eligible rows.
+Repeated rollup refreshes preserve the same aggregates and source generation.
 
 The stable metric keys and their cumulative semantics are:
 
@@ -231,6 +232,13 @@ The stable metric keys and their cumulative semantics are:
   `rollups.stale_fallbacks` count completed refreshes, rollup-backed reads, authoritative-source
   fallbacks, and the stale subset of those fallbacks. The gauges `rollups.last_rollup` and
   `rollups.last_fallback_reason` identify the latest rollup activity.
+- `rollups.incremental_groups_recomputed`, `rollups.last_incremental_groups`, and
+  `rollups.last_incremental_fallback_reason` expose cumulative affected-group recomputation,
+  the exact last group set, and why an update used a full refresh instead.
+- `pg_catalog.pg_retention_policies` reports `schedule_state`, typed UTC `next_due_at` and
+  `pending_cutoff`, pending batch counters, `last_successful_cutoff`, and sticky `last_failure`.
+  A pending cutoff records the original `DUE AT` instant; its delete boundary is that instant
+  minus the policy duration. The legacy `last_error` continues to clear after a successful retry.
 - `pg_catalog.pg_maintenance_debt` is the durable recovery surface. `artifact`,
   `target_generation`, `retry_count`, `last_error`, and `fallback_reason` describe work that must
   be replayed before the derived artifact can serve reads.
@@ -248,8 +256,8 @@ The retained capacity owners are `perf.time_series.retention.100k` and
 separate fixture setup from measured work and retain affected rows, storage activity, peak query
 memory, configured workers, variance, and trust status. These 100k results are representative
 evidence, not an SLO or an assertion that larger operator windows fit the same maintenance window.
-Calendar-aware buckets, background scheduling, distributed coordination, and analytical
-projection lifecycle remain outside this contract.
+Calendar-aware buckets, an internal background scheduler, distributed coordination, and
+analytical projection lifecycle remain outside this contract.
 
 ## Pre-release Support Envelope
 

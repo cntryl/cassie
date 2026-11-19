@@ -1,8 +1,8 @@
 use super::{
-    bind_select, collect_item, normalize_relation_name, resolve_relation_name,
-    resolve_relation_path, validate_expression, validate_function_calls, virtual_views,
     BindingContext, CassieError, Catalog, CatalogObjectKind, CollectionSchema, DataType, Expr,
-    HashMap, HashSet, InsertSource, SelectItem,
+    HashMap, HashSet, InsertSource, SelectItem, bind_select, collect_item, normalize_relation_name,
+    resolve_relation_name, resolve_relation_path, validate_expression, validate_function_calls,
+    virtual_views,
 };
 use crate::sql::ast::IdentifierPath;
 
@@ -520,7 +520,16 @@ pub(super) fn bind_alter_retention_policy(
             name,
         });
     }
-    validate_retention_duration(&statement.retention_duration)?;
+    match &statement.action {
+        crate::sql::ast::AlterRetentionPolicyAction::SetDuration(duration) => {
+            validate_retention_duration(duration)?;
+        }
+        crate::sql::ast::AlterRetentionPolicyAction::ScheduleDaily { start_at } => {
+            validate_retention_schedule_start(start_at)?;
+        }
+        crate::sql::ast::AlterRetentionPolicyAction::Suspend
+        | crate::sql::ast::AlterRetentionPolicyAction::Resume => {}
+    }
     statement.name = name;
     Ok(statement)
 }
@@ -643,7 +652,19 @@ fn validate_retention_duration(raw: &str) -> Result<(), CassieError> {
 fn validate_retention_timestamp(raw: &str) -> Result<(), CassieError> {
     crate::types::temporal::parse_timestamp_utc(raw)
         .map(|_| ())
-        .map_err(|_| CassieError::Planner("retention enforcement AT must be RFC3339".into()))
+        .map_err(|_| CassieError::Planner("retention enforcement timestamp must be RFC3339".into()))
+}
+
+fn validate_retention_schedule_start(raw: &str) -> Result<(), CassieError> {
+    let start = crate::types::temporal::parse_timestamp_utc(raw).map_err(|_| {
+        CassieError::Planner("retention schedule start must be RFC3339 UTC midnight".into())
+    })?;
+    if start.hour() != 0 || start.minute() != 0 || start.second() != 0 || start.nanosecond() != 0 {
+        return Err(CassieError::Planner(
+            "retention schedule start must be UTC midnight".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn validate_returning_items(

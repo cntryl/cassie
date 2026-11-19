@@ -1,7 +1,7 @@
 use super::{
-    check_document_write_failure_point, decode_row, encode_row, key_encoding, CassieError,
-    DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind, IndexMeta, Midge,
-    NormalizedVectorRecord, RowSchema, Schema, Uuid,
+    CassieError, DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind,
+    IndexMeta, Midge, NormalizedVectorRecord, RowSchema, Schema, Uuid,
+    check_document_write_failure_point, decode_row, encode_row, key_encoding,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -14,6 +14,8 @@ mod options;
 mod ordered_scan;
 #[path = "documents/read.rs"]
 mod read;
+#[path = "documents/replay.rs"]
+mod replay;
 #[path = "documents/report.rs"]
 mod report;
 #[path = "documents/unique_reservations.rs"]
@@ -22,7 +24,7 @@ pub(crate) use super::projections::ReplayBatchCommit;
 pub(super) use commit::document_write_retry_delay;
 pub(crate) use options::DocumentWriteBatchOptions;
 pub(crate) use ordered_scan::OrderedRowScanRequest;
-pub(crate) use report::DocumentWriteBatchReport;
+pub(crate) use report::{DocumentWriteBatchReport, RollupSourceChangeReport};
 
 #[derive(Debug, Clone)]
 pub(crate) enum DocumentWriteOp {
@@ -236,7 +238,10 @@ impl Midge {
         operations: Vec<DocumentWriteOp>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<DocumentWriteBatchReport, CassieError> {
-        if operations.is_empty() && options.replay.is_none() {
+        if operations.is_empty()
+            && options.replay.is_none()
+            && options.additional_data_writes.is_empty()
+        {
             return Ok(DocumentWriteBatchReport::default());
         }
         let collection = self.canonical_collection_name(collection);
@@ -244,18 +249,6 @@ impl Midge {
         writes.insert(collection.clone(), operations);
         let mut reports = self.apply_document_write_batches_with_options(&writes, options)?;
         Ok(reports.remove(&collection).unwrap_or_default())
-    }
-
-    pub(crate) fn apply_projection_replay_batch(
-        &self,
-        collection: &str,
-        operations: Vec<DocumentWriteOp>,
-        replay: ReplayBatchCommit,
-        commit: cntryl_midge::WriteOptions,
-    ) -> Result<DocumentWriteBatchReport, CassieError> {
-        let mut options = DocumentWriteBatchOptions::sync(commit);
-        options.replay = Some(replay);
-        self.apply_document_write_batch_with_options(collection, operations, &options)
     }
 
     pub(crate) fn apply_document_write_batches_with_options(
@@ -281,7 +274,7 @@ impl Midge {
         options: &DocumentWriteBatchOptions,
         overlay: Option<&super::StorageOverlay>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        if writes.is_empty() {
+        if writes.is_empty() && options.additional_data_writes.is_empty() {
             if let Some(overlay) = overlay {
                 let database = self.default_database.clone();
                 self.commit_storage_overlay(&database, overlay)?;
@@ -319,10 +312,15 @@ impl Midge {
                 write_guards.push(write_gate.lock());
             }
 
-            let database = crate::catalog::relation_database_name(
-                collections.first().map_or("", |(collection, _)| collection),
-            )
-            .unwrap_or_else(|| self.default_database.clone());
+            let database = options
+                .data_database
+                .clone()
+                .or_else(|| {
+                    crate::catalog::relation_database_name(
+                        collections.first().map_or("", |(collection, _)| collection),
+                    )
+                })
+                .unwrap_or_else(|| self.default_database.clone());
             if collections.iter().any(|(collection, _)| {
                 crate::catalog::relation_database_name(collection)
                     .is_some_and(|candidate| !candidate.eq_ignore_ascii_case(&database))
@@ -338,7 +336,10 @@ impl Midge {
                 None
             };
             for (collection, operations) in &collections {
-                let context = self.document_write_batch_context(collection)?;
+                let context = self.document_write_batch_context(
+                    collection,
+                    !options.rollup_change_fields.is_empty(),
+                )?;
                 let prepared =
                     Self::prepare_document_writes(collection, operations.clone(), &context)?;
                 prepared_writes.push((collection.clone(), context, prepared));
@@ -361,7 +362,10 @@ impl Midge {
                 self.stage_projection_replay_in_tx(&mut tx, replay)?;
             }
 
-            if changed_collections.is_empty() && options.replay.is_none() {
+            if changed_collections.is_empty()
+                && options.replay.is_none()
+                && options.additional_data_writes.is_empty()
+            {
                 tx.rollback().map_err(CassieError::from)?;
                 if let Some(overlay) = overlay {
                     self.commit_storage_overlay(&database, overlay)?;
@@ -484,6 +488,7 @@ impl Midge {
                 context,
                 prepared,
                 normalized_vector_collection,
+                &options.rollup_change_fields,
                 &mut report,
             )?;
         }
@@ -501,6 +506,7 @@ impl Midge {
     fn document_write_batch_context(
         &self,
         collection: &str,
+        capture_rollup_changes: bool,
     ) -> Result<DocumentWriteBatchContext, CassieError> {
         let schema = self
             .collection_schema(collection)
@@ -551,7 +557,8 @@ impl Midge {
         let needs_existing_payload = !constraints.is_empty()
             || !unique_scalar_indexes.is_empty()
             || !scalar_indexes.is_empty()
-            || !time_series_indexes.is_empty();
+            || !time_series_indexes.is_empty()
+            || capture_rollup_changes;
         Ok(DocumentWriteBatchContext {
             schema,
             row_schema,
@@ -653,6 +660,7 @@ impl Midge {
         context: &DocumentWriteBatchContext,
         prepared: PreparedWrite,
         normalized_vector_collection: Option<&str>,
+        rollup_change_fields: &[String],
         report: &mut DocumentWriteBatchReport,
     ) -> Result<(), CassieError> {
         let existing = Self::existing_document_state_for_prepared_write(
@@ -661,6 +669,14 @@ impl Midge {
             context,
             &prepared.id,
         )?;
+        if !rollup_change_fields.is_empty() {
+            report.rollup_changes.record(
+                &prepared.id,
+                existing.payload.as_ref(),
+                prepared.payload.as_ref(),
+                rollup_change_fields,
+            );
+        }
         if prepared.row_blob.is_some() {
             return Self::apply_prepared_put(
                 tx,

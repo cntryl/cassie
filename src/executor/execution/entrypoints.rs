@@ -1,11 +1,11 @@
 use super::types::ExecutionBreakdownDurations;
 use super::{
+    Arc, Cassie, CassieSession, CteContext, ExecutionBreakdownOutput, FunctionMeta, HashMap,
+    Instant, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QueryResult, Value,
     build_select_result, dml_command, execute_physical_plan_with_parameter_oids,
     execute_plan_with_execution_breakdown, materialized_projection,
     materialized_projection_maintenance, plan_execution_env_with_parameter_oids,
-    plan_needs_user_functions, rollups, Arc, Cassie, CassieSession, CteContext,
-    ExecutionBreakdownOutput, FunctionMeta, HashMap, Instant, LogicalPlan, PhysicalPlan,
-    QueryError, QueryExecutionControls, QueryResult, Value,
+    plan_needs_user_functions, rollups,
 };
 
 /// # Errors
@@ -212,6 +212,20 @@ pub(crate) fn refresh_rollups_for_source_external(
     source: &str,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    refresh_rollups_for_source_with_report_external(
+        cassie,
+        source,
+        &crate::midge::adapter::documents::RollupSourceChangeReport::default(),
+        controls,
+    )
+}
+
+pub(crate) fn refresh_rollups_for_source_with_report_external(
+    cassie: &Cassie,
+    source: &str,
+    report: &crate::midge::adapter::documents::RollupSourceChangeReport,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
     let functions = cassie.catalog.list_functions();
     let user_functions = if cassie.database_catalog_enforced() {
         let database = crate::catalog::relation_database_name(source)
@@ -225,7 +239,7 @@ pub(crate) fn refresh_rollups_for_source_external(
             false,
         )
     };
-    rollups::refresh_rollups_for_source(cassie, source, &user_functions, controls)
+    rollups::refresh_rollups_for_source(cassie, source, report, &user_functions, controls)
 }
 
 pub(crate) fn mark_source_projections_stale_external(

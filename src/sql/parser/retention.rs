@@ -1,8 +1,8 @@
 use super::schema::{parse_if_exists, parse_if_not_exists};
 use super::{
-    find_top_level_keyword, AlterRetentionPolicyStatement, CreateRetentionPolicyStatement,
+    AlterRetentionPolicyAction, AlterRetentionPolicyStatement, CreateRetentionPolicyStatement,
     DropRetentionPolicyStatement, EnforceRetentionPolicyStatement, ParsedStatement, QueryStatement,
-    SqlError,
+    RetentionEnforcementMode, SqlError, find_top_level_keyword,
 };
 
 pub(super) fn parse_create_retention_policy_statement(
@@ -62,22 +62,51 @@ pub(super) fn parse_alter_retention_policy_statement(
 ) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed["alter retention policy".len()..].trim();
-    let (retain_pos, retain_end) =
-        super::clauses::find_top_level_keyword_span(rest, 0, "retain for").ok_or_else(|| {
-            SqlError::new("ALTER RETENTION POLICY requires RETAIN FOR".to_string())
-        })?;
-    let name = rest[..retain_pos].trim();
+    let (name_end, action) = if let Some((retain_pos, retain_end)) =
+        super::clauses::find_top_level_keyword_span(rest, 0, "retain for")
+    {
+        (
+            retain_pos,
+            AlterRetentionPolicyAction::SetDuration(unquote_required(rest[retain_end..].trim())?),
+        )
+    } else if let Some(schedule_pos) = find_top_level_keyword(rest, 0, "schedule daily start at") {
+        let start_at =
+            unquote_required(rest[schedule_pos + "schedule daily start at".len()..].trim())?;
+        (
+            schedule_pos,
+            AlterRetentionPolicyAction::ScheduleDaily { start_at },
+        )
+    } else if let Some(suspend_pos) = find_top_level_keyword(rest, 0, "suspend") {
+        if !rest[suspend_pos + "suspend".len()..].trim().is_empty() {
+            return Err(SqlError::new(
+                "ALTER RETENTION POLICY SUSPEND does not accept a value".to_string(),
+            ));
+        }
+        (suspend_pos, AlterRetentionPolicyAction::Suspend)
+    } else if let Some(resume_pos) = find_top_level_keyword(rest, 0, "resume") {
+        if !rest[resume_pos + "resume".len()..].trim().is_empty() {
+            return Err(SqlError::new(
+                "ALTER RETENTION POLICY RESUME does not accept a value".to_string(),
+            ));
+        }
+        (resume_pos, AlterRetentionPolicyAction::Resume)
+    } else {
+        return Err(SqlError::new(
+            "ALTER RETENTION POLICY requires RETAIN FOR, SCHEDULE DAILY START AT, SUSPEND, or RESUME"
+                .to_string(),
+        ));
+    };
+    let name = rest[..name_end].trim();
     if name.is_empty() {
         return Err(SqlError::new(
             "ALTER RETENTION POLICY requires a name".to_string(),
         ));
     }
-    let retention_duration = unquote_required(rest[retain_end..].trim())?;
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::AlterRetentionPolicy(AlterRetentionPolicyStatement {
             name: name.to_string(),
-            retention_duration,
+            action,
         }),
     })
 }
@@ -108,21 +137,29 @@ pub(super) fn parse_enforce_retention_policy_statement(
 ) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed["enforce retention policy".len()..].trim();
-    let at_pos = find_top_level_keyword(rest, 0, "at").ok_or_else(|| {
-        SqlError::new("ENFORCE RETENTION POLICY requires AT timestamp".to_string())
-    })?;
+    let (at_pos, mode, keyword) = if let Some(position) = find_top_level_keyword(rest, 0, "due at")
+    {
+        (position, RetentionEnforcementMode::DueAt, "due at")
+    } else if let Some(position) = find_top_level_keyword(rest, 0, "at") {
+        (position, RetentionEnforcementMode::At, "at")
+    } else {
+        return Err(SqlError::new(
+            "ENFORCE RETENTION POLICY requires AT or DUE AT timestamp".to_string(),
+        ));
+    };
     let name = rest[..at_pos].trim();
     if name.is_empty() {
         return Err(SqlError::new(
             "ENFORCE RETENTION POLICY requires a name".to_string(),
         ));
     }
-    let at = unquote_required(rest[at_pos + 2..].trim())?;
+    let at = unquote_required(rest[at_pos + keyword.len()..].trim())?;
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::EnforceRetentionPolicy(EnforceRetentionPolicyStatement {
             name: name.to_string(),
             at,
+            mode,
         }),
     })
 }

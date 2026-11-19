@@ -295,8 +295,17 @@ pub struct RollupSnapshot {
     pub rewrite_hits: u64,
     pub fallback_scans: u64,
     pub stale_fallbacks: u64,
+    pub incremental_groups_recomputed: u64,
+    pub last_incremental_groups: Vec<RollupGroupSnapshot>,
+    pub last_incremental_fallback_reason: String,
     pub last_rollup: String,
     pub last_fallback_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct RollupGroupSnapshot {
+    pub device: String,
+    pub bucket: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

@@ -588,9 +588,23 @@ metadata_heap!(crate::catalog::retention::RetentionPolicyMeta {
     last_deleted_rows,
     last_skipped_rows,
     last_error,
+    schedule_state,
+    next_due_at_us,
+    pending_cutoff_us,
+    pending_last_row_id,
+    pending_scanned_rows,
+    pending_deleted_rows,
+    pending_skipped_rows,
+    last_successful_cutoff_us,
+    last_failure,
 });
 
 unit_enum_heap!(crate::catalog::retention::RetentionPolicyState { Ready, Error });
+unit_enum_heap!(crate::catalog::retention::RetentionScheduleState {
+    Unscheduled,
+    Active,
+    Suspended
+});
 
 metadata_heap!(crate::catalog::roles::RoleMeta {
     name,
@@ -621,6 +635,7 @@ metadata_heap!(crate::catalog::rollups::RollupMeta {
     aggregates,
     filter_expr,
     version,
+    output_key_format,
     state,
     refresh_cursor,
 });

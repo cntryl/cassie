@@ -22,6 +22,8 @@ pub struct RollupMeta {
     pub aggregates: Vec<RollupAggregateMeta>,
     pub filter_expr: Option<String>,
     pub version: u64,
+    #[serde(default)]
+    pub output_key_format: u32,
     pub state: RollupState,
     pub refresh_cursor: RollupRefreshCursor,
 }
@@ -65,6 +67,7 @@ pub struct RollupRefreshCursor {
 impl RollupMeta {
     /// Current durable rollup definition format. Version 1 stores parseable SQL expressions.
     pub const CURRENT_VERSION: u64 = 1;
+    pub const CURRENT_OUTPUT_KEY_FORMAT: u32 = 1;
 
     #[must_use]
     pub fn new(definition: RollupDefinition) -> Self {
@@ -81,6 +84,7 @@ impl RollupMeta {
             aggregates: definition.aggregates,
             filter_expr: definition.filter_expr,
             version: Self::CURRENT_VERSION,
+            output_key_format: Self::CURRENT_OUTPUT_KEY_FORMAT,
             state: RollupState::Building,
             refresh_cursor: RollupRefreshCursor::default(),
         }

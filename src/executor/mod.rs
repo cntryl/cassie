@@ -10,10 +10,10 @@ pub(crate) use execution::install_checkpoint_ddl_stage_hook;
 pub(crate) use execution::native_result_text_bound;
 pub(crate) use execution::plan_needs_statement_data;
 pub(crate) use execution::refresh_materialized_view_concurrently_external;
+pub use execution::{OwnedQueryRows, QueryResultBuilder};
 pub(crate) use execution::{
     check_bound_plan_constants, check_plan_constants, reached_ctes, reached_plan_ctes,
 };
-pub use execution::{OwnedQueryRows, QueryResultBuilder};
 
 pub(crate) fn delete_document_with_referential_actions(
     cassie: &crate::app::Cassie,
@@ -199,7 +199,7 @@ pub fn set_vector_ann_rerank_barriers(
 pub(crate) use execution::rollup_rewrite_name_for_plan;
 pub(crate) use execution::{
     mark_source_projections_stale_external, refresh_rollups_for_source_external,
-    sync_derived_maintenance_debt_external,
+    refresh_rollups_for_source_with_report_external, sync_derived_maintenance_debt_external,
 };
 
 thread_local! {
@@ -214,8 +214,8 @@ pub fn set_materialized_projection_maintenance_failure_point(enabled: bool) {
     MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT.set(enabled);
 }
 
-pub(crate) fn check_materialized_projection_maintenance_failure_point(
-) -> Result<(), crate::app::CassieError> {
+pub(crate) fn check_materialized_projection_maintenance_failure_point()
+-> Result<(), crate::app::CassieError> {
     if MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(crate::app::CassieError::Execution(
             "injected test failure during materialized projection maintenance".to_string(),
@@ -239,6 +239,10 @@ pub(crate) fn check_projection_activation_failure_point() -> Result<(), crate::a
 }
 pub(crate) use execution::projection_verification_column_definitions;
 pub(crate) use execution::show_result_columns;
+pub use execution::{
+    ColumnMeta, EnumColumn, ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError,
+    QueryResult, run, run_with_controls, run_with_execution_breakdown,
+};
 pub(crate) use execution::{
     compare_projection_column_definitions, diff_projection_column_definitions,
     repair_projection_column_definitions,
@@ -249,10 +253,6 @@ pub(crate) use execution::{
     run_with_session_controls, run_with_session_parameter_oids_for_operation,
 };
 pub(crate) use execution::{repeatable_conflict_failure, resolve_transaction_conflict_intents};
-pub use execution::{
-    run, run_with_controls, run_with_execution_breakdown, ColumnMeta, EnumColumn,
-    ExecutionBreakdownMicros, ExecutionBreakdownOutput, QueryError, QueryResult,
-};
 pub(crate) use execution::{vector_prefilter_fallback_reason, vector_prefilter_supported};
 
 #[cfg(test)]

@@ -40,30 +40,30 @@ pub mod user_type_resolution;
 pub mod virtual_views;
 
 pub use cardinality::{
-    index_cardinality_key, payload_contains_index_membership, payload_contains_vector_membership,
-    vector_index_cardinality_key, CollectionCardinalityStats, FieldCardinalityStats,
-    FieldHeavyHitter, FieldHistogramBucket, IndexCardinalityStats,
+    CollectionCardinalityStats, FieldCardinalityStats, FieldHeavyHitter, FieldHistogramBucket,
+    IndexCardinalityStats, index_cardinality_key, payload_contains_index_membership,
+    payload_contains_vector_membership, vector_index_cardinality_key,
 };
 pub use collections::{
-    materialized_output_collection, CollectionMeta, CollectionStorageMode,
-    MaterializedProjectionMeta, MaterializedProjectionSpec, MaterializedProjectionState,
-    NamespaceMeta, ProjectionComparisonReportMeta, ProjectionFreshness,
-    ProjectionHashAlgorithmMeta, ProjectionHashCoverageMeta, ProjectionHashMeta,
-    ProjectionIntegrityReportMeta, ProjectionKind, ProjectionMeta, ProjectionRebuildState,
-    ProjectionRebuildVerificationMeta, ProjectionSwapMeta, ProjectionVerificationState,
-    ProjectionVersionMeta, ProjectionVersionState,
+    CollectionMeta, CollectionStorageMode, MaterializedProjectionMeta, MaterializedProjectionSpec,
+    MaterializedProjectionState, NamespaceMeta, ProjectionComparisonReportMeta,
+    ProjectionFreshness, ProjectionHashAlgorithmMeta, ProjectionHashCoverageMeta,
+    ProjectionHashMeta, ProjectionIntegrityReportMeta, ProjectionKind, ProjectionMeta,
+    ProjectionRebuildState, ProjectionRebuildVerificationMeta, ProjectionSwapMeta,
+    ProjectionVerificationState, ProjectionVersionMeta, ProjectionVersionState,
+    materialized_output_collection,
 };
 pub use column_defaults::{
     coerce_default_literal, evaluate_volatile_default, parse_volatile_default_expression,
     volatile_default_accepts,
 };
 pub use column_storage::{ColumnCompression, ColumnStorage, ColumnStorageSetting};
-pub use composite_types::{CompositeTypeMeta, COMPOSITE_TYPE_FORMAT_VERSION};
+pub use composite_types::{COMPOSITE_TYPE_FORMAT_VERSION, CompositeTypeMeta};
 pub use composite_unique::{
-    composite_primary_key_constraints, composite_primary_key_indexes, composite_unique_constraints,
-    composite_unique_indexes, conflicting_unique_membership, enforces_single_column_uniqueness,
-    is_composite_primary_key_member, is_composite_unique_member, unique_constraint_indexes,
-    CompositeUnique,
+    CompositeUnique, composite_primary_key_constraints, composite_primary_key_indexes,
+    composite_unique_constraints, composite_unique_indexes, conflicting_unique_membership,
+    enforces_single_column_uniqueness, is_composite_primary_key_member, is_composite_unique_member,
+    unique_constraint_indexes,
 };
 pub use consistency::{
     ProjectionConsistencyReportMeta, ProjectionManifestHashMetadata,
@@ -71,12 +71,12 @@ pub use consistency::{
     ProjectionManifestRowHashSummary, ProjectionVerificationManifest,
 };
 pub use constraints::{
-    generated_constraint_name, merge_constraint_set, ConstraintCheck, ConstraintOperator,
-    DefaultSequenceOwnership, FieldConstraint, IdentityGeneration, NotNullOwnership,
-    UniqueNullPolicy,
+    ConstraintCheck, ConstraintOperator, DefaultSequenceOwnership, FieldConstraint,
+    IdentityGeneration, NotNullOwnership, UniqueNullPolicy, generated_constraint_name,
+    merge_constraint_set,
 };
-pub use domain_types::{same_stored_relation, DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
-pub use enum_types::{EnumTypeMeta, ENUM_TYPE_FORMAT_VERSION};
+pub use domain_types::{DOMAIN_TYPE_FORMAT_VERSION, DomainTypeMeta, same_stored_relation};
+pub use enum_types::{ENUM_TYPE_FORMAT_VERSION, EnumTypeMeta};
 pub use indexes::{
     ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,
     ColumnBatchRow, ColumnBatchSegmentMeta, IndexKind, IndexMeta,
@@ -97,25 +97,26 @@ pub use programs::{
     VectorCatalogIdentitySet, VectorDistanceOperatorIds, ViewMeta, Volatility,
 };
 pub use repair::ProjectionRepairReportMeta;
-pub use retention::{RetentionEnforcementMode, RetentionPolicyMeta, RetentionPolicyState};
+pub use retention::{
+    RetentionEnforcementMode, RetentionPolicyMeta, RetentionPolicyState, RetentionScheduleState,
+};
 pub use roles::{
-    normalize_role_name, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RoleObjectPrivilege,
+    RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RoleObjectPrivilege, normalize_role_name,
 };
 pub use rollups::{
-    output_collection_name, RollupAggregateMeta, RollupDefinition, RollupMeta, RollupRefreshCursor,
-    RollupState,
+    RollupAggregateMeta, RollupDefinition, RollupMeta, RollupRefreshCursor, RollupState,
+    output_collection_name,
 };
 pub use schemas::{CollectionSchema, FieldMeta};
 pub use scope::{
-    canonical_identifier_component, canonical_relation_name, canonical_schema_name,
+    DEFAULT_SCHEMA, DatabaseMeta, INFORMATION_SCHEMA, PG_CATALOG_SCHEMA, ParsedName, RelationId,
+    SchemaId, canonical_identifier_component, canonical_relation_name, canonical_schema_name,
     derive_scoped_name, is_reserved_namespace, is_system_schema, local_name, name_matches,
     parse_name, qualifier_variants, relation_belongs_to_database, relation_database_name,
     relation_schema_name, schema_belongs_to_database, schema_database_name, split_identifier_path,
-    DatabaseMeta, ParsedName, RelationId, SchemaId, DEFAULT_SCHEMA, INFORMATION_SCHEMA,
-    PG_CATALOG_SCHEMA,
 };
 pub use sequences::{
-    canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
     SequenceCursor, SequenceError, SequenceMeta, SequenceOptions, SequenceOwner,
-    SequenceParameters, SequencePersistence,
+    SequenceParameters, SequencePersistence, canonical_nextval_expression,
+    parse_nextval_default_expression, serial_sequence_name,
 };

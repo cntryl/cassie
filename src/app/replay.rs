@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::midge::adapter::{
-    documents::ReplayBatchCommit, DocumentWriteOp, PublicationControlScope,
+    DocumentWriteOp, PublicationControlScope, documents::ReplayBatchCommit,
 };
 
 use super::{Cassie, CassieError};
@@ -412,11 +412,20 @@ impl Cassie {
             observed_events: prepared.observed_events,
             new_event_ids: prepared.replay_event_ids,
         };
+        let rollups = self.catalog.list_rollups_for_source(&batch.projection);
+        let record_rollup_maintenance_debt = !rollups.is_empty();
+        let mut rollup_fields = BTreeSet::new();
+        for rollup in rollups {
+            rollup_fields.insert(rollup.timestamp_field);
+            rollup_fields.extend(rollup.group_keys);
+        }
         let result = self.midge.apply_projection_replay_batch(
             &batch.projection,
             std::mem::take(&mut prepared.write_ops),
             replay,
             commit,
+            rollup_fields.into_iter().collect(),
+            record_rollup_maintenance_debt,
         );
         let write_report = match result {
             Ok(report) => report,
@@ -457,6 +466,18 @@ impl Cassie {
         let _terminal = PublicationControlScope::terminal_completion();
         if let Some(epoch) = write_report.data_epoch {
             self.runtime.set_data_epoch(epoch);
+        }
+        if record_rollup_maintenance_debt
+            && (!write_report.rollup_changes.rows.is_empty()
+                || write_report.rollup_changes.exceeded_limit)
+        {
+            let controls = self.runtime.query_controls(std::time::Instant::now());
+            let _ = crate::executor::refresh_rollups_for_source_with_report_external(
+                self,
+                &batch.projection,
+                &write_report.rollup_changes,
+                &controls,
+            );
         }
         let mut stats = write_report.stats;
         stats.duplicate_checks = prepared.duplicate_checks;

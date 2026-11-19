@@ -19,7 +19,10 @@ impl Midge {
         >,
         fulltext_indexes_by_collection: &BTreeMap<String, Vec<crate::catalog::IndexMeta>>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        if changed_collections.is_empty() && options.replay.is_none() {
+        if changed_collections.is_empty()
+            && options.replay.is_none()
+            && options.additional_data_writes.is_empty()
+        {
             tx.rollback().map_err(CassieError::from)?;
             return Ok(reports);
         }
@@ -71,6 +74,14 @@ impl Midge {
         if let Some((key, value)) = &options.publication_marker {
             tx.put(key.clone(), value.clone(), None)
                 .map_err(CassieError::from)?;
+        }
+        for (key, value) in &options.additional_data_writes {
+            if let Some(value) = value {
+                tx.put(key.clone(), value.clone(), None)
+                    .map_err(CassieError::from)?;
+            } else {
+                tx.delete(key.clone()).map_err(CassieError::from)?;
+            }
         }
         if let Err(error) = super::super::check_document_write_storage_failure_injection() {
             tx.rollback().map_err(CassieError::from)?;
@@ -153,7 +164,7 @@ pub(in crate::midge::adapter) fn document_write_retry_delay(
 
 #[cfg(test)]
 mod tests {
-    use super::{document_write_retry_delay, Duration, DOCUMENT_WRITE_BATCH_ATTEMPTS};
+    use super::{DOCUMENT_WRITE_BATCH_ATTEMPTS, Duration, document_write_retry_delay};
     use crate::app::CassieError;
 
     #[test]

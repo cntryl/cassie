@@ -1,4 +1,5 @@
 use crate::midge::adapter::DocumentWriteBatchOptions;
+use std::collections::BTreeSet;
 
 use super::Cassie;
 
@@ -38,8 +39,15 @@ impl Cassie {
             .catalog
             .get_schema(collection)
             .map_or_else(|| collection.to_string(), |schema| schema.collection);
-        if !self.catalog.list_rollups_for_source(&collection).is_empty() {
+        let rollups = self.catalog.list_rollups_for_source(&collection);
+        if !rollups.is_empty() {
             options.record_rollup_maintenance_debt = true;
+            let mut fields = BTreeSet::new();
+            for rollup in rollups {
+                fields.insert(rollup.timestamp_field);
+                fields.extend(rollup.group_keys);
+            }
+            options.rollup_change_fields = fields.into_iter().collect();
         }
         if self
             .catalog

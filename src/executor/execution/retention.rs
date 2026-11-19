@@ -1,9 +1,12 @@
 use super::command_output::empty as empty_result;
 use time::OffsetDateTime;
 
+#[path = "retention/scheduled.rs"]
+mod scheduled;
+
 use super::{
-    batch, check_timeout, scan, BatchRow, Cassie, FunctionMeta, HashMap, QueryError,
-    QueryExecutionControls, QueryResult, Value,
+    BatchRow, Cassie, CassieSession, FunctionMeta, HashMap, QueryError, QueryExecutionControls,
+    QueryResult, Value, batch, check_timeout, scan,
 };
 
 pub(super) fn create_retention_policy(
@@ -37,9 +40,16 @@ pub(super) fn create_retention_policy(
 
 pub(super) fn alter_retention_policy(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &crate::sql::ast::AlterRetentionPolicyStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    if !matches!(
+        &statement.action,
+        crate::sql::ast::AlterRetentionPolicyAction::SetDuration(_)
+    ) {
+        require_scheduled_policy_admin(session)?;
+    }
     let mut metadata = cassie
         .catalog
         .get_retention_policy(&statement.name)
@@ -49,11 +59,50 @@ pub(super) fn alter_retention_policy(
                 statement.name
             ))
         })?;
-    metadata
-        .retention_duration
-        .clone_from(&statement.retention_duration);
-    metadata.state = crate::catalog::RetentionPolicyState::Ready;
-    metadata.last_error = None;
+    match &statement.action {
+        crate::sql::ast::AlterRetentionPolicyAction::SetDuration(duration) => {
+            metadata.retention_duration.clone_from(duration);
+            metadata.state = crate::catalog::RetentionPolicyState::Ready;
+            metadata.last_error = None;
+        }
+        crate::sql::ast::AlterRetentionPolicyAction::ScheduleDaily { start_at } => {
+            if metadata.pending_cutoff_us.is_some() {
+                return Err(QueryError::General(
+                    "retention schedule cannot be changed while a cutoff is pending".to_owned(),
+                ));
+            }
+            if cassie
+                .midge
+                .collection_uses_column_store(&metadata.collection)
+                .map_err(QueryError::from)?
+            {
+                return Err(QueryError::General(
+                    "scheduled retention requires row storage".to_owned(),
+                ));
+            }
+            let start = parse_timestamp(start_at)?;
+            metadata.schedule_state = crate::catalog::RetentionScheduleState::Active;
+            metadata.next_due_at_us = Some(timestamp_micros(start)?);
+            metadata.state = crate::catalog::RetentionPolicyState::Ready;
+            metadata.last_error = None;
+        }
+        crate::sql::ast::AlterRetentionPolicyAction::Suspend => {
+            if metadata.schedule_state == crate::catalog::RetentionScheduleState::Unscheduled {
+                return Err(QueryError::General(
+                    "retention policy has no schedule to suspend".to_owned(),
+                ));
+            }
+            metadata.schedule_state = crate::catalog::RetentionScheduleState::Suspended;
+        }
+        crate::sql::ast::AlterRetentionPolicyAction::Resume => {
+            if metadata.schedule_state == crate::catalog::RetentionScheduleState::Unscheduled {
+                return Err(QueryError::General(
+                    "retention policy has no schedule to resume".to_owned(),
+                ));
+            }
+            metadata.schedule_state = crate::catalog::RetentionScheduleState::Active;
+        }
+    }
     let output = empty_result("ALTER RETENTION POLICY", controls)?;
     cassie
         .midge
@@ -88,11 +137,15 @@ pub(super) fn drop_retention_policy(
 
 pub(super) fn enforce_retention_policy(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &crate::sql::ast::EnforceRetentionPolicyStatement,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
+    if statement.mode == crate::sql::ast::RetentionEnforcementMode::DueAt {
+        require_scheduled_policy_admin(session)?;
+    }
     let mut metadata = cassie
         .catalog
         .get_retention_policy(&statement.name)
@@ -102,6 +155,16 @@ pub(super) fn enforce_retention_policy(
                 statement.name
             ))
         })?;
+
+    if statement.mode == crate::sql::ast::RetentionEnforcementMode::DueAt {
+        return scheduled::enforce_due(cassie, metadata, &statement.at, controls);
+    }
+    if metadata.schedule_state != crate::catalog::RetentionScheduleState::Unscheduled
+        && metadata.pending_cutoff_us.is_some()
+    {
+        require_scheduled_policy_admin(session)?;
+        return scheduled::replay_pending(cassie, metadata, &statement.at, controls);
+    }
 
     let mut output = QueryResult::try_builder(controls)?;
     super::command_output::set_counted(&mut output, "ENFORCE RETENTION", u64::MAX)?;
@@ -214,13 +277,14 @@ fn enforce_with_held_referential_gates(
     super::rollups::refresh_rollups_for_source(
         cassie,
         &metadata.collection,
+        &crate::midge::adapter::documents::RollupSourceChangeReport::default(),
         user_functions,
         controls,
     )?;
     Ok((deleted, skipped, timestamp_millis(enforce_at)))
 }
 
-fn parse_duration(raw: &str) -> Result<time::Duration, QueryError> {
+pub(super) fn parse_duration(raw: &str) -> Result<time::Duration, QueryError> {
     let mut parts = raw.split_whitespace();
     let amount = parts
         .next()
@@ -245,12 +309,12 @@ fn parse_duration(raw: &str) -> Result<time::Duration, QueryError> {
     }
 }
 
-fn parse_timestamp(raw: &str) -> Result<OffsetDateTime, QueryError> {
+pub(super) fn parse_timestamp(raw: &str) -> Result<OffsetDateTime, QueryError> {
     crate::types::temporal::parse_timestamp_utc(raw)
         .map_err(|_| QueryError::General("retention timestamp must be RFC3339".into()))
 }
 
-fn row_id(row: &BatchRow) -> Result<String, QueryError> {
+pub(super) fn row_id(row: &BatchRow) -> Result<String, QueryError> {
     match row.get(crate::types::row_identity::ROW_IDENTITY_COLUMN) {
         Some(Value::String(value)) if !value.is_empty() => Ok(value.clone()),
         _ => Err(QueryError::General(
@@ -259,6 +323,25 @@ fn row_id(row: &BatchRow) -> Result<String, QueryError> {
     }
 }
 
-fn timestamp_millis(timestamp: OffsetDateTime) -> u64 {
+pub(super) fn timestamp_millis(timestamp: OffsetDateTime) -> u64 {
     u64::try_from(timestamp.unix_timestamp_nanos()).map_or_default(|nanos| nanos / 1_000_000)
+}
+
+pub(super) fn timestamp_micros(timestamp: OffsetDateTime) -> Result<i64, QueryError> {
+    i64::try_from(timestamp.unix_timestamp_nanos() / 1_000)
+        .map_err(|_| QueryError::General("retention timestamp exceeds UTC microseconds".into()))
+}
+
+pub(super) fn timestamp_from_micros(value: i64) -> Result<OffsetDateTime, QueryError> {
+    OffsetDateTime::from_unix_timestamp_nanos(i128::from(value) * 1_000)
+        .map_err(|error| QueryError::General(error.to_string()))
+}
+
+fn require_scheduled_policy_admin(session: Option<&CassieSession>) -> Result<(), QueryError> {
+    if session.is_some_and(CassieSession::is_authenticated_read_only) {
+        return Err(QueryError::from(
+            crate::app::CassieError::InsufficientPrivilege,
+        ));
+    }
+    Ok(())
 }

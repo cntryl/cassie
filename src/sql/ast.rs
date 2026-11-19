@@ -70,25 +70,25 @@ pub use ast_row::{RowComparison, RowComparisonOp};
 #[path = "ast_subquery.rs"]
 mod ast_subquery;
 pub use ast_subquery::{
-    SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows, SUBQUERY_MULTIPLE_ROWS,
+    SUBQUERY_MULTIPLE_ROWS, SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows,
 };
 #[path = "ast_dml.rs"]
 mod ast_dml;
 #[path = "ast_visit.rs"]
 mod ast_visit;
 pub use ast_dml::{
-    MergeAction, MergeClause, MergeMatch, MergeStatement, MutationSource, MutationSourceField,
-    ReturningAliases, RowSubqueryAssignment, TruncateStatement, DEFAULT_ASSIGNMENT_MARKER,
-    MERGE_ACTION_COLUMN,
+    DEFAULT_ASSIGNMENT_MARKER, MERGE_ACTION_COLUMN, MergeAction, MergeClause, MergeMatch,
+    MergeStatement, MutationSource, MutationSourceField, ReturningAliases, RowSubqueryAssignment,
+    TruncateStatement,
 };
 pub use ast_query::{
-    is_record_syntax_function, AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params,
+    ARRAY_CONSTRUCTOR_FUNCTION, AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params,
     CastIdentity, CommonTableExpression, CteCycle, CteMaterialization, CteQuery, CteSearch,
-    CteSearchOrder, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem,
-    SelectSet, SelectStatement, SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp,
-    WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
-    ARRAY_CONSTRUCTOR_FUNCTION, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION,
-    VARIADIC_ARRAY_ARGUMENT_FUNCTION,
+    CteSearchOrder, Expr, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, FunctionCall, JoinKind,
+    NullsOrder, OrderExpr, QuerySource, ROW_CONSTRUCTOR_FUNCTION, SelectItem, SelectSet,
+    SelectStatement, SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp,
+    VARIADIC_ARRAY_ARGUMENT_FUNCTION, WindowFrame, WindowFrameBound, WindowFrameExclusion,
+    WindowFrameUnit, WindowFunctionCall, is_record_syntax_function,
 };
 
 /// Array subscripts attached to one UPDATE assignment target.
@@ -562,7 +562,15 @@ pub struct CreateRetentionPolicyStatement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterRetentionPolicyStatement {
     pub name: String,
-    pub retention_duration: String,
+    pub action: AlterRetentionPolicyAction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AlterRetentionPolicyAction {
+    SetDuration(String),
+    ScheduleDaily { start_at: String },
+    Suspend,
+    Resume,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -575,6 +583,23 @@ pub struct DropRetentionPolicyStatement {
 pub struct EnforceRetentionPolicyStatement {
     pub name: String,
     pub at: String,
+    pub mode: RetentionEnforcementMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RetentionEnforcementMode {
+    At,
+    DueAt,
+}
+
+impl RetentionEnforcementMode {
+    #[must_use]
+    pub fn keyword(self) -> &'static str {
+        match self {
+            Self::At => "AT",
+            Self::DueAt => "DUE AT",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

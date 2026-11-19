@@ -90,3 +90,36 @@ fn should_publish_partial_btree_index_clause_metadata() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_bound_tenant_order_reads_only_when_the_partial_predicate_is_proven() {
+    // Arrange
+    current_thread_runtime().block_on(async {
+        let server = CompatibilityServer::start("ordered_partial_membership").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(&client, &[
+            "CREATE TABLE orders (id INT PRIMARY KEY, tenant INT NOT NULL, status TEXT NOT NULL, created INT NOT NULL, payload TEXT)",
+            "INSERT INTO orders VALUES (1,7,'open',2,'older'),(2,7,'open',2,'newer'),(3,7,'closed',3,'closed'),(4,8,'open',4,'other')",
+            "CREATE INDEX open_orders ON orders(tenant, created DESC, id DESC) INCLUDE (payload) WHERE status='open'",
+        ]).await.expect("seed orders with a tie, a closed order and another tenant");
+        let query = "SELECT id,payload FROM orders WHERE tenant=7 AND status='open' ORDER BY created DESC,id DESC LIMIT 1";
+        let closed = query.replace(" AND status='open'", "");
+        let residual = query.replace("status='open'", "status='open' AND payload<>'newer'");
+
+        // Act
+        let plan: String = client.query_one(&format!("EXPLAIN {query}"), &[]).await.unwrap().get(0);
+        let closed_plan: String = client.query_one(&format!("EXPLAIN {closed}"), &[]).await.unwrap().get(0);
+        let first = client.query_one(query, &[]).await.unwrap();
+        let inclusive = client.query_one(&closed, &[]).await.unwrap();
+        let filtered = client.query_one(&residual, &[]).await.unwrap();
+
+        // Assert
+        assert!(plan.contains("access_path=ordered_bounded_scan") && plan.contains("index=open_orders"), "{plan}");
+        assert!(!closed_plan.contains("index=open_orders"), "{closed_plan}");
+        assert_eq!((first.get::<_, i32>(0), first.get::<_, String>(1)), (2, "newer".into()));
+        assert_eq!(inclusive.get::<_, i32>(0), 3);
+        assert_eq!(filtered.get::<_, i32>(0), 1);
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

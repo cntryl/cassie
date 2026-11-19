@@ -7,7 +7,11 @@ use crate::executor::execution::source::SourceExecutionEnv;
 use crate::sql::ast::{BinaryOp, QuerySource};
 use crate::sql::ColumnIdentifierPath;
 
-fn lookup_field(plan: &LogicalPlan) -> Option<String> {
+fn lookup_field(
+    plan: &LogicalPlan,
+    params: Option<&[crate::types::Value]>,
+    parameter_types: &[i32],
+) -> Option<String> {
     if !matches!(plan.source, QuerySource::Collection(_)) || !plan.order.is_empty() {
         return None;
     }
@@ -23,18 +27,32 @@ fn lookup_field(plan: &LogicalPlan) -> Option<String> {
         (Expr::Column(field), value) | (value, Expr::Column(field)) => (field, value),
         _ => return None,
     };
-    matches!(
-        value,
-        Expr::Param(_)
-            | Expr::IntegerLiteral(_)
-            | Expr::StringLiteral(_)
-            | Expr::BoolLiteral(_)
-            | Expr::NumberLiteral(_)
-    )
-    .then(|| ColumnIdentifierPath::reference_field_key(field))
+    let exact = match value {
+        Expr::IntegerLiteral(_) => true,
+        Expr::Param(index) => {
+            parameter_types
+                .get(*index)
+                .is_none_or(|oid| matches!(oid, 0 | 20 | 21 | 23))
+                && params.is_none_or(|values| {
+                    matches!(values.get(*index), Some(crate::types::Value::Int64(_)))
+                })
+        }
+        _ => false,
+    };
+    exact.then(|| ColumnIdentifierPath::reference_field_key(field))
 }
 
 fn unique_point_index(cassie: &Cassie, output: &str, field: &str) -> Option<IndexMeta> {
+    if !matches!(
+        cassie.catalog.field_type(output, field),
+        Some(
+            crate::types::DataType::SmallInt
+                | crate::types::DataType::Int
+                | crate::types::DataType::BigInt
+        )
+    ) {
+        return None;
+    }
     cassie.catalog.list_indexes(output).into_iter().find(|index| {
         index.collection == output && index.unique && index.kind == crate::catalog::IndexKind::Scalar
             && index.expressions.is_empty() && index.predicate.is_none()
@@ -44,8 +62,12 @@ fn unique_point_index(cassie: &Cassie, output: &str, field: &str) -> Option<Inde
 
 impl Cassie {
     /// Only the logical name is retained in a cached plan. Execute binds the version anew.
-    pub(crate) fn logical_materialized_view_index(&self, plan: &LogicalPlan) -> Option<IndexMeta> {
-        let field = lookup_field(plan)?;
+    pub(crate) fn logical_materialized_view_index(
+        &self,
+        plan: &LogicalPlan,
+        parameter_types: &[i32],
+    ) -> Option<IndexMeta> {
+        let field = lookup_field(plan, None, parameter_types)?;
         let output = self
             .catalog
             .materialized_view_output_collection(&plan.collection)?;
@@ -60,7 +82,7 @@ pub(in crate::executor::execution) fn execute(
     env: &SourceExecutionEnv<'_>,
     plan: &LogicalPlan,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(field) = lookup_field(plan) else {
+    let Some(field) = lookup_field(plan, Some(env.params), env.parameter_type_oids) else {
         return Ok(None);
     };
     if !env
@@ -113,8 +135,10 @@ pub(in crate::executor::execution) fn execute(
         return Ok(None);
     }
     projected.collection = output.to_owned();
-    let Some(spec) =
-        selected_scalar_spec(env.cassie, projected, plan, env.params, index, false, false)?
+    let covered = crate::planner::physical::plan_is_covered_by_index(plan, &index);
+    let Some(spec) = selected_scalar_spec(
+        env.cassie, projected, plan, env.params, index, covered, false,
+    )?
     else {
         return Ok(None);
     };

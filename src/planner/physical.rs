@@ -377,7 +377,7 @@ fn top_k_limit(plan: &LogicalPlan) -> Option<usize> {
     limit.checked_add(offset)
 }
 
-fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
+pub(crate) fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
     let access_plan = partial_index::access_plan(plan, index);
     let plan = access_plan.as_ref();
     if plan.command.is_some()

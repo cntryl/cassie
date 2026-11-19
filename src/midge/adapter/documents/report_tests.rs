@@ -39,7 +39,7 @@ fn should_reject_oversized_projected_scalars_during_size_preflight() {
 }
 
 #[test]
-fn should_accept_reports_at_the_64_kibibyte_boundary_and_reject_the_next_byte() {
+fn should_bound_reports_at_exactly_64_kibibytes() {
     // Arrange
     let baseline = report_with_partition_bytes(0);
     let exact_partition_bytes = MAX_ROLLUP_CHANGE_REPORT_BYTES - baseline.retained_bytes;

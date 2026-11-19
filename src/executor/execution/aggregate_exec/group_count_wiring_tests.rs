@@ -77,7 +77,9 @@ fn should_charge_subtotal_expression_storage_before_reading_input() {
     let context = aggregate_context(&plan, &functions, &controls);
 
     // Act
-    let result = subtotal::prepare_plan(&mut [], &context);
+    let result = subtotal::prepare_plan(&mut [], &context, &|_, _, _| {
+        unreachable!("the empty-input plan must fail admission before slot evaluation")
+    });
 
     // Assert
     assert!(matches!(

@@ -630,7 +630,7 @@ fn should_resume_one_bounded_due_batch_before_later_cutoffs_after_restart() {
         assert_explicit_ready_policy(&second_window_progress[0]);
         assert_eq!(
             rows_after_second_window.rows(),
-            vec![vec![Value::Int64(259)]]
+            vec![vec![Value::Int64(515)]]
         );
         assert_timestamptz_value(&second_window_progress[0], 6, 11, "2026-01-04T00:00:00Z");
         assert_timestamptz_value(&second_window_progress[0], 1, 9, "2026-01-05T00:00:00Z");

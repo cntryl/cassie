@@ -16,13 +16,13 @@ fn should_preserve_column_store_reads_with_time_series_indexes() {
     });
 }
 
-
 use std::{collections::HashMap, time::Duration};
 
 use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::midge::adapter::StorageFamily;
 use cassie_test_support::support_pgwire as wire;
+use tokio::io::AsyncReadExt;
 mod support_sql {
     pub use cassie_test_support::support_sql::{
         data_dir, test_root_password, with_test_root_password,
@@ -158,11 +158,7 @@ impl PreparedPgwireClient {
         let portal_name = format!("suspended_portal_{}", self.next_portal_id);
         self.next_portal_id += 1;
         let frames = vec![
-            wire::parse_frame_with_types(
-                &statement_name,
-                &query,
-                &PREPARED_PAGE_OIDS,
-            ),
+            wire::parse_frame_with_types(&statement_name, &query, &PREPARED_PAGE_OIDS),
             wire::bind_frame(&portal_name, &statement_name, &parameters),
             wire::describe_portal_frame(&portal_name),
             wire::execute_limited_frame(&portal_name, max_rows),
@@ -195,12 +191,18 @@ impl PreparedPgwireClient {
     }
 
     async fn simple_query(&mut self, statement: &str) -> WireFrames {
-        wire::write_frames(
-            &mut self.writer,
-            vec![wire::simple_query_frame(statement)],
-        )
-        .await;
+        wire::write_frames(&mut self.writer, vec![wire::simple_query_frame(statement)]).await;
         wire::read_frames_until_ready_within(&mut self.reader, Duration::from_secs(5)).await
+    }
+
+    async fn terminate(&mut self) {
+        wire::write_frames(&mut self.writer, vec![vec![b'X', 0, 0, 0, 4]]).await;
+        let mut byte = [0];
+        let read = tokio::time::timeout(Duration::from_secs(5), self.reader.read(&mut byte))
+            .await
+            .expect("Terminate should finish server-side session cleanup")
+            .expect("read closed pgwire connection");
+        assert_eq!(read, 0, "Terminate should close the pgwire connection");
     }
 }
 
@@ -224,7 +226,8 @@ fn prepared_local_fixture(data_dir: &str, memory_budget: usize, max_result_rows:
     config.limits.query_memory_budget_bytes = memory_budget;
     config.limits.max_result_rows = max_result_rows;
     config.limits.parallel_scan_workers = 1;
-    let cassie = Cassie::new_with_data_dir_and_config(data_dir, config).expect("create local Cassie");
+    let cassie =
+        Cassie::new_with_data_dir_and_config(data_dir, config).expect("create local Cassie");
     cassie.startup().expect("start Cassie");
     cassie
 }
@@ -280,7 +283,11 @@ fn seed_prepared_page_twins(cassie: &Cassie) {
 }
 
 fn prepared_page_rows(frames: &WireFrames) -> Vec<Vec<Option<String>>> {
-    assert_eq!(wire::error_code(frames), None, "prepared page error: {frames:?}");
+    assert_eq!(
+        wire::error_code(frames),
+        None,
+        "prepared page error: {frames:?}"
+    );
     wire::data_rows(frames)
 }
 
@@ -301,7 +308,12 @@ fn expected_corrected_page(
     corrected_amount: &str,
 ) -> Vec<Vec<Option<String>>> {
     let rows = match (tenant, device) {
-        ("a", "bc") => vec![("1", "10"), ("2", "20"), ("7", "70"), ("4", corrected_amount)],
+        ("a", "bc") => vec![
+            ("1", "10"),
+            ("2", "20"),
+            ("7", "70"),
+            ("4", corrected_amount),
+        ],
         ("ab", "c") => vec![("11", "110"), ("12", "120"), ("3", "330")],
         _ => Vec::new(),
     };
@@ -328,7 +340,21 @@ fn corrupt_prepared_membership(cassie: &Cassie, table: &str, id: &str) {
         .midge
         .time_series_index_prefix_for_diagnostics(&collection, &index.name)
         .expect("time-series membership prefix");
-    let row_id_suffix = [id.as_bytes(), &[0]].concat();
+    let session = cassie.create_session("time-series-corruption", None);
+    let selected_row = support_sql::run(
+        cassie,
+        &session,
+        &format!("SELECT _id FROM {table} WHERE id = {id}"),
+        vec![],
+    )
+    .expect("look up physical document identity");
+    assert_eq!(selected_row.rows().len(), 1, "one selected SQL primary key");
+    let row_id = selected_row.rows()[0][0]
+        .as_str()
+        .expect("physical document identity is text")
+        .to_owned();
+    // `append_terminated_component` stores the final Midge document id as UTF-8 + 0x00.
+    let row_id_suffix = [row_id.as_bytes(), &[0]].concat();
     let (key, _) = cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, &prefix)
@@ -419,8 +445,9 @@ fn should_use_columnar_bucket_hits_for_prepared_half_open_pages() {
             expected_prepared_page("a", "bc")
         );
         assert_eq!(
-            time_series_counter(&after_noise_metrics, "bucket_native_hits")
-                .saturating_sub(time_series_counter(&before_noise_query, "bucket_native_hits")),
+            time_series_counter(&after_noise_metrics, "bucket_native_hits").saturating_sub(
+                time_series_counter(&before_noise_query, "bucket_native_hits")
+            ),
             1
         );
         let selected_after = [
@@ -478,9 +505,7 @@ fn should_fallback_to_complete_columnar_page_given_missing_bucket_membership() {
         support_sql::run(
             &cassie,
             &session,
-            &format!(
-                "INSERT INTO col_idx VALUES ({id},'a','bc','1970-02-01T00:00:00Z',{id})"
-            ),
+            &format!("INSERT INTO col_idx VALUES ({id},'a','bc','1970-02-01T00:00:00Z',{id})"),
             vec![],
         )
         .expect("seed a bounded page with an over-budget authoritative fallback");
@@ -569,7 +594,10 @@ fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and
             expected_corrected_page("a", "bc", "777"),
             "the writing session must see its staged correction"
         );
-        assert_eq!(wire::error_code(&client.simple_query("ROLLBACK").await), None);
+        assert_eq!(
+            wire::error_code(&client.simple_query("ROLLBACK").await),
+            None
+        );
         let rolled_back = client.prepared_page("col_idx", "a", "bc", 99, 0).await;
         assert_eq!(
             prepared_page_rows(&rolled_back),
@@ -577,10 +605,12 @@ fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and
             "rollback must restore the authoritative source and bucket membership"
         );
 
-        let (portal_name, first_page) =
-            client.suspended_page("col_idx", "a", "bc", 2).await;
+        let (portal_name, first_page) = client.suspended_page("col_idx", "a", "bc", 2).await;
         assert_eq!(wire::error_code(&first_page), None);
-        assert_eq!(wire::data_rows(&first_page), expected_corrected_page("a", "bc", "40")[..2]);
+        assert_eq!(
+            wire::data_rows(&first_page),
+            expected_corrected_page("a", "bc", "40")[..2]
+        );
         assert!(first_page.iter().any(|(tag, _)| *tag == b's'));
         support_sql::run(
             &cassie,
@@ -607,6 +637,7 @@ fn should_preserve_prepared_columnar_reads_across_correction_rollback_portal_and
             "a new statement must observe the committed source update"
         );
 
+        client.terminate().await;
         drop(client);
         server.stop().await;
     });
@@ -778,6 +809,11 @@ fn should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads(
                             (_, false) => 4,
                             (_, true) => 6,
                         };
+                        let expected_point_fetches = match (partition, after_noise) {
+                            ("1.5", _) => 2,
+                            (_, false) => 4,
+                            (_, true) => 5,
+                        };
                         assert_eq!(
                             time_series_counter(&after, "index_entries_scanned")
                                 - time_series_counter(&before, "index_entries_scanned"),
@@ -787,7 +823,8 @@ fn should_preserve_signed_zero_candidate_bounds_through_prepared_columnar_reads(
                         assert_eq!(
                             time_series_counter(&after, "row_point_fetches")
                                 - time_series_counter(&before, "row_point_fetches"),
-                            expected_candidates
+                            expected_point_fetches,
+                            "out-of-range membership is counted as scanned but pruned before row fetch"
                         );
                     }
                 }

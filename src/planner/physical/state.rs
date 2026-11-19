@@ -107,6 +107,7 @@ pub enum EarlyStopMode {
     ScanLimit,
     Exists,
     StorageTopK,
+    JoinedLimit,
     Keyset,
 }
 
@@ -118,6 +119,7 @@ impl EarlyStopMode {
             Self::ScanLimit => "scan_limit",
             Self::Exists => "exists",
             Self::StorageTopK => "storage_top_k",
+            Self::JoinedLimit => "joined_limit",
             Self::Keyset => "keyset",
         }
     }

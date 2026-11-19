@@ -123,6 +123,38 @@ impl QueryMemoryObservation {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct OrderedJoinCounts {
+    pub order_index_entries: usize,
+    pub order_rows: usize,
+    pub dimension_probes: usize,
+    pub dimension_base_fetches: usize,
+    pub intermediate_rows: usize,
+    pub fully_joined_rows: usize,
+    pub joined_rows: usize,
+}
+
+#[derive(Debug, Default)]
+struct OrderedReadObservation {
+    join: Option<OrderedJoinCounts>,
+    proof: Option<(usize, &'static str)>,
+}
+
+type ExecutorCache = parking_lot::Mutex<Option<Box<dyn std::any::Any + Send>>>;
+
+#[derive(Debug, Default)]
+struct StatementControlState {
+    // A plain SQL request needs neither the graph cache nor an EXPLAIN observer.
+    executor: std::sync::OnceLock<Arc<ExecutorCache>>,
+    ordered_join: Option<Arc<parking_lot::Mutex<OrderedReadObservation>>>,
+}
+
+impl StatementControlState {
+    fn executor(&self) -> &Arc<ExecutorCache> {
+        self.executor.get_or_init(Arc::default)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct QueryExecutionControls {
     pub deadline: Option<Instant>,
@@ -137,7 +169,7 @@ pub struct QueryExecutionControls {
     temporal: Arc<parking_lot::RwLock<TemporalSlot>>,
     /// Statement-scoped state of one executor subsystem, shared by clones and released with
     /// the last clone, so its reservations end with the statement.
-    statement_state: Arc<parking_lot::Mutex<Option<Box<dyn std::any::Any + Send>>>>,
+    statement_state: Arc<StatementControlState>,
 }
 
 #[derive(Debug, Default)]
@@ -259,6 +291,42 @@ impl Drop for QueryMemoryReservation {
 }
 
 impl QueryExecutionControls {
+    pub(crate) fn observe_ordered_join(&self) -> Self {
+        Self {
+            statement_state: Arc::new(StatementControlState {
+                executor: Arc::clone(self.statement_state.executor()).into(),
+                ordered_join: Some(Arc::default()),
+            }),
+            ..self.clone()
+        }
+    }
+
+    pub(crate) fn record_order_proof(&self, visited: usize, reason: &'static str) {
+        if let Some(slot) = &self.statement_state.ordered_join {
+            slot.lock().proof = Some((visited, reason));
+        }
+    }
+
+    pub(crate) fn order_proof(&self) -> Option<(usize, &'static str)> {
+        self.statement_state
+            .ordered_join
+            .as_ref()
+            .and_then(|slot| slot.lock().proof)
+    }
+
+    pub(crate) fn record_ordered_join(&self, counts: OrderedJoinCounts) {
+        if let Some(slot) = &self.statement_state.ordered_join {
+            slot.lock().join = Some(counts);
+        }
+    }
+
+    pub(crate) fn ordered_join_counts(&self) -> Option<OrderedJoinCounts> {
+        self.statement_state
+            .ordered_join
+            .as_ref()
+            .and_then(|slot| slot.lock().join)
+    }
+
     pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {
         if let Some(pause) = self.cancellation.4.as_deref() {
             pause.reach()?;
@@ -305,8 +373,11 @@ impl QueryExecutionControls {
     ) -> Self {
         Self {
             statement_read: owner,
-            // Statement state is valid for one captured read only.
-            statement_state: Arc::default(),
+            // Each captured read owns its cache. EXPLAIN observes the whole statement.
+            statement_state: Arc::new(StatementControlState {
+                executor: std::sync::OnceLock::new(),
+                ordered_join: self.statement_state.ordered_join.clone(),
+            }),
             ..self.clone()
         }
     }
@@ -357,7 +428,7 @@ impl QueryExecutionControls {
         &self,
         visit: impl FnOnce(&mut Option<Box<dyn std::any::Any + Send>>) -> R,
     ) -> R {
-        visit(&mut self.statement_state.lock())
+        visit(&mut self.statement_state.executor().lock())
     }
 
     /// Installs the statement's temporal session for evaluation and output.
@@ -548,6 +619,35 @@ mod tests {
         // Assert
         assert!(overflow.is_err());
         assert_eq!(reservation.bytes(), 1);
+    }
+
+    #[test]
+    fn should_keep_explain_observation_when_capturing_the_statement_read() {
+        // Arrange
+        let controls = controls_with_budget(1024);
+        controls.with_statement_state(|slot| *slot = Some(Box::new(7_usize)));
+        let explain = controls.observe_ordered_join();
+        let independent = controls.observe_ordered_join();
+
+        // Act
+        let same_cache = explain.with_statement_state(|slot| {
+            slot.as_ref()
+                .and_then(|value| value.downcast_ref::<usize>())
+                .copied()
+        });
+        let captured = explain.with_statement_read(None);
+        let fresh_cache = captured.with_statement_state(|slot| slot.is_none());
+        captured.record_order_proof(12, "canonical_timestamp_prefix");
+
+        // Assert
+        assert_eq!(same_cache, Some(7));
+        assert!(fresh_cache);
+        assert_eq!(
+            explain.order_proof(),
+            Some((12, "canonical_timestamp_prefix"))
+        );
+        assert_eq!(independent.order_proof(), None);
+        assert_eq!(controls.order_proof(), None);
     }
 
     #[test]

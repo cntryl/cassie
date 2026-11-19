@@ -15,11 +15,46 @@ impl Midge {
         request: &ScalarIndexScanRequest,
         controls: &QueryExecutionControls,
     ) -> Result<AccountedVec<ScalarIndexScanHit>, CassieError> {
+        let mut hits = AccountedVec::try_new(controls)?;
+        self.visit_scalar_entries(index, request, controls, |index, key, raw_value| {
+            hits.try_push_with_result(scalar_index_hit_variable_bytes(key, raw_value)?, || {
+                decode_scalar_index_hit(index, key, raw_value)
+            })?;
+            Ok::<_, CassieError>(true)
+        })?;
+        Ok(hits)
+    }
+
+    /// Keep one native cursor open while downstream joins accept or reject each entry.
+    pub(crate) fn visit_scalar_index_documents<E: From<CassieError>>(
+        &self,
+        index: &IndexMeta,
+        request: &ScalarIndexScanRequest,
+        controls: &QueryExecutionControls,
+        mut visit: impl FnMut(crate::midge::adapter::DocumentRef) -> Result<bool, E>,
+    ) -> Result<(), E> {
+        self.visit_scalar_entries(index, request, controls, |index, key, raw_value| {
+            let _memory =
+                controls.reserve_query_memory(scalar_index_hit_variable_bytes(key, raw_value)?)?;
+            let hit = decode_scalar_index_hit(index, key, raw_value)?;
+            visit(crate::midge::adapter::DocumentRef {
+                id: hit.id,
+                payload: serde_json::Value::Object(hit.fields),
+            })
+        })
+    }
+
+    fn visit_scalar_entries<E: From<CassieError>>(
+        &self,
+        index: &IndexMeta,
+        request: &ScalarIndexScanRequest,
+        controls: &QueryExecutionControls,
+        mut visit: impl FnMut(&IndexMeta, &[u8], &[u8]) -> Result<bool, E>,
+    ) -> Result<(), E> {
         check_controls(controls)?;
         let index = self.resolve_scalar_scan_index(index)?;
-        let mut hits = AccountedVec::try_new(controls)?;
         if request.limit == Some(0) {
-            return Ok(hits);
+            return Ok(());
         }
 
         let query = Self::scalar_index_query(&index, request)?;
@@ -34,15 +69,14 @@ impl Midge {
             let (key, raw_value) = entry.map_err(CassieError::from)?;
             self.record_query_scan_entry();
             if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
-                return Err(CassieError::QueryCanceled);
+                return Err(CassieError::QueryCanceled.into());
             }
-            let retained_bytes = scalar_index_hit_variable_bytes(&key, &raw_value)?;
-            hits.try_push_with_result(retained_bytes, || {
-                decode_scalar_index_hit(&index, &key, &raw_value)
-            })?;
+            if !visit(&index, &key, &raw_value)? {
+                break;
+            }
         }
         check_controls(controls)?;
-        Ok(hits)
+        Ok(())
     }
 
     fn resolve_scalar_scan_index(&self, index: &IndexMeta) -> Result<IndexMeta, CassieError> {

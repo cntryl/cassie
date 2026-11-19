@@ -219,6 +219,11 @@ harness = false
 path = "benches/tier4_integration_protocol_compare.rs"
 
 [[bench]]
+name = "tier5_ordered_dashboard"
+harness = false
+path = "benches/tier5_ordered_dashboard.rs"
+
+[[bench]]
 name = "tier5_scaling_query"
 harness = false
 path = "benches/tier5_scaling_query.rs"

@@ -93,6 +93,7 @@ mod time_series_metrics;
 mod vector_metrics;
 
 use cache_state::ExecutionResultCacheState;
+pub(crate) use controls::OrderedJoinCounts;
 pub use controls::{QueryCancellationHandle, QueryExecutionControls, QueryMemoryReservation};
 pub(crate) use feedback::RuntimeFeedbackMutation;
 pub(crate) use feedback::{

@@ -68,6 +68,7 @@ impl RuntimeFeedbackDeltas {
 }
 
 pub(crate) struct ExplainAnalyzeReport {
+    pub(crate) ordered_join: Option<crate::runtime::OrderedJoinCounts>,
     pub(crate) result: QueryResult,
     pub(crate) elapsed_ms: u128,
     pub(crate) deltas: ExplainAnalyzeDeltas,
@@ -301,7 +302,24 @@ pub(crate) fn append_explain_analyze(
         deltas.operator_switch_skips,
         deltas.operator_switch_fallbacks
     ))
-    })
+    })?;
+    if let Some((entries, proof)) = controls.order_proof() {
+        plan.try_append(controls, |allocation| {
+            allocation.format(format_args!(
+                " order_proof_entries={entries} order_proof={proof}"
+            ))
+        })?;
+    }
+    if let Some(counts) = report.ordered_join {
+        plan.try_append(controls, |allocation| {
+            allocation.format(format_args!(
+                " actual_join_strategy=ordered_index_nested_loop order_index_entries={} order_entries_skipped={} order_rows={} order_base_fetches=0 dimension_probes={} dimension_base_fetches={} intermediate_rows={} joined_rows={}",
+                counts.order_index_entries, counts.order_index_entries.saturating_sub(counts.order_rows), counts.order_rows,
+                counts.dimension_probes, counts.dimension_base_fetches, counts.intermediate_rows, counts.joined_rows,
+            ))
+        })?;
+    }
+    Ok(())
 }
 
 fn actual_operator_diagnostics(
@@ -314,13 +332,15 @@ fn actual_operator_diagnostics(
     }
     let mut operators = allocation.vector(physical.operators.len())?;
     for operator in &physical.operators {
+        let actual = operator_actual(
+            allocation.format(format_args!("{operator:?}"))?,
+            physical,
+            report,
+        );
         operators.push(allocation.format(format_args!(
-            "{operator:?}:rows_in:{} rows_out:{} elapsed_ms:{} storage_reads:{} storage_writes:{} temp_writes:{} candidates:{} results:{}",
-            physical.estimates.scan_rows,
-            report.result.row_count(), report.elapsed_ms,
-            report.deltas.runtime.storage_reads, report.deltas.runtime.storage_writes,
-            report.deltas.runtime.temp_writes, report.deltas.runtime.candidate_count,
-            report.deltas.runtime.result_count,
+            "{}:rows_in:{} rows_out:{} elapsed_ms:{} storage_reads:{} storage_writes:{} temp_writes:{} candidates:{} results:{}",
+            actual.operator, actual.rows_in, actual.rows_out, actual.elapsed_ms, actual.storage_reads, actual.storage_writes,
+            actual.temp_writes, actual.candidates, actual.results,
         ))?);
     }
     allocation.join(operators.iter().map(String::as_str), "|")
@@ -360,6 +380,35 @@ fn operator_actual(
     physical: &crate::planner::physical::PhysicalPlan,
     report: &ExplainAnalyzeReport,
 ) -> QueryPlanOperatorActual {
+    if let Some(counts) = report.ordered_join {
+        let (input, output, reads, candidates) = match operator.as_str() {
+            "Scan" => (
+                counts.order_index_entries,
+                counts.order_rows,
+                counts.order_index_entries,
+                counts.order_index_entries,
+            ),
+            "Join" => (
+                counts.order_rows,
+                counts.fully_joined_rows,
+                counts.dimension_probes + counts.dimension_base_fetches,
+                counts.dimension_probes,
+            ),
+            "Filter" => (counts.fully_joined_rows, counts.joined_rows, 0, 0),
+            _ => (counts.joined_rows, counts.joined_rows, 0, 0),
+        };
+        return QueryPlanOperatorActual {
+            operator,
+            rows_in: input as u64,
+            rows_out: output,
+            elapsed_ms: report.elapsed_ms,
+            storage_reads: reads as u64,
+            storage_writes: 0,
+            temp_writes: 0,
+            candidates: candidates as u64,
+            results: output as u64,
+        };
+    }
     QueryPlanOperatorActual {
         operator,
         rows_in: physical.estimates.scan_rows,

@@ -809,6 +809,8 @@ impl Cassie {
         let parameter_type_oids = admitted
             .as_ref()
             .map_or(parameter_type_oids, |types| types.types());
+        let observed = analyze.then(|| controls.observe_ordered_join());
+        let controls = observed.as_ref().unwrap_or(controls);
         let before = analyze.then(|| self.runtime.snapshot());
         let physical = self.compile_physical_plan_with_parameter_oids(
             statement,
@@ -886,6 +888,7 @@ impl Cassie {
         let deltas = ExplainAnalyzeDeltas::from_snapshots(before, &after);
         self.record_explain_feedback(feedback_keys, &result, &deltas, elapsed_ms);
         Ok(ExplainAnalyzeReport {
+            ordered_join: controls.ordered_join_counts(),
             result,
             elapsed_ms,
             deltas,

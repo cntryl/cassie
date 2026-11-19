@@ -16,6 +16,9 @@ use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexNullKeys, Sca
 use crate::types::DataType;
 use std::collections::BTreeMap;
 
+pub(super) mod key_order;
+pub(super) mod ordered_join;
+
 #[cfg(test)]
 #[path = "index_read/numeric_tests.rs"]
 mod numeric_tests;
@@ -29,7 +32,7 @@ pub(super) fn execute_scalar_index_read(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(spec) = scalar_index_read_spec(cassie, session, physical, plan, params)? else {
+    let Some(spec) = scalar_index_read_spec(cassie, session, physical, plan, params, false)? else {
         return Ok(None);
     };
 
@@ -49,11 +52,32 @@ pub(super) fn execute_scalar_index_read(
         return Ok(None);
     }
 
-    let hits = cassie
-        .midge
-        .scan_scalar_index_controlled(&spec.index, &spec.request, controls)
-        .map_err(QueryError::from)?;
-    let (hits, _hits_memory) = hits.into_parts();
+    let hits = if spec.timestamp_fields.is_empty() {
+        cassie
+            .midge
+            .scan_scalar_index_controlled(&spec.index, &spec.request, controls)?
+    } else {
+        let Some(window) = spec.request.limit else {
+            return Ok(None);
+        };
+        let Some(hits) = key_order::timestamp_page(
+            cassie,
+            &spec.index,
+            &spec.request,
+            &spec.timestamp_fields,
+            window,
+            controls,
+        )?
+        else {
+            return Ok(None);
+        };
+        hits
+    };
+    let (mut hits, _hits_memory) = hits.into_parts();
+    let visited = hits.len();
+    if let Some(window) = spec.request.limit {
+        hits.truncate(window);
+    }
     if spec.null_keys == ScalarIndexNullKeys::SortAfterLimit && !hits_fill_limit(plan, hits.len()) {
         // Rows with a NULL sort key are not indexed; the scan and sort path
         // returns them once the indexed rows run out.
@@ -82,8 +106,10 @@ pub(super) fn execute_scalar_index_read(
         rows.push(scan::hydrate_character_arrays(row, controls)?);
     }
 
-    record_scalar_index_read_path(cassie, &spec, rows.len());
+    record_scalar_index_read_path(cassie, &spec, visited);
 
+    let access_plan = crate::planner::physical::partial_index::access_plan(plan, &spec.index);
+    let plan = access_plan.as_ref();
     let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
     let index_usage = if spec.covered {
         projected_read::ProjectedReadIndexUsage::CoveringScalarIndex
@@ -121,6 +147,7 @@ struct ScalarIndexReadSpec {
     sort_applied: bool,
     null_keys: ScalarIndexNullKeys,
     predicate_resolution: ScalarIndexPredicateResolution,
+    timestamp_fields: Vec<String>,
 }
 
 fn hits_fill_limit(plan: &LogicalPlan, hits: usize) -> bool {
@@ -166,6 +193,7 @@ fn scalar_index_read_spec(
     physical: Option<&PhysicalPlan>,
     plan: &LogicalPlan,
     params: &[Value],
+    for_ordered_join: bool,
 ) -> Result<Option<ScalarIndexReadSpec>, QueryError> {
     let Some(projected) = projected_read::projected_filtered_read_spec(plan)
         .or_else(|| expression_index_read_spec(plan))
@@ -204,6 +232,21 @@ fn scalar_index_read_spec(
     let Some(mut shape) = scalar_index_plan_shape(plan, &index, &not_null_fields) else {
         return Ok(None);
     };
+    let new_partial_conjunct = index.predicate.as_deref().is_some_and(|predicate| {
+        plan.filter
+            .as_ref()
+            .is_some_and(|filter| serde_json::to_string(filter).is_ok_and(|s| s != predicate))
+    });
+    let timestamp_fields = if for_ordered_join || new_partial_conjunct {
+        let Some(fields) = key_order::timestamp_fields(cassie, &index, &shape) else {
+            return Ok(None);
+        };
+        fields
+    } else {
+        Vec::new()
+    };
+    let access_plan = crate::planner::physical::partial_index::access_plan(plan, &index);
+    let plan = access_plan.as_ref();
     if scalar_index_order_needs_sql_sort(cassie, &projected.collection, &index, &shape, plan) {
         if shape.path == ScalarIndexPlanPath::OrderedBoundedScan {
             return Ok(None);
@@ -252,6 +295,7 @@ fn scalar_index_read_spec(
         sort_applied: plan.order.is_empty() || shape.order_satisfied,
         null_keys: shape.null_keys,
         predicate_resolution,
+        timestamp_fields,
     }))
 }
 
@@ -404,6 +448,7 @@ fn scalar_index_requires_json_scan(
         && shape.order_satisfied
         && fields
             .iter()
+            .skip(shape.equality_prefix_len)
             .take(shape.order_columns_used)
             .any(|field| is_json_field(field));
 

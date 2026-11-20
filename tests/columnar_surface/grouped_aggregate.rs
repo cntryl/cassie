@@ -26,7 +26,7 @@ fn mode_sql(template: &str, mode: &str) -> String {
 }
 
 #[test]
-fn should_match_the_row_path_for_grouped_aggregates_on_heap_and_column_tables() {
+fn should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes() {
     // Arrange
     with_pair(|pair| {
         pair.create("m", COLUMNS, ROWS);

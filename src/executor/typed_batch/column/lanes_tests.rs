@@ -230,7 +230,7 @@ fn should_build_empty_lane_columns_equal_to_empty_value_columns() {
 }
 
 #[test]
-fn should_keep_all_valid_and_all_null_lanes_distinct() {
+fn should_keep_all_valid_lanes_distinct_from_all_null_lanes() {
     // Arrange
     let controls = controls();
     let all_null = RawLanes::I64 {

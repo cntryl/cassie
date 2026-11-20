@@ -24698,8 +24698,8 @@
       }
     },
     {
-      "id": "tests/columnar_surface/grouped_aggregate.rs::should_match_the_row_path_for_grouped_aggregates_on_heap_and_column_tables",
-      "name": "should_match_the_row_path_for_grouped_aggregates_on_heap_and_column_tables",
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes",
+      "name": "should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes",
       "current_file": "tests/columnar_surface/grouped_aggregate.rs",
       "line": 29,
       "end_line": 57,
@@ -24710,7 +24710,7 @@
       "instances": [
         {
           "suite": "columnar_surface",
-          "name": "grouped_aggregate::should_match_the_row_path_for_grouped_aggregates_on_heap_and_column_tables"
+          "name": "grouped_aggregate::should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes"
         }
       ],
       "attributes": [
@@ -341678,7 +341678,7 @@
       "role": "test_module",
       "action": "split_by_contract",
       "lines": 265,
-      "sha256": "171f58cfa6b0710056fca89efc1244e667b1a772e484b2ca3bd37f1b00317398",
+      "sha256": "62fecc7e36253341fcc61b958b949adb504affe56d65e639d27b87f367c57dd2",
       "test_declarations": 8,
       "registered_suites": [
         "columnar_surface"

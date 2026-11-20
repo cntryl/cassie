@@ -13,11 +13,10 @@ use crate::search::analyzer::AnalyzerConfig;
 #[path = "fulltext_read/accounting.rs"]
 mod accounting;
 
-pub(super) use accounting::persisted_search_context_bytes;
-use accounting::{
-    document_filter_row_bytes, fulltext_result_row_variable_bytes, reserve_analyzed_text,
-    reserve_search_context,
+pub(super) use accounting::{
+    document_filter_row_bytes, fulltext_result_row_variable_bytes, persisted_search_context_bytes,
 };
+use accounting::{reserve_analyzed_text, reserve_search_context};
 
 pub(in crate::executor::execution) struct SearchProjectionColumn {
     pub(in crate::executor::execution) name: String,
@@ -438,19 +437,19 @@ fn try_execute_persisted_fulltext_filtered_read(
     ))
 }
 
-struct PersistedFulltextRead {
-    candidates: crate::midge::adapter::fulltext_retrieval::PersistedFulltextCandidateSet,
-    query_terms: Vec<String>,
-    search_context: filter::SearchContext,
-    memory: Vec<QueryMemoryReservation>,
+pub(super) struct PersistedFulltextRead {
+    pub(super) candidates: crate::midge::adapter::fulltext_retrieval::PersistedFulltextCandidateSet,
+    pub(super) query_terms: Vec<String>,
+    pub(super) search_context: filter::SearchContext,
+    pub(super) memory: Vec<QueryMemoryReservation>,
 }
 
-enum PersistedFulltextReadSelection {
+pub(super) enum PersistedFulltextReadSelection {
     Ready(Box<PersistedFulltextRead>),
     Exact(&'static str),
 }
 
-fn load_persisted_fulltext_read(
+pub(super) fn load_persisted_fulltext_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     spec: &FulltextFilteredReadSpec,
@@ -533,7 +532,7 @@ fn load_persisted_fulltext_read(
     )))
 }
 
-fn score_persisted_candidates<'a>(
+pub(super) fn score_persisted_candidates<'a>(
     persisted: &'a PersistedFulltextRead,
     scalar_candidates: Option<&HashSet<String>>,
     text_field: &str,
@@ -647,12 +646,12 @@ fn materialize_persisted_candidates(
     })
 }
 
-struct ControlledScalarCandidates {
-    ids: HashSet<String>,
-    memory: Vec<QueryMemoryReservation>,
+pub(super) struct ControlledScalarCandidates {
+    pub(super) ids: HashSet<String>,
+    pub(super) memory: Vec<QueryMemoryReservation>,
 }
 
-fn scalar_prefilter_ids(
+pub(super) fn scalar_prefilter_ids(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     spec: &FulltextFilteredReadSpec,
@@ -810,7 +809,7 @@ fn publish_filtered_fulltext_metrics(
     );
 }
 
-fn document_filter_row(id: &str, payload: &serde_json::Value) -> BatchRow {
+pub(super) fn document_filter_row(id: &str, payload: &serde_json::Value) -> BatchRow {
     // The filter expression this row is evaluated against was already
     // rewritten (see `planner::logical::rewrite_reserved_id_references`) to
     // reference `_id` instead of `id` whenever the schema has no `id` field
@@ -832,7 +831,7 @@ fn document_filter_row(id: &str, payload: &serde_json::Value) -> BatchRow {
     BatchRow::new(entries)
 }
 
-fn fulltext_result_row(
+pub(super) fn fulltext_result_row(
     id: &str,
     payload: &serde_json::Value,
     score: f64,

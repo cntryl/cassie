@@ -55,7 +55,7 @@ pub(in crate::executor::execution::scored) fn persisted_search_context_bytes(
         .saturating_add(6 * search_map_entry_bytes(field))
 }
 
-pub(super) fn document_filter_row_bytes(id: &str, payload: &serde_json::Value) -> usize {
+pub(in crate::executor::execution::scored) fn document_filter_row_bytes(id: &str, payload: &serde_json::Value) -> usize {
     let payload_entries = payload.as_object().map_or(0, serde_json::Map::len);
     let inline = payload_entries.saturating_add(1).saturating_mul(
         std::mem::size_of::<(String, crate::types::Value)>()
@@ -75,7 +75,7 @@ pub(super) fn document_filter_row_bytes(id: &str, payload: &serde_json::Value) -
     })
 }
 
-pub(super) fn fulltext_result_row_variable_bytes(
+pub(in crate::executor::execution::scored) fn fulltext_result_row_variable_bytes(
     id: &str,
     payload: &serde_json::Value,
     spec: &FulltextFilteredReadSpec,

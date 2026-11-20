@@ -8,6 +8,8 @@ use super::{
 
 #[path = "scored/candidate.rs"]
 mod candidate;
+#[path = "scored/fulltext_filtered_topk.rs"]
+mod fulltext_filtered_topk;
 #[path = "scored/fulltext_read.rs"]
 mod fulltext_read;
 #[path = "scored/fulltext_topk.rs"]
@@ -63,6 +65,16 @@ pub(super) fn execute_scored_search_top_k(
             return Ok(Some(Vec::new()));
         }
         return execute_hybrid_top_k(cassie, session, user_functions, params, &spec, controls);
+    }
+    if let Some(spec) = fulltext_filtered_topk::ranked_filtered_top_k_spec(plan, params) {
+        return fulltext_filtered_topk::execute_ranked_filtered_top_k(
+            cassie,
+            session,
+            user_functions,
+            params,
+            &spec,
+            controls,
+        );
     }
     if let Some(spec) = fulltext_filtered_read_spec(plan, params) {
         if virtual_views::schema(&spec.collection).is_some()

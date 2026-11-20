@@ -653,49 +653,6 @@ fn refresh_result(started: Instant, attempts: u64, completed: bool) -> Maintenan
     }
 }
 
-fn enforce_retention(cassie: &Cassie, session: &CassieSession) -> MaintenanceResult {
-    let started = Instant::now();
-    let deadline = started + Duration::from_secs(180);
-    let mut completed_batches = 0_u64;
-    loop {
-        if started.elapsed() >= Duration::from_secs(180) {
-            return MaintenanceResult {
-                name: "retention_enforcement".to_owned(),
-                elapsed: started.elapsed(),
-                completed_batches,
-                completed: false,
-            };
-        }
-        cassie
-            .execute_sql(
-                session,
-                &format!(
-                    "ENFORCE RETENTION POLICY {RETENTION_POLICY} DUE AT '{}'",
-                    model::RETENTION_AT
-                ),
-                Vec::new(),
-            )
-            .expect("execute one scheduled retention batch");
-        completed_batches = completed_batches.saturating_add(1);
-        if !retention_pending_for(cassie, session) {
-            return MaintenanceResult {
-                name: "retention_enforcement".to_owned(),
-                elapsed: started.elapsed(),
-                completed_batches,
-                completed: true,
-            };
-        }
-        if Instant::now() >= deadline {
-            return MaintenanceResult {
-                name: "retention_enforcement".to_owned(),
-                elapsed: started.elapsed(),
-                completed_batches,
-                completed: false,
-            };
-        }
-    }
-}
-
 pub(super) struct MixedWindow<'a> {
     pub(super) fixture: &'a Fixture,
     pub(super) writer: &'a WriterService,
@@ -737,32 +694,10 @@ fn execute_checked(cassie: &Cassie, session: &CassieSession, sql: &str) {
         .unwrap_or_else(|error| panic!("execute campaign SQL {sql:?}: {error}"));
 }
 
-pub(super) fn retention_pending(fixture: &Fixture) -> Result<bool, CassieError> {
-    let result = fixture.execute(&format!(
-        "SELECT pending_cutoff FROM pg_catalog.pg_retention_policies WHERE policy_name = '{RETENTION_POLICY}'"
-    ))?;
-    Ok(result.first().is_some_and(|row| !row[0].is_null()))
-}
-
 pub(super) fn current_fallback_scans(cassie: &Cassie) -> u64 {
     cassie.metrics()["time_series"]["fallback_scans"]
         .as_u64()
         .unwrap_or_default()
-}
-
-fn retention_pending_for(cassie: &Cassie, session: &CassieSession) -> bool {
-    cassie
-        .execute_sql(
-            session,
-            &format!(
-                "SELECT pending_cutoff FROM pg_catalog.pg_retention_policies WHERE policy_name = '{RETENTION_POLICY}'"
-            ),
-            Vec::new(),
-        )
-        .expect("read retention pending state")
-        .rows()
-        .first()
-        .is_some_and(|row| !row[0].is_null())
 }
 
 fn result_event_rows(rows: &[Vec<Value>]) -> Vec<EventRow> {

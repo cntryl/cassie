@@ -13,8 +13,11 @@ use super::fixture::{Fixture, DAILY_ROLLUP, RETENTION_POLICY, TABLE};
 use super::model::{self, EventRow, Mutation};
 use super::RunKind;
 
+#[path = "workers_retention.rs"]
+mod retention;
 #[path = "workers_runtime.rs"]
 mod runtime;
+use retention::*;
 use runtime::*;
 #[path = "workers_mixed.rs"]
 mod mixed;

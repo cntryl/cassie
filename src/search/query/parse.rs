@@ -526,7 +526,7 @@ mod tests {
         ];
 
         // Act
-        let errors = queries.map(|query| parse(query));
+        let errors = queries.map(parse);
 
         // Assert
         for (query, result) in queries.iter().zip(errors) {

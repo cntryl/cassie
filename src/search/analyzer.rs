@@ -707,4 +707,64 @@ mod tests {
         assert!(groups.contains("groups"), "{groups}");
         assert!(bytes.contains("bytes"), "{bytes}");
     }
+
+    #[test]
+    fn should_keep_stop_word_gaps_in_positions_without_changing_terms() {
+        // Arrange
+        let analyzer = AnalyzerConfig::default();
+        let text = "Alpha the beta, and  GAMMA";
+
+        // Act
+        let positioned = analyzer.analyze_positioned(text);
+        let terms = analyzer.analyze(text);
+
+        // Assert
+        assert_eq!(
+            positioned,
+            vec![
+                (0, "alpha".to_string()),
+                (2, "beta".to_string()),
+                (4, "gamma".to_string())
+            ]
+        );
+        assert_eq!(
+            terms,
+            positioned
+                .into_iter()
+                .map(|(_, term)| term)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn should_report_token_occurrences_with_source_spans_and_matching_positions() {
+        // Arrange
+        let analyzer = AnalyzerConfig::default();
+        let text = "Red the Shoes";
+
+        // Act
+        let occurrences = analyzer.token_occurrences(text);
+
+        // Assert
+        let found = occurrences
+            .iter()
+            .map(|occurrence| {
+                (
+                    occurrence.position,
+                    occurrence.term.as_str(),
+                    &text[occurrence.span.0..occurrence.span.1],
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(found, vec![(0, "red", "Red"), (2, "shoes", "Shoes")]);
+        let positions = analyzer
+            .analyze_positioned(text)
+            .into_iter()
+            .map(|(position, _)| position)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            positions,
+            occurrences.iter().map(|o| o.position).collect::<Vec<_>>()
+        );
+    }
 }

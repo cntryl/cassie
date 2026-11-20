@@ -50,7 +50,10 @@ impl CompiledQuery {
     /// Returns an invalid-parameter error when the text is not valid `'query'`
     /// syntax or exceeds a structural limit. `input` must use the
     /// [`SearchSyntax::Query`] syntax.
-    pub fn compile(input: &SearchQueryInput, analyzer: &AnalyzerConfig) -> Result<Self, CassieError> {
+    pub fn compile(
+        input: &SearchQueryInput,
+        analyzer: &AnalyzerConfig,
+    ) -> Result<Self, CassieError> {
         debug_assert_eq!(input.syntax, SearchSyntax::Query);
         let Some(expr) = parse(&input.text)? else {
             return Ok(Self { root: None });
@@ -85,12 +88,10 @@ fn compile_expr(expr: &Expr, analyzer: &AnalyzerConfig) -> Result<Option<Node>, 
     match expr {
         Expr::Word(text) => compile_phrase(text, 0, analyzer),
         Expr::Phrase { text, slop } => compile_phrase(text, *slop, analyzer),
-        Expr::Prefix(word) => {
-            fold_single_token(word, analyzer, MIN_PREFIX_CHARS, "prefix").map(|word| Some(Node::Prefix(word)))
-        }
-        Expr::Typo(word) => {
-            fold_single_token(word, analyzer, MIN_TYPO_CHARS, "typo").map(|word| Some(Node::Typo(word)))
-        }
+        Expr::Prefix(word) => fold_single_token(word, analyzer, MIN_PREFIX_CHARS, "prefix")
+            .map(|word| Some(Node::Prefix(word))),
+        Expr::Typo(word) => fold_single_token(word, analyzer, MIN_TYPO_CHARS, "typo")
+            .map(|word| Some(Node::Typo(word))),
         Expr::And(children) => {
             let nodes = compile_children(children, analyzer)?;
             Ok(match nodes.len() {
@@ -108,11 +109,16 @@ fn compile_expr(expr: &Expr, analyzer: &AnalyzerConfig) -> Result<Option<Node>, 
                 _ => Some(Node::Or(nodes)),
             })
         }
-        Expr::Not(child) => Ok(compile_expr(child, analyzer)?.map(|node| Node::Not(Box::new(node)))),
+        Expr::Not(child) => {
+            Ok(compile_expr(child, analyzer)?.map(|node| Node::Not(Box::new(node))))
+        }
     }
 }
 
-fn compile_children(children: &[Expr], analyzer: &AnalyzerConfig) -> Result<Vec<Node>, CassieError> {
+fn compile_children(
+    children: &[Expr],
+    analyzer: &AnalyzerConfig,
+) -> Result<Vec<Node>, CassieError> {
     let mut nodes = Vec::with_capacity(children.len());
     for child in children {
         if let Some(node) = compile_expr(child, analyzer)? {
@@ -132,7 +138,9 @@ fn compile_phrase(
         return Ok(None);
     };
     let (first, last) = (*first, *last);
-    let span = usize::try_from(last - first).unwrap_or(usize::MAX).saturating_add(1);
+    let span = usize::try_from(last - first)
+        .unwrap_or(usize::MAX)
+        .saturating_add(1);
     if span > MAX_PHRASE_SPAN {
         return Err(invalid(format!(
             "a full-text phrase spans {span} token positions; the limit is {MAX_PHRASE_SPAN}"
@@ -195,10 +203,7 @@ mod tests {
         let compiled = compile(query).expect("valid query");
 
         // Assert
-        assert_eq!(
-            compiled.root,
-            Some(phrase(&[(0, "alpha"), (2, "beta")], 0))
-        );
+        assert_eq!(compiled.root, Some(phrase(&[(0, "alpha"), (2, "beta")], 0)));
     }
 
     #[test]

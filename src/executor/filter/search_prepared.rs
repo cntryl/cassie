@@ -15,9 +15,11 @@ use crate::search::query::{
 
 const PREPARED_QUERY_CACHE_LIMIT: usize = 64;
 
+type PreparedQueryKey = (String, String);
+
 /// Resolved queries of one statement's search context, keyed by field and text.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct PreparedQueryCache(Arc<Mutex<HashMap<(String, String), Arc<ResolvedQuery>>>>);
+pub(crate) struct PreparedQueryCache(Arc<Mutex<HashMap<PreparedQueryKey, Arc<ResolvedQuery>>>>);
 
 #[derive(Debug, Clone)]
 pub(crate) enum PreparedSearch {

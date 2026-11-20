@@ -16,11 +16,7 @@ pub(super) fn vocabulary_terms(
     matchers: &[TermMatcher],
     limit: usize,
 ) -> Vec<Vec<String>> {
-    matching_terms_in(
-        manifest.terms.keys().map(String::as_str),
-        matchers,
-        limit,
-    )
+    matching_terms_in(manifest.terms.keys().map(String::as_str), matchers, limit)
 }
 
 /// [`Vocabulary`] over a decoded generation manifest.

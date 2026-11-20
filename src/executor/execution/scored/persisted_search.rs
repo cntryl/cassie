@@ -69,16 +69,15 @@ pub(super) fn load_persisted_search_candidates(
                     )))
                 }
                 Err(error) if is_query_control_error(&error) => Err(QueryError::from(error)),
-                Err(error) => Ok(PersistedSearchLoad::Exact(persisted_fallback_reason(&error))),
+                Err(error) => Ok(PersistedSearchLoad::Exact(persisted_fallback_reason(
+                    &error,
+                ))),
             }
         }
         SearchSyntax::Query => {
             let compiled = CompiledQuery::compile(input, analyzer)?;
             match cassie.midge.fulltext_candidate_set_for_query_controlled(
-                collection,
-                index_name,
-                &compiled,
-                controls,
+                collection, index_name, &compiled, controls,
             ) {
                 Ok((candidates, resolved, query_memory)) => {
                     let (candidates, memory) = candidates.into_parts();
@@ -91,7 +90,9 @@ pub(super) fn load_persisted_search_candidates(
                     )))
                 }
                 Err(error) if is_query_control_error(&error) => Err(QueryError::from(error)),
-                Err(error) => Ok(PersistedSearchLoad::Exact(persisted_fallback_reason(&error))),
+                Err(error) => Ok(PersistedSearchLoad::Exact(persisted_fallback_reason(
+                    &error,
+                ))),
             }
         }
     }

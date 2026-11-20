@@ -81,7 +81,9 @@ pub(super) fn expand(
     }
     let expanded = vocabulary.matching_terms(matchers, MAX_EXPANSIONS_PER_ITEM)?;
     if expanded.len() != matchers.len() {
-        return Err(invalid("full-text vocabulary returned a malformed expansion"));
+        return Err(invalid(
+            "full-text vocabulary returned a malformed expansion",
+        ));
     }
     let mut total = 0usize;
     for (matcher, terms) in matchers.iter().zip(&expanded) {
@@ -132,8 +134,10 @@ mod tests {
         let word = "color";
 
         // Act
-        let results = ["color", "colour", "colr", "colon", "cooler", "clr", "colors"]
-            .map(|term| within_one_edit(word, term));
+        let results = [
+            "color", "colour", "colr", "colon", "cooler", "clr", "colors",
+        ]
+        .map(|term| within_one_edit(word, term));
 
         // Assert
         assert_eq!(results, [true, true, true, true, false, false, true]);

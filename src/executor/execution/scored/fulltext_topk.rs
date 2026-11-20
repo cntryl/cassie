@@ -1,10 +1,10 @@
 use super::{
     adaptive_candidate_decision, analyzer_for_search_field, batch, cached_search_context, filter,
     hybrid, json_search_term_stats_for_query, memory, persisted_search,
-    posting_list_candidate_ids_controlled, record_adaptive_candidate_decision, score_fulltext_top_k_candidates, scored_candidates_to_rows,
-    vector_topk, BatchRow, Cassie, CassieSession, FulltextCandidateScoringRequest,
-    FulltextSearchTuning, FulltextTopKSpec, HashSet, Instant, QueryError,
-    TokenizedFulltextDocument,
+    posting_list_candidate_ids_controlled, record_adaptive_candidate_decision,
+    score_fulltext_top_k_candidates, scored_candidates_to_rows, vector_topk, BatchRow, Cassie,
+    CassieSession, FulltextCandidateScoringRequest, FulltextSearchTuning, FulltextTopKSpec,
+    HashSet, Instant, QueryError, TokenizedFulltextDocument,
 };
 use crate::runtime::{QueryExecutionControls, QueryScoringTestBoundary};
 
@@ -232,8 +232,7 @@ fn try_execute_persisted_fulltext_top_k(
     for (id, stats) in &candidates.document_stats {
         super::super::check_timeout(controls)?;
         let term_stats = search.persisted_stats(stats);
-        if let Some(score) = search.evaluate(&search_context, Some(&spec.text_field), &term_stats)
-        {
+        if let Some(score) = search.evaluate(&search_context, Some(&spec.text_field), &term_stats) {
             top.try_push(spec.top_needed(), -score, score, id)?;
             controls.scored_candidate(QueryScoringTestBoundary::PersistedFulltext)?;
         }

@@ -139,8 +139,7 @@ fn evaluate_phrase(
         let backward = chain_costs(&lists, &nominal, slop, Direction::Backward);
         for (index, list) in lists.iter().enumerate() {
             for (slot, position) in list.iter().enumerate() {
-                if let (Some(before), Some(after)) = (forward[index][slot], backward[index][slot])
-                {
+                if let (Some(before), Some(after)) = (forward[index][slot], backward[index][slot]) {
                     if before + after <= slop {
                         out.positions.insert(*position);
                     }
@@ -166,7 +165,8 @@ fn chain_costs(
     direction: Direction,
 ) -> Vec<Vec<Option<i64>>> {
     let count = lists.len();
-    let mut costs: Vec<Vec<Option<i64>>> = lists.iter().map(|list| vec![None; list.len()]).collect();
+    let mut costs: Vec<Vec<Option<i64>>> =
+        lists.iter().map(|list| vec![None; list.len()]).collect();
     let order: Vec<usize> = match direction {
         Direction::Forward => (0..count).collect(),
         Direction::Backward => (0..count).rev().collect(),
@@ -271,7 +271,9 @@ mod tests {
     }
 
     fn matches(query: &str, text: &str) -> bool {
-        resolved(query, &[]).matched_terms(&Document::of(text)).is_some()
+        resolved(query, &[])
+            .matched_terms(&Document::of(text))
+            .is_some()
     }
 
     #[test]
@@ -280,13 +282,8 @@ mod tests {
         let query = "\"red shoes\"";
 
         // Act
-        let results = [
-            "red shoes on sale",
-            "red running shoes",
-            "shoes red",
-            "red",
-        ]
-        .map(|text| matches(query, text));
+        let results = ["red shoes on sale", "red running shoes", "shoes red", "red"]
+            .map(|text| matches(query, text));
 
         // Assert
         assert_eq!(results, [true, false, false, false]);
@@ -335,13 +332,8 @@ mod tests {
         let query = "\"a1 b2 c3\"~1";
 
         // Act
-        let results = [
-            "a1 b2 c3",
-            "a1 x b2 c3",
-            "a1 b2 x c3",
-            "a1 x b2 x c3",
-        ]
-        .map(|text| matches(query, text));
+        let results = ["a1 b2 c3", "a1 x b2 c3", "a1 b2 x c3", "a1 x b2 x c3"]
+            .map(|text| matches(query, text));
 
         // Assert
         assert_eq!(results, [true, true, true, false]);
@@ -427,7 +419,7 @@ mod tests {
 
         // Assert
         assert_eq!(kept, vec![1]);
-        assert!(excluded.is_empty());
+        assert_eq!(excluded, Vec::<u32>::new());
     }
 
     #[test]

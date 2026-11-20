@@ -52,7 +52,7 @@ Precedence, tightest first: `NOT` / `-`, then `AND` (adjacency), then `OR`.
 - `-item` or `NOT item` excludes rows that satisfy `item`. `-` must be directly
   attached to the item it negates (`-shoes`, `-"red shoes"`, `-(a b)`);
   `NOT` is the uppercase keyword followed by whitespace or `(`. A
-  doubly-negated item (`- -a`, `NOT -a`) is invalid.
+  doubly-negated item (`--a`, `-NOT a`, `NOT -a`) is invalid.
 - A leading `+` is accepted as an explicit "required" marker and is the same as
   no marker.
 - Parentheses group.
@@ -68,7 +68,7 @@ Precedence, tightest first: `NOT` / `-`, then `AND` (adjacency), then `OR`.
   `\\`, `\(`, `\-`, `\*`, `\~`, `\ ` are literal characters of the word or
   phrase text. An escaped operator character loses its operator meaning.
 - A backslash as the last character, an unterminated quote, unbalanced
-  parentheses, `()`, a dangling `OR`, `AND`, `NOT` or `-`, and an `OR` with an
+  parentheses, `()`, a dangling `OR`, `AND` or `NOT`, and an `OR` or `AND` with an
   empty side are invalid-parameter errors.
 
 ### Phrases and proximity
@@ -131,6 +131,8 @@ reachable from the postings of the positive terms.
 Degenerate queries are defined, not errors: an empty or blank query matches
 nothing (as for `'terms'`), and a query whose positive items all analyze to
 nothing (`the`, `the -cat`) matches nothing.
+A parenthesized group whose positive items all analyze to nothing is dropped
+from its parent like a stop word, together with its exclusions.
 
 ## Scoring
 

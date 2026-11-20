@@ -207,7 +207,20 @@ fn load_controlled_document_stats(
                 .saturating_mul(2)
                 .saturating_add(retained_string_bytes(&id)),
         )?;
-        stats.insert(id, codec::decode_document_stats(&raw)?);
+        let document = codec::decode_document_stats(&raw)?;
+        memory.try_grow(
+            document
+                .term_positions
+                .values()
+                .map(|positions| {
+                    positions
+                        .len()
+                        .saturating_mul(std::mem::size_of::<u32>())
+                        .saturating_add(std::mem::size_of::<Vec<u32>>())
+                })
+                .fold(0usize, usize::saturating_add),
+        )?;
+        stats.insert(id, document);
     }
     Ok(stats)
 }

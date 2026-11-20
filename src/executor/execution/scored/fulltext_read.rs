@@ -2,9 +2,8 @@ use super::super::projected_read::{is_row_id_column, json_to_query_value};
 use super::{
     analyzer_for_search_field, batch, cached_search_context, filter,
     json_search_term_stats_for_query, persisted_search, posting_list_candidate_ids_controlled,
-    BatchRow, BinaryOp, Cassie, CassieSession, Expr,
-    FulltextFilteredReadSpec, FunctionMeta, HashMap, HashSet, Instant, PostingListDocument,
-    QueryError, Value,
+    BatchRow, BinaryOp, Cassie, CassieSession, Expr, FulltextFilteredReadSpec, FunctionMeta,
+    HashMap, HashSet, Instant, PostingListDocument, QueryError, Value,
 };
 use crate::executor::scan;
 use crate::runtime::accounted::AccountedVec;

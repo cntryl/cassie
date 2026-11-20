@@ -46,6 +46,9 @@ use vector_topk::{
     adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
 };
 pub(super) use vector_topk::{execute_vector_distance_top_k, parse_vector_literal};
+pub(super) use vector_topk::{
+    has_vector_distance_ordering, select_exact_vector_candidates, ExactCandidateBounds,
+};
 
 pub(super) fn execute_scored_search_top_k(
     cassie: &Cassie,

@@ -209,3 +209,57 @@ fn should_leave_unsupported_grouped_shapes_on_the_row_path() {
         }
     });
 }
+
+/// Rows, or the SQLSTATE and message of the failure. An always-true `HAVING COUNT(*) >= 0`
+/// forces the row path without dropping the single row of an ungrouped aggregate.
+fn outcome(pair: &Pair, sql: &str, params: &[Value]) -> Result<Vec<Vec<Value>>, String> {
+    pair.cassie
+        .execute_sql(&pair.session, sql, params.to_vec())
+        .map(|result| result.rows().to_vec())
+        .map_err(|error| format!("{}: {error}", error.sql_state()))
+}
+
+#[test]
+fn should_match_the_row_path_for_parameters_of_every_value_type() {
+    // Arrange
+    with_pair(|pair| {
+        pair.create("m", COLUMNS, ROWS);
+        let queries = [
+            "SELECT g, COUNT(*) AS c, SUM(v) AS s FROM {m} WHERE v > $1 GROUP BY g",
+            "SELECT COUNT(*) AS c, SUM(v) AS s FROM {m} WHERE v > $1",
+            "SELECT k, MAX(f) AS m FROM {m} WHERE f >= $1 GROUP BY k",
+            "SELECT k, COUNT(*) AS c FROM {m} WHERE g = $1 GROUP BY k",
+            "SELECT g, COUNT(*) AS c FROM {m} WHERE b = $1 GROUP BY g",
+        ];
+        let params = [
+            Value::Int64(10),
+            Value::Float64(9.5),
+            Value::Float64(-0.0),
+            Value::String("30".to_owned()),
+            Value::String("a".to_owned()),
+            Value::Bool(true),
+            Value::Null,
+        ];
+        let mut served = 0;
+        for query in queries {
+            for param in &params {
+                for mode in [ROW, COL] {
+                    let sql = mode_sql(query, mode);
+                    let bound = std::slice::from_ref(param);
+
+                    // Act
+                    let typed = outcome(pair, &sql, bound);
+                    served += usize::from(last_dispatch(pair) == DISPATCH);
+                    let forced = outcome(pair, &format!("{sql} HAVING COUNT(*) >= 0"), bound);
+
+                    // Assert
+                    assert_eq!(typed, forced, "{mode}: {query} with {param:?}");
+                }
+            }
+        }
+        assert!(
+            served >= 10,
+            "the typed grouped kernel served {served} statements"
+        );
+    });
+}

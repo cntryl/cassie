@@ -43,6 +43,8 @@ pub enum DocumentWriteFailurePoint {
     TimeSeriesIndex,
     NormalizedVector,
     VectorState,
+    /// Fails after the vector state manifest transaction committed.
+    VectorStatePublished,
 }
 
 impl DocumentWriteFailurePoint {
@@ -53,6 +55,7 @@ impl DocumentWriteFailurePoint {
             Self::TimeSeriesIndex => 3,
             Self::NormalizedVector => 5,
             Self::VectorState => 6,
+            Self::VectorStatePublished => 7,
         }
     }
 
@@ -63,6 +66,7 @@ impl DocumentWriteFailurePoint {
             Self::TimeSeriesIndex => "time-series-index",
             Self::NormalizedVector => "normalized-vector",
             Self::VectorState => "vector-state",
+            Self::VectorStatePublished => "vector-state-published",
         }
     }
 }

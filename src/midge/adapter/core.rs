@@ -29,6 +29,8 @@ pub struct Midge {
     column_validation_reads: AtomicU64,
     pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
     pub(super) fulltext_maintenance_metrics: super::fulltext_retrieval::FulltextMaintenanceMetrics,
+    pub(super) vector_index_maintenance_metrics:
+        super::vector_indexes::VectorIndexMaintenanceMetrics,
 }
 
 impl Drop for Midge {
@@ -136,6 +138,8 @@ impl Midge {
             ),
             fulltext_maintenance_metrics:
                 super::fulltext_retrieval::FulltextMaintenanceMetrics::default(),
+            vector_index_maintenance_metrics:
+                super::vector_indexes::VectorIndexMaintenanceMetrics::default(),
         })
     }
 

@@ -120,6 +120,14 @@ impl Midge {
                 super::super::schema_write_control::SchemaWritePausePoint::ProjectionReplayMetadataCommit,
             );
         }
+        if vector_records_by_collection
+            .values()
+            .any(|fields| !fields.is_empty())
+        {
+            super::super::schema_write_control::pause_before_schema_write_commit(
+                super::super::schema_write_control::SchemaWritePausePoint::VectorIndexPublication,
+            );
+        }
         if !fulltext_tallies.is_empty() {
             super::super::schema_write_control::pause_before_schema_write_commit(
                 super::super::schema_write_control::SchemaWritePausePoint::FulltextPostingPublication,

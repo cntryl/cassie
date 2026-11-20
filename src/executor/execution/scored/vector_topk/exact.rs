@@ -9,7 +9,8 @@ use crate::sql::ast::Expr;
 use crate::types::Value;
 
 use super::candidate::{
-    candidate_sort_value, vector_rows_from_top, AccountedVectorTopK, SqlVectorCandidate,
+    candidate_sort_value, compare_sql_vector_candidates, vector_rows_from_top, AccountedVectorTopK,
+    SqlVectorCandidate,
 };
 use super::{
     adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
@@ -52,9 +53,10 @@ fn run_exact_vector_top_k(
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let top_needed = spec.top_needed();
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
-    if let Some((top, top_memory, final_candidate_count)) =
-        stream_exact_vector_candidates(cassie, spec, request)?
+    if let StreamOutcome::Selected(top, top_memory, counts) =
+        stream_exact_vector_candidates(cassie, spec, request, StreamMode::Sql)?
     {
+        let final_candidate_count = counts.scored;
         let rows = vector_rows_from_top(top, spec);
         drop(top_memory);
         cassie.runtime.record_vector_execution(
@@ -134,66 +136,183 @@ fn run_exact_vector_top_k(
     Ok(Some(rows))
 }
 
-fn stream_exact_vector_candidates(
+/// Rows requested per storage page.
+///
+/// A page of decoded rows is accounted at roughly `EXACT_DECODED_BYTES_PER_COMPONENT` bytes per
+/// vector component until the rows are scored, so the page is sized to keep that in-flight
+/// charge near `EXACT_PAGE_BYTE_TARGET` instead of scaling it with the 1,024-row executor batch.
+pub(crate) fn exact_page_rows(dimensions: usize) -> usize {
+    let row_bytes = dimensions
+        .saturating_mul(EXACT_DECODED_BYTES_PER_COMPONENT)
+        .max(1);
+    (EXACT_PAGE_BYTE_TARGET / row_bytes).clamp(1, EXACT_PAGE_ROWS_MAX)
+}
+
+const EXACT_PAGE_BYTE_TARGET: usize = 1 << 20;
+const EXACT_DECODED_BYTES_PER_COMPONENT: usize = 512;
+const EXACT_PAGE_ROWS_MAX: usize = 256;
+
+/// How the streamed exact scan treats rows it cannot score.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum StreamMode {
+    /// The vector-top-k SQL shape: the result is the whole answer, so an invalid vector is an
+    /// error and rows without a vector are dropped.
+    Sql,
+    /// Candidate selection for a general query shape. Anything the generic executor would answer
+    /// differently (an invalid vector, or an under-filled answer that would include NULL-vector
+    /// rows) declines so the generic path produces its own result or diagnostic.
+    Candidates,
+}
+
+pub(super) enum StreamOutcome {
+    /// The cursor or the transaction overlay does not allow streaming.
+    Unavailable,
+    /// Streaming ran but the generic executor must answer.
+    Declined,
+    Selected(
+        std::collections::BinaryHeap<SqlVectorCandidate>,
+        crate::runtime::QueryMemoryReservation,
+        ScanCounts,
+    ),
+}
+
+/// Rows the streamed scan visited and the rows it scored.
+#[derive(Clone, Copy)]
+pub(super) struct ScanCounts {
+    scanned: usize,
+    scored: usize,
+}
+
+/// Ranked ids selected by a streamed exact scan, with the reservation that still covers them.
+pub(crate) struct ExactCandidates {
+    ranked: Vec<SqlVectorCandidate>,
+    memory: crate::runtime::QueryMemoryReservation,
+    scanned: usize,
+}
+
+impl ExactCandidates {
+    /// Rows the scan visited before the filter, the figure the generic scan reports.
+    pub(crate) const fn scanned_rows(&self) -> usize {
+        self.scanned
+    }
+
+    /// Candidate ids in storage-key order, with the reservation covering them.
+    pub(crate) fn into_sorted_ids(self) -> (Vec<String>, crate::runtime::QueryMemoryReservation) {
+        let mut ids = self
+            .ranked
+            .into_iter()
+            .map(|candidate| candidate.id)
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        (ids, self.memory)
+    }
+}
+
+/// Selects the ranked exact top candidates for a general query shape without materializing rows.
+pub(super) fn select_exact_candidates(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
     request: &ExactVectorRequest<'_>,
-) -> Result<
-    Option<(
-        std::collections::BinaryHeap<SqlVectorCandidate>,
-        crate::runtime::QueryMemoryReservation,
-        usize,
-    )>,
-    QueryError,
-> {
-    if request
-        .session
-        .is_some_and(|session| session.has_collection_changes(&spec.collection))
-    {
+) -> Result<Option<ExactCandidates>, QueryError> {
+    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, spec.top_needed())?;
+    let StreamOutcome::Selected(top, memory, counts) =
+        stream_exact_vector_candidates(cassie, spec, request, StreamMode::Candidates)?
+    else {
         return Ok(None);
-    }
-    let decode = if request.filter_expr.is_some() {
+    };
+    let mut ranked = top.into_vec();
+    ranked.sort_by(compare_sql_vector_candidates);
+    // The generic plan metrics record the vector execution once the projected rows exist.
+    record_adaptive_candidate_decision(cassie, &adaptive, counts.scored, ranked.len());
+    Ok(Some(ExactCandidates {
+        ranked,
+        memory,
+        scanned: counts.scanned,
+    }))
+}
+
+fn stream_decode(request: &ExactVectorRequest<'_>) -> crate::midge::adapter::RowDecode {
+    if request.filter_expr.is_some() {
         crate::midge::adapter::RowDecode::Full
     } else {
         crate::midge::adapter::RowDecode::ProjectedHistorical(vec![
             crate::sql::ColumnIdentifierPath::from_field_name(request.stored_vector_field)
                 .canonical_sql(),
         ])
+    }
+}
+
+fn stream_exact_vector_candidates(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    request: &ExactVectorRequest<'_>,
+    mode: StreamMode,
+) -> Result<StreamOutcome, QueryError> {
+    if request
+        .session
+        .is_some_and(|session| session.has_collection_changes(&spec.collection))
+    {
+        return Ok(StreamOutcome::Unavailable);
+    }
+    let Some(mut cursor) = cassie
+        .midge
+        .open_row_cursor(&spec.collection, stream_decode(request))?
+    else {
+        return Ok(StreamOutcome::Unavailable);
     };
-    let Some(mut cursor) = cassie.midge.open_row_cursor(&spec.collection, decode)? else {
-        return Ok(None);
-    };
+    let prefilter_supported = request.filter_expr.is_none_or(|filter_expr| {
+        cassie
+            .catalog
+            .get_schema(&spec.collection)
+            .is_some_and(|schema| vector_prefilter_supported(filter_expr, &schema))
+    });
+    if mode == StreamMode::Candidates && !prefilter_supported {
+        return Ok(StreamOutcome::Declined);
+    }
+    let skipped_field = prefilter_supported.then_some(request.stored_vector_field);
+    let schema = cassie.catalog.get_schema(&spec.collection);
+    let page_rows = exact_page_rows(spec.query.len());
     let mut top = AccountedVectorTopK::try_new(request.controls)?;
     let mut candidate_count = 0usize;
     let mut scanned_count = 0usize;
+    let mut unscored_count = 0usize;
     loop {
-        let documents =
-            cursor.next_documents(&cassie.midge, batch::DEFAULT_BATCH_SIZE, request.controls)?;
+        let documents = cursor.next_documents(&cassie.midge, page_rows, request.controls)?;
         if documents.is_empty() {
             break;
         }
-        for document in documents {
+        for mut document in documents {
             super::super::super::check_timeout(request.controls)?;
             scanned_count = scanned_count.saturating_add(1);
-            if !document_matches_filter(
-                &document,
-                request.filter_expr,
-                request.params,
-                request.user_functions,
-                request.session,
-            )? {
-                continue;
-            }
-            let Some(value) = document
-                .payload
-                .get(request.stored_vector_field)
-                .filter(|value| !value.is_null())
+            let filter = FilterContext {
+                mode,
+                schema: schema.as_ref(),
+                skipped_field,
+            };
+            let FilterOutcome::Accepted(detached) =
+                filter_document(&mut document, request, &filter)?
             else {
                 continue;
             };
-            let vector = vector_from_json(value).ok_or_else(|| {
-                QueryError::General("exact vector candidate is invalid".to_string())
-            })?;
+            let Some(value) = detached
+                .as_ref()
+                .or_else(|| document.payload.get(request.stored_vector_field))
+                .filter(|value| !value.is_null())
+            else {
+                unscored_count = unscored_count.saturating_add(1);
+                continue;
+            };
+            let Some(vector) = vector_from_json(value) else {
+                if mode == StreamMode::Candidates {
+                    return Ok(StreamOutcome::Declined);
+                }
+                return Err(QueryError::General(
+                    "exact vector candidate is invalid".to_string(),
+                ));
+            };
+            if mode == StreamMode::Candidates && !exact_vector_is_valid(spec, &vector) {
+                return Ok(StreamOutcome::Declined);
+            }
             validate_exact_vector(spec, &vector)?;
             let score = spec.exact_distance(&vector);
             candidate_count = candidate_count.saturating_add(1);
@@ -216,13 +335,94 @@ fn stream_exact_vector_candidates(
             .record_vector_prefilter_usage(scanned_count, candidate_count, None);
     }
     super::super::super::check_timeout(request.controls)?;
+    if mode == StreamMode::Candidates && unscored_count > 0 && candidate_count < spec.top_needed() {
+        // The generic ordering appends NULL-vector rows after the scored ones.
+        return Ok(StreamOutcome::Declined);
+    }
     let (top, memory) = top.into_parts();
-    Ok(Some((top, memory, candidate_count)))
+    Ok(StreamOutcome::Selected(
+        top,
+        memory,
+        ScanCounts {
+            scanned: scanned_count,
+            scored: candidate_count,
+        },
+    ))
+}
+
+/// What the per-document filter step needs besides the document and the request.
+struct FilterContext<'a> {
+    mode: StreamMode,
+    schema: Option<&'a crate::catalog::CollectionSchema>,
+    skipped_field: Option<&'a str>,
+}
+
+enum FilterOutcome {
+    Rejected,
+    /// Carries the stored vector when a general query shape detached it so its typed row could be
+    /// built without the elements.
+    Accepted(Option<serde_json::Value>),
+}
+
+/// Applies the filter to one document. A general query shape evaluates it on typed rows exactly
+/// as the generic executor does.
+fn filter_document(
+    document: &mut crate::midge::adapter::DocumentRef,
+    request: &ExactVectorRequest<'_>,
+    filter: &FilterContext<'_>,
+) -> Result<FilterOutcome, QueryError> {
+    let mut detached = None;
+    let matches = match (filter.mode, request.filter_expr) {
+        (StreamMode::Candidates, Some(filter_expr)) => {
+            detached = document
+                .payload
+                .as_object_mut()
+                .and_then(|payload| payload.remove(request.stored_vector_field));
+            typed_row_matches(document, filter.schema, filter_expr, request)?
+        }
+        _ => document_matches_filter(
+            document,
+            request.filter_expr,
+            filter.skipped_field,
+            request.params,
+            request.user_functions,
+            request.session,
+        )?,
+    };
+    Ok(if matches {
+        FilterOutcome::Accepted(detached)
+    } else {
+        FilterOutcome::Rejected
+    })
+}
+
+fn typed_row_matches(
+    document: &crate::midge::adapter::DocumentRef,
+    schema: Option<&crate::catalog::CollectionSchema>,
+    filter_expr: &Expr,
+    request: &ExactVectorRequest<'_>,
+) -> Result<bool, QueryError> {
+    let row = scan::document_to_row(document, schema);
+    let row = scan::hydrate_character_arrays(row, request.controls)?;
+    filter::filter_rows(
+        vec![row],
+        filter_expr,
+        request.params,
+        None,
+        request.user_functions,
+        request.session,
+    )
+    .map(|rows| !rows.is_empty())
+}
+
+fn exact_vector_is_valid(spec: &VectorDistanceTopKSpec, vector: &[f32]) -> bool {
+    !vector.is_empty() && vector.len() == spec.query.len()
 }
 
 fn document_matches_filter(
     document: &crate::midge::adapter::DocumentRef,
     filter_expr: Option<&Expr>,
+    skipped_field: Option<&str>,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
@@ -241,12 +441,18 @@ fn document_matches_filter(
         Value::String(document.id.clone()),
     )];
     if let Some(payload) = document.payload.as_object() {
-        entries.extend(payload.iter().map(|(name, value)| {
-            (
-                name.clone(),
-                super::super::super::projected_read::json_to_query_value(value),
-            )
-        }));
+        // A supported prefilter never references the vector column, so its elements are not converted.
+        entries.extend(
+            payload
+                .iter()
+                .filter(|(name, _)| Some(name.as_str()) != skipped_field)
+                .map(|(name, value)| {
+                    (
+                        name.clone(),
+                        super::super::super::projected_read::json_to_query_value(value),
+                    )
+                }),
+        );
     }
     filter::filter_rows(
         vec![BatchRow::new(entries)],
@@ -272,4 +478,21 @@ pub(super) fn validate_exact_vector(
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::exact_page_rows;
+
+    #[test]
+    fn should_size_exact_pages_to_the_in_flight_byte_target() {
+        // Arrange
+        let widths = [1usize, 3, 384, 1_536, 16_000];
+
+        // Act
+        let pages = widths.map(exact_page_rows);
+
+        // Assert
+        assert_eq!(pages, [256, 256, 5, 1, 1]);
+    }
 }

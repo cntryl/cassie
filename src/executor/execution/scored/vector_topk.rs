@@ -18,6 +18,8 @@ mod diagnostics;
 mod exact;
 #[path = "vector_topk/filtered.rs"]
 mod filtered;
+#[path = "vector_topk/generic.rs"]
+mod generic;
 #[path = "vector_topk/hnsw.rs"]
 mod hnsw;
 #[path = "vector_topk/ivfflat.rs"]
@@ -25,6 +27,9 @@ mod ivfflat;
 
 pub(crate) use diagnostics::install_ann_rerank_barriers;
 pub(crate) use filtered::explain_filtered_strategy;
+pub(crate) use generic::{
+    has_vector_distance_ordering, select_exact_vector_candidates, ExactCandidateBounds,
+};
 
 pub(crate) fn execute_vector_distance_top_k(
     cassie: &Cassie,

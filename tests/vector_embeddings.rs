@@ -13,6 +13,9 @@ mod ann_candidate_exhaustion;
 #[path = "vector_embeddings/embeddings/embedding_workloads.rs"]
 mod embedding_workloads;
 
+#[path = "vector_embeddings/vectors/exact_vector_cost.rs"]
+mod exact_vector_cost;
+
 // Formerly tests/embedding_local.rs.
 #[path = "vector_embeddings/embeddings/embedding_local.rs"]
 mod embedding_local;

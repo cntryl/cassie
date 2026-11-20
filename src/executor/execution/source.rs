@@ -68,6 +68,9 @@ mod source_collection_pull;
 #[path = "source_shape.rs"]
 mod source_shape;
 
+#[path = "source_vector_exact.rs"]
+mod source_vector_exact;
+
 #[path = "source_table_sample.rs"]
 mod source_table_sample;
 
@@ -465,8 +468,11 @@ pub(super) fn execute_source_query_with_outer_row(
             return Ok(super::owned_rows::OwnedRows::untracked(rows));
         }
     }
-    let (mut batches, text_fields) = load_source_batches(env, plan, cte_context, outer_row)?;
-    let candidate_rows = batches.iter().map(std::vec::Vec::len).sum::<usize>();
+    let loaded = source_vector_exact::load(env, plan, cte_context, outer_row)?;
+    let (mut batches, text_fields) = (loaded.batches, loaded.text_fields);
+    let candidate_rows = loaded
+        .scanned_rows
+        .unwrap_or_else(|| batches.iter().map(std::vec::Vec::len).sum::<usize>());
     let fulltext_fields = plan_inspection::fulltext_query_fields(plan);
     let search_context =
         build_search_context(env.cassie, plan, &batches, &text_fields, &fulltext_fields)?;

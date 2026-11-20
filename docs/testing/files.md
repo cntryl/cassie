@@ -1836,7 +1836,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/publication/orphans.rs` | test_module | 122 | 1 | vector_embeddings | keep | `tests/vector_embeddings/publication/orphans.rs` |
 | `tests/vector_embeddings/publication/restart.rs` | test_module | 254 | 2 | vector_embeddings | keep | `tests/vector_embeddings/publication/restart.rs` |
 | `tests/vector_embeddings/vectors/ann_candidate_exhaustion.rs` | test_module | 228 | 5 | vector_embeddings | keep | `tests/vector_embeddings/vectors/ann_candidate_exhaustion.rs` |
-| `tests/vector_embeddings/vectors/exact_vector_cost.rs` | test_module | 579 | 9 | vector_embeddings | split_by_contract | `tests/vector_embeddings/vectors/cancellation.rs`; `tests/vector_embeddings/vectors/memory.rs`; `tests/vector_embeddings/vectors/results.rs`; `tests/vector_embeddings/vectors/shapes.rs` |
+| `tests/vector_embeddings/vectors/exact_vector_cost.rs` | test_module | 619 | 10 | vector_embeddings | split_by_contract | `tests/vector_embeddings/vectors/cancellation.rs`; `tests/vector_embeddings/vectors/memory.rs`; `tests/vector_embeddings/vectors/results.rs`; `tests/vector_embeddings/vectors/shapes.rs` |
 | `tests/vector_embeddings/vectors/metric_qualification.rs` | test_module | 546 | 11 | vector_embeddings | keep | `tests/vector_embeddings/vectors/metric_qualification.rs` |
 | `tests/vector_embeddings/vectors/normalized_vector_generation.rs` | test_module | 96 | 1 | vector_embeddings | keep | `tests/vector_embeddings/vectors/normalized_vector_generation.rs` |
 | `tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs` | test_module | 249 | 5 | vector_embeddings | keep | `tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs` |

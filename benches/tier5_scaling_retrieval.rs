@@ -2,6 +2,8 @@ use std::time::{Duration, Instant};
 
 use cassie::types::{Value, Vector};
 
+#[path = "support/fulltext_live_ingest.rs"]
+mod fulltext_live_ingest;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -39,6 +41,7 @@ struct VectorRetrievalCases {
 
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier5, OWNER);
+    fulltext_live_ingest::run_paired_profiles(&workloads::runtime());
     let selected = ["10k", "100k", "250k"].into_iter().any(|scale| {
         [
             "full_text_query",

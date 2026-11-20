@@ -160,7 +160,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/columnar_surface/pair.rs` | test_support | 142 | 0 | columnar_surface | keep | `tests/columnar_surface/pair.rs` |
 | `tests/columnar_surface/pruning_equivalence.rs` | test_module | 255 | 6 | columnar_surface | move_with_module_alias | `tests/columnar_surface/semantics/pruning_equivalence.rs` |
 | `tests/columnar_surface/query_equivalence.rs` | test_module | 309 | 11 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/core/query_equivalence.rs`; `tests/columnar_surface/semantics/query_equivalence.rs` |
-| `tests/columnar_surface.rs` | cargo_target | 17 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
+| `tests/columnar_surface.rs` | cargo_target | 20 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
 | `tests/compatibility/clients/desktop_traces/desktop_client_trace_replay.rs` | test_module | 150 | 7 | compatibility | keep | `tests/compatibility/clients/desktop_traces/desktop_client_trace_replay.rs` |
 | `tests/compatibility/clients/diesel/semantics.rs` | test_module | 167 | 1 | compatibility | keep | `tests/compatibility/clients/diesel/semantics.rs` |
 | `tests/compatibility/clients/dump_restore/pg_dump_restore.rs` | test_module | 210 | 1 | compatibility | keep | `tests/compatibility/clients/dump_restore/pg_dump_restore.rs` |

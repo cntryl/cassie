@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1854,
-    "rust_files": 1810,
-    "rust_test_declarations": 10963,
+    "files": 1856,
+    "rust_files": 1812,
+    "rust_test_declarations": 10981,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10988,
+    "registered_rust_instances": 11006,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -24692,6 +24692,254 @@
         "category": "constraints",
         "directory": "tests/columnar_surface/constraints",
         "file": "tests/columnar_surface/constraints/constraint_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes",
+      "name": "should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 29,
+      "end_line": 57,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_keep_null_keys_as_their_own_group_in_row_path_order",
+      "name": "should_keep_null_keys_as_their_own_group_in_row_path_order",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 60,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_keep_null_keys_as_their_own_group_in_row_path_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_return_no_groups_for_empty_tables",
+      "name": "should_return_no_groups_for_empty_tables",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 83,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_return_no_groups_for_empty_tables"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_report_the_row_path_error_for_float_sum_overflow",
+      "name": "should_report_the_row_path_error_for_float_sum_overflow",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 100,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_report_the_row_path_error_for_float_sum_overflow"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_match_the_row_path_across_a_batch_boundary",
+      "name": "should_match_the_row_path_across_a_batch_boundary",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 129,
+      "end_line": 160,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_match_the_row_path_across_a_batch_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_keep_prepared_parameters_on_the_typed_grouped_path",
+      "name": "should_keep_prepared_parameters_on_the_typed_grouped_path",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 163,
+      "end_line": 190,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_keep_prepared_parameters_on_the_typed_grouped_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_leave_unsupported_grouped_shapes_on_the_row_path",
+      "name": "should_leave_unsupported_grouped_shapes_on_the_row_path",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 193,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_leave_unsupported_grouped_shapes_on_the_row_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_match_the_row_path_for_parameters_of_every_value_type",
+      "name": "should_match_the_row_path_for_parameters_of_every_value_type",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 223,
+      "end_line": 265,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_match_the_row_path_for_parameters_of_every_value_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/boolean",
+        "directory": "tests/columnar_surface/aggregates/boolean",
+        "file": "tests/columnar_surface/aggregates/boolean/grouped_aggregate.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -337555,6 +337803,336 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::results::should_match_brute_force_top_k_including_ties_on_heap_tables",
+      "name": "should_match_brute_force_top_k_including_ties_on_heap_tables",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 300,
+      "end_line": 312,
+      "inline_modules": [
+        "results"
+      ],
+      "inline_module_lines": 93,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::results::should_match_brute_force_top_k_including_ties_on_heap_tables"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/results.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::results::should_match_brute_force_top_k_including_ties_on_columnar_tables",
+      "name": "should_match_brute_force_top_k_including_ties_on_columnar_tables",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 315,
+      "end_line": 327,
+      "inline_modules": [
+        "results"
+      ],
+      "inline_module_lines": 93,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::results::should_match_brute_force_top_k_including_ties_on_columnar_tables"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/results.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::results::should_break_distance_ties_by_ascending_row_identity",
+      "name": "should_break_distance_ties_by_ascending_row_identity",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 330,
+      "end_line": 353,
+      "inline_modules": [
+        "results"
+      ],
+      "inline_module_lines": 93,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::results::should_break_distance_ties_by_ascending_row_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/results.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::shapes::should_apply_offset_after_exact_ranking",
+      "name": "should_apply_offset_after_exact_ranking",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 360,
+      "end_line": 375,
+      "inline_modules": [
+        "shapes"
+      ],
+      "inline_module_lines": 103,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::shapes::should_apply_offset_after_exact_ranking"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/shapes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::shapes::should_order_null_vector_rows_after_scored_rows_when_fewer_than_k_are_scored",
+      "name": "should_order_null_vector_rows_after_scored_rows_when_fewer_than_k_are_scored",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 378,
+      "end_line": 417,
+      "inline_modules": [
+        "shapes"
+      ],
+      "inline_module_lines": 103,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::shapes::should_order_null_vector_rows_after_scored_rows_when_fewer_than_k_are_scored"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/shapes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::shapes::should_order_null_vector_rows_first_for_a_descending_distance",
+      "name": "should_order_null_vector_rows_first_for_a_descending_distance",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 420,
+      "end_line": 457,
+      "inline_modules": [
+        "shapes"
+      ],
+      "inline_module_lines": 103,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::shapes::should_order_null_vector_rows_first_for_a_descending_distance"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/shapes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::memory::should_bound_peak_query_memory_independent_of_row_count",
+      "name": "should_bound_peak_query_memory_independent_of_row_count",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 472,
+      "end_line": 512,
+      "inline_modules": [
+        "memory"
+      ],
+      "inline_module_lines": 111,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::memory::should_bound_peak_query_memory_independent_of_row_count"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/memory.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::memory::should_bound_peak_query_memory_on_columnar_tables",
+      "name": "should_bound_peak_query_memory_on_columnar_tables",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 515,
+      "end_line": 534,
+      "inline_modules": [
+        "memory"
+      ],
+      "inline_module_lines": 111,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::memory::should_bound_peak_query_memory_on_columnar_tables"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/memory.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::memory::should_enforce_the_measured_need_as_the_exact_vector_memory_budget",
+      "name": "should_enforce_the_measured_need_as_the_exact_vector_memory_budget",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 537,
+      "end_line": 569,
+      "inline_modules": [
+        "memory"
+      ],
+      "inline_module_lines": 111,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::memory::should_enforce_the_measured_need_as_the_exact_vector_memory_budget"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/memory.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::cancellation::should_return_no_partial_output_when_canceled_while_scoring_candidates",
+      "name": "should_return_no_partial_output_when_canceled_while_scoring_candidates",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 576,
+      "end_line": 618,
+      "inline_modules": [
+        "cancellation"
+      ],
+      "inline_module_lines": 48,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::cancellation::should_return_no_partial_output_when_canceled_while_scoring_candidates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/cancellation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/vectors/metric_qualification.rs::should_refresh_large_warm_normalized_cache_after_vector_generation_changes",
       "name": "should_refresh_large_warm_normalized_cache_after_vector_generation_changes",
       "current_file": "tests/vector_embeddings/vectors/metric_qualification.rs",
@@ -343069,6 +343647,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 265,
+      "sha256": "62fecc7e36253341fcc61b958b949adb504affe56d65e639d27b87f367c57dd2",
+      "test_declarations": 8,
+      "registered_suites": [
+        "columnar_surface"
+      ],
+      "destinations": [
+        "tests/columnar_surface/aggregates/boolean/grouped_aggregate.rs",
+        "tests/columnar_surface/aggregates/core/grouped_aggregate.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/columnar_surface/index_equivalence.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -343133,8 +343727,8 @@
       "current_file": "tests/columnar_surface.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 17,
-      "sha256": "b59d75a9b603eedf18e5bbd8e43828b91cc8e2bffe70701b8f28d9e34ff84849",
+      "lines": 20,
+      "sha256": "ab94436ca33fb9595d2c99b79d401a02a7c254629444520545c652e210e93829",
       "test_declarations": 0,
       "registered_suites": [
         "columnar_surface"
@@ -368292,6 +368886,24 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 619,
+      "sha256": "102751ffca6f590d56240ce71fc45698556396a6cf9ba01678f06c2508589bb0",
+      "test_declarations": 10,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/cancellation.rs",
+        "tests/vector_embeddings/vectors/memory.rs",
+        "tests/vector_embeddings/vectors/results.rs",
+        "tests/vector_embeddings/vectors/shapes.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/vectors/metric_qualification.rs",
       "role": "test_module",
       "action": "keep",
@@ -368535,8 +369147,8 @@
       "current_file": "tests/vector_embeddings.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 146,
-      "sha256": "f259f4552a1d5defa3c4764ffe6fd3c2ac7ee8a7df85fa88f7d19c84b91bde93",
+      "lines": 149,
+      "sha256": "98e44e904662bc70cfbce37adf02380efcb7ec885e0fef448377d3379edd5fb7",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"

@@ -131,6 +131,9 @@ fn candidate_bounds(
         || plan.set.is_some()
         || plan.order.len() != 1
         || plan.order[0].nulls.is_some()
+        // A descending order puts rows without a vector first; the bounded heap ranks only
+        // scored rows, so the generic sort answers descending orderings.
+        || matches!(plan.order[0].direction, crate::sql::ast::SortDirection::Desc)
         || plan_uses_aggregate(plan)
         || plan
             .projection

@@ -415,6 +415,46 @@ mod shapes {
         assert_eq!(actual.len(), K);
         assert_eq!(actual[..5], scored[..]);
     }
+
+    #[test]
+    fn should_order_null_vector_rows_first_for_a_descending_distance() {
+        // Arrange
+        let cassie = Cassie::new_in_memory_with_config(config(AMPLE_BUDGET)).expect("Cassie");
+        crate::support_sql::install_vector_extension(&cassie);
+        create_table(&cassie, Storage::Heap);
+        let documents = (0..60)
+            .map(|row| {
+                let embedding = if row % 20 == 3 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(vector_for(row))
+                };
+                (
+                    Some(row_id(row)),
+                    serde_json::json!({
+                        "id": row_id(row),
+                        "tenant": tenant_of(row),
+                        "title": format!("title {row}"),
+                        "embedding": embedding,
+                    }),
+                )
+            })
+            .collect();
+        cassie
+            .midge
+            .put_fresh_documents("items", documents)
+            .expect("load rows");
+        let sql = query_sql(Metric::L2, true, false);
+        let explicit = sql.replace(" DESC", " DESC NULLS FIRST");
+
+        // Act
+        let actual = returned_ids(&cassie, &sql, params(&spread_query(), false));
+        let expected = returned_ids(&cassie, &explicit, params(&spread_query(), false));
+
+        // Assert
+        assert_eq!(actual, expected);
+        assert_eq!(actual[..3], [row_id(3), row_id(23), row_id(43)]);
+    }
 }
 
 mod memory {

@@ -144,6 +144,10 @@ reads it and derives the branch prerelease suffix.
 - Keep PostgreSQL wire protocol as the primary query interface.
 - Keep REST secondary and administrative.
 
+## Commit Authorship
+
+Commits are authored by the human committing them. Commit messages carry no attribution trailers (`Co-Authored-By:`, `Generated-By:`, `Claude-Session:`), and PR and issue bodies carry no AI attribution lines. The `commit-msg` hook in `.githooks/` rejects such trailers; enable it once per clone with `git config core.hooksPath .githooks`.
+
 ## Issue and PR Formatting
 
 Create GitHub issues and pull requests as durable engineering records. Use real Markdown newlines; never submit literal `\\n` escape sequences in a body.

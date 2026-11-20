@@ -1,0 +1,6 @@
+#!/bin/sh
+# Commits are authored by the human committing them (AGENTS.md): reject attribution trailers.
+if grep -qiE '^[[:space:]]*(co-authored-by|generated-by|claude-session)[[:space:]]*:' "$1"; then
+  echo "commit-msg: attribution trailers (Co-Authored-By etc.) are not allowed; see AGENTS.md." >&2
+  exit 1
+fi

@@ -191,11 +191,11 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
     let fulltext_metadata_parts = fulltext_metadata
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
-    let fulltext_manifest = fulltext_index_manifest_key(7, 11, 42);
-    let fulltext_manifest_parts = fulltext_manifest
+    let fulltext_term_record = fulltext_term_record_key(7, 11, "alpha");
+    let fulltext_term_record_parts = fulltext_term_record
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
-    let fulltext_terms = fulltext_term_postings_block_key(7, 11, "alpha", 0);
+    let fulltext_terms = fulltext_term_postings_block_key(7, 11, "alpha", "doc-id-1");
     let fulltext_terms_parts = fulltext_terms
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
@@ -219,16 +219,16 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
         .iter()
         .any(|part| part == b"metadata"));
     assert!(fulltext_metadata_parts.contains(&FULLTEXT_ARTIFACT_META.as_slice()));
-    assert!(!fulltext_manifest_parts
+    assert!(!fulltext_term_record_parts
         .iter()
-        .any(|part| part == b"manifest"));
-    assert!(fulltext_manifest_parts.contains(&FULLTEXT_ARTIFACT_MANIFEST.as_slice()));
+        .any(|part| part == b"term"));
+    assert!(fulltext_term_record_parts.contains(&FULLTEXT_ARTIFACT_TERM.as_slice()));
     assert!(fulltext_terms_parts.contains(&FULLTEXT_ARTIFACT_POSTINGS.as_slice()));
     assert!(!fulltext_terms_parts.iter().any(|part| part == b"postings"));
     assert!(fulltext_doc_parts.contains(&FULLTEXT_ARTIFACT_DOCUMENT.as_slice()));
     assert!(!fulltext_doc_parts.iter().any(|part| part == b"documents"));
     assert_eq!(FULLTEXT_ARTIFACT_META.len(), 1);
-    assert_eq!(FULLTEXT_ARTIFACT_MANIFEST.len(), 1);
+    assert_eq!(FULLTEXT_ARTIFACT_TERM.len(), 1);
     assert_eq!(FULLTEXT_ARTIFACT_POSTINGS.len(), 1);
     assert_eq!(FULLTEXT_ARTIFACT_DOCUMENT.len(), 1);
 }

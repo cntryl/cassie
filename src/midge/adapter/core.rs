@@ -28,6 +28,7 @@ pub struct Midge {
     query_scan_entries: AtomicU64,
     column_validation_reads: AtomicU64,
     pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
+    pub(super) fulltext_maintenance_metrics: super::fulltext_retrieval::FulltextMaintenanceMetrics,
 }
 
 impl Drop for Midge {
@@ -133,6 +134,8 @@ impl Midge {
             column_batch_operational_metrics: Mutex::new(
                 super::ColumnBatchOperationalMetrics::default(),
             ),
+            fulltext_maintenance_metrics:
+                super::fulltext_retrieval::FulltextMaintenanceMetrics::default(),
         })
     }
 
@@ -267,6 +270,12 @@ impl Midge {
 
     pub(super) fn record_column_validation_read(&self) {
         self.column_validation_reads.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Full-text index write-cost counters merged into the `search` metrics.
+    #[must_use]
+    pub fn fulltext_maintenance_metrics(&self) -> serde_json::Value {
+        self.fulltext_maintenance_metrics.snapshot()
     }
 
     pub(super) fn record_query_scan_entry(&self) {

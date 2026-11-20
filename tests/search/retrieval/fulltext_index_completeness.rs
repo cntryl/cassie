@@ -172,11 +172,11 @@ fn should_fallback_before_top_k_publishes_a_dangling_candidate() {
 }
 
 #[test]
-fn should_rebuild_a_malformed_manifest_during_startup() {
+fn should_rebuild_a_malformed_term_record_during_startup() {
     // Arrange
     let path = data_dir("fulltext_malformed_manifest_restart");
     let cassie = seed_index(&path, [("d1".to_string(), "alpha beta".to_string())]);
-    replace_artifact(&cassie, *b"FTG1", b"malformed-manifest".to_vec());
+    replace_artifact(&cassie, *b"FTT1", b"malformed-term-record".to_vec());
     drop(cassie);
 
     // Act
@@ -217,7 +217,7 @@ fn should_rebuild_old_fulltext_metadata_during_startup() {
         .expect("upgraded fulltext metadata");
 
     // Assert
-    assert_eq!(metadata[4], 2, "startup must publish only v2 metadata");
+    assert_eq!(metadata[4], 3, "startup must publish only v3 metadata");
     assert!(restarted
         .midge
         .get_persisted_fulltext_index_state(COLLECTION, INDEX)

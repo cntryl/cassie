@@ -3,14 +3,14 @@ use std::collections::BTreeMap;
 use crate::app::CassieError;
 
 use super::{
-    FulltextIndexMetadata, FulltextManifest, PersistedFulltextDocumentStats,
+    FulltextIndexMetadata, FulltextTermRecord, PersistedFulltextDocumentStats,
     PersistedFulltextPosting,
 };
 
 const POSTINGS_MAGIC: &[u8; 4] = b"FTB1";
 const DOCUMENT_MAGIC: &[u8; 4] = b"FTD1";
 const METADATA_MAGIC: &[u8; 4] = b"FTM1";
-const MANIFEST_MAGIC: &[u8; 4] = b"FTG1";
+const TERM_MAGIC: &[u8; 4] = b"FTT1";
 pub(super) const MAX_POSTING_BLOCK_BYTES: usize = 64 * 1024;
 
 pub(super) fn encode_postings(
@@ -39,38 +39,47 @@ pub(super) fn encode_postings(
     Ok(out)
 }
 
-pub(super) fn encode_posting_blocks(
+/// Exact encoded size of a posting block holding `postings`.
+pub(super) fn encoded_postings_len(postings: &[PersistedFulltextPosting]) -> usize {
+    let mut previous = "";
+    let mut body = 0_usize;
+    for posting in postings {
+        body += encoded_posting_entry_len(previous, posting);
+        previous = &posting.document_id;
+    }
+    4 + varint_len(postings.len()) + body
+}
+
+/// Splits sorted postings into consecutive chunks whose encoded size stays at
+/// or below `target_bytes` (a chunk always holds at least one posting).
+pub(super) fn chunk_postings(
     postings: &[PersistedFulltextPosting],
-) -> Result<Vec<Vec<u8>>, CassieError> {
-    let mut blocks = Vec::new();
+    target_bytes: usize,
+) -> Vec<&[PersistedFulltextPosting]> {
+    let target_bytes = target_bytes.min(MAX_POSTING_BLOCK_BYTES);
+    let mut chunks = Vec::new();
     let mut start = 0_usize;
-    let mut index = 0_usize;
     let mut body_bytes = 0_usize;
-    while start < postings.len() {
-        let previous = index
-            .checked_sub(1)
-            .filter(|_| index > start)
-            .map_or("", |previous| postings[previous].document_id.as_str());
+    for index in 0..postings.len() {
+        let previous = if index > start {
+            postings[index - 1].document_id.as_str()
+        } else {
+            ""
+        };
         let entry_bytes = encoded_posting_entry_len(previous, &postings[index]);
         let count = index - start + 1;
-        let encoded_bytes = 4 + varint_len(count) + body_bytes + entry_bytes;
-        if encoded_bytes > MAX_POSTING_BLOCK_BYTES && index > start {
-            blocks.push(encode_postings(&postings[start..index])?);
+        if 4 + varint_len(count) + body_bytes + entry_bytes > target_bytes && index > start {
+            chunks.push(&postings[start..index]);
             start = index;
-            body_bytes = 0;
-            continue;
-        }
-        body_bytes += entry_bytes;
-        index += 1;
-        if index == postings.len() {
-            blocks.push(encode_postings(&postings[start..index])?);
-            break;
+            body_bytes = encoded_posting_entry_len("", &postings[index]);
+        } else {
+            body_bytes += entry_bytes;
         }
     }
-    if blocks.is_empty() {
-        blocks.push(encode_postings(&[])?);
+    if start < postings.len() {
+        chunks.push(&postings[start..]);
     }
-    Ok(blocks)
+    chunks
 }
 
 fn encoded_posting_entry_len(previous: &str, posting: &PersistedFulltextPosting) -> usize {
@@ -164,7 +173,14 @@ pub(super) fn encode_metadata(metadata: &FulltextIndexMetadata) -> Vec<u8> {
         u64::try_from(metadata.documents_with_text).unwrap_or(u64::MAX),
         &mut out,
     );
-    out.extend_from_slice(&metadata.average_document_length.to_bits().to_be_bytes());
+    write_varint(
+        u64::try_from(metadata.total_document_length).unwrap_or(u64::MAX),
+        &mut out,
+    );
+    write_varint(
+        u64::try_from(metadata.posting_terms).unwrap_or(u64::MAX),
+        &mut out,
+    );
     for value in [
         &metadata.analyzer.name,
         &metadata.analyzer.tokenizer,
@@ -193,7 +209,8 @@ pub(super) fn decode_metadata(bytes: &[u8]) -> Result<FulltextIndexMetadata, Cas
     let built_generation = cursor.read_varint()?;
     let total_documents = cursor.read_usize()?;
     let documents_with_text = cursor.read_usize()?;
-    let average_document_length = cursor.read_f64()?;
+    let total_document_length = cursor.read_usize()?;
+    let posting_terms = cursor.read_usize()?;
     let name = cursor.read_string()?;
     let tokenizer = cursor.read_string()?;
     let stop_words = cursor.read_string()?;
@@ -213,7 +230,8 @@ pub(super) fn decode_metadata(bytes: &[u8]) -> Result<FulltextIndexMetadata, Cas
         built_generation,
         total_documents,
         documents_with_text,
-        average_document_length,
+        total_document_length,
+        posting_terms,
         analyzer: crate::search::analyzer::AnalyzerConfig {
             name,
             tokenizer,
@@ -226,73 +244,29 @@ pub(super) fn decode_metadata(bytes: &[u8]) -> Result<FulltextIndexMetadata, Cas
     })
 }
 
-pub(super) fn encode_manifest(manifest: &FulltextManifest) -> Vec<u8> {
+pub(super) fn encode_term_record(record: &FulltextTermRecord) -> Vec<u8> {
     let mut out = Vec::new();
-    out.extend_from_slice(MANIFEST_MAGIC);
-    for value in [
-        u64::from(manifest.version),
-        manifest.built_generation,
-        u64::try_from(manifest.total_documents).unwrap_or(u64::MAX),
-        u64::try_from(manifest.posting_terms).unwrap_or(u64::MAX),
-        u64::try_from(manifest.document_count).unwrap_or(u64::MAX),
-    ] {
-        write_varint(value, &mut out);
-    }
+    out.extend_from_slice(TERM_MAGIC);
     write_varint(
-        u64::try_from(manifest.terms.len()).unwrap_or(u64::MAX),
+        u64::try_from(record.block_count).unwrap_or(u64::MAX),
         &mut out,
     );
-    for (term, integrity) in &manifest.terms {
-        write_bytes(term.as_bytes(), &mut out);
-        write_varint(
-            u64::try_from(integrity.block_count).unwrap_or(u64::MAX),
-            &mut out,
-        );
-        write_varint(
-            u64::try_from(integrity.posting_count).unwrap_or(u64::MAX),
-            &mut out,
-        );
-    }
+    write_varint(
+        u64::try_from(record.posting_count).unwrap_or(u64::MAX),
+        &mut out,
+    );
     out
 }
 
-pub(super) fn decode_manifest(bytes: &[u8]) -> Result<FulltextManifest, CassieError> {
+pub(super) fn decode_term_record(bytes: &[u8]) -> Result<FulltextTermRecord, CassieError> {
     let mut cursor = Cursor::new(bytes);
-    cursor.expect(MANIFEST_MAGIC)?;
-    let version = cursor.read_u32()?;
-    if version != super::STATE_VERSION {
-        return Err(CassieError::Parse(format!(
-            "unsupported fulltext manifest version {version}"
-        )));
-    }
-    let built_generation = cursor.read_varint()?;
-    let total_documents = cursor.read_usize()?;
-    let posting_terms = cursor.read_usize()?;
-    let document_count = cursor.read_usize()?;
-    let term_count = cursor.read_usize()?;
-    let mut terms = BTreeMap::new();
-    for _ in 0..term_count {
-        let term = cursor.read_string()?;
-        let integrity = super::FulltextTermIntegrity {
-            block_count: cursor.read_usize()?,
-            posting_count: cursor.read_usize()?,
-        };
-        if terms.insert(term, integrity).is_some() {
-            return Err(CassieError::Parse(
-                "duplicate fulltext manifest term".to_string(),
-            ));
-        }
-    }
-    let manifest = FulltextManifest {
-        version,
-        built_generation,
-        total_documents,
-        posting_terms,
-        document_count,
-        terms,
+    cursor.expect(TERM_MAGIC)?;
+    let record = FulltextTermRecord {
+        block_count: cursor.read_usize()?,
+        posting_count: cursor.read_usize()?,
     };
     cursor.finish()?;
-    Ok(manifest)
+    Ok(record)
 }
 
 fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
@@ -358,14 +332,6 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    fn read_f64(&mut self) -> Result<f64, CassieError> {
-        let bytes: [u8; 8] = self
-            .read_exact(8)?
-            .try_into()
-            .map_err(|_| CassieError::Parse("truncated fulltext float".to_string()))?;
-        Ok(f64::from_bits(u64::from_be_bytes(bytes)))
-    }
-
     fn read_bytes(&mut self) -> Result<&'a [u8], CassieError> {
         let len = self.read_usize()?;
         self.read_exact(len)
@@ -419,7 +385,8 @@ mod tests {
             built_generation: 2,
             total_documents: 1,
             documents_with_text: 1,
-            average_document_length: 3.0,
+            total_document_length: 3,
+            posting_terms: 2,
             analyzer: crate::search::analyzer::AnalyzerConfig::default(),
         };
 
@@ -429,39 +396,28 @@ mod tests {
         // Assert
         assert_eq!(&encoded_metadata[..4], b"FTM1");
         assert_eq!(
-            decode_metadata(&encoded_metadata)
-                .expect("decode fulltext metadata")
-                .version,
-            super::super::STATE_VERSION
+            decode_metadata(&encoded_metadata).expect("decode fulltext metadata"),
+            metadata
         );
     }
 
     #[test]
-    fn should_encode_current_version_fulltext_manifest() {
+    fn should_roundtrip_fulltext_term_record() {
         // Arrange
-        let manifest = FulltextManifest {
-            version: super::super::STATE_VERSION,
-            built_generation: 2,
-            total_documents: 1,
-            posting_terms: 0,
-            document_count: 1,
-            terms: BTreeMap::new(),
+        let record = FulltextTermRecord {
+            block_count: 3,
+            posting_count: 70_000,
         };
 
         // Act
-        let encoded_manifest = encode_manifest(&manifest);
+        let encoded = encode_term_record(&record);
+        let mut truncated = encoded.clone();
+        truncated.pop();
 
         // Assert
-        assert_eq!(&encoded_manifest[..4], b"FTG1");
-        assert_eq!(
-            decode_manifest(&encoded_manifest)
-                .expect("decode fulltext manifest")
-                .version,
-            super::super::STATE_VERSION
-        );
-        let mut unknown_version_manifest = encoded_manifest;
-        unknown_version_manifest[4] = 3;
-        assert!(decode_manifest(&unknown_version_manifest).is_err());
+        assert_eq!(&encoded[..4], b"FTT1");
+        assert_eq!(decode_term_record(&encoded).expect("decode term"), record);
+        assert!(decode_term_record(&truncated).is_err());
     }
 
     #[test]
@@ -505,28 +461,49 @@ mod tests {
         assert_eq!(&encoded[..4], b"FTD1");
     }
 
-    #[test]
-    fn should_cap_large_posting_blocks() {
-        // Arrange
-        let postings = (0..30_000)
+    fn numbered_postings(count: usize) -> Vec<PersistedFulltextPosting> {
+        (0..count)
             .map(|index| PersistedFulltextPosting {
                 document_id: format!("document-{index:08}"),
                 term_frequency: 1,
             })
-            .collect::<Vec<_>>();
+            .collect()
+    }
+
+    #[test]
+    fn should_cap_large_posting_blocks() {
+        // Arrange
+        let postings = numbered_postings(30_000);
 
         // Act
-        let blocks = encode_posting_blocks(&postings).expect("posting blocks");
-        let decoded = blocks
-            .iter()
-            .flat_map(|block| decode_postings(block).expect("decode block"))
-            .collect::<Vec<_>>();
+        let chunks = chunk_postings(&postings, MAX_POSTING_BLOCK_BYTES);
 
         // Assert
-        assert!(blocks.len() > 1);
-        assert!(blocks
+        assert!(chunks.len() > 1);
+        assert!(chunks
             .iter()
-            .all(|block| block.len() <= MAX_POSTING_BLOCK_BYTES));
-        assert_eq!(decoded, postings);
+            .all(|chunk| encoded_postings_len(chunk) <= MAX_POSTING_BLOCK_BYTES));
+        assert!(chunks
+            .iter()
+            .all(|chunk| encode_postings(chunk).expect("encode chunk").len()
+                == encoded_postings_len(chunk)));
+        assert_eq!(chunks.concat(), postings);
+    }
+
+    #[test]
+    fn should_chunk_to_the_requested_target_size() {
+        // Arrange
+        let postings = numbered_postings(10_000);
+        let target = 8 * 1024;
+
+        // Act
+        let chunks = chunk_postings(&postings, target);
+
+        // Assert
+        assert!(chunks.len() > 1);
+        assert!(chunks
+            .iter()
+            .all(|chunk| encoded_postings_len(chunk) <= target));
+        assert_eq!(chunks.concat(), postings);
     }
 }

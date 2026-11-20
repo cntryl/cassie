@@ -69,12 +69,14 @@ impl Midge {
         )
         .map_err(CassieError::from)?;
         let generation = self.collection_generation(&collection)?;
-        self.rebuild_fulltext_index_in_tx(&mut tx, &collection, &metadata, generation)?;
+        let tally =
+            self.rebuild_fulltext_index_in_tx(&mut tx, &collection, &metadata, generation)?;
         super::super::schema_write_control::pause_before_schema_write_commit(
             super::super::schema_write_control::SchemaWritePausePoint::FulltextAnalyzerChange,
         );
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
+        self.fulltext_maintenance_metrics.record(&tally);
         publish(metadata);
         Ok(())
     }

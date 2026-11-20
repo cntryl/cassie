@@ -66,6 +66,8 @@ mod support_read_equivalence;
 mod fulltext_block_maintenance;
 #[path = "search/index_lifecycle/fulltext_incremental_maintenance.rs"]
 mod fulltext_incremental_maintenance;
+#[path = "search/index_lifecycle/fulltext_large_rebuild.rs"]
+mod fulltext_large_rebuild;
 #[path = "search/index_lifecycle/fulltext_publication_interruption.rs"]
 mod fulltext_publication_interruption;
 #[path = "search/index_lifecycle/fulltext_write_amplification.rs"]

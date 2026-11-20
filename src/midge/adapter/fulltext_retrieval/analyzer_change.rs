@@ -4,8 +4,9 @@
 //! take the same gate and re-read index metadata after acquiring it, so a
 //! concurrent writer either commits before the rebuild (and is re-analyzed by
 //! it) or waits and then maintains the index with the new analyzer. The new
-//! postings, manifest and index options commit in one transaction, so readers
-//! keep the previous generation and analyzer until it commits.
+//! postings are staged in bounded transactions while the index is unpublished,
+//! so readers take the exact fallback with the previous analyzer; the index
+//! metadata and the new options then commit in one transaction.
 
 use std::collections::BTreeMap;
 
@@ -34,7 +35,7 @@ impl Midge {
         let collection = self.canonical_collection_name(collection);
         let write_gate = self.collection_write_gate(&collection);
         let _write_guard = write_gate.lock();
-        let mut tx = self.begin_data_rw_tx_for(&collection)?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
         let key = Self::index_key(&collection, name);
         let raw = tx.get(&key).map_err(CassieError::from)?.ok_or_else(|| {
             CassieError::CatalogObjectNotFound {
@@ -62,20 +63,14 @@ impl Midge {
         );
         metadata.options = options;
         crate::sql::definition_guard::index(&metadata)?;
-        tx.put(
-            key,
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?,
-            None,
-        )
-        .map_err(CassieError::from)?;
-        let generation = self.collection_generation(&collection)?;
-        let tally =
-            self.rebuild_fulltext_index_in_tx(&mut tx, &collection, &metadata, generation)?;
-        super::super::schema_write_control::pause_before_schema_write_commit(
-            super::super::schema_write_control::SchemaWritePausePoint::FulltextAnalyzerChange,
-        );
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
+        drop(tx);
+        let published =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        let tally = self.rebuild_fulltext_index_staged(
+            &metadata,
+            |tx| tx.put(key, published, None).map_err(CassieError::from),
+            Some(super::super::schema_write_control::SchemaWritePausePoint::FulltextAnalyzerChange),
+        )?;
         self.fulltext_maintenance_metrics.record(&tally);
         publish(metadata);
         Ok(())

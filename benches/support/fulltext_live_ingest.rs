@@ -51,33 +51,38 @@ fn document_body(row: usize) -> String {
         .join(" ")
 }
 
+fn document_key(row: usize) -> String {
+    format!("doc-{row:08}")
+}
+
 fn run(context: &workloads::BenchContext, sql: &str, params: Vec<Value>) {
     context
         .cassie
         .execute_sql(&context.session, sql, params)
-        .expect("benchmark statement");
+        .unwrap_or_else(|error| {
+            let statement: String = sql.chars().take(120).collect();
+            panic!("benchmark statement failed: {statement}: {error}")
+        });
 }
 
+/// Loads rows in keyed batches through the storage layer, as a projector does.
 fn insert_rows(context: &workloads::BenchContext, rows: usize) {
+    let collection = collection_of(context);
     for start in (0..rows).step_by(INSERT_BATCH_ROWS) {
         let end = (start + INSERT_BATCH_ROWS).min(rows);
-        let placeholders = (0..end - start)
-            .map(|offset| format!("(${}, ${})", offset * 2 + 1, offset * 2 + 2))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let params = (start..end)
-            .flat_map(|row| {
-                [
-                    Value::Int64(i64::try_from(row).unwrap_or(i64::MAX)),
-                    Value::String(document_body(row)),
-                ]
+        let documents = (start..end)
+            .map(|row| {
+                (
+                    Some(document_key(row)),
+                    serde_json::json!({"id": row, "body": document_body(row)}),
+                )
             })
             .collect();
-        run(
-            context,
-            &format!("INSERT INTO live_ingest_docs (id, body) VALUES {placeholders}"),
-            params,
-        );
+        context
+            .cassie
+            .midge
+            .put_documents(&collection, documents)
+            .expect("batch load");
     }
 }
 
@@ -101,7 +106,8 @@ fn query_p95(context: &workloads::BenchContext) -> Duration {
             let started = Instant::now();
             run(
                 context,
-                "SELECT id FROM live_ingest_docs WHERE search(body, $1) LIMIT 10",
+                "SELECT _id, search_score(body, $1) AS score FROM live_ingest_docs \
+                 WHERE search(body, $1) ORDER BY score DESC LIMIT 10",
                 vec![Value::String(
                     QUERY_TERMS[sample % QUERY_TERMS.len()].to_string(),
                 )],
@@ -122,16 +128,19 @@ fn average_update_index_bytes(context: &workloads::BenchContext, rows: usize) ->
         &context.cassie,
         "fulltext_maintenance_index_bytes_written_total",
     );
+    let collection = collection_of(context);
     for sample in 0..UPDATE_SAMPLES {
         let row = (sample * 7_919) % rows;
-        run(
-            context,
-            "UPDATE live_ingest_docs SET body = $2 WHERE id = $1",
-            vec![
-                Value::Int64(i64::try_from(row).unwrap_or(i64::MAX)),
-                Value::String(document_body(rows + sample)),
-            ],
-        );
+        // A projector replaces one document by key through the storage layer.
+        context
+            .cassie
+            .midge
+            .put_document(
+                &collection,
+                Some(document_key(row)),
+                serde_json::json!({"id": row, "body": document_body(rows + sample)}),
+            )
+            .expect("single-document update");
     }
     metric(
         &context.cassie,

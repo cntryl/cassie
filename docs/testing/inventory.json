@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1839,
-    "rust_files": 1796,
-    "rust_test_declarations": 10871,
+    "files": 1840,
+    "rust_files": 1797,
+    "rust_test_declarations": 10883,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10896,
+    "registered_rust_instances": 10908,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -322621,6 +322621,378 @@
       }
     },
     {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_read_selected_fields_without_unselected_payloads_after_restart",
+      "name": "should_read_selected_fields_without_unselected_payloads_after_restart",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 554,
+      "end_line": 589,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_read_selected_fields_without_unselected_payloads_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_decode_zero_unselected_payloads_for_a_two_field_projection",
+      "name": "should_decode_zero_unselected_payloads_for_a_two_field_projection",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 79,
+      "end_line": 102,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_decode_zero_unselected_payloads_for_a_two_field_projection"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_report_ownership_validation_reads_apart_from_selected_field_work",
+      "name": "should_report_ownership_validation_reads_apart_from_selected_field_work",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 105,
+      "end_line": 121,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_report_ownership_validation_reads_apart_from_selected_field_work"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_keep_selected_costs_constant_when_only_unselected_payloads_grow_tenfold",
+      "name": "should_keep_selected_costs_constant_when_only_unselected_payloads_grow_tenfold",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 124,
+      "end_line": 141,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_keep_selected_costs_constant_when_only_unselected_payloads_grow_tenfold"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_read_the_wide_field_only_when_it_is_selected",
+      "name": "should_read_the_wide_field_only_when_it_is_selected",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 144,
+      "end_line": 162,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_read_the_wide_field_only_when_it_is_selected"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_resolve_a_field_added_after_the_rows_without_reading_a_payload",
+      "name": "should_resolve_a_field_added_after_the_rows_without_reading_a_payload",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 165,
+      "end_line": 188,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_resolve_a_field_added_after_the_rows_without_reading_a_payload"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_match_row_tables_for_null_default_rename_point_pagination",
+      "name": "should_match_row_tables_for_null_default_rename_point_pagination",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 191,
+      "end_line": 242,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_match_row_tables_for_null_default_rename_point_pagination"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_fail_complete_traversal_on_an_orphan_field_but_not_a_bounded_limit",
+      "name": "should_fail_complete_traversal_on_an_orphan_field_but_not_a_bounded_limit",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 245,
+      "end_line": 272,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_fail_complete_traversal_on_an_orphan_field_but_not_a_bounded_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_not_visit_corruption_outside_the_rows_a_limit_reads",
+      "name": "should_not_visit_corruption_outside_the_rows_a_limit_reads",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 275,
+      "end_line": 303,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_not_visit_corruption_outside_the_rows_a_limit_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_keep_the_missing_field_error_without_decoding_unrelated_values",
+      "name": "should_keep_the_missing_field_error_without_decoding_unrelated_values",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 306,
+      "end_line": 343,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_keep_the_missing_field_error_without_decoding_unrelated_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_enforce_the_query_budget_for_selected_values_not_unselected_payloads",
+      "name": "should_enforce_the_query_budget_for_selected_values_not_unselected_payloads",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 346,
+      "end_line": 378,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_enforce_the_query_budget_for_selected_values_not_unselected_payloads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/selected_fields.rs::should_read_transaction_overlays_like_row_tables_without_fetching_unselected_payloads",
+      "name": "should_read_transaction_overlays_like_row_tables_without_fetching_unselected_payloads",
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "line": 381,
+      "end_line": 421,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::selected_fields::should_read_transaction_overlays_like_row_tables_without_fetching_unselected_payloads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/selected_fields.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/storage_indexes/constraints/namespace_backing.rs::should_resolve_constraint_metadata_given_unqualified_publication_when_writes_use_canonical_names",
       "name": "should_resolve_constraint_metadata_given_unqualified_publication_when_writes_use_canonical_names",
       "current_file": "tests/storage_indexes/constraints/namespace_backing.rs",
@@ -362361,8 +362733,8 @@
       "current_file": "tests/storage_indexes/column_store/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 133,
-      "sha256": "998185f8baf162de1f5249c20383d526b728de5281463592b242441956b5cf2f",
+      "lines": 134,
+      "sha256": "21332b9c9926e740d2606ebd067bf769eae2d8240744a497622486e101af3803",
       "test_declarations": 0,
       "registered_suites": [
         "storage_indexes"
@@ -362391,14 +362763,29 @@
       "current_file": "tests/storage_indexes/column_store/restart.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 551,
-      "sha256": "ee8e4f66d59fc6f2345b60854ddcb965c2c0efb03a7d22cbf7620045afa76c56",
-      "test_declarations": 10,
+      "lines": 589,
+      "sha256": "1e013f258e0a287268a8b8b02cf8ff8ec7b4653d4fcb5b3687fcbf19d450c78a",
+      "test_declarations": 11,
       "registered_suites": [
         "storage_indexes"
       ],
       "destinations": [
         "tests/storage_indexes/storage/restart.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/storage_indexes/column_store/selected_fields.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 421,
+      "sha256": "6aea18838577e6230c881dd6846acc51620b4b7ac6d8e77b15cc7f9db1f45a7f",
+      "test_declarations": 11,
+      "registered_suites": [
+        "storage_indexes"
+      ],
+      "destinations": [
+        "tests/storage_indexes/storage/selected_fields.rs"
       ],
       "line_limit": 1000
     },

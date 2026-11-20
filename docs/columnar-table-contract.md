@@ -178,6 +178,67 @@ The read returns no partial result and never falls back to a row blob or a
 derived index. `cassie verify` and the storage verifier report the same
 conditions.
 
+### Selected-field reads (#1356)
+
+A read of a column table pays for the live marker plus the fields it selects.
+The selection is resolved once per scan into a `ColumnFieldSelection` (the
+non-retired schema fields in schema order whose lookup key is in the
+projection; no projection selects every non-retired field). That primitive is
+the reusable boundary for later batch and aggregate readers.
+
+**Shapes that read only the selected fields.** Any scan whose physical plan
+carries a field projection: plain column projections, with or without a
+filter on plain columns, `ORDER BY` plain columns, `LIMIT`/`OFFSET`, and
+expression projections that the typed projected-read path accepts (no
+`ORDER BY`, enough transport budget). The cursor fetches one field key per
+selected field per visited row. Unselected field keys are never fetched, so
+an unselected payload costs neither a read, a decode, nor query memory.
+Filters on a stored column select that column too.
+
+**Fallbacks (read every non-retired field).** `SELECT *`, projections or
+`ORDER BY` expressions the planner cannot reduce to a field list (for
+example an expression projection with `ORDER BY`), grouped/`DISTINCT`/window/
+set-operation sources, point loads by id for DML and constraint checks, and
+index maintenance. A field added after a row was written and absent from the
+row costs no payload read: it resolves from its default metadata. A field with
+`ADD COLUMN ... DEFAULT <non-null>` is backfilled at ALTER time and is read
+like any stored field.
+
+**Ownership and marker validation without decoding.** Validation is separate
+from selection and keeps the scope above. A complete-source traversal runs
+the ownership preflight before the first row: it scans every non-retired
+field's key range and probes the marker of each field key, so an orphan field
+is found even when its field is not selected. It never decodes a payload.
+A visited-row traversal (LIMIT, EXISTS with an early stop) reads the visited
+marker, validates its marker length, and checks `field_is_required` only for
+the selected fields, so corruption in unselected fields or in rows not
+visited is not seen. A selected required field with no key fails with
+`XX001` when that row is visited, before any later row is read, and no
+unrelated field is fetched or decoded for it.
+
+**Counters.** `Midge::column_field_reads_for_diagnostics()` returns a
+`ColumnFieldReadSnapshot` with `payload_reads` (field payloads fetched),
+`payload_bytes` (their raw size), `decodes` (payloads decoded into values) and
+`retained_bytes` (the memory admitted for decoded selected values); use
+`.since(earlier)` for a delta. They are independent of
+`column_validation_reads_for_diagnostics()` (ownership: field entries and
+marker lookups of the complete-source preflight) and
+`query_scan_entries_for_diagnostics()` (visited live markers). A two-field
+projection of a wide table reports the same `payload_reads`, `payload_bytes`,
+`decodes` and `retained_bytes` as the matched narrow table; only the ownership
+reads grow, by two per row per extra field. Growing only the unselected
+payload tenfold leaves every selected-field counter unchanged.
+`EXPLAIN` already reports `storage_mode=column-store`; the counters are the
+per-field evidence.
+
+**Budget.** The query memory budget is reserved for the row and output names
+before the first field is fetched and grown by each selected field's decoded
+size before that field is decoded, so a budget that fits the selected values
+passes regardless of unselected payload size and a selected wide field is
+rejected with a resource-limit error. Midge returns a fetched value as one
+buffer, so the raw bytes of a selected field exist before the grow check; the
+check precedes decode and retention.
+
 ### Versioning
 
 - Layout level `cassie-midge-layout-v4-0.5.0-columnar` follows

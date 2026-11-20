@@ -11,6 +11,7 @@ use crate::runtime::QueryExecutionControls;
 impl MidgeRowCursor {
     pub(super) fn decode_column_store_document(
         &self,
+        midge: &Midge,
         raw_key: &[u8],
         raw_marker: &[u8],
         controls: &QueryExecutionControls,
@@ -34,17 +35,9 @@ impl MidgeRowCursor {
         }
         let marker_version = decode_marker(&self.collection, &id, raw_marker)?;
         let mut object = serde_json::Map::new();
-        for field in self.row_schema.fields.iter().filter(|field| !field.retired) {
+        let counters = midge.column_field_reads();
+        for field in self.column_fields.fields(&self.row_schema) {
             check_controls(controls)?;
-            let field_name =
-                crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
-            if self
-                .projection
-                .as_ref()
-                .is_some_and(|fields| !fields.contains(&field_name))
-            {
-                continue;
-            }
             // The field key adds one numeric component to the marker key. Sixteen bytes
             // bounds the encoded u32 component, separator and discriminator difference.
             let key_bytes = raw_key
@@ -66,6 +59,7 @@ impl MidgeRowCursor {
                 }
                 continue;
             };
+            counters.record_payload(raw.len());
             check_controls(controls)?;
             let field_bytes = if matches!(
                 field.data_type,
@@ -78,9 +72,11 @@ impl MidgeRowCursor {
                     .ok_or_else(accounting_overflow)?
             };
             memory.try_grow(field_bytes)?;
+            counters.record_decode();
             let Some(value) = decode_field(&self.collection, &id, field, &raw)? else {
                 continue;
             };
+            counters.record_retained(field_bytes);
             check_controls(controls)?;
             object.insert(field.name.clone(), value);
         }

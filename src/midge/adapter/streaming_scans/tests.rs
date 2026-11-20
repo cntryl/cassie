@@ -161,6 +161,7 @@ fn should_apply_configured_column_store_deadline_before_decode() {
     // Act
     let expired_scan = cursor.next_accounted_document(&midge, &controls);
     let expired_field = cursor.decode_column_store_document(
+        &midge,
         &second_key,
         &schema.schema_version.to_be_bytes(),
         &controls,
@@ -171,6 +172,7 @@ fn should_apply_configured_column_store_deadline_before_decode() {
         .expect("timeout zero scan")
         .expect("first document");
     let decoded_canary = cursor.decode_column_store_document(
+        &midge,
         &second_key,
         &schema.schema_version.to_be_bytes(),
         &controls,

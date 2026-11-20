@@ -1,6 +1,7 @@
 //! Row-level reads, writes and scans of column-authoritative tables.
 
 use super::super::{DocumentRef, Instant, MidgeScanTimings};
+use super::field_selection::{ColumnFieldSelection, ColumnRowRef};
 use super::validation::{
     decode_deleted_marker, decode_marker, decode_marker_parts, encode_deleted_marker, encode_marker,
 };
@@ -162,6 +163,7 @@ impl Midge {
                 || Ok(()),
             )?;
         }
+        let selection = ColumnFieldSelection::new(request.row_schema, request.projection);
         let batch_size = request.batch_size.max(1);
         let mut current = Vec::with_capacity(batch_size);
         let mut emitted = 0usize;
@@ -177,13 +179,8 @@ impl Midge {
             };
 
             let decode_started = Instant::now();
-            let payload = Self::project_column_store_document(
-                tx,
-                request.collection,
-                &id,
-                &raw_marker,
-                &request,
-            )?;
+            let payload =
+                self.project_column_store_document(tx, &id, &raw_marker, &request, &selection)?;
             row_decode += decode_started.elapsed();
             let Some(payload) = payload else {
                 continue;
@@ -214,46 +211,29 @@ impl Midge {
     }
 
     fn project_column_store_document(
+        &self,
         tx: &crate::midge::adapter::AdapterTransaction,
-        collection: &str,
         id: &str,
         raw_marker: &[u8],
         request: &ColumnStoreScanRequest<'_>,
+        selection: &ColumnFieldSelection,
     ) -> Result<Option<serde_json::Value>, CassieError> {
         let row_schema = request.row_schema;
-        let marker_version = decode_marker(collection, id, raw_marker)?;
+        let row = ColumnRowRef {
+            relation: request.collection,
+            id,
+            row_schema,
+            marker_version: decode_marker(request.collection, id, raw_marker)?,
+        };
         if let Some(filter) = request.filter {
-            if !Self::column_store_row_matches_filter(
-                tx,
-                collection,
-                id,
-                row_schema,
-                marker_version,
-                filter,
-            )? {
+            if !self.column_store_row_matches_filter(tx, row, filter)? {
                 return Ok(None);
             }
         }
 
         let mut object = serde_json::Map::new();
-        for field in row_schema.fields.iter().filter(|field| !field.retired) {
-            let field_key =
-                crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
-            let include = request
-                .projection
-                .is_none_or(|projection| projection.contains(&field_key));
-            if !include {
-                continue;
-            }
-            let Some(value) = Self::read_column_store_field(
-                tx,
-                collection,
-                id,
-                row_schema,
-                marker_version,
-                field,
-            )?
-            else {
+        for field in selection.fields(row_schema) {
+            let Some(value) = self.read_counted_column_store_field(tx, row, field)? else {
                 continue;
             };
             object.insert(field.name.clone(), value);
@@ -262,28 +242,19 @@ impl Midge {
     }
 
     fn column_store_row_matches_filter(
+        &self,
         tx: &crate::midge::adapter::AdapterTransaction,
-        collection: &str,
-        id: &str,
-        row_schema: &RowSchema,
-        marker_version: u32,
+        row: ColumnRowRef<'_>,
         filter: &RowFilter,
     ) -> Result<bool, CassieError> {
-        let Some(filter_field) = row_schema.fields.iter().find(|field| {
+        let Some(filter_field) = row.row_schema.fields.iter().find(|field| {
             !field.retired
                 && crate::sql::ColumnIdentifierPath::parse(&filter.field)
                     .is_ok_and(|reference| reference.matches_field_name(&field.name))
         }) else {
             return Ok(false);
         };
-        let value = Self::read_column_store_field(
-            tx,
-            collection,
-            id,
-            row_schema,
-            marker_version,
-            filter_field,
-        )?;
+        let value = self.read_counted_column_store_field(tx, row, filter_field)?;
         Ok(value.is_some_and(|value| value == filter.value))
     }
 }

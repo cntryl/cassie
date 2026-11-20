@@ -59,6 +59,7 @@ pub(crate) struct MidgeRowCursor {
     last_key: Option<Vec<u8>>,
     row_schema: crate::midge::row_blob::RowSchema,
     projection: Option<HashSet<String>>,
+    column_fields: super::ColumnFieldSelection,
     include_historical_aliases: bool,
     exhausted: bool,
     pending: Option<AccountedDocument>,
@@ -199,7 +200,7 @@ impl MidgeRowCursor {
 
             if self.storage != CursorStorage::Row {
                 if let Some(document) =
-                    self.decode_column_store_document(&raw_key, &raw_value, controls)?
+                    self.decode_column_store_document(midge, &raw_key, &raw_value, controls)?
                 {
                     push_accounted_document(documents, document)?;
                 }
@@ -294,12 +295,18 @@ impl Midge {
             Self::row_prefix(row_schema.relation_id)
         };
         let (projection, include_historical_aliases) = decode.into_projection();
+        let column_fields = if column_store {
+            super::ColumnFieldSelection::new(&row_schema, projection.as_ref())
+        } else {
+            super::ColumnFieldSelection::default()
+        };
         Ok(Some(MidgeRowCursor {
             tx: self.begin_data_readonly_tx_for(&collection)?,
             prefix,
             last_key: None,
             row_schema,
             projection,
+            column_fields,
             include_historical_aliases,
             exhausted: false,
             pending: None,

@@ -549,3 +549,41 @@ fn should_restore_mixed_authority_from_an_independent_physical_snapshot() {
     );
     restored.assert_column_authority("snapshot_columns", 2, 3, "physical restore");
 }
+
+#[test]
+fn should_read_selected_fields_without_unselected_payloads_after_restart() {
+    // Arrange
+    let store = Store::new("columnar-selected-fields-restart");
+    let big = "b".repeat(8_192);
+    {
+        let env = store.open();
+        env.run("CREATE TABLE wide_t (id INT, status TEXT, big TEXT) USING columnar");
+        env.run(&format!(
+            "INSERT INTO wide_t VALUES (1,'one','{big}'),(2,'two','{big}'),(3,NULL,'{big}')"
+        ));
+    }
+
+    // Act
+    let env = store.open();
+    let before = env.cassie.midge.column_field_reads_for_diagnostics();
+    let mut rows = text_rows(&env, "SELECT id::TEXT, status FROM wide_t");
+    rows.sort();
+    let work = env
+        .cassie
+        .midge
+        .column_field_reads_for_diagnostics()
+        .since(before);
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec!["1".to_owned(), "one".to_owned()],
+            vec!["2".to_owned(), "two".to_owned()],
+            vec!["3".to_owned(), "NULL".to_owned()],
+        ]
+    );
+    assert_eq!(work.payload_reads, 6);
+    assert_eq!(work.decodes, 6);
+    assert!(work.payload_bytes < 8_192, "{work:?}");
+}

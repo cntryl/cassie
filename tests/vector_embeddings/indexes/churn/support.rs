@@ -30,8 +30,8 @@ pub(super) type Population = BTreeMap<String, [f32; 3]>;
 pub(super) struct Rng(u64);
 
 impl Rng {
-    pub(super) fn new(seed: u64) -> Self {
-        Self(seed)
+    pub(super) fn new(state: u64) -> Self {
+        Self(state)
     }
 
     pub(super) fn next_u32(&mut self) -> u32 {
@@ -47,12 +47,12 @@ impl Rng {
     }
 
     /// Distinct, exactly representable coordinates avoid distance ties.
-    pub(super) fn vector(&mut self, salt: usize) -> [f32; 3] {
+    pub(super) fn vector(&mut self, ordinal: usize) -> [f32; 3] {
         let mut lane = || {
             let steps = i16::try_from(self.next_u32() % 129).expect("step") - 64;
             f32::from(steps) / 32.0
         };
-        let jitter = f32::from(u16::try_from(salt % 1000).expect("salt")) / 65_536.0;
+        let jitter = f32::from(u16::try_from(ordinal % 1000).expect("ordinal")) / 65_536.0;
         [lane() + jitter, lane(), lane()]
     }
 }

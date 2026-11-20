@@ -11,7 +11,7 @@ use cassie::midge::adapter::{
     DocumentWriteFailurePoint,
 };
 
-const SEED: u64 = 0x1364_0001;
+const PRNG_START: u64 = 0x1364_0001;
 const STEPS: usize = 24;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -164,7 +164,7 @@ fn should_match_the_eligible_population_through_a_seeded_churn_sequence() {
     for (algorithm, options) in ALGORITHMS {
         with_memory_fixture(|cassie, session| {
             let table = "churn_sequence";
-            let mut rng = Rng::new(SEED);
+            let mut rng = Rng::new(PRNG_START);
             let population = seed_population(&mut rng);
             create_table(cassie, session, table);
             seed_rows(cassie, table, &population);

@@ -10,7 +10,7 @@ use cassie::app::CassieSession;
 use cassie::types::Value;
 
 /// Worlds that need a login role created before their examples run.
-const ROLE_WORLDS: [&str; 1] = ["permissions"];
+const ROLE_WORLDS: [&str; 2] = ["permissions", "identity"];
 const READER: &str = "reader";
 
 pub fn fixture_for(world: &str) -> SqlFixture {

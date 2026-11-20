@@ -2,18 +2,21 @@
 //!
 //! The graph and mapping are resolved by name in the session's catalog view
 //! (including its transaction's overlay). The element must exist in the mapped
-//! table as the session sees it, and the session must be allowed to read that
+//! table as the session sees it (an edge also needs both endpoint vertices: a
+//! dangling edge row is not yet an edge, #1351), and the session must be allowed to read that
 //! table: authority is checked before existence so a reference never reveals
 //! whether a protected row exists.
 use super::graph_functions::{descriptors_of, failure};
 use super::{EvalContext, QueryError, Value};
 use crate::app::CassieSession;
 use crate::catalog::graph_resolution::ResolvedMapping;
+use crate::catalog::property_graphs::PropertyGraphMeta;
 use crate::midge::adapter::RowDecode;
 use crate::midge::Midge;
 use crate::sql::functions::FunctionId;
 use crate::types::graph::{ElementKind, KeyPart};
 use crate::types::typed::TypedValue;
+use crate::types::DataType;
 
 pub(super) fn evaluate(
     id: FunctionId,
@@ -67,7 +70,14 @@ pub(super) fn evaluate(
     resolved.check_key(&key).map_err(QueryError::Cassie)?;
     crate::app::require_table_read(&catalog, session, &binding, &resolved.table)
         .map_err(QueryError::Cassie)?;
-    if !element_exists(session, &midge, &resolved, &key, context)? {
+    let present = match find_element(session, &midge, &resolved, &key, context)? {
+        None => false,
+        Some(payload) if kind == ElementKind::Edge => {
+            edge_endpoints_exist(&definition, mapping, &payload, session, &midge, context)?
+        }
+        Some(_) => true,
+    };
+    if !present {
         return Err(failure(
             "42704",
             format!("{} does not exist in mapping \"{mapping}\"", kind.name()),
@@ -152,15 +162,78 @@ fn matches(payload: &serde_json::Value, resolved: &ResolvedMapping, key: &[KeyPa
     })
 }
 
-/// Whether a row with `key` exists in the mapped table in the session's
-/// transaction view: committed rows with the transaction's own changes applied.
-fn element_exists(
+/// The key component a stored endpoint value gives for a vertex key column of `data_type`;
+/// `None` for NULL, a missing column or a value of another type.
+fn endpoint_key_part(stored: Option<&serde_json::Value>, data_type: &DataType) -> Option<KeyPart> {
+    let stored = stored.filter(|value| !value.is_null())?;
+    match data_type.flattened() {
+        DataType::SmallInt => stored
+            .as_i64()
+            .and_then(|value| i16::try_from(value).ok())
+            .map(KeyPart::SmallInt),
+        DataType::Int => stored
+            .as_i64()
+            .and_then(|value| i32::try_from(value).ok())
+            .map(KeyPart::Int),
+        DataType::BigInt => stored.as_i64().map(KeyPart::BigInt),
+        DataType::Text => stored.as_str().map(|text| KeyPart::Text(text.to_owned())),
+        DataType::Uuid => stored
+            .as_str()
+            .and_then(crate::types::uuid_text::parse)
+            .map(KeyPart::Uuid),
+        _ => None,
+    }
+}
+
+/// Whether both endpoint vertices of the edge row `payload` exist with non-null endpoint
+/// columns: an edge that cannot take part in a graph query has no identity either.
+fn edge_endpoints_exist(
+    definition: &PropertyGraphMeta,
+    alias: &str,
+    payload: &serde_json::Value,
+    session: &CassieSession,
+    midge: &Midge,
+    context: EvalContext<'_>,
+) -> Result<bool, QueryError> {
+    let Some(edge) = definition.edges.iter().find(|edge| edge.alias == alias) else {
+        return Ok(false);
+    };
+    let (catalog, binding, _) = session
+        .sequence_context()
+        .ok_or_else(|| failure("XX000", "cassie_graph functions require storage"))?;
+    for endpoint in [&edge.source, &edge.destination] {
+        let vertex =
+            ResolvedMapping::by_alias(definition, &endpoint.vertex_alias, ElementKind::Vertex)
+                .map_err(QueryError::Cassie)?;
+        let key = endpoint
+            .columns
+            .iter()
+            .zip(&vertex.key)
+            .map(|(column, key_column)| {
+                endpoint_key_part(payload.get(column), &key_column.data_type)
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(key) = key else {
+            return Ok(false);
+        };
+        crate::app::require_table_read(&catalog, session, &binding, &vertex.table)
+            .map_err(QueryError::Cassie)?;
+        if find_element(session, midge, &vertex, &key, context)?.is_none() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// The row with `key` in the mapped table in the session's transaction view (committed
+/// rows with the transaction's own changes applied), if any.
+fn find_element(
     session: &CassieSession,
     midge: &Midge,
     resolved: &ResolvedMapping,
     key: &[KeyPart],
     context: EvalContext<'_>,
-) -> Result<bool, QueryError> {
+) -> Result<Option<serde_json::Value>, QueryError> {
     let snapshot = session.staged_write_snapshot(&resolved.table);
     let changes = snapshot.ordered_changes();
     let ambient = crate::midge::adapter::PublicationControlScope::current_query_controls();
@@ -174,7 +247,7 @@ fn element_exists(
         );
         &fallback
     };
-    let mut found = false;
+    let mut found = None;
     #[cfg(test)]
     crate::executor::execution::graph_memory_test_observer::record_owner(
         "constructor_scan_owner",
@@ -183,20 +256,21 @@ fn element_exists(
     midge.scan_rows_until::<QueryError, _>(&resolved.table, RowDecode::Full, controls, |row| {
         // A row the transaction rewrote or deleted is judged by its change below.
         if !changes.contains_key(&row.id) && matches(&row.payload, resolved, key) {
-            found = true;
+            found = Some(row.payload.clone());
             return Ok(false);
         }
         Ok(true)
     })?;
-    if found {
-        return Ok(true);
+    if found.is_some() {
+        return Ok(found);
     }
     for change in changes.values() {
         controls.check_interruption()?;
-        if matches!(change, crate::app::TransactionRowChange::Upsert(payload) if matches(payload, resolved, key))
-        {
-            return Ok(true);
+        if let crate::app::TransactionRowChange::Upsert(payload) = change {
+            if matches(payload, resolved, key) {
+                return Ok(Some(payload.clone()));
+            }
         }
     }
-    Ok(false)
+    Ok(None)
 }

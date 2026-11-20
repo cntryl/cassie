@@ -102,3 +102,15 @@ fn should_run_every_legacy_removal_example() {
     // Assert
     assert_eq!(failures, Vec::<String>::new());
 }
+
+#[test]
+fn should_run_every_stable_identity_example() {
+    // Arrange
+    let world = "identity";
+
+    // Act
+    let failures = run(world);
+
+    // Assert
+    assert_eq!(failures, Vec::<String>::new());
+}

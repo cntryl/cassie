@@ -1921,3 +1921,376 @@ The removal drops three behaviours that the mapped model does not carry. Edges w
 rows do not exist are not traversed: add the missing vertex rows. `FLOAT` edge weights are not
 accepted: use an exact numeric or integer weight column. A per-row node or edge type value is
 replaced by labels on mappings: declare one mapping per type, or one label per mapping.
+
+## 13. Stable identity across projector corrections
+
+<!-- world: identity -->
+
+A projector that maintains an authorization read model often maps the same tables into more
+than one graph, keys its vertices by a tenant-qualified composite key, and corrects rows
+after the fact. This section is the proven recipe for that workload (issue #1351). It is
+qualified by `tests/graph_types/identity_*.rs` over **both** row tables and column-authoritative
+tables (`CREATE TABLE ... USING columnar`); the examples below run on row tables, and the
+suite repeats every statement of the fixture with `USING columnar` and expects identical
+results. The executable parts of the recipe follow; the restart, rename and reinsertion rules
+are in [the rules table](#rules-and-error-codes).
+
+### Fixture
+
+Two tenants both hold members `ann` and `bob`, so the display key `code` is not unique: the
+identity is the pair `(tenant_id, code)`. Membership 2 parallels membership 1, membership 3 is
+a self-loop, membership 5 points at a member that does not exist yet (`zed`, tenant 1) and
+membership 7 does the same in tenant 2 (`cy`).
+
+<!-- example: id-create-member -->
+```sql
+CREATE TABLE member (
+  tenant_id BIGINT NOT NULL, code TEXT NOT NULL, label TEXT,
+  PRIMARY KEY (tenant_id, code)
+)
+```
+
+<!-- example: id-create-membership -->
+```sql
+CREATE TABLE membership (
+  id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL, src TEXT NOT NULL, dst TEXT NOT NULL
+)
+```
+
+<!-- example: id-insert-member -->
+```sql
+INSERT INTO member VALUES
+  (1, 'ann', 'Ann one'), (1, 'bob', 'Bob one'), (2, 'ann', 'Ann two'), (2, 'bob', 'Bob two')
+```
+
+<!-- example: id-insert-membership -->
+```sql
+INSERT INTO membership VALUES
+  (1, 1, 'ann', 'bob'), (2, 1, 'ann', 'bob'), (3, 1, 'bob', 'bob'), (4, 2, 'ann', 'bob'),
+  (5, 1, 'ann', 'zed'), (6, 2, 'bob', 'ann'), (7, 2, 'bob', 'cy')
+```
+
+The same tables are mapped into two graphs under two sets of aliases (`m` and `grant_edge`,
+`person` and `grants_to`):
+
+<!-- example: id-create-graph-a -->
+```sql
+CREATE PROPERTY GRAPH authz_a
+  VERTEX TABLES (member AS m KEY (tenant_id, code) LABEL member
+    PROPERTIES (tenant_id, code, label))
+  EDGE TABLES (membership AS grant_edge KEY (id)
+    SOURCE KEY (tenant_id, src) REFERENCES m (tenant_id, code)
+    DESTINATION KEY (tenant_id, dst) REFERENCES m (tenant_id, code)
+    LABEL grants PROPERTIES (id))
+```
+
+<!-- example: id-create-graph-b -->
+```sql
+CREATE PROPERTY GRAPH authz_b
+  VERTEX TABLES (member AS person KEY (tenant_id, code) LABEL member
+    PROPERTIES (tenant_id, code, label))
+  EDGE TABLES (membership AS grants_to KEY (id)
+    SOURCE KEY (tenant_id, src) REFERENCES person (tenant_id, code)
+    DESTINATION KEY (tenant_id, dst) REFERENCES person (tenant_id, code)
+    LABEL grants PROPERTIES (id))
+```
+
+### Visible edges against a relational join
+
+Edges 5 and 7 are ordinary rows but not edges yet. The graph and an independent relational
+join agree on the five edges that are visible, in both graphs:
+
+<!-- example: id-edges-a -->
+```sql
+SELECT g.id, g.st, g.sc, g.dt, g.dc
+FROM GRAPH_TABLE (
+  authz_a MATCH (s IS member) -[e IS grants]-> (d IS member)
+  COLUMNS (e.id AS id, s.tenant_id AS st, s.code AS sc, d.tenant_id AS dt, d.code AS dc)
+) AS g
+ORDER BY g.id
+```
+```text result
+1 | 1 | ann | 1 | bob
+2 | 1 | ann | 1 | bob
+3 | 1 | bob | 1 | bob
+4 | 2 | ann | 2 | bob
+6 | 2 | bob | 2 | ann
+```
+
+<!-- example: id-edges-b -->
+```sql
+SELECT g.id, g.st, g.sc, g.dt, g.dc
+FROM GRAPH_TABLE (
+  authz_b MATCH (s IS member) -[e IS grants]-> (d IS member)
+  COLUMNS (e.id AS id, s.tenant_id AS st, s.code AS sc, d.tenant_id AS dt, d.code AS dc)
+) AS g
+ORDER BY g.id
+```
+```text result
+1 | 1 | ann | 1 | bob
+2 | 1 | ann | 1 | bob
+3 | 1 | bob | 1 | bob
+4 | 2 | ann | 2 | bob
+6 | 2 | bob | 2 | ann
+```
+
+<!-- example: id-edges-join -->
+```sql
+SELECT l.id, s.tenant_id, s.code, d.tenant_id, d.code
+FROM membership AS l
+JOIN member AS s ON s.tenant_id = l.tenant_id AND s.code = l.src
+JOIN member AS d ON d.tenant_id = l.tenant_id AND d.code = l.dst
+ORDER BY l.id
+```
+```text result
+1 | 1 | ann | 1 | bob
+2 | 1 | ann | 1 | bob
+3 | 1 | bob | 1 | bob
+4 | 2 | ann | 2 | bob
+6 | 2 | bob | 2 | ann
+```
+
+### Expected identities
+
+An element's identity is its database, graph, mapping and complete typed key. The key of a
+vertex here has two components, `bigint` (type tag 3) then `text` (type tag 4):
+
+<!-- example: id-key-parts -->
+```sql
+SELECT k.ordinal, k.type_tag, k.integer_value, k.text_value
+FROM cassie_graph.key_parts(
+  cassie_graph.vertex_ref('authz_a', 'm',
+    ARRAY[cassie_graph.key_part(2::bigint), cassie_graph.key_part('ann'::text)])
+) AS k
+ORDER BY k.ordinal
+```
+```text result
+1 | 3 | 2 | NULL
+2 | 4 | NULL | ann
+```
+
+The display key `ann` of tenant 1 and of tenant 2 are different identities; the same key in
+the second graph (a different graph and a different mapping) is a different identity again;
+and a reference built twice from the same key is equal:
+
+<!-- example: id-identity-compare -->
+```sql
+SELECT
+  cassie_graph.vertex_ref('authz_a', 'm',
+    ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('ann'::text)])
+  = cassie_graph.vertex_ref('authz_a', 'm',
+    ARRAY[cassie_graph.key_part(2::bigint), cassie_graph.key_part('ann'::text)]) AS across_tenants,
+  cassie_graph.vertex_ref('authz_a', 'm',
+    ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('ann'::text)])
+  = cassie_graph.vertex_ref('authz_b', 'person',
+    ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('ann'::text)]) AS across_graphs,
+  cassie_graph.vertex_ref('authz_a', 'm',
+    ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('ann'::text)])
+  = cassie_graph.vertex_ref('authz_a', 'm',
+    ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('ann'::text)]) AS same_key
+```
+```text result
+false | false | true
+```
+
+The self-loop (edge 3) has one vertex identity at both ends, and the parallel edges 1 and 2
+share their endpoints but have distinct edge identities:
+
+<!-- example: id-self-loop -->
+```sql
+SELECT s.vertex = t.vertex AS same_vertex
+FROM GRAPH_TABLE (
+  authz_a MATCH p = (a IS member) -[e IS grants WHERE e.id = 3]-> (b IS member)
+  COLUMNS (p AS route)
+) AS g
+CROSS JOIN LATERAL cassie_graph.path_steps(g.route) AS s
+CROSS JOIN LATERAL cassie_graph.path_steps(g.route) AS t
+WHERE s.position = 0 AND t.position = 1
+```
+```text result
+true
+```
+
+A dangling edge has no identity, because it is not an edge until both endpoints exist. Its
+constructor returns the same error as a key that does not exist:
+
+<!-- example: id-dangling-edge-ref -->
+```sql
+SELECT cassie_graph.edge_ref('authz_a', 'grant_edge', ARRAY[cassie_graph.key_part(5::bigint)])
+```
+```text sqlstate
+42704
+```
+
+<!-- example: id-missing-vertex-ref -->
+```sql
+SELECT cassie_graph.vertex_ref('authz_a', 'm',
+  ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('zed'::text)])
+```
+```text sqlstate
+42704
+```
+
+A key part of the wrong type is a different error from a key that does not exist:
+
+<!-- example: id-wrong-key-type -->
+```sql
+SELECT cassie_graph.vertex_ref('authz_a', 'm',
+  ARRAY[cassie_graph.key_part('1'::text), cassie_graph.key_part('ann'::text)])
+```
+```text sqlstate
+42804
+```
+
+### A reader who may read one source only
+
+The role `reader` has `SELECT` on `member` but not on `membership`. Every graph and every
+alias that reads an edge mapping needs both tables, so neither graph, and no edge reference,
+exposes the edge rows. The error is the same for an edge that exists and one that does not:
+
+<!-- example: id-grant-schema session=root -->
+```sql
+GRANT USAGE ON SCHEMA public TO reader
+```
+
+<!-- example: id-grant-member session=root -->
+```sql
+GRANT SELECT ON TABLE public.member TO reader
+```
+
+<!-- example: id-reader-edges-a session=reader -->
+```sql
+SELECT g.id
+FROM GRAPH_TABLE (
+  authz_a MATCH (s IS member) -[e IS grants]-> (d IS member) COLUMNS (e.id AS id)
+) AS g
+```
+```text sqlstate
+42501
+```
+
+<!-- example: id-reader-edges-b session=reader -->
+```sql
+SELECT g.id
+FROM GRAPH_TABLE (
+  authz_b MATCH (s IS member) -[e IS grants]-> (d IS member) COLUMNS (e.id AS id)
+) AS g
+```
+```text sqlstate
+42501
+```
+
+<!-- example: id-reader-edge-ref session=reader -->
+```sql
+SELECT cassie_graph.edge_ref('authz_b', 'grants_to', ARRAY[cassie_graph.key_part(1::bigint)])
+```
+```text sqlstate
+42501
+```
+
+<!-- example: id-reader-missing-edge-ref session=reader -->
+```sql
+SELECT cassie_graph.edge_ref('authz_b', 'grants_to', ARRAY[cassie_graph.key_part(404::bigint)])
+```
+```text sqlstate
+42501
+```
+
+A path value assembled from edge references cannot be built either, because every edge
+reference is checked first:
+
+<!-- example: id-reader-path session=reader -->
+```sql
+SELECT s.position
+FROM cassie_graph.path_steps(ROW(
+  ARRAY[cassie_graph.vertex_ref('authz_b', 'person',
+          ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('ann'::text)]),
+        cassie_graph.vertex_ref('authz_b', 'person',
+          ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('bob'::text)])],
+  ARRAY[cassie_graph.edge_ref('authz_b', 'grants_to',
+          ARRAY[cassie_graph.key_part(1::bigint)])],
+  ARRAY[1::smallint])::cassie_graph.graph_path) AS s
+```
+```text sqlstate
+42501
+```
+
+What the reader may read stays readable, through either graph:
+
+<!-- example: id-reader-vertices session=reader -->
+```sql
+SELECT count(*)
+FROM GRAPH_TABLE (authz_b MATCH (v IS member) COLUMNS (v.code AS code)) AS g
+```
+```text result
+4
+```
+
+### Correcting the projection
+
+A projector corrects membership 5 so that it points at `bob`, and creates tenant 2's missing
+member `cy`. Both corrections are ordinary row changes; no graph statement is needed. Edges 5
+and 7 become visible, and edge 5 gains an identity:
+
+<!-- example: id-correct-endpoint -->
+```sql
+UPDATE membership SET dst = 'bob' WHERE id = 5
+```
+
+<!-- example: id-create-missing-vertex -->
+```sql
+INSERT INTO member VALUES (2, 'cy', 'Cy two')
+```
+
+<!-- example: id-edges-corrected -->
+```sql
+SELECT g.id, g.st, g.sc, g.dt, g.dc
+FROM GRAPH_TABLE (
+  authz_b MATCH (s IS member) -[e IS grants]-> (d IS member)
+  COLUMNS (e.id AS id, s.tenant_id AS st, s.code AS sc, d.tenant_id AS dt, d.code AS dc)
+) AS g
+WHERE g.id IN (5, 7)
+ORDER BY g.id
+```
+```text result
+5 | 1 | ann | 1 | bob
+7 | 2 | bob | 2 | cy
+```
+
+<!-- example: id-corrected-edge-ref -->
+```sql
+SELECT (cassie_graph.edge_ref('authz_a', 'grant_edge',
+  ARRAY[cassie_graph.key_part(5::bigint)])).element_kind
+```
+```text result
+2
+```
+
+Tenant 1 still has no `cy`, so the same display key in the other tenant stays unresolved:
+
+<!-- example: id-other-tenant-still-missing -->
+```sql
+SELECT cassie_graph.vertex_ref('authz_a', 'm',
+  ARRAY[cassie_graph.key_part(1::bigint), cassie_graph.key_part('cy'::text)])
+```
+```text sqlstate
+42704
+```
+
+### Rules and error codes
+
+| Situation | Documented behavior | SQLSTATE |
+| --- | --- | --- |
+| Corrections inside a transaction | The writer sees them at once; a separate session sees only the committed rows. `ROLLBACK` restores the rows seen before; `COMMIT` shows the corrected rows to the writer and to a new reader. Source-column and table renames inside the transaction follow the same rule. | none |
+| Rename of a graph, a source column or a source table | Identities are unchanged: a reference saved before the rename resolves after it, and rebuilding it by the new graph name gives an equal reference. The old graph name stops resolving. | old name: `42704` |
+| Delete and reinsert the same key in the same mapping | The old reference resolves to the replacement row. Identity is mapping plus typed key, with no row incarnation. | none |
+| Restart of a local database | Saved references resolve unchanged. | none |
+| Reference with another graph's mapping, another element kind's mapping, another database, or a dropped and recreated graph | Rejected, never retargeted. | `42704` |
+| Edge or vertex that does not exist, or edge whose endpoint is missing | No identity. | `42704` |
+| Wrong key type or number of key parts | Rejected. | `42804` |
+| NULL graph, mapping or key array | Rejected. | `22004` |
+| No `SELECT` on a mapped table | Rejected before existence is checked. | `42501` |
+
+The `tests/graph_types/identity_*.rs` suite runs these cases against row and columnar
+sources, including the restart, rename and reinsertion rows (`identity_restart.rs`) and the
+writer and reader transaction runs (`identity_corrections.rs`).

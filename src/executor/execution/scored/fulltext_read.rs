@@ -651,7 +651,7 @@ pub(super) struct ControlledScalarCandidates {
     pub(super) memory: Vec<QueryMemoryReservation>,
 }
 
-pub(super) fn scalar_prefilter_ids(
+fn scalar_prefilter_ids(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     spec: &FulltextFilteredReadSpec,
@@ -661,12 +661,29 @@ pub(super) fn scalar_prefilter_ids(
     let Some(residual) = spec.residual_filter.as_ref() else {
         return Ok(None);
     };
+    scalar_equality_candidates(
+        cassie,
+        session,
+        &spec.collection,
+        (residual, params),
+        controls,
+    )
+}
+
+/// Probes the eligible scalar equality index for one `column = value` conjunct.
+pub(super) fn scalar_equality_candidates(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    collection: &str,
+    (residual, params): (&Expr, &[Value]),
+    controls: &QueryExecutionControls,
+) -> Result<Option<ControlledScalarCandidates>, QueryError> {
     let Some((field, mut value)) = equality_literal(residual, params) else {
         return Ok(None);
     };
     if !super::super::index_probe_canonicalization::probe_comparison_is_exact(
         cassie,
-        &spec.collection,
+        collection,
         &field,
         &value,
     ) {
@@ -674,7 +691,7 @@ pub(super) fn scalar_prefilter_ids(
     }
     let Some(index) = cassie
         .catalog
-        .list_indexes(&spec.collection)
+        .list_indexes(collection)
         .into_iter()
         .find(|index| {
             index.kind == crate::catalog::IndexKind::Scalar
@@ -685,7 +702,7 @@ pub(super) fn scalar_prefilter_ids(
                 })
                 && super::super::index_read::index_trailing_keys_not_null(
                     cassie,
-                    &spec.collection,
+                    collection,
                     index,
                 )
         })
@@ -697,13 +714,13 @@ pub(super) fn scalar_prefilter_ids(
     }
     let signed_zero_counterpart = super::super::index_read::signed_zero_probe_counterpart(
         cassie,
-        &spec.collection,
+        collection,
         &field,
         &value,
     );
     super::super::index_probe_canonicalization::canonicalize_index_probe_value(
         cassie,
-        &spec.collection,
+        collection,
         &field,
         &mut value,
     );
@@ -711,7 +728,7 @@ pub(super) fn scalar_prefilter_ids(
     if let Some(mut counterpart) = signed_zero_counterpart {
         super::super::index_probe_canonicalization::canonicalize_index_probe_value(
             cassie,
-            &spec.collection,
+            collection,
             &field,
             &mut counterpart,
         );

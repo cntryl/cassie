@@ -15,8 +15,8 @@ use super::fulltext_read::{
     fulltext_result_row_variable_bytes, PersistedFulltextReadSelection,
 };
 use super::{
-    filter, order_matches_function_score, BatchRow, Cassie, CassieSession, CmpOrdering, Expr,
-    FulltextFilteredReadSpec, FunctionMeta, HashMap, Instant, LogicalPlan, QueryError,
+    filter, order_matches_function_score, BatchRow, BinaryOp, Cassie, CassieSession, CmpOrdering,
+    Expr, FulltextFilteredReadSpec, FunctionMeta, HashMap, Instant, LogicalPlan, QueryError,
     QueryExecutionControls, SelectItem, SortDirection, Value,
 };
 use crate::runtime::accounted::AccountedVec;
@@ -73,13 +73,104 @@ pub(super) fn ranked_filtered_top_k_spec(
     let SelectItem::Function { function, .. } = plan.projection.last()? else {
         return None;
     };
+    let (text_field, query) = super::search_function_args_with_params(function, params)?;
     let mut unordered = plan.clone();
     unordered.order.clear();
+    unordered.filter = Some(search_first_filter(
+        plan.filter.as_ref()?,
+        (&text_field, &query),
+        params,
+    )?);
     let read = super::fulltext_filtered_read_spec(&unordered, params)?;
     if !order_matches_function_score(first, function, &read.score_column) {
         return None;
     }
     Some(RankedFilteredTopKSpec { read })
+}
+
+fn conjuncts<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
+    if let Expr::Binary {
+        left,
+        op: BinaryOp::And,
+        right,
+    } = expr
+    {
+        conjuncts(left, out);
+        conjuncts(right, out);
+    } else {
+        out.push(expr);
+    }
+}
+
+/// Rewrites `a AND b AND search(..)` (any association) to `search(..) AND (a AND b)` so the
+/// shared residual extraction sees one search conjunct and one residual predicate.
+fn search_first_filter(filter: &Expr, search: (&str, &str), params: &[Value]) -> Option<Expr> {
+    let mut parts = Vec::new();
+    conjuncts(filter, &mut parts);
+    let position = parts.iter().position(|part| {
+        let Expr::Function(function) = part else {
+            return false;
+        };
+        super::search_predicate_args_with_params(function, params).is_some_and(|(field, query)| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(search.0, &field)
+                && query == search.1
+        })
+    })?;
+    let search_part = parts.remove(position).clone();
+    let residual = parts
+        .into_iter()
+        .rev()
+        .cloned()
+        .reduce(|right, left| Expr::Binary {
+            left: Box::new(left),
+            op: BinaryOp::And,
+            right: Box::new(right),
+        });
+    Some(match residual {
+        None => search_part,
+        Some(residual) => Expr::Binary {
+            left: Box::new(search_part),
+            op: BinaryOp::And,
+            right: Box::new(residual),
+        },
+    })
+}
+
+/// Intersects every eligible scalar equality conjunct of the residual predicate.
+fn scalar_conjunct_candidates(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    spec: &FulltextFilteredReadSpec,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<Option<fulltext_read::ControlledScalarCandidates>, QueryError> {
+    let Some(residual) = spec.residual_filter.as_ref() else {
+        return Ok(None);
+    };
+    let mut parts = Vec::new();
+    conjuncts(residual, &mut parts);
+    let mut combined: Option<fulltext_read::ControlledScalarCandidates> = None;
+    for part in parts {
+        let Some(found) = fulltext_read::scalar_equality_candidates(
+            cassie,
+            session,
+            &spec.collection,
+            (part, params),
+            controls,
+        )?
+        else {
+            continue;
+        };
+        combined = Some(match combined {
+            None => found,
+            Some(mut existing) => {
+                existing.ids.retain(|id| found.ids.contains(id));
+                existing.memory.extend(found.memory);
+                existing
+            }
+        });
+    }
+    Ok(combined)
 }
 
 fn rank_order(left: &(&String, f64), right: &(&String, f64)) -> CmpOrdering {
@@ -110,8 +201,7 @@ pub(super) fn execute_ranked_filtered_top_k(
         PersistedFulltextReadSelection::Ready(persisted) => *persisted,
         PersistedFulltextReadSelection::Exact(_) => return Ok(None),
     };
-    let scalar_candidates =
-        fulltext_read::scalar_prefilter_ids(cassie, session, read, params, controls)?;
+    let scalar_candidates = scalar_conjunct_candidates(cassie, session, read, params, controls)?;
     let matched = fulltext_read::score_persisted_candidates(
         &persisted,
         scalar_candidates.as_ref().map(|candidates| &candidates.ids),

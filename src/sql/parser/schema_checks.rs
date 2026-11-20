@@ -37,6 +37,29 @@ pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlEr
             "a CHECK constraint on a field of a composite column is not supported".to_string(),
         ));
     }
+    let field = resolve_check_field(&left)?;
+
+    Ok(ConstraintCheck {
+        field,
+        operator: op,
+        value: right,
+        bound_expression: None,
+    })
+}
+
+/// Resolves the checked column. A double-quoted identifier keeps its exact
+/// spelling through the shared column identifier rules; an unquoted name keeps
+/// the historical identifier-or-dotted-path check.
+fn resolve_check_field(left: &str) -> Result<String, SqlError> {
+    if left.starts_with('"') {
+        let path = crate::sql::ColumnIdentifierPath::parse_sql(left).map_err(SqlError::new)?;
+        if path.is_qualified() {
+            return Err(SqlError::unsupported(
+                "a CHECK constraint must name a single column of this table".to_string(),
+            ));
+        }
+        return Ok(path.lookup_key());
+    }
     if !left
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
@@ -45,13 +68,7 @@ pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlEr
             "CHECK expression field must be an identifier".to_string(),
         ));
     }
-
-    Ok(ConstraintCheck {
-        field: left.clone(),
-        operator: op,
-        value: right,
-        bound_expression: None,
-    })
+    Ok(left.to_string())
 }
 
 fn parse_simple_comparison(raw: &str) -> Option<(String, ConstraintOperator, Value)> {

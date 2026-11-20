@@ -1,0 +1,9 @@
+# Workstation-only pins for tools/embeddings/generate.py (Python 3.12, macOS arm64 / Linux x86_64).
+# Nothing here runs in CI or `cargo test`.
+sentence-transformers==6.3.0
+torch==2.15.0
+transformers==5.23.0
+tokenizers==0.23.3
+huggingface-hub==2.4.0
+numpy==2.5.5
+pyarrow==26.0.1

@@ -284,3 +284,8 @@ harness = false
 name = "relevance_cranfield"
 path = "benches/relevance_cranfield.rs"
 harness = false
+
+[[bench]]
+name = "tier5_embedding_workloads"
+path = "benches/tier5_embedding_workloads.rs"
+harness = false

@@ -104,7 +104,11 @@ fn conjuncts<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
 
 /// Rewrites `a AND b AND search(..)` (any association) to `search(..) AND (a AND b)` so the
 /// shared residual extraction sees one search conjunct and one residual predicate.
-fn search_first_filter(filter: &Expr, search: (&str, &str), params: &[Value]) -> Option<Expr> {
+fn search_first_filter(
+    filter: &Expr,
+    search: (&str, &crate::search::query::SearchQueryInput),
+    params: &[Value],
+) -> Option<Expr> {
     let mut parts = Vec::new();
     conjuncts(filter, &mut parts);
     let position = parts.iter().position(|part| {
@@ -113,7 +117,7 @@ fn search_first_filter(filter: &Expr, search: (&str, &str), params: &[Value]) ->
         };
         super::search_predicate_args_with_params(function, params).is_some_and(|(field, query)| {
             crate::sql::ColumnIdentifierPath::matches_stored_field(search.0, &field)
-                && query == search.1
+                && &query == search.1
         })
     })?;
     let search_part = parts.remove(position).clone();
@@ -325,7 +329,7 @@ fn collect_page(
                     payload,
                     score,
                     read,
-                    (&persisted.query_terms, &analyzer),
+                    (&persisted.search, &analyzer),
                 )
             },
         )?;

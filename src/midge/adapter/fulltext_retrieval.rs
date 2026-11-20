@@ -21,6 +21,8 @@ mod incremental;
 mod layout;
 #[path = "fulltext_retrieval/metrics.rs"]
 mod metrics;
+#[path = "fulltext_retrieval/vocabulary.rs"]
+mod vocabulary;
 
 pub(crate) use incremental::FulltextCommitChanges;
 pub(crate) use metrics::{FulltextMaintenanceMetrics, FulltextWriteTally};
@@ -117,7 +119,11 @@ pub struct PersistedFulltextPosting {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PersistedFulltextDocumentStats {
     pub doc_length: usize,
+    /// Term frequency per term; the length of the term's position list.
     pub term_counts: BTreeMap<String, usize>,
+    /// Sorted token positions per term. Positions count every token the
+    /// tokenizer produced, so removed stop words keep their gaps.
+    pub term_positions: BTreeMap<String, Vec<u32>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -724,22 +730,24 @@ impl Midge {
     }
 }
 
-/// Analyzes one document's text into the statistics persisted for it.
-fn analyze_document_statistics(
+/// Analyzes one document's text into the persisted per-document statistics.
+pub(crate) fn analyze_document_statistics(
     analyzer: &AnalyzerConfig,
     text: &str,
 ) -> PersistedFulltextDocumentStats {
-    let mut term_counts = BTreeMap::new();
-    for token in analyzer.analyze(text) {
-        term_counts
-            .entry(token)
-            .and_modify(|count| *count += 1)
-            .or_insert(1);
+    let mut term_positions = BTreeMap::<String, Vec<u32>>::new();
+    for (position, term) in analyzer.analyze_positioned(text) {
+        term_positions.entry(term).or_default().push(position);
     }
+    let term_counts = term_positions
+        .iter()
+        .map(|(term, positions)| (term.clone(), positions.len()))
+        .collect::<BTreeMap<_, _>>();
     let doc_length = term_counts.values().sum::<usize>();
     PersistedFulltextDocumentStats {
         doc_length,
         term_counts,
+        term_positions,
     }
 }
 

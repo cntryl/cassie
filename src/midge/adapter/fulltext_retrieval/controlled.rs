@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use cntryl_midge::Query;
 
 use super::layout::{self, TermBlockValidator};
+use super::vocabulary::TermDirectory;
 use super::{
     codec, LoadedCandidatePostings, PersistedFulltextCandidateSet, PersistedFulltextDocumentStats,
     STATE_VERSION,
@@ -12,6 +13,7 @@ use crate::midge::adapter::column_store::validation as column_validation;
 use crate::midge::adapter::{DocumentRef, Midge};
 use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::search::query::{CompiledQuery, ResolvedQuery};
 use crate::types::DataType;
 
 pub(crate) struct ControlledFulltextCandidateSet {
@@ -205,7 +207,20 @@ fn load_controlled_document_stats(
                 .saturating_mul(2)
                 .saturating_add(retained_string_bytes(&id)),
         )?;
-        stats.insert(id, codec::decode_document_stats(&raw)?);
+        let document = codec::decode_document_stats(&raw)?;
+        memory.try_grow(
+            document
+                .term_positions
+                .values()
+                .map(|positions| {
+                    positions
+                        .len()
+                        .saturating_mul(std::mem::size_of::<u32>())
+                        .saturating_add(std::mem::size_of::<Vec<u32>>())
+                })
+                .fold(0usize, usize::saturating_add),
+        )?;
+        stats.insert(id, document);
     }
     Ok(stats)
 }
@@ -315,6 +330,50 @@ impl Midge {
         )
     }
 
+    /// Reads the candidates of a `'query'`-syntax search: expands its prefix
+    /// and typo items against the index vocabulary inside the same read
+    /// transaction as the posting and statistics reads, then loads the postings
+    /// of the positive terms.
+    ///
+    /// Returns the candidates, the resolved query and the reservation that
+    /// accounts the resolved query.
+    pub(crate) fn fulltext_candidate_set_for_query_controlled(
+        &self,
+        collection: &str,
+        index_name: &str,
+        query: &CompiledQuery,
+        controls: &QueryExecutionControls,
+    ) -> Result<
+        (
+            ControlledFulltextCandidateSet,
+            ResolvedQuery,
+            QueryMemoryReservation,
+        ),
+        CassieError,
+    > {
+        let mut resolved = None;
+        let mut resolved_memory = None;
+        let candidates = self.fulltext_candidate_set_resolving_controlled(
+            collection,
+            index_name,
+            None,
+            controls,
+            &mut |directory| {
+                let query = query.resolve(directory)?;
+                resolved_memory = Some(controls.reserve_query_memory(query.estimated_bytes())?);
+                let terms = query.positive_terms().to_vec();
+                resolved = Some(query);
+                Ok(terms)
+            },
+        )?;
+        match (resolved, resolved_memory) {
+            (Some(resolved), Some(memory)) => Ok((candidates, resolved, memory)),
+            _ => Err(CassieError::Execution(
+                "fulltext fallback:unresolved-query".to_string(),
+            )),
+        }
+    }
+
     fn fulltext_candidate_set_inner_controlled(
         &self,
         collection: &str,
@@ -322,6 +381,23 @@ impl Midge {
         terms: &[String],
         allowed_ids: Option<&BTreeSet<String>>,
         controls: &QueryExecutionControls,
+    ) -> Result<ControlledFulltextCandidateSet, CassieError> {
+        self.fulltext_candidate_set_resolving_controlled(
+            collection,
+            index_name,
+            allowed_ids,
+            controls,
+            &mut |_| Ok(terms.to_vec()),
+        )
+    }
+
+    fn fulltext_candidate_set_resolving_controlled(
+        &self,
+        collection: &str,
+        index_name: &str,
+        allowed_ids: Option<&BTreeSet<String>>,
+        controls: &QueryExecutionControls,
+        resolve_terms: &mut dyn FnMut(&TermDirectory<'_>) -> Result<Vec<String>, CassieError>,
     ) -> Result<ControlledFulltextCandidateSet, CassieError> {
         check_controls(controls)?;
         let collection = self.canonical_collection_name(collection);
@@ -349,6 +425,11 @@ impl Midge {
             ));
         }
 
+        let terms = resolve_terms(&TermDirectory {
+            tx: &tx,
+            relation_id,
+            index_id,
+        })?;
         let loaded = load_controlled_candidate_postings(
             &ControlledPostingReadContext {
                 midge: self,
@@ -358,7 +439,7 @@ impl Midge {
                 allowed_ids,
                 controls,
             },
-            terms,
+            &terms,
             &mut memory,
         )?;
         let row_schema = self.row_schema(&collection)?;

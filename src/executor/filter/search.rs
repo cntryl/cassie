@@ -11,6 +11,10 @@ pub(crate) struct SearchContext {
     field_k1: HashMap<String, f64>,
     field_b: HashMap<String, f64>,
     field_analyzer: HashMap<String, AnalyzerConfig>,
+    /// Resolved `'query'`-syntax searches, keyed by field and query text. Shared by
+    /// clones so a statement resolves each query once; never serialized.
+    #[serde(skip)]
+    pub(super) prepared_queries: super::search_prepared::PreparedQueryCache,
 }
 
 pub(crate) struct PersistedFieldStatistics<'a> {
@@ -28,6 +32,9 @@ pub(crate) struct SearchTermStats {
     has_text: bool,
     doc_length: usize,
     term_counts: HashMap<String, usize>,
+    /// Token positions per term; present only when built for the `'query'` syntax.
+    #[serde(default)]
+    positions: Option<HashMap<String, Vec<u32>>>,
 }
 
 #[cfg(test)]
@@ -56,6 +63,46 @@ impl SearchTermStats {
             has_text: true,
             doc_length: tokens.len(),
             term_counts: token_counts(tokens.as_slice()),
+            positions: None,
+        }
+    }
+
+    /// Like [`Self::from_text_with_analyzer`], also keeping every term's token
+    /// positions (gaps for removed stop words preserved) for phrase matching.
+    pub(crate) fn from_text_with_positions(
+        source: Option<&str>,
+        analyzer: &AnalyzerConfig,
+    ) -> Self {
+        let Some(source) = source else {
+            return Self::default();
+        };
+        let mut positions = HashMap::<String, Vec<u32>>::new();
+        let mut doc_length = 0usize;
+        for (position, term) in analyzer.analyze_positioned(source) {
+            doc_length += 1;
+            positions.entry(term).or_default().push(position);
+        }
+        Self {
+            has_text: true,
+            doc_length,
+            term_counts: positions
+                .iter()
+                .map(|(term, positions)| (term.clone(), positions.len()))
+                .collect(),
+            positions: Some(positions),
+        }
+    }
+
+    /// Statistics for `source` carrying positions only when `needs_positions`.
+    pub(crate) fn for_search(
+        source: Option<&str>,
+        analyzer: &AnalyzerConfig,
+        needs_positions: bool,
+    ) -> Self {
+        if needs_positions {
+            Self::from_text_with_positions(source, analyzer)
+        } else {
+            Self::from_text_with_analyzer(source, analyzer)
         }
     }
 
@@ -74,7 +121,30 @@ impl SearchTermStats {
                 .iter()
                 .map(|(term, count)| (term.clone(), *count))
                 .collect(),
+            positions: None,
         }
+    }
+
+    /// Persisted statistics including the stored token positions.
+    pub(crate) fn from_persisted_with_positions(
+        stats: &crate::midge::adapter::fulltext_retrieval::PersistedFulltextDocumentStats,
+    ) -> Self {
+        Self {
+            positions: Some(
+                stats
+                    .term_positions
+                    .iter()
+                    .map(|(term, positions)| (term.clone(), positions.clone()))
+                    .collect(),
+            ),
+            ..Self::from_persisted(stats.doc_length, &stats.term_counts)
+        }
+    }
+}
+
+impl crate::search::query::DocumentPositions for SearchTermStats {
+    fn positions(&self, term: &str) -> Option<&[u32]> {
+        self.positions.as_ref()?.get(term).map(Vec::as_slice)
     }
 }
 
@@ -183,6 +253,7 @@ impl SearchContext {
             field_k1: statistics.field_k1.clone(),
             field_b: statistics.field_b.clone(),
             field_analyzer: statistics.field_analyzer.clone(),
+            prepared_queries: super::search_prepared::PreparedQueryCache::default(),
         }
     }
 

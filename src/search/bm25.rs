@@ -24,14 +24,20 @@ pub fn bm25_score(tf: f64, df: f64, n: f64, k1: f64, b: f64, dl: f64, avgdl: f64
 /// tokens with the same analyzer that indexing and `search()` use.
 #[must_use]
 pub fn snippet(text: &str, terms: &[String], analyzer: &AnalyzerConfig) -> String {
-    let spans = analyzer.matching_spans(text, terms);
+    render_snippet(text, &analyzer.matching_spans(text, terms))
+}
+
+/// Wraps each byte range of `text` in `<mark>` tags. Ranges are sorted,
+/// non-overlapping and on character boundaries.
+#[must_use]
+pub fn render_snippet(text: &str, spans: &[(usize, usize)]) -> String {
     if spans.is_empty() {
         return text.to_string();
     }
 
     let mut out = String::with_capacity(text.len() + spans.len() * 13);
     let mut cursor = 0usize;
-    for (start, end) in spans {
+    for &(start, end) in spans {
         out.push_str(&text[cursor..start]);
         out.push_str("<mark>");
         out.push_str(&text[start..end]);

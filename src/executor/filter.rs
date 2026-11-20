@@ -120,6 +120,10 @@ mod like;
 mod number_format;
 #[path = "filter/search.rs"]
 mod search;
+#[path = "filter/search_functions.rs"]
+mod search_functions;
+#[path = "filter/search_prepared.rs"]
+mod search_prepared;
 #[path = "filter/temporal.rs"]
 pub(crate) mod temporal;
 #[path = "filter/temporal_format.rs"]
@@ -136,6 +140,7 @@ pub(crate) use search::{prepare_query_terms, SingleFieldSearchContext};
 pub(crate) use search::{
     prepare_query_terms_with_analyzer, PersistedFieldStatistics, SearchContext, SearchTermStats,
 };
+pub(crate) use search_prepared::PreparedSearch;
 
 #[derive(Clone, Copy)]
 pub(super) struct EvalContext<'a> {

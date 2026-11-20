@@ -72,7 +72,9 @@ impl Midge {
     /// Forces column scans to read every segment (`false`) or restores pruning.
     #[doc(hidden)]
     pub fn set_column_pruning_enabled_for_diagnostics(&self, enabled: bool) {
-        self.column_pruning.disabled.store(!enabled, Ordering::Relaxed);
+        self.column_pruning
+            .disabled
+            .store(!enabled, Ordering::Relaxed);
     }
 
     pub(super) fn note_stale_column_summaries(&self, collection: &str) {
@@ -119,9 +121,13 @@ impl ColumnPruningSnapshot {
     #[must_use]
     pub fn since(self, earlier: Self) -> Self {
         Self {
-            segments_skipped: self.segments_skipped.saturating_sub(earlier.segments_skipped),
+            segments_skipped: self
+                .segments_skipped
+                .saturating_sub(earlier.segments_skipped),
             rows_skipped: self.rows_skipped.saturating_sub(earlier.rows_skipped),
-            summaries_loaded: self.summaries_loaded.saturating_sub(earlier.summaries_loaded),
+            summaries_loaded: self
+                .summaries_loaded
+                .saturating_sub(earlier.summaries_loaded),
             summaries_rejected: self
                 .summaries_rejected
                 .saturating_sub(earlier.summaries_rejected),
@@ -305,10 +311,7 @@ impl ColumnPruning {
         let counters = midge.column_pruning();
         let valid = loaded.iter().filter(|slot| slot.record.is_some()).count();
         ColumnPruningCounters::add(&counters.summaries_loaded, valid as u64);
-        ColumnPruningCounters::add(
-            &counters.summaries_rejected,
-            (loaded.len() - valid) as u64,
-        );
+        ColumnPruningCounters::add(&counters.summaries_rejected, (loaded.len() - valid) as u64);
         let lower_bounds = loaded
             .iter()
             .map(|slot| match slot.start.as_deref() {

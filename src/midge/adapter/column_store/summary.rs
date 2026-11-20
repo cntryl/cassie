@@ -154,7 +154,11 @@ impl SummaryRecord {
         out.extend_from_slice(&self.row_count.to_be_bytes());
         out.extend_from_slice(&self.fingerprint);
         write_bytes(&mut out, self.start.as_bytes());
-        out.extend_from_slice(&u16::try_from(self.fields.len()).unwrap_or(u16::MAX).to_be_bytes());
+        out.extend_from_slice(
+            &u16::try_from(self.fields.len())
+                .unwrap_or(u16::MAX)
+                .to_be_bytes(),
+        );
         for field in &self.fields {
             out.extend_from_slice(&field.field_id.to_be_bytes());
             out.push(field.kind.tag());
@@ -189,8 +193,8 @@ impl SummaryRecord {
             let field_id = reader.u32()?;
             let kind = SummaryKind::from_tag(reader.u8()?)?;
             let non_null = reader.u32()?;
-            let min = reader.scalar(kind)?;
-            let max = reader.scalar(kind)?;
+            let min = reader.scalar(kind).ok()?;
+            let max = reader.scalar(kind).ok()?;
             if non_null > row_count || (non_null == 0) != (min.is_none() && max.is_none()) {
                 return None;
             }
@@ -263,27 +267,31 @@ impl<'a> Reader<'a> {
         self.take(len)
     }
 
-    /// `Some(None)` is an absent bound, `None` is a malformed one.
-    fn scalar(&mut self, kind: SummaryKind) -> Option<Option<Value>> {
-        match self.u8()? {
-            0 => Some(None),
-            1 => Some(Some(match kind {
-                SummaryKind::Integer => {
-                    Value::Int64(i64::from_be_bytes(self.take(8)?.try_into().ok()?))
-                }
-                SummaryKind::Text => {
-                    let text = String::from_utf8(self.bytes()?.to_vec()).ok()?;
-                    (text.len() <= MAX_TEXT_BOUND_BYTES).then_some(())?;
-                    Value::String(text)
-                }
-                SummaryKind::Boolean => match self.u8()? {
-                    0 => Value::Bool(false),
-                    1 => Value::Bool(true),
-                    _ => return None,
-                },
-            })),
-            _ => None,
+    /// `Ok(None)` is an absent bound, `Err(())` a malformed one.
+    fn scalar(&mut self, kind: SummaryKind) -> Result<Option<Value>, ()> {
+        match self.u8().ok_or(())? {
+            0 => Ok(None),
+            1 => self.present_scalar(kind).map(Some).ok_or(()),
+            _ => Err(()),
         }
+    }
+
+    fn present_scalar(&mut self, kind: SummaryKind) -> Option<Value> {
+        Some(match kind {
+            SummaryKind::Integer => {
+                Value::Int64(i64::from_be_bytes(self.take(8)?.try_into().ok()?))
+            }
+            SummaryKind::Text => {
+                let text = String::from_utf8(self.bytes()?.to_vec()).ok()?;
+                (text.len() <= MAX_TEXT_BOUND_BYTES).then_some(())?;
+                Value::String(text)
+            }
+            SummaryKind::Boolean => match self.u8()? {
+                0 => Value::Bool(false),
+                1 => Value::Bool(true),
+                _ => return None,
+            },
+        })
     }
 }
 
@@ -325,9 +333,11 @@ impl PrunePredicate {
             PruneOp::IsNotNull => field.non_null == 0,
             _ if field.non_null == 0 => true,
             op => {
-                let (Some(min), Some(max), Some(literal)) =
-                    (field.min.as_ref(), field.max.as_ref(), self.literal.as_ref())
-                else {
+                let (Some(min), Some(max), Some(literal)) = (
+                    field.min.as_ref(),
+                    field.max.as_ref(),
+                    self.literal.as_ref(),
+                ) else {
                     return false;
                 };
                 let below_min = compare_values(literal, min).is_lt();
@@ -383,7 +393,7 @@ mod tests {
     }
 
     #[test]
-    fn should_round_trip_a_record_and_reject_any_flipped_byte() {
+    fn should_round_trip_a_record_rejecting_any_flipped_byte() {
         // Arrange
         let record = record(8, -5, 40);
         let encoded = record.encode();
@@ -419,7 +429,8 @@ mod tests {
             (PruneOp::Gte, 20, false),
         ];
 
-        // Act / Assert
+        // Act
+        // Assert
         for (op, literal, excluded) in cases {
             assert_eq!(
                 segment_excluded(&segment, &[predicate(op, Some(Value::Int64(literal)))]),
@@ -430,16 +441,23 @@ mod tests {
     }
 
     #[test]
-    fn should_use_null_counts_for_null_tests_and_all_null_segments() {
+    fn should_use_null_counts_for_null_tests() {
         // Arrange
         let full = record(10, 1, 2);
         let partial = record(4, 1, 2);
         let empty = record(0, 0, 0);
 
-        // Act / Assert
+        // Act
+        // Assert
         assert!(segment_excluded(&full, &[predicate(PruneOp::IsNull, None)]));
-        assert!(!segment_excluded(&partial, &[predicate(PruneOp::IsNull, None)]));
-        assert!(segment_excluded(&empty, &[predicate(PruneOp::IsNotNull, None)]));
+        assert!(!segment_excluded(
+            &partial,
+            &[predicate(PruneOp::IsNull, None)]
+        ));
+        assert!(segment_excluded(
+            &empty,
+            &[predicate(PruneOp::IsNotNull, None)]
+        ));
         assert!(segment_excluded(
             &empty,
             &[predicate(PruneOp::Eq, Some(Value::Int64(1)))]
@@ -451,7 +469,8 @@ mod tests {
         // Arrange
         let segment = record(8, 10, 20);
 
-        // Act / Assert
+        // Act
+        // Assert
         assert!(segment_excluded(
             &segment,
             &[predicate(PruneOp::Gt, Some(Value::Float64(20.5)))]

@@ -325,7 +325,10 @@ impl Midge {
         changed_ids: &[String],
     ) -> Result<(), CassieError> {
         let generation = self.collection_generation(collection)?;
-        if self.collection_uses_column_store(collection).unwrap_or(false) {
+        if self
+            .collection_uses_column_store(collection)
+            .unwrap_or(false)
+        {
             // Pruning summaries are derived; readers verify them, so a failed
             // refresh only costs skipped segments, never correctness.
             let _ = self.refresh_column_store_summaries(collection, Some(changed_ids));

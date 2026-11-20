@@ -56,7 +56,7 @@ impl Midge {
 
         let mut records = Vec::new();
         for (start, end) in ranges {
-            records.extend(self.build_segment_records(
+            records.extend(Self::build_segment_records(
                 &tx,
                 &collection,
                 &row_schema,
@@ -67,7 +67,9 @@ impl Midge {
         let mut write = self.begin_data_rw_tx_for(&collection)?;
         if rebuild_all {
             for slot in &existing {
-                write.delete(slot.storage_key.clone()).map_err(CassieError::from)?;
+                write
+                    .delete(slot.storage_key.clone())
+                    .map_err(CassieError::from)?;
             }
         }
         for record in &records {
@@ -117,7 +119,6 @@ impl Midge {
     }
 
     fn build_segment_records(
-        &self,
         tx: &crate::midge::adapter::DataReadTransaction,
         collection: &str,
         row_schema: &RowSchema,
@@ -131,7 +132,9 @@ impl Midge {
         );
         let mut query = Query::new().start_key(lower.into());
         query = match end {
-            Some(id) => query.end_key(Self::column_store_row_key(row_schema.relation_id, id).into()),
+            Some(id) => {
+                query.end_key(Self::column_store_row_key(row_schema.relation_id, id).into())
+            }
             None => query.prefix(row_prefix.clone().into()),
         };
         let mut records = Vec::new();
@@ -143,7 +146,7 @@ impl Midge {
             if pending.len() > SPLIT_ROWS {
                 let rest = pending.split_off(SEGMENT_ROWS);
                 let segment_start = next_start.take().unwrap_or_default();
-                records.push(self.build_record(
+                records.push(Self::build_record(
                     tx,
                     collection,
                     row_schema,
@@ -158,12 +161,17 @@ impl Midge {
             }
         }
         let segment_start = next_start.unwrap_or_default();
-        records.push(self.build_record(tx, collection, row_schema, segment_start, &pending)?);
+        records.push(Self::build_record(
+            tx,
+            collection,
+            row_schema,
+            segment_start,
+            &pending,
+        )?);
         Ok(records)
     }
 
     fn build_record(
-        &self,
         tx: &crate::midge::adapter::DataReadTransaction,
         collection: &str,
         row_schema: &RowSchema,
@@ -193,7 +201,9 @@ impl Midge {
                 let id = key
                     .strip_prefix(row_prefix.as_slice())
                     .and_then(|id| std::str::from_utf8(id).ok())
-                    .ok_or_else(|| CassieError::Execution("invalid column marker key".to_owned()))?;
+                    .ok_or_else(|| {
+                        CassieError::Execution("invalid column marker key".to_owned())
+                    })?;
                 let (version, _) = decode_marker_parts(collection, id, marker)?;
                 let raw = tx
                     .get(&Self::column_store_field_key(

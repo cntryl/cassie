@@ -15,7 +15,7 @@ fn row(index: usize) -> String {
         i if i % 50 == 7 => "NULL".to_owned(),
         i => (i * 10).to_string(),
     };
-    let s = if index % 97 == 0 {
+    let s = if index.is_multiple_of(97) {
         "NULL".to_owned()
     } else {
         format!("'s-{:02}'", index / 100)
@@ -68,7 +68,7 @@ fn assert_same(pair: &Pair, projection: &str, predicate: &str) -> u64 {
 }
 
 #[test]
-fn should_match_heap_and_unpruned_reads_for_numeric_predicates() {
+fn should_match_heap_for_numeric_predicates() {
     // Arrange
     with_pair(|pair| {
         load(pair);
@@ -101,7 +101,7 @@ fn should_match_heap_and_unpruned_reads_for_numeric_predicates() {
 }
 
 #[test]
-fn should_match_heap_and_unpruned_reads_for_text_and_boolean_predicates() {
+fn should_match_heap_for_text_predicates() {
     // Arrange
     with_pair(|pair| {
         load(pair);
@@ -143,7 +143,7 @@ fn should_match_heap_for_compressed_values_under_a_pruned_predicate() {
 }
 
 #[test]
-fn should_match_heap_and_unpruned_reads_for_fields_added_after_the_rows() {
+fn should_match_heap_for_fields_added_after_the_rows() {
     // Arrange
     with_pair(|pair| {
         load(pair);
@@ -182,7 +182,7 @@ fn should_match_heap_and_unpruned_reads_for_fields_added_after_the_rows() {
 }
 
 #[test]
-fn should_match_heap_after_updates_deletes_inserts_and_staged_changes() {
+fn should_match_heap_after_mixed_writes() {
     // Arrange
     with_pair(|pair| {
         load(pair);
@@ -190,7 +190,9 @@ fn should_match_heap_after_updates_deletes_inserts_and_staged_changes() {
         for mode in [ROW, COL] {
             pair.run(&format!("UPDATE t_{mode} SET a = -5 WHERE a = 100"));
             pair.run(&format!("UPDATE t_{mode} SET a = 13000 WHERE a = 200"));
-            pair.run(&format!("DELETE FROM t_{mode} WHERE a BETWEEN 2000 AND 2400"));
+            pair.run(&format!(
+                "DELETE FROM t_{mode} WHERE a BETWEEN 2000 AND 2400"
+            ));
             pair.run(&format!(
                 "INSERT INTO t_{mode} VALUES (150, 's-03', false, 2, 'late'), (NULL, 's-03', true, NULL, 'late')"
             ));

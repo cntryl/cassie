@@ -9,11 +9,11 @@ pub(crate) use compression::logical_len as column_payload_logical_len;
 mod pruning;
 pub use pruning::ColumnPruningSnapshot;
 pub(crate) use pruning::{ColumnPruning, ColumnPruningState};
-mod summary;
-mod summary_refresh;
 #[cfg(test)]
 mod golden_tests;
 mod rows;
+mod summary;
+mod summary_refresh;
 pub(super) mod validation;
 
 type InitialCollectionPublication = (bool, u64, Vec<crate::catalog::ObjectCommentMeta>);

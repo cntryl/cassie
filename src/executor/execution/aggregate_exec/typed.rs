@@ -205,13 +205,7 @@ pub(in crate::executor::execution) fn try_execute(
     else {
         return Ok(None);
     };
-    if let Some(filter) = plan
-        .filter
-        .as_ref()
-        .and_then(crate::executor::execution::projected_read::column_batch_scan_filter)
-    {
-        stream.set_column_pruning(&filter);
-    }
+    crate::executor::execution::projected_read::prune_stream(&mut stream, plan.filter.as_ref());
     let diagnostic = workers::consume_stream(
         cassie,
         &mut stream,

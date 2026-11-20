@@ -63,11 +63,7 @@ fn payload_footprint(env: &Env, table: &str, payloads: &[String]) -> Footprint {
     assert_eq!(entries.len(), payloads.len());
     let key_bytes = entries.iter().map(|(key, _)| key.len()).sum::<usize>();
     Footprint {
-        stored: key_bytes
-            + entries
-                .iter()
-                .map(|(_, value)| value.len())
-                .sum::<usize>(),
+        stored: key_bytes + entries.iter().map(|(_, value)| value.len()).sum::<usize>(),
         uncompressed: key_bytes + payloads.iter().map(|text| 1 + text.len()).sum::<usize>(),
         compressed_values: entries
             .iter()
@@ -77,7 +73,7 @@ fn payload_footprint(env: &Env, table: &str, payloads: &[String]) -> Footprint {
 }
 
 #[test]
-fn should_save_persisted_bytes_and_selective_reads_on_a_compressible_fixture() {
+fn should_report_bytes_saved_with_fewer_selective_reads_on_a_compressible_fixture() {
     // Arrange
     let env = env();
     let payloads = load(&env, "docs", repetitive);
@@ -91,7 +87,9 @@ fn should_save_persisted_bytes_and_selective_reads_on_a_compressible_fixture() {
         .map(|(key, value)| key.len() + value.len())
         .sum::<usize>();
     let pruned = observe(&env, sql);
-    env.cassie.midge.set_column_pruning_enabled_for_diagnostics(false);
+    env.cassie
+        .midge
+        .set_column_pruning_enabled_for_diagnostics(false);
     let unpruned = observe(&env, equivalent);
     println!(
         "compressible: rows={ROWS} before_bytes={} after_bytes={} summary_bytes={summary_bytes} \
@@ -106,8 +104,14 @@ fn should_save_persisted_bytes_and_selective_reads_on_a_compressible_fixture() {
 
     // Assert
     assert_eq!(footprint.compressed_values, ROWS);
-    assert!(footprint.stored * 2 < footprint.uncompressed, "at least half saved");
-    assert!(footprint.stored + summary_bytes < footprint.uncompressed, "net saving");
+    assert!(
+        footprint.stored * 2 < footprint.uncompressed,
+        "at least half saved"
+    );
+    assert!(
+        footprint.stored + summary_bytes < footprint.uncompressed,
+        "net saving"
+    );
     assert_eq!(ints(&pruned.rows, 0), (1_000..1_280).collect::<Vec<_>>());
     assert_eq!(ints(&unpruned.rows, 0), ints(&pruned.rows, 0));
     assert_eq!(pruned.fields.payload_reads, 2 * 512);
@@ -133,7 +137,14 @@ fn should_return_compressed_values_unchanged() {
             other => panic!("expected text, found {other:?}"),
         })
         .collect::<Vec<_>>();
-    assert_eq!(texts, vec![payloads[0].clone(), payloads[641].clone(), payloads[1279].clone()]);
+    assert_eq!(
+        texts,
+        vec![
+            payloads[0].clone(),
+            payloads[641].clone(),
+            payloads[1279].clone()
+        ]
+    );
 }
 
 #[test]

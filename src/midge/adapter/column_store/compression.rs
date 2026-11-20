@@ -80,8 +80,10 @@ pub(crate) fn expand_column_field(raw: &[u8]) -> Result<Cow<'_, [u8]>, CassieErr
             "compressed field declares {original_len} original bytes outside the supported range"
         )));
     }
-    let expanded = lz4_flex::block::decompress(&raw[HEADER_BYTES..], original_len)
-        .map_err(|error| CassieError::Parse(format!("compressed field does not expand: {error}")))?;
+    let expanded =
+        lz4_flex::block::decompress(&raw[HEADER_BYTES..], original_len).map_err(|error| {
+            CassieError::Parse(format!("compressed field does not expand: {error}"))
+        })?;
     if expanded.len() != original_len {
         return Err(CassieError::Parse(
             "compressed field expanded to a different length than declared".to_string(),
@@ -128,7 +130,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_short_and_incompressible_values_unchanged() {
+    fn should_keep_short_or_incompressible_values_unchanged() {
         // Arrange
         let short = json!("tenant-0001");
         let mut state = 0x9E37_79B9_7F4A_7C15_u64;

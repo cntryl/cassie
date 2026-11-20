@@ -52,6 +52,10 @@ pub(super) fn set_access_method(
     if converted.is_some() {
         cassie.catalog.set_collection_storage_mode(table, target);
         cassie.bump_schema_epoch_and_invalidate_query_cache()?;
+        if target.uses_column_store_storage() {
+            // Pruning summaries are derived; a failed build only skips pruning.
+            let _ = cassie.midge.refresh_column_store_summaries(table, None);
+        }
     }
     drop(reservation);
     Ok(())

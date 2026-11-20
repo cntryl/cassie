@@ -359,10 +359,10 @@ mod native_memory;
 pub use native_memory::{NativeMemoryConfiguration, NativeMemoryDiagnostics, NativeMemoryRuntime};
 mod storage_conversion;
 pub use column_store::field_selection::ColumnFieldReadSnapshot;
-pub use column_store::ColumnPruningSnapshot;
 pub(crate) use column_store::field_selection::{ColumnFieldReadCounters, ColumnFieldSelection};
-pub(crate) use column_store::{ColumnPruning, ColumnPruningState};
+pub use column_store::ColumnPruningSnapshot;
 pub(crate) use column_store::ColumnStoreScanRequest;
+pub(crate) use column_store::{ColumnPruning, ColumnPruningState};
 pub(crate) use database_catalog_rewrite::{
     is_database_catalog_entry, rewrite_database_data_entry, validate_database_catalog_entry,
 };

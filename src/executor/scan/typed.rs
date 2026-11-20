@@ -22,7 +22,10 @@ pub(crate) struct TypedScanStream<'a> {
 impl<'a> TypedScanStream<'a> {
     /// Lets a column-table source skip segments that a conjunctive filter
     /// excludes. The caller still applies the filter to every row it receives.
-    pub(crate) fn set_column_pruning(&mut self, filter: &crate::midge::adapter::ColumnBatchScanFilter) {
+    pub(crate) fn set_column_pruning(
+        &mut self,
+        filter: &crate::midge::adapter::ColumnBatchScanFilter,
+    ) {
         if let Some(cursor) = self.cursor.as_mut() {
             cursor.set_column_pruning(&self.cassie.midge, filter);
         }

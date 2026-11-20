@@ -9,6 +9,7 @@ mod breakdown;
 mod specialized;
 #[path = "projected_read/typed.rs"]
 mod typed;
+pub(super) use typed::prune_stream;
 
 #[cfg(test)]
 mod handoff_tests;

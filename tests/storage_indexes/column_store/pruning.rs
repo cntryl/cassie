@@ -64,7 +64,11 @@ pub(super) fn sorted_row(index: usize) -> String {
 /// The same values with `amount` a permutation, so every segment spans the range.
 fn shuffled_row(index: usize) -> String {
     let amount = (index * 7_919) % ROWS;
-    let note = if index % 7 == 0 { "NULL" } else { "'note'" };
+    let note = if index.is_multiple_of(7) {
+        "NULL"
+    } else {
+        "'note'"
+    };
     let tenant = format!("tenant-{:02}", (index * 37) % 5);
     format!("({amount}, '{tenant}', {note})")
 }
@@ -115,7 +119,9 @@ fn should_skip_leading_segments_with_zero_payload_reads_on_a_sorted_numeric_rang
 
     // Act
     let pruned = observe(&env, sql);
-    env.cassie.midge.set_column_pruning_enabled_for_diagnostics(false);
+    env.cassie
+        .midge
+        .set_column_pruning_enabled_for_diagnostics(false);
     let unpruned = observe(&env, equivalent);
 
     // Assert
@@ -173,7 +179,7 @@ fn should_skip_segments_without_nulls_for_is_null() {
 }
 
 #[test]
-fn should_read_every_segment_for_shuffled_input_and_unselective_predicates() {
+fn should_read_every_segment_for_shuffled_or_unselective_predicates() {
     // Arrange
     let env = env();
     load(&env, "shuffled", shuffled_row);
@@ -189,12 +195,18 @@ fn should_read_every_segment_for_shuffled_input_and_unselective_predicates() {
 
     // Assert
     assert_eq!(range.rows.len(), 280);
-    assert_eq!(text.rows.len(), (0..ROWS).filter(|i| (i * 37) % 5 == 3).count());
+    assert_eq!(
+        text.rows.len(),
+        (0..ROWS).filter(|i| (i * 37) % 5 == 3).count()
+    );
     assert_eq!(all.rows.len(), ROWS);
     for (observed, fields) in [(&range, 1), (&text, 2), (&all, 1)] {
         assert_eq!(observed.pruning.segments_skipped, 0);
         assert_eq!(observed.pruning.rows_skipped, 0);
-        assert_eq!(observed.fields.payload_reads, payload_reads(ROWS as u64, fields));
+        assert_eq!(
+            observed.fields.payload_reads,
+            payload_reads(ROWS as u64, fields)
+        );
     }
 }
 
@@ -217,7 +229,7 @@ fn should_find_a_value_moved_between_predicate_ranges_by_an_update() {
     assert_eq!(before.pruning.segments_skipped, 3);
     assert_eq!(ints(&after.rows, 0), vec![1_100, 1_100]);
     assert_eq!(after.pruning.segments_skipped, 2);
-    assert!(old.rows.is_empty());
+    assert_eq!(old.rows.len(), 0);
 }
 
 #[test]
@@ -323,7 +335,7 @@ fn should_rebuild_every_segment_after_a_scan_found_stale_summaries() {
 }
 
 #[test]
-fn should_keep_pruning_and_find_the_moved_row_after_a_restart() {
+fn should_find_the_moved_row_with_pruning_after_a_restart() {
     // Arrange
     let store = super::restart::Store::new("pruning_restart");
     let high = "SELECT amount FROM events WHERE amount = 1100";
@@ -342,5 +354,28 @@ fn should_keep_pruning_and_find_the_moved_row_after_a_restart() {
     assert_eq!(ints(&after.rows, 0), vec![1_100, 1_100]);
     assert_eq!(after.pruning.segments_skipped, 2);
     assert_eq!(after.pruning.summaries_stale, 0);
-    assert!(old.rows.is_empty());
+    assert_eq!(old.rows.len(), 0);
+}
+
+#[test]
+fn should_build_summaries_when_a_heap_table_converts_to_columnar() {
+    // Arrange
+    let env = env();
+    env.run("CREATE TABLE events (amount INT, tenant TEXT, note TEXT)");
+    for start in (0..ROWS).step_by(CHUNK) {
+        let values = (start..start + CHUNK)
+            .map(sorted_row)
+            .collect::<Vec<_>>()
+            .join(",");
+        env.run(&format!("INSERT INTO events VALUES {values}"));
+    }
+
+    // Act
+    env.run("ALTER TABLE events SET ACCESS METHOD columnar");
+    let pruned = observe(&env, "SELECT amount FROM events WHERE amount >= 1000");
+
+    // Assert
+    assert_eq!(summary_entries(&env, TABLE).len(), 4);
+    assert_eq!(ints(&pruned.rows, 0), (1_000..1_280).collect::<Vec<_>>());
+    assert!(pruned.pruning.segments_skipped > 0);
 }

@@ -61,8 +61,11 @@ pub(super) use time_series::{
     time_series_index_partition_prefix,
 };
 pub(super) use vector::{
-    decode_ivfflat_membership_suffix, ivfflat_membership_key, ivfflat_membership_list_prefix,
-    ivfflat_membership_prefix, ivfflat_source_summary_key,
+    decode_ivfflat_membership_suffix, hnsw_graph_node_key, hnsw_graph_node_prefix,
+    hnsw_source_summary_key, ivfflat_membership_key, ivfflat_membership_list_prefix,
+    ivfflat_membership_prefix, ivfflat_source_summary_key, normalized_vector_collection_prefix,
+    normalized_vector_floor_key, normalized_vector_key, normalized_vector_prefix,
+    vector_index_state_key, vector_index_state_prefix,
 };
 
 pub(super) const LAYOUT_VERSION: &str = "cassie-midge-layout-v1-0.1.0";
@@ -398,81 +401,8 @@ pub(super) fn vector_index_prefix() -> Vec<u8> {
     prefix(FAMILY_VECTOR_INDEX, &[])
 }
 
-pub(super) fn vector_index_state_key(relation_id: u64, field_id: u32) -> Vec<u8> {
-    vector_hot_key(FAMILY_VECTOR_INDEX_STATE, relation_id, field_id, &[])
-}
-
-pub(super) fn hnsw_graph_node_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {
-    vector_hot_key(
-        FAMILY_VECTOR_INDEX_STATE,
-        relation_id,
-        field_id,
-        &[b"n", id.as_bytes()],
-    )
-}
-
-pub(super) fn hnsw_graph_node_prefix(relation_id: u64, field_id: u32) -> Vec<u8> {
-    vector_hot_prefix(FAMILY_VECTOR_INDEX_STATE, relation_id, field_id, &[b"n"])
-}
-
-pub(super) fn hnsw_source_summary_key(relation_id: u64, field_id: u32) -> Vec<u8> {
-    vector_hot_key(FAMILY_VECTOR_INDEX_STATE, relation_id, field_id, &[b"f"])
-}
-
-/// Generation of the last full normalized-vector publication for one field.
-///
-/// The field component carries a trailing marker byte, so the key sits beside
-/// the field's normalized vectors without falling inside their scan prefix, and
-/// under the collection prefix that drops them together.
-pub(super) fn normalized_vector_floor_key(relation_id: u64, field_id: u32) -> Vec<u8> {
-    let relation = encoded_u64_component(relation_id);
-    let mut field = field_id.to_be_bytes().to_vec();
-    field.push(b'g');
-    key(
-        FAMILY_NORMALIZED_VECTOR,
-        &[relation.as_slice(), field.as_slice()],
-    )
-}
-
-pub(super) fn vector_index_state_prefix(relation_id: u64) -> Vec<u8> {
-    let relation = encoded_u64_component(relation_id);
-    prefix(FAMILY_VECTOR_INDEX_STATE, &[relation.as_slice()])
-}
-
 pub(super) fn vector_index_collection_prefix(collection: &str) -> Vec<u8> {
     scoped_prefix(FAMILY_VECTOR_INDEX, collection, &[])
-}
-
-pub(super) fn normalized_vector_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {
-    vector_hot_key(
-        FAMILY_NORMALIZED_VECTOR,
-        relation_id,
-        field_id,
-        &[id.as_bytes()],
-    )
-}
-
-pub(super) fn normalized_vector_prefix(relation_id: u64, field_id: u32) -> Vec<u8> {
-    vector_hot_prefix(FAMILY_NORMALIZED_VECTOR, relation_id, field_id, &[])
-}
-
-pub(super) fn normalized_vector_collection_prefix(relation_id: u64) -> Vec<u8> {
-    let relation = encoded_u64_component(relation_id);
-    prefix(FAMILY_NORMALIZED_VECTOR, &[relation.as_slice()])
-}
-
-fn vector_hot_key(family: &[u8], relation_id: u64, field_id: u32, suffix: &[&[u8]]) -> Vec<u8> {
-    let relation = encoded_u64_component(relation_id);
-    let field = field_id.to_be_bytes();
-    let mut components = vec![relation.as_slice(), field.as_slice()];
-    components.extend_from_slice(suffix);
-    key(family, &components)
-}
-
-fn vector_hot_prefix(family: &[u8], relation_id: u64, field_id: u32, suffix: &[&[u8]]) -> Vec<u8> {
-    let mut value = vector_hot_key(family, relation_id, field_id, suffix);
-    value.push(LexKey::SEPARATOR);
-    value
 }
 
 pub(super) fn index_key(collection: &str, name: &str) -> Vec<u8> {

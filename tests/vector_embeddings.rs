@@ -25,6 +25,10 @@ mod embedding_self_hosted;
 #[path = "vector_embeddings/embeddings/embedding_validation.rs"]
 mod embedding_validation;
 
+// Seeded insert/replace/delete/abort/rebuild churn over HNSW and IVFFlat publication.
+#[path = "vector_embeddings/indexes/churn/mod.rs"]
+mod vector_index_churn;
+
 // Formerly tests/hnsw_indexes.rs.
 #[path = "vector_embeddings/indexes/hnsw/hnsw_indexes/mod.rs"]
 mod hnsw_indexes;

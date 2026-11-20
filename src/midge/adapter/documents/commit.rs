@@ -78,6 +78,28 @@ impl Midge {
         self.stamp_vector_index_states_generation_in_tx(tx, collection, generation)
     }
 
+    /// Test boundary at which index maintenance is staged but not committed.
+    fn pause_before_index_publication(
+        vector_records_by_collection: &BTreeMap<
+            String,
+            Vec<(String, Vec<crate::embeddings::NormalizedVectorRecord>)>,
+        >,
+        fulltext_changed: bool,
+    ) {
+        use super::super::schema_write_control::{
+            pause_before_schema_write_commit, SchemaWritePausePoint,
+        };
+        if vector_records_by_collection
+            .values()
+            .any(|fields| !fields.is_empty())
+        {
+            pause_before_schema_write_commit(SchemaWritePausePoint::VectorIndexPublication);
+        }
+        if fulltext_changed {
+            pause_before_schema_write_commit(SchemaWritePausePoint::FulltextPostingPublication);
+        }
+    }
+
     pub(super) fn finish_document_write_batches(
         &self,
         options: &DocumentWriteBatchOptions,
@@ -147,11 +169,10 @@ impl Midge {
                 super::super::schema_write_control::SchemaWritePausePoint::ProjectionReplayMetadataCommit,
             );
         }
-        if !fulltext_tallies.is_empty() {
-            super::super::schema_write_control::pause_before_schema_write_commit(
-                super::super::schema_write_control::SchemaWritePausePoint::FulltextPostingPublication,
-            );
-        }
+        Self::pause_before_index_publication(
+            vector_records_by_collection,
+            !fulltext_tallies.is_empty(),
+        );
         tx.commit(options.commit).map_err(CassieError::from)?;
         self.publish_fulltext_maintenance(&fulltext_tallies, &deferred_fulltext_rebuilds);
         let mut sorted_changed_collections = changed_collections;

@@ -38,33 +38,13 @@ impl Midge {
             },
             crate::embeddings::VectorIndexType::BruteForce => VectorIndexState::default(),
         };
-        let hnsw_graph = state.hnsw_graph.clone();
-        let ivfflat_training = state.ivfflat_training.clone();
         metadata.metadata.hnsw_graph = None;
         metadata.metadata.ivfflat_training = None;
         let mut stored_records = records;
         for record in &mut stored_records {
             record.collection.clone_from(&requested_collection);
         }
-        let is_initial_build = self
-            .get_vector_index(&metadata.collection, &metadata.field)?
-            .is_none();
-        if is_initial_build {
-            self.write_initial_vector_index_sidecars(&metadata, &stored_records, &state)?;
-        } else {
-            self.write_normalized_vectors_for_index(&metadata, &stored_records)?;
-            self.write_vector_index_state(&metadata.collection, &metadata.field, state)?;
-        }
-        if let Some(graph) = hnsw_graph {
-            self.write_hnsw_source_summary(&metadata.collection, &metadata.field, &graph)?;
-        } else if let Some(training) = ivfflat_training {
-            self.write_ivfflat_source_summary(
-                &metadata.collection,
-                &metadata.field,
-                training.source_fingerprint,
-                training.row_count,
-            )?;
-        }
+        self.write_initial_vector_index_sidecars(&metadata, &stored_records, &state)?;
         Ok(metadata)
     }
 }

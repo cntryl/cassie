@@ -1,3 +1,4 @@
+use super::bounded_write::SummaryPolicy;
 use super::codec::{decode_normalized_vector, decode_vector_index_state, PersistedIvfManifest};
 use super::math::{ivfflat_training_order, list_bounds, nearest_ivfflat_centroid};
 use super::{
@@ -152,7 +153,13 @@ impl Midge {
             hnsw_graph: None,
             ivfflat_training: Some(training.clone()),
         };
-        self.publish_vector_sidecars(&index.collection, &index.field, Some(records), Some(state))
+        self.publish_vector_sidecars(
+            &index.collection,
+            &index.field,
+            Some(records),
+            Some(state),
+            SummaryPolicy::Refresh,
+        )
     }
 
     /// # Errors
@@ -258,7 +265,12 @@ impl Midge {
                 hnsw_graph: None,
                 ivfflat_training: Some(self.rebuild_ivfflat_training(&index)?),
             };
-            self.write_vector_index_state(&index.collection, &index.field, state)?;
+            self.write_vector_index_state(
+                &index.collection,
+                &index.field,
+                state,
+                SummaryPolicy::Refresh,
+            )?;
             refreshed += 1;
         }
         Ok(refreshed)

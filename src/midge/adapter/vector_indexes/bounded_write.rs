@@ -25,10 +25,40 @@ const SIDECAR_TX_BYTE_BUDGET: usize = 4 * 1024 * 1024;
 const SIDECAR_TX_OP_LIMIT: usize = 5_000;
 const OP_OVERHEAD_BYTES: usize = 512;
 
+/// Whether a publication also rewrites the persisted source summary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SummaryPolicy {
+    /// Rebuilds recompute the summary with the manifest.
+    Refresh,
+    /// Raw state writes leave the summary untouched, so a deliberately
+    /// inconsistent manifest stays observable.
+    Keep,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum SidecarOp {
     Put(Vec<u8>, Vec<u8>),
     Delete(Vec<u8>),
+}
+
+/// Deletes run before puts so obsolete artifacts are reclaimed first.
+#[derive(Debug, Default)]
+struct SidecarChanges {
+    deletes: Vec<SidecarOp>,
+    puts: Vec<SidecarOp>,
+}
+
+impl SidecarChanges {
+    fn merge(&mut self, other: Self) {
+        self.deletes.extend(other.deletes);
+        self.puts.extend(other.puts);
+    }
+
+    fn into_ordered_ops(self) -> Vec<SidecarOp> {
+        let mut ops = self.deletes;
+        ops.extend(self.puts);
+        ops
+    }
 }
 
 impl SidecarOp {
@@ -64,14 +94,19 @@ pub(super) fn chunk_sidecar_ops(
         current.push(op);
     }
     let final_cost = final_ops.iter().map(SidecarOp::cost).sum::<usize>();
-    if !current.is_empty()
-        && !final_ops.is_empty()
-        && (cost.saturating_add(final_cost) > byte_budget
-            || current.len().saturating_add(final_ops.len()) > max_ops)
-    {
-        chunks.push(std::mem::take(&mut current));
+    // A rebuild that fits one transaction publishes atomically. A larger one
+    // stages every artifact first and publishes the manifest alone, last.
+    let atomic = chunks.is_empty()
+        && cost.saturating_add(final_cost) <= byte_budget
+        && current.len().saturating_add(final_ops.len()) <= max_ops;
+    if atomic {
+        current.extend(final_ops);
+    } else {
+        if !current.is_empty() {
+            chunks.push(std::mem::take(&mut current));
+        }
+        current = final_ops;
     }
-    current.extend(final_ops);
     if !current.is_empty() {
         chunks.push(current);
     }
@@ -86,7 +121,7 @@ impl Midge {
         collection: &str,
         prefix: Vec<u8>,
         desired: Vec<(Vec<u8>, Vec<u8>)>,
-    ) -> Result<(Vec<SidecarOp>, Vec<SidecarOp>), CassieError> {
+    ) -> Result<SidecarChanges, CassieError> {
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut existing = collect_scan(
             tx.scan(&Query::new().prefix(prefix.into()))
@@ -102,7 +137,87 @@ impl Midge {
             }
         }
         let deletes = existing.into_keys().map(SidecarOp::Delete).collect();
-        Ok((deletes, puts))
+        Ok(SidecarChanges { deletes, puts })
+    }
+
+    /// Graph node and list membership changes plus the operations that publish
+    /// them: the source summary (when refreshed) and the state manifest.
+    fn state_sidecar_changes(
+        &self,
+        collection: &str,
+        (relation_id, field_id): (u64, u32),
+        state: &VectorIndexState,
+        summary_policy: SummaryPolicy,
+    ) -> Result<(SidecarChanges, Vec<SidecarOp>), CassieError> {
+        let mut nodes = Vec::new();
+        if let Some(graph) = &state.hnsw_graph {
+            for node in &graph.nodes {
+                nodes.push((
+                    super::super::key_encoding::hnsw_graph_node_key(
+                        relation_id,
+                        field_id,
+                        &node.id,
+                    ),
+                    encode_hnsw_node(node)?,
+                ));
+            }
+        }
+        let mut memberships = Vec::new();
+        if let Some(training) = &state.ivfflat_training {
+            for (id, list) in &training.assignments {
+                memberships.push((
+                    super::super::key_encoding::ivfflat_membership_key(
+                        relation_id,
+                        field_id,
+                        *list,
+                        id,
+                    ),
+                    Vec::new(),
+                ));
+            }
+        }
+        let mut changes = SidecarChanges::default();
+        for (prefix, desired) in [
+            (
+                super::super::key_encoding::hnsw_graph_node_prefix(relation_id, field_id),
+                nodes,
+            ),
+            (
+                super::super::key_encoding::ivfflat_membership_prefix(relation_id, field_id),
+                memberships,
+            ),
+        ] {
+            changes.merge(self.diff_sidecar_prefix(collection, prefix, desired)?);
+        }
+        let mut publish_ops = Vec::new();
+        let source = state
+            .hnsw_graph
+            .as_ref()
+            .map(|graph| (graph.source_fingerprint, graph.row_count))
+            .or_else(|| {
+                state
+                    .ivfflat_training
+                    .as_ref()
+                    .map(|training| (training.source_fingerprint, training.row_count))
+            });
+        if let (SummaryPolicy::Refresh, Some((source_fingerprint, row_count))) =
+            (summary_policy, source)
+        {
+            let summary = super::vector_retrieval::HnswSourceSummary {
+                built_generation: state.built_generation,
+                source_fingerprint,
+                row_count,
+            };
+            publish_ops.push(SidecarOp::Put(
+                super::super::key_encoding::ivfflat_source_summary_key(relation_id, field_id),
+                serde_json::to_vec(&summary)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+            ));
+        }
+        let (manifest_key, manifest_value) =
+            Self::vector_index_manifest_entry(relation_id, field_id, state)?;
+        publish_ops.push(SidecarOp::Put(manifest_key, manifest_value));
+        Ok((changes, publish_ops))
     }
 
     /// Rebuilds persisted vector artifacts for one index.
@@ -117,6 +232,7 @@ impl Midge {
         field: &str,
         records: Option<&[NormalizedVectorRecord]>,
         state: Option<VectorIndexState>,
+        summary_policy: SummaryPolicy,
     ) -> Result<(), CassieError> {
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
@@ -126,8 +242,7 @@ impl Midge {
             .then(|| self.vector_index_maintenance_metrics.begin_rebuild());
         let generation = self.collection_generation(collection)?;
         let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
-        let mut deletes = Vec::new();
-        let mut puts = Vec::new();
+        let mut changes = SidecarChanges::default();
         if let Some(records) = records {
             let mut desired = Vec::with_capacity(records.len());
             for record in records {
@@ -138,86 +253,26 @@ impl Midge {
                     encode_normalized_vector(&record)?,
                 ));
             }
-            let (stale, changed) = self.diff_sidecar_prefix(
+            let diff = self.diff_sidecar_prefix(
                 collection,
                 Self::normalized_vector_prefix(relation_id, field_id),
                 desired,
             )?;
-            deletes.extend(stale);
-            puts.extend(changed);
+            changes.merge(diff);
         }
         let mut final_ops = Vec::new();
         if let Some(mut state) = state {
             state.built_generation = generation;
-            let mut nodes = Vec::new();
-            if let Some(graph) = &state.hnsw_graph {
-                for node in &graph.nodes {
-                    nodes.push((
-                        super::super::key_encoding::hnsw_graph_node_key(
-                            relation_id,
-                            field_id,
-                            &node.id,
-                        ),
-                        encode_hnsw_node(node)?,
-                    ));
-                }
-            }
-            let mut memberships = Vec::new();
-            if let Some(training) = &state.ivfflat_training {
-                for (id, list) in &training.assignments {
-                    memberships.push((
-                        super::super::key_encoding::ivfflat_membership_key(
-                            relation_id,
-                            field_id,
-                            *list,
-                            id,
-                        ),
-                        Vec::new(),
-                    ));
-                }
-            }
-            for (prefix, desired) in [
-                (
-                    super::super::key_encoding::hnsw_graph_node_prefix(relation_id, field_id),
-                    nodes,
-                ),
-                (
-                    super::super::key_encoding::ivfflat_membership_prefix(relation_id, field_id),
-                    memberships,
-                ),
-            ] {
-                let (stale, changed) = self.diff_sidecar_prefix(collection, prefix, desired)?;
-                deletes.extend(stale);
-                puts.extend(changed);
-            }
-            let source = state
-                .hnsw_graph
-                .as_ref()
-                .map(|graph| (graph.source_fingerprint, graph.row_count))
-                .or_else(|| {
-                    state
-                        .ivfflat_training
-                        .as_ref()
-                        .map(|training| (training.source_fingerprint, training.row_count))
-                });
-            if let Some((source_fingerprint, row_count)) = source {
-                let summary = super::vector_retrieval::HnswSourceSummary {
-                    built_generation: generation,
-                    source_fingerprint,
-                    row_count,
-                };
-                final_ops.push(SidecarOp::Put(
-                    super::super::key_encoding::ivfflat_source_summary_key(relation_id, field_id),
-                    serde_json::to_vec(&summary)
-                        .map_err(|error| CassieError::Parse(error.to_string()))?,
-                ));
-            }
-            let (manifest_key, manifest_value) =
-                Self::vector_index_manifest_entry(relation_id, field_id, &state)?;
-            final_ops.push(SidecarOp::Put(manifest_key, manifest_value));
+            let (state_changes, publish_ops) = self.state_sidecar_changes(
+                collection,
+                (relation_id, field_id),
+                &state,
+                summary_policy,
+            )?;
+            changes.merge(state_changes);
+            final_ops = publish_ops;
         }
-        deletes.extend(puts);
-        self.commit_sidecar_ops(collection, deletes, final_ops)?;
+        self.commit_sidecar_ops(collection, changes.into_ordered_ops(), final_ops)?;
         if let Some(start) = rebuild {
             self.vector_index_maintenance_metrics
                 .finish_rebuild(start, started.elapsed());
@@ -294,6 +349,20 @@ mod tests {
     }
 
     #[test]
+    fn should_publish_atomically_when_everything_fits_one_transaction() {
+        // Arrange
+        let ops = vec![put(100), put(100)];
+        let final_ops = vec![put(100)];
+
+        // Act
+        let chunks = chunk_sidecar_ops(ops, final_ops, 4_000, 5_000);
+
+        // Assert
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].len(), 3);
+    }
+
+    #[test]
     fn should_keep_final_operations_together_in_the_last_transaction() {
         // Arrange
         let ops = vec![put(1_000), put(1_000)];
@@ -321,10 +390,13 @@ mod tests {
 
     #[test]
     fn should_chunk_nothing_when_there_is_no_work() {
-        // Arrange / Act
-        let chunks = chunk_sidecar_ops(Vec::new(), Vec::new(), 4_000, 5_000);
+        // Arrange
+        let (ops, final_ops) = (Vec::new(), Vec::new());
+
+        // Act
+        let chunks = chunk_sidecar_ops(ops, final_ops, 4_000, 5_000);
 
         // Assert
-        assert!(chunks.is_empty());
+        assert_eq!(chunks.len(), 0);
     }
 }

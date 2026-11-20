@@ -2,9 +2,10 @@
 
 use super::support::{
     assert_matches_population, counters, create_index, create_table, footprint,
-    index_state_generation, last_fallback_reason, rebuild, run_query, seed_population, seed_rows,
-    upsert, vector_metric, with_memory_fixture, Population, Rng, ALGORITHMS,
+    index_state_generation, last_fallback_reason, payload, rebuild, run_query, seed_population,
+    seed_rows, upsert, vector_metric, with_memory_fixture, Population, Rng, ALGORITHMS,
 };
+use cassie::app::{Cassie, CassieSession};
 use cassie::midge::adapter::{
     document_write_failure_point_test_guard, set_document_write_failure_point,
     DocumentWriteFailurePoint,
@@ -51,6 +52,111 @@ fn nth_id(population: &Population, rng: &mut Rng) -> String {
         .clone()
 }
 
+struct Churn {
+    rng: Rng,
+    population: Population,
+    next_insert: usize,
+}
+
+fn apply_step(cassie: &Cassie, table: &str, algorithm: &str, step: Step, churn: &mut Churn) {
+    match step {
+        Step::Insert => {
+            let id = format!("ins-{}", churn.next_insert);
+            let vector = churn.rng.vector(churn.next_insert);
+            churn.next_insert += 1;
+            upsert(cassie, table, &id, vector);
+            churn.population.insert(id, vector);
+        }
+        Step::Replace => {
+            let id = nth_id(&churn.population, &mut churn.rng);
+            let vector = churn.rng.vector(churn.next_insert);
+            churn.next_insert += 1;
+            upsert(cassie, table, &id, vector);
+            churn.population.insert(id, vector);
+        }
+        Step::Delete => {
+            let id = nth_id(&churn.population, &mut churn.rng);
+            assert!(cassie
+                .midge
+                .delete_document(table, &id)
+                .expect("delete row"));
+            churn.population.remove(&id);
+        }
+        Step::Aborted => {
+            let id = nth_id(&churn.population, &mut churn.rng);
+            set_document_write_failure_point(Some(DocumentWriteFailurePoint::VectorState));
+            let aborted = cassie
+                .midge
+                .put_document(table, Some(id), payload("aborted", [9.0; 3]));
+            set_document_write_failure_point(None);
+            assert!(
+                aborted.is_err(),
+                "{algorithm} {step:?}: injected failure aborts"
+            );
+        }
+        Step::Rebuild => rebuild(cassie, table, algorithm),
+    }
+}
+
+fn assert_step_outcome(
+    cassie: &Cassie,
+    session: &CassieSession,
+    (table, algorithm): (&str, &str),
+    step: Step,
+    generation_before: u64,
+    population: &Population,
+    context: &str,
+) {
+    let generation_after = cassie
+        .midge
+        .collection_generation(table)
+        .expect("collection generation");
+    match step {
+        Step::Insert | Step::Replace | Step::Delete => {
+            assert!(generation_after > generation_before, "{context}");
+        }
+        Step::Aborted | Step::Rebuild => {
+            assert_eq!(generation_after, generation_before, "{context}");
+        }
+    }
+    assert_eq!(
+        index_state_generation(cassie, table),
+        generation_after,
+        "{context}: manifest generation follows the collection"
+    );
+    let before = counters(cassie, algorithm);
+    let rows = run_query(cassie, session, table);
+    let after = counters(cassie, algorithm);
+    assert_matches_population(cassie, table, &rows, population, context);
+    assert_eq!(after.executions, before.executions + 1, "{context}");
+    assert_eq!(
+        after.fallbacks, before.fallbacks,
+        "{context}: zero fallback"
+    );
+    assert_eq!(after.discards, before.discards, "{context}");
+    assert_eq!(
+        after.observed_generation, generation_after,
+        "{context}: observed generation label"
+    );
+    let artifacts = footprint(cassie, table);
+    let live = Some(population.len() as u64);
+    assert_eq!(
+        artifacts["normalized_keys"].as_u64(),
+        live,
+        "{context}: obsolete normalized vectors are reclaimed"
+    );
+    let index_keys = if algorithm == "hnsw" {
+        &artifacts["graph_node_keys"]
+    } else {
+        &artifacts["membership_keys"]
+    };
+    assert_eq!(
+        index_keys.as_u64(),
+        live,
+        "{context}: obsolete index artifacts are reclaimed"
+    );
+}
+
 #[test]
 fn should_match_the_eligible_population_through_a_seeded_churn_sequence() {
     // Arrange
@@ -59,12 +165,16 @@ fn should_match_the_eligible_population_through_a_seeded_churn_sequence() {
         with_memory_fixture(|cassie, session| {
             let table = "churn_sequence";
             let mut rng = Rng::new(SEED);
-            let mut population = seed_population(&mut rng);
+            let population = seed_population(&mut rng);
             create_table(cassie, session, table);
             seed_rows(cassie, table, &population);
             create_index(cassie, session, table, options);
             let steps = plan(&mut rng);
-            let mut next_insert = 1000;
+            let mut churn = Churn {
+                rng,
+                population,
+                next_insert: 1000,
+            };
 
             for (index, step) in steps.into_iter().enumerate() {
                 let context = format!("{algorithm} step {index} {step:?}");
@@ -75,94 +185,17 @@ fn should_match_the_eligible_population_through_a_seeded_churn_sequence() {
                 let rebuilds_before = vector_metric(cassie, "index_rebuilds_total");
 
                 // Act
-                match step {
-                    Step::Insert => {
-                        let id = format!("ins-{next_insert}");
-                        let vector = rng.vector(next_insert);
-                        next_insert += 1;
-                        upsert(cassie, table, &id, vector);
-                        population.insert(id, vector);
-                    }
-                    Step::Replace => {
-                        let id = nth_id(&population, &mut rng);
-                        let vector = rng.vector(next_insert);
-                        next_insert += 1;
-                        let count = population.len();
-                        upsert(cassie, table, &id, vector);
-                        population.insert(id, vector);
-                        assert_eq!(population.len(), count, "{context}: same count");
-                    }
-                    Step::Delete => {
-                        let id = nth_id(&population, &mut rng);
-                        assert!(cassie
-                            .midge
-                            .delete_document(table, &id)
-                            .expect("delete row"));
-                        population.remove(&id);
-                    }
-                    Step::Aborted => {
-                        let id = nth_id(&population, &mut rng);
-                        set_document_write_failure_point(Some(
-                            DocumentWriteFailurePoint::VectorState,
-                        ));
-                        let aborted = cassie.midge.put_document(
-                            table,
-                            Some(id),
-                            super::support::payload("aborted", [9.0; 3]),
-                        );
-                        set_document_write_failure_point(None);
-                        assert!(aborted.is_err(), "{context}: injected failure aborts");
-                    }
-                    Step::Rebuild => rebuild(cassie, table, algorithm),
-                }
+                apply_step(cassie, table, algorithm, step, &mut churn);
 
                 // Assert
-                let generation_after = cassie
-                    .midge
-                    .collection_generation(table)
-                    .expect("collection generation");
-                match step {
-                    Step::Insert | Step::Replace | Step::Delete => {
-                        assert!(generation_after > generation_before, "{context}");
-                    }
-                    Step::Aborted | Step::Rebuild => {
-                        assert_eq!(generation_after, generation_before, "{context}");
-                    }
-                }
-                assert_eq!(
-                    index_state_generation(cassie, table),
-                    generation_after,
-                    "{context}: manifest generation follows the collection"
-                );
-                let before = counters(cassie, algorithm);
-                let rows = run_query(cassie, session, table);
-                let after = counters(cassie, algorithm);
-                assert_matches_population(cassie, table, &rows, &population, &context);
-                assert_eq!(after.executions, before.executions + 1, "{context}");
-                assert_eq!(
-                    after.fallbacks, before.fallbacks,
-                    "{context}: zero fallback"
-                );
-                assert_eq!(after.discards, before.discards, "{context}");
-                assert_eq!(
-                    after.observed_generation, generation_after,
-                    "{context}: observed generation label"
-                );
-                let artifacts = footprint(cassie, table);
-                assert_eq!(
-                    artifacts["normalized_keys"].as_u64(),
-                    Some(population.len() as u64),
-                    "{context}: obsolete normalized vectors are reclaimed"
-                );
-                let graph_or_lists = if algorithm == "hnsw" {
-                    &artifacts["graph_node_keys"]
-                } else {
-                    &artifacts["membership_keys"]
-                };
-                assert_eq!(
-                    graph_or_lists.as_u64(),
-                    Some(population.len() as u64),
-                    "{context}: obsolete index artifacts are reclaimed"
+                assert_step_outcome(
+                    cassie,
+                    session,
+                    (table, algorithm),
+                    step,
+                    generation_before,
+                    &churn.population,
+                    &context,
                 );
                 if step == Step::Rebuild {
                     assert_eq!(

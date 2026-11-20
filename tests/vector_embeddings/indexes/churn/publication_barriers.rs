@@ -144,7 +144,7 @@ fn delete_row_storage_key(cassie: &Cassie, table: &str, id: &str) {
 }
 
 #[test]
-fn should_discard_the_attempt_and_its_counters_when_a_candidate_row_is_missing() {
+fn should_discard_the_attempt_counters_when_a_candidate_row_is_missing() {
     // Arrange
     for (algorithm, options) in ALGORITHMS {
         with_memory_fixture(|cassie, session| {

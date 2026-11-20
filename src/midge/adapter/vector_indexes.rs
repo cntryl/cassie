@@ -5,6 +5,7 @@ use super::{
 };
 #[path = "vector_indexes/bounded_write.rs"]
 mod bounded_write;
+use bounded_write::SummaryPolicy;
 #[path = "vector_indexes/build.rs"]
 mod build;
 #[path = "vector_indexes/codec.rs"]
@@ -232,7 +233,7 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let collection = self.canonical_collection_name(collection);
         state.built_generation = self.collection_generation(&collection)?;
-        self.write_vector_index_state(&collection, field, state)
+        self.write_vector_index_state(&collection, field, state, SummaryPolicy::Keep)
     }
 
     fn write_vector_index_state(
@@ -240,8 +241,9 @@ impl Midge {
         collection: &str,
         field: &str,
         state: VectorIndexState,
+        summary_policy: SummaryPolicy,
     ) -> Result<(), CassieError> {
-        self.publish_vector_sidecars(collection, field, None, Some(state))
+        self.publish_vector_sidecars(collection, field, None, Some(state), summary_policy)
     }
 
     pub(super) fn write_vector_index_state_to_tx(
@@ -306,6 +308,7 @@ impl Midge {
             &index.field,
             Some(records),
             Some(state.clone()),
+            SummaryPolicy::Refresh,
         )
     }
 
@@ -768,7 +771,13 @@ impl Midge {
         index: &VectorIndexRecord,
         records: &[NormalizedVectorRecord],
     ) -> Result<(), CassieError> {
-        self.publish_vector_sidecars(&index.collection, &index.field, Some(records), None)
+        self.publish_vector_sidecars(
+            &index.collection,
+            &index.field,
+            Some(records),
+            None,
+            SummaryPolicy::Keep,
+        )
     }
 
     /// # Errors
@@ -814,7 +823,12 @@ impl Midge {
                 hnsw_graph: Some(self.rebuild_hnsw_graph(&index)?),
                 ivfflat_training: None,
             };
-            self.write_vector_index_state(&index.collection, &index.field, state)?;
+            self.write_vector_index_state(
+                &index.collection,
+                &index.field,
+                state,
+                SummaryPolicy::Refresh,
+            )?;
             refreshed += 1;
         }
         Ok(refreshed)

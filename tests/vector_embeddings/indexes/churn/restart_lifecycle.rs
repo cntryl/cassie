@@ -156,7 +156,7 @@ fn live_artifacts(artifacts: &serde_json::Value, algorithm: &str) -> u64 {
 }
 
 #[test]
-fn should_reclaim_obsolete_artifacts_and_reopen_the_rebuilt_generation_with_zero_fallback() {
+fn should_reopen_the_rebuilt_generation_with_zero_fallback_after_reclaiming_obsolete_artifacts() {
     // Arrange
     use_local_storage();
     for (algorithm, options) in ALGORITHMS {
@@ -200,7 +200,7 @@ fn should_reclaim_obsolete_artifacts_and_reopen_the_rebuilt_generation_with_zero
             (generation, rebuilt, population)
         };
 
-        // Act
+        // Reopen
         let (reopened, session) = open(&path);
 
         // Assert
@@ -273,7 +273,7 @@ fn should_keep_the_prior_index_when_a_rebuild_is_interrupted_before_manifest_pub
         let (reopened, session) = open(&path);
         assert_serves_population(&reopened, &session, table, &population, algorithm);
 
-        // Act
+        // Retry
         rebuild(&reopened, table, algorithm);
 
         // Assert

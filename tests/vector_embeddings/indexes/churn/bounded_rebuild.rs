@@ -80,7 +80,7 @@ fn should_publish_an_index_larger_than_one_transaction_budget_in_bounded_batches
             .expect("generation");
         assert_eq!(index_state_generation(cassie, table), generation);
 
-        // Act
+        // Query the rebuilt index
         let query = vector(7);
         let before = counters(cassie, "ivfflat");
         let literal = literal(&query);

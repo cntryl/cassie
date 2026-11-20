@@ -1,4 +1,4 @@
-//! Bounded vector index publication churn profile for HNSW and IVFFlat.
+//! Bounded vector index publication churn profile for HNSW and `IVFFlat`.
 //!
 //! Opt in with `CASSIE_BENCH_VECTOR_INDEX_CHURN=1`. For each algorithm and scale
 //! it builds an index, drives a fixed number of replace-vector writes (each
@@ -169,7 +169,7 @@ fn measure(algorithm: &str, options: &str, scale: &str, rows: usize) {
         ),
     );
     let build = build_started.elapsed();
-    let built = footprint(&cassie);
+    let indexed = footprint(&cassie);
     let indexed_p95 = query_p95(&cassie);
 
     let write_started = Instant::now();
@@ -231,7 +231,7 @@ fn measure(algorithm: &str, options: &str, scale: &str, rows: usize) {
          fallback_exact_us={fallback_micros} return_to_indexed_service_us={} \
          peak_query_memory_bytes={peak_memory}",
         build.as_millis(),
-        built["total_bytes"],
+        indexed["total_bytes"],
         indexed_p95.as_micros(),
         writes.as_millis(),
         churned["total_bytes"],

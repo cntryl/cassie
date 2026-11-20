@@ -15,6 +15,8 @@ use super::projected_read::json_to_query_value;
 #[path = "time_series_read/memory.rs"]
 mod memory;
 mod rows;
+#[cfg(test)]
+mod sort_tests;
 use rows::document_to_row;
 
 pub(super) fn try_execute_time_series_read(
@@ -233,12 +235,25 @@ fn finish_time_series_rows(
     Ok(Some(rows))
 }
 
-fn sort_time_series_documents(documents: &mut [DocumentRef], timestamp_field: &str) {
-    documents.sort_unstable_by(|left, right| {
-        timestamp_sort_key(&left.payload, timestamp_field)
-            .cmp(&timestamp_sort_key(&right.payload, timestamp_field))
-            .then_with(|| left.id.cmp(&right.id))
+/// Orders candidates by timestamp then row id. Each sort key is extracted once
+/// per document: a comparator that re-reads the payload field would parse the
+/// column path on every comparison of an `n log n` sort.
+fn sort_time_series_documents(documents: &mut Vec<DocumentRef>, timestamp_field: &str) {
+    let mut keyed = std::mem::take(documents)
+        .into_iter()
+        .map(|document| {
+            (
+                timestamp_sort_key(&document.payload, timestamp_field).into_owned(),
+                document,
+            )
+        })
+        .collect::<Vec<_>>();
+    keyed.sort_unstable_by(|left, right| {
+        left.0
+            .cmp(&right.0)
+            .then_with(|| left.1.id.cmp(&right.1.id))
     });
+    documents.extend(keyed.into_iter().map(|(_, document)| document));
 }
 
 fn filter_time_series_batches(

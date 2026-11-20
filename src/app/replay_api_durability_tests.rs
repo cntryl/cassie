@@ -319,25 +319,49 @@ fn should_maintain_time_series_index_in_replay_commit_without_a_full_rebuild() {
         )
         .unwrap();
     let series = cassie.midge.canonical_collection_name("replay_series_docs");
-    let mut replay = batch(&series);
-    replay.events[0].payload =
-        Some(serde_json::json!({"id": 1, "device": "d1", "event_at": "2026-01-02T03:04:05Z"}));
+    let replays = (1..=3_u64)
+        .map(|round| {
+            let mut replay = batch(&series);
+            replay.batch_id = format!("batch-{round}");
+            replay.events[0].event_id = format!("event-{round}");
+            replay.events[0].checkpoint = format!("checkpoint-{round}");
+            replay.events[0].position = Some(round);
+            replay.events[0].document_id = format!("row-{}", round.min(2));
+            replay.events[0].payload = Some(serde_json::json!({
+                "id": round.min(2),
+                "device": "d1",
+                "event_at": format!("2026-01-0{round}T03:04:05Z"),
+            }));
+            replay
+        })
+        .collect::<Vec<_>>();
 
     // Act
-    let (result, writes) = observe_native_commits(|| cassie.replay_projection_batch(replay));
+    let mut applied = 0;
+    let mut maintenance = 0;
+    for replay in replays {
+        let (result, writes) = observe_native_commits(|| cassie.replay_projection_batch(replay));
+        applied += result.unwrap().applied_event_count;
+        maintenance += writes.time_series_maintenance_attempts;
+    }
 
     // Assert
-    assert_eq!(result.unwrap().applied_event_count, 1);
+    assert_eq!(applied, 3);
     assert_eq!(
-        writes.time_series_maintenance_attempts, 0,
+        maintenance, 0,
         "a replay commit maintains the index inside its own transaction"
     );
     let rows = cassie
         .execute_sql(
             &session,
-            "SELECT id FROM replay_series_docs WHERE device = 'd1' AND event_at >= '2026-01-02T00:00:00Z' AND event_at < '2026-01-03T00:00:00Z'",
+            "SELECT id FROM replay_series_docs WHERE device = 'd1' AND event_at >= '2026-01-02T00:00:00Z' AND event_at < '2026-01-04T00:00:00Z' ORDER BY id",
             vec![],
         )
         .unwrap();
     assert_eq!(rows.rows().len(), 1);
+    assert_eq!(
+        cassie.metrics()["time_series"]["fallback_scans"].as_u64(),
+        Some(0),
+        "the in-transaction index must stay readable without a row fallback"
+    );
 }

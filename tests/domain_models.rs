@@ -38,3 +38,6 @@ mod calendar_dashboard;
 
 #[path = "domain_models/time_series/qualification.rs"]
 mod time_series_qualification;
+
+#[path = "domain_models/time_series/mixed_workload.rs"]
+mod time_series_mixed_workload;

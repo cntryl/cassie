@@ -42,7 +42,9 @@ pub(super) fn execute_ivfflat_vector_top_k(
         cassie.runtime.record_ivfflat_fallback(reason);
         return Ok(None);
     }
-    let probed_lists = crate::vector::ivfflat::probe_lists(&normalized_query, &training);
+    let Some(probed_lists) = select_probe_lists(cassie, spec, &normalized_query, &training) else {
+        return Ok(None);
+    };
     let _probe_memory = controls.reserve_query_memory(
         probed_lists
             .len()
@@ -119,6 +121,30 @@ pub(super) fn execute_ivfflat_vector_top_k(
         .record_ivfflat_execution(training.lists, probed_lists.len(), candidate_count);
     record_adaptive_candidate_decision(cassie, &adaptive, candidate_count, rows.len());
     Ok(Some(rows))
+}
+
+/// Chooses the lists to probe. Inner product depends on magnitude, which the
+/// directional lists do not encode, so a `dot` query ranks lists by the best
+/// inner product each can still hold; other metrics rank by direction.
+fn select_probe_lists(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    normalized_query: &[f32],
+    training: &crate::embeddings::IvfFlatTrainingState,
+) -> Option<std::collections::BTreeSet<usize>> {
+    if spec.metric != crate::embeddings::DistanceMetric::Dot {
+        return Some(crate::vector::ivfflat::probe_lists(
+            normalized_query,
+            training,
+        ));
+    }
+    let lists = crate::vector::ivfflat::probe_lists_by_inner_product(&spec.query, training);
+    if lists.is_none() {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("missing-list-bounds");
+    }
+    lists
 }
 
 fn ivfflat_training(

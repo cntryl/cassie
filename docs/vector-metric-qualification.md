@@ -208,6 +208,7 @@ Each fallback returns the exact result and increments the algorithm's
 | `unsupported-sort` | `ORDER BY ... DESC` |
 | `zero-query-exact` | cosine or dot query is the zero vector: every distance ties, so the order is row identity alone and cannot be reproduced from a candidate set |
 | `missing-graph` / `missing-training` | HNSW graph or IVFFlat manifest is absent or invalidated |
+| `missing-list-bounds` | IVFFlat manifest lacks the per-list inner-product bounds a `dot` probe needs |
 | `candidate-exhausted` | fewer candidates than `min(limit + offset, rows)` (for example IVFFlat with too few probed lists) |
 | `concurrent-source-change` | the source row set changed between candidate selection and rerank in a way the captured snapshot cannot serve |
 | `structured-filter-exact`, `transaction-overlay-exact` | existing filtered / transactional fallbacks |
@@ -253,14 +254,39 @@ the tuning set; no held-out split was used and no parameter was tuned.
 | HNSW | 10,000 | same | dot | 1.0000 | 1.00 |
 | IVFFlat | 1,024 | lists=16, probes=4, sample=1024, seed=42 | l2 | 1.0000 | 1.00 |
 | IVFFlat | 1,024 | same | cosine | 1.0000 | 1.00 |
-| IVFFlat | 1,024 | same | dot | 0.9050 | 0.55 |
+| IVFFlat | 1,024 | same | dot | 0.9900 | 0.95 |
 
-Per-query IVFFlat dot recall: `0.55, 1.0, 1.0, 1.0, 0.75, 0.85, 1.0, 0.9, 1.0,
-1.0`. **Open finding:** the mean clears the floor by 0.005, but four of ten
-queries are below 0.90 and one is 0.55. IVFFlat probes lists by the normalized
-query direction, which ignores magnitude, so inner-product winners can sit in
-unprobed lists. The contract is not changed; a magnitude-aware probe order or a
-higher default `probes` for `dot` is follow-up work. The 1,024-row HNSW rows run in the suite by default; the 10,000-row HNSW rows
+Per-query IVFFlat dot recall: `1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.95, 1.0,
+0.95`. Every metric/algorithm row meets the 0.90 floor on every query, and
+`sql_ann_metric_recall.rs` asserts the per-query worst case, not the mean.
+
+**IVFFlat inner-product probing.** The first measurement (probes ordered by the
+normalized query direction) gave mean 0.9050 and worst 0.55
+(`0.55, 1.0, 1.0, 1.0, 0.75, 0.85, 1.0, 0.9, 1.0, 1.0`). A probe of the
+failing queries confirmed the cause: IVFFlat lists are directional cells (the
+centroids are sampled unit vectors, members are assigned by L2 on normalized
+vectors), so each list mixes magnitudes and ranking lists by direction, or by
+`query . centroid`, selects the same four lists. For example query 0 held its
+true top-20 in lists 1, 10 and 12 but probed 0, 1, 10 and 11, missing the 9
+results in list 12. The fix ranks lists for a `dot` query by the best inner
+product each can still hold, `query . mean + |query| * radius`, where `mean`
+is the mean of the list's members at their original magnitude and `radius` is
+the largest member distance from it (a Cauchy-Schwarz bound). The manifest
+stores `[mean..., radius]` per list (`list_bounds`), derived with the
+assignments at training time, so training and probing stay consistent. L2 and
+cosine probing and the exact rerank are unchanged; there is no format
+compatibility with earlier manifests (pre-release).
+
+Orders measured on this fixture and its ten queries at lists=16, probes=4
+(mean / worst): direction 0.905 / 0.55; a per-list max-magnitude angular-cap
+bound 0.885 / 0.70 (implemented, then dropped); `query . mean` alone 0.985 /
+0.85; mean-plus-radius bound 0.990 / 0.95 (shipped). The queries are shared
+across these comparisons, so the shipped order was chosen among four
+candidates on the same queries; no parameter was tuned. Even an oracle list
+order (best member per list) only reaches 0.95 on query 7, so probes=4 of 16
+lists bounds attainable recall at this profile.
+
+The 1,024-row HNSW rows run in the suite by default; the 10,000-row HNSW rows
 were measured once with `CASSIE_ANN_RECALL_HNSW_ROWS=10000` (about 60 s of index
 build; under heavy machine load a 10,000-row build once hit the default 30 s
 query timeout, so rerun it on an idle machine). The 100k, 768-dimension and

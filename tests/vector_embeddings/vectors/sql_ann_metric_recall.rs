@@ -41,8 +41,8 @@ const QUERIES: [[f32; 3]; 10] = [
     [-0.6, 0.6, 0.9],
 ];
 
-fn measure(algorithm: &str, options: &str, rows: usize) {
-    for metric in [Metric::L2, Metric::Cosine, Metric::Dot] {
+fn measure(algorithm: &str, options: &str, rows: usize, metric: Metric) {
+    {
         with_fixture("sql_ann_metric_recall", |cassie, session| {
             let corpus = modular_corpus(rows);
             seed_rows(cassie, session, "ann_recall", (metric, options), &corpus);
@@ -85,8 +85,8 @@ fn measure(algorithm: &str, options: &str, rows: usize) {
                 / f64::from(u32::try_from(recalls.len()).expect("count"));
             let worst = recalls.iter().copied().fold(1.0, f64::min);
             assert!(
-                mean >= RECALL_FLOOR,
-                "{algorithm} {} mean recall below the floor",
+                worst >= RECALL_FLOOR,
+                "{algorithm} {} worst-query recall {worst} is below the floor; per query {recalls:?}",
                 metric.name()
             );
             eprintln!(
@@ -97,29 +97,75 @@ fn measure(algorithm: &str, options: &str, rows: usize) {
     }
 }
 
-#[test]
-fn should_measure_ivfflat_recall_at_the_smallest_declared_profile() {
-    // Arrange
-    let options =
-        "index_type = ivfflat, lists = 16, probes = 4, training_sample_size = 1024, training_seed = 42";
+const IVFFLAT_OPTIONS: &str =
+    "index_type = ivfflat, lists = 16, probes = 4, training_sample_size = 1024, training_seed = 42";
+const HNSW_OPTIONS: &str = "index_type = hnsw, m = 32, ef_construction = 256, ef_search = 256";
 
-    // Act
-    // Assert
-    measure("ivfflat", options, 1_024);
+fn hnsw_rows() -> usize {
+    // The declared 10,000-row profile takes about a minute to build, so the
+    // suite default is the 1,024-row profile; set the variable to run it.
+    std::env::var("CASSIE_ANN_RECALL_HNSW_ROWS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(1_024)
 }
 
 #[test]
-fn should_measure_hnsw_recall_at_the_smallest_declared_profile() {
+fn should_reach_recall_floor_on_every_query_for_ivfflat_l2() {
     // Arrange
-    let options = "index_type = hnsw, m = 32, ef_construction = 256, ef_search = 256";
+    let metric = Metric::L2;
 
     // Act
     // Assert
-    // The declared 10,000-row profile takes about a minute to build, so the
-    // suite default is the 1,024-row profile; set the variable to run it.
-    let rows = std::env::var("CASSIE_ANN_RECALL_HNSW_ROWS")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(1_024);
-    measure("hnsw", options, rows);
+    measure("ivfflat", IVFFLAT_OPTIONS, 1_024, metric);
+}
+
+#[test]
+fn should_reach_recall_floor_on_every_query_for_ivfflat_cosine() {
+    // Arrange
+    let metric = Metric::Cosine;
+
+    // Act
+    // Assert
+    measure("ivfflat", IVFFLAT_OPTIONS, 1_024, metric);
+}
+
+#[test]
+fn should_reach_recall_floor_on_every_query_for_ivfflat_dot() {
+    // Arrange
+    let metric = Metric::Dot;
+
+    // Act
+    // Assert
+    measure("ivfflat", IVFFLAT_OPTIONS, 1_024, metric);
+}
+
+#[test]
+fn should_reach_recall_floor_on_every_query_for_hnsw_l2() {
+    // Arrange
+    let metric = Metric::L2;
+
+    // Act
+    // Assert
+    measure("hnsw", HNSW_OPTIONS, hnsw_rows(), metric);
+}
+
+#[test]
+fn should_reach_recall_floor_on_every_query_for_hnsw_cosine() {
+    // Arrange
+    let metric = Metric::Cosine;
+
+    // Act
+    // Assert
+    measure("hnsw", HNSW_OPTIONS, hnsw_rows(), metric);
+}
+
+#[test]
+fn should_reach_recall_floor_on_every_query_for_hnsw_dot() {
+    // Arrange
+    let metric = Metric::Dot;
+
+    // Act
+    // Assert
+    measure("hnsw", HNSW_OPTIONS, hnsw_rows(), metric);
 }

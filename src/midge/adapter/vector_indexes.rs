@@ -371,6 +371,7 @@ impl Midge {
                     centroid_ids: training.centroid_ids.clone(),
                     centroids: training.centroids.clone(),
                     list_sizes: training.list_sizes.clone(),
+                    list_bounds: training.list_bounds.clone(),
                     membership_count: training.assignments.len(),
                 });
         let value = encode_vector_index_state(&PersistedVectorIndexState {

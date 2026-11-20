@@ -49,6 +49,7 @@ metadata_heap!(crate::embeddings::types::IvfFlatTrainingState {
     centroids,
     assignments,
     list_sizes,
+    list_bounds,
 });
 
 metadata_heap!(crate::embeddings::types::VectorIndexMetadata {

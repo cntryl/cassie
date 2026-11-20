@@ -1,5 +1,5 @@
 use super::codec::{decode_normalized_vector, decode_vector_index_state, PersistedIvfManifest};
-use super::math::{ivfflat_training_order, nearest_ivfflat_centroid};
+use super::math::{ivfflat_training_order, list_bounds, nearest_ivfflat_centroid};
 use super::{
     collect_scan, CassieError, Midge, NormalizedVectorRecord, Query, VectorIndexRecord,
     VectorIndexState,
@@ -215,6 +215,7 @@ impl Midge {
                 centroids: Vec::new(),
                 assignments: std::collections::BTreeMap::default(),
                 list_sizes: vec![0; lists],
+                list_bounds: Vec::new(),
             };
         }
 
@@ -246,6 +247,8 @@ impl Midge {
             }
         }
 
+        let list_bounds = list_bounds(records, &assignments, &centroids);
+
         crate::embeddings::IvfFlatTrainingState {
             version: crate::vector::ivfflat::TRAINING_VERSION,
             source_fingerprint,
@@ -258,6 +261,7 @@ impl Midge {
             centroids,
             assignments,
             list_sizes,
+            list_bounds,
         }
     }
 
@@ -302,6 +306,7 @@ fn persisted_manifest_matches(
         && manifest.centroid_ids == expected.centroid_ids
         && manifest.centroids == expected.centroids
         && manifest.list_sizes == expected.list_sizes
+        && manifest.list_bounds == expected.list_bounds
         && manifest.membership_count == expected.assignments.len()
 }
 
@@ -326,6 +331,7 @@ pub(super) fn load_ivfflat_manifest(
         centroids: manifest.centroids,
         assignments,
         list_sizes: manifest.list_sizes,
+        list_bounds: manifest.list_bounds,
     })
 }
 

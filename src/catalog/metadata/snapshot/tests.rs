@@ -222,6 +222,7 @@ fn should_admit_nested_vector_backing_without_sparse_root_capacity() {
         centroids: vec![vec![1.0]],
         assignments: std::collections::BTreeMap::from([("row".to_owned(), 0)]),
         list_sizes: vec![1],
+        list_bounds: Vec::new(),
     };
     let record = VectorIndexRecord {
         collection: "example.rows".to_owned(),

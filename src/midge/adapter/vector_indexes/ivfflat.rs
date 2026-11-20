@@ -1,3 +1,4 @@
+use super::bounded_write::SummaryPolicy;
 use super::codec::{decode_normalized_vector, decode_vector_index_state, PersistedIvfManifest};
 use super::math::{ivfflat_training_order, list_bounds, nearest_ivfflat_centroid};
 use super::{
@@ -147,38 +148,18 @@ impl Midge {
         records: &[NormalizedVectorRecord],
         training: &crate::embeddings::IvfFlatTrainingState,
     ) -> Result<(), CassieError> {
-        let row_schema = self.row_schema(&index.collection)?;
-        let (relation_id, field_id) = self.vector_storage_ids(&index.collection, &index.field)?;
-        let mut records = records.to_vec();
-        for record in &mut records {
-            record.built_generation = generation;
-        }
-        let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
-        Self::delete_normalized_vector_keys_with_prefix(
-            &mut tx,
-            Self::normalized_vector_prefix(relation_id, field_id),
-        )?;
-        Self::write_normalized_vector_records(&mut tx, &row_schema, &records)?;
-        Self::write_vector_index_state_to_tx(
-            &mut tx,
-            relation_id,
-            field_id,
-            &VectorIndexState {
-                built_generation: generation,
-                hnsw_graph: None,
-                ivfflat_training: Some(training.clone()),
-            },
-        )?;
-        Self::write_vector_source_summary_to_tx(
-            &mut tx,
-            relation_id,
-            field_id,
-            generation,
-            training.source_fingerprint,
-            training.row_count,
-        )?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+        let state = VectorIndexState {
+            built_generation: generation,
+            hnsw_graph: None,
+            ivfflat_training: Some(training.clone()),
+        };
+        self.publish_vector_sidecars(
+            &index.collection,
+            &index.field,
+            Some(records),
+            Some(state),
+            SummaryPolicy::Refresh,
+        )
     }
 
     /// # Errors
@@ -284,7 +265,12 @@ impl Midge {
                 hnsw_graph: None,
                 ivfflat_training: Some(self.rebuild_ivfflat_training(&index)?),
             };
-            self.write_vector_index_state(&index.collection, &index.field, state)?;
+            self.write_vector_index_state(
+                &index.collection,
+                &index.field,
+                state,
+                SummaryPolicy::Refresh,
+            )?;
             refreshed += 1;
         }
         Ok(refreshed)

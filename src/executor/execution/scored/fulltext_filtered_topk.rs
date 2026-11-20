@@ -91,7 +91,7 @@ pub(super) fn ranked_filtered_top_k_spec(
     Some(RankedFilteredTopKSpec { read })
 }
 
-fn conjuncts<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
+pub(super) fn conjuncts<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
     if let Expr::Binary {
         left,
         op: BinaryOp::And,
@@ -156,13 +156,27 @@ fn scalar_conjunct_candidates(
     };
     let mut parts = Vec::new();
     conjuncts(residual, &mut parts);
+    intersect_scalar_conjuncts(cassie, session, &spec.collection, &parts, params, controls)
+}
+
+/// Intersects the candidate ids of every conjunct that an eligible scalar equality index serves
+/// exactly. `None` means no conjunct was eligible; conjuncts that were not eligible remain the
+/// caller's residual predicate.
+pub(super) fn intersect_scalar_conjuncts(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    collection: &str,
+    parts: &[&Expr],
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<Option<fulltext_read::ControlledScalarCandidates>, QueryError> {
     let mut combined: Option<fulltext_read::ControlledScalarCandidates> = None;
     for part in parts {
         let Some(found) = fulltext_read::scalar_equality_candidates(
             cassie,
             session,
-            &spec.collection,
-            (part, params),
+            collection,
+            (*part, params),
             controls,
         )?
         else {

@@ -56,4 +56,37 @@ impl RuntimeState {
         metrics.vector.last_index_kind = "hnsw".to_string();
         metrics.vector.last_fallback_reason = reason.into();
     }
+
+    /// Records the generation an ANN query served from, after its final
+    /// source-generation check passed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
+    pub(crate) fn record_ann_observed_generation(&self, generation: u64) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.vector.last_ann_observed_generation = generation;
+    }
+
+    /// Records an ANN attempt discarded because its source generation moved.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
+    pub(crate) fn record_ann_stale_attempt_discard(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.vector.ann_stale_attempt_discards_total += 1;
+    }
+
+    /// Records the duration of an exact query answered for an indexed field.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
+    pub(crate) fn record_ann_fallback_duration(&self, elapsed: std::time::Duration) {
+        let micros = u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.vector.ann_fallback_micros_total += micros;
+        metrics.vector.ann_last_fallback_micros = micros;
+    }
 }

@@ -173,10 +173,11 @@ pub(super) fn plan_line(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
     graph: &[String],
+    runtime: (Option<&super::CassieSession>, &[crate::types::Value]),
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<PlanText, super::CassieError> {
     PlanText::try_build(controls, |allocation| {
-        text::plan_line(cassie, physical, graph, allocation)
+        text::plan_line(cassie, physical, graph, runtime, allocation)
     })
 }
 

@@ -1,4 +1,4 @@
-use super::{BTreeMap, Serialize};
+use super::{BTreeMap, Serialize, VectorFilteredSnapshot};
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct RuntimeSnapshot {
@@ -83,6 +83,14 @@ pub struct ExecutionSnapshot {
     pub hnsw_fallbacks: u64,
     pub last_index_kind: String,
     pub last_fallback_reason: String,
+    /// Collection generation the latest successful ANN query observed and
+    /// verified before and after its exact rerank.
+    pub last_ann_observed_generation: u64,
+    /// ANN attempts discarded because the source generation moved mid-query.
+    pub ann_stale_attempt_discards_total: u64,
+    /// Time the exact path took when an ANN index existed but was not served.
+    pub ann_fallback_micros_total: u64,
+    pub ann_last_fallback_micros: u64,
     pub retrieval_stage_queries_total: u64,
     pub posting_reads_total: u64,
     pub candidate_row_fetches_total: u64,
@@ -446,4 +454,5 @@ pub struct RuntimeMetricsSnapshot {
     pub projections: ProjectionSnapshot,
     pub retention: RetentionSnapshot,
     pub read_paths: ReadPathSnapshot,
+    pub vector_filtered: VectorFilteredSnapshot,
 }

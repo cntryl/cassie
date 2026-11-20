@@ -32,6 +32,24 @@ pub(super) fn execute_exact_vector_top_k(
     request: &ExactVectorRequest<'_>,
     started_at: Instant,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let rows = run_exact_vector_top_k(cassie, spec, request, started_at)?;
+    if rows.is_some() {
+        super::diagnostics::record_exact_fallback_duration(
+            cassie,
+            spec,
+            request.stored_vector_field,
+            started_at,
+        )?;
+    }
+    Ok(rows)
+}
+
+fn run_exact_vector_top_k(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    request: &ExactVectorRequest<'_>,
+    started_at: Instant,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let top_needed = spec.top_needed();
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
     if let Some((top, top_memory, final_candidate_count)) =
@@ -241,7 +259,10 @@ fn document_matches_filter(
     .map(|rows| !rows.is_empty())
 }
 
-fn validate_exact_vector(spec: &VectorDistanceTopKSpec, vector: &[f32]) -> Result<(), QueryError> {
+pub(super) fn validate_exact_vector(
+    spec: &VectorDistanceTopKSpec,
+    vector: &[f32],
+) -> Result<(), QueryError> {
     if vector.len() != spec.query.len() || vector.is_empty() {
         return Err(QueryError::General(format!(
             "vector field '{}' on collection '{}' does not match query dimensions {}",

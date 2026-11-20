@@ -10,16 +10,30 @@ use cassie::app::{Cassie, CassieSession};
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
+#[path = "tier3_system_storage_modes/amplification.rs"]
+mod amplification;
 #[path = "tier3_system_storage_modes/data.rs"]
 mod data;
+#[path = "tier3_system_storage_modes/evidence.rs"]
+mod evidence;
 #[path = "tier3_system_storage_modes/expected.rs"]
 mod expected;
+#[path = "tier3_system_storage_modes/paired.rs"]
+mod paired;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
+#[path = "tier3_system_storage_modes/profiles.rs"]
+mod profiles;
+#[path = "tier3_system_storage_modes/queries.rs"]
+mod queries;
+#[path = "tier3_system_storage_modes/sampling.rs"]
+mod sampling;
 #[path = "tier3_system_storage_modes/setup.rs"]
 mod setup;
 #[path = "support/stress.rs"]
 pub mod stress;
+#[path = "tier3_system_storage_modes/wide.rs"]
+mod wide;
 
 const BENCHMARK: &str = "tier3_system_storage_modes";
 const FACT_ROWS: usize = 100_000;
@@ -32,17 +46,39 @@ struct Db {
 
 impl Db {
     fn new(profile: setup::NativeProfile) -> Self {
+        Self::open(profile, FACT_ROWS * 2, QUERY_BUDGET, None)
+    }
+
+    /// Opens a memory database; `native` overrides the profile's total and
+    /// memtable bytes for the paired harness.
+    fn open(
+        profile: setup::NativeProfile,
+        max_result_rows: usize,
+        query_budget: usize,
+        native: Option<(usize, usize)>,
+    ) -> Self {
         let mut config = CassieRuntimeConfig::from_env().expect("benchmark config");
-        config.limits.max_result_rows = FACT_ROWS * 2;
-        config.limits.query_memory_budget_bytes = QUERY_BUDGET;
+        config.limits.max_result_rows = max_result_rows;
+        config.limits.query_memory_budget_bytes = query_budget;
         config.limits.query_timeout_ms = 0;
         profile.configure(&mut config);
+        if let Some((total, memtable)) = native {
+            config.storage_memory_budget_bytes = Some(total);
+            config.storage_memtable_size_bytes = Some(memtable);
+        }
         let cassie = Arc::new(Cassie::new_in_memory_with_config(config).expect("memory Cassie"));
         cassie.startup().expect("startup");
         let session = cassie.create_session("benchmark", None);
         let db = Self { cassie, session };
         println!("native_memory_startup={}", setup::native_state(&db));
         db
+    }
+
+    fn try_exec(&self, sql: &str) -> Result<Vec<Vec<Value>>, String> {
+        self.cassie
+            .execute_sql(&self.session, sql, vec![])
+            .map(|result| result.rows().to_vec())
+            .map_err(|error| error.to_string())
     }
 
     fn exec(&self, sql: &str) -> Vec<Vec<Value>> {
@@ -265,6 +301,9 @@ fn main() -> std::process::ExitCode {
         .unwrap_or_else(|_| "qualification".to_owned());
     if mode == "default-native-probe" {
         return default_native_probe();
+    }
+    if mode == "paired" {
+        return paired::run();
     }
     assert_eq!(
         mode, "qualification",

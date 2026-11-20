@@ -3,12 +3,18 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::embeddings::{
     DistanceMetric, HnswGraphNode, HnswGraphState, HnswIndexOptions, NormalizedVectorRecord,
 };
+use build::GraphBuilder;
 
+#[path = "hnsw/build.rs"]
+mod build;
 #[path = "hnsw/controlled.rs"]
 mod controlled;
 
 #[path = "hnsw/incremental.rs"]
 mod incremental;
+#[cfg(test)]
+#[path = "hnsw/scale_tests.rs"]
+mod scale_tests;
 #[path = "hnsw/validation.rs"]
 mod validation;
 
@@ -32,14 +38,6 @@ pub struct HnswCandidate {
 pub struct HnswSearchResult {
     pub candidates: Vec<HnswCandidate>,
     pub candidate_count: usize,
-}
-
-#[derive(Debug, Clone)]
-struct BuildNode {
-    id: String,
-    vector: Vec<f32>,
-    magnitude: f64,
-    layers: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -298,253 +296,6 @@ pub fn search(
     scored
 }
 
-struct GraphBuilder {
-    nodes: Vec<BuildNode>,
-    index: BTreeMap<String, usize>,
-    entry_point: Option<String>,
-    max_layer: usize,
-    m: usize,
-    ef_construction: usize,
-    metric: DistanceMetric,
-    source_fingerprint: u64,
-}
-
-impl GraphBuilder {
-    fn new(
-        m: usize,
-        ef_construction: usize,
-        metric: DistanceMetric,
-        source_fingerprint: u64,
-    ) -> Self {
-        Self {
-            nodes: Vec::new(),
-            index: BTreeMap::new(),
-            entry_point: None,
-            max_layer: 0,
-            m,
-            ef_construction,
-            metric,
-            source_fingerprint,
-        }
-    }
-
-    fn insert(&mut self, record: NormalizedVectorRecord) {
-        let level = deterministic_level(&record.id);
-        let mut layers = vec![Vec::new(); level.saturating_add(1)];
-        let query = GraphDistanceQuery::from_record(&record);
-        if let Some(mut current) = self.entry_point.clone() {
-            let max_connected_layer = level.min(self.max_layer);
-            for layer in (level.saturating_add(1)..=self.max_layer).rev() {
-                current = self.greedy_layer_search(&query, &current, layer);
-            }
-            for layer in (0..=max_connected_layer).rev() {
-                let candidates = self.search_layer(&query, &current, layer, self.ef_construction);
-                if let Some(candidate) = candidates.first() {
-                    current.clone_from(&candidate.id);
-                }
-                layers[layer] = self.select_neighbors(candidates, self.m);
-            }
-        }
-
-        let node = BuildNode {
-            id: record.id.clone(),
-            vector: record.values,
-            magnitude: record.magnitude,
-            layers,
-        };
-        self.add_node(node);
-        if level > self.max_layer || self.entry_point.is_none() {
-            self.max_layer = level;
-            self.entry_point = Some(record.id);
-        }
-    }
-
-    fn add_node(&mut self, node: BuildNode) {
-        let node_id = node.id.clone();
-        let selected_layers = node.layers.clone();
-        self.index.insert(node_id.clone(), self.nodes.len());
-        self.nodes.push(node);
-        for (layer, neighbors) in selected_layers.into_iter().enumerate() {
-            for neighbor in neighbors {
-                self.add_neighbor(&neighbor, &node_id, layer);
-            }
-        }
-    }
-
-    fn add_neighbor(&mut self, target_id: &str, neighbor_id: &str, layer: usize) {
-        let Some(target_index) = self.index.get(target_id).copied() else {
-            return;
-        };
-        if self.nodes[target_index].layers.len() <= layer {
-            return;
-        }
-        if !self.nodes[target_index].layers[layer]
-            .iter()
-            .any(|id| id == neighbor_id)
-        {
-            self.nodes[target_index].layers[layer].push(neighbor_id.to_string());
-        }
-        self.prune_neighbors(target_index, layer);
-    }
-
-    fn prune_neighbors(&mut self, target_index: usize, layer: usize) {
-        let target_vector = self.nodes[target_index].vector.clone();
-        let target_magnitude = self.nodes[target_index].magnitude;
-        let query = GraphDistanceQuery::from_parts(target_vector, target_magnitude);
-        let mut neighbors = self.nodes[target_index].layers[layer].clone();
-        neighbors.sort_by(|left, right| {
-            let left_distance = self.node_by_id(left).map_or(f64::INFINITY, |node| {
-                build_node_distance(self.metric, &query, node)
-            });
-            let right_distance = self.node_by_id(right).map_or(f64::INFINITY, |node| {
-                build_node_distance(self.metric, &query, node)
-            });
-            left_distance
-                .total_cmp(&right_distance)
-                .then_with(|| left.cmp(right))
-        });
-        neighbors.dedup();
-        // Links stay symmetric: a neighbor the target drops also loses its
-        // link back, so deleting a node only has to repair its own neighbors.
-        let dropped = neighbors.split_off(self.m.min(neighbors.len()));
-        let target_id = self.nodes[target_index].id.clone();
-        self.nodes[target_index].layers[layer] = neighbors;
-        for dropped_id in dropped {
-            let Some(dropped_index) = self.index.get(&dropped_id).copied() else {
-                continue;
-            };
-            if let Some(links) = self.nodes[dropped_index].layers.get_mut(layer) {
-                links.retain(|link| link != &target_id);
-            }
-        }
-    }
-
-    fn search_layer(
-        &self,
-        query: &GraphDistanceQuery,
-        entry_point: &str,
-        layer: usize,
-        ef: usize,
-    ) -> Vec<SearchCandidate> {
-        let mut visited = BTreeSet::new();
-        let Some(entry) = self.node_by_id(entry_point) else {
-            return Vec::new();
-        };
-        let entry_candidate = SearchCandidate {
-            id: entry.id.clone(),
-            distance: build_node_distance(self.metric, query, entry),
-        };
-        visited.insert(entry.id.clone());
-        let mut candidates = OrderedCandidateSet::unbounded();
-        candidates.insert(entry_candidate.clone());
-        let mut nearest = OrderedCandidateSet::bounded(ef);
-        nearest.insert(entry_candidate);
-
-        while let Some(candidate) = pop_nearest(&mut candidates) {
-            let worst_distance = nearest.worst_distance();
-            if nearest.len() >= ef && candidate.distance > worst_distance {
-                break;
-            }
-            let Some(node) = self.node_by_id(&candidate.id) else {
-                continue;
-            };
-            let Some(neighbors) = node.layers.get(layer) else {
-                continue;
-            };
-            for neighbor_id in neighbors {
-                if !visited.insert(neighbor_id.clone()) {
-                    continue;
-                }
-                let Some(neighbor) = self.node_by_id(neighbor_id) else {
-                    continue;
-                };
-                let distance = build_node_distance(self.metric, query, neighbor);
-                if nearest.len() < ef || distance < worst_distance {
-                    let next = SearchCandidate {
-                        id: neighbor.id.clone(),
-                        distance,
-                    };
-                    candidates.insert(next.clone());
-                    nearest.insert(next);
-                }
-            }
-        }
-        nearest.into_vec()
-    }
-
-    fn select_neighbors(&self, candidates: Vec<SearchCandidate>, limit: usize) -> Vec<String> {
-        candidates
-            .into_iter()
-            .filter(|candidate| {
-                self.node_by_id(&candidate.id)
-                    .is_some_and(|node| !node.vector.is_empty())
-            })
-            .take(limit)
-            .map(|candidate| candidate.id)
-            .collect()
-    }
-
-    fn greedy_layer_search(
-        &self,
-        query: &GraphDistanceQuery,
-        entry_point: &str,
-        layer: usize,
-    ) -> String {
-        let mut current = entry_point.to_string();
-        loop {
-            let Some(current_node) = self.node_by_id(&current) else {
-                return current;
-            };
-            let current_distance = build_node_distance(self.metric, query, current_node);
-            let Some(neighbors) = current_node.layers.get(layer) else {
-                return current;
-            };
-            let best = neighbors
-                .iter()
-                .filter_map(|neighbor| {
-                    let node = self.node_by_id(neighbor)?;
-                    Some((neighbor, build_node_distance(self.metric, query, node)))
-                })
-                .min_by(|left, right| left.1.total_cmp(&right.1).then_with(|| left.0.cmp(right.0)));
-            let Some((best_id, best_distance)) = best else {
-                return current;
-            };
-            if best_distance >= current_distance {
-                return current;
-            }
-            current = best_id.clone();
-        }
-    }
-
-    fn node_by_id(&self, id: &str) -> Option<&BuildNode> {
-        self.index.get(id).and_then(|index| self.nodes.get(*index))
-    }
-
-    fn finish(mut self, dimensions: usize, metric: DistanceMetric) -> HnswGraphState {
-        self.nodes.sort_by(|left, right| left.id.cmp(&right.id));
-        let nodes = self
-            .nodes
-            .into_iter()
-            .map(|node| HnswGraphNode {
-                id: node.id,
-                vector: node.vector,
-                magnitude: node.magnitude,
-                layers: node.layers,
-            })
-            .collect::<Vec<_>>();
-        HnswGraphState {
-            version: HNSW_GRAPH_VERSION,
-            source_fingerprint: self.source_fingerprint,
-            row_count: nodes.len(),
-            dimensions,
-            metric,
-            entry_point: self.entry_point,
-            max_layer: self.max_layer,
-            nodes,
-        }
-    }
-}
-
 fn graph_node_index(graph: &HnswGraphState) -> BTreeMap<String, usize> {
     graph
         .nodes
@@ -661,9 +412,7 @@ fn graph_distance(metric: DistanceMetric, query: &GraphDistanceQuery, node: &Hns
             &node.vector,
             node.magnitude,
         ),
-        DistanceMetric::L2 => {
-            crate::vector::l2_distance(&query.raw, &denormalize(&node.vector, node.magnitude))
-        }
+        DistanceMetric::L2 => l2_to_stored(&query.raw, &node.vector, node.magnitude),
     }
 }
 
@@ -680,11 +429,25 @@ fn exact_distance(
         DistanceMetric::Dot => {
             crate::vector::dot_distance_from_normalized_target(query, &node.vector, node.magnitude)
         }
-        DistanceMetric::L2 => {
-            let target = denormalize(&node.vector, node.magnitude);
-            crate::vector::l2_distance(query, &target)
-        }
+        DistanceMetric::L2 => l2_to_stored(query, &node.vector, node.magnitude),
     }
+}
+
+thread_local! {
+    static DENORMALIZED_SCRATCH: std::cell::RefCell<Vec<f32>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// L2 distance from `query` to a stored normalized vector, denormalized into a
+/// reused per-thread buffer instead of a fresh allocation per comparison.
+fn l2_to_stored(query: &[f32], vector: &[f32], magnitude: f64) -> f64 {
+    DENORMALIZED_SCRATCH.with(|scratch| {
+        let mut target = scratch.borrow_mut();
+        target.clear();
+        target.extend(vector.iter().map(|value| {
+            crate::vector::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY)
+        }));
+        crate::vector::l2_distance(query, &target)
+    })
 }
 
 fn denormalize(vector: &[f32], magnitude: f64) -> Vec<f32> {
@@ -694,26 +457,6 @@ fn denormalize(vector: &[f32], magnitude: f64) -> Vec<f32> {
             crate::vector::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY)
         })
         .collect()
-}
-
-fn build_node_distance(
-    metric: DistanceMetric,
-    query: &GraphDistanceQuery,
-    node: &BuildNode,
-) -> f64 {
-    match metric {
-        DistanceMetric::Cosine => {
-            crate::vector::cosine_distance_from_normalized_query(&query.normalized, &node.vector)
-        }
-        DistanceMetric::Dot => crate::vector::dot_distance_from_normalized_target(
-            &query.raw,
-            &node.vector,
-            node.magnitude,
-        ),
-        DistanceMetric::L2 => {
-            crate::vector::l2_distance(&query.raw, &denormalize(&node.vector, node.magnitude))
-        }
-    }
 }
 
 fn valid_source_records(

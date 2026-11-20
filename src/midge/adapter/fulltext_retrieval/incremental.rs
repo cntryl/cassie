@@ -222,7 +222,7 @@ impl TermPlan<'_> {
     ) -> Result<(isize, isize), CassieError> {
         let existed = group.block.is_some();
         let old_first = group.block.as_ref().map(|block| block.first_id.clone());
-        let mut postings = group.block.map(|block| block.postings).unwrap_or_default();
+        let mut postings = group.block.map_or_else(Vec::new, |block| block.postings);
         let posting_delta = blocks::apply_changes(&mut postings, &group.changes)?;
         let mut block_delta = -isize::from(existed);
         if let Some(upper) = group
@@ -384,12 +384,12 @@ fn stage_document(
     if old == new {
         return Ok(());
     }
-    let old_terms = old
-        .map(|stats| document_terms(stats).collect::<BTreeMap<_, _>>())
-        .unwrap_or_default();
-    let new_terms = new
-        .map(|stats| document_terms(stats).collect::<BTreeMap<_, _>>())
-        .unwrap_or_default();
+    let old_terms = old.map_or_else(BTreeMap::new, |stats| {
+        document_terms(stats).collect::<BTreeMap<_, _>>()
+    });
+    let new_terms = new.map_or_else(BTreeMap::new, |stats| {
+        document_terms(stats).collect::<BTreeMap<_, _>>()
+    });
     for term in old_terms
         .keys()
         .chain(new_terms.keys())

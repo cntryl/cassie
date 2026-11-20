@@ -183,7 +183,7 @@ mod tests {
 
         // Assert
         assert_eq!(kept.len(), 1);
-        assert!(dropped.is_empty());
+        assert_eq!(dropped.len(), 0);
     }
 
     #[test]

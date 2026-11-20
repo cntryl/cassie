@@ -8,6 +8,47 @@ use crate::midge::adapter::fulltext_retrieval::{FulltextCommitChanges, FulltextW
 use crate::midge::adapter::maintenance::check_fulltext_maintenance_failure_point;
 
 impl Midge {
+    /// Maintains each full-text index of a changed collection, or records
+    /// durable debt when the maintenance failpoint is armed.
+    fn maintain_fulltext_indexes_in_tx(
+        &self,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        collection: &str,
+        indexes: &[crate::catalog::IndexMeta],
+        generation: u64,
+        report: Option<&DocumentWriteBatchReport>,
+    ) -> Result<Vec<FulltextWriteTally>, CassieError> {
+        let mut tallies = Vec::new();
+        for index in indexes {
+            if check_fulltext_maintenance_failure_point().is_err() {
+                Self::record_fulltext_maintenance_debt_in_tx(
+                    tx,
+                    collection,
+                    &index.name,
+                    generation,
+                )?;
+            } else {
+                tallies.push(self.maintain_fulltext_index_in_tx(
+                    tx,
+                    collection,
+                    index,
+                    generation,
+                    &FulltextCommitChanges {
+                        changed_ids: report.map_or(&[][..], |report| report.changed_ids.as_slice()),
+                        row_delta: report.map_or(0, |report| report.row_delta),
+                    },
+                )?);
+            }
+        }
+        Ok(tallies)
+    }
+
+    fn record_fulltext_tallies(&self, tallies: &[FulltextWriteTally]) {
+        for tally in tallies {
+            self.fulltext_maintenance_metrics.record(tally);
+        }
+    }
+
     pub(super) fn finish_document_write_batches(
         &self,
         options: &DocumentWriteBatchOptions,
@@ -50,29 +91,13 @@ impl Midge {
                 )?;
             }
             if let Some(indexes) = fulltext_indexes_by_collection.get(collection) {
-                for index in indexes {
-                    if check_fulltext_maintenance_failure_point().is_err() {
-                        Self::record_fulltext_maintenance_debt_in_tx(
-                            &mut tx,
-                            collection,
-                            &index.name,
-                            generation,
-                        )?;
-                    } else {
-                        let report = reports.get(collection);
-                        fulltext_tallies.push(self.maintain_fulltext_index_in_tx(
-                            &mut tx,
-                            collection,
-                            index,
-                            generation,
-                            &FulltextCommitChanges {
-                                changed_ids:
-                                    report.map_or(&[][..], |report| report.changed_ids.as_slice()),
-                                row_delta: report.map_or(0, |report| report.row_delta),
-                            },
-                        )?);
-                    }
-                }
+                fulltext_tallies.extend(self.maintain_fulltext_indexes_in_tx(
+                    &mut tx,
+                    collection,
+                    indexes,
+                    generation,
+                    reports.get(collection),
+                )?);
             }
             generations.insert(collection.clone(), generation);
         }
@@ -101,9 +126,7 @@ impl Midge {
             );
         }
         tx.commit(options.commit).map_err(CassieError::from)?;
-        for tally in &fulltext_tallies {
-            self.fulltext_maintenance_metrics.record(tally);
-        }
+        self.record_fulltext_tallies(&fulltext_tallies);
         let mut sorted_changed_collections = changed_collections;
         sorted_changed_collections.sort();
 

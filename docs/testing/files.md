@@ -1297,7 +1297,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/search/retrieval/scored_read_equivalence.rs` | test_module | 152 | 4 | search | keep | `tests/search/retrieval/scored_read_equivalence.rs` |
 | `tests/search/retrieval/search_relevance.rs` | test_module | 259 | 5 | search | keep | `tests/search/retrieval/search_relevance.rs` |
 | `tests/search/retrieval/search_relevance_metrics.rs` | test_module | 191 | 8 | search | keep | `tests/search/retrieval/search_relevance_metrics.rs` |
-| `tests/search/retrieval/tenant_ranked_search.rs` | test_module | 395 | 8 | search | keep | `tests/search/retrieval/tenant_ranked_search.rs` |
+| `tests/search/retrieval/tenant_ranked_search.rs` | test_module | 430 | 9 | search | keep | `tests/search/retrieval/tenant_ranked_search.rs` |
 | `tests/search/retrieval/vector.rs` | test_module | 290 | 13 | search | keep | `tests/search/retrieval/vector.rs` |
 | `tests/search.rs` | cargo_target | 103 | 0 | search | keep | `tests/search.rs` |
 | `tests/sql_contextual_literals/contracts/errors.rs` | test_module | 29 | 1 | sql_contextual_literals | keep | `tests/sql_contextual_literals/contracts/errors.rs` |
@@ -1731,7 +1731,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/primitive_literal_inputs.rs` | shared_support | 162 | 0 | pgwire_extended, sql_queries | keep | `tests/support/primitive_literal_inputs.rs` |
 | `tests/support/query_correctness_fixture.rs` | shared_support | 26 | 0 | sql_queries | keep | `tests/support/query_correctness_fixture.rs` |
 | `tests/support/query_evidence.rs` | shared_support | 206 | 0 | planner_controls | keep | `tests/support/query_evidence.rs` |
-| `tests/support/ranked_search.rs` | shared_support | 388 | 0 | search, vector_embeddings | keep | `tests/support/ranked_search.rs` |
+| `tests/support/ranked_search.rs` | shared_support | 397 | 0 | search, vector_embeddings | keep | `tests/support/ranked_search.rs` |
 | `tests/support/read_equivalence.rs` | shared_support | 41 | 0 | analytics, domain_models, executor, search, storage_indexes, vector_embeddings | keep | `tests/support/read_equivalence.rs` |
 | `tests/support/regex_cancellation.rs` | shared_support | 114 | 0 | sql_queries | keep | `tests/support/regex_cancellation.rs` |
 | `tests/support/relational_evidence.rs` | shared_support | 285 | 0 | sql_queries | keep | `tests/support/relational_evidence.rs` |
@@ -1789,7 +1789,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` | test_module | 561 | 12 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` |
 | `tests/vector_embeddings/embeddings/embedding_validation.rs` | test_module | 244 | 3 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_validation.rs` |
 | `tests/vector_embeddings/hybrid/hybrid_query.rs` | test_module | 816 | 11 | vector_embeddings | keep | `tests/vector_embeddings/hybrid/hybrid_query.rs` |
-| `tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs` | test_module | 349 | 9 | vector_embeddings | keep | `tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs` |
+| `tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs` | test_module | 389 | 10 | vector_embeddings | keep | `tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs` |
 | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs` | test_module | 33 | 2 | vector_embeddings | keep | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs` |
 | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/errors.rs` | test_module | 239 | 5 | vector_embeddings | keep | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/errors.rs` |
 | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/mod.rs` | module_registration | 226 | 0 | vector_embeddings | keep | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/mod.rs` |

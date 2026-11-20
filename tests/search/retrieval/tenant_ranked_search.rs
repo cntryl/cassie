@@ -142,6 +142,31 @@ fn should_fetch_only_eligible_rows_given_a_selective_tenant_search() {
 }
 
 #[test]
+fn should_record_scalar_candidates_given_a_selective_tenant_search() {
+    runtime().block_on(async {
+        // Arrange
+        let corpus = tenant_corpus(2);
+        let fixture = loaded_fixture(&corpus).await;
+
+        // Act
+        let (rows, delta) = tenant_page(&fixture, TIE_ORDERED, 2, 0).await;
+
+        // Assert
+        assert_eq!(rows.len(), 2);
+        assert_eq!(
+            delta.scalar_candidates, 2,
+            "the tenant and status indexes supply only the two eligible rows"
+        );
+        assert_eq!(delta.eligible_candidates, 2);
+        assert!(
+            delta.posting_candidates > delta.eligible_candidates,
+            "postings also name other tenants' documents"
+        );
+        fixture.stop().await;
+    });
+}
+
+#[test]
 fn should_keep_eligibility_moving_scores_given_a_term_change_in_another_tenant() {
     runtime().block_on(async {
         // Arrange
@@ -204,6 +229,8 @@ fn should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes(
         let baseline = tenant_page(&fixture, TIE_ORDERED, 100, 0).await.0;
 
         // Act: an open transaction sees its own move through the labelled exact fallback.
+        let overlay_cause = "ranked_filtered:transaction_overlay";
+        let overlay_before = fallback_reason_count(&fixture.cassie, overlay_cause);
         fixture.exec("BEGIN").await;
         fixture
             .exec("UPDATE docs SET tenant = 'b' WHERE _id = 'd000'")
@@ -212,6 +239,7 @@ fn should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes(
         moved[0].tenant = "b";
         let (in_transaction, in_transaction_delta) =
             tenant_page(&fixture, TIE_ORDERED, 100, 0).await;
+        let overlay_after = fallback_reason_count(&fixture.cassie, overlay_cause);
         fixture.exec("ROLLBACK").await;
         let (rolled_back, rolled_back_delta) = tenant_page(&fixture, TIE_ORDERED, 100, 0).await;
         fixture
@@ -225,6 +253,7 @@ fn should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes(
         assert_page_matches(&baseline, &expected_page(&original), SCORE_TOLERANCE);
         assert_page_matches(&in_transaction, &expected_page(&moved), SCORE_TOLERANCE);
         assert!(in_transaction_delta.row_scan_fallbacks > 0);
+        assert_eq!(overlay_after, overlay_before + 1);
         assert!(in_transaction.iter().all(|row| row.0 != "d000"));
         assert_page_matches(&rolled_back, &expected_page(&original), SCORE_TOLERANCE);
         assert_eq!(rolled_back_delta.row_scan_fallbacks, 0);
@@ -288,6 +317,8 @@ fn should_stay_consistent_after_reopen_with_damage_given_a_committed_group_move(
         let (reopened, reopened_delta) = tenant_page(&fixture, TIE_ORDERED, 100, 0).await;
         corrupt_fulltext_manifest(&fixture.cassie);
         let reasons_before = fallback_reason_count(&fixture.cassie, "authoritative_row_scan");
+        let damage_cause = "ranked_filtered:invalid_persisted_artifact";
+        let damage_before = fallback_reason_count(&fixture.cassie, damage_cause);
         let (damaged, damaged_delta) = tenant_page(&fixture, TIE_ORDERED, 100, 0).await;
 
         // Assert
@@ -296,6 +327,10 @@ fn should_stay_consistent_after_reopen_with_damage_given_a_committed_group_move(
         assert_page_matches(&damaged, &expected, SCORE_TOLERANCE);
         assert!(damaged_delta.row_scan_fallbacks > 0);
         assert!(fallback_reason_count(&fixture.cassie, "authoritative_row_scan") > reasons_before);
+        assert_eq!(
+            fallback_reason_count(&fixture.cassie, damage_cause),
+            damage_before + 1
+        );
         fixture.stop().await;
     });
 }

@@ -347,3 +347,43 @@ fn should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible(
 fn should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible() {
     runtime().block_on(assert_hybrid_pages(100, true));
 }
+
+const UNFILTERED_HYBRID_PAGE: &str =
+    "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score \
+    FROM docs ORDER BY score DESC LIMIT $3";
+
+#[test]
+fn should_record_vector_candidates_given_an_ann_served_hybrid_query() {
+    runtime().block_on(async {
+        // Arrange
+        let corpus = tenant_corpus(20);
+        let cassie = Cassie::new_in_memory_with_config(uncached_config()).expect("cassie");
+        cassie.startup().expect("startup");
+        let fixture = WireFixture::start(cassie).await;
+        fixture.load_corpus(&corpus);
+        create_vector_index_in_process(&fixture.cassie);
+        let vector_candidates = |cassie: &Cassie| {
+            cassie.metrics()["hybrid"]["vector_candidate_count_total"]
+                .as_u64()
+                .unwrap_or(0)
+        };
+        let before = HybridCounters::read(&fixture.cassie);
+        let candidates_before = vector_candidates(&fixture.cassie);
+
+        // Act
+        let rows = fixture
+            .scored(UNFILTERED_HYBRID_PAGE, &[QUERY, "[1,0]"], &[5])
+            .await;
+        let delta = HybridCounters::read(&fixture.cassie).since(before);
+        let candidates = vector_candidates(&fixture.cassie) - candidates_before;
+
+        // Assert
+        assert_ne!(rows.len(), 0);
+        assert!(delta.ann_reads > 0, "the ANN stage served the query");
+        assert!(
+            candidates >= u64::try_from(rows.len()).unwrap(),
+            "at least the returned rows were vector candidates"
+        );
+        fixture.stop().await;
+    });
+}

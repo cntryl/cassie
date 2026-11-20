@@ -196,6 +196,9 @@ pub struct SearchCounters {
     pub posting_reads: u64,
     pub row_fetches: u64,
     pub row_scan_fallbacks: u64,
+    pub posting_candidates: u64,
+    pub scalar_candidates: u64,
+    pub eligible_candidates: u64,
 }
 
 impl SearchCounters {
@@ -210,6 +213,9 @@ impl SearchCounters {
             posting_reads: field("posting_reads_total"),
             row_fetches: field("candidate_row_fetches_total"),
             row_scan_fallbacks: field("row_scan_fallback_total"),
+            posting_candidates: field("prefilter_input_candidate_count_total"),
+            scalar_candidates: field("scalar_candidate_count_total"),
+            eligible_candidates: field("prefilter_filtered_candidate_count_total"),
         }
     }
 
@@ -221,6 +227,9 @@ impl SearchCounters {
             posting_reads: self.posting_reads - before.posting_reads,
             row_fetches: self.row_fetches - before.row_fetches,
             row_scan_fallbacks: self.row_scan_fallbacks - before.row_scan_fallbacks,
+            posting_candidates: self.posting_candidates - before.posting_candidates,
+            scalar_candidates: self.scalar_candidates - before.scalar_candidates,
+            eligible_candidates: self.eligible_candidates - before.eligible_candidates,
         }
     }
 }

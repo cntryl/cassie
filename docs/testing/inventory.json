@@ -182,9 +182,9 @@
     ],
     "files": 1817,
     "rust_files": 1776,
-    "rust_test_declarations": 10800,
+    "rust_test_declarations": 10802,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10825,
+    "registered_rust_instances": 10827,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -239975,11 +239975,42 @@
       }
     },
     {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_record_scalar_candidates_given_a_selective_tenant_search",
+      "name": "should_record_scalar_candidates_given_a_selective_tenant_search",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 145,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_record_scalar_candidates_given_a_selective_tenant_search"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/retrieval/tenant_ranked_search.rs::should_keep_eligibility_moving_scores_given_a_term_change_in_another_tenant",
       "name": "should_keep_eligibility_moving_scores_given_a_term_change_in_another_tenant",
       "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
-      "line": 145,
-      "end_line": 186,
+      "line": 170,
+      "end_line": 211,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -240009,8 +240040,8 @@
       "id": "tests/search/retrieval/tenant_ranked_search.rs::should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes",
       "name": "should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes",
       "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
-      "line": 199,
-      "end_line": 236,
+      "line": 224,
+      "end_line": 265,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -240040,8 +240071,8 @@
       "id": "tests/search/retrieval/tenant_ranked_search.rs::should_stay_consistent_after_reopen_with_damage_given_a_committed_group_move",
       "name": "should_stay_consistent_after_reopen_with_damage_given_a_committed_group_move",
       "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
-      "line": 263,
-      "end_line": 301,
+      "line": 292,
+      "end_line": 336,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -240071,8 +240102,8 @@
       "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_a_hand_checkable_corpus_with_ties_filters_plus_a_frequency_update",
       "name": "should_rank_a_hand_checkable_corpus_with_ties_filters_plus_a_frequency_update",
       "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
-      "line": 324,
-      "end_line": 395,
+      "line": 359,
+      "end_line": 430,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330828,6 +330859,37 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_record_vector_candidates_given_an_ann_served_hybrid_query",
+      "name": "should_record_vector_candidates_given_an_ann_served_hybrid_query",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 356,
+      "end_line": 389,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_record_vector_candidates_given_an_ann_served_hybrid_query"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs::should_store_hnsw_nodes_as_point_readable_binary_records",
       "name": "should_store_hnsw_nodes_as_point_readable_binary_records",
       "current_file": "tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs",
@@ -355064,9 +355126,9 @@
       "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 395,
-      "sha256": "49be615d907ef4739d2e5c01383952198aeaedc619cbe415f8660d4590908d45",
-      "test_declarations": 8,
+      "lines": 430,
+      "sha256": "2d3982e0a6d19ef1c2f1d31a064e8a29916da61815864dfed8339f856649d23b",
+      "test_declarations": 9,
       "registered_suites": [
         "search"
       ],
@@ -361589,8 +361651,8 @@
       "current_file": "tests/support/ranked_search.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 388,
-      "sha256": "2663cc17235a52181b801b34867d0d1889074aeb56a7234f68416f29994aa054",
+      "lines": 397,
+      "sha256": "fd179b22163e34111610c33757f671e5f61211087577d72b1db3c28b97a0d03b",
       "test_declarations": 0,
       "registered_suites": [
         "search",
@@ -362467,9 +362529,9 @@
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 349,
-      "sha256": "cb0940d18f6884b6acdcb575c4df170e07c2dd785e8755e1f806213d1c4820f6",
-      "test_declarations": 9,
+      "lines": 389,
+      "sha256": "a14ef0194ed010390851feff9ad81f06073c3d5ecf800fb9188f7d3aecb00d2e",
+      "test_declarations": 10,
       "registered_suites": [
         "vector_embeddings"
       ],

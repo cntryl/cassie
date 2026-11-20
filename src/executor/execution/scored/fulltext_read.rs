@@ -403,6 +403,13 @@ fn try_execute_persisted_fulltext_filtered_read(
         controls,
     )?;
     let (matched, matched_memory) = matched.into_parts();
+    if let Some(scalar_candidates) = &scalar_candidates {
+        cassie.runtime.record_fulltext_scalar_prefilter(
+            persisted.candidates.document_stats.len(),
+            scalar_candidates.ids.len(),
+            matched.len(),
+        );
+    }
     let analyzer = persisted
         .search_context
         .analyzer_for_field(&spec.text_field);

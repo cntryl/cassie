@@ -12,6 +12,7 @@ const PROJECTION_HASH_ARTIFACT: &str = "projection_hash";
 pub(crate) const ROLLUP_ARTIFACT: &str = "rollup";
 pub(crate) const MATERIALIZED_PROJECTION_ARTIFACT: &str = "materialized_projection";
 const FULLTEXT_ARTIFACT_PREFIX: &str = "fulltext:";
+const VECTOR_ARTIFACT_PREFIX: &str = "vector:";
 thread_local! {
     static FULLTEXT_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static MATERIALIZED_PROJECTION_DEBT_PERSISTENCE_FAILPOINT: Cell<bool> =
@@ -110,6 +111,20 @@ impl Midge {
             tx,
             collection,
             &format!("{FULLTEXT_ARTIFACT_PREFIX}{index_name}"),
+            target_generation,
+        )
+    }
+
+    pub(super) fn record_vector_maintenance_debt_in_tx(
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        collection: &str,
+        field: &str,
+        target_generation: u64,
+    ) -> Result<(), CassieError> {
+        Self::record_maintenance_debt_in_tx(
+            tx,
+            collection,
+            &format!("{VECTOR_ARTIFACT_PREFIX}{field}"),
             target_generation,
         )
     }
@@ -386,6 +401,9 @@ impl Midge {
                         generation,
                     );
                 }
+            } else if let Some(field) = debt.artifact.strip_prefix(VECTOR_ARTIFACT_PREFIX) {
+                let generation = self.collection_generation(&debt.collection)?;
+                self.repair_vector_maintenance_debt(&debt.collection, field, generation);
             } else if let Some(index_name) = debt.artifact.strip_prefix(FULLTEXT_ARTIFACT_PREFIX) {
                 let generation = self.collection_generation(&debt.collection)?;
                 let index = self.list_indexes()?.into_iter().find(|index| {
@@ -399,6 +417,28 @@ impl Midge {
             }
         }
         Ok(())
+    }
+
+    /// Rebuilds the HNSW index of `field` recorded as maintenance debt against
+    /// `generation` of `collection`, and clears the debt when the rebuild
+    /// succeeds. A failed rebuild leaves the debt for the next retry, and
+    /// readers keep the labelled exact fallback meanwhile.
+    pub(super) fn repair_vector_maintenance_debt(
+        &self,
+        collection: &str,
+        field: &str,
+        generation: u64,
+    ) {
+        if self
+            .rebuild_hnsw_index_for_repair(collection, field)
+            .is_ok()
+        {
+            let _ = self.clear_maintenance_debt(
+                collection,
+                &format!("{VECTOR_ARTIFACT_PREFIX}{field}"),
+                generation,
+            );
+        }
     }
 
     /// Rebuilds a full-text index recorded as maintenance debt against
@@ -444,6 +484,15 @@ impl Midge {
         collection: &str,
     ) -> Result<bool, CassieError> {
         self.has_maintenance_debt(collection, MATERIALIZED_PROJECTION_ARTIFACT)
+    }
+
+    #[doc(hidden)]
+    pub fn has_vector_maintenance_debt(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<bool, CassieError> {
+        self.has_maintenance_debt(collection, &format!("{VECTOR_ARTIFACT_PREFIX}{field}"))
     }
 
     #[doc(hidden)]

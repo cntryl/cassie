@@ -1,4 +1,4 @@
-use crate::embeddings::NormalizedVectorRecord;
+use crate::embeddings::{DistanceMetric, NormalizedVectorRecord};
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0100_0000_01b3;
@@ -23,6 +23,42 @@ pub fn normalized_vector_source_fingerprint(records: &[NormalizedVectorRecord]) 
         }
     }
     hasher.finish()
+}
+
+/// Fingerprint of one eligible normalized record.
+///
+/// Localized graph maintenance folds it in and out of a persisted source
+/// fingerprint with XOR, so a write never re-reads unrelated rows. The folded
+/// value is an opaque change token: it is compared with the persisted summary,
+/// never with a freshly computed [`normalized_vector_source_fingerprint`].
+#[must_use]
+pub fn normalized_vector_record_fingerprint(
+    id: &str,
+    metric: DistanceMetric,
+    magnitude: f64,
+    values: &[f32],
+) -> u64 {
+    let mut hasher = StableHasher::new();
+    hasher.write_str(id);
+    hasher.write_str(metric.as_str());
+    hasher.write_usize(values.len());
+    hasher.write_u32(NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION);
+    hasher.write_u8(1);
+    hasher.write_u64(magnitude.to_bits());
+    for value in values {
+        hasher.write_u32(value.to_bits());
+    }
+    hasher.finish()
+}
+
+/// Folds `record_fingerprint` into or out of `source_fingerprint`. The result
+/// is never zero, because zero disables fingerprint comparison.
+#[must_use]
+pub fn fold_record_fingerprint(source_fingerprint: u64, record_fingerprint: u64) -> u64 {
+    match source_fingerprint ^ record_fingerprint {
+        0 => FNV_OFFSET,
+        folded => folded,
+    }
 }
 
 struct StableHasher {

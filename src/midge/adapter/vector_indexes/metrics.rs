@@ -24,6 +24,16 @@ pub(crate) struct VectorIndexMaintenanceMetrics {
     last_rebuild_bytes_written: AtomicU64,
     last_rebuild_transactions: AtomicU64,
     max_transaction_bytes: AtomicU64,
+    maintenance_commits: AtomicU64,
+    maintenance_documents: AtomicU64,
+    maintenance_nodes_read: AtomicU64,
+    maintenance_nodes_written: AtomicU64,
+    maintenance_nodes_deleted: AtomicU64,
+    maintenance_full_rebuilds: AtomicU64,
+    maintenance_deferred_rebuilds: AtomicU64,
+    last_maintenance_nodes_read: AtomicU64,
+    last_maintenance_nodes_written: AtomicU64,
+    last_maintenance_nodes_deleted: AtomicU64,
 }
 
 /// Counter positions captured when a rebuild starts.
@@ -41,6 +51,32 @@ impl VectorIndexMaintenanceMetrics {
         add(&self.sidecar_bytes_written, bytes);
         self.max_transaction_bytes
             .fetch_max(bytes, Ordering::Relaxed);
+    }
+
+    /// Records the localized maintenance one committed document write did for
+    /// one index. `last_*` values describe the most recent commit; totals stay
+    /// exact. An in-commit full rebuild counts every node it wrote.
+    pub(crate) fn record_commit(&self, tally: &super::incremental::VectorMaintenanceTally) {
+        let count = |value: usize| u64::try_from(value).unwrap_or(u64::MAX);
+        add(&self.maintenance_commits, 1);
+        add(&self.maintenance_documents, count(tally.documents));
+        add(&self.maintenance_nodes_read, count(tally.nodes_read));
+        add(&self.maintenance_nodes_written, count(tally.nodes_written));
+        add(&self.maintenance_nodes_deleted, count(tally.nodes_deleted));
+        if tally.full_rebuild {
+            add(&self.maintenance_full_rebuilds, 1);
+        }
+        self.last_maintenance_nodes_read
+            .store(count(tally.nodes_read), Ordering::Relaxed);
+        self.last_maintenance_nodes_written
+            .store(count(tally.nodes_written), Ordering::Relaxed);
+        self.last_maintenance_nodes_deleted
+            .store(count(tally.nodes_deleted), Ordering::Relaxed);
+    }
+
+    /// Records one index a commit unpublished and rebuilt afterwards.
+    pub(crate) fn record_deferred(&self) {
+        add(&self.maintenance_deferred_rebuilds, 1);
     }
 
     /// Marks the counter positions a rebuild started from.
@@ -83,6 +119,16 @@ impl VectorIndexMaintenanceMetrics {
             "index_last_rebuild_bytes_written": load(&self.last_rebuild_bytes_written),
             "index_last_rebuild_transactions": load(&self.last_rebuild_transactions),
             "index_max_sidecar_transaction_bytes": load(&self.max_transaction_bytes),
+            "index_maintenance_commits_total": load(&self.maintenance_commits),
+            "index_maintenance_documents_total": load(&self.maintenance_documents),
+            "index_maintenance_nodes_read_total": load(&self.maintenance_nodes_read),
+            "index_maintenance_nodes_written_total": load(&self.maintenance_nodes_written),
+            "index_maintenance_nodes_deleted_total": load(&self.maintenance_nodes_deleted),
+            "index_maintenance_full_rebuilds_total": load(&self.maintenance_full_rebuilds),
+            "index_maintenance_deferred_rebuilds_total": load(&self.maintenance_deferred_rebuilds),
+            "index_maintenance_last_nodes_read": load(&self.last_maintenance_nodes_read),
+            "index_maintenance_last_nodes_written": load(&self.last_maintenance_nodes_written),
+            "index_maintenance_last_nodes_deleted": load(&self.last_maintenance_nodes_deleted),
         })
     }
 }

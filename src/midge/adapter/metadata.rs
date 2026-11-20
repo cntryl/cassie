@@ -349,6 +349,12 @@ impl Midge {
             .delete(key_encoding::hnsw_source_summary_key(relation_id, field_id))
             .map_err(CassieError::from)?;
         data_tx
+            .delete(key_encoding::normalized_vector_floor_key(
+                relation_id,
+                field_id,
+            ))
+            .map_err(CassieError::from)?;
+        data_tx
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())

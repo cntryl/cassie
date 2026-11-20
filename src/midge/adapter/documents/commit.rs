@@ -6,6 +6,7 @@ use super::{DocumentWriteBatchOptions, DocumentWriteBatchReport};
 use crate::app::StorageRetryKind;
 use crate::midge::adapter::fulltext_retrieval::{FulltextCommitChanges, FulltextWriteTally};
 use crate::midge::adapter::maintenance::check_fulltext_maintenance_failure_point;
+use crate::midge::adapter::vector_indexes::{VectorBatchWork, VectorFieldWrites};
 
 impl Midge {
     /// Maintains each full-text index of a changed collection, or records
@@ -69,27 +70,22 @@ impl Midge {
         tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         generation: u64,
-        records: Option<&Vec<(String, Vec<crate::embeddings::NormalizedVectorRecord>)>>,
+        writes: Option<&Vec<VectorFieldWrites>>,
     ) -> Result<(), CassieError> {
-        if let Some(records) = records {
+        if let Some(writes) = writes {
             let row_schema = self.row_schema(collection)?;
-            Self::stamp_normalized_vectors_generation_in_tx(tx, &row_schema, generation, records)?;
+            Self::stamp_normalized_vectors_generation_in_tx(tx, &row_schema, generation, writes)?;
         }
         self.stamp_vector_index_states_generation_in_tx(tx, collection, generation)
     }
 
     /// Test boundary at which index maintenance is staged but not committed.
-    fn pause_before_index_publication(
-        vector_records_by_collection: &BTreeMap<
-            String,
-            Vec<(String, Vec<crate::embeddings::NormalizedVectorRecord>)>,
-        >,
-        fulltext_changed: bool,
-    ) {
+    fn pause_before_index_publication(vector: &VectorBatchWork, fulltext_changed: bool) {
         use super::super::schema_write_control::{
             pause_before_schema_write_commit, SchemaWritePausePoint,
         };
-        if vector_records_by_collection
+        if vector
+            .writes_by_collection
             .values()
             .any(|fields| !fields.is_empty())
         {
@@ -106,10 +102,7 @@ impl Midge {
         mut tx: crate::midge::adapter::AdapterTransaction,
         mut reports: BTreeMap<String, DocumentWriteBatchReport>,
         changed_collections: Vec<String>,
-        vector_records_by_collection: &BTreeMap<
-            String,
-            Vec<(String, Vec<crate::embeddings::NormalizedVectorRecord>)>,
-        >,
+        vector: &VectorBatchWork,
         fulltext_indexes_by_collection: &BTreeMap<String, Vec<crate::catalog::IndexMeta>>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
         if changed_collections.is_empty() && !options.has_side_writes() {
@@ -126,7 +119,7 @@ impl Midge {
                 &mut tx,
                 collection,
                 generation,
-                vector_records_by_collection.get(collection),
+                vector.writes_by_collection.get(collection),
             )?;
             Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
             Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
@@ -169,12 +162,10 @@ impl Midge {
                 super::super::schema_write_control::SchemaWritePausePoint::ProjectionReplayMetadataCommit,
             );
         }
-        Self::pause_before_index_publication(
-            vector_records_by_collection,
-            !fulltext_tallies.is_empty(),
-        );
+        Self::pause_before_index_publication(vector, !fulltext_tallies.is_empty());
         tx.commit(options.commit).map_err(CassieError::from)?;
         self.publish_fulltext_maintenance(&fulltext_tallies, &deferred_fulltext_rebuilds);
+        self.publish_vector_maintenance(&vector.maintenance);
         let mut sorted_changed_collections = changed_collections;
         sorted_changed_collections.sort();
 

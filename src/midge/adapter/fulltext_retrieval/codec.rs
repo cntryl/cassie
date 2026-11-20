@@ -8,7 +8,7 @@ use super::{
 };
 
 const POSTINGS_MAGIC: &[u8; 4] = b"FTB1";
-const DOCUMENT_MAGIC: &[u8; 4] = b"FTD1";
+const DOCUMENT_MAGIC: &[u8; 4] = b"FTD2";
 const METADATA_MAGIC: &[u8; 4] = b"FTM1";
 const MANIFEST_MAGIC: &[u8; 4] = b"FTG1";
 pub(super) const MAX_POSTING_BLOCK_BYTES: usize = 64 * 1024;
@@ -112,6 +112,9 @@ pub(super) fn decode_postings(bytes: &[u8]) -> Result<Vec<PersistedFulltextPosti
     Ok(postings)
 }
 
+/// Encodes a document record: length, then per term its token positions
+/// (count, first position, then gaps minus one). A term's frequency is its
+/// position count.
 pub(super) fn encode_document_stats(stats: &PersistedFulltextDocumentStats) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(DOCUMENT_MAGIC);
@@ -120,12 +123,18 @@ pub(super) fn encode_document_stats(stats: &PersistedFulltextDocumentStats) -> V
         &mut out,
     );
     write_varint(
-        u64::try_from(stats.term_counts.len()).unwrap_or(u64::MAX),
+        u64::try_from(stats.term_positions.len()).unwrap_or(u64::MAX),
         &mut out,
     );
-    for (term, count) in &stats.term_counts {
+    for (term, positions) in &stats.term_positions {
         write_bytes(term.as_bytes(), &mut out);
-        write_varint(u64::try_from(*count).unwrap_or(u64::MAX), &mut out);
+        write_varint(u64::try_from(positions.len()).unwrap_or(u64::MAX), &mut out);
+        let mut previous: Option<u32> = None;
+        for position in positions {
+            let encoded = previous.map_or(*position, |previous| position - previous - 1);
+            write_varint(u64::from(encoded), &mut out);
+            previous = Some(*position);
+        }
     }
     out
 }
@@ -138,16 +147,47 @@ pub(super) fn decode_document_stats(
     let doc_length = cursor.read_usize()?;
     let count = cursor.read_usize()?;
     let mut term_counts = BTreeMap::new();
+    let mut term_positions = BTreeMap::new();
     for _ in 0..count {
         let term = std::str::from_utf8(cursor.read_bytes()?)
             .map_err(|error| CassieError::Parse(format!("invalid document term: {error}")))?
             .to_string();
-        term_counts.insert(term, cursor.read_usize()?);
+        let position_count = cursor.read_usize()?;
+        if position_count == 0 || position_count > bytes.len() {
+            return Err(CassieError::Parse(format!(
+                "invalid position count for document term '{term}'"
+            )));
+        }
+        let mut positions = Vec::with_capacity(position_count);
+        let mut previous: Option<u32> = None;
+        for _ in 0..position_count {
+            let encoded = u32::try_from(cursor.read_varint()?).map_err(|_| {
+                CassieError::Parse(format!("document position out of range for '{term}'"))
+            })?;
+            let position = match previous {
+                None => encoded,
+                Some(previous) => previous
+                    .checked_add(1)
+                    .and_then(|next| next.checked_add(encoded))
+                    .ok_or_else(|| {
+                        CassieError::Parse(format!("document position out of range for '{term}'"))
+                    })?,
+            };
+            positions.push(position);
+            previous = Some(position);
+        }
+        term_counts.insert(term.clone(), positions.len());
+        if term_positions.insert(term, positions).is_some() {
+            return Err(CassieError::Parse(
+                "duplicate document term in statistics".to_string(),
+            ));
+        }
     }
     cursor.finish()?;
     Ok(PersistedFulltextDocumentStats {
         doc_length,
         term_counts,
+        term_positions,
     })
 }
 
@@ -494,6 +534,10 @@ mod tests {
         let stats = PersistedFulltextDocumentStats {
             doc_length: 4,
             term_counts: BTreeMap::from([("alpha".to_string(), 3), ("beta".to_string(), 1)]),
+            term_positions: BTreeMap::from([
+                ("alpha".to_string(), vec![0, 2, 7]),
+                ("beta".to_string(), vec![4]),
+            ]),
         };
 
         // Act
@@ -502,7 +546,7 @@ mod tests {
 
         // Assert
         assert_eq!(decoded, stats);
-        assert_eq!(&encoded[..4], b"FTD1");
+        assert_eq!(&encoded[..4], b"FTD2");
     }
 
     #[test]

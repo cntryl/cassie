@@ -123,7 +123,7 @@ fn should_fallback_when_a_candidate_is_missing_document_statistics() {
         ("d1".to_string(), "alpha".to_string()),
         ("d2".to_string(), "alpha".to_string()),
     ]);
-    let stats = artifacts_with_magic(&cassie, *b"FTD1");
+    let stats = artifacts_with_magic(&cassie, *b"FTD2");
     delete_data_key(&cassie, stats[0].0.clone());
     let before = fallback_count(&cassie, "invalid_persisted_artifact");
 

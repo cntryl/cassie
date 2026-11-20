@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use cntryl_midge::Query;
 
+use super::vocabulary::ManifestVocabulary;
 use super::{
     codec, validate_manifest_header, FulltextManifest, LoadedCandidatePostings,
     PersistedFulltextCandidateSet, PersistedFulltextDocumentStats, STATE_VERSION,
@@ -11,6 +12,7 @@ use crate::midge::adapter::column_store::validation as column_validation;
 use crate::midge::adapter::{DocumentRef, Midge};
 use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::search::query::{CompiledQuery, ResolvedQuery};
 use crate::types::DataType;
 
 pub(crate) struct ControlledFulltextCandidateSet {
@@ -333,6 +335,50 @@ impl Midge {
         )
     }
 
+    /// Reads the candidates of a `'query'`-syntax search: expands its prefix
+    /// and typo items against the index vocabulary inside the same read
+    /// transaction as the posting and statistics reads, then loads the postings
+    /// of the positive terms.
+    ///
+    /// Returns the candidates, the resolved query and the reservation that
+    /// accounts the resolved query.
+    pub(crate) fn fulltext_candidate_set_for_query_controlled(
+        &self,
+        collection: &str,
+        index_name: &str,
+        query: &CompiledQuery,
+        controls: &QueryExecutionControls,
+    ) -> Result<
+        (
+            ControlledFulltextCandidateSet,
+            ResolvedQuery,
+            QueryMemoryReservation,
+        ),
+        CassieError,
+    > {
+        let mut resolved = None;
+        let mut resolved_memory = None;
+        let candidates = self.fulltext_candidate_set_resolving_controlled(
+            collection,
+            index_name,
+            None,
+            controls,
+            &mut |manifest| {
+                let query = query.resolve(&ManifestVocabulary(manifest))?;
+                resolved_memory = Some(controls.reserve_query_memory(query.estimated_bytes())?);
+                let terms = query.positive_terms().to_vec();
+                resolved = Some(query);
+                Ok(terms)
+            },
+        )?;
+        match (resolved, resolved_memory) {
+            (Some(resolved), Some(memory)) => Ok((candidates, resolved, memory)),
+            _ => Err(CassieError::Execution(
+                "fulltext fallback:unresolved-query".to_string(),
+            )),
+        }
+    }
+
     fn fulltext_candidate_set_inner_controlled(
         &self,
         collection: &str,
@@ -340,6 +386,23 @@ impl Midge {
         terms: &[String],
         allowed_ids: Option<&BTreeSet<String>>,
         controls: &QueryExecutionControls,
+    ) -> Result<ControlledFulltextCandidateSet, CassieError> {
+        self.fulltext_candidate_set_resolving_controlled(
+            collection,
+            index_name,
+            allowed_ids,
+            controls,
+            &mut |_| Ok(terms.to_vec()),
+        )
+    }
+
+    fn fulltext_candidate_set_resolving_controlled(
+        &self,
+        collection: &str,
+        index_name: &str,
+        allowed_ids: Option<&BTreeSet<String>>,
+        controls: &QueryExecutionControls,
+        resolve_terms: &mut dyn FnMut(&FulltextManifest) -> Result<Vec<String>, CassieError>,
     ) -> Result<ControlledFulltextCandidateSet, CassieError> {
         check_controls(controls)?;
         let collection = self.canonical_collection_name(collection);
@@ -380,6 +443,7 @@ impl Midge {
         memory.try_grow(manifest_raw.len().saturating_mul(2))?;
         let manifest = codec::decode_manifest(&manifest_raw)?;
         validate_manifest_header(&metadata, &manifest)?;
+        let terms = resolve_terms(&manifest)?;
         let loaded = load_controlled_candidate_postings(
             &ControlledPostingReadContext {
                 midge: self,
@@ -390,7 +454,7 @@ impl Midge {
                 manifest: &manifest,
                 controls,
             },
-            terms,
+            &terms,
             &mut memory,
         )?;
         let row_schema = self.row_schema(&collection)?;

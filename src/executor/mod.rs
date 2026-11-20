@@ -196,6 +196,7 @@ pub fn set_vector_ann_rerank_barriers(
     let barriers = selected.zip(resume);
     execution::install_ann_rerank_barriers(cassie, barriers);
 }
+pub(crate) use execution::explain_filtered_strategy;
 pub(crate) use execution::rollup_rewrite_name_for_plan;
 pub(crate) use execution::vector_top_k_shape;
 pub(crate) use execution::{

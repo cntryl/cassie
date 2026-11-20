@@ -124,3 +124,19 @@ mod support_ranked_search;
 // Tenant-filtered hybrid ranking against the documented hybrid scoring contract.
 #[path = "vector_embeddings/hybrid/tenant_hybrid_ranking.rs"]
 mod tenant_hybrid_ranking;
+
+// Scalar-filtered vector candidates (#1363): fixture, standalone and hybrid suites.
+#[path = "support/vector_filtered.rs"]
+mod support_vector_filtered;
+
+#[path = "vector_embeddings/filtered/filtered_vector_selectivity.rs"]
+mod filtered_vector_selectivity;
+
+#[path = "vector_embeddings/filtered/filtered_vector_contract.rs"]
+mod filtered_vector_contract;
+
+#[path = "vector_embeddings/filtered/filtered_vector_snapshots.rs"]
+mod filtered_vector_snapshots;
+
+#[path = "vector_embeddings/hybrid/tenant_hybrid_candidates.rs"]
+mod tenant_hybrid_candidates;

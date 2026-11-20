@@ -27,7 +27,7 @@ fn local_config() -> CassieRuntimeConfig {
     config
 }
 
-fn open(path: &str) -> (Cassie, CassieSession) {
+pub(super) fn open(path: &str) -> (Cassie, CassieSession) {
     let cassie = Cassie::new_with_data_dir_and_config(path, local_config()).expect("open Cassie");
     crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("startup");
@@ -109,7 +109,7 @@ fn assert_serves_population(
     assert_matches_population(cassie, table, &rows, population, context);
 }
 
-fn assert_indexed_zero_fallback(
+pub(super) fn assert_indexed_zero_fallback(
     cassie: &Cassie,
     session: &CassieSession,
     table: &str,

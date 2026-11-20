@@ -12,6 +12,12 @@ mod build;
 pub(super) mod codec;
 #[path = "vector_indexes/controlled_normalized.rs"]
 mod controlled_normalized;
+#[path = "vector_indexes/generation_fence.rs"]
+mod generation_fence;
+use generation_fence::normalized_generation_is_current;
+#[path = "vector_indexes/incremental.rs"]
+mod incremental;
+pub(super) use incremental::{VectorBatchWork, VectorFieldWrites};
 #[path = "vector_indexes/ivfflat.rs"]
 mod ivfflat;
 #[path = "vector_indexes/math.rs"]
@@ -397,56 +403,6 @@ impl Midge {
         Ok((Self::vector_index_state_key(relation_id, field_id), value))
     }
 
-    pub(super) fn refresh_vector_index_states_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
-        row_schema: &super::RowSchema,
-        indexes: &[VectorIndexRecord],
-        records_by_field: &[(String, Vec<NormalizedVectorRecord>)],
-    ) -> Result<(), CassieError> {
-        for index in indexes {
-            let field_id = vector_field_id(row_schema, &index.field)?;
-            let records = records_by_field
-                .iter()
-                .find(|(field, _)| field == &index.field)
-                .map_or_else(Vec::new, |(_, records)| records.clone());
-            let state = match index.metadata.index_type {
-                crate::embeddings::VectorIndexType::Hnsw => VectorIndexState {
-                    built_generation: 0,
-                    hnsw_graph: Some(Self::build_hnsw_graph_from_records(index, records)),
-                    ivfflat_training: None,
-                },
-                crate::embeddings::VectorIndexType::IvfFlat => VectorIndexState {
-                    built_generation: 0,
-                    hnsw_graph: None,
-                    ivfflat_training: Some(Self::build_ivfflat_training_from_records(
-                        index, &records,
-                    )),
-                },
-                crate::embeddings::VectorIndexType::BruteForce => continue,
-            };
-            Self::write_vector_index_state_to_tx(tx, row_schema.relation_id, field_id, &state)?;
-            if let Some(graph) = state.hnsw_graph.as_ref() {
-                Self::write_hnsw_source_summary_to_tx(
-                    tx,
-                    row_schema.relation_id,
-                    field_id,
-                    0,
-                    graph,
-                )?;
-            } else if let Some(training) = state.ivfflat_training.as_ref() {
-                Self::write_vector_source_summary_to_tx(
-                    tx,
-                    row_schema.relation_id,
-                    field_id,
-                    0,
-                    training.source_fingerprint,
-                    training.row_count,
-                )?;
-            }
-        }
-        Ok(())
-    }
-
     pub(super) fn stamp_vector_index_states_generation_in_tx(
         &self,
         tx: &mut crate::midge::adapter::AdapterTransaction,
@@ -455,7 +411,7 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let row_schema = self.row_schema(collection)?;
         for index in self
-            .list_vector_indexes_canonical()?
+            .list_vector_index_definitions_canonical()?
             .into_iter()
             .filter(|index| index.collection == collection)
         {
@@ -483,28 +439,6 @@ impl Midge {
                     )
                     .map_err(CassieError::from)?;
                 }
-            }
-        }
-        Ok(())
-    }
-
-    pub(super) fn stamp_normalized_vectors_generation_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
-        row_schema: &super::RowSchema,
-        built_generation: u64,
-        records_by_field: &[(String, Vec<NormalizedVectorRecord>)],
-    ) -> Result<(), CassieError> {
-        for (field, records) in records_by_field {
-            let field_id = vector_field_id(row_schema, field)?;
-            for record in records {
-                let mut record = record.clone();
-                record.built_generation = built_generation;
-                tx.put(
-                    Self::normalized_vector_key(row_schema.relation_id, field_id, &record.id),
-                    encode_normalized_vector(&record)?,
-                    None,
-                )
-                .map_err(CassieError::from)?;
             }
         }
         Ok(())
@@ -867,10 +801,17 @@ impl Midge {
         }
 
         let generation = self.collection_generation(&collection)?;
-        if out
-            .iter()
-            .any(|record| record.built_generation != generation)
-        {
+        let floor = Self::decode_normalized_generation_floor(
+            self.begin_data_readonly_tx_for(&collection)?
+                .get(&super::key_encoding::normalized_vector_floor_key(
+                    relation_id,
+                    field_id,
+                ))
+                .map_err(CassieError::from)?,
+        )?;
+        if out.iter().any(|record| {
+            !normalized_generation_is_current(floor, record.built_generation, generation)
+        }) {
             return Ok(Vec::new());
         }
         out.sort_by(|left, right| left.id.cmp(&right.id));
@@ -898,7 +839,12 @@ impl Midge {
         };
 
         let mut record = decode_normalized_vector(&raw, &collection, field, id)?;
-        if record.built_generation != self.collection_generation(&collection)? {
+        let floor = Self::normalized_generation_floor(&tx, relation_id, field_id)?;
+        if !normalized_generation_is_current(
+            floor,
+            record.built_generation,
+            self.collection_generation(&collection)?,
+        ) {
             return Ok(None);
         }
         record.collection = requested_collection;

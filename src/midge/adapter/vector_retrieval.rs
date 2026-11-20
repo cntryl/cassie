@@ -295,6 +295,8 @@ fn load_controlled_ivfflat_vectors(
 > {
     let mut records = AccountedVec::try_new(context.controls)?;
     let mut reads = 0usize;
+    let floor =
+        Midge::normalized_generation_floor(context.tx, context.relation_id, context.field_id)?;
     for id in ids {
         check_ann_controls(context.controls)?;
         let Some(raw) = context
@@ -325,11 +327,9 @@ fn load_controlled_ivfflat_vectors(
         records.try_push_with_result(retained_bytes, || {
             super::codec::decode_normalized_vector(&raw, context.collection, context.field, &id)
         })?;
-        if records
-            .as_slice()
-            .last()
-            .is_some_and(|record| record.built_generation != generation)
-        {
+        if records.as_slice().last().is_some_and(|record| {
+            !super::normalized_generation_is_current(floor, record.built_generation, generation)
+        }) {
             return Err(CassieError::Execution(
                 "ivfflat fallback:stale-candidate-generation".to_string(),
             ));
@@ -585,6 +585,7 @@ impl Midge {
             }
         }
         let mut records = Vec::with_capacity(ids.len());
+        let floor = Self::normalized_generation_floor(&tx, relation_id, field_id)?;
         for id in ids {
             let Some(raw) = tx
                 .get(&key_encoding::normalized_vector_key(
@@ -599,7 +600,11 @@ impl Midge {
                 ));
             };
             let record = super::codec::decode_normalized_vector(&raw, &collection, field, &id)?;
-            if record.built_generation != summary.built_generation {
+            if !super::normalized_generation_is_current(
+                floor,
+                record.built_generation,
+                summary.built_generation,
+            ) {
                 return Err(CassieError::Execution(
                     "ivfflat fallback:stale-candidate-generation".to_string(),
                 ));

@@ -419,6 +419,21 @@ pub(super) fn hnsw_source_summary_key(relation_id: u64, field_id: u32) -> Vec<u8
     vector_hot_key(FAMILY_VECTOR_INDEX_STATE, relation_id, field_id, &[b"f"])
 }
 
+/// Generation of the last full normalized-vector publication for one field.
+///
+/// The field component carries a trailing marker byte, so the key sits beside
+/// the field's normalized vectors without falling inside their scan prefix, and
+/// under the collection prefix that drops them together.
+pub(super) fn normalized_vector_floor_key(relation_id: u64, field_id: u32) -> Vec<u8> {
+    let relation = encoded_u64_component(relation_id);
+    let mut field = field_id.to_be_bytes().to_vec();
+    field.push(b'g');
+    key(
+        FAMILY_NORMALIZED_VECTOR,
+        &[relation.as_slice(), field.as_slice()],
+    )
+}
+
 pub(super) fn vector_index_state_prefix(relation_id: u64) -> Vec<u8> {
     let relation = encoded_u64_component(relation_id);
     prefix(FAMILY_VECTOR_INDEX_STATE, &[relation.as_slice()])

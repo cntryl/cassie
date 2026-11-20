@@ -1,7 +1,10 @@
 use std::mem::size_of;
 
 use super::codec::normalized_vector_decoded_values_bytes;
-use super::{decode_normalized_vector, CassieError, Midge, NormalizedVectorRecord, Query};
+use super::{
+    decode_normalized_vector, normalized_generation_is_current, CassieError, Midge,
+    NormalizedVectorRecord, Query,
+};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 impl Midge {
@@ -24,6 +27,7 @@ impl Midge {
         let mut records = Vec::new();
         let mut memory = controls.reserve_query_memory(0)?;
         let generation = self.collection_generation(&collection)?;
+        let floor = Self::normalized_generation_floor(&tx, relation_id, field_id)?;
         for entry in scan {
             check_controls(controls)?;
             let (key, raw) = entry.map_err(CassieError::from)?;
@@ -60,7 +64,7 @@ impl Midge {
                     continue;
                 }
             };
-            if record.built_generation != generation {
+            if !normalized_generation_is_current(floor, record.built_generation, generation) {
                 return Ok((Vec::new(), controls.reserve_query_memory(0)?));
             }
             records.try_reserve_exact(1).map_err(|error| {
@@ -108,7 +112,12 @@ impl Midge {
             })?;
         let memory = controls.reserve_query_memory(bytes)?;
         let record = decode_normalized_vector(&raw, requested_collection, field, id)?;
-        if record.built_generation != self.collection_generation(&collection)? {
+        let floor = Self::normalized_generation_floor(&tx, relation_id, field_id)?;
+        if !normalized_generation_is_current(
+            floor,
+            record.built_generation,
+            self.collection_generation(&collection)?,
+        ) {
             return Ok(None);
         }
         check_controls(controls)?;

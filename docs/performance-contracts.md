@@ -679,6 +679,61 @@ See the [v0.5.0 qualification record](v0.5-release-qualification.md) and the
 [selected profile correction](https://github.com/cntryl/cassie/issues/1113#issuecomment-6879208650)
 and [operator scope amendment](https://github.com/cntryl/cassie/issues/1113#issuecomment-6879529857).
 
+### Paired storage-mode advantage harness (#1360)
+
+`BENCH_TIER3_STORAGE_MODES_MODE=paired` runs a second mode of the same bench
+binary. The default `qualification` mode and its ten cases are unchanged. Paired
+mode seeds one memory database and times both arms in the same process with the
+same query budget, result-cache setting (off) and worker count; each timed sample
+includes result materialization and the fingerprint check. Heap and column
+samples alternate (ABAB) and the report ratio is `heap_seconds / column_seconds`,
+so above 1 means the column arm is faster.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BENCH_TIER3_STORAGE_MODES_PROFILE` | `100k_256m` | `100k_256m` (256 MiB query budget, historical result checks), `100k_2g` (historical 2 GiB budget) or `1m` (opt-in 1,000,000 rows, 4 GiB query budget, 8 GiB/1 GiB native; declared, not yet qualified) |
+| `BENCH_TIER3_STORAGE_MODES_ROWS` / `_WIDE_ROWS` | profile / 100k | Override fact rows; rows in the wide pair `f_row_wide`/`f_col_wide` (eight narrow columns plus a 1 KiB unselected `payload TEXT`) |
+| `BENCH_TIER3_STORAGE_MODES_MEASUREMENT` | `0` | `1` enforces at least 5 warmup and 30 measured rounds and turns the heap-versus-heap control on; normal runs default to 1 and 5 |
+| `BENCH_TIER3_STORAGE_MODES_WARMUP` / `_SAMPLES` | 1 / 5 | Override rounds (raised to 5 / 30 in measurement mode) |
+| `BENCH_TIER3_STORAGE_MODES_CONTROL` | measurement | Time a second heap sample of each primary query to measure the noise band |
+| `BENCH_TIER3_STORAGE_MODES_BOOTSTRAP` | `2000` | Bootstrap resamples for the 95% confidence interval of the median paired ratio |
+| `BENCH_TIER3_STORAGE_MODES_STRICT` | `0` | `1` exits non-zero when a primary query loses the gate; otherwise a loss is printed and recorded |
+| `BENCH_TIER3_STORAGE_MODES_REQUIRE_VECTOR` | `0` | `1` asserts `column_vector=eligible`, `column_vector_batches_delta > 0`, `row_documents_delta == 0` and `fallback_reason=none` on the column arm; those tokens do not exist yet, so a missing token fails instead of being assumed |
+| `BENCH_TIER3_STORAGE_MODES_QUERIES` | all | Comma-separated name substrings to run (`amplification` and `footprint` select those probes) |
+| `BENCH_TIER3_STORAGE_MODES_FOOTPRINT` / `_FOOTPRINT_ROWS` / `_AMPLIFICATION_ROWS` | on / 100k / 20k | Local-mode disk footprint sub-run and write-amplification fixture size |
+| `BENCH_TIER3_STORAGE_MODES_OUT` | `target/storage_modes_paired.json` | JSON report: raw samples, p50/p95, bootstrap CI, evidence, gate result |
+
+Primary queries are the narrow projection and the filtered aggregate. The gate
+passes when the lower bound of the 95% bootstrap interval of the median paired
+ratio exceeds `1 + noise band`, where the band is the largest excursion from 1 of
+the heap-versus-heap control interval; a median of at least 1.25 is the reported
+target. Reported-only queries are the full scan, an aligned 1% selective range
+(for pruning), the four join orientations, the three wide-fact queries,
+COPY/UPDATE write amplification and local-mode disk footprint (a separate
+sub-run per arm, because it concerns on-disk layout). Cassie exposes no Midge
+write-byte counter, so amplification reports the `storage.data.writes` operation count (observed as 0 in the smoke run, so not yet a usable signal) and a
+memtable-byte-delta proxy per logical row. Before timing the harness asserts
+result equality between arms, the independent oracle, and EXPLAIN
+`storage_mode`, and records selected-field reads, ownership-validation reads,
+logical reads, `column_batches` counter deltas and the process peak query memory.
+
+Quiet-machine procedure for a recordable run:
+
+1. Pause other agent lanes, builds and indexers; use AC power; run under
+   `caffeinate -i`; start only when the load average is below 1 (`uptime`).
+2. Record `pmset -g therm` before and after the run; a thermal or CPU-limit
+   warning invalidates it.
+3. Build once: `cargo bench --locked --bench tier3_system_storage_modes --no-run`
+   (release profile), then run that single binary:
+   `caffeinate -i env BENCH_TIER3_STORAGE_MODES_MODE=paired BENCH_TIER3_STORAGE_MODES_MEASUREMENT=1 BENCH_TIER3_STORAGE_MODES_PROFILE=100k_256m cargo bench --locked --bench tier3_system_storage_modes`
+   and repeat with `BENCH_TIER3_STORAGE_MODES_PROFILE=1m` for the larger scale.
+4. Record host model, OS (`sw_vers`), `rustc -Vv`, the `cntryl-midge` version
+   from `Cargo.lock` and, for a path or git dependency, its commit, plus the
+   Cassie commit and the JSON report.
+
+A run taken without these conditions is labeled not-quiet and is evidence that
+the harness works, not an advantage measurement.
+
 When a scenario changes owners without changing behavior, it keeps its existing scenario ID. When a Tier 3 representative case is intentionally repeated as part of a Tier 5 curve, the scale case uses a distinct `perf.scale.*` ID.
 
 ## Typed Runners and Timing

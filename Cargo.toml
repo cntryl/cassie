@@ -279,3 +279,8 @@ pedantic = "warn"
 name = "tier5_scaling_graph"
 path = "benches/tier5_scaling_graph.rs"
 harness = false
+
+[[bench]]
+name = "relevance_cranfield"
+path = "benches/relevance_cranfield.rs"
+harness = false

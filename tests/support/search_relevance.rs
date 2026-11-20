@@ -69,49 +69,14 @@ pub fn load_judgments() -> Judgments {
         .expect("judgments.json is well formed")
 }
 
-fn count_f64(count: usize) -> f64 {
-    f64::from(u32::try_from(count).expect("count fits in u32"))
-}
+#[path = "relevance_metrics.rs"]
+mod relevance_metrics;
 
-fn gain(grade: u8) -> f64 {
-    f64::from(2_u32.pow(u32::from(grade))) - 1.0
-}
-
-fn discount(rank_from_one: usize) -> f64 {
-    count_f64(rank_from_one + 1).log2().recip()
-}
-
-/// nDCG@k with gain `2^grade - 1`; ungraded documents have grade 0. Zero when nothing is graded
-/// relevant (an unanswerable ideal).
-pub fn ndcg_at_k(ranked: &[String], grades: &BTreeMap<String, u8>, k: usize) -> f64 {
-    let dcg: f64 = ranked
-        .iter()
-        .take(k)
-        .enumerate()
-        .map(|(index, id)| gain(grades.get(id).copied().unwrap_or(0)) * discount(index + 1))
-        .sum();
-    let mut ideal: Vec<u8> = grades.values().copied().collect();
-    ideal.sort_unstable_by(|left, right| right.cmp(left));
-    let ideal_dcg: f64 = ideal
-        .iter()
-        .take(k)
-        .enumerate()
-        .map(|(index, grade)| gain(*grade) * discount(index + 1))
-        .sum();
-    if ideal_dcg == 0.0 {
-        0.0
-    } else {
-        dcg / ideal_dcg
-    }
-}
+pub use relevance_metrics::{count_f64, mrr_at_k_with_threshold, ndcg_at_k};
 
 /// Reciprocal rank of the first document graded `RELEVANT_GRADE` or above within the top `k`.
 pub fn mrr_at_k(ranked: &[String], grades: &BTreeMap<String, u8>, k: usize) -> f64 {
-    ranked
-        .iter()
-        .take(k)
-        .position(|id| grades.get(id).copied().unwrap_or(0) >= RELEVANT_GRADE)
-        .map_or(0.0, |index| 1.0 / count_f64(index + 1))
+    relevance_metrics::mrr_at_k_with_threshold(ranked, grades, k, RELEVANT_GRADE)
 }
 
 /// Checks a judgments file against the workload. An `unjudged` file must be empty.

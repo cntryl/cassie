@@ -320,6 +320,7 @@ dependencies = [
  "regex-automata",
  "regex-syntax",
  "reqwest",
+ "rust-stemmers",
  "rustls",
  "serde",
  "serde_json",

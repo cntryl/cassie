@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1818,
-    "rust_files": 1777,
-    "rust_test_declarations": 10804,
+    "files": 1829,
+    "rust_files": 1788,
+    "rust_test_declarations": 10839,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10829,
+    "registered_rust_instances": 10864,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -330301,6 +330301,533 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_contract.rs::should_fill_a_large_window_when_every_first_batch_candidate_is_foreign",
+      "name": "should_fill_a_large_window_when_every_first_batch_candidate_is_foreign",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
+      "line": 13,
+      "end_line": 35,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_contract::should_fill_a_large_window_when_every_first_batch_candidate_is_foreign"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_contract.rs::should_return_every_eligible_row_when_the_page_is_larger_than_the_subset",
+      "name": "should_return_every_eligible_row_when_the_page_is_larger_than_the_subset",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
+      "line": 43,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_contract::should_return_every_eligible_row_when_the_page_is_larger_than_the_subset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_contract.rs::should_recheck_a_residual_predicate_on_fetched_rows",
+      "name": "should_recheck_a_residual_predicate_on_fetched_rows",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
+      "line": 59,
+      "end_line": 76,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_contract::should_recheck_a_residual_predicate_on_fetched_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_contract.rs::should_degrade_to_the_exact_subset_when_a_selective_residual_underfills_the_ann_window",
+      "name": "should_degrade_to_the_exact_subset_when_a_selective_residual_underfills_the_ann_window",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
+      "line": 79,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_contract::should_degrade_to_the_exact_subset_when_a_selective_residual_underfills_the_ann_window"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_contract.rs::should_report_each_filtered_vector_strategy_in_explain",
+      "name": "should_report_each_filtered_vector_strategy_in_explain",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
+      "line": 99,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_contract::should_report_each_filtered_vector_strategy_in_explain"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_contract.rs::should_serve_bound_parameters_through_the_filtered_strategy",
+      "name": "should_serve_bound_parameters_through_the_filtered_strategy",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
+      "line": 148,
+      "end_line": 182,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_contract::should_serve_bound_parameters_through_the_filtered_strategy"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs::should_serve_one_percent_tenant_pages_exactly_from_the_scalar_subset_with_hnsw",
+      "name": "should_serve_one_percent_tenant_pages_exactly_from_the_scalar_subset_with_hnsw",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "line": 113,
+      "end_line": 115,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_selectivity::should_serve_one_percent_tenant_pages_exactly_from_the_scalar_subset_with_hnsw"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs::should_serve_ten_percent_tenant_pages_from_filtered_ann_windows_with_hnsw",
+      "name": "should_serve_ten_percent_tenant_pages_from_filtered_ann_windows_with_hnsw",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "line": 118,
+      "end_line": 120,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_selectivity::should_serve_ten_percent_tenant_pages_from_filtered_ann_windows_with_hnsw"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs::should_serve_half_tenant_pages_from_filtered_ann_windows_with_hnsw",
+      "name": "should_serve_half_tenant_pages_from_filtered_ann_windows_with_hnsw",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "line": 123,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_selectivity::should_serve_half_tenant_pages_from_filtered_ann_windows_with_hnsw"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs::should_serve_one_percent_tenant_pages_exactly_from_the_scalar_subset_with_ivfflat",
+      "name": "should_serve_one_percent_tenant_pages_exactly_from_the_scalar_subset_with_ivfflat",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "line": 128,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_selectivity::should_serve_one_percent_tenant_pages_exactly_from_the_scalar_subset_with_ivfflat"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs::should_serve_ten_percent_tenant_pages_from_filtered_ann_windows_with_ivfflat",
+      "name": "should_serve_ten_percent_tenant_pages_from_filtered_ann_windows_with_ivfflat",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "line": 133,
+      "end_line": 135,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_selectivity::should_serve_ten_percent_tenant_pages_from_filtered_ann_windows_with_ivfflat"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs::should_serve_half_tenant_pages_from_filtered_ann_windows_with_ivfflat",
+      "name": "should_serve_half_tenant_pages_from_filtered_ann_windows_with_ivfflat",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "line": 138,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_selectivity::should_serve_half_tenant_pages_from_filtered_ann_windows_with_ivfflat"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs::should_serve_tenant_pages_exactly_from_the_scalar_subset_given_no_vector_index",
+      "name": "should_serve_tenant_pages_exactly_from_the_scalar_subset_given_no_vector_index",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "line": 143,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_selectivity::should_serve_tenant_pages_exactly_from_the_scalar_subset_given_no_vector_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs::should_read_far_fewer_rows_than_an_unrestricted_exact_scan_given_one_percent_eligible",
+      "name": "should_read_far_fewer_rows_than_an_unrestricted_exact_scan_given_one_percent_eligible",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "line": 148,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_selectivity::should_read_far_fewer_rows_than_an_unrestricted_exact_scan_given_one_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_snapshots.rs::should_exclude_changed_rows_after_a_committed_update_plus_delete",
+      "name": "should_exclude_changed_rows_after_a_committed_update_plus_delete",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_snapshots.rs",
+      "line": 23,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_snapshots::should_exclude_changed_rows_after_a_committed_update_plus_delete"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_snapshots.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_snapshots.rs::should_keep_snapshots_isolated_across_a_rolled_back_transaction",
+      "name": "should_keep_snapshots_isolated_across_a_rolled_back_transaction",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_snapshots.rs",
+      "line": 64,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_snapshots::should_keep_snapshots_isolated_across_a_rolled_back_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_snapshots.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/filtered/filtered_vector_snapshots.rs::should_fail_with_a_resource_limit_rather_than_underfill_given_a_lowered_budget",
+      "name": "should_fail_with_a_resource_limit_rather_than_underfill_given_a_lowered_budget",
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_snapshots.rs",
+      "line": 125,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "filtered_vector_snapshots::should_fail_with_a_resource_limit_rather_than_underfill_given_a_lowered_budget"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/filtered_vector_snapshots.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/hybrid/hybrid_query.rs::should_order_hybrid_top_k_by_score_with_limit",
       "name": "should_order_hybrid_top_k_by_score_with_limit",
       "current_file": "tests/vector_embeddings/hybrid/hybrid_query.rs",
@@ -330642,11 +331169,197 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs::should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_one_percent_eligible",
+      "name": "should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_one_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+      "line": 120,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_candidates::should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_one_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs::should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_ten_percent_eligible",
+      "name": "should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_ten_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+      "line": 125,
+      "end_line": 127,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_candidates::should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_ten_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs::should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_half_eligible",
+      "name": "should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_half_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+      "line": 130,
+      "end_line": 132,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_candidates::should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_half_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs::should_follow_committed_changes_in_hybrid_tenant_pages",
+      "name": "should_follow_committed_changes_in_hybrid_tenant_pages",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+      "line": 135,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_candidates::should_follow_committed_changes_in_hybrid_tenant_pages"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs::should_keep_hybrid_snapshots_isolated_across_a_rolled_back_transaction",
+      "name": "should_keep_hybrid_snapshots_isolated_across_a_rolled_back_transaction",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+      "line": 170,
+      "end_line": 213,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_candidates::should_keep_hybrid_snapshots_isolated_across_a_rolled_back_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs::should_fail_hybrid_with_a_resource_limit_rather_than_leak_rows_given_a_lowered_budget",
+      "name": "should_fail_hybrid_with_a_resource_limit_rather_than_leak_rows_given_a_lowered_budget",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+      "line": 216,
+      "end_line": 256,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_candidates::should_fail_hybrid_with_a_resource_limit_rather_than_leak_rows_given_a_lowered_budget"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible",
       "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 160,
-      "end_line": 162,
+      "line": 163,
+      "end_line": 165,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330676,8 +331389,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible",
       "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 165,
-      "end_line": 167,
+      "line": 168,
+      "end_line": 170,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330707,8 +331420,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible",
       "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 170,
-      "end_line": 172,
+      "line": 173,
+      "end_line": 175,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330738,8 +331451,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_keep_hybrid_eligibility_moving_scores_given_a_term_change_in_another_tenant",
       "name": "should_keep_hybrid_eligibility_moving_scores_given_a_term_change_in_another_tenant",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 175,
-      "end_line": 216,
+      "line": 178,
+      "end_line": 219,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330769,8 +331482,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_follow_hybrid_moves_through_rollback_with_commit",
       "name": "should_follow_hybrid_moves_through_rollback_with_commit",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 219,
-      "end_line": 270,
+      "line": 222,
+      "end_line": 273,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330800,8 +331513,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_after_reopen_with_after_a_damaged_text_artifact",
       "name": "should_rank_hybrid_after_reopen_with_after_a_damaged_text_artifact",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 273,
-      "end_line": 310,
+      "line": 276,
+      "end_line": 313,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330831,8 +331544,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible",
       "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 337,
-      "end_line": 339,
+      "line": 340,
+      "end_line": 342,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330862,8 +331575,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible",
       "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 342,
-      "end_line": 344,
+      "line": 345,
+      "end_line": 347,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330893,8 +331606,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible",
       "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 347,
-      "end_line": 349,
+      "line": 350,
+      "end_line": 352,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330924,8 +331637,8 @@
       "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_record_vector_candidates_given_an_ann_served_hybrid_query",
       "name": "should_record_vector_candidates_given_an_ann_served_hybrid_query",
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
-      "line": 356,
-      "end_line": 389,
+      "line": 359,
+      "end_line": 392,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -330946,6 +331659,378 @@
         "category": "hybrid",
         "directory": "tests/vector_embeddings/hybrid",
         "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/bounded_rebuild.rs::should_publish_an_index_larger_than_one_transaction_budget_in_bounded_batches",
+      "name": "should_publish_an_index_larger_than_one_transaction_budget_in_bounded_batches",
+      "current_file": "tests/vector_embeddings/indexes/churn/bounded_rebuild.rs",
+      "line": 33,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::bounded_rebuild::should_publish_an_index_larger_than_one_transaction_budget_in_bounded_batches"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/bounded_rebuild.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/bounded_rebuild.rs::should_rewrite_only_changed_artifacts_when_rebuilding_an_unchanged_large_index",
+      "name": "should_rewrite_only_changed_artifacts_when_rebuilding_an_unchanged_large_index",
+      "current_file": "tests/vector_embeddings/indexes/churn/bounded_rebuild.rs",
+      "line": 113,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::bounded_rebuild::should_rewrite_only_changed_artifacts_when_rebuilding_an_unchanged_large_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/bounded_rebuild.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/churn_sequence.rs::should_match_the_eligible_population_through_a_seeded_churn_sequence",
+      "name": "should_match_the_eligible_population_through_a_seeded_churn_sequence",
+      "current_file": "tests/vector_embeddings/indexes/churn/churn_sequence.rs",
+      "line": 161,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::churn_sequence::should_match_the_eligible_population_through_a_seeded_churn_sequence"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/churn_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/publication_barriers.rs::should_label_a_paused_reader_with_the_generation_it_read_after_each_committed_write",
+      "name": "should_label_a_paused_reader_with_the_generation_it_read_after_each_committed_write",
+      "current_file": "tests/vector_embeddings/indexes/churn/publication_barriers.rs",
+      "line": 66,
+      "end_line": 121,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::publication_barriers::should_label_a_paused_reader_with_the_generation_it_read_after_each_committed_write"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "publication",
+        "directory": "tests/vector_embeddings/publication",
+        "file": "tests/vector_embeddings/publication/publication_barriers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/publication_barriers.rs::should_discard_the_attempt_counters_when_a_candidate_row_is_missing",
+      "name": "should_discard_the_attempt_counters_when_a_candidate_row_is_missing",
+      "current_file": "tests/vector_embeddings/indexes/churn/publication_barriers.rs",
+      "line": 147,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::publication_barriers::should_discard_the_attempt_counters_when_a_candidate_row_is_missing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "publication",
+        "directory": "tests/vector_embeddings/publication",
+        "file": "tests/vector_embeddings/publication/publication_barriers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/publication_barriers.rs::should_serve_the_attempt_when_an_aborted_write_leaves_the_generation_unchanged",
+      "name": "should_serve_the_attempt_when_an_aborted_write_leaves_the_generation_unchanged",
+      "current_file": "tests/vector_embeddings/indexes/churn/publication_barriers.rs",
+      "line": 194,
+      "end_line": 247,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::publication_barriers::should_serve_the_attempt_when_an_aborted_write_leaves_the_generation_unchanged"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "publication",
+        "directory": "tests/vector_embeddings/publication",
+        "file": "tests/vector_embeddings/publication/publication_barriers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/publication_barriers.rs::should_serve_the_previous_generation_while_a_write_waits_at_index_publication",
+      "name": "should_serve_the_previous_generation_while_a_write_waits_at_index_publication",
+      "current_file": "tests/vector_embeddings/indexes/churn/publication_barriers.rs",
+      "line": 250,
+      "end_line": 315,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::publication_barriers::should_serve_the_previous_generation_while_a_write_waits_at_index_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "publication",
+        "directory": "tests/vector_embeddings/publication",
+        "file": "tests/vector_embeddings/publication/publication_barriers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/publication_barriers.rs::should_keep_serving_the_published_index_while_a_rebuild_waits_to_publish",
+      "name": "should_keep_serving_the_published_index_while_a_rebuild_waits_to_publish",
+      "current_file": "tests/vector_embeddings/indexes/churn/publication_barriers.rs",
+      "line": 318,
+      "end_line": 390,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::publication_barriers::should_keep_serving_the_published_index_while_a_rebuild_waits_to_publish"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "publication",
+        "directory": "tests/vector_embeddings/publication",
+        "file": "tests/vector_embeddings/publication/publication_barriers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs::should_reopen_the_rebuilt_generation_with_zero_fallback_after_reclaiming_obsolete_artifacts",
+      "name": "should_reopen_the_rebuilt_generation_with_zero_fallback_after_reclaiming_obsolete_artifacts",
+      "current_file": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs",
+      "line": 159,
+      "end_line": 232,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::restart_lifecycle::should_reopen_the_rebuilt_generation_with_zero_fallback_after_reclaiming_obsolete_artifacts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/restart_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs::should_keep_the_prior_index_when_a_rebuild_is_interrupted_before_manifest_publication",
+      "name": "should_keep_the_prior_index_when_a_rebuild_is_interrupted_before_manifest_publication",
+      "current_file": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs",
+      "line": 235,
+      "end_line": 306,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::restart_lifecycle::should_keep_the_prior_index_when_a_rebuild_is_interrupted_before_manifest_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/restart_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs::should_reopen_a_usable_current_index_when_a_rebuild_is_interrupted_after_manifest_publication",
+      "name": "should_reopen_a_usable_current_index_when_a_rebuild_is_interrupted_after_manifest_publication",
+      "current_file": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs",
+      "line": 309,
+      "end_line": 366,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::restart_lifecycle::should_reopen_a_usable_current_index_when_a_rebuild_is_interrupted_after_manifest_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/restart_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs::should_take_the_diagnosed_fallback_for_stale_state_then_return_to_indexed_service",
+      "name": "should_take_the_diagnosed_fallback_for_stale_state_then_return_to_indexed_service",
+      "current_file": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs",
+      "line": 369,
+      "end_line": 444,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::restart_lifecycle::should_take_the_diagnosed_fallback_for_stale_state_then_return_to_indexed_service"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/restart_lifecycle.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -362391,6 +363476,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/vector_filtered.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 432,
+      "sha256": "6980a9addb5eff235fe56f81173c5c05787bf6b44f897791eb4f2aaced5dd31b",
+      "test_declarations": 0,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/support/vector_filtered.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/vector_publication.rs",
       "role": "shared_support",
       "action": "keep",
@@ -362588,6 +363688,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 182,
+      "sha256": "3230bf976a078e37e7c366c5d50695fda3aab320edb4a563154ab7f9dbee7e5b",
+      "test_declarations": 6,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/filtered_vector.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_selectivity.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 166,
+      "sha256": "8b69813e942b250e9b6ea11f0c5e40f8338b827d5b8eee5b4fcf1051642bf0ed",
+      "test_declarations": 8,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/filtered_vector_selectivity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/filtered/filtered_vector_snapshots.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 186,
+      "sha256": "a7056fa5bb18e6f61e266b4a39f51192140648f017bb4b82072e0e6e00bddda2",
+      "test_declarations": 3,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/filtered_vector_snapshots.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/hybrid/hybrid_query.rs",
       "role": "test_module",
       "action": "keep",
@@ -362603,17 +363748,122 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 256,
+      "sha256": "c885acdb87bc78d5389a0b78053f9f104b3994906d7e804d5f35275b2216abff",
+      "test_declarations": 6,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/hybrid/tenant_hybrid_candidates.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 389,
-      "sha256": "de217a0826ddf1136ab9535981b56e6cb40c5741be05c8842696b2a985a42b43",
+      "lines": 392,
+      "sha256": "be885a32d6c30aa4b8bd5d738f67520306387731326fd7cfd078e8f38494924f",
       "test_declarations": 10,
       "registered_suites": [
         "vector_embeddings"
       ],
       "destinations": [
         "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/indexes/churn/bounded_rebuild.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 150,
+      "sha256": "3206f0821193263a5b98c99ab73ea8236d69a347a3d84c13aaa839d619f63822",
+      "test_declarations": 2,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/bounded_rebuild.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/indexes/churn/churn_sequence.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 211,
+      "sha256": "37afd9a93517644d3cb8094bf7965df1eb7e1a88fbcb7667eca39f4d50715571",
+      "test_declarations": 1,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/churn_sequence.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/indexes/churn/mod.rs",
+      "role": "module_registration",
+      "action": "keep",
+      "lines": 7,
+      "sha256": "8a2ceffab7cf74b308a44abc88e14a274efbbe2567fd0f6a776052c72bde4f8f",
+      "test_declarations": 0,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/indexes/churn/mod.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/indexes/churn/publication_barriers.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 390,
+      "sha256": "04dc5096d32a98dc52c1e4fe8d318cc8f8396c01a22f4c32c1723b8b340d86f2",
+      "test_declarations": 5,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/publication/publication_barriers.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/indexes/churn/restart_lifecycle.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 444,
+      "sha256": "cb52cadbacf258109f55c85fdaa023440062b24db7a0e0d4426d22d0b5a1563b",
+      "test_declarations": 4,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/restart_lifecycle.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/indexes/churn/support.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 344,
+      "sha256": "ac6e79e2a48b857c5f974334662176ef16f50adfc3dc5a3b1fe51b7785c42616",
+      "test_declarations": 0,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/indexes/churn/support.rs"
       ],
       "line_limit": 1000
     },
@@ -363071,8 +364321,8 @@
       "current_file": "tests/vector_embeddings.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 122,
-      "sha256": "651605dc9c2fab25fc52e83a16c24cfd1e78029aefaa2d7c5be069e36db858ca",
+      "lines": 142,
+      "sha256": "4ccf6585bcbcedbc1762d1a16213c62386763edeae28e1d1936b36372f6bad46",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"

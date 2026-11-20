@@ -95,7 +95,10 @@ pub(super) fn chunk_sidecar_ops(
     }
     let final_cost = final_ops.iter().map(SidecarOp::cost).sum::<usize>();
     // A rebuild that fits one transaction publishes atomically. A larger one
-    // stages every artifact first and publishes the manifest alone, last.
+    // first unpublishes the records it will republish (the manifest and source
+    // summary), so readers take the labelled exact fallback instead of walking
+    // artifacts that are being rewritten in place; it then stages every
+    // artifact and publishes the manifest alone, last.
     let atomic = chunks.is_empty()
         && cost.saturating_add(final_cost) <= byte_budget
         && current.len().saturating_add(final_ops.len()) <= max_ops;
@@ -104,6 +107,16 @@ pub(super) fn chunk_sidecar_ops(
     } else {
         if !current.is_empty() {
             chunks.push(std::mem::take(&mut current));
+        }
+        let unpublish = final_ops
+            .iter()
+            .filter_map(|op| match op {
+                SidecarOp::Put(key, _) => Some(SidecarOp::Delete(key.clone())),
+                SidecarOp::Delete(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if !unpublish.is_empty() && !chunks.is_empty() {
+            chunks.insert(0, unpublish);
         }
         current = final_ops;
     }
@@ -372,8 +385,15 @@ mod tests {
         let chunks = chunk_sidecar_ops(ops, final_ops.clone(), 4_000, 5_000);
 
         // Assert
-        assert_eq!(chunks.len(), 2);
-        assert_eq!(chunks[1], final_ops);
+        let unpublish = final_ops
+            .iter()
+            .map(|op| match op {
+                SidecarOp::Put(key, _) | SidecarOp::Delete(key) => SidecarOp::Delete(key.clone()),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0], unpublish, "the published records go first");
+        assert_eq!(chunks[2], final_ops);
     }
 
     #[test]

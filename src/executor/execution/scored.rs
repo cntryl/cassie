@@ -26,6 +26,8 @@ mod persisted_search;
 mod posting_candidates;
 #[path = "scored/search_arguments.rs"]
 mod search_arguments;
+#[path = "scored/vector_filtered.rs"]
+mod vector_filtered;
 #[path = "scored/vector_topk.rs"]
 mod vector_topk;
 
@@ -37,6 +39,7 @@ use posting_candidates::{posting_list_candidate_ids_controlled, PostingListDocum
 use search_arguments::{
     search_function_args_with_params, search_predicate_args_with_params, search_query_function_args,
 };
+pub(crate) use vector_topk::explain_filtered_strategy;
 pub(crate) use vector_topk::install_ann_rerank_barriers;
 pub(crate) use vector_topk::vector_top_k_shape;
 use vector_topk::{
@@ -483,6 +486,7 @@ pub(super) struct FulltextFilteredReadSpec {
     offset: usize,
 }
 
+#[derive(Clone)]
 struct HybridTopKSpec {
     collection: String,
     text_field: String,

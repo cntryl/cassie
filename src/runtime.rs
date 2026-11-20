@@ -89,8 +89,12 @@ mod snapshot_metrics;
 mod snapshots;
 #[path = "runtime/time_series_metrics.rs"]
 mod time_series_metrics;
+#[path = "runtime/vector_filtered_metrics.rs"]
+mod vector_filtered_metrics;
 #[path = "runtime/vector_metrics.rs"]
 mod vector_metrics;
+pub(crate) use vector_filtered_metrics::FilteredVectorWork;
+pub use vector_filtered_metrics::VectorFilteredSnapshot;
 
 use cache_state::ExecutionResultCacheState;
 pub(crate) use controls::OrderedJoinCounts;
@@ -160,6 +164,7 @@ struct RuntimeMetricsState {
     projections: ProjectionSnapshot,
     retention: RetentionSnapshot,
     read_paths: ReadPathSnapshot,
+    vector_filtered: VectorFilteredSnapshot,
 }
 
 #[derive(Debug, Clone)]

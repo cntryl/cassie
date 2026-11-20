@@ -16,12 +16,15 @@ mod candidate;
 mod diagnostics;
 #[path = "vector_topk/exact.rs"]
 mod exact;
+#[path = "vector_topk/filtered.rs"]
+mod filtered;
 #[path = "vector_topk/hnsw.rs"]
 mod hnsw;
 #[path = "vector_topk/ivfflat.rs"]
 mod ivfflat;
 
 pub(crate) use diagnostics::install_ann_rerank_barriers;
+pub(crate) use filtered::explain_filtered_strategy;
 
 pub(crate) fn execute_vector_distance_top_k(
     cassie: &Cassie,
@@ -40,7 +43,13 @@ pub(crate) fn execute_vector_distance_top_k(
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
     if spec.payload_id_column.is_some() {
-        return execute_operator_vector_top_k(cassie, session, &schema, &spec, plan, controls);
+        return execute_operator_vector_top_k(
+            cassie,
+            session,
+            &schema,
+            &spec,
+            (plan, user_functions, params, controls),
+        );
     }
     let stored_vector_field = validate_vector_top_k_dimensions(&schema, &spec)?;
     if spec.limit == 0 {
@@ -53,7 +62,22 @@ pub(crate) fn execute_vector_distance_top_k(
             &spec,
             &stored_vector_field,
         )?;
-    } else if plan.filter.is_none() {
+    } else if let Some(filter_expr) = plan.filter.as_ref() {
+        let request = filtered::FilteredVectorRequest {
+            session,
+            stored_vector_field: &stored_vector_field,
+            user_functions,
+            params,
+            filter_expr,
+            controls,
+        };
+        if let Some(rows) =
+            filtered::execute_filtered_vector_top_k(cassie, &spec, &request, started_at)?
+        {
+            return Ok(Some(rows));
+        }
+        diagnostics::record_filtered_ann_exact_fallback(cassie, &spec, &stored_vector_field)?;
+    } else {
         if let Some(rows) =
             hnsw::execute_hnsw_vector_top_k(cassie, session, &spec, &stored_vector_field, controls)?
         {
@@ -68,8 +92,6 @@ pub(crate) fn execute_vector_distance_top_k(
         )? {
             return Ok(Some(rows));
         }
-    } else {
-        diagnostics::record_filtered_ann_exact_fallback(cassie, &spec, &stored_vector_field)?;
     }
 
     exact::execute_exact_vector_top_k(
@@ -94,9 +116,14 @@ fn execute_operator_vector_top_k(
     session: Option<&CassieSession>,
     schema: &crate::catalog::CollectionSchema,
     spec: &VectorDistanceTopKSpec,
-    plan: &LogicalPlan,
-    controls: &QueryExecutionControls,
+    inputs: (
+        &LogicalPlan,
+        &HashMap<String, FunctionMeta>,
+        &[Value],
+        &QueryExecutionControls,
+    ),
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let (plan, user_functions, params, controls) = inputs;
     let Some(column) = spec.payload_id_column.as_ref() else {
         return Ok(None);
     };
@@ -119,15 +146,30 @@ fn execute_operator_vector_top_k(
         return Ok(None);
     };
     if spec.query.len() != *dimensions
-        || plan.filter.is_some()
         || session.is_some_and(|session| session.has_collection_changes(&spec.collection))
     {
         return Ok(None);
     }
     let stored_vector_field = field.name.clone();
-    let mut rows =
-        hnsw::execute_hnsw_vector_top_k(cassie, session, spec, &stored_vector_field, controls)?;
-    if rows.is_none() {
+    let mut rows = if let Some(filter_expr) = plan.filter.as_ref() {
+        let request = filtered::FilteredVectorRequest {
+            session,
+            stored_vector_field: &stored_vector_field,
+            user_functions,
+            params,
+            filter_expr,
+            controls,
+        };
+        filtered::execute_filtered_vector_top_k(
+            cassie,
+            spec,
+            &request,
+            std::time::Instant::now(),
+        )?
+    } else {
+        hnsw::execute_hnsw_vector_top_k(cassie, session, spec, &stored_vector_field, controls)?
+    };
+    if rows.is_none() && plan.filter.is_none() {
         rows = ivfflat::execute_ivfflat_vector_top_k(
             cassie,
             session,

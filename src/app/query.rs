@@ -826,7 +826,13 @@ impl Cassie {
         )?;
         crate::executor::check_plan_constants(&physical.logical, controls)?;
         let graph = super::query_explain::graph_lines(self, Some(session), &physical);
-        let mut plan = super::query_explain::plan_line(self, &physical, &graph, controls)?;
+        let mut plan = super::query_explain::plan_line(
+            self,
+            &physical,
+            &graph,
+            (Some(session), &params),
+            controls,
+        )?;
         let mut structured =
             super::query_explain::structured_plan(self, &physical, &graph, controls)?;
 

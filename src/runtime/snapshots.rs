@@ -1,4 +1,4 @@
-use super::{BTreeMap, Serialize};
+use super::{BTreeMap, Serialize, VectorFilteredSnapshot};
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct RuntimeSnapshot {
@@ -444,4 +444,5 @@ pub struct RuntimeMetricsSnapshot {
     pub projections: ProjectionSnapshot,
     pub retention: RetentionSnapshot,
     pub read_paths: ReadPathSnapshot,
+    pub vector_filtered: VectorFilteredSnapshot,
 }

@@ -1,5 +1,6 @@
 use super::allocation::PlanAllocation;
-use crate::app::CassieError;
+use crate::app::{CassieError, CassieSession};
+use crate::types::Value;
 use crate::sql::ast::{CteQuery, Expr, SelectItem};
 
 use super::super::{vector_prefilter_fallback_reason, vector_prefilter_supported, Cassie};
@@ -9,6 +10,7 @@ pub(super) fn plan_line(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
     graph: &[String],
+    runtime: (Option<&CassieSession>, &[Value]),
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<String, CassieError> {
     let mut sections = allocation.vector(11)?;
@@ -21,7 +23,7 @@ pub(super) fn plan_line(
     sections.push(vectorized_join_section(cassie, physical, allocation)?);
     sections.push(acceleration_section(cassie, physical, allocation)?);
     sections.push(cost_section(physical, allocation)?);
-    if let Some(section) = vector_ann_section(cassie, physical, allocation)? {
+    if let Some(section) = vector_ann_section(cassie, physical, runtime, allocation)? {
         sections.push(section);
     }
     if !graph.is_empty() {
@@ -35,6 +37,7 @@ pub(super) fn plan_line(
 fn vector_ann_section(
     cassie: &Cassie,
     physical: &crate::planner::physical::PhysicalPlan,
+    runtime: (Option<&CassieSession>, &[Value]),
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<Option<String>, CassieError> {
     let Some(shape) = crate::executor::vector_top_k_shape(&physical.logical) else {
@@ -60,6 +63,27 @@ fn vector_ann_section(
             record.metadata.metric.as_str(),
         )
     });
+    if shape.filtered && !matches!(kind, "none" | "bruteforce") {
+        let explained = crate::executor::explain_filtered_strategy(
+            cassie,
+            runtime.0,
+            &shape,
+            (&physical.logical, runtime.1, allocation.controls()),
+            &field.name,
+        )
+        .map_err(CassieError::from)?;
+        let subset = explained
+            .subset
+            .map_or_else(|| "none".to_string(), |subset| subset.to_string());
+        return allocation
+            .format(format_args!(
+                "vector_ann={} vector_ann_reason={} vector_filter_subset={subset} vector_ann_index={kind} vector_ann_index_metric={index_metric} vector_ann_query_metric={}",
+                explained.strategy,
+                explained.reason,
+                shape.metric.as_str()
+            ))
+            .map(Some);
+    }
     let reason = if matches!(kind, "none" | "bruteforce") {
         "no-ann-index"
     } else if shape.filtered {

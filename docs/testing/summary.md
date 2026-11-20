@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1852 |
-| Rust files | 1808 |
-| Rust test declarations | 10951 |
+| Files under `tests/` | 1853 |
+| Rust files | 1809 |
+| Rust test declarations | 10961 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10976 |
+| Static Rust registration instances | 10986 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -72,7 +72,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
 | [test_inventory](inventory/test_inventory.md) | 6 | 0 |
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |
-| [vector_embeddings](inventory/vector_embeddings.md) | 266 | 0 |
+| [vector_embeddings](inventory/vector_embeddings.md) | 276 | 0 |
 
 ## Cargo targets
 

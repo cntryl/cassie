@@ -27,6 +27,7 @@ pub struct Midge {
     pub(super) publication: super::publication::PublicationCoordinator,
     query_scan_entries: AtomicU64,
     column_validation_reads: AtomicU64,
+    column_field_reads: super::ColumnFieldReadCounters,
     pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
     pub(super) fulltext_maintenance_metrics: super::fulltext_retrieval::FulltextMaintenanceMetrics,
     pub(super) vector_index_maintenance_metrics:
@@ -133,6 +134,7 @@ impl Midge {
             publication: super::publication::PublicationCoordinator::default(),
             query_scan_entries: AtomicU64::new(0),
             column_validation_reads: AtomicU64::new(0),
+            column_field_reads: super::ColumnFieldReadCounters::default(),
             column_batch_operational_metrics: Mutex::new(
                 super::ColumnBatchOperationalMetrics::default(),
             ),
@@ -270,6 +272,18 @@ impl Midge {
     #[must_use]
     pub fn column_validation_reads_for_diagnostics(&self) -> u64 {
         self.column_validation_reads.load(Ordering::Relaxed)
+    }
+
+    /// Field payload fetches, decodes and retained value bytes of column
+    /// table reads, separate from marker reads and ownership validation reads.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn column_field_reads_for_diagnostics(&self) -> super::ColumnFieldReadSnapshot {
+        self.column_field_reads.snapshot()
+    }
+
+    pub(super) fn column_field_reads(&self) -> &super::ColumnFieldReadCounters {
+        &self.column_field_reads
     }
 
     pub(super) fn record_column_validation_read(&self) {

@@ -3,6 +3,7 @@ use super::{
     CollectionStorageMode, FieldConstraint, HashSet, IndexKind, IndexMeta, Midge, ProjectionMeta,
     Query, RowFilter, RowSchema, Schema,
 };
+pub(super) mod field_selection;
 #[cfg(test)]
 mod golden_tests;
 mod rows;

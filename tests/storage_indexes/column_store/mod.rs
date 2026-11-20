@@ -11,6 +11,7 @@ mod corruption;
 mod images;
 mod no_row_blob;
 mod restart;
+mod selected_fields;
 
 pub struct Env {
     pub cassie: Cassie,

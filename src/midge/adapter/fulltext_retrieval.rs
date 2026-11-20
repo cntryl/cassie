@@ -858,6 +858,25 @@ impl Midge {
     }
 }
 
+/// Analyzes one document's text into the persisted per-document statistics.
+pub(crate) fn analyze_document_statistics(
+    analyzer: &AnalyzerConfig,
+    text: &str,
+) -> PersistedFulltextDocumentStats {
+    let mut term_counts = BTreeMap::new();
+    for token in analyzer.analyze(text) {
+        term_counts
+            .entry(token)
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
+    }
+    let doc_length = term_counts.values().sum::<usize>();
+    PersistedFulltextDocumentStats {
+        doc_length,
+        term_counts,
+    }
+}
+
 fn build_state(
     index: &IndexMeta,
     generation: u64,
@@ -877,17 +896,9 @@ fn build_state(
         else {
             continue;
         };
-        let tokens = analyzer.analyze(text);
-        let mut counts = BTreeMap::new();
-        for token in tokens {
-            counts
-                .entry(token)
-                .and_modify(|count| *count += 1)
-                .or_insert(1);
-        }
-        let doc_length = counts.values().sum::<usize>();
-        total_length += doc_length;
-        for (term, term_frequency) in &counts {
+        let stats = analyze_document_statistics(&analyzer, text);
+        total_length += stats.doc_length;
+        for (term, term_frequency) in &stats.term_counts {
             postings
                 .entry(term.clone())
                 .or_default()
@@ -896,13 +907,7 @@ fn build_state(
                     term_frequency: *term_frequency,
                 });
         }
-        document_stats.insert(
-            document_id,
-            PersistedFulltextDocumentStats {
-                doc_length,
-                term_counts: counts,
-            },
-        );
+        document_stats.insert(document_id, stats);
     }
     let documents_with_text = document_stats.len();
     for values in postings.values_mut() {

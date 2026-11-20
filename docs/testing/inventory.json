@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1833,
-    "rust_files": 1792,
-    "rust_test_declarations": 10858,
+    "files": 1839,
+    "rust_files": 1796,
+    "rust_test_declarations": 10870,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10883,
+    "registered_rust_instances": 10895,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -237030,6 +237030,378 @@
       }
     },
     {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_describe_an_unredistributed_collection_pinned_by_digest",
+      "name": "should_describe_an_unredistributed_collection_pinned_by_digest",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 25,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_describe_an_unredistributed_collection_pinned_by_digest"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_state_an_evaluation_contract_that_matches_the_reference_implementation",
+      "name": "should_state_an_evaluation_contract_that_matches_the_reference_implementation",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 59,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_state_an_evaluation_contract_that_matches_the_reference_implementation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_keep_the_documented_level_mapping_consistent_with_the_code",
+      "name": "should_keep_the_documented_level_mapping_consistent_with_the_code",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 83,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_keep_the_documented_level_mapping_consistent_with_the_code"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_grade_a_stronger_level_higher_with_no_interest_as_unjudged",
+      "name": "should_grade_a_stronger_level_higher_with_no_interest_as_unjudged",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 103,
+      "end_line": 117,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_grade_a_stronger_level_higher_with_no_interest_as_unjudged"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_not_count_historical_interest_toward_mrr_but_count_it_toward_ndcg",
+      "name": "should_not_count_historical_interest_toward_mrr_but_count_it_toward_ndcg",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 120,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_not_count_historical_interest_toward_mrr_but_count_it_toward_ndcg"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_parse_documents_with_continuation_lines_joined",
+      "name": "should_parse_documents_with_continuation_lines_joined",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 142,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_parse_documents_with_continuation_lines_joined"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_number_queries_by_position_when_source_ids_skip",
+      "name": "should_number_queries_by_position_when_source_ids_skip",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 168,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_number_queries_by_position_when_source_ids_skip"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_parse_qrels_into_grades_per_query_position",
+      "name": "should_parse_qrels_into_grades_per_query_position",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 187,
+      "end_line": 199,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_parse_qrels_into_grades_per_query_position"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_reject_malformed_qrels_lines",
+      "name": "should_reject_malformed_qrels_lines",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 202,
+      "end_line": 214,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_reject_malformed_qrels_lines"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_analyze_like_the_documented_default_analyzer",
+      "name": "should_analyze_like_the_documented_default_analyzer",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 217,
+      "end_line": 226,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_analyze_like_the_documented_default_analyzer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_score_the_reference_by_hand_computed_bm25",
+      "name": "should_score_the_reference_by_hand_computed_bm25",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 229,
+      "end_line": 246,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_score_the_reference_by_hand_computed_bm25"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/cranfield_workload.rs::should_agree_with_cassie_on_a_tiny_cranfield_format_collection",
+      "name": "should_agree_with_cassie_on_a_tiny_cranfield_format_collection",
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "line": 249,
+      "end_line": 309,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "cranfield_workload::should_agree_with_cassie_on_a_tiny_cranfield_format_collection"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/cranfield_workload.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_highlight_accent_folded_matches_in_snippet",
       "name": "should_highlight_accent_folded_matches_in_snippet",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
@@ -342973,6 +343345,32 @@
       "line_limit": null
     },
     {
+      "current_file": "tests/corpus/search_relevance/cranfield/README.md",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 29,
+      "sha256": "54f71802f95efb6abfd23d6905d2153fa68a87d46356c425117c650e11c2591c",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/cranfield/README.md"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/cranfield/manifest.json",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 70,
+      "sha256": "c6d07d931b5e40d4119c79e0322ccdc8484f5ce3ffe38cf43d7ef88f64648bc9",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/cranfield/manifest.json"
+      ],
+      "line_limit": null
+    },
+    {
       "current_file": "tests/corpus/search_relevance/v1/README.md",
       "role": "oracle_data",
       "action": "keep",
@@ -356649,6 +357047,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/retrieval/cranfield_workload.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 309,
+      "sha256": "76019d6a3e17d9d5654c007e7b5621b7d9de763f22bef7deba3d10866a7c8483",
+      "test_declarations": 12,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/cranfield_workload.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
       "role": "test_module",
       "action": "keep",
@@ -356922,8 +357335,8 @@
       "current_file": "tests/search.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 105,
-      "sha256": "5a6388c3c4a3938ad4f20e2861b5a8d6783a6df7c4e4cde28482bd10b5142d4a",
+      "lines": 114,
+      "sha256": "b072e20bd55f90519ee80f66cfc67214e2b4e50ba018dc720f1e1174f9572e77",
       "test_declarations": 0,
       "registered_suites": [
         "search"
@@ -362815,6 +363228,36 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/cranfield.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 240,
+      "sha256": "df83ffd87503dc37eabc49d48c6f70ae7739684b6ce646227473d5fd79672949",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/support/cranfield.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/cranfield_reference.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 141,
+      "sha256": "31530983246255a9798d2f0a2b7ebbea6e723032002972261467f89645b0de7a",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/support/cranfield_reference.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/data_dir.rs",
       "role": "shared_support",
       "action": "keep",
@@ -363637,6 +364080,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/relevance_metrics.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 56,
+      "sha256": "4d92c83025f3c6c27cb0932164e2741cef0590c2b5a90bf52f242632b0ab98a3",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/support/relevance_metrics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/repeatable_read.rs",
       "role": "shared_support",
       "action": "keep",
@@ -363778,8 +364236,8 @@
       "current_file": "tests/support/search_relevance.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 236,
-      "sha256": "4deca35156a495b87ae6be2fc37aabaa8ae3e4894b8adbe70bd765bb3968d926",
+      "lines": 201,
+      "sha256": "2128575c7dbefc3f02b911d554e4f9cf5b1f0626d085796c1fffcbfb26491b73",
       "test_declarations": 0,
       "registered_suites": [
         "search"

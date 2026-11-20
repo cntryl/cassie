@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "name": "cranfield-1400",
+  "issue": "#1368",
+  "source": {
+    "url": "http://ir.dcs.gla.ac.uk/resources/test_collections/cran/cran.tar.gz",
+    "archive_sha256": "8c48a8412e4a7e6e0dd5af99c959f8d75fdf88135602adc1a56aa22770652d64",
+    "archive_bytes": 506960,
+    "host": "University of Glasgow IR group test collections",
+    "members": {
+      "documents": "cran.all.1400",
+      "queries": "cran.qry",
+      "qrels": "cranqrel"
+    }
+  },
+  "redistribution": {
+    "redistributed": false,
+    "reason": "The collection has no published license, so no part of it is committed to this repository. The evaluation runner downloads the archive at run time into target/ and verifies it against archive_sha256 and archive_bytes before use."
+  },
+  "citation": "Cleverdon, C. W. (1967). The Cranfield tests on index language devices. Aslib Proceedings 19(6), 173-194. The 1,400-abstract, 225-query collection with graded judgments is the Cranfield 2 test collection distributed by the SMART and Glasgow IR resources.",
+  "counts": {
+    "documents": 1400,
+    "queries": 225,
+    "qrel_lines": 1837
+  },
+  "conventions": {
+    "parsing_reference": "ir_datasets v0.5.11 ir_datasets/datasets/cranfield.py (MIT)",
+    "document_ids": "The text after '.I ' on a document's header line, as a string ('1' to '1400'). Cassie _id is that string, so ties order lexicographically ('10' before '2').",
+    "document_fields": {
+      ".T": "title",
+      ".A": "author",
+      ".B": "bibliographic reference",
+      ".W": "abstract text"
+    },
+    "indexed_text": "title + ' ' + text (the .T and .W fields), the ir_datasets default_text convention. The abstract usually restates the title, so title terms count twice; this is kept so results are comparable with published ir_datasets baselines.",
+    "query_numbering": "A query's identity is its 1-based sequential position in cran.qry. The '.I' numbers in cran.qry skip values (001, 002, 004, 008, ...) and are NOT the numbers used by cranqrel.",
+    "qrel_format": "Three whitespace-separated columns per line: query position, document id, relevance level. Any other column count is an error.",
+    "relevance_levels": {
+      "1": "References which are a complete answer to the question.",
+      "2": "References of a high degree of relevance, the lack of which either would have made the research impracticable or would have resulted in a considerable amount of extra work.",
+      "3": "References which were useful, either as general background to the work or as suggesting methods of tackling certain aspects of the work.",
+      "4": "References of minimum interest, for example, those that have been included from an historical viewpoint.",
+      "-1": "References of no interest (Cleverdon's level 5, recoded as -1 in the file)."
+    },
+    "relevance_level_note": "The definitions above are Cleverdon's, from cranqrel.readme shipped in the archive: level 1 is the strongest. ir_datasets v0.5.11 labels level 4 as the complete answer in QREL_DEFS, which contradicts the readme and the level frequencies (level 1 is rarest at 128 judgments, level 3 most common at 734); this evaluation follows the readme. ir_datasets passes the numeric levels through unchanged, so only its labels differ.",
+    "level_to_grade": {
+      "1": 4,
+      "2": 3,
+      "3": 2,
+      "4": 1,
+      "-1": 0
+    },
+    "grade_rationale": "Grade is 5 minus the level for levels 1 to 4, so a larger grade is always more relevant; level -1 (no interest) is grade 0, the same as an unjudged document. nDCG@10 uses gain 2^grade - 1, the repository's existing definition, so a complete answer (15) is worth 15 times a historical reference (1).",
+    "mrr_relevant_grade": 2,
+    "mrr_rationale": "MRR@10 counts a document as relevant at grade 2 or above, levels 1 to 3 (complete answer, high relevance, useful background). Level 4 is historical interest only and does not count, which matches the repository's relevance threshold for the in-tree workload."
+  },
+  "evaluation": {
+    "cutoff": 10,
+    "analyzer": "Cassie default fulltext analyzer: standard tokenizer (split on non-alphanumeric characters), case folding, English stop words, no stemming, no synonyms.",
+    "sql": "SELECT _id, search_score(body, $1) AS score FROM docs WHERE search(body, $1) ORDER BY score DESC, _id ASC LIMIT 10",
+    "bm25": {
+      "k1": 1.2,
+      "b": 0.75,
+      "statistics": "Corpus-wide: document count, document frequency and average analyzed length cover all 1,400 documents. Score is the sum over distinct query terms of idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * length / average)), with idf = ln((N - df + 0.5) / (df + 0.5) + 1)."
+    },
+    "score_tolerance": 1e-9,
+    "contract": "Cassie must match the independent BM25 reference on every Cranfield query: identical top-10 document ids in identical order, and each score within score_tolerance of the reference. Absolute nDCG@10 and MRR@10 are reported for Cassie and for the reference, not thresholded: exact BM25 without stemming is known to score well below the 0.80 floor proposed for curated workloads on standard collections, so a floor would measure the collection and not Cassie.",
+    "results_file": "target/relevance/cranfield/results.json"
+  }
+}

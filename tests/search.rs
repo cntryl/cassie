@@ -94,6 +94,15 @@ mod tenant_ranked_search;
 #[path = "support/search_relevance.rs"]
 mod support_search_relevance;
 
+// Cranfield evaluation (#1368): manifest, parsers and independent BM25 reference; network-free.
+#[path = "support/cranfield.rs"]
+mod support_cranfield;
+#[path = "support/cranfield_reference.rs"]
+mod support_cranfield_reference;
+
+#[path = "search/retrieval/cranfield_workload.rs"]
+mod cranfield_workload;
+
 #[path = "search/retrieval/search_relevance_metrics.rs"]
 mod search_relevance_metrics;
 

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "corpus_version": 1,
+  "note": "Splits were frozen before any tuning. `authored_intended_doc_ids` is the author's design intent for the fixture, NOT a relevance judgment: independent human grades belong only in judgments.json.",
+  "intents": [
+    {"id": "dev-01", "split": "development", "kind": "exact_identifier", "query": "ORD-48204", "authored_intended_doc_ids": ["ORD-48204"]},
+    {"id": "dev-02", "split": "development", "kind": "description", "query": "reset email never arrives", "authored_intended_doc_ids": ["TKT-1001"]},
+    {"id": "dev-03", "split": "development", "kind": "description", "query": "refund duplicate charge billed twice", "authored_intended_doc_ids": ["TKT-1003"]},
+    {"id": "dev-04", "split": "development", "kind": "repeated_terms", "query": "invoice invoice total rounding", "authored_intended_doc_ids": ["TKT-1020"]},
+    {"id": "dev-05", "split": "development", "kind": "ambiguous", "query": "invoice", "authored_intended_doc_ids": ["TKT-1002", "TKT-1007", "TKT-1020", "ORD-48207"]},
+    {"id": "dev-06", "split": "development", "kind": "description", "query": "webhook endpoint HTTP 500 retries", "authored_intended_doc_ids": ["TKT-1004"]},
+    {"id": "dev-07", "split": "development", "kind": "exact_identifier", "query": "SKU-704", "authored_intended_doc_ids": ["SKU-704"]},
+    {"id": "dev-08", "split": "development", "kind": "description", "query": "two factor code expired", "authored_intended_doc_ids": ["TKT-1010"]},
+    {"id": "dev-09", "split": "development", "kind": "ambiguous", "query": "tiles damaged", "authored_intended_doc_ids": ["ORD-48206", "ORD-48210"]},
+    {"id": "dev-10", "split": "development", "kind": "description", "query": "standing desk partial shipment", "authored_intended_doc_ids": ["ORD-48205"]},
+    {"id": "held-01", "split": "held_out", "kind": "exact_identifier", "query": "ORD-48207", "authored_intended_doc_ids": ["ORD-48207"]},
+    {"id": "held-02", "split": "held_out", "kind": "description", "query": "password reset link expired", "authored_intended_doc_ids": ["TKT-1018"]},
+    {"id": "held-03", "split": "held_out", "kind": "description", "query": "card declined payment failed", "authored_intended_doc_ids": ["TKT-1013"]},
+    {"id": "held-04", "split": "held_out", "kind": "description", "query": "ceramic floor tile", "authored_intended_doc_ids": ["SKU-703"], "authored_decoy_doc_ids": ["SKU-711"]},
+    {"id": "held-05", "split": "held_out", "kind": "repeated_terms", "query": "customs customs invoice", "authored_intended_doc_ids": ["ORD-48207"]},
+    {"id": "held-06", "split": "held_out", "kind": "ambiguous", "query": "office chairs", "authored_intended_doc_ids": ["SKU-701", "ORD-48202"]},
+    {"id": "held-07", "split": "held_out", "kind": "description", "query": "single sign on redirected back to login page", "authored_intended_doc_ids": ["TKT-1005"]},
+    {"id": "held-08", "split": "held_out", "kind": "exact_identifier", "query": "SKU-707", "authored_intended_doc_ids": ["SKU-707"]},
+    {"id": "held-09", "split": "held_out", "kind": "description", "query": "usage report csv missing region column", "authored_intended_doc_ids": ["TKT-1006"]},
+    {"id": "held-10", "split": "held_out", "kind": "description", "query": "notification emails delayed queue", "authored_intended_doc_ids": ["TKT-1015"]},
+    {"id": "nohit-01", "split": "no_hit", "kind": "no_hit", "query": "quantum entanglement spreadsheet", "authored_intended_doc_ids": []},
+    {"id": "nohit-02", "split": "no_hit", "kind": "no_hit", "query": "xyzzy9999", "authored_intended_doc_ids": []},
+    {"id": "nohit-03", "split": "no_hit", "kind": "no_hit", "query": "submarine periscope", "authored_intended_doc_ids": []},
+    {"id": "nohit-04", "split": "no_hit", "kind": "no_hit", "query": "zebra crossing hologram", "authored_intended_doc_ids": []}
+  ]
+}

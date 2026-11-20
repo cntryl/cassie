@@ -69,3 +69,13 @@ mod support_ranked_search;
 // Tenant-filtered ranked lexical search and hand-checkable BM25 ranking.
 #[path = "search/retrieval/tenant_ranked_search.rs"]
 mod tenant_ranked_search;
+
+// Judged-relevance workload (#1368): types, nDCG@10 / MRR@10 and graded evaluation.
+#[path = "support/search_relevance.rs"]
+mod support_search_relevance;
+
+#[path = "search/retrieval/search_relevance_metrics.rs"]
+mod search_relevance_metrics;
+
+#[path = "search/retrieval/search_relevance.rs"]
+mod search_relevance;

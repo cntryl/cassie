@@ -7,10 +7,17 @@ use crate::embeddings::{
 #[path = "hnsw/controlled.rs"]
 mod controlled;
 
+#[path = "hnsw/incremental.rs"]
+mod incremental;
+#[path = "hnsw/validation.rs"]
+mod validation;
+
 pub use controlled::search_graph_with_node_loader;
 pub(crate) use controlled::{
     search_graph_with_controlled_node_loader, ControlledHnswSearchRequest,
 };
+pub(crate) use incremental::{GraphMaintainer, MaintainError, MaintainedGraph, MaintainerSeed};
+pub use validation::graph_validity_violation;
 
 pub(crate) const HNSW_GRAPH_VERSION: u32 = 1;
 const MAX_DETERMINISTIC_LAYER: usize = 16;
@@ -397,8 +404,19 @@ impl GraphBuilder {
                 .then_with(|| left.cmp(right))
         });
         neighbors.dedup();
-        neighbors.truncate(self.m);
+        // Links stay symmetric: a neighbor the target drops also loses its
+        // link back, so deleting a node only has to repair its own neighbors.
+        let dropped = neighbors.split_off(self.m.min(neighbors.len()));
+        let target_id = self.nodes[target_index].id.clone();
         self.nodes[target_index].layers[layer] = neighbors;
+        for dropped_id in dropped {
+            let Some(dropped_index) = self.index.get(&dropped_id).copied() else {
+                continue;
+            };
+            if let Some(links) = self.nodes[dropped_index].layers.get_mut(layer) {
+                links.retain(|link| link != &target_id);
+            }
+        }
     }
 
     fn search_layer(

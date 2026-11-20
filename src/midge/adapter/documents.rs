@@ -1,7 +1,7 @@
 use super::{
     check_document_write_failure_point, decode_row, encode_row, key_encoding, CassieError,
     DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind, IndexMeta, Midge,
-    NormalizedVectorRecord, RowSchema, Schema, Uuid,
+    RowSchema, Schema, Uuid,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -45,7 +45,7 @@ struct PreparedWrite {
     normalized_records: Vec<crate::embeddings::NormalizedVectorRecord>,
 }
 
-type VectorRecordsByField = Vec<(String, Vec<NormalizedVectorRecord>)>;
+use super::vector_indexes::{VectorBatchWork, VectorFieldWrites};
 
 struct DocumentWriteBatchContext {
     schema: Schema,
@@ -66,7 +66,7 @@ struct DocumentWriteBatchContext {
 struct PreparedDocumentWriteBatches {
     reports: BTreeMap<String, DocumentWriteBatchReport>,
     changed_collections: Vec<String>,
-    vector_records_by_collection: BTreeMap<String, VectorRecordsByField>,
+    vector: VectorBatchWork,
     fulltext_indexes_by_collection: BTreeMap<String, Vec<IndexMeta>>,
 }
 
@@ -343,7 +343,7 @@ impl Midge {
             let PreparedDocumentWriteBatches {
                 reports,
                 changed_collections,
-                vector_records_by_collection,
+                vector,
                 fulltext_indexes_by_collection,
             } = self.apply_prepared_document_write_batches(&mut tx, prepared_writes, options)?;
 
@@ -364,7 +364,7 @@ impl Midge {
                 tx,
                 reports,
                 changed_collections,
-                &vector_records_by_collection,
+                &vector,
                 &fulltext_indexes_by_collection,
             ) {
                 Ok(reports) => return Ok(reports),
@@ -391,7 +391,7 @@ impl Midge {
     ) -> Result<PreparedDocumentWriteBatches, CassieError> {
         let mut applied = PreparedDocumentWriteBatches::default();
         for (collection, context, prepared_collection) in prepared_writes {
-            let (report, vector_records) = self.apply_prepared_collection_writes(
+            let (report, vector_writes) = self.apply_prepared_collection_writes(
                 tx,
                 &collection,
                 &context,
@@ -399,15 +399,17 @@ impl Midge {
                 options,
             )?;
             if report.has_changes() {
-                Self::refresh_vector_index_states_in_tx(
+                self.refresh_vector_index_states_in_tx(
                     tx,
                     &context.row_schema,
                     &context.vector_indexes,
-                    &vector_records,
+                    &vector_writes,
+                    (context.target_generation, &mut applied.vector.maintenance),
                 )?;
                 applied
-                    .vector_records_by_collection
-                    .insert(collection.clone(), vector_records);
+                    .vector
+                    .writes_by_collection
+                    .insert(collection.clone(), vector_writes);
                 applied
                     .fulltext_indexes_by_collection
                     .insert(collection.clone(), context.fulltext_indexes.clone());
@@ -444,7 +446,7 @@ impl Midge {
         context: &DocumentWriteBatchContext,
         prepared_collection: Vec<PreparedWrite>,
         options: &DocumentWriteBatchOptions,
-    ) -> Result<(DocumentWriteBatchReport, VectorRecordsByField), CassieError> {
+    ) -> Result<(DocumentWriteBatchReport, Vec<VectorFieldWrites>), CassieError> {
         let mut report = DocumentWriteBatchReport {
             relation_id: context.row_schema.relation_id,
             ..DocumentWriteBatchReport::default()
@@ -455,17 +457,14 @@ impl Midge {
             .and_then(|candidate| {
                 (self.canonical_collection_name(candidate) == collection).then_some(candidate)
             });
-        let mut vector_records = self.normalized_vector_records_after_prepared_writes(
+        let vector_writes = Self::vector_field_writes(
             &context.vector_indexes,
-            &prepared_collection,
-        )?;
-        if let Some(display_collection) = normalized_vector_collection {
-            for (_, records) in &mut vector_records {
-                for record in records {
-                    record.collection = display_collection.to_string();
-                }
-            }
-        }
+            &prepared_collection
+                .iter()
+                .map(|write| (write.id.clone(), write.normalized_records.clone()))
+                .collect::<Vec<_>>(),
+            normalized_vector_collection,
+        );
         Self::release_unique_reservations_for_batch(tx, collection, context, &prepared_collection)?;
         for prepared in prepared_collection {
             Self::apply_prepared_document_write(
@@ -478,15 +477,7 @@ impl Midge {
                 &mut report,
             )?;
         }
-        if report.has_changes() {
-            Self::refresh_vector_index_states_in_tx(
-                tx,
-                &context.row_schema,
-                &context.vector_indexes,
-                &vector_records,
-            )?;
-        }
-        Ok((report, vector_records))
+        Ok((report, vector_writes))
     }
 
     fn document_write_batch_context(
@@ -502,7 +493,7 @@ impl Midge {
         let target_generation = self.collection_generation(collection)?.saturating_add(1);
         let uses_column_store = self.collection_uses_column_store(collection)?;
         let vector_indexes = self
-            .list_vector_indexes_canonical()?
+            .list_vector_index_definitions_canonical()?
             .into_iter()
             .filter(|index| index.collection == collection)
             .collect::<Vec<_>>();
@@ -609,36 +600,6 @@ impl Midge {
             }
         }
         Ok(prepared)
-    }
-
-    fn normalized_vector_records_after_prepared_writes(
-        &self,
-        indexes: &[crate::embeddings::VectorIndexRecord],
-        prepared: &[PreparedWrite],
-    ) -> Result<Vec<(String, Vec<NormalizedVectorRecord>)>, CassieError> {
-        indexes
-            .iter()
-            .map(|index| {
-                let mut records = self.normalized_vector_records_for_index(index)?;
-                for write in prepared {
-                    records.retain(|record| record.id != write.id);
-                    if let Some(payload) = write.payload.as_ref() {
-                        if let Some(record) = Self::normalized_vector_record_from_value(
-                            &index.collection,
-                            &index.field,
-                            &write.id,
-                            index.metadata.dimensions,
-                            index.metadata.metric,
-                            payload.get(&index.field),
-                        )? {
-                            records.push(record);
-                        }
-                    }
-                }
-                records.sort_by(|left, right| left.id.cmp(&right.id));
-                Ok((index.field.clone(), records))
-            })
-            .collect()
     }
 
     fn apply_prepared_document_write(

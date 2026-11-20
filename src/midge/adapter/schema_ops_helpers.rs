@@ -205,6 +205,12 @@ pub(super) fn delete_dropped_field_data(
         data_tx
             .delete(Midge::vector_index_state_key(relation_id, field_id))
             .map_err(CassieError::from)?;
+        data_tx
+            .delete(super::key_encoding::normalized_vector_floor_key(
+                relation_id,
+                field_id,
+            ))
+            .map_err(CassieError::from)?;
     }
     for (relation_id, index_id) in &dropped_indexes.scalar_storage_ids {
         Midge::delete_keys_with_prefix(

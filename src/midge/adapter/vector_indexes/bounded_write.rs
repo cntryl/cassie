@@ -273,6 +273,11 @@ impl Midge {
             )?;
             changes.merge(diff);
         }
+        let floor = records.map(|_| {
+            let (key, value) =
+                Self::normalized_generation_floor_record(relation_id, field_id, generation);
+            SidecarOp::Put(key, value)
+        });
         let mut final_ops = Vec::new();
         if let Some(mut state) = state {
             state.built_generation = generation;
@@ -284,6 +289,13 @@ impl Midge {
             )?;
             changes.merge(state_changes);
             final_ops = publish_ops;
+        }
+        if let Some(floor) = floor {
+            if final_ops.is_empty() {
+                changes.puts.push(floor);
+            } else {
+                final_ops.push(floor);
+            }
         }
         self.commit_sidecar_ops(collection, changes.into_ordered_ops(), final_ops)?;
         if let Some(start) = rebuild {

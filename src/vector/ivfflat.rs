@@ -197,6 +197,59 @@ pub fn probe_lists(normalized_query: &[f32], training: &IvfFlatTrainingState) ->
         .collect()
 }
 
+/// Ranks lists for a maximum-inner-product query by the best inner product a
+/// list can still hold: `query . mean + |query| * radius`, where `radius` is
+/// the largest member distance from the list mean (Cauchy-Schwarz). Direction
+/// alone cannot order lists for inner product because every list mixes
+/// magnitudes.
+///
+/// Returns `None` when the manifest carries no per-list bounds, in which case
+/// the caller must score exactly.
+#[must_use]
+pub fn probe_lists_by_inner_product(
+    query: &[f32],
+    training: &IvfFlatTrainingState,
+) -> Option<BTreeSet<usize>> {
+    if training.list_bounds.len() != training.lists
+        || training
+            .list_bounds
+            .iter()
+            .any(|bound| bound.len() != query.len() + 1)
+    {
+        return None;
+    }
+    let query_norm = crate::vector::dot_score(query, query).sqrt();
+    let mut ranked = training
+        .list_bounds
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            training
+                .list_sizes
+                .get(*index)
+                .is_some_and(|size| *size > 0)
+        })
+        .map(|(index, bound)| {
+            let (mean, radius) = bound.split_at(query.len());
+            let reach = crate::vector::dot_score(query, mean) + query_norm * f64::from(radius[0]);
+            (index, reach)
+        })
+        .collect::<Vec<_>>();
+    ranked.sort_by(|left, right| {
+        right
+            .1
+            .total_cmp(&left.1)
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    Some(
+        ranked
+            .into_iter()
+            .take(training.probes.max(1))
+            .map(|(index, _)| index)
+            .collect(),
+    )
+}
+
 #[must_use]
 pub fn denormalized_vector(record: &NormalizedVectorRecord) -> Option<Vec<f32>> {
     let mut values = Vec::with_capacity(record.values.len());
@@ -226,7 +279,7 @@ fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
 mod tests {
     use super::{
         compact_manifest_fallback_reason, denormalized_vector, probe_lists,
-        training_fallback_reason,
+        probe_lists_by_inner_product, training_fallback_reason,
     };
     use crate::embeddings::{DistanceMetric, IvfFlatTrainingState, NormalizedVectorRecord};
     use std::collections::BTreeMap;
@@ -278,6 +331,7 @@ mod tests {
             centroids: vec![vec![1.0, 0.0], vec![0.0, 1.0]],
             assignments: BTreeMap::new(),
             list_sizes: vec![1, 1],
+            list_bounds: Vec::new(),
         };
 
         // Act
@@ -286,6 +340,48 @@ mod tests {
         // Assert
         assert!(probed.contains(&0));
         assert!(!probed.contains(&1));
+    }
+
+    #[test]
+    fn should_rank_lists_by_inner_product_with_magnitude_not_direction_alone() {
+        // Arrange
+        let training = IvfFlatTrainingState {
+            version: 1,
+            source_fingerprint: 1,
+            trained: true,
+            row_count: 2,
+            lists: 3,
+            probes: 1,
+            training_seed: 1,
+            centroid_ids: vec!["a".into(), "b".into(), "c".into()],
+            centroids: vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![-1.0, 0.0]],
+            assignments: BTreeMap::new(),
+            list_sizes: vec![1, 1, 1],
+            // List 0 is aligned with the query but short; list 1 is far off the
+            // query direction yet much longer, so its inner product wins.
+            list_bounds: vec![
+                vec![1.0, 0.0, 0.0],
+                vec![0.0, 50.0, 0.0],
+                vec![-1.0, 0.0, 0.0],
+            ],
+        };
+
+        // Act
+        let by_direction = probe_lists(&[1.0, 0.1], &training);
+        let by_mean =
+            probe_lists_by_inner_product(&[1.0, 0.1], &training).expect("means are present");
+        let without_means = probe_lists_by_inner_product(
+            &[1.0, 0.1],
+            &IvfFlatTrainingState {
+                list_bounds: Vec::new(),
+                ..training.clone()
+            },
+        );
+
+        // Assert
+        assert_eq!(by_direction.into_iter().collect::<Vec<_>>(), vec![0]);
+        assert_eq!(by_mean.into_iter().collect::<Vec<_>>(), vec![1]);
+        assert!(without_means.is_none());
     }
 
     #[test]
@@ -342,6 +438,7 @@ mod tests {
             centroids: vec![vec![1.0, 0.0]],
             assignments,
             list_sizes: vec![1],
+            list_bounds: Vec::new(),
         };
 
         // Act
@@ -378,6 +475,7 @@ mod tests {
             centroids: vec![vec![1.0, 0.0]],
             assignments: BTreeMap::new(),
             list_sizes: vec![1],
+            list_bounds: Vec::new(),
         };
 
         // Act
@@ -402,6 +500,7 @@ mod tests {
             centroids: vec![vec![1.0, 0.0], vec![0.0, 1.0]],
             assignments: BTreeMap::new(),
             list_sizes: vec![2, 1],
+            list_bounds: Vec::new(),
         };
 
         // Act
@@ -426,6 +525,7 @@ mod tests {
             centroids: vec![vec![1.0, 0.0], vec![0.0, 1.0]],
             assignments: BTreeMap::new(),
             list_sizes: vec![1, 0],
+            list_bounds: Vec::new(),
         };
 
         // Act
@@ -450,6 +550,7 @@ mod tests {
             centroids: vec![vec![1.0, 0.0]],
             assignments: BTreeMap::new(),
             list_sizes: vec![1],
+            list_bounds: Vec::new(),
         };
 
         // Act

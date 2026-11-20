@@ -454,6 +454,7 @@ impl Midge {
                 centroids: manifest.centroids,
                 assignments: std::collections::BTreeMap::new(),
                 list_sizes: manifest.list_sizes,
+                list_bounds: manifest.list_bounds,
             },
             manifest.membership_count,
         )))
@@ -502,6 +503,7 @@ impl Midge {
                 centroids: manifest.centroids,
                 assignments: std::collections::BTreeMap::new(),
                 list_sizes: manifest.list_sizes,
+                list_bounds: manifest.list_bounds,
             },
             membership_count: manifest.membership_count,
             ann_reads: 1,

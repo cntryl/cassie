@@ -819,6 +819,7 @@ fn ivfflat_training(records: &[NormalizedVectorRecord]) -> IvfFlatTrainingState 
         centroids,
         assignments,
         list_sizes,
+        list_bounds: Vec::new(),
     }
 }
 

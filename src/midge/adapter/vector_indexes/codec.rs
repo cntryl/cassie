@@ -30,6 +30,7 @@ pub(super) struct PersistedIvfManifest {
     pub(super) centroid_ids: Vec<String>,
     pub(super) centroids: Vec<Vec<f32>>,
     pub(super) list_sizes: Vec<usize>,
+    pub(super) list_bounds: Vec<Vec<f32>>,
     pub(super) membership_count: usize,
 }
 
@@ -67,6 +68,7 @@ pub(super) fn encode_vector_index_state(
         put_strings(&training.centroid_ids, &mut out)?;
         put_vectors(&training.centroids, &mut out)?;
         put_usizes(&training.list_sizes, &mut out)?;
+        put_vectors(&training.list_bounds, &mut out)?;
         put_usize(training.membership_count, &mut out)?;
     }
     Ok(out)
@@ -122,6 +124,7 @@ fn decode_ivf_manifest(cursor: &mut Cursor<'_>) -> Result<PersistedIvfManifest, 
         centroid_ids: cursor.strings()?,
         centroids: cursor.vectors()?,
         list_sizes: cursor.usizes()?,
+        list_bounds: cursor.vectors()?,
         membership_count: cursor.usize()?,
     })
 }

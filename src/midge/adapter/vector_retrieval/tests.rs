@@ -370,6 +370,7 @@ fn should_keep_decoded_ivfflat_manifest_capacities_reserved_until_drop() {
             centroid_ids: vec!["row".to_owned()],
             centroids: vec![vec![1.0; dimensions]],
             list_sizes: vec![1],
+            list_bounds: Vec::new(),
             membership_count: 1,
         }),
     };
@@ -465,6 +466,7 @@ fn should_reserve_complete_sparse_ivfflat_membership_state() {
         centroids: vec![vec![1.0, 0.0, 0.0]],
         assignments: std::collections::BTreeMap::new(),
         list_sizes: vec![1],
+        list_bounds: Vec::new(),
     };
     let probed_lists = std::collections::BTreeSet::from([0]);
 

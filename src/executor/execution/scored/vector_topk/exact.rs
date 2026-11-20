@@ -88,7 +88,7 @@ pub(super) fn execute_exact_vector_top_k(
         let vector = value_to_vector(value).unwrap_or_default();
         validate_exact_vector(spec, &vector)?;
         final_candidate_count = final_candidate_count.saturating_add(1);
-        let score = crate::vector::l2_distance(&vector, &spec.query);
+        let score = spec.exact_distance(&vector);
         top.try_push(
             SqlVectorCandidate {
                 sort_value: candidate_sort_value(&spec.direction, score),
@@ -177,7 +177,7 @@ fn stream_exact_vector_candidates(
                 QueryError::General("exact vector candidate is invalid".to_string())
             })?;
             validate_exact_vector(spec, &vector)?;
-            let score = crate::vector::l2_distance(&vector, &spec.query);
+            let score = spec.exact_distance(&vector);
             candidate_count = candidate_count.saturating_add(1);
             top.try_push(
                 SqlVectorCandidate {

@@ -42,7 +42,9 @@ pub(super) fn execute_ivfflat_vector_top_k(
         cassie.runtime.record_ivfflat_fallback(reason);
         return Ok(None);
     }
-    let probed_lists = crate::vector::ivfflat::probe_lists(&normalized_query, &training);
+    let Some(probed_lists) = select_probe_lists(cassie, spec, &normalized_query, &training) else {
+        return Ok(None);
+    };
     let _probe_memory = controls.reserve_query_memory(
         probed_lists
             .len()
@@ -121,6 +123,30 @@ pub(super) fn execute_ivfflat_vector_top_k(
     Ok(Some(rows))
 }
 
+/// Chooses the lists to probe. Inner product depends on magnitude, which the
+/// directional lists do not encode, so a `dot` query ranks lists by the best
+/// inner product each can still hold; other metrics rank by direction.
+fn select_probe_lists(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    normalized_query: &[f32],
+    training: &crate::embeddings::IvfFlatTrainingState,
+) -> Option<std::collections::BTreeSet<usize>> {
+    if spec.metric != crate::embeddings::DistanceMetric::Dot {
+        return Some(crate::vector::ivfflat::probe_lists(
+            normalized_query,
+            training,
+        ));
+    }
+    let lists = crate::vector::ivfflat::probe_lists_by_inner_product(&spec.query, training);
+    if lists.is_none() {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("missing-list-bounds");
+    }
+    lists
+}
+
 fn ivfflat_training(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
@@ -136,10 +162,14 @@ fn ivfflat_training(
     if index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat {
         return Ok(None);
     }
-    if index.metadata.metric != crate::embeddings::DistanceMetric::L2 {
+    if index.metadata.metric != spec.metric {
         cassie
             .runtime
             .record_ivfflat_fallback("incompatible-metric");
+        return Ok(None);
+    }
+    if spec.is_degenerate_ann_query() {
+        cassie.runtime.record_ivfflat_fallback("zero-query-exact");
         return Ok(None);
     }
     let training = cassie.midge.get_ivfflat_training_manifest_controlled(
@@ -207,7 +237,7 @@ fn rerank_ivfflat_candidates(
             record_ivfflat_concurrent_source_change(cassie);
             return Ok(None);
         }
-        let score = crate::vector::l2_distance(&vector, &spec.query);
+        let score = spec.exact_distance(&vector);
         candidate_count = candidate_count.saturating_add(1);
         top.try_push(
             SqlVectorCandidate {

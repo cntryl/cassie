@@ -198,7 +198,10 @@ impl Midge {
                         generation,
                         report.row_delta,
                     );
-                    let _ = self.rebuild_time_series_indexes_for_collection(&collection);
+                    // Time-series index entries, bucket counts and the manifest
+                    // are maintained inside the write transaction itself, so no
+                    // post-commit full-index rebuild runs here. That rebuild
+                    // rescanned the whole relation after every batch.
                 }
             }
         }

@@ -21,6 +21,9 @@ use super::{
 };
 use crate::runtime::accounted::AccountedVec;
 
+/// Label of this path in the search fallback reasons.
+const RANKED_FILTERED_PATH: &str = "ranked_filtered";
+
 /// A ranked, filtered full-text read that the indexed path can serve.
 pub(super) struct RankedFilteredTopKSpec {
     pub(super) read: FulltextFilteredReadSpec,
@@ -203,7 +206,12 @@ pub(super) fn execute_ranked_filtered_top_k(
     let persisted =
         match fulltext_read::load_persisted_fulltext_read(cassie, session, read, controls)? {
             PersistedFulltextReadSelection::Ready(persisted) => *persisted,
-            PersistedFulltextReadSelection::Exact(_) => return Ok(None),
+            PersistedFulltextReadSelection::Exact(reason) => {
+                cassie
+                    .runtime
+                    .record_fulltext_fallback_cause(RANKED_FILTERED_PATH, reason);
+                return Ok(None);
+            }
         };
     let scalar_candidates = scalar_conjunct_candidates(cassie, session, read, params, controls)?;
     let matched = fulltext_read::score_persisted_candidates(
@@ -213,6 +221,13 @@ pub(super) fn execute_ranked_filtered_top_k(
         controls,
     )?;
     let (mut matched, _matched_memory) = matched.into_parts();
+    if let Some(scalar_candidates) = &scalar_candidates {
+        cassie.runtime.record_fulltext_scalar_prefilter(
+            persisted.candidates.document_stats.len(),
+            scalar_candidates.ids.len(),
+            matched.len(),
+        );
+    }
     let needs_fetch = spec.needs_row_fetch();
     let needed = spec.top_needed();
     if !needs_fetch && needed < matched.len() {
@@ -231,6 +246,9 @@ pub(super) fn execute_ranked_filtered_top_k(
         controls,
     };
     let Some((rows, row_fetches)) = collect_page(&context, matched)? else {
+        cassie
+            .runtime
+            .record_fulltext_fallback_cause(RANKED_FILTERED_PATH, "missing_candidate_row");
         return Ok(None);
     };
     cassie.runtime.record_fulltext_retrieval_diagnostics(

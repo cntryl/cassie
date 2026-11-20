@@ -409,6 +409,7 @@ fn execute_hybrid_top_k(
         HybridMetricCounts {
             posting_reads,
             ann_reads,
+            ann_candidates,
             candidate_row_fetches,
             text_candidates: text_candidate_count,
             candidates: candidate_ids.len(),
@@ -426,6 +427,7 @@ fn execute_hybrid_top_k(
 struct HybridMetricCounts {
     posting_reads: usize,
     ann_reads: usize,
+    ann_candidates: usize,
     candidate_row_fetches: usize,
     text_candidates: usize,
     candidates: usize,
@@ -438,6 +440,7 @@ fn record_hybrid_metrics(cassie: &Cassie, started_at: Instant, counts: HybridMet
         cassie,
         counts.posting_reads,
         counts.ann_reads,
+        counts.ann_candidates,
         counts.candidate_row_fetches,
         counts.text_candidates,
         counts.generation_rejections,

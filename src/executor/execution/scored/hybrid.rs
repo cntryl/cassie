@@ -26,6 +26,7 @@ pub(super) fn record_hybrid_diagnostics(
     cassie: &Cassie,
     posting_reads: usize,
     ann_reads: usize,
+    vector_candidates: usize,
     candidate_row_fetches: usize,
     exact_reranks: usize,
     generation_rejections: usize,
@@ -35,6 +36,7 @@ pub(super) fn record_hybrid_diagnostics(
         .record_hybrid_retrieval_diagnostics(&HybridRetrievalDiagnostics {
             posting_reads,
             ann_reads,
+            vector_candidates,
             candidate_row_fetches,
             generation_rejections,
             exact_reranks,

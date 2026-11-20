@@ -76,6 +76,7 @@ mod projection_metrics;
 pub(crate) mod query_cache;
 #[path = "runtime/read_path_metrics.rs"]
 mod read_path_metrics;
+mod search_metrics;
 pub use read_path_metrics::GraphReadCounts;
 #[path = "runtime/retention_metrics.rs"]
 mod retention_metrics;
@@ -505,30 +506,6 @@ impl RuntimeState {
         metrics.search.latency_ms_total += duration_ms(elapsed);
         metrics.search.candidate_count_total += candidates as u64;
         metrics.search.result_count_total += results as u64;
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn record_fulltext_row_scan_fallback(&self, reason: &str) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.search.retrieval_stage_queries_total += 1;
-        metrics.search.row_scan_fallback_total += 1;
-        increment_boundary_counter(&mut metrics.search.retrieval_fallback_reasons, reason);
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn record_fulltext_retrieval_diagnostics(
-        &self,
-        posting_reads: usize,
-        candidate_row_fetches: usize,
-    ) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.search.retrieval_stage_queries_total += 1;
-        metrics.search.posting_reads_total += posting_reads as u64;
-        metrics.search.candidate_row_fetches_total += candidate_row_fetches as u64;
     }
 
     /// # Panics

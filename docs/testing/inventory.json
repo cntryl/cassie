@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1795,
-    "rust_files": 1758,
-    "rust_test_declarations": 10704,
+    "files": 1798,
+    "rust_files": 1761,
+    "rust_test_declarations": 10722,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10729,
+    "registered_rust_instances": 10747,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -330456,6 +330456,564 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs::should_report_selected_index_plus_metric_in_explain",
+      "name": "should_report_selected_index_plus_metric_in_explain",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+      "line": 42,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_lifecycle::should_report_selected_index_plus_metric_in_explain"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs::should_explain_why_a_mismatched_or_descending_query_stays_exact",
+      "name": "should_explain_why_a_mismatched_or_descending_query_stays_exact",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+      "line": 68,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_lifecycle::should_explain_why_a_mismatched_or_descending_query_stays_exact"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs::should_fall_back_completely_when_the_index_manifest_is_invalidated",
+      "name": "should_fall_back_completely_when_the_index_manifest_is_invalidated",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+      "line": 104,
+      "end_line": 138,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_lifecycle::should_fall_back_completely_when_the_index_manifest_is_invalidated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs::should_keep_snapshot_when_a_vector_is_replaced_before_rerank",
+      "name": "should_keep_snapshot_when_a_vector_is_replaced_before_rerank",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+      "line": 141,
+      "end_line": 205,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_lifecycle::should_keep_snapshot_when_a_vector_is_replaced_before_rerank"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs::should_return_a_full_window_when_candidates_are_exhausted",
+      "name": "should_return_a_full_window_when_candidates_are_exhausted",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+      "line": 208,
+      "end_line": 249,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_lifecycle::should_return_a_full_window_when_candidates_are_exhausted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs::should_reach_recall_floor_on_every_query_for_ivfflat_l2",
+      "name": "should_reach_recall_floor_on_every_query_for_ivfflat_l2",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+      "line": 114,
+      "end_line": 121,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_recall::should_reach_recall_floor_on_every_query_for_ivfflat_l2"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs::should_reach_recall_floor_on_every_query_for_ivfflat_cosine",
+      "name": "should_reach_recall_floor_on_every_query_for_ivfflat_cosine",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+      "line": 124,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_recall::should_reach_recall_floor_on_every_query_for_ivfflat_cosine"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs::should_reach_recall_floor_on_every_query_for_ivfflat_dot",
+      "name": "should_reach_recall_floor_on_every_query_for_ivfflat_dot",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+      "line": 134,
+      "end_line": 141,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_recall::should_reach_recall_floor_on_every_query_for_ivfflat_dot"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs::should_reach_recall_floor_on_every_query_for_hnsw_l2",
+      "name": "should_reach_recall_floor_on_every_query_for_hnsw_l2",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+      "line": 144,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_recall::should_reach_recall_floor_on_every_query_for_hnsw_l2"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs::should_reach_recall_floor_on_every_query_for_hnsw_cosine",
+      "name": "should_reach_recall_floor_on_every_query_for_hnsw_cosine",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+      "line": 154,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_recall::should_reach_recall_floor_on_every_query_for_hnsw_cosine"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs::should_reach_recall_floor_on_every_query_for_hnsw_dot",
+      "name": "should_reach_recall_floor_on_every_query_for_hnsw_dot",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+      "line": 164,
+      "end_line": 171,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metric_recall::should_reach_recall_floor_on_every_query_for_hnsw_dot"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metrics.rs::should_serve_each_algorithm_metric_pair_from_a_matching_ann_index",
+      "name": "should_serve_each_algorithm_metric_pair_from_a_matching_ann_index",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+      "line": 203,
+      "end_line": 241,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metrics::should_serve_each_algorithm_metric_pair_from_a_matching_ann_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metrics.rs::should_rank_non_unit_cosine_match_ahead_of_euclidean_nearest_neighbor",
+      "name": "should_rank_non_unit_cosine_match_ahead_of_euclidean_nearest_neighbor",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+      "line": 244,
+      "end_line": 267,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metrics::should_rank_non_unit_cosine_match_ahead_of_euclidean_nearest_neighbor"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metrics.rs::should_apply_offset_after_non_l2_ann_ranking",
+      "name": "should_apply_offset_after_non_l2_ann_ranking",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+      "line": 270,
+      "end_line": 292,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metrics::should_apply_offset_after_non_l2_ann_ranking"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metrics.rs::should_diagnose_exact_fallback_when_operator_and_index_metrics_differ",
+      "name": "should_diagnose_exact_fallback_when_operator_and_index_metrics_differ",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+      "line": 295,
+      "end_line": 331,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metrics::should_diagnose_exact_fallback_when_operator_and_index_metrics_differ"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metrics.rs::should_fall_back_to_exact_scoring_for_descending_non_l2_order",
+      "name": "should_fall_back_to_exact_scoring_for_descending_non_l2_order",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+      "line": 334,
+      "end_line": 361,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metrics::should_fall_back_to_exact_scoring_for_descending_non_l2_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metrics.rs::should_keep_identity_tie_order_for_zero_non_l2_queries",
+      "name": "should_keep_identity_tie_order_for_zero_non_l2_queries",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+      "line": 364,
+      "end_line": 392,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metrics::should_keep_identity_tie_order_for_zero_non_l2_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/sql_ann_metrics.rs::should_keep_cosine_ann_snapshot_when_a_row_is_deleted_before_rerank",
+      "name": "should_keep_cosine_ann_snapshot_when_a_row_is_deleted_before_rerank",
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+      "line": 395,
+      "end_line": 444,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "sql_ann_metrics::should_keep_cosine_ann_snapshot_when_a_row_is_deleted_before_rerank"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/vectors/vector_declared_id.rs::should_return_declared_id_from_vector_distance_top_k",
       "name": "should_return_declared_id_from_vector_distance_top_k",
       "current_file": "tests/vector_embeddings/vectors/vector_declared_id.rs",
@@ -359465,6 +360023,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 249,
+      "sha256": "cd4046938c1e7287e44ef25b50f2761dea1d7decfaa9d48273e4b3230d6cf81a",
+      "test_declarations": 5,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 171,
+      "sha256": "1fbb5ba43fe686beb8052b7043f5a627f141fe8c728b47244c1ff4f5c0f497f3",
+      "test_declarations": 6,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/sql_ann_metric_recall.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/vector_embeddings/vectors/sql_ann_metrics.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 444,
+      "sha256": "a967e7d8a5b92132a11d4eafe04468515febdf928a4f65d10ae7b241e9b573a5",
+      "test_declarations": 7,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/sql_ann_metrics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/vectors/vector_declared_id.rs",
       "role": "test_module",
       "action": "keep",
@@ -359633,8 +360236,8 @@
       "current_file": "tests/vector_embeddings.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 104,
-      "sha256": "c5c4abe33d3bc0452b1fb82eea1e37f7bfc26398f744318042c12b513735135f",
+      "lines": 113,
+      "sha256": "5e9f3e55569a2158b6e008b31800ba71389a4b02043fa1b3fc6a4194d83d26ca",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"

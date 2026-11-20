@@ -51,6 +51,9 @@ mod variants;
 #[path = "graph_table/fast_reads.rs"]
 mod fast_reads;
 
+#[path = "graph_table/cost_curves.rs"]
+mod cost_curves;
+
 #[path = "graph_table/cancellation.rs"]
 mod cancellation;
 

@@ -247,23 +247,107 @@ fn find_element(
         );
         &fallback
     };
-    let mut found = None;
     #[cfg(test)]
     crate::executor::execution::graph_memory_test_observer::record_owner(
         "constructor_scan_owner",
         controls,
     );
+    let mut found = None;
+    if let Some((index, order)) = key_index(session, resolved) {
+        // The key is unique and indexed: read the one index entry and the row it names
+        // instead of the whole mapped table. A row the transaction rewrote or deleted is
+        // judged by its pending change below; every candidate is re-checked against the key.
+        let request = crate::midge::adapter::ScalarIndexScanRequest {
+            equality_prefix: order.iter().map(|at| key_json(&key[*at])).collect(),
+            ..crate::midge::adapter::ScalarIndexScanRequest::default()
+        };
+        let (hits, _hits_memory) = midge
+            .scan_scalar_index_controlled(&index, &request, controls)?
+            .into_parts();
+        midge.record_graph_reference_reads(hits.len() as u64);
+        for hit in hits {
+            controls.check_interruption()?;
+            if changes.contains_key(&hit.id) {
+                continue;
+            }
+            midge.record_graph_reference_reads(1);
+            let Some(source) =
+                midge.get_retrieval_document_controlled(&resolved.table, &hit.id, controls)?
+            else {
+                continue;
+            };
+            let (document, _source_memory) = source.into_parts();
+            if matches(&document.payload, resolved, key) {
+                found = Some(document.payload.clone());
+                break;
+            }
+        }
+    } else {
+        found = scan_for_element(midge, resolved, key, changes, controls)?;
+    }
+    if found.is_some() {
+        return Ok(found);
+    }
+    pending_element(changes, resolved, key, controls)
+}
+
+/// The scalar index that serves a key lookup of `resolved`, with its field order.
+fn key_index(
+    session: &CassieSession,
+    resolved: &ResolvedMapping,
+) -> Option<(crate::catalog::IndexMeta, Vec<usize>)> {
+    let (catalog, _, _) = session.sequence_context()?;
+    let columns = resolved
+        .key
+        .iter()
+        .map(|column| column.name.clone())
+        .collect::<Vec<_>>();
+    crate::catalog::graph_key_index::scalar_key_index(
+        &catalog,
+        Some(session),
+        &resolved.table,
+        &columns,
+    )
+}
+
+fn key_json(part: &KeyPart) -> serde_json::Value {
+    match part {
+        KeyPart::SmallInt(value) => serde_json::Value::from(*value),
+        KeyPart::Int(value) => serde_json::Value::from(*value),
+        KeyPart::BigInt(value) => serde_json::Value::from(*value),
+        KeyPart::Text(value) => serde_json::Value::String(value.clone()),
+        KeyPart::Uuid(value) => serde_json::Value::String(value.hyphenated().to_string()),
+    }
+}
+
+/// The exact fallback: the first committed row with `key` in a full read of the table.
+fn scan_for_element(
+    midge: &Midge,
+    resolved: &ResolvedMapping,
+    key: &[KeyPart],
+    changes: &std::collections::BTreeMap<String, crate::app::TransactionRowChange>,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<serde_json::Value>, QueryError> {
+    let mut found = None;
     midge.scan_rows_until::<QueryError, _>(&resolved.table, RowDecode::Full, controls, |row| {
         // A row the transaction rewrote or deleted is judged by its change below.
+        midge.record_graph_reference_reads(1);
         if !changes.contains_key(&row.id) && matches(&row.payload, resolved, key) {
             found = Some(row.payload.clone());
             return Ok(false);
         }
         Ok(true)
     })?;
-    if found.is_some() {
-        return Ok(found);
-    }
+    Ok(found)
+}
+
+/// The first pending upsert of the transaction with `key`.
+fn pending_element(
+    changes: &std::collections::BTreeMap<String, crate::app::TransactionRowChange>,
+    resolved: &ResolvedMapping,
+    key: &[KeyPart],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<serde_json::Value>, QueryError> {
     for change in changes.values() {
         controls.check_interruption()?;
         if let crate::app::TransactionRowChange::Upsert(payload) = change {

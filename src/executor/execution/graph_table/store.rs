@@ -327,6 +327,11 @@ impl Store {
                 cache_hits: self.reads.cache_hits,
                 validation_rows,
                 frontier_peak: self.reads.frontier_peak,
+                edges_admitted: self.edges.len() as u64,
+                neighborhoods: self
+                    .lazy
+                    .as_deref()
+                    .map_or(0, super::lazy::Lazy::expanded_count),
             });
     }
 

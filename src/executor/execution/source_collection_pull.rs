@@ -17,6 +17,18 @@ impl<'a> Cursor<'a> {
         qualify: bool,
         traversal: crate::midge::adapter::RowTraversal,
     ) -> Result<Option<Self>, QueryError> {
+        Self::open_projected(env, name, qualify, traversal, None)
+    }
+
+    /// Like [`Self::open`], decoding only the stored fields of `only` (and the row identity)
+    /// when it is given.
+    pub(super) fn open_projected(
+        env: &SourceExecutionEnv<'a>,
+        name: &str,
+        qualify: bool,
+        traversal: crate::midge::adapter::RowTraversal,
+        only: Option<&[String]>,
+    ) -> Result<Option<Self>, QueryError> {
         env.controls.check_interruption()?;
         if super::virtual_views::schema(name).is_some()
             || env.cassie.catalog.get_view(name).is_some()
@@ -52,9 +64,15 @@ impl<'a> Cursor<'a> {
         let mut fields = Vec::with_capacity(schema.fields.len() + 1);
         fields.push(crate::types::row_identity::ROW_IDENTITY_COLUMN.to_owned());
         for field in &schema.fields {
-            fields.push(crate::sql::ColumnIdentifierPath::stored_field_key(
-                &field.name,
-            ));
+            if only.is_none_or(|only| {
+                only.iter().any(|wanted| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(wanted, &field.name)
+                })
+            }) {
+                fields.push(crate::sql::ColumnIdentifierPath::stored_field_key(
+                    &field.name,
+                ));
+            }
         }
         let Some(stream) = crate::executor::scan::projected_scan_stream_with_traversal(
             env.cassie,

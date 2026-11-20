@@ -926,7 +926,8 @@ anywhere fails the call with `22023`, even when the cheapest path would not touc
 `FLOAT` and `DOUBLE PRECISION` weights are rejected at binding with `42804`, because rounding
 would make costs unreliable; use `NUMERIC` or an integer type. Costs add up as `NUMERIC`
 without rounding, and an unrepresentable total returns `22003` with no partial result.
-Because it validates all weights, the call reads all edges of the mapped edge tables.
+Because it validates all weights, the call reads every row of the selected edge tables once,
+decoding only each row's key, endpoint and weight columns.
 
 The worked example in [section 6.4](#64-weighted-routes) shows a call and the error.
 
@@ -1864,10 +1865,31 @@ FROM GRAPH_TABLE (
 
 Other limits to keep in mind:
 
-- Every graph query reads the mapped tables of the labels it uses, so cost grows with the size
-  of the tables that those labels cover and with the number of repeated edges, not only with
-  the neighbourhood of the start vertex. This release has no adjacency index. Read-bound
-  evidence is tracked in the [graph qualification record](graph-v060-gap-analysis.md#qualification-evidence).
+- Read cost is bounded by counters, not by timings. A graph query expands from its start
+  vertices over the ordinary scalar indexes of your tables (no adjacency index is stored),
+  so the bounds below hold only when those indexes exist:
+  - **Degree and depth.** With a scalar index on the edge table's endpoint columns and a
+    start vertex fixed by key equality in the pattern's inline `WHERE`, a traversal reads
+    O(sum of the degree of the vertices it visits), at most one neighbourhood per visited
+    vertex and edge side, and `{1,n}` visits at most `n` layers. Edges of other, unreachable
+    parts of the graph are never read, however many there are.
+  - **Without an endpoint index, or with a start that is not fixed by key**, the mapping is
+    read in full once per statement: O(rows of that table), and a query over a very large
+    table can exceed the query memory budget (`54000`). `EXPLAIN` names the reason.
+  - **Weights.** `graph_weighted_paths` first checks the weight of every graph-visible edge
+    of the selected edge mappings (see [the weight rule](#the-weight-rule)), by streaming
+    each row once and decoding only its key, endpoint and weight columns. That check is
+    O(selected edge rows) on every call by contract, even when the search itself touches
+    three edges; the search then reads only the neighbourhoods it visits.
+  - **References.** `cassie_graph.vertex_ref` and `edge_ref` read the one index entry and row
+    their key names through the unique index that backs the mapped key, not the mapped table.
+  - `EXPLAIN ANALYZE` reports `graph_reads=` with `index_entries`, `row_fetches`,
+    `full_rows`, `overlay_changes`, `cache_hits`, `validation_rows`, `frontier_peak`,
+    `edges_admitted` (edges that entered the traversal) and `neighborhoods` (neighbourhood
+    expansions). The same counters are exported as `read_paths.graph_*` runtime metrics. The
+    cost-curve fixtures are `tests/graph_table/cost_curves.rs` and
+    `tests/graph_weighted/cost_curves.rs`. Wall-clock evidence is tracked in the
+    [graph qualification record](graph-v060-gap-analysis.md#qualification-evidence).
 - Bounds do not make every pattern cheap. Finite `TRAIL`, `ACYCLIC` and `SIMPLE` results can still be
   exponentially numerous on a dense graph. The query memory budget stops such a query with `54000`.
 - A graph covers one database. All mapped tables must be ordinary tables of that database.

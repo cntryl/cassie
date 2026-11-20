@@ -100,6 +100,8 @@ pub(crate) struct GraphReadDeltas {
     pub(crate) cache_hits: u64,
     pub(crate) validation_rows: u64,
     pub(crate) frontier_peak: u64,
+    pub(crate) edges_admitted: u64,
+    pub(crate) neighborhoods: u64,
 }
 
 impl GraphReadDeltas {
@@ -126,20 +128,28 @@ impl GraphReadDeltas {
                 .graph_validation_rows
                 .saturating_sub(before.graph_validation_rows),
             frontier_peak: after.graph_last_frontier_peak,
+            edges_admitted: after
+                .graph_edges_admitted
+                .saturating_sub(before.graph_edges_admitted),
+            neighborhoods: after
+                .graph_neighborhoods_expanded
+                .saturating_sub(before.graph_neighborhoods_expanded),
         }
     }
 
     /// The `graph_reads=` payload of the analyzed plan text.
     pub(crate) fn text(&self) -> String {
         format!(
-            "index_entries:{},row_fetches:{},full_rows:{},overlay_changes:{},cache_hits:{},validation_rows:{},frontier_peak:{}",
+            "index_entries:{},row_fetches:{},full_rows:{},overlay_changes:{},cache_hits:{},validation_rows:{},frontier_peak:{},edges_admitted:{},neighborhoods:{}",
             self.index_entries,
             self.row_fetches,
             self.full_rows,
             self.overlay_changes,
             self.cache_hits,
             self.validation_rows,
-            self.frontier_peak
+            self.frontier_peak,
+            self.edges_admitted,
+            self.neighborhoods
         )
     }
 }

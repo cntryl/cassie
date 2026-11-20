@@ -16,6 +16,9 @@ mod constructors;
 #[path = "graph_types/refs.rs"]
 mod refs;
 
+#[path = "graph_types/refs_cost.rs"]
+mod refs_cost;
+
 #[path = "graph_types/paths.rs"]
 mod paths;
 

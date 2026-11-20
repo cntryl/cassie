@@ -104,6 +104,8 @@ fn validate_lazy(
         cache_hits: 0,
         validation_rows: counts.rows,
         frontier_peak: 0,
+        edges_admitted: 0,
+        neighborhoods: 0,
     });
     Ok(())
 }

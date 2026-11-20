@@ -125,6 +125,10 @@ pub struct GraphReadCounts {
     pub cache_hits: u64,
     pub validation_rows: u64,
     pub frontier_peak: u64,
+    /// Distinct edges admitted into the statement's adjacency (far endpoint existing).
+    pub edges_admitted: u64,
+    /// Vertex-side neighborhood expansions the lazy store performed.
+    pub neighborhoods: u64,
 }
 
 impl RuntimeState {
@@ -154,6 +158,8 @@ impl RuntimeState {
         paths.graph_cache_hits += counts.cache_hits;
         paths.graph_validation_rows += counts.validation_rows;
         paths.graph_last_frontier_peak = counts.frontier_peak;
+        paths.graph_edges_admitted += counts.edges_admitted;
+        paths.graph_neighborhoods_expanded += counts.neighborhoods;
     }
 
     /// Records, for the latest joined `GRAPH_TABLE`, each pattern's edge hops and

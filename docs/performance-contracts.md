@@ -443,8 +443,16 @@ version it names was committed in the same snapshot.
 Reads are counted, never timed. Counters: `graph_index_entries` (scalar index entries
 returned), `graph_row_fetches` (point row reads), `graph_full_rows` (rows of a full mapping
 read), `graph_overlay_changes` (pending session changes examined), `graph_cache_hits`,
-`graph_validation_rows` (weighted-path validation scan) and the per-statement
-`graph_frontier_peak`.
+`graph_validation_rows` (weighted-path validation scan), `graph_edges_admitted` (distinct
+edges that entered a traversal, far endpoint existing), `graph_neighborhoods_expanded`
+(vertex-side neighborhood expansions of the lazy store) and the per-statement
+`graph_frontier_peak`. The weighted validation scan decodes only the edge key, endpoint and
+weight columns of each row (projected stream); the `cassie_graph` reference constructors use
+the unique key index of the mapped table and fall back to a table scan only without one.
+The cost-curve fixtures (degree, depth, hub skew, ten-fold disconnected growth, weighted
+validation against a fixed search neighbourhood) assert these counters in
+`tests/graph_table/cost_curves.rs` and `tests/graph_weighted/cost_curves.rs`; no row is a
+timing.
 
 - **Indexed expansion of one visited vertex:** O(d) index entries plus O(d) row fetches
   (edges) plus at most d far-endpoint lookups, where d is the number of incident edges of
@@ -475,7 +483,7 @@ read), `graph_overlay_changes` (pending session changes examined), `graph_cache_
 and as a `graph` node of the structured plan: `graph_table=<graph>
 vertex[<alias>]=point_lookup(index=<name>),start=anchored|scan edge[<alias>]=indexed(index=out:<name>|in:<name>)`
 or `exact(reason=no_endpoint_index|no_key_index|exact_reads_forced)`. `EXPLAIN ANALYZE`
-appends `graph_reads=index_entries:N,row_fetches:N,full_rows:N,overlay_changes:N,cache_hits:N,validation_rows:N,frontier_peak:N`
+appends `graph_reads=index_entries:N,row_fetches:N,full_rows:N,overlay_changes:N,cache_hits:N,validation_rows:N,frontier_peak:N,edges_admitted:N,neighborhoods:N`
 for the statement, where `cache_hits` is the reuse across `LATERAL` rows. The structured
 plan's analyze block does not carry the graph counters; the text plan and the
 `read_paths.graph_*` runtime metrics do.

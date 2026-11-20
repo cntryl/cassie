@@ -41,6 +41,13 @@ pub(super) struct Lazy {
     memory: QueryMemoryReservation,
 }
 
+impl Lazy {
+    /// Neighborhoods merged into adjacency so far: one per (vertex, edge mapping, side).
+    pub(super) fn expanded_count(&self) -> u64 {
+        self.expanded.len() as u64
+    }
+}
+
 fn vertex_mapping_of(graph: &PropertyGraphMeta, alias: &str) -> Option<usize> {
     graph
         .vertices

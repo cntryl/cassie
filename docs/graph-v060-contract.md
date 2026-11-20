@@ -726,7 +726,21 @@ model, fallback rules and read bounds are specified in `docs/performance-contrac
   merged. Arbitrary storage corruption of an index is out of the model, exactly as for
   indexed SQL queries; graph reads claim no stronger detection.
 - `graph_weighted_paths` keeps its full controlled validation scan of the selected edges and
-  is O(selected edges) by contract.
+  is O(selected edges) by contract (#1355): invalid-weight rejection must hold for every
+  graph-visible edge, including edges outside the visited neighbourhood, and no sidecar may
+  certify weights. The scan decodes only each edge row's key, endpoint and weight columns,
+  never its other properties, and is counted separately as `graph_validation_rows`.
+- The `cassie_graph.vertex_ref` and `edge_ref` constructors find the element through the
+  scalar index that backs the mapped key (one index entry and one row read, plus the
+  transaction's own pending changes, plus the two endpoint vertex lookups for an edge); only
+  when no usable index exists do they scan the mapped table. They never scan it otherwise.
+- Counted bounds (#1355), all in `read_paths.graph_*` and `EXPLAIN ANALYZE graph_reads=`:
+  degree `d` costs `1 + 2d` index entries and row fetches, `d` edges admitted and one
+  neighbourhood expansion; depth `n` over a path costs `n` expansions and `n` admitted
+  edges; unreachable edges cost nothing; a hub is paid for once when the traversal reaches
+  it and not at all when it is not reached. Evidence: `tests/graph_table/cost_curves.rs`
+  and `tests/graph_weighted/cost_curves.rs`. Timing criteria stay open: the machine is never
+  quiet, so no p95 is recorded or claimed.
 - Read counts are tested by varying total graph size independently of selected degree and by
   characterizing fallback separately. The O(degree) claim is conditional on the endpoint
   index existing and on an anchored start; fallback and unanchored starts are stated

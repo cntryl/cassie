@@ -54,3 +54,18 @@ mod argument_binding;
 
 #[path = "graph_types/reference_order.rs"]
 mod reference_order;
+
+#[path = "graph_types/identity_fixture.rs"]
+mod identity_fixture;
+
+#[path = "graph_types/identity_matrix.rs"]
+mod identity_matrix;
+
+#[path = "graph_types/identity_corrections.rs"]
+mod identity_corrections;
+
+#[path = "graph_types/identity_access.rs"]
+mod identity_access;
+
+#[path = "graph_types/identity_restart.rs"]
+mod identity_restart;

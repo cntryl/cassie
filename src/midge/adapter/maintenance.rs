@@ -394,17 +394,30 @@ impl Midge {
                         && index.kind == crate::catalog::IndexKind::FullText
                 });
                 if let Some(index) = index {
-                    if self.rebuild_fulltext_index_for_index(&index).is_ok() {
-                        let _ = self.clear_maintenance_debt(
-                            &debt.collection,
-                            &debt.artifact,
-                            generation,
-                        );
-                    }
+                    self.repair_fulltext_maintenance_debt(&debt.collection, &index, generation);
                 }
             }
         }
         Ok(())
+    }
+
+    /// Rebuilds a full-text index recorded as maintenance debt against
+    /// `generation` of `collection`, and clears the debt when the rebuild
+    /// succeeds. A failed rebuild leaves the debt for the next retry, and
+    /// readers keep the labelled exact fallback meanwhile.
+    pub(super) fn repair_fulltext_maintenance_debt(
+        &self,
+        collection: &str,
+        index: &crate::catalog::IndexMeta,
+        generation: u64,
+    ) {
+        if self.rebuild_fulltext_index_for_index(index).is_ok() {
+            let _ = self.clear_maintenance_debt(
+                collection,
+                &format!("{FULLTEXT_ARTIFACT_PREFIX}{}", index.name),
+                generation,
+            );
+        }
     }
 
     #[doc(hidden)]

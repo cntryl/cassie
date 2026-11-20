@@ -254,7 +254,9 @@ impl TermPlan<'_> {
 impl Midge {
     /// Maintains one full-text index for a commit's changed documents inside the
     /// commit transaction. Falls back to a full rebuild when the stored index is
-    /// stale, was built with another analyzer, or contradicts the changes.
+    /// stale, was built with another analyzer, or contradicts the changes. The
+    /// flag is true when that rebuild is too large for the commit and must run
+    /// after it.
     pub(crate) fn maintain_fulltext_index_in_tx(
         &self,
         tx: &mut crate::midge::adapter::AdapterTransaction,
@@ -262,7 +264,7 @@ impl Midge {
         index: &IndexMeta,
         generation: u64,
         changes: &FulltextCommitChanges<'_>,
-    ) -> Result<FulltextWriteTally, CassieError> {
+    ) -> Result<(FulltextWriteTally, bool), CassieError> {
         // Any failure while planning (stale or contradictory stored state, corrupt
         // records) is repaired by the rebuild below; nothing is staged on error.
         let staged = self
@@ -270,8 +272,8 @@ impl Midge {
             .ok()
             .flatten();
         match staged {
-            Some(staged) => staged.apply(tx, changes.changed_ids.len()),
-            None => self.rebuild_fulltext_index_in_tx(tx, collection, index, generation),
+            Some(staged) => Ok((staged.apply(tx, changes.changed_ids.len())?, false)),
+            None => self.rebuild_or_defer_fulltext_index_in_tx(tx, collection, index, generation),
         }
     }
 

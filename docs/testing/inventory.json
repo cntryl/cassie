@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1817,
-    "rust_files": 1776,
-    "rust_test_declarations": 10802,
+    "files": 1818,
+    "rust_files": 1777,
+    "rust_test_declarations": 10804,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10827,
+    "registered_rust_instances": 10829,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -236193,6 +236193,68 @@
       }
     },
     {
+      "id": "tests/search/index_lifecycle/fulltext_large_rebuild.rs::should_publish_a_rebuild_larger_than_one_transaction_bound",
+      "name": "should_publish_a_rebuild_larger_than_one_transaction_bound",
+      "current_file": "tests/search/index_lifecycle/fulltext_large_rebuild.rs",
+      "line": 45,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_large_rebuild::should_publish_a_rebuild_larger_than_one_transaction_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "index_lifecycle",
+        "directory": "tests/search/index_lifecycle",
+        "file": "tests/search/index_lifecycle/fulltext_large_rebuild.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_large_rebuild.rs::should_rebuild_a_large_index_after_the_commit_that_could_not_maintain_it",
+      "name": "should_rebuild_a_large_index_after_the_commit_that_could_not_maintain_it",
+      "current_file": "tests/search/index_lifecycle/fulltext_large_rebuild.rs",
+      "line": 68,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_large_rebuild::should_rebuild_a_large_index_after_the_commit_that_could_not_maintain_it"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "index_lifecycle",
+        "directory": "tests/search/index_lifecycle",
+        "file": "tests/search/index_lifecycle/fulltext_large_rebuild.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/index_lifecycle/fulltext_persisted_retrieval.rs::should_persist_generation_bound_fulltext_state",
       "name": "should_persist_generation_bound_fulltext_state",
       "current_file": "tests/search/index_lifecycle/fulltext_persisted_retrieval.rs",
@@ -354808,6 +354870,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/index_lifecycle/fulltext_large_rebuild.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 95,
+      "sha256": "9c0487e8f3a35b593fa804002ebefef190dd471a3c3682567666be86eba359f4",
+      "test_declarations": 2,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/index_lifecycle/fulltext_large_rebuild.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/index_lifecycle/fulltext_persisted_retrieval.rs",
       "role": "test_module",
       "action": "keep",
@@ -355156,8 +355233,8 @@
       "current_file": "tests/search.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 103,
-      "sha256": "b130caabef28868ec45a218012920109a0c3678d7ea85a5f8b42c8f2cb2fc72f",
+      "lines": 105,
+      "sha256": "5a6388c3c4a3938ad4f20e2861b5a8d6783a6df7c4e4cde28482bd10b5142d4a",
       "test_declarations": 0,
       "registered_suites": [
         "search"
@@ -362530,7 +362607,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 389,
-      "sha256": "a14ef0194ed010390851feff9ad81f06073c3d5ecf800fb9188f7d3aecb00d2e",
+      "sha256": "de217a0826ddf1136ab9535981b56e6cb40c5741be05c8842696b2a985a42b43",
       "test_declarations": 10,
       "registered_suites": [
         "vector_embeddings"

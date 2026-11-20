@@ -17,6 +17,7 @@ impl Midge {
         indexes: &[crate::catalog::IndexMeta],
         generation: u64,
         report: Option<&DocumentWriteBatchReport>,
+        deferred_rebuilds: &mut Vec<(String, crate::catalog::IndexMeta, u64)>,
     ) -> Result<Vec<FulltextWriteTally>, CassieError> {
         let mut tallies = Vec::new();
         for index in indexes {
@@ -28,7 +29,7 @@ impl Midge {
                     generation,
                 )?;
             } else {
-                tallies.push(self.maintain_fulltext_index_in_tx(
+                let (tally, deferred) = self.maintain_fulltext_index_in_tx(
                     tx,
                     collection,
                     index,
@@ -37,16 +38,44 @@ impl Midge {
                         changed_ids: report.map_or(&[][..], |report| report.changed_ids.as_slice()),
                         row_delta: report.map_or(0, |report| report.row_delta),
                     },
-                )?);
+                )?;
+                if deferred {
+                    deferred_rebuilds.push((collection.to_string(), index.clone(), generation));
+                } else {
+                    tallies.push(tally);
+                }
             }
         }
         Ok(tallies)
     }
 
-    fn record_fulltext_tallies(&self, tallies: &[FulltextWriteTally]) {
+    /// Records a durable commit's maintenance tallies, then rebuilds the indexes
+    /// the commit unpublished because they were too large to rebuild inside it.
+    fn publish_fulltext_maintenance(
+        &self,
+        tallies: &[FulltextWriteTally],
+        deferred_rebuilds: &[(String, crate::catalog::IndexMeta, u64)],
+    ) {
         for tally in tallies {
             self.fulltext_maintenance_metrics.record(tally);
         }
+        for (collection, index, generation) in deferred_rebuilds {
+            self.repair_fulltext_maintenance_debt(collection, index, *generation);
+        }
+    }
+
+    fn stamp_vector_generations_in_tx(
+        &self,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        collection: &str,
+        generation: u64,
+        records: Option<&Vec<(String, Vec<crate::embeddings::NormalizedVectorRecord>)>>,
+    ) -> Result<(), CassieError> {
+        if let Some(records) = records {
+            let row_schema = self.row_schema(collection)?;
+            Self::stamp_normalized_vectors_generation_in_tx(tx, &row_schema, generation, records)?;
+        }
+        self.stamp_vector_index_states_generation_in_tx(tx, collection, generation)
     }
 
     pub(super) fn finish_document_write_batches(
@@ -68,18 +97,15 @@ impl Midge {
 
         let mut generations = BTreeMap::new();
         let mut fulltext_tallies = Vec::<FulltextWriteTally>::new();
+        let mut deferred_fulltext_rebuilds = Vec::new();
         for collection in &changed_collections {
             let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
-            if let Some(records) = vector_records_by_collection.get(collection) {
-                let row_schema = self.row_schema(collection)?;
-                Self::stamp_normalized_vectors_generation_in_tx(
-                    &mut tx,
-                    &row_schema,
-                    generation,
-                    records,
-                )?;
-            }
-            self.stamp_vector_index_states_generation_in_tx(&mut tx, collection, generation)?;
+            self.stamp_vector_generations_in_tx(
+                &mut tx,
+                collection,
+                generation,
+                vector_records_by_collection.get(collection),
+            )?;
             Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
             Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
             if options.record_rollup_maintenance_debt {
@@ -97,6 +123,7 @@ impl Midge {
                     indexes,
                     generation,
                     reports.get(collection),
+                    &mut deferred_fulltext_rebuilds,
                 )?);
             }
             generations.insert(collection.clone(), generation);
@@ -126,7 +153,7 @@ impl Midge {
             );
         }
         tx.commit(options.commit).map_err(CassieError::from)?;
-        self.record_fulltext_tallies(&fulltext_tallies);
+        self.publish_fulltext_maintenance(&fulltext_tallies, &deferred_fulltext_rebuilds);
         let mut sorted_changed_collections = changed_collections;
         sorted_changed_collections.sort();
 

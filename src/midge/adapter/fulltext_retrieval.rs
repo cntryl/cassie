@@ -21,6 +21,8 @@ mod incremental;
 mod layout;
 #[path = "fulltext_retrieval/metrics.rs"]
 mod metrics;
+#[path = "fulltext_retrieval/staged_rebuild.rs"]
+mod staged_rebuild;
 #[path = "fulltext_retrieval/vocabulary.rs"]
 mod vocabulary;
 
@@ -29,16 +31,32 @@ pub(crate) use metrics::{FulltextMaintenanceMetrics, FulltextWriteTally};
 
 const STATE_VERSION: u32 = 3;
 const FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
+/// Key plus value bytes one index-build transaction may carry. Posting blocks
+/// reach 64 KiB each, so a batch bounded only by record count can exceed the
+/// storage engine's transaction validation budget.
+const FULLTEXT_INDEX_BUILD_WRITE_BATCH_BYTES: usize = 1024 * 1024;
 
-fn fulltext_build_ranges(item_count: usize) -> impl Iterator<Item = std::ops::Range<usize>> {
-    (0..item_count)
-        .step_by(FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE)
-        .map(move |start| {
-            start
-                ..start
-                    .saturating_add(FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE)
-                    .min(item_count)
-        })
+/// Splits `record_bytes` (the size of each record, in write order) into
+/// consecutive ranges bounded by record count and by total bytes. A record
+/// larger than the byte bound gets a range of its own.
+fn fulltext_build_ranges(record_bytes: &[usize]) -> Vec<std::ops::Range<usize>> {
+    let mut ranges = Vec::new();
+    let mut start = 0_usize;
+    let mut bytes = 0_usize;
+    for (index, record) in record_bytes.iter().enumerate() {
+        let full = index - start == FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE
+            || bytes.saturating_add(*record) > FULLTEXT_INDEX_BUILD_WRITE_BATCH_BYTES;
+        if full && index > start {
+            ranges.push(start..index);
+            start = index;
+            bytes = 0;
+        }
+        bytes = bytes.saturating_add(*record);
+    }
+    if start < record_bytes.len() {
+        ranges.push(start..record_bytes.len());
+    }
+    ranges
 }
 
 impl Midge {
@@ -319,19 +337,20 @@ impl Midge {
         Ok(())
     }
 
+    /// Rebuilds `index` in bounded transactions under the collection write
+    /// gate. Readers take the labelled exact fallback until it is republished.
     pub(crate) fn rebuild_fulltext_index_for_index(
         &self,
         index: &IndexMeta,
     ) -> Result<(), CassieError> {
         let collection = self.canonical_collection_name(&index.collection);
-        let generation = self.collection_generation(&collection)?;
-        let mut tx = self.begin_data_rw_tx_for(&collection)?;
-        let tally = self.rebuild_fulltext_index_in_tx(&mut tx, &collection, index, generation)?;
-        super::schema_write_control::pause_before_schema_write_commit(
-            super::schema_write_control::SchemaWritePausePoint::FulltextRebuildCommit,
-        );
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
+        let write_gate = self.collection_write_gate(&collection);
+        let _write_guard = write_gate.lock();
+        let tally = self.rebuild_fulltext_index_staged(
+            index,
+            |_| Ok(()),
+            Some(super::schema_write_control::SchemaWritePausePoint::FulltextRebuildCommit),
+        )?;
         self.fulltext_maintenance_metrics.record(&tally);
         Ok(())
     }
@@ -365,82 +384,8 @@ impl Midge {
         if self.get_index(&index.collection, &index.name)?.is_some() {
             return self.rebuild_fulltext_index_for_index(index);
         }
-
-        let collection = self.canonical_collection_name(&index.collection);
-        let generation = self.collection_generation(&collection)?;
-        let row_schema = self.row_schema(&collection)?;
-        let tx = self.begin_data_readonly_tx_for(&collection)?;
-        let documents = self.load_documents_from_tx(&tx, &collection, &row_schema)?;
-        drop(tx);
-        let state = build_state(index, generation, documents)?;
-        let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;
-        let prefix = Self::fulltext_index_artifact_prefix(relation_id, index_id);
-        self.delete_prepared_fulltext_artifacts_in_batches(&collection, &prefix)?;
-
-        let records = Self::fulltext_state_records(index, &state)?;
-        for range in fulltext_build_ranges(records.body.len()) {
-            let mut tx = self.begin_data_rw_tx_for(&collection)?;
-            for (key, value) in &records.body[range] {
-                tx.put(key.clone(), value.clone(), None)
-                    .map_err(CassieError::from)?;
-            }
-            tx.commit(self.write_options_sync())
-                .map_err(CassieError::from)?;
-        }
-
-        let mut tx = self.begin_data_rw_tx_for(&collection)?;
-        let (metadata_key, metadata_value) = records.metadata;
-        tx.put(metadata_key, metadata_value, None)
-            .map_err(CassieError::from)?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
-    }
-
-    fn delete_prepared_fulltext_artifacts_in_batches(
-        &self,
-        collection: &str,
-        prefix: &[u8],
-    ) -> Result<(), CassieError> {
-        loop {
-            let keys = self
-                .raw_scan_prefix_page_for_collection(
-                    collection,
-                    prefix,
-                    FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE,
-                )?
-                .into_iter()
-                .map(|(key, _)| key)
-                .collect::<Vec<_>>();
-            if keys.is_empty() {
-                return Ok(());
-            }
-            let mut tx = self.begin_data_rw_tx_for(collection)?;
-            for key in keys {
-                tx.delete(key).map_err(CassieError::from)?;
-            }
-            tx.commit(self.write_options_sync())
-                .map_err(CassieError::from)?;
-        }
-    }
-
-    /// Rebuilds the whole index from committed rows inside `tx`, returning what it wrote.
-    pub(crate) fn rebuild_fulltext_index_in_tx(
-        &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
-        collection: &str,
-        index: &IndexMeta,
-        generation: u64,
-    ) -> Result<FulltextWriteTally, CassieError> {
-        let row_schema = self.row_schema(collection)?;
-        let documents = self.load_documents_from_tx(tx, collection, &row_schema)?;
-        let state = build_state(index, generation, documents)?;
-        let mut tally = FulltextWriteTally {
-            full_rebuild: true,
-            ..FulltextWriteTally::default()
-        };
-        tally.pieces_deleted = Self::delete_fulltext_artifacts_in_tx(tx, index)?;
-        Self::save_fulltext_state_in_tx(tx, index, &state, &mut tally)?;
-        Ok(tally)
+        self.rebuild_fulltext_index_staged(index, |_| Ok(()), None)
+            .map(|_| ())
     }
 
     /// # Errors
@@ -702,23 +647,6 @@ impl Midge {
         Ok(deleted)
     }
 
-    fn save_fulltext_state_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
-        index: &IndexMeta,
-        state: &PersistedFulltextIndexState,
-        tally: &mut FulltextWriteTally,
-    ) -> Result<(), CassieError> {
-        let records = Self::fulltext_state_records(index, state)?;
-        for (key, value) in std::iter::once(records.metadata).chain(records.body) {
-            tally.pieces_written = tally.pieces_written.saturating_add(1);
-            tally.bytes_written = tally
-                .bytes_written
-                .saturating_add(key.len().saturating_add(value.len()));
-            tx.put(key, value, None).map_err(CassieError::from)?;
-        }
-        Ok(())
-    }
-
     fn fulltext_storage_ids(index: &IndexMeta) -> Result<(u64, u64), CassieError> {
         let relation_id = index.relation_id().ok_or_else(|| {
             CassieError::Parse(format!("index '{}' is missing its relation id", index.name))
@@ -806,14 +734,39 @@ mod tests {
     #[test]
     fn should_bound_prepared_fulltext_index_publication_batches() {
         // Arrange
-        let artifact_count = 10_001;
+        let record_bytes = vec![16_usize; 10_001];
 
         // Act
-        let batches = fulltext_build_ranges(artifact_count)
+        let batches = fulltext_build_ranges(&record_bytes)
+            .into_iter()
             .map(|range| range.len())
             .collect::<Vec<_>>();
 
         // Assert
         assert_eq!(batches, vec![5_000, 5_000, 1]);
+    }
+
+    #[test]
+    fn should_bound_index_publication_batches_by_bytes_given_large_posting_blocks() {
+        // Arrange
+        let block = 48 * 1024;
+        let oversized = FULLTEXT_INDEX_BUILD_WRITE_BATCH_BYTES + 1;
+        let record_bytes = [vec![block; 50], vec![oversized], vec![block; 3]].concat();
+
+        // Act
+        let ranges = fulltext_build_ranges(&record_bytes);
+
+        // Assert
+        let covered = ranges.iter().map(std::ops::Range::len).sum::<usize>();
+        assert_eq!(covered, record_bytes.len());
+        assert_eq!(ranges.first(), Some(&(0..21)));
+        assert!(
+            ranges.contains(&(50..51)),
+            "an oversized record stands alone"
+        );
+        for range in &ranges {
+            let bytes = record_bytes[range.clone()].iter().sum::<usize>();
+            assert!(range.len() == 1 || bytes <= FULLTEXT_INDEX_BUILD_WRITE_BATCH_BYTES);
+        }
     }
 }

@@ -2,8 +2,8 @@
 
 use std::mem::size_of;
 
-use super::bindings::{scalar_entries, Candidate};
 use super::eval::Evaluator;
+use super::multi::Matches;
 use super::path_value::PathBuilder;
 use super::plan::Plan;
 use super::store::Store;
@@ -66,13 +66,13 @@ pub(super) fn metadata_bytes(
 /// Expression errors, cancellation and the query memory budget.
 pub(super) fn rows(
     env: &SourceExecutionEnv<'_>,
-    plan: &Plan<'_>,
+    plans: &[Plan<'_>],
     store: &Store,
     eval: &Evaluator<'_>,
-    selected: &[Candidate],
+    selected: &Matches,
     memory: &mut QueryMemoryReservation,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let table = plan.table;
+    let table = plans[0].table;
     let _name_memory = env
         .controls
         .reserve_query_memory(mul(table.columns.len(), size_of::<String>() + 32)?)?;
@@ -85,12 +85,12 @@ pub(super) fn rows(
         .columns
         .iter()
         .any(|column| is_path(&column.expr))
-        .then(|| PathBuilder::new(env, &plan.graph))
+        .then(|| PathBuilder::new(env, &plans[0].graph))
         .transpose()?;
     let mut out = Vec::new();
-    for path in selected {
+    for index in 0..selected.len() {
         env.controls.check_interruption()?;
-        let entries = scalar_entries(env, plan, store, path)?;
+        let entries = selected.entries(env, plans, store, index)?;
         if let Some(filter) = &table.filter {
             if !eval.holds(filter, entries.get())? {
                 continue;
@@ -119,7 +119,12 @@ pub(super) fn rows(
         let mut values = Vec::with_capacity(names.len());
         for (name, column) in names.iter().zip(&table.columns) {
             let value = match &paths {
-                Some(builder) if is_path(&column.expr) => builder.value(env, store, path)?,
+                Some(builder) if is_path(&column.expr) => {
+                    let path = selected
+                        .single(index)
+                        .expect("a path variable has one pattern");
+                    builder.value(env, store, path)?
+                }
                 _ => eval.value(&column.expr, entries.get())?,
             };
             let (value, value_memory) = value.into_parts();

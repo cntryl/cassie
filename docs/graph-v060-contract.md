@@ -195,7 +195,7 @@ this grammar denote optional parts, braces denote repetition, and quoted
 brackets in `edge` are SQL tokens:
 
 ```text
-graph_table = GRAPH_TABLE ( graph_name MATCH [path_variable =] path
+graph_table = GRAPH_TABLE ( graph_name MATCH [path_variable =] path [, path]
                            [KEEP selector] [WHERE sql_predicate]
                            COLUMNS (projection {, projection}) ) [AS alias]
 path        = vertex {edge [quantifier] vertex}
@@ -282,12 +282,61 @@ search before selection. A planner may push an outer predicate into traversal
 only after proving equivalence for selection, ties, NULLs, multiplicity,
 errors and resource controls.
 
-Recognized but unsupported graph constructs, including comma-separated
-patterns, pattern unions, graph mutation, direct scalar use of group variables,
+Recognized but unsupported graph constructs, including a third comma-separated
+pattern, patterns that share no vertex variable, pattern unions, graph mutation, direct scalar use of group variables,
 and unsupported quantifiers, return SQLSTATE `0A000`; malformed syntax returns
 `42601`. Invalid bounds or a zero `k` return `22023`. Unknown variables or
 properties and incompatible types use Cassie's corresponding existing binder
 errors. Errors must not silently select a different meaning.
+
+### Patterns joined on a shared vertex (#1353)
+
+A `MATCH` may list two comma-separated paths. The list is the finite form of
+correlated matching in this contract; it is not a general graph-pattern join.
+
+* **Grammar.** `path , path`, after the optional path variable of the first path and
+  before `KEEP`/`WHERE`/`COLUMNS`. At most two paths (`MAX_GRAPH_PATTERNS`); a third is
+  `0A000`. A path variable (`p = ...`) with a list, on either path, is `0A000`. A leading
+  or dangling comma is `42601`.
+* **Shared variable identity.** A vertex variable named by both paths binds one vertex
+  identity: the same vertex mapping and the same typed key tuple. Equality never compares
+  properties or printed key components, so two tenants whose rows print the same ids stay
+  separate. Naming the variable twice inside one path keeps its existing meaning.
+  Only vertex variables join paths: an edge variable named by both paths, and any
+  group variable, is `0A000`. Every path after the first must name a vertex variable that
+  an earlier path names, or the statement is `0A000`: there is no cross product.
+* **Label compatibility.** The labels named for a shared variable at each occurrence all
+  apply. Some vertex mapping must carry every one of them; otherwise binding fails with
+  `42804`. The variable exposes the properties of every label named at any occurrence, and
+  a property resolves to one type exactly as for a repeated variable inside one path.
+* **Scope.** `$n` parameters and the outer columns of a `LATERAL` source are visible in every
+  inline predicate, the graph-pattern `WHERE` and `COLUMNS`, and parameter types are
+  inferred from a comparison in any of them. An inline predicate sees only the variables of
+  its own path (an unknown one is `42703`); put a condition across paths in the
+  graph-pattern `WHERE`, which sees every variable of both.
+* **Selectors and modes.** `KEEP` applies to each path independently, before the join, and
+  the graph-pattern `WHERE` applies to the joined match. Unbounded `WALK` is rejected in
+  either path as for a single path.
+* **Bag semantics.** Every combination of one selected path from each pattern whose shared
+  vertices are equal is one row. Parallel edges and distinct paths multiply, so a
+  vertex reached by two parallel edges from each side yields four rows. `DISTINCT` and
+  aggregation belong to the enclosing `SELECT`.
+* **Bounds.** Each path keeps its quantifier bounds. A work or memory bound is the existing
+  query memory budget: frontier, visited, retained path and joined-tuple state are
+  accounted, exceeding it is `54000`, and cancellation or a deadline is `57014`. Either
+  failure returns no row of the statement, never a partial match set.
+* **Execution.** Each path is searched on its own over one statement store using the
+  existing indexed exact reads, and the selected paths are joined in memory on the shared
+  vertex identities. No sidecar or derived index exists. When a later path starts at a
+  shared variable, its search starts only at the vertices the earlier paths bound to it;
+  otherwise it uses its own start lookup under the same read rules.
+* **Order.** The implementation emits joined rows in lexicographic order of each path's
+  position in that path's documented total order. As elsewhere, only `ORDER BY` promises
+  an order.
+* **Evidence.** `EXPLAIN` reports `patterns=2 join=shared_vertex` and the access path of each
+  `pattern[i]`. The runtime metrics `read_paths.graph_last_branch_expansions` and
+  `graph_last_branch_paths` hold, for the latest joined read, the edge hops taken and the
+  paths selected by each pattern before the join.
 
 Binding selects these readings where the grammar is silent. A projection that
 is a bare `variable.property` is named after the property; any other projection

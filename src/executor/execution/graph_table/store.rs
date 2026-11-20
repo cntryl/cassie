@@ -143,15 +143,11 @@ impl Store {
     /// Storage, cancellation and memory-budget errors of the underlying scans.
     pub(super) fn load(
         env: &SourceExecutionEnv<'_>,
-        plan: &Plan<'_>,
+        plans: &[Plan<'_>],
         memory: &mut QueryMemoryReservation,
     ) -> Result<Self, QueryError> {
-        Self::load_mappings(
-            env,
-            &plan.graph,
-            (&plan.vertex_mappings_read(), &plan.edge_mappings_read()),
-            memory,
-        )
+        let (vertices, edges) = super::plan::mappings_read(plans);
+        Self::load_mappings(env, &plans[0].graph, (&vertices, &edges), memory)
     }
 
     /// [`Store::load`] for explicit `(vertex, edge)` mapping indexes of `graph`.

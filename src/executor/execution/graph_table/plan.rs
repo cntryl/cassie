@@ -5,7 +5,8 @@ use std::collections::HashSet;
 
 use crate::catalog::{GraphLabelMeta, PropertyGraphMeta};
 use crate::sql::ast::{
-    Expr, GraphEdgeDirection, GraphQuantifier, GraphTable, GraphTableBinding, GraphVariableKind,
+    Expr, GraphEdgeDirection, GraphPathPattern, GraphQuantifier, GraphTable, GraphTableBinding,
+    GraphVariableKind,
 };
 use crate::sql::ColumnIdentifierPath;
 
@@ -59,6 +60,8 @@ pub(super) struct Variable {
 
 pub(super) struct Plan<'a> {
     pub(super) table: &'a GraphTable,
+    /// The path pattern this plan covers: the table's first or a comma-separated one.
+    pub(super) pattern: &'a GraphPathPattern,
     pub(super) graph: PropertyGraphMeta,
     pub(super) variables: Vec<Variable>,
     /// `positions[0]` is the start; `positions[i + 1]` ends `steps[i]`.
@@ -67,6 +70,20 @@ pub(super) struct Plan<'a> {
     pub(super) deferred: bool,
     /// Adjacent quantified steps can match one path through different hop splits.
     pub(super) may_duplicate: bool,
+}
+
+/// The vertex and edge mappings any of `plans` reads, each once.
+pub(super) fn mappings_read(plans: &[Plan<'_>]) -> (Vec<usize>, Vec<usize>) {
+    let union = |lists: Vec<Vec<usize>>| {
+        let mut all = lists.into_iter().flatten().collect::<Vec<_>>();
+        all.sort_unstable();
+        all.dedup();
+        all
+    };
+    (
+        union(plans.iter().map(Plan::vertex_mappings_read).collect()),
+        union(plans.iter().map(Plan::edge_mappings_read).collect()),
+    )
 }
 
 fn internal(message: &str) -> crate::app::CassieError {
@@ -161,12 +178,25 @@ fn bounds(quantifier: Option<GraphQuantifier>) -> (usize, Option<usize>) {
 }
 
 impl<'a> Plan<'a> {
+    /// One plan per path pattern of the table, in source order.
+    ///
     /// # Errors
     ///
-    /// An execution error when the table is unbound or its graph no longer exists.
-    pub(super) fn build(
+    /// An execution error when the table is unbound.
+    pub(super) fn build_all(
+        table: &'a GraphTable,
+        graph: &PropertyGraphMeta,
+    ) -> Result<Vec<Self>, crate::app::CassieError> {
+        table
+            .patterns()
+            .map(|pattern| Self::build_pattern(table, graph.clone(), pattern))
+            .collect()
+    }
+
+    fn build_pattern(
         table: &'a GraphTable,
         graph: PropertyGraphMeta,
+        pattern: &'a GraphPathPattern,
     ) -> Result<Self, crate::app::CassieError> {
         let binding = table
             .binding
@@ -174,6 +204,7 @@ impl<'a> Plan<'a> {
             .ok_or_else(|| internal("GRAPH_TABLE source was not bound"))?;
         let mut plan = Self {
             table,
+            pattern,
             graph,
             variables: Vec::new(),
             positions: Vec::new(),
@@ -234,14 +265,13 @@ impl<'a> Plan<'a> {
     }
 
     fn assemble(&mut self, binding: &GraphTableBinding) {
-        let table = self.table;
         let names = binding
             .variables
             .iter()
             .filter(|variable| variable.kind != GraphVariableKind::Path)
             .map(|variable| variable.name.as_str())
             .collect::<HashSet<_>>();
-        let pattern = &table.path;
+        let pattern = self.pattern;
         self.push_position(binding, &names, &pattern.start, 0);
         for (index, step) in pattern.steps.iter().enumerate() {
             let (min, max) = bounds(step.edge.quantifier);

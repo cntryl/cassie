@@ -155,4 +155,16 @@ impl RuntimeState {
         paths.graph_validation_rows += counts.validation_rows;
         paths.graph_last_frontier_peak = counts.frontier_peak;
     }
+
+    /// Records, for the latest joined `GRAPH_TABLE`, each pattern's edge hops and
+    /// selected paths in pattern order.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the runtime metrics lock is poisoned.
+    pub fn record_graph_branches(&self, expansions: Vec<u64>, paths: Vec<u64>) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.read_paths.graph_last_branch_expansions = expansions;
+        metrics.read_paths.graph_last_branch_paths = paths;
+    }
 }

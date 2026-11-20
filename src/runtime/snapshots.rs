@@ -412,6 +412,10 @@ pub struct ReadPathSnapshot {
     pub graph_validation_rows: u64,
     /// Frontier peak (vertices with a fetched neighborhood) of the latest graph read.
     pub graph_last_frontier_peak: u64,
+    /// Edge hops each pattern of the latest joined graph read took, in pattern order.
+    pub graph_last_branch_expansions: Vec<u64>,
+    /// Paths each pattern of the latest joined graph read selected before the join.
+    pub graph_last_branch_paths: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

@@ -212,6 +212,14 @@ pub(super) fn bind_alter_index(
             name,
         });
     };
+    if index.kind == crate::catalog::IndexKind::FullText
+        && !matches!(statement.operation, AlterIndexOperation::Rename { .. })
+    {
+        // Analyzer options are validated and published atomically when the index executes.
+        statement.name = index.name;
+        statement.collection = index.collection;
+        return Ok(statement);
+    }
     if index.kind != crate::catalog::IndexKind::Scalar
         || !index.access_method().eq_ignore_ascii_case("btree")
     {

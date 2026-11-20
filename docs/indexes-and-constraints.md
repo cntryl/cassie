@@ -219,7 +219,8 @@ Supported options:
 - `tokenizer = whitespace`
 - `case_folding = true|false`
 - `stop_words = english|none`
-- `stemming = none`
+- `stemming = none|english`
+- `synonyms = 'car,auto;tv,television'` (symmetric groups; see [index DDL contract](index-ddl-contract.md))
 - `accent_folding = true|false`
 
 Analyzer options are persisted and used by indexing, `search()`, `search_score()`, snippets, BM25 statistics, rebuild scans, and cached full-text scoring metadata.

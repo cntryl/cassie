@@ -24,6 +24,15 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
             "ALTER INDEX was not bound to an existing index".to_string(),
         ));
     }
+    if cassie
+        .midge
+        .get_index(&statement.collection, &statement.name)
+        .ok()
+        .flatten()
+        .is_some_and(|index| index.kind == catalog::IndexKind::FullText)
+    {
+        return alter_fulltext_index(cassie, statement, output);
+    }
     let updated = cassie.midge.update_index_metadata(
         &statement.collection,
         &statement.name,
@@ -51,7 +60,7 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
             }
             Ok(())
         },
-        |updated| cassie.catalog.register_index(updated),
+        |updated| register_updated_index(cassie, statement, updated),
     );
     match updated {
         Ok(()) => Ok(output),
@@ -61,6 +70,81 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
         }) if statement.if_exists => Ok(output),
         Err(error) => Err(QueryError::General(error.to_string())),
     }
+}
+
+/// Storage reports an index under its canonical collection name (for example
+/// `postgres.public.t`) while the catalog keys it by the relation spelling the
+/// statement was bound to (`t`). Re-registering the storage spelling would add a
+/// second catalog entry beside the original, so keep the catalog's spelling.
+fn register_updated_index(
+    cassie: &Cassie,
+    statement: &AlterIndexStatement,
+    mut updated: catalog::IndexMeta,
+) {
+    if let Some(existing) = cassie
+        .catalog
+        .get_index(&statement.collection, &statement.name)
+    {
+        updated.collection = existing.collection;
+    }
+    cassie.catalog.register_index(updated);
+}
+
+/// Full-text `ALTER INDEX` only changes analyzer options; the rebuild and the
+/// generation switch live in `Midge::alter_fulltext_index_analyzer`.
+fn alter_fulltext_index(
+    cassie: &Cassie,
+    statement: &AlterIndexStatement,
+    output: QueryResult,
+) -> Result<QueryResult, QueryError> {
+    cassie
+        .midge
+        .alter_fulltext_index_analyzer(
+            &statement.collection,
+            &statement.name,
+            |options| {
+                match &statement.operation {
+                    AlterIndexOperation::Set(values) => options.extend(values.clone()),
+                    AlterIndexOperation::Reset(names) => {
+                        for name in names {
+                            options.remove(name);
+                        }
+                    }
+                    AlterIndexOperation::Rename { .. } => {
+                        unreachable!("rename is dispatched separately")
+                    }
+                }
+                let requested: Vec<&String> = match &statement.operation {
+                    AlterIndexOperation::Set(values) => values.keys().collect(),
+                    AlterIndexOperation::Reset(names) => names.iter().collect(),
+                    AlterIndexOperation::Rename { .. } => Vec::new(),
+                };
+                if let Some(key) = requested.into_iter().find(|key| {
+                    !matches!(
+                        key.as_str(),
+                        "boost"
+                            | "k1"
+                            | "b"
+                            | "analyzer"
+                            | "case_folding"
+                            | "stop_words"
+                            | "stemming"
+                            | "synonyms"
+                            | "accent_folding"
+                            | "tokenizer"
+                            | "analyzer_version"
+                    )
+                }) {
+                    return Err(crate::app::CassieError::Unsupported(format!(
+                        "unsupported fulltext index option '{key}'"
+                    )));
+                }
+                Ok(())
+            },
+            |updated| register_updated_index(cassie, statement, updated),
+        )
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    Ok(output)
 }
 
 pub(in crate::executor::execution) fn drop_index(

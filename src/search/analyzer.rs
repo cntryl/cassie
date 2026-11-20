@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AnalyzerConfig {
@@ -8,7 +9,17 @@ pub struct AnalyzerConfig {
     pub stop_words: String,
     pub stemming: String,
     pub accent_folding: bool,
+    /// Symmetric synonym groups as `analyzed term -> canonical term` (the
+    /// lexicographically smallest stemmed member of the group).
+    #[serde(default)]
+    pub synonyms: BTreeMap<String, String>,
 }
+
+/// Synonym option limits, enforced before an index definition is published.
+pub const MAX_SYNONYM_GROUPS: usize = 256;
+pub const MAX_SYNONYM_GROUP_MEMBERS: usize = 16;
+pub const MAX_SYNONYM_MEMBER_BYTES: usize = 64;
+pub const MAX_SYNONYM_OPTION_BYTES: usize = 16 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct TokenizedText {
@@ -24,6 +35,7 @@ impl Default for AnalyzerConfig {
             stop_words: "english".to_string(),
             stemming: "none".to_string(),
             accent_folding: false,
+            synonyms: BTreeMap::new(),
         }
     }
 }
@@ -32,9 +44,7 @@ impl AnalyzerConfig {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn from_index_options(
-        options: &std::collections::BTreeMap<String, String>,
-    ) -> Result<Self, String> {
+    pub fn from_index_options(options: &BTreeMap<String, String>) -> Result<Self, String> {
         let mut config = Self::default();
         if let Some(name) = options.get("analyzer") {
             config.name = normalize_option(name);
@@ -65,17 +75,21 @@ impl AnalyzerConfig {
         }
         if let Some(value) = options.get("stemming") {
             config.stemming = normalize_option(value);
-            if config.stemming != "none" {
+            if !matches!(config.stemming.as_str(), "none" | "english") {
                 return Err(format!("unsupported stemming option '{}'", value.trim()));
             }
         }
         if let Some(value) = options.get("accent_folding") {
             config.accent_folding = parse_bool_option("accent_folding", value)?;
         }
+        if let Some(value) = options.get("synonyms") {
+            config.synonyms = config.parse_synonyms(value)?;
+        }
 
         Ok(config)
     }
 
+    #[must_use]
     pub fn analyze(&self, input: &str) -> Vec<String> {
         let normalized = if self.case_folding {
             input.to_lowercase()
@@ -88,11 +102,85 @@ impl AnalyzerConfig {
             normalized
         };
         let stop_words = crate::search::tokenizer::stop_words();
+        let stemmer = self.stemmer();
         tokenize_with(&normalized, &self.tokenizer)
             .filter(|token| !token.is_empty())
             .filter(|token| self.stop_words != "english" || !stop_words.contains(*token))
-            .map(ToString::to_string)
+            .map(|token| self.canonical_term(stem_token(stemmer.as_ref(), token)))
             .collect()
+    }
+
+    fn canonical_term(&self, token: String) -> String {
+        self.synonyms.get(&token).cloned().unwrap_or(token)
+    }
+
+    /// Parses `a,b;c,d` symmetric equivalence groups. Members are analyzed through
+    /// the pipeline up to stemming; the smallest analyzed member is canonical.
+    fn parse_synonyms(&self, raw: &str) -> Result<BTreeMap<String, String>, String> {
+        let raw = raw.trim().trim_matches('\'').trim_matches('"');
+        if raw.len() > MAX_SYNONYM_OPTION_BYTES {
+            return Err(format!(
+                "synonyms option exceeds {MAX_SYNONYM_OPTION_BYTES} bytes"
+            ));
+        }
+        if raw.contains("=>") {
+            return Err(
+                "unsupported synonym syntax '=>'; use symmetric 'a,b;c,d' groups".to_string(),
+            );
+        }
+        let base = Self {
+            synonyms: BTreeMap::new(),
+            ..self.clone()
+        };
+        let mut map = BTreeMap::new();
+        let mut group_count = 0usize;
+        for group in raw.split(';').filter(|group| !group.trim().is_empty()) {
+            group_count += 1;
+            if group_count > MAX_SYNONYM_GROUPS {
+                return Err(format!("synonyms exceed {MAX_SYNONYM_GROUPS} groups"));
+            }
+            let members = group.split(',').map(str::trim).collect::<Vec<_>>();
+            if members.len() > MAX_SYNONYM_GROUP_MEMBERS {
+                return Err(format!(
+                    "synonym group exceeds {MAX_SYNONYM_GROUP_MEMBERS} members"
+                ));
+            }
+            let mut analyzed = std::collections::BTreeSet::new();
+            for member in members {
+                if member.len() > MAX_SYNONYM_MEMBER_BYTES {
+                    return Err(format!(
+                        "synonym member exceeds {MAX_SYNONYM_MEMBER_BYTES} bytes"
+                    ));
+                }
+                let mut tokens = base.analyze(member);
+                if tokens.len() != 1 {
+                    return Err(format!(
+                        "synonym member '{member}' must analyze to exactly one term"
+                    ));
+                }
+                analyzed.insert(tokens.remove(0));
+            }
+            if analyzed.len() < 2 {
+                return Err(format!(
+                    "synonym group '{}' needs at least two distinct members",
+                    group.trim()
+                ));
+            }
+            let canonical = analyzed.iter().next().cloned().unwrap_or_default();
+            for term in analyzed {
+                if map.insert(term.clone(), canonical.clone()).is_some() {
+                    return Err(format!(
+                        "synonym term '{term}' appears in more than one group"
+                    ));
+                }
+            }
+        }
+        Ok(map)
+    }
+
+    fn stemmer(&self) -> Option<rust_stemmers::Stemmer> {
+        (self.stemming == "english")
+            .then(|| rust_stemmers::Stemmer::create(rust_stemmers::Algorithm::English))
     }
 
     /// Returns the byte ranges of `input` whose analyzed tokens equal one of `terms`.
@@ -136,6 +224,7 @@ impl AnalyzerConfig {
             origins.resize(folded.len(), (start, end));
         }
 
+        let stemmer = self.stemmer();
         let mut spans: Vec<(usize, usize)> = Vec::new();
         let mut token_start: Option<usize> = None;
         let boundaries = folded
@@ -147,7 +236,9 @@ impl AnalyzerConfig {
                 (None, false) => token_start = Some(index),
                 (Some(start), true) => {
                     token_start = None;
-                    if terms.iter().any(|term| term == &folded[start..index]) {
+                    let token =
+                        self.canonical_term(stem_token(stemmer.as_ref(), &folded[start..index]));
+                    if terms.contains(&token) {
                         let span = (origins[start].0, origins[index - 1].1);
                         if spans.last().is_none_or(|last| span.0 >= last.1) {
                             spans.push(span);
@@ -173,6 +264,13 @@ impl TokenizedText {
             tokens: AnalyzerConfig::default().analyze(input),
         }
     }
+}
+
+fn stem_token(stemmer: Option<&rust_stemmers::Stemmer>, token: &str) -> String {
+    stemmer.map_or_else(
+        || token.to_string(),
+        |stemmer| stemmer.stem(token).into_owned(),
+    )
 }
 
 fn normalize_option(value: &str) -> String {
@@ -315,5 +413,203 @@ mod tests {
 
         // Assert
         assert_eq!(spans, vec![(2, 12)]);
+    }
+
+    fn english_stemming() -> AnalyzerConfig {
+        AnalyzerConfig {
+            stemming: "english".to_string(),
+            ..AnalyzerConfig::default()
+        }
+    }
+
+    #[test]
+    fn should_accept_english_stemming_option() {
+        // Arrange
+        let options = BTreeMap::from([("stemming".to_string(), "'English'".to_string())]);
+
+        // Act
+        let config = AnalyzerConfig::from_index_options(&options).expect("english stemming");
+
+        // Assert
+        assert_eq!(config.stemming, "english");
+    }
+
+    #[test]
+    fn should_reject_unsupported_stemming_language() {
+        // Arrange
+        let options = BTreeMap::from([("stemming".to_string(), "french".to_string())]);
+
+        // Act
+        let result = AnalyzerConfig::from_index_options(&options);
+
+        // Assert
+        assert_eq!(
+            result.expect_err("french is unsupported"),
+            "unsupported stemming option 'french'"
+        );
+    }
+
+    #[test]
+    fn should_stem_inflected_terms_after_stop_words() {
+        // Arrange
+        let config = english_stemming();
+
+        // Act
+        let tokens = config.analyze("The Running accounts");
+
+        // Assert
+        assert_eq!(tokens, vec!["run", "account"]);
+    }
+
+    #[test]
+    fn should_preserve_default_token_stream_without_stemming() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+
+        // Act
+        let tokens = config.analyze("The Running accounts");
+
+        // Assert
+        assert_eq!(tokens, vec!["running", "accounts"]);
+    }
+
+    #[test]
+    fn should_stem_after_accent_folding() {
+        // Arrange
+        let config = AnalyzerConfig {
+            accent_folding: true,
+            ..english_stemming()
+        };
+
+        // Act
+        let tokens = config.analyze("Caf\u{e9}s");
+
+        // Assert
+        assert_eq!(tokens, vec!["cafe"]);
+    }
+
+    #[test]
+    fn should_highlight_original_inflected_spans_with_stemming() {
+        // Arrange
+        let config = english_stemming();
+        let text = "caf\u{e9} Connections and connected";
+        let terms = config.analyze("connect");
+
+        // Act
+        let spans = config.matching_spans(text, &terms);
+
+        // Assert
+        let found: Vec<&str> = spans.iter().map(|(a, b)| &text[*a..*b]).collect();
+        assert_eq!(found, vec!["Connections", "connected"]);
+    }
+
+    fn with_synonyms(raw: &str) -> Result<AnalyzerConfig, String> {
+        AnalyzerConfig::from_index_options(&BTreeMap::from([
+            ("stemming".to_string(), "english".to_string()),
+            ("synonyms".to_string(), raw.to_string()),
+        ]))
+    }
+
+    #[test]
+    fn should_index_synonym_group_under_smallest_stemmed_member() {
+        // Arrange
+        let config = with_synonyms("'Cars, auto; TV, television'").expect("valid synonyms");
+
+        // Act
+        let tokens = config.analyze("Auto cars television tv");
+
+        // Assert
+        assert_eq!(tokens, vec!["auto", "auto", "televis", "televis"]);
+    }
+
+    #[test]
+    fn should_highlight_original_source_of_synonym_matches() {
+        // Arrange
+        let config = with_synonyms("car,auto").expect("valid synonyms");
+        let text = "A car and an AUTO";
+        let terms = config.analyze("auto");
+
+        // Act
+        let spans = config.matching_spans(text, &terms);
+
+        // Assert
+        let found: Vec<&str> = spans.iter().map(|(a, b)| &text[*a..*b]).collect();
+        assert_eq!(found, vec!["car", "AUTO"]);
+    }
+
+    #[test]
+    fn should_keep_default_token_stream_when_no_synonyms_are_set() {
+        // Arrange
+        let config = AnalyzerConfig::from_index_options(&BTreeMap::new()).expect("defaults");
+
+        // Act
+        let tokens = config.analyze("car auto");
+
+        // Assert
+        assert_eq!(tokens, vec!["car", "auto"]);
+    }
+
+    #[test]
+    fn should_reject_directional_synonym_syntax() {
+        // Arrange
+        let raw = "car=>auto";
+
+        // Act
+        let error = with_synonyms(raw).expect_err("directional rules are unsupported");
+
+        // Assert
+        assert!(error.contains("=>"), "{error}");
+    }
+
+    #[test]
+    fn should_reject_terms_shared_by_two_synonym_groups() {
+        // Arrange
+        let raw = "car,auto;auto,vehicle";
+
+        // Act
+        let error = with_synonyms(raw).expect_err("overlap is rejected");
+
+        // Assert
+        assert!(error.contains("more than one group"), "{error}");
+    }
+
+    #[test]
+    fn should_reject_singleton_or_multi_token_synonym_members() {
+        // Arrange
+        let single = "car";
+
+        // Act
+        let singleton = with_synonyms(single).expect_err("one member is not a group");
+        let multi = with_synonyms("car,motor vehicle").expect_err("members are single terms");
+
+        // Assert
+        assert!(singleton.contains("at least two"), "{singleton}");
+        assert!(multi.contains("exactly one term"), "{multi}");
+    }
+
+    #[test]
+    fn should_reject_synonyms_beyond_documented_limits() {
+        // Arrange
+        let long_member = "a".repeat(MAX_SYNONYM_MEMBER_BYTES + 1);
+        let many_members = (0..=MAX_SYNONYM_GROUP_MEMBERS)
+            .map(|index| format!("m{index}x"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let many_groups = (0..=MAX_SYNONYM_GROUPS)
+            .map(|index| format!("g{index}a,g{index}b"))
+            .collect::<Vec<_>>()
+            .join(";");
+
+        // Act
+        let member = with_synonyms(&format!("x,{long_member}")).expect_err("member too long");
+        let members = with_synonyms(&many_members).expect_err("too many members");
+        let groups = with_synonyms(&many_groups).expect_err("too many groups");
+        let bytes = with_synonyms(&"a,b;".repeat(MAX_SYNONYM_OPTION_BYTES)).expect_err("too big");
+
+        // Assert
+        assert!(member.contains("bytes"), "{member}");
+        assert!(members.contains("members"), "{members}");
+        assert!(groups.contains("groups"), "{groups}");
+        assert!(bytes.contains("bytes"), "{bytes}");
     }
 }

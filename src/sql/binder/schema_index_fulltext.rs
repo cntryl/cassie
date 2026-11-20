@@ -127,6 +127,7 @@ fn validate_fulltext_index_option_keys(
                 | "case_folding"
                 | "stop_words"
                 | "stemming"
+                | "synonyms"
                 | "accent_folding"
                 | "tokenizer"
         ) {

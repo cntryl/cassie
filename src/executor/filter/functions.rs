@@ -9,9 +9,8 @@ mod json_builders;
 mod json_functions;
 #[path = "json_result_owner.rs"]
 mod json_result_owner;
-use super::search::{simple_search_score, SearchContext};
 use super::{
-    cast_scalar, eval_scalar, scalar_from_value, AnalyzerConfig, CassieSession, DataType,
+    cast_scalar, eval_scalar, scalar_from_value, CassieSession, DataType,
     EvalContext, Expr, FunctionCall, HashMap, QueryError, Value,
 };
 use crate::catalog::{DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
@@ -166,7 +165,9 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                 .or_else(|| text_format::evaluate(local, args, controls))
                 .or_else(|| evaluate_text_function(local, args))
             })
-            .or_else(|| evaluate_search_function(name, function, args, search_context))
+            .or_else(|| {
+                super::search_functions::evaluate(name, function, args, search_context, controls)
+            })
             .or_else(|| evaluate_vector_function(name, function, args))
             .or_else(|| {
                 evaluate_cast_function(
@@ -540,21 +541,6 @@ fn evaluate_text_function(name: &str, args: &[Value]) -> Option<Result<Value, Qu
     }
 }
 
-fn evaluate_search_function(
-    name: &str,
-    function: &FunctionCall,
-    args: &[Value],
-    search_context: Option<&SearchContext>,
-) -> Option<Result<Value, QueryError>> {
-    match name {
-        "search" | "search_score" => {
-            Some(evaluate_search_score(name, function, args, search_context))
-        }
-        "snippet" => Some(evaluate_snippet(function, args, search_context)),
-        _ => None,
-    }
-}
-
 fn evaluate_vector_function(
     name: &str,
     function: &FunctionCall,
@@ -837,53 +823,6 @@ fn evaluate_abs(name: &str, args: &[Value]) -> Result<Value, QueryError> {
             "function '{name}' expects a numeric input"
         ))),
     }
-}
-
-fn evaluate_search_score(
-    name: &str,
-    function: &FunctionCall,
-    args: &[Value],
-    search_context: Option<&SearchContext>,
-) -> Result<Value, QueryError> {
-    require_arg_count(name, args, 2)?;
-    let source = to_text(&args[0]);
-    let query = to_text(&args[1]);
-    let source_field = match &function.args[0] {
-        Expr::Column(field) => Some(field.as_str()),
-        _ => None,
-    };
-    let score = if let Some(context) = search_context {
-        if source_field.is_none() && context.total_documents() > 0 {
-            context.score_text(None, &source, &query)
-        } else {
-            context.score_text(source_field, &source, &query)
-        }
-    } else {
-        simple_search_score(&source, &query)
-    };
-    if name.eq_ignore_ascii_case("search") {
-        Ok(Value::Bool(score > 0.0))
-    } else {
-        Ok(Value::Float64(score))
-    }
-}
-
-fn evaluate_snippet(
-    function: &FunctionCall,
-    args: &[Value],
-    search_context: Option<&SearchContext>,
-) -> Result<Value, QueryError> {
-    require_arg_count("snippet", args, 2)?;
-    let source = to_text(&args[0]);
-    let query = to_text(&args[1]);
-    let analyzer = match (&function.args[0], search_context) {
-        (Expr::Column(field), Some(context)) => context.analyzer_for_field(field),
-        _ => AnalyzerConfig::default(),
-    };
-    let terms = analyzer.analyze(&query);
-    Ok(Value::String(crate::search::snippet(
-        &source, &terms, &analyzer,
-    )))
 }
 
 fn evaluate_hybrid_score(args: &[Value]) -> Result<Value, QueryError> {

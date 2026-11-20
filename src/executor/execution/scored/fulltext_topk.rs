@@ -1,7 +1,7 @@
 use super::{
     adaptive_candidate_decision, analyzer_for_search_field, batch, cached_search_context, filter,
-    hybrid, json_search_term_stats, memory, posting_list_candidate_ids_controlled,
-    record_adaptive_candidate_decision, score_fulltext_top_k_candidates, scored_candidates_to_rows,
+    hybrid, json_search_term_stats_for_query, memory, persisted_search,
+    posting_list_candidate_ids_controlled, record_adaptive_candidate_decision, score_fulltext_top_k_candidates, scored_candidates_to_rows,
     vector_topk, BatchRow, Cassie, CassieSession, FulltextCandidateScoringRequest,
     FulltextSearchTuning, FulltextTopKSpec, HashSet, Instant, QueryError,
     TokenizedFulltextDocument,
@@ -43,7 +43,11 @@ pub(super) fn execute_fulltext_top_k(
         .into_iter()
         .map(|document| TokenizedFulltextDocument {
             id: document.id,
-            text_stats: json_search_term_stats(document.payload.get(&spec.text_field), &analyzer),
+            text_stats: json_search_term_stats_for_query(
+                document.payload.get(&spec.text_field),
+                &analyzer,
+                &spec.query,
+            ),
         })
         .collect::<Vec<_>>();
     let search_context = cached_search_context(
@@ -60,10 +64,18 @@ pub(super) fn execute_fulltext_top_k(
         },
         controls,
     )?;
-    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
+    let search = filter::PreparedSearch::prepare(
+        &spec.query,
+        &analyzer,
+        &search_context.vocabulary(&spec.text_field),
+    )?;
+    let _search_memory = controls.reserve_query_memory(search.estimated_bytes())?;
     let (candidate_ids, _candidate_memory) = if spec.require_match {
-        let (candidate_ids, memory) =
-            posting_list_candidate_ids_controlled(&search_documents, &query_terms, controls)?;
+        let (candidate_ids, memory) = posting_list_candidate_ids_controlled(
+            &search_documents,
+            search.candidate_terms(),
+            controls,
+        )?;
         (Some(candidate_ids), Some(memory))
     } else {
         (None, None)
@@ -75,7 +87,7 @@ pub(super) fn execute_fulltext_top_k(
             candidate_ids: candidate_ids.as_ref(),
             search_context: &search_context,
             text_field: &spec.text_field,
-            query_terms: &query_terms,
+            search: &search,
             require_match: spec.require_match,
             top_needed: spec.top_needed(),
             controls,
@@ -187,22 +199,23 @@ fn try_execute_persisted_fulltext_top_k(
         std::slice::from_ref(&spec.text_field),
     )?;
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
-    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
-    let candidates = match cassie.midge.fulltext_candidate_set_controlled(
+    let persisted_search::PersistedSearchCandidates {
+        candidates,
+        search,
+        memory: _candidate_memory,
+    } = match persisted_search::load_persisted_search_candidates(
+        cassie,
         &spec.collection,
         &index.name,
-        &query_terms,
+        &spec.query,
+        &analyzer,
         controls,
-    ) {
-        Ok(candidates) => candidates,
-        Err(error) if is_query_control_error(&error) => return Err(QueryError::from(error)),
-        Err(error) => {
-            return Ok(PersistedFulltextTopK::Exact(persisted_fallback_reason(
-                &error,
-            )));
+    )? {
+        persisted_search::PersistedSearchLoad::Ready(loaded) => *loaded,
+        persisted_search::PersistedSearchLoad::Exact(reason) => {
+            return Ok(PersistedFulltextTopK::Exact(reason));
         }
     };
-    let (candidates, _candidate_memory) = candidates.into_parts();
     let search_context = filter::SearchContext::from_persisted_field_statistics(
         &spec.text_field,
         &filter::PersistedFieldStatistics {
@@ -218,11 +231,9 @@ fn try_execute_persisted_fulltext_top_k(
     let mut top = memory::AccountedScoredCandidates::try_new(controls, spec.top_needed())?;
     for (id, stats) in &candidates.document_stats {
         super::super::check_timeout(controls)?;
-        let term_stats =
-            filter::SearchTermStats::from_persisted(stats.doc_length, &stats.term_counts);
-        let score =
-            search_context.score_term_stats(Some(&spec.text_field), &term_stats, &query_terms);
-        if score > 0.0 {
+        let term_stats = search.persisted_stats(stats);
+        if let Some(score) = search.evaluate(&search_context, Some(&spec.text_field), &term_stats)
+        {
             top.try_push(spec.top_needed(), -score, score, id)?;
             controls.scored_candidate(QueryScoringTestBoundary::PersistedFulltext)?;
         }
@@ -249,21 +260,4 @@ fn try_execute_persisted_fulltext_top_k(
         rows,
         memory: output_memory,
     })
-}
-
-fn persisted_fallback_reason(error: &crate::app::CassieError) -> &'static str {
-    if error.to_string().contains("missing_candidate_row") {
-        "missing_candidate_row"
-    } else {
-        "invalid_persisted_artifact"
-    }
-}
-
-fn is_query_control_error(error: &crate::app::CassieError) -> bool {
-    matches!(
-        error,
-        crate::app::CassieError::QueryCanceled
-            | crate::app::CassieError::DeadlineExceeded
-            | crate::app::CassieError::ResourceLimit(_)
-    )
 }

@@ -1,7 +1,8 @@
 use super::super::projected_read::{is_row_id_column, json_to_query_value};
 use super::{
-    analyzer_for_search_field, batch, cached_search_context, filter, json_search_term_stats,
-    posting_list_candidate_ids_controlled, BatchRow, BinaryOp, Cassie, CassieSession, Expr,
+    analyzer_for_search_field, batch, cached_search_context, filter,
+    json_search_term_stats_for_query, persisted_search, posting_list_candidate_ids_controlled,
+    BatchRow, BinaryOp, Cassie, CassieSession, Expr,
     FulltextFilteredReadSpec, FunctionMeta, HashMap, HashSet, Instant, PostingListDocument,
     QueryError, Value,
 };
@@ -9,6 +10,7 @@ use crate::executor::scan;
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::{FulltextIndexOptions, QueryExecutionControls, QueryMemoryReservation};
 use crate::search::analyzer::AnalyzerConfig;
+use crate::search::query::SearchQueryInput;
 
 #[path = "fulltext_read/accounting.rs"]
 mod accounting;
@@ -26,7 +28,7 @@ pub(in crate::executor::execution) struct SearchProjectionColumn {
 
 pub(in crate::executor::execution) struct SearchSnippetProjection {
     pub(in crate::executor::execution) field: String,
-    pub(in crate::executor::execution) query: String,
+    pub(in crate::executor::execution) query: SearchQueryInput,
     pub(in crate::executor::execution) output_name: String,
 }
 
@@ -63,14 +65,14 @@ pub(super) enum FulltextFilterMatch {
 pub(super) fn extract_fulltext_residual_filter(
     expr: &Expr,
     field: &str,
-    query: &str,
+    query: &SearchQueryInput,
     params: &[Value],
 ) -> Option<FulltextFilterMatch> {
     if let Expr::Function(function) = expr {
         let (filter_field, filter_query) =
             super::search_predicate_args_with_params(function, params)?;
         return (crate::sql::ColumnIdentifierPath::matches_stored_field(field, &filter_field)
-            && filter_query == query)
+            && filter_query == *query)
             .then_some(FulltextFilterMatch::Exact);
     }
     let Expr::Binary {
@@ -90,14 +92,19 @@ pub(super) fn extract_fulltext_residual_filter(
     None
 }
 
-fn matches_fulltext_predicate(expr: &Expr, field: &str, query: &str, params: &[Value]) -> bool {
+fn matches_fulltext_predicate(
+    expr: &Expr,
+    field: &str,
+    query: &SearchQueryInput,
+    params: &[Value],
+) -> bool {
     let Expr::Function(function) = expr else {
         return false;
     };
     super::search_predicate_args_with_params(function, params).is_some_and(
         |(filter_field, filter_query)| {
             crate::sql::ColumnIdentifierPath::matches_stored_field(field, &filter_field)
-                && filter_query == query
+                && filter_query == *query
         },
     )
 }
@@ -185,18 +192,26 @@ fn execute_row_fulltext_filtered_read(
         controls,
     )?;
     memory.push(context_memory);
-    let query_memory = reserve_analyzed_text(controls, &spec.query, &analyzer)?;
-    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
+    let query_memory = reserve_analyzed_text(controls, &spec.query.text, &analyzer)?;
+    let search = filter::PreparedSearch::prepare(
+        &spec.query,
+        &analyzer,
+        &search_context.vocabulary(&spec.text_field),
+    )?;
     memory.push(query_memory);
-    let (candidate_ids, candidate_memory) =
-        posting_list_candidate_ids_controlled(&search_documents, &query_terms, controls)?;
+    memory.push(controls.reserve_query_memory(search.estimated_bytes())?);
+    let (candidate_ids, candidate_memory) = posting_list_candidate_ids_controlled(
+        &search_documents,
+        search.candidate_terms(),
+        controls,
+    )?;
     let candidate_count = candidate_ids.len();
     memory.push(candidate_memory);
     let (rows, output_memory) = score_row_fulltext_documents(&RowFulltextScoreRequest {
         search_documents: &search_documents,
         candidate_ids: &candidate_ids,
         search_context: &search_context,
-        query_terms: &query_terms,
+        search: &search,
         session,
         user_functions,
         params,
@@ -277,9 +292,10 @@ fn load_tokenized_read_documents(
             let (document, source_memory) = document.into_parts();
             search_documents.push(TokenizedFulltextReadDocument {
                 id: document.id,
-                text_stats: json_search_term_stats(
+                text_stats: json_search_term_stats_for_query(
                     json_projected_value(&document.payload, &spec.text_field),
                     analyzer,
+                    &spec.query,
                 ),
                 payload: document.payload,
             });
@@ -294,7 +310,7 @@ struct RowFulltextScoreRequest<'a> {
     search_documents: &'a [TokenizedFulltextReadDocument],
     candidate_ids: &'a HashSet<String>,
     search_context: &'a filter::SearchContext,
-    query_terms: &'a [String],
+    search: &'a filter::PreparedSearch,
     session: Option<&'a CassieSession>,
     user_functions: &'a HashMap<String, FunctionMeta>,
     params: &'a [Value],
@@ -315,14 +331,13 @@ fn score_row_fulltext_documents(
         if !request.candidate_ids.contains(document.id.as_str()) {
             continue;
         }
-        let score = request.search_context.score_term_stats(
+        let Some(score) = request.search.evaluate(
+            request.search_context,
             Some(&request.spec.text_field),
             &document.text_stats,
-            request.query_terms,
-        );
-        if score == 0.0 {
+        ) else {
             continue;
-        }
+        };
         if let Some(residual_filter) = &request.spec.residual_filter {
             let _residual_memory = request
                 .controls
@@ -359,7 +374,7 @@ fn score_row_fulltext_documents(
                     &document.payload,
                     score,
                     request.spec,
-                    (request.query_terms, &analyzer),
+                    (request.search, &analyzer),
                 )
             },
         )?;
@@ -401,7 +416,7 @@ fn try_execute_persisted_fulltext_filtered_read(
             params,
             spec,
             controls,
-            query_terms: &persisted.query_terms,
+            search: &persisted.search,
             analyzer: &analyzer,
         },
         matched,
@@ -440,7 +455,7 @@ fn try_execute_persisted_fulltext_filtered_read(
 
 struct PersistedFulltextRead {
     candidates: crate::midge::adapter::fulltext_retrieval::PersistedFulltextCandidateSet,
-    query_terms: Vec<String>,
+    search: filter::PreparedSearch,
     search_context: filter::SearchContext,
     memory: Vec<QueryMemoryReservation>,
 }
@@ -477,35 +492,24 @@ fn load_persisted_fulltext_read(
         std::slice::from_ref(&spec.text_field),
     )?;
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
-    let query_memory = reserve_analyzed_text(controls, &spec.query, &analyzer)?;
-    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
-    let candidates = match cassie.midge.fulltext_candidate_set_controlled(
+    let query_memory = reserve_analyzed_text(controls, &spec.query.text, &analyzer)?;
+    let persisted_search::PersistedSearchCandidates {
+        candidates,
+        search,
+        memory: mut candidate_memory,
+    } = match persisted_search::load_persisted_search_candidates(
+        cassie,
         &spec.collection,
         &index.name,
-        &query_terms,
+        &spec.query,
+        &analyzer,
         controls,
-    ) {
-        Ok(candidates) => candidates,
-        Err(error)
-            if matches!(
-                error,
-                crate::app::CassieError::QueryCanceled
-                    | crate::app::CassieError::DeadlineExceeded
-                    | crate::app::CassieError::ResourceLimit(_)
-            ) =>
-        {
-            return Err(QueryError::from(error));
-        }
-        Err(error) => {
-            let reason = if error.to_string().contains("missing_candidate_row") {
-                "missing_candidate_row"
-            } else {
-                "invalid_persisted_artifact"
-            };
+    )? {
+        persisted_search::PersistedSearchLoad::Ready(loaded) => *loaded,
+        persisted_search::PersistedSearchLoad::Exact(reason) => {
             return Ok(PersistedFulltextReadSelection::Exact(reason));
         }
     };
-    let (candidates, candidate_memory) = candidates.into_parts();
     let context_memory = controls.reserve_query_memory(persisted_search_context_bytes(
         &candidates,
         &search_index_options,
@@ -526,9 +530,12 @@ fn load_persisted_fulltext_read(
     Ok(PersistedFulltextReadSelection::Ready(Box::new(
         PersistedFulltextRead {
             candidates,
-            query_terms,
+            search,
             search_context,
-            memory: vec![query_memory, candidate_memory, context_memory],
+            memory: {
+                candidate_memory.extend([query_memory, context_memory]);
+                candidate_memory
+            },
         },
     )))
 }
@@ -548,14 +555,12 @@ fn score_persisted_candidates<'a>(
         {
             continue;
         }
-        let term_stats =
-            filter::SearchTermStats::from_persisted(stats.doc_length, &stats.term_counts);
-        let score = persisted.search_context.score_term_stats(
-            Some(text_field),
-            &term_stats,
-            &persisted.query_terms,
-        );
-        if score > 0.0 {
+        let term_stats = persisted.search.persisted_stats(stats);
+        if let Some(score) =
+            persisted
+                .search
+                .evaluate(&persisted.search_context, Some(text_field), &term_stats)
+        {
             matched.try_push_with(0, || (id, score))?;
         }
     }
@@ -569,7 +574,7 @@ struct PersistedMaterializeRequest<'a> {
     params: &'a [Value],
     spec: &'a FulltextFilteredReadSpec,
     controls: &'a QueryExecutionControls,
-    query_terms: &'a [String],
+    search: &'a filter::PreparedSearch,
     analyzer: &'a AnalyzerConfig,
 }
 
@@ -634,7 +639,7 @@ fn materialize_persisted_candidates(
                     &document.payload,
                     score,
                     request.spec,
-                    (request.query_terms, request.analyzer),
+                    (request.search, request.analyzer),
                 )
             },
         )?;
@@ -837,7 +842,7 @@ fn fulltext_result_row(
     payload: &serde_json::Value,
     score: f64,
     spec: &FulltextFilteredReadSpec,
-    highlight: (&[String], &AnalyzerConfig),
+    highlight: (&filter::PreparedSearch, &AnalyzerConfig),
 ) -> BatchRow {
     let mut entries = Vec::with_capacity(
         spec.columns
@@ -857,7 +862,7 @@ fn fulltext_result_row(
         let value = json_projected_value(payload, &snippet.field)
             .and_then(serde_json::Value::as_str)
             .map_or(Value::Null, |source| {
-                Value::String(crate::search::snippet(source, highlight.0, highlight.1))
+                Value::String(highlight.0.snippet(source, highlight.1))
             });
         entries.push((snippet.output_name.clone(), value));
     }

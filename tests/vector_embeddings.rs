@@ -9,6 +9,10 @@ use cassie_test_support::support_temp_dirs;
 #[path = "vector_embeddings/vectors/ann_candidate_exhaustion.rs"]
 mod ann_candidate_exhaustion;
 
+// #1365: network-free checks of the opt-in embedding workload machinery.
+#[path = "vector_embeddings/embeddings/embedding_workloads.rs"]
+mod embedding_workloads;
+
 // Formerly tests/embedding_local.rs.
 #[path = "vector_embeddings/embeddings/embedding_local.rs"]
 mod embedding_local;

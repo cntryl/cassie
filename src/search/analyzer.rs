@@ -21,6 +21,15 @@ pub const MAX_SYNONYM_GROUP_MEMBERS: usize = 16;
 pub const MAX_SYNONYM_MEMBER_BYTES: usize = 64;
 pub const MAX_SYNONYM_OPTION_BYTES: usize = 16 * 1024;
 
+/// One analyzed token located in its source text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenOccurrence {
+    pub position: u32,
+    pub term: String,
+    /// Byte range in the original, unfolded text.
+    pub span: (usize, usize),
+}
+
 #[derive(Debug, Clone)]
 pub struct TokenizedText {
     pub tokens: Vec<String>,
@@ -91,6 +100,20 @@ impl AnalyzerConfig {
 
     #[must_use]
     pub fn analyze(&self, input: &str) -> Vec<String> {
+        self.analyze_positioned(input)
+            .into_iter()
+            .map(|(_, term)| term)
+            .collect()
+    }
+
+    /// Analyzes `input` into `(position, term)` pairs.
+    ///
+    /// The terms are exactly those of [`Self::analyze`]. A position is the
+    /// token's index among every token the tokenizer produced, so stop words
+    /// removed by the analyzer still occupy a position and phrase matching
+    /// preserves the gap they leave.
+    #[must_use]
+    pub fn analyze_positioned(&self, input: &str) -> Vec<(u32, String)> {
         let normalized = if self.case_folding {
             input.to_lowercase()
         } else {
@@ -105,9 +128,38 @@ impl AnalyzerConfig {
         let stemmer = self.stemmer();
         tokenize_with(&normalized, &self.tokenizer)
             .filter(|token| !token.is_empty())
-            .filter(|token| self.stop_words != "english" || !stop_words.contains(*token))
-            .map(|token| self.canonical_term(stem_token(stemmer.as_ref(), token)))
+            .enumerate()
+            .filter(|(_, token)| self.stop_words != "english" || !stop_words.contains(*token))
+            .map(|(position, token)| {
+                (
+                    u32::try_from(position).unwrap_or(u32::MAX),
+                    self.canonical_term(stem_token(stemmer.as_ref(), token)),
+                )
+            })
             .collect()
+    }
+
+    /// Applies only the analyzer's case and accent folding, as used for prefix
+    /// and typo query words, which are compared with stored analyzed terms.
+    #[must_use]
+    pub fn fold_query_word(&self, input: &str) -> String {
+        let normalized = if self.case_folding {
+            input.to_lowercase()
+        } else {
+            input.to_string()
+        };
+        if self.accent_folding {
+            fold_accents(&normalized)
+        } else {
+            normalized
+        }
+    }
+
+    /// Whether `word` contains a character the tokenizer splits on.
+    #[must_use]
+    pub fn has_token_boundary(&self, word: &str) -> bool {
+        word.chars()
+            .any(|character| is_token_boundary(&self.tokenizer, character))
     }
 
     fn canonical_term(&self, token: String) -> String {
@@ -183,16 +235,9 @@ impl AnalyzerConfig {
             .then(|| rust_stemmers::Stemmer::create(rust_stemmers::Algorithm::English))
     }
 
-    /// Returns the byte ranges of `input` whose analyzed tokens equal one of `terms`.
-    ///
-    /// Tokens are produced exactly as `analyze` produces them (case folding, accent
-    /// folding, tokenizer boundaries), then mapped back onto the original text so
-    /// callers can highlight the occurrences that made a search match.
-    #[must_use]
-    pub fn matching_spans(&self, input: &str, terms: &[String]) -> Vec<(usize, usize)> {
-        if terms.is_empty() {
-            return Vec::new();
-        }
+    /// Folds `input` as `analyze` does and maps every folded byte back to the
+    /// source character range it came from.
+    fn fold_with_origins(&self, input: &str) -> (String, Vec<(usize, usize)>) {
         let mut folded = String::with_capacity(input.len());
         let mut origins: Vec<(usize, usize)> = Vec::with_capacity(input.len());
         // `str::to_lowercase` is char-wise except for the context-sensitive final
@@ -224,6 +269,20 @@ impl AnalyzerConfig {
             origins.resize(folded.len(), (start, end));
         }
 
+        (folded, origins)
+    }
+
+    /// Returns the byte ranges of `input` whose analyzed tokens equal one of `terms`.
+    ///
+    /// Tokens are produced exactly as `analyze` produces them (case folding, accent
+    /// folding, tokenizer boundaries), then mapped back onto the original text so
+    /// callers can highlight the occurrences that made a search match.
+    #[must_use]
+    pub fn matching_spans(&self, input: &str, terms: &[String]) -> Vec<(usize, usize)> {
+        if terms.is_empty() {
+            return Vec::new();
+        }
+        let (folded, origins) = self.fold_with_origins(input);
         let stemmer = self.stemmer();
         let mut spans: Vec<(usize, usize)> = Vec::new();
         let mut token_start: Option<usize> = None;
@@ -249,6 +308,42 @@ impl AnalyzerConfig {
             }
         }
         spans
+    }
+
+    /// Returns every analyzed token of `input` with its position (gaps for stop
+    /// words preserved, as in [`Self::analyze_positioned`]) and the byte range of
+    /// the original text it came from.
+    #[must_use]
+    pub fn token_occurrences(&self, input: &str) -> Vec<TokenOccurrence> {
+        let (folded, origins) = self.fold_with_origins(input);
+        let stop_words = crate::search::tokenizer::stop_words();
+        let stemmer = self.stemmer();
+        let mut occurrences = Vec::new();
+        let mut position = 0u32;
+        let mut token_start: Option<usize> = None;
+        let boundaries = folded
+            .char_indices()
+            .map(|(index, character)| (index, is_token_boundary(&self.tokenizer, character)))
+            .chain(std::iter::once((folded.len(), true)));
+        for (index, boundary) in boundaries {
+            match (token_start, boundary) {
+                (None, false) => token_start = Some(index),
+                (Some(start), true) => {
+                    token_start = None;
+                    let raw = &folded[start..index];
+                    if self.stop_words != "english" || !stop_words.contains(raw) {
+                        occurrences.push(TokenOccurrence {
+                            position,
+                            term: self.canonical_term(stem_token(stemmer.as_ref(), raw)),
+                            span: (origins[start].0, origins[index - 1].1),
+                        });
+                    }
+                    position = position.saturating_add(1);
+                }
+                _ => {}
+            }
+        }
+        occurrences
     }
 
     #[must_use]

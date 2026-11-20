@@ -30,6 +30,7 @@ pub(super) struct Element<'g> {
 }
 
 /// A named pattern element.
+#[derive(Clone)]
 pub(super) struct Variable<'g> {
     pub(super) name: String,
     pub(super) kind: GraphVariableKind,
@@ -107,36 +108,46 @@ pub(super) fn collect<'g>(
 ) -> Result<(Vec<Variable<'g>>, Vec<Element<'g>>), CassieError> {
     let mut variables = Vec::<Variable<'g>>::new();
     let mut everything = Vec::new();
-    let positions = std::iter::once((
-        GraphVariableKind::Vertex,
-        &table.path.start.variable,
-        &table.path.start.labels,
-        false,
-    ))
-    .chain(table.path.steps.iter().flat_map(|step| {
-        [
-            (
-                GraphVariableKind::Edge,
-                &step.edge.variable,
-                &step.edge.labels,
-                step.edge.quantifier.is_some(),
-            ),
-            (
-                GraphVariableKind::Vertex,
-                &step.vertex.variable,
-                &step.vertex.labels,
-                false,
-            ),
-        ]
-    }));
-    for (kind, name, labels, group) in positions {
-        let elements = select_elements(graph, kind, labels)?;
-        everything.extend(elements.iter().cloned());
-        let Some(name) = name else {
-            continue;
-        };
-        declare(&mut variables, name, kind, group, elements)?;
+    for (index, pattern) in table.patterns().enumerate() {
+        let positions = std::iter::once((
+            GraphVariableKind::Vertex,
+            &pattern.start.variable,
+            &pattern.start.labels,
+            false,
+        ))
+        .chain(pattern.steps.iter().flat_map(|step| {
+            [
+                (
+                    GraphVariableKind::Edge,
+                    &step.edge.variable,
+                    &step.edge.labels,
+                    step.edge.quantifier.is_some(),
+                ),
+                (
+                    GraphVariableKind::Vertex,
+                    &step.vertex.variable,
+                    &step.vertex.labels,
+                    false,
+                ),
+            ]
+        }));
+        for (kind, name, labels, group) in positions {
+            let elements = select_elements(graph, kind, labels)?;
+            everything.extend(elements.iter().cloned());
+            let Some(name) = name else {
+                continue;
+            };
+            let earlier = table
+                .patterns()
+                .take(index)
+                .any(|before| before.variable_names().any(|known| known == name));
+            declare(&mut variables, name, kind, group, elements)?;
+            if earlier {
+                check_shared(&variables, name, kind)?;
+            }
+        }
     }
+    check_connected(table)?;
     if let Some(path) = &table.path_variable {
         if variables.iter().any(|variable| &variable.name == path) {
             return Err(diagnostic(
@@ -152,6 +163,55 @@ pub(super) fn collect<'g>(
         });
     }
     Ok((variables, everything))
+}
+
+/// A variable named by several patterns must be a vertex, and some mapping must carry
+/// every label the patterns name for it.
+fn check_shared(
+    variables: &[Variable<'_>],
+    name: &str,
+    kind: GraphVariableKind,
+) -> Result<(), CassieError> {
+    if kind != GraphVariableKind::Vertex {
+        return Err(unsupported(format!(
+            "edge variable \"{name}\" cannot be shared between comma-separated GRAPH_TABLE \
+             patterns: only vertex variables join patterns"
+        )));
+    }
+    let empty = variables
+        .iter()
+        .find(|variable| variable.name == name)
+        .is_some_and(|variable| variable.elements.is_empty());
+    if empty {
+        return Err(diagnostic(
+            DATATYPE_MISMATCH,
+            format!(
+                "vertex variable \"{name}\" is shared between patterns but no vertex mapping \
+                 carries all the labels the patterns name for it"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Every pattern after the first must share a vertex variable with the patterns before
+/// it: patterns are joined on shared vertices, never as a cross product.
+fn check_connected(table: &GraphTable) -> Result<(), CassieError> {
+    for (index, pattern) in table.patterns().enumerate().skip(1) {
+        let shared = pattern.vertex_variable_names().any(|name| {
+            table
+                .patterns()
+                .take(index)
+                .any(|before| before.vertex_variable_names().any(|known| known == name))
+        });
+        if !shared {
+            return Err(unsupported(
+                "each comma-separated GRAPH_TABLE path pattern must share a vertex variable \
+                 with an earlier pattern",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn declare<'g>(

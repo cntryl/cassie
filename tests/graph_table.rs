@@ -77,3 +77,15 @@ mod cte_view_dependencies;
 
 #[path = "graph_table/portal_preflight.rs"]
 mod portal_preflight;
+
+#[path = "graph_table/shared_entity_fixture.rs"]
+mod shared_entity_fixture;
+
+#[path = "graph_table/shared_entity.rs"]
+mod shared_entity;
+
+#[path = "graph_table/shared_entity_runtime.rs"]
+mod shared_entity_runtime;
+
+#[path = "graph_table/shared_entity_wire.rs"]
+mod shared_entity_wire;

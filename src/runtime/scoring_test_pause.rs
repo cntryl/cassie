@@ -18,6 +18,8 @@ pub enum QueryScoringTestBoundary {
     GraphWeightedSearch,
     /// Just before the `GRAPH_TABLE` selector sorts its candidates.
     GraphSelection,
+    /// Each tuple of a joined `GRAPH_TABLE` that is extended by the next pattern.
+    GraphJoin,
 }
 
 type PauseChannels = (SyncSender<()>, Receiver<()>);

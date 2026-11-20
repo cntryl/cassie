@@ -724,6 +724,73 @@ Ben | Eli
 A graph source is computed completely before its first row is returned. It is never
 streamed, so a query that fails part-way returns no rows.
 
+### 3.7 Joining two patterns on a shared vertex
+
+<!-- world: social -->
+
+Two comma-separated patterns match together when they name the same vertex variable. The
+variable stands for one vertex identity (its mapping and key), so the patterns meet at the
+same vertex and nowhere else. Ada (1) and Ben (2) both follow Cy:
+
+<!-- example: shared-common-neighbor -->
+```sql
+SELECT t.neighbor
+FROM GRAPH_TABLE (
+  social MATCH (a IS person WHERE a.id = 1) -[IS knows]-> (n IS person),
+               (b IS person WHERE b.id = 2) -[IS knows]-> (n)
+  COLUMNS (n.name AS neighbor)
+) AS t
+ORDER BY t.neighbor
+```
+```text result
+Cy
+```
+
+Each combination of one path from each pattern is one row, so parallel edges multiply. A
+condition that relates the two patterns goes in the graph-pattern `WHERE`, which sees the
+variables of both; an inline predicate sees only its own pattern. Counting the people each
+pair follows in common is ordinary SQL over the result:
+
+<!-- example: shared-common-neighbor-count -->
+```sql
+SELECT t.a_name, t.b_name, COUNT(*)
+FROM GRAPH_TABLE (
+  social MATCH (a IS person) -[IS knows]-> (n IS person),
+               (b IS person) -[IS knows]-> (n)
+  WHERE a.id < b.id
+  COLUMNS (a.name AS a_name, b.name AS b_name, n.id AS n)
+) AS t
+GROUP BY t.a_name, t.b_name
+ORDER BY t.a_name, t.b_name
+```
+```text result
+Ada | Ben | 1
+```
+
+A reachability pattern can feed a second pattern that starts at the shared vertex. Here the
+people two follows away from Ada who also follow someone in `ops`:
+
+<!-- example: shared-reachable-then-follows -->
+```sql
+SELECT t.reviewer, t.target
+FROM GRAPH_TABLE (
+  social MATCH (a IS person WHERE a.id = 1) -[IS knows]->{2} (r IS person),
+               (r) -[IS knows]-> (o IS person WHERE o.team = 'ops')
+  COLUMNS (r.name AS reviewer, o.name AS target)
+) AS t
+ORDER BY t.reviewer, t.target
+```
+```text result
+Cy | Di
+```
+
+At most two patterns can be listed, and every pattern after the first must name a vertex
+variable an earlier pattern names; patterns are never combined as a cross product, and a path
+variable cannot be used with a list. Only vertex variables join patterns. Every limit has a
+deterministic error in section 11. `GRAPH_TABLE` still computes the complete result before
+returning a row, within the query memory budget, so a join that is too large fails with
+`54000` and returns nothing.
+
 ## 4. Paths as values
 
 Binding a path variable, `p = (...) -[...]-> (...)`, and projecting it returns the whole path as
@@ -1658,7 +1725,7 @@ rejected with a deterministic error. Nothing is silently reinterpreted.
 
 | Construct or condition | SQLSTATE |
 | --- | --- |
-| Comma-separated path patterns, pattern unions, graph mutation syntax | `0A000` |
+| A third comma-separated pattern, patterns that share no vertex variable, a shared edge variable, a path variable with several patterns, pattern unions, graph mutation syntax | `0A000` |
 | Unbounded `WALK` (`*`, `+`) without a mode, with or without a selector | `0A000` |
 | Parenthesized repetition and nested quantifiers | `0A000` |
 | Reading a quantified (group) edge variable outside its own inline `WHERE` | `0A000` |
@@ -1667,6 +1734,7 @@ rejected with a deterministic error. Nothing is silently reinterpreted.
 | A quantifier whose lower bound exceeds its upper bound, or `SHORTEST 0 PATHS` | `22023` |
 | A projection that is not `variable.property` and has no `AS` alias | `42601` |
 | Two output columns with the same name | `42701` |
+| A shared vertex variable that no mapping carries every named label of | `42804` |
 | An unknown graph or label | `42704` |
 | An unknown variable or property | the binder's usual `42703`/`42P01` errors |
 | No `SELECT` privilege on a table the pattern can read | `42501` |
@@ -1678,6 +1746,19 @@ rejected with a deterministic error. Nothing is silently reinterpreted.
 SELECT t.x
 FROM GRAPH_TABLE (
   social MATCH (a IS person), (b IS person)
+  COLUMNS (a.id AS x)
+) AS t
+```
+```text sqlstate
+0A000
+```
+
+<!-- example: limit-shared-edge-variable -->
+```sql
+SELECT t.x
+FROM GRAPH_TABLE (
+  social MATCH (a IS person) -[e IS knows]-> (b IS person),
+               (b) -[e IS knows]-> (c IS person)
   COLUMNS (a.id AS x)
 ) AS t
 ```

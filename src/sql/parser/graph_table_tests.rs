@@ -455,15 +455,97 @@ fn should_report_the_consumed_length_after_leading_whitespace() {
 }
 
 #[test]
-fn should_reject_comma_separated_patterns_as_unsupported() {
+fn should_parse_two_comma_separated_patterns_sharing_a_vertex_variable() {
     // Arrange
-    let source = "GRAPH_TABLE (g MATCH (a)-[e]->(b), (c) COLUMNS (a.id))";
+    let source = "GRAPH_TABLE (g MATCH (a)-[e]->(s), (b IS person)-[f]->{1,2}(s) \
+                  COLUMNS (a.id, b.id AS other))";
+
+    // Act
+    let parsed = table(source);
+
+    // Assert
+    assert_eq!(parsed.path.steps.len(), 1);
+    assert_eq!(parsed.extra_paths.len(), 1);
+    assert_eq!(parsed.extra_paths[0].start.variable.as_deref(), Some("b"));
+    assert_eq!(
+        parsed.extra_paths[0].steps[0].vertex.variable.as_deref(),
+        Some("s")
+    );
+    assert_eq!(parsed.columns.len(), 2);
+}
+
+#[test]
+fn should_parse_a_selector_after_comma_separated_patterns() {
+    // Arrange
+    let source = "GRAPH_TABLE (g MATCH (a)-[e]->(s), (b)-[f]->(s) KEEP ALL TRAIL PATHS \
+                  WHERE a.id <> b.id COLUMNS (a.id))";
+
+    // Act
+    let parsed = table(source);
+
+    // Assert
+    assert_eq!(parsed.extra_paths.len(), 1);
+    assert_eq!(parsed.selector.unwrap().mode, GraphPathMode::Trail);
+    assert!(parsed.filter.is_some());
+}
+
+#[test]
+fn should_reject_a_third_comma_separated_pattern_as_unsupported() {
+    // Arrange
+    let source = "GRAPH_TABLE (g MATCH (a)-[e]->(s), (b)-[f]->(s), (c)-[h]->(s) COLUMNS (a.id))";
 
     // Act
     let kind = kind_of(source);
 
     // Assert
     assert_eq!(kind, SqlErrorKind::Unsupported);
+}
+
+#[test]
+fn should_reject_a_path_variable_with_comma_separated_patterns_as_unsupported() {
+    // Arrange
+    let first = "GRAPH_TABLE (g MATCH p = (a)-[e]->(s), (b)-[f]->(s) COLUMNS (a.id))";
+    let second = "GRAPH_TABLE (g MATCH (a)-[e]->(s), q = (b)-[f]->(s) COLUMNS (a.id))";
+
+    // Act
+    let kinds = [kind_of(first), kind_of(second)];
+
+    // Assert
+    assert_eq!(
+        kinds,
+        [SqlErrorKind::Unsupported, SqlErrorKind::Unsupported]
+    );
+}
+
+#[test]
+fn should_reject_a_dangling_comma_as_a_syntax_error() {
+    // Arrange
+    let source = "GRAPH_TABLE (g MATCH (a)-[e]->(s), COLUMNS (a.id))";
+
+    // Act
+    let kind = kind_of(source);
+
+    // Assert
+    assert_eq!(kind, SqlErrorKind::Syntax);
+}
+
+#[test]
+fn should_address_every_expression_of_both_patterns_by_slot_in_source_order() {
+    // Arrange
+    let source = "GRAPH_TABLE (g MATCH (a WHERE a.id = 1)-[e WHERE e.w = 2]->(s WHERE s.id = 3), \
+                  (b WHERE b.id = 4)-[f]->(s) WHERE a.id < b.id COLUMNS (a.id, b.id AS other))";
+    let parsed = table(source);
+
+    // Act
+    let by_slot = (0..parsed.expression_slots())
+        .filter_map(|slot| parsed.expression_at(slot))
+        .count();
+    let in_order = parsed.expressions().count();
+
+    // Assert
+    assert_eq!(parsed.expression_slots(), 3 + 3 + 1 + 2);
+    assert_eq!(by_slot, in_order);
+    assert_eq!(in_order, 4 + 1 + 2);
 }
 
 #[test]

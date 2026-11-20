@@ -54,6 +54,12 @@ pub(super) struct Walk<'a> {
     step_hops: Vec<usize>,
     found: Vec<Candidate>,
     seen: HashSet<Vec<usize>>,
+    /// Start vertices fixed by an earlier pattern of the table (#1353), replacing the
+    /// pattern's own start lookup.
+    starts: Option<Vec<usize>>,
+    /// Edge hops the search took: neighborhood edges that passed the step's mapping and
+    /// inline predicate.
+    expansions: u64,
 }
 
 impl<'a> Walk<'a> {
@@ -78,7 +84,15 @@ impl<'a> Walk<'a> {
             step_hops: Vec::new(),
             found: Vec::new(),
             seen: HashSet::new(),
+            starts: None,
+            expansions: 0,
         }
+    }
+
+    /// Starts the search only at `starts`, in order, instead of looking them up.
+    pub(super) fn with_starts(mut self, starts: Vec<usize>) -> Self {
+        self.starts = Some(starts);
+        self
     }
 
     fn release(&mut self, bytes: usize) {
@@ -88,10 +102,15 @@ impl<'a> Walk<'a> {
 
     /// Every path matching labels, inline predicates, quantifier bounds and the mode, before
     /// any selector or graph-pattern `WHERE`.
-    pub(super) fn run(mut self) -> Result<Vec<Candidate>, QueryError> {
-        let starts = self
-            .store
-            .start_vertices(self.env, self.plan, self.eval, self.memory)?;
+    ///
+    /// Returns the paths and the number of edge hops the search took.
+    pub(super) fn run(mut self) -> Result<(Vec<Candidate>, u64), QueryError> {
+        let starts = match self.starts.take() {
+            Some(starts) => starts,
+            None => self
+                .store
+                .start_vertices(self.env, self.plan, self.eval, self.memory)?,
+        };
         for start in starts {
             self.env.controls.check_interruption()?;
             if !self.vertex_ok(0, start)? {
@@ -109,7 +128,7 @@ impl<'a> Walk<'a> {
                 self.search()?;
             }
         }
-        Ok(self.found)
+        Ok((self.found, self.expansions))
     }
 
     fn search(&mut self) -> Result<(), QueryError> {
@@ -346,6 +365,7 @@ impl<'a> Walk<'a> {
                 allowed.push(choice);
             }
         }
+        self.expansions = self.expansions.saturating_add(allowed.len() as u64);
         self.release(bytes);
         Ok(allowed)
     }

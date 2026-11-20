@@ -2,6 +2,7 @@
 //!
 //! ```text
 //! graph_table = GRAPH_TABLE ( graph_name MATCH [path_variable =] path
+//!                            [, path]
 //!                            [KEEP selector] [WHERE sql_predicate]
 //!                            COLUMNS (projection {, projection}) ) [AS alias]
 //! selector    = ALL [mode] PATHS | ANY SHORTEST [mode] PATH
@@ -22,6 +23,7 @@ use super::lexical;
 use super::SqlError;
 use crate::sql::ast::{
     Expr, GraphColumn, GraphPathMode, GraphSelector, GraphSelectorKind, GraphTable, IdentifierPath,
+    MAX_GRAPH_PATTERNS,
 };
 
 /// Words that start graph mutation or path unions. They are recognized so the
@@ -39,7 +41,8 @@ const MUTATION_WORDS: [&str; 7] = [
 /// the next clause. The alias is not part of the returned [`GraphTable`].
 ///
 /// Errors: malformed text is `42601`; recognized but unsupported constructs
-/// (comma-separated patterns, pattern unions, mutation, `?`, `{m,}`, `{,n}`,
+/// (a third comma-separated pattern, a path variable with comma-separated
+/// patterns, pattern unions, mutation, `?`, `{m,}`, `{,n}`,
 /// nested quantifiers, bidirectional edges, label operators other than `|`,
 /// parameterized bounds) are `0A000`; a quantifier with `m > n`, an
 /// out-of-range bound, or `SHORTEST 0` is `22023`.
@@ -69,7 +72,26 @@ fn parse_body(body: &str) -> Result<GraphTable, SqlError> {
     let pos = skip(body, after_match);
     reject_unsupported(body, pos)?;
     let (path_variable, pos) = parse_path_variable(body, pos)?;
-    let (path, end) = parse_path(body, pos)?;
+    let (path, mut end) = parse_path(body, pos)?;
+    let mut extra_paths = Vec::new();
+    while byte_at(body, skip(body, end)) == Some(b',') {
+        let start = skip(body, skip(body, end) + 1);
+        let (named, start) = parse_path_variable(body, start)?;
+        if named.is_some() || path_variable.is_some() {
+            return Err(SqlError::unsupported(
+                "path variables are not supported with comma-separated GRAPH_TABLE path patterns"
+                    .into(),
+            ));
+        }
+        if extra_paths.len() + 1 >= MAX_GRAPH_PATTERNS {
+            return Err(SqlError::unsupported(format!(
+                "GRAPH_TABLE supports at most {MAX_GRAPH_PATTERNS} comma-separated path patterns"
+            )));
+        }
+        let (next, next_end) = parse_path(body, start)?;
+        extra_paths.push(next);
+        end = next_end;
+    }
     let rest = &body[end..];
     reject_unsupported(rest, skip(rest, 0))?;
     let (head, columns) = split_columns(rest)?;
@@ -78,6 +100,7 @@ fn parse_body(body: &str) -> Result<GraphTable, SqlError> {
         graph,
         path_variable,
         path,
+        extra_paths,
         selector,
         filter,
         columns: parse_columns(columns)?,
@@ -98,12 +121,12 @@ fn parse_path_variable(body: &str, pos: usize) -> Result<(Option<String>, usize)
     }
 }
 
-/// Rejects comma-separated patterns, unions and mutation at `pos`.
+/// Rejects a leading comma, unions and mutation at `pos`.
 fn reject_unsupported(text: &str, pos: usize) -> Result<(), SqlError> {
     match byte_at(text, pos) {
         Some(b',') => {
-            return Err(SqlError::unsupported(
-                "comma-separated GRAPH_TABLE path patterns are not supported".into(),
+            return Err(SqlError::syntax(
+                "GRAPH_TABLE path pattern list cannot start with a comma".into(),
             ));
         }
         Some(b'|') => {

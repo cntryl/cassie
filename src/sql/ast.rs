@@ -41,6 +41,7 @@ pub use ast_graph_table::{
     GraphColumn, GraphEdgeDirection, GraphEdgePattern, GraphPathMode, GraphPathPattern,
     GraphPathStep, GraphQuantifier, GraphSelector, GraphSelectorKind, GraphTable,
     GraphTableBinding, GraphVariableBinding, GraphVariableKind, GraphVertexPattern,
+    MAX_GRAPH_PATTERNS,
 };
 #[path = "ast_object_comment.rs"]
 mod ast_object_comment;

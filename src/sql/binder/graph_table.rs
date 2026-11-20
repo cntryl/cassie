@@ -121,7 +121,19 @@ fn validate_pattern(table: &GraphTable) -> Result<(), CassieError> {
             "SHORTEST count must be greater than zero",
         ));
     }
-    for step in &table.path.steps {
+    if !table.extra_paths.is_empty() {
+        if table.path_variable.is_some() {
+            return Err(unsupported(
+                "path variables are not supported with comma-separated GRAPH_TABLE path patterns",
+            ));
+        }
+        if table.patterns().count() > crate::sql::ast::MAX_GRAPH_PATTERNS {
+            return Err(unsupported(
+                "too many comma-separated GRAPH_TABLE path patterns",
+            ));
+        }
+    }
+    for step in table.patterns().flat_map(|pattern| &pattern.steps) {
         match step.edge.quantifier {
             Some(GraphQuantifier::Range { min, max }) if min > max => {
                 return Err(diagnostic(
@@ -153,19 +165,35 @@ fn check_expressions(
         variables,
         outer_fields,
     };
-    let inline = std::iter::once((table.path.start.filter.as_ref(), None)).chain(
-        table.path.steps.iter().flat_map(|step| {
-            let own = step.edge.quantifier.and(step.edge.variable.as_deref());
-            [
-                (step.edge.filter.as_ref(), own),
-                (step.vertex.filter.as_ref(), None),
-            ]
-        }),
-    );
-    for (filter, own_group) in inline {
-        if let Some(filter) = filter {
-            expr::check(filter, &scope, own_group)?;
-            expr::check_predicate(filter, &scope)?;
+    for pattern in table.patterns() {
+        // An inline predicate of a pattern sees only the variables its own pattern names;
+        // a condition across patterns belongs in the graph-pattern `WHERE`.
+        let own = (!table.extra_paths.is_empty()).then(|| {
+            let names = pattern.variable_names().collect::<HashSet<_>>();
+            variables
+                .iter()
+                .filter(|variable| names.contains(variable.name.as_str()))
+                .cloned()
+                .collect::<Vec<_>>()
+        });
+        let inline_scope = Scope {
+            variables: own.as_deref().unwrap_or(variables),
+            outer_fields,
+        };
+        let inline = std::iter::once((pattern.start.filter.as_ref(), None)).chain(
+            pattern.steps.iter().flat_map(|step| {
+                let own_group = step.edge.quantifier.and(step.edge.variable.as_deref());
+                [
+                    (step.edge.filter.as_ref(), own_group),
+                    (step.vertex.filter.as_ref(), None),
+                ]
+            }),
+        );
+        for (filter, own_group) in inline {
+            if let Some(filter) = filter {
+                expr::check(filter, &inline_scope, own_group)?;
+                expr::check_predicate(filter, &inline_scope)?;
+            }
         }
     }
     if let Some(filter) = &table.filter {

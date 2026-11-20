@@ -14,6 +14,7 @@ mod eval;
 mod keys;
 mod lazy;
 mod lazy_rows;
+mod multi;
 mod path_value;
 mod plan;
 mod project;
@@ -70,22 +71,26 @@ pub(super) fn execute(
         .catalog
         .get_property_graph(&binding.graph)
         .ok_or_else(|| failure("the property graph of a GRAPH_TABLE no longer exists"))?;
-    let plan = plan::Plan::build(table, graph)?;
+    let plans = plan::Plan::build_all(table, &graph)?;
     let eval = eval::Evaluator::new(env, if *lateral { outer_row } else { None })?;
     let mut output = env.controls.reserve_query_memory(0)?;
     let rows = {
         let mut traversal = env.controls.reserve_query_memory(0)?;
-        let access = access::Access::choose(env.cassie, env.session, &plan);
+        let access = access::Access::choose_all(env.cassie, env.session, &plans);
         let mut store = if access.forced_exact {
-            store::Store::load(env, &plan, &mut traversal)?
+            store::Store::load(env, &plans, &mut traversal)?
         } else {
-            store::Store::lazy(env, &plan.graph, access)?
+            store::Store::lazy(env, &plans[0].graph, access)?
         };
-        let found = walk::Walk::new(env, &plan, &mut store, &eval, &mut traversal).run()?;
-        let kind = table.effective_selector().kind;
-        let selected = select::apply(env, &store, kind, found)?;
-        let rows = project::rows(env, &plan, &store, &eval, &selected, &mut output)?;
+        let (selected, branches) = multi::run(env, &plans, &mut store, &eval, &mut traversal)?;
+        let rows = project::rows(env, &plans, &store, &eval, &selected, &mut output)?;
         store.record_reads(env, 0);
+        if branches.len() > 1 {
+            env.cassie.runtime.record_graph_branches(
+                branches.iter().map(|branch| branch.expansions).collect(),
+                branches.iter().map(|branch| branch.paths).collect(),
+            );
+        }
         rows
     };
     env.controls.check_interruption()?;
@@ -153,14 +158,29 @@ pub(crate) fn explain_sources(
                 return;
             };
             let name = graph.name.clone();
-            let Ok(plan) = plan::Plan::build(table, graph) else {
+            let Ok(plans) = plan::Plan::build_all(table, &graph) else {
                 return;
             };
-            let access = access::Access::choose(cassie, session, &plan);
-            out.push(format!(
-                "graph_table={name} {}",
-                access::describe(&access, &plan, &plan.graph)
-            ));
+            let access = access::Access::choose_all(cassie, session, &plans);
+            let described = plans
+                .iter()
+                .enumerate()
+                .map(|(branch, plan)| {
+                    let text = access::describe(&access, plan, &plan.graph);
+                    if plans.len() > 1 {
+                        format!("pattern[{branch}]{{{text}}}")
+                    } else {
+                        text
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            let join = if plans.len() > 1 {
+                format!("patterns={} join=shared_vertex ", plans.len())
+            } else {
+                String::new()
+            };
+            out.push(format!("graph_table={name} {join}{described}"));
         }
         _ => {}
     }

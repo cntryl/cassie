@@ -144,14 +144,16 @@ fn key_columns(key: &[GraphKeyColumn]) -> Vec<String> {
 }
 
 impl Access {
-    pub(super) fn choose(
+    /// The access paths covering every pattern of a table: a mapping is read when any
+    /// pattern reads it, and an edge side is looked up when any pattern's step needs it.
+    pub(super) fn choose_all(
         cassie: &Cassie,
         session: Option<&CassieSession>,
-        plan: &Plan<'_>,
+        plans: &[Plan<'_>],
     ) -> Self {
         let needs = |mapping: usize| {
             let mut needs = [false; 2];
-            for step in &plan.steps {
+            for step in plans.iter().flat_map(|plan| &plan.steps) {
                 if step.selection[mapping].is_none() {
                     continue;
                 }
@@ -163,10 +165,11 @@ impl Access {
             }
             needs
         };
+        let (vertices, edges) = super::plan::mappings_read(plans);
         Self::for_mappings(
             (cassie, session),
-            &plan.graph,
-            (&plan.vertex_mappings_read(), &plan.edge_mappings_read()),
+            &plans[0].graph,
+            (&vertices, &edges),
             needs,
         )
     }

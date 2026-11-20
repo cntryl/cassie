@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1843,
-    "rust_files": 1800,
-    "rust_test_declarations": 10902,
+    "files": 1847,
+    "rust_files": 1804,
+    "rust_test_declarations": 10930,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10927,
+    "registered_rust_instances": 10955,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -25083,6 +25083,37 @@
         {
           "suite": "columnar_surface",
           "name": "pruning_equivalence::should_match_heap_after_mixed_writes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/pruning_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/pruning_equivalence.rs::should_return_staged_rows_moved_into_a_segment_the_summaries_exclude",
+      "name": "should_return_staged_rows_moved_into_a_segment_the_summaries_exclude",
+      "current_file": "tests/columnar_surface/pruning_equivalence.rs",
+      "line": 223,
+      "end_line": 255,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "pruning_equivalence::should_return_staged_rows_moved_into_a_segment_the_summaries_exclude"
         }
       ],
       "attributes": [
@@ -70611,6 +70642,843 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_match_two_relational_joins_for_a_converging_path",
+      "name": "should_match_two_relational_joins_for_a_converging_path",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 77,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_match_two_relational_joins_for_a_converging_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_match_two_relational_joins_for_a_fork",
+      "name": "should_match_two_relational_joins_for_a_fork",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 91,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_match_two_relational_joins_for_a_fork"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_keep_the_multiplicity_of_parallel_edges_in_both_patterns",
+      "name": "should_keep_the_multiplicity_of_parallel_edges_in_both_patterns",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 108,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_keep_the_multiplicity_of_parallel_edges_in_both_patterns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_not_merge_tenants_that_print_the_same_key_components",
+      "name": "should_not_merge_tenants_that_print_the_same_key_components",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 125,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_not_merge_tenants_that_print_the_same_key_components"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_return_the_typed_identity_of_each_common_neighbor",
+      "name": "should_return_the_typed_identity_of_each_common_neighbor",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 148,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_return_the_typed_identity_of_each_common_neighbor"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_count_common_neighbors_per_pair_without_merging_tenants",
+      "name": "should_count_common_neighbors_per_pair_without_merging_tenants",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 164,
+      "end_line": 178,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_count_common_neighbors_per_pair_without_merging_tenants"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_answer_the_permission_example_with_a_bounded_first_pattern",
+      "name": "should_answer_the_permission_example_with_a_bounded_first_pattern",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 181,
+      "end_line": 195,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_answer_the_permission_example_with_a_bounded_first_pattern"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_keep_each_tenant_inside_its_own_permission_result",
+      "name": "should_keep_each_tenant_inside_its_own_permission_result",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 198,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_keep_each_tenant_inside_its_own_permission_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_return_no_rows_when_one_pattern_has_no_matches",
+      "name": "should_return_no_rows_when_one_pattern_has_no_matches",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 214,
+      "end_line": 231,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_return_no_rows_when_one_pattern_has_no_matches"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_apply_a_selector_to_each_pattern_before_the_join",
+      "name": "should_apply_a_selector_to_each_pattern_before_the_join",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 234,
+      "end_line": 248,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_apply_a_selector_to_each_pattern_before_the_join"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_return_the_same_rows_given_forced_exact_reads_and_unindexed_edges",
+      "name": "should_return_the_same_rows_given_forced_exact_reads_and_unindexed_edges",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 251,
+      "end_line": 278,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_return_the_same_rows_given_forced_exact_reads_and_unindexed_edges"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_order_joined_rows_by_each_patterns_path_order",
+      "name": "should_order_joined_rows_by_each_patterns_path_order",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 281,
+      "end_line": 296,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_order_joined_rows_by_each_patterns_path_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_read_shared_vertex_properties_from_every_pattern",
+      "name": "should_read_shared_vertex_properties_from_every_pattern",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 299,
+      "end_line": 312,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_read_shared_vertex_properties_from_every_pattern"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_reject_unsupported_pattern_lists_with_the_documented_states",
+      "name": "should_reject_unsupported_pattern_lists_with_the_documented_states",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 315,
+      "end_line": 369,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_reject_unsupported_pattern_lists_with_the_documented_states"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_reject_an_unbounded_walk_in_a_later_pattern",
+      "name": "should_reject_an_unbounded_walk_in_a_later_pattern",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 372,
+      "end_line": 384,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_reject_an_unbounded_walk_in_a_later_pattern"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_report_per_pattern_counts_in_the_metrics",
+      "name": "should_report_per_pattern_counts_in_the_metrics",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 387,
+      "end_line": 409,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_report_per_pattern_counts_in_the_metrics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity.rs::should_describe_the_join_in_explain",
+      "name": "should_describe_the_join_in_explain",
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "line": 412,
+      "end_line": 427,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity::should_describe_the_join_in_explain"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_runtime.rs::should_see_own_uncommitted_writes_in_both_patterns",
+      "name": "should_see_own_uncommitted_writes_in_both_patterns",
+      "current_file": "tests/graph_table/shared_entity_runtime.rs",
+      "line": 39,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_runtime::should_see_own_uncommitted_writes_in_both_patterns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_runtime.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_runtime.rs::should_drop_a_rolled_back_savepoint_write_from_the_join",
+      "name": "should_drop_a_rolled_back_savepoint_write_from_the_join",
+      "current_file": "tests/graph_table/shared_entity_runtime.rs",
+      "line": 63,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_runtime::should_drop_a_rolled_back_savepoint_write_from_the_join"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_runtime.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_runtime.rs::should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit",
+      "name": "should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit",
+      "current_file": "tests/graph_table/shared_entity_runtime.rs",
+      "line": 83,
+      "end_line": 102,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_runtime::should_keep_a_repeatable_read_snapshot_across_a_concurrent_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_runtime.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_runtime.rs::should_fail_at_the_measured_peak_instead_of_returning_a_partial_join",
+      "name": "should_fail_at_the_measured_peak_instead_of_returning_a_partial_join",
+      "current_file": "tests/graph_table/shared_entity_runtime.rs",
+      "line": 129,
+      "end_line": 148,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_runtime::should_fail_at_the_measured_peak_instead_of_returning_a_partial_join"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_runtime.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_runtime.rs::should_cancel_a_joined_statement_inside_the_first_pattern_search",
+      "name": "should_cancel_a_joined_statement_inside_the_first_pattern_search",
+      "current_file": "tests/graph_table/shared_entity_runtime.rs",
+      "line": 180,
+      "end_line": 190,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_runtime::should_cancel_a_joined_statement_inside_the_first_pattern_search"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_runtime.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_runtime.rs::should_cancel_a_joined_statement_while_extending_its_tuples",
+      "name": "should_cancel_a_joined_statement_while_extending_its_tuples",
+      "current_file": "tests/graph_table/shared_entity_runtime.rs",
+      "line": 193,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_runtime::should_cancel_a_joined_statement_while_extending_its_tuples"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_runtime.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_wire.rs::should_describe_the_parameters_of_both_patterns",
+      "name": "should_describe_the_parameters_of_both_patterns",
+      "current_file": "tests/graph_table/shared_entity_wire.rs",
+      "line": 60,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_wire::should_describe_the_parameters_of_both_patterns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_wire.rs::should_answer_the_permission_example_for_each_tenant_through_one_prepared_statement",
+      "name": "should_answer_the_permission_example_for_each_tenant_through_one_prepared_statement",
+      "current_file": "tests/graph_table/shared_entity_wire.rs",
+      "line": 77,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_wire::should_answer_the_permission_example_for_each_tenant_through_one_prepared_statement"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_wire.rs::should_count_the_common_neighbors_of_each_tenant_separately",
+      "name": "should_count_the_common_neighbors_of_each_tenant_separately",
+      "current_file": "tests/graph_table/shared_entity_wire.rs",
+      "line": 108,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_wire::should_count_the_common_neighbors_of_each_tenant_separately"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_wire.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/shared_entity_wire.rs::should_discard_own_writes_on_rollback_through_a_prepared_statement",
+      "name": "should_discard_own_writes_on_rollback_through_a_prepared_statement",
+      "current_file": "tests/graph_table/shared_entity_wire.rs",
+      "line": 125,
+      "end_line": 149,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "shared_entity_wire::should_discard_own_writes_on_rollback_through_a_prepared_statement"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/shared_entity_wire.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -341211,9 +342079,9 @@
       "current_file": "tests/columnar_surface/pruning_equivalence.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 220,
-      "sha256": "9a63fc462d12c6c5c881e24e473a65b5ba6d65c669959727a4446bdd9155df6d",
-      "test_declarations": 5,
+      "lines": 255,
+      "sha256": "a8ab94a02c0f67e00b8f6ed6be325c8f2a1a5a171cdb6437cf53056f053c6960",
+      "test_declarations": 6,
       "registered_suites": [
         "columnar_surface"
       ],
@@ -346065,6 +346933,66 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/shared_entity.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 427,
+      "sha256": "fca7a0d9a3ad1ebc04906a9f4ba829c718db1af7bd7c852191a25d8bd7f7547a",
+      "test_declarations": 17,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/shared_entity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/shared_entity_fixture.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 124,
+      "sha256": "24047bf81521c099551ec201bfb82a7bb2933704606a7307a325d6c252893fb1",
+      "test_declarations": 0,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/shared_entity_fixture.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/shared_entity_runtime.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 203,
+      "sha256": "7b8c38d20df83f869c75ed67b0205f727f852d0d6dbadaf8b2bd86d75a8b0301",
+      "test_declarations": 6,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/shared_entity_runtime.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_table/shared_entity_wire.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 149,
+      "sha256": "abce631230604b1570ecaaae370be0f7d3151fb99390bab5b9662ecefc18efb1",
+      "test_declarations": 4,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/shared_entity_wire.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/tie_order.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -346158,8 +347086,8 @@
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 79,
-      "sha256": "d7636f79be52137067c61d44ee0d2972cc376525e07f35be41cf38166a60ff05",
+      "lines": 91,
+      "sha256": "1fef45d953fadf6d92f5ad130c1b0ddd6dfd43488063c597792333048aecbf61",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"

@@ -562,7 +562,15 @@ pub struct CreateRetentionPolicyStatement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterRetentionPolicyStatement {
     pub name: String,
-    pub retention_duration: String,
+    pub action: AlterRetentionPolicyAction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AlterRetentionPolicyAction {
+    SetDuration(String),
+    ScheduleDaily { start_at: String },
+    Suspend,
+    Resume,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -575,6 +583,23 @@ pub struct DropRetentionPolicyStatement {
 pub struct EnforceRetentionPolicyStatement {
     pub name: String,
     pub at: String,
+    pub mode: RetentionEnforcementMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RetentionEnforcementMode {
+    At,
+    DueAt,
+}
+
+impl RetentionEnforcementMode {
+    #[must_use]
+    pub fn keyword(self) -> &'static str {
+        match self {
+            Self::At => "AT",
+            Self::DueAt => "DUE AT",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -92,12 +92,16 @@ length and lower bound, so equal flat elements with a changed lower bound do
 not collapse to one DISTINCT key. The focused regression
 `should_validate_distinct_array_inputs_with_different_lower_bounds` exercises
 that case and expects SQLSTATE `2202E`; it is authored/not run. The question and
-typed result are preserved in
-[`distinct-bypass-focused-request.json`](../target/v020-evidence/811-array-aggregate/distinct-bypass-focused-request.json),
-[`distinct-bypass-focused-response.json`](../target/v020-evidence/811-array-aggregate/distinct-bypass-focused-response.json),
-[`validation-gap-path-probes-response.json`](../target/v020-evidence/811-array-aggregate/validation-gap-path-probes-response.json),
-and
-[`validation-gap-focused-followup-response.json`](../target/v020-evidence/811-array-aggregate/validation-gap-focused-followup-response.json).
+typed result were recorded in four raw Jev files under the ignored
+`target/v020-evidence/811-array-aggregate/` directory:
+`distinct-bypass-focused-request.json`,
+`distinct-bypass-focused-response.json`,
+`validation-gap-path-probes-response.json`, and
+`validation-gap-focused-followup-response.json`. Those files were never
+committed and cannot be recovered. The probabilities above are the surviving
+record of those advisory judgments. The executable evidence is the checked-in
+regression in
+[`tests/pgwire_extended/aggregates/arrays/array_aggregate.rs`](../tests/pgwire_extended/aggregates/arrays/array_aggregate.rs).
 
 ## Bound EXPLAIN and DML routes
 
@@ -128,10 +132,13 @@ SELECT array_agg($1) FROM (VALUES (1),(2)) AS t(n);
 With Parse OID 1007 and Bind NULL, the selected aggregate contract expects
 SQLSTATE `22004`. Jev judged that this route can lose the OID and bypass the
 validator at probability 0.87, while its scope choice selected `select_only`
-at probability 0.89. The requests and typed results are preserved in
-[`dml-oid-scope-request.json`](../target/v020-evidence/811-array-aggregate/dml-oid-scope-request.json)
-and
-[`dml-oid-scope-response.json`](../target/v020-evidence/811-array-aggregate/dml-oid-scope-response.json).
+at probability 0.89. The requests and typed results were recorded in
+`dml-oid-scope-request.json` and `dml-oid-scope-response.json` under the same
+ignored directory. Those raw files were never committed and cannot be
+recovered; the two probabilities above are the surviving record of that
+advisory judgment, and the SELECT and bound `EXPLAIN ANALYZE` behavior is
+established by the tests in
+[`tests/pgwire_extended/aggregates/arrays/array_aggregate.rs`](../tests/pgwire_extended/aggregates/arrays/array_aggregate.rs).
 Per that selected scope, this slice covers SELECT and bound `EXPLAIN ANALYZE`
 only. It does not alter or qualify the DML command pipeline; the DML route is
 outside this slice's acceptance evidence.

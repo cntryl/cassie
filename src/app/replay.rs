@@ -8,6 +8,18 @@ use crate::midge::adapter::{
 
 use super::{Cassie, CassieError};
 
+/// Records the batch's reported lag and the freshness it implies, and clears
+/// the previous replay error.
+fn record_replay_lag(metadata: &mut crate::catalog::ProjectionMeta, lag: u64) {
+    metadata.lag = lag;
+    metadata.freshness = if lag == 0 {
+        crate::catalog::ProjectionFreshness::Fresh
+    } else {
+        crate::catalog::ProjectionFreshness::Stale
+    };
+    metadata.last_error = None;
+}
+
 #[cfg(test)]
 thread_local! {
     static POSTCOMMIT_READ_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -374,6 +386,35 @@ impl Cassie {
         })
     }
 
+    /// Returns the source fields dependent rollups group by, and whether the
+    /// projection has any rollup that needs maintenance debt recorded.
+    fn rollup_change_fields(&self, projection: &str) -> (Vec<String>, bool) {
+        let rollups = self.catalog.list_rollups_for_source(projection);
+        let has_rollups = !rollups.is_empty();
+        let mut fields = BTreeSet::new();
+        for rollup in rollups {
+            fields.insert(rollup.timestamp_field);
+            fields.extend(rollup.group_keys);
+        }
+        (fields.into_iter().collect(), has_rollups)
+    }
+
+    /// Best-effort rollup maintenance after a committed replay batch. A
+    /// failure leaves durable debt, so readers use the authoritative source.
+    fn refresh_rollups_after_replay(
+        &self,
+        projection: &str,
+        changes: &crate::midge::adapter::documents::RollupSourceChangeReport,
+    ) {
+        if changes.rows.is_empty() && !changes.exceeded_limit {
+            return;
+        }
+        let controls = self.runtime.query_controls(std::time::Instant::now());
+        let _ = crate::executor::refresh_rollups_for_source_with_report_external(
+            self, projection, changes, &controls,
+        );
+    }
+
     fn finalize_projection_replay(
         &self,
         mut metadata: crate::catalog::ProjectionMeta,
@@ -396,13 +437,7 @@ impl Cassie {
         metadata.skipped_duplicate_count = metadata
             .skipped_duplicate_count
             .saturating_add(prepared.skipped);
-        metadata.lag = batch.lag;
-        metadata.freshness = if batch.lag == 0 {
-            crate::catalog::ProjectionFreshness::Fresh
-        } else {
-            crate::catalog::ProjectionFreshness::Stale
-        };
-        metadata.last_error = None;
+        record_replay_lag(&mut metadata, batch.lag);
         let failure_expected = stored_metadata.clone();
         let replay = ReplayBatchCommit {
             expected_metadata: stored_metadata,
@@ -412,11 +447,15 @@ impl Cassie {
             observed_events: prepared.observed_events,
             new_event_ids: prepared.replay_event_ids,
         };
+        let (rollup_fields, record_rollup_maintenance_debt) =
+            self.rollup_change_fields(&batch.projection);
         let result = self.midge.apply_projection_replay_batch(
             &batch.projection,
             std::mem::take(&mut prepared.write_ops),
             replay,
             commit,
+            rollup_fields,
+            record_rollup_maintenance_debt,
         );
         let write_report = match result {
             Ok(report) => report,
@@ -457,6 +496,9 @@ impl Cassie {
         let _terminal = PublicationControlScope::terminal_completion();
         if let Some(epoch) = write_report.data_epoch {
             self.runtime.set_data_epoch(epoch);
+        }
+        if record_rollup_maintenance_debt {
+            self.refresh_rollups_after_replay(&batch.projection, &write_report.rollup_changes);
         }
         let mut stats = write_report.stats;
         stats.duplicate_checks = prepared.duplicate_checks;

@@ -128,9 +128,24 @@ pub(crate) fn controlled_backoff(
     while started.elapsed() < delay {
         check_controls(provider, controls)?;
         let remaining = delay.saturating_sub(started.elapsed());
-        std::thread::sleep(remaining.min(Duration::from_millis(5)));
+        let deadline_remaining = controls
+            .deadline
+            .map(|deadline| deadline.saturating_duration_since(Instant::now()));
+        let sleep_for = next_backoff_sleep(remaining, deadline_remaining);
+        std::thread::sleep(sleep_for);
     }
     check_controls(provider, controls)
+}
+
+fn next_backoff_sleep(
+    backoff_remaining: Duration,
+    deadline_remaining: Option<Duration>,
+) -> Duration {
+    deadline_remaining
+        .map_or(backoff_remaining, |deadline| {
+            backoff_remaining.min(deadline)
+        })
+        .min(Duration::from_millis(5))
 }
 
 enum ControlledRequestOutcome<T, E> {
@@ -279,5 +294,23 @@ mod tests {
         // Assert
         assert!(matches!(result, Err(EmbeddingError::Canceled { .. })));
         assert!(!provider.0.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn should_cap_backoff_sleep_to_remaining_query_deadline() {
+        // Arrange
+        let backoff_remaining = Duration::from_millis(50);
+
+        // Act
+        let three_millis_remaining =
+            next_backoff_sleep(backoff_remaining, Some(Duration::from_millis(3)));
+        let ten_millis_remaining =
+            next_backoff_sleep(backoff_remaining, Some(Duration::from_millis(10)));
+        let no_deadline = next_backoff_sleep(backoff_remaining, None);
+
+        // Assert
+        assert_eq!(three_millis_remaining, Duration::from_millis(3));
+        assert_eq!(ten_millis_remaining, Duration::from_millis(5));
+        assert_eq!(no_deadline, Duration::from_millis(5));
     }
 }

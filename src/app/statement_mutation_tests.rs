@@ -73,6 +73,7 @@ fn should_skip_retired_batch_maintenance_after_a_same_generation_replacement() {
             relation_id: old_id,
             row_delta: i64::MAX,
             changed_ids: vec!["retired-row".into()],
+            rollup_changes: crate::midge::adapter::documents::RollupSourceChangeReport::default(),
         }],
     };
     for sql in [

@@ -15,6 +15,58 @@ pub(super) struct OwnedRollupRows {
     _directory_memory: QueryMemoryReservation,
 }
 
+pub(super) fn json_value_heap_size(value: &serde_json::Value) -> Result<usize, QueryError> {
+    let mut bytes = std::mem::size_of::<serde_json::Value>();
+    match value {
+        serde_json::Value::Null | serde_json::Value::Bool(_) => {}
+        serde_json::Value::Number(number) => {
+            bytes = bytes
+                .checked_add(number.to_string().len())
+                .ok_or_else(|| QueryError::General("rollup payload size overflow".to_string()))?;
+        }
+        serde_json::Value::String(value) => {
+            bytes = bytes
+                .checked_add(value.len())
+                .ok_or_else(|| QueryError::General("rollup payload size overflow".to_string()))?;
+        }
+        serde_json::Value::Array(values) => {
+            bytes = bytes
+                .checked_add(
+                    values
+                        .capacity()
+                        .saturating_mul(size_of::<serde_json::Value>()),
+                )
+                .ok_or_else(|| QueryError::General("rollup payload size overflow".to_string()))?;
+            for value in values {
+                bytes = bytes
+                    .checked_add(json_value_heap_size(value)?)
+                    .ok_or_else(|| {
+                        QueryError::General("rollup payload size overflow".to_string())
+                    })?;
+            }
+        }
+        serde_json::Value::Object(values) => {
+            bytes = bytes
+                .checked_add(
+                    values
+                        .len()
+                        .saturating_mul(size_of::<(String, serde_json::Value)>()),
+                )
+                .ok_or_else(|| QueryError::General("rollup payload size overflow".to_string()))?;
+            for (name, value) in values {
+                let value_bytes = json_value_heap_size(value)?;
+                bytes = bytes
+                    .checked_add(name.len())
+                    .and_then(|bytes| bytes.checked_add(value_bytes))
+                    .ok_or_else(|| {
+                        QueryError::General("rollup payload size overflow".to_string())
+                    })?;
+            }
+        }
+    }
+    Ok(bytes)
+}
+
 struct OwnedRollupRow {
     payload: Option<serde_json::Value>,
     _query_memory: Option<Arc<QueryMemoryReservation>>,
@@ -70,6 +122,10 @@ fn serialize_observing(
 }
 
 impl OwnedRollupRows {
+    pub(super) fn len(&self) -> usize {
+        self.rows.len()
+    }
+
     pub(super) fn publish_with(
         &mut self,
         mut publish: impl FnMut(usize, serde_json::Value) -> Result<(), QueryError>,

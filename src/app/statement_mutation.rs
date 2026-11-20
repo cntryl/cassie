@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::midge::adapter::documents::RollupSourceChangeReport;
 use crate::midge::adapter::{DocumentWriteBatchReport, DocumentWriteOp};
 use crate::runtime::QueryExecutionControls;
 
@@ -21,11 +22,15 @@ mod retry_policy_tests;
 #[path = "statement_mutation_maintenance.rs"]
 mod maintenance;
 
+/// A database name and the extra Data writes committed with a batch.
+type AdditionalDataWrites = (String, Vec<(Vec<u8>, Option<Vec<u8>>)>);
+
 struct CommittedCollection {
     collection: String,
     relation_id: u64,
     row_delta: i64,
     changed_ids: Vec<String>,
+    rollup_changes: RollupSourceChangeReport,
 }
 
 pub(super) struct CommittedWriteBatch {
@@ -92,11 +97,45 @@ impl Cassie {
         Ok(())
     }
 
+    pub(crate) fn publish_statement_batch_with_data_writes(
+        &self,
+        batch: StatementMutationBatch,
+        controls: &QueryExecutionControls,
+        database: String,
+        data_writes: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+    ) -> Result<(), CassieError> {
+        check_publication_controls(Some(controls))?;
+        if batch.has_enclosing_transaction() {
+            return Err(CassieError::Execution(
+                "scheduled retention progress cannot join a SQL transaction".to_owned(),
+            ));
+        }
+        let staging = batch.into_session();
+        let committed = self.apply_staged_write_batches_with_data_writes(
+            &staging,
+            Some(controls),
+            None,
+            Some(&(database, data_writes)),
+        )?;
+        self.finish_staged_write_batches(committed, Some(controls));
+        Ok(())
+    }
+
     pub(super) fn apply_staged_write_batches(
         &self,
         staging: &CassieSession,
         controls: Option<&QueryExecutionControls>,
         transactional_ddl: Option<(&str, &crate::midge::adapter::StorageOverlay)>,
+    ) -> Result<CommittedWriteBatch, CassieError> {
+        self.apply_staged_write_batches_with_data_writes(staging, controls, transactional_ddl, None)
+    }
+
+    fn apply_staged_write_batches_with_data_writes(
+        &self,
+        staging: &CassieSession,
+        controls: Option<&QueryExecutionControls>,
+        transactional_ddl: Option<(&str, &crate::midge::adapter::StorageOverlay)>,
+        additional_data: Option<&AdditionalDataWrites>,
     ) -> Result<CommittedWriteBatch, CassieError> {
         let mut writes = transaction_write_batches(staging);
         if let Some((database, overlay)) = transactional_ddl {
@@ -104,7 +143,7 @@ impl Cassie {
             // the transactional overlay; skip earlier row batches for it.
             writes.retain(|collection, _| !overlay.drops_collection(collection, database));
         }
-        if writes.is_empty() {
+        if writes.is_empty() && additional_data.is_none() {
             check_publication_controls(controls)?;
             if let Some((database, overlay)) = transactional_ddl {
                 self.midge.commit_storage_overlay(database, overlay)?;
@@ -116,7 +155,15 @@ impl Cassie {
         }
 
         let collections = writes.keys().cloned().collect::<Vec<_>>();
-        let mut options = self.document_write_options_for_collections(&collections);
+        let mut options = if collections.is_empty() {
+            crate::midge::adapter::DocumentWriteBatchOptions::sync(self.midge.write_options_sync())
+        } else {
+            self.document_write_options_for_collections(&collections)
+        };
+        if let Some((database, data_writes)) = additional_data {
+            options.data_database = Some(database.clone());
+            options.additional_data_writes.clone_from(data_writes);
+        }
         options.refresh_after_commit = false;
         self.apply_projection_commit_policy(staging, transactional_ddl.is_some(), &mut options);
         check_publication_controls(controls)?;
@@ -146,12 +193,21 @@ impl Cassie {
                 #[cfg(all(test, feature = "replay-benchmark-observation"))]
                 retry_policy_tests::resolved(self, staging);
                 writes = transaction_write_batches(staging);
-                if writes.is_empty() {
+                if writes.is_empty() && additional_data.is_none() {
                     BTreeMap::new()
                 } else {
                     let retry_collections = writes.keys().cloned().collect::<Vec<_>>();
-                    let mut retry_options =
-                        self.document_write_options_for_collections(&retry_collections);
+                    let mut retry_options = if retry_collections.is_empty() {
+                        crate::midge::adapter::DocumentWriteBatchOptions::sync(
+                            self.midge.write_options_sync(),
+                        )
+                    } else {
+                        self.document_write_options_for_collections(&retry_collections)
+                    };
+                    if let Some((database, data_writes)) = additional_data {
+                        retry_options.data_database = Some(database.clone());
+                        retry_options.additional_data_writes.clone_from(data_writes);
+                    }
                     retry_options.refresh_after_commit = false;
                     // Re-select after conflict resolution: it may have run
                     // sequence or default effects, which only raise strictness.
@@ -233,6 +289,7 @@ impl Cassie {
                     relation_id: report.relation_id,
                     row_delta: report.row_delta,
                     changed_ids: report.changed_ids,
+                    rollup_changes: report.rollup_changes,
                 });
             }
             latest_epoch = latest_epoch.max(report.data_epoch);

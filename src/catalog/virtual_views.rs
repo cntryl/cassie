@@ -510,6 +510,17 @@ fn pg_retention_policies_rows(catalog: &Catalog) -> Vec<VirtualRow> {
                 int_value("last_deleted_rows", policy.last_deleted_rows),
                 int_value("last_skipped_rows", policy.last_skipped_rows),
                 string("last_error", policy.last_error.unwrap_or_default()),
+                string("schedule_state", policy.schedule_state.as_str()),
+                optional_timestamp_value("next_due_at", policy.next_due_at_us),
+                optional_timestamp_value("pending_cutoff", policy.pending_cutoff_us),
+                int_value("pending_scanned_rows", policy.pending_scanned_rows),
+                int_value("pending_deleted_rows", policy.pending_deleted_rows),
+                int_value("pending_skipped_rows", policy.pending_skipped_rows),
+                optional_timestamp_value(
+                    "last_successful_cutoff",
+                    policy.last_successful_cutoff_us,
+                ),
+                optional_string("last_failure", policy.last_failure),
             ]
         })
         .collect()
@@ -897,6 +908,22 @@ fn bool_value(name: &str, value: bool) -> (String, Value) {
 
 fn optional_string(name: &str, value: Option<String>) -> (String, Value) {
     (name.to_string(), value.map_or(Value::Null, Value::String))
+}
+
+fn optional_timestamp_value(name: &str, value: Option<i64>) -> (String, Value) {
+    (
+        name.to_string(),
+        value.map_or(Value::Null, |micros| {
+            let postgres_epoch_offset =
+                crate::types::extended::temporal::calendar::UNIX_TO_POSTGRES_SECS
+                    * crate::types::extended::temporal::calendar::USECS_PER_SEC;
+            micros
+                .checked_sub(postgres_epoch_offset)
+                .map_or(Value::Null, |micros| {
+                    Value::Typed(crate::types::typed::TypedValue::TimestampTz(micros))
+                })
+        }),
+    )
 }
 
 fn optional_i64(name: &str, value: Option<i64>) -> (String, Value) {

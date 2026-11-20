@@ -199,7 +199,7 @@ pub fn set_vector_ann_rerank_barriers(
 pub(crate) use execution::rollup_rewrite_name_for_plan;
 pub(crate) use execution::{
     mark_source_projections_stale_external, refresh_rollups_for_source_external,
-    sync_derived_maintenance_debt_external,
+    refresh_rollups_for_source_with_report_external, sync_derived_maintenance_debt_external,
 };
 
 thread_local! {

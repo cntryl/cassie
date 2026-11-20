@@ -19,7 +19,7 @@ impl Midge {
         >,
         fulltext_indexes_by_collection: &BTreeMap<String, Vec<crate::catalog::IndexMeta>>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        if changed_collections.is_empty() && options.replay.is_none() {
+        if changed_collections.is_empty() && !options.has_side_writes() {
             tx.rollback().map_err(CassieError::from)?;
             return Ok(reports);
         }
@@ -72,6 +72,7 @@ impl Midge {
             tx.put(key.clone(), value.clone(), None)
                 .map_err(CassieError::from)?;
         }
+        options.stage_additional_data_writes(&mut tx)?;
         if let Err(error) = super::super::check_document_write_storage_failure_injection() {
             tx.rollback().map_err(CassieError::from)?;
             return Err(error);

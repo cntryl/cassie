@@ -14,6 +14,10 @@ pub(super) enum Descriptor {
     Empty(virtual_views_empty::Fields),
 }
 
+fn timestamptz() -> DataType {
+    DataType::Extended(crate::types::extended::ExtendedType::TimestampTz { precision: None })
+}
+
 impl Descriptor {
     pub(super) fn build(self) -> Vec<(String, DataType)> {
         match self {
@@ -200,6 +204,14 @@ fn pg_catalog_runtime_schema(name: &str) -> Option<SchemaFactory> {
                 int("last_deleted_rows"),
                 int("last_skipped_rows"),
                 text("last_error"),
+                text("schedule_state"),
+                ("next_due_at".to_owned(), timestamptz()),
+                ("pending_cutoff".to_owned(), timestamptz()),
+                int("pending_scanned_rows"),
+                int("pending_deleted_rows"),
+                int("pending_skipped_rows"),
+                ("last_successful_cutoff".to_owned(), timestamptz()),
+                text("last_failure"),
             ]
         }),
         _ => None,

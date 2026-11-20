@@ -71,7 +71,9 @@ fn command_outcome(
         .or_else(|| {
             execute_projection_command_group(cassie, session, command, user_functions, controls)
         })
-        .or_else(|| execute_retention_sequence_group(cassie, command, user_functions, controls))
+        .or_else(|| {
+            execute_retention_sequence_group(cassie, session, command, user_functions, controls)
+        })
         .or_else(|| execute_schema_object_group(cassie, session, command, controls))
         .or_else(|| {
             execute_routine_group(
@@ -279,6 +281,7 @@ fn execute_materialized_view_command(
 
 fn execute_retention_sequence_group(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     command: &LogicalCommand,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -288,7 +291,7 @@ fn execute_retention_sequence_group(
             super::retention::create_retention_policy(cassie, statement, controls),
         )),
         LogicalCommand::AlterRetentionPolicy(statement) => Some(CommandExecution::invalidating(
-            super::retention::alter_retention_policy(cassie, statement, controls),
+            super::retention::alter_retention_policy(cassie, session, statement, controls),
         )),
         LogicalCommand::DropRetentionPolicy(statement) => Some(CommandExecution::invalidating(
             super::retention::drop_retention_policy(
@@ -299,7 +302,13 @@ fn execute_retention_sequence_group(
             ),
         )),
         LogicalCommand::EnforceRetentionPolicy(statement) => Some(CommandExecution::new(
-            super::retention::enforce_retention_policy(cassie, statement, user_functions, controls),
+            super::retention::enforce_retention_policy(
+                cassie,
+                session,
+                statement,
+                user_functions,
+                controls,
+            ),
         )),
         LogicalCommand::CreateSequence(statement) => Some(CommandExecution::invalidating(
             super::sequence_command::create_sequence(cassie, statement, controls),

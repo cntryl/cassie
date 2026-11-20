@@ -80,8 +80,11 @@ impl Cassie {
                 if maintenance.is_ok() {
                     let _ = self.refresh_projection_metadata(collection);
                 }
-                let _ = crate::executor::refresh_rollups_for_source_external(
-                    self, collection, controls,
+                let _ = crate::executor::refresh_rollups_for_source_with_report_external(
+                    self,
+                    collection,
+                    &committed.rollup_changes,
+                    controls,
                 );
                 let _ = crate::executor::mark_source_projections_stale_external(self, collection);
                 let _ = crate::executor::sync_derived_maintenance_debt_external(self, collection);

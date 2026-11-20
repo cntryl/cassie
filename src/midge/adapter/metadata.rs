@@ -204,6 +204,21 @@ impl Midge {
         Ok(())
     }
 
+    pub(crate) fn rollup_data_write(
+        &self,
+        metadata: &RollupMeta,
+    ) -> Result<(String, Vec<u8>, Vec<u8>), CassieError> {
+        let mut metadata = metadata.clone();
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        metadata.source_collection = self.canonical_collection_name(&metadata.source_collection);
+        metadata.output_collection = self.canonical_collection_name(&metadata.output_collection);
+        let database = crate::catalog::relation_database_name(&metadata.source_collection)
+            .unwrap_or_else(|| self.default_database.clone());
+        let value =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        Ok((database, Self::rollup_key(&metadata.name), value))
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -256,6 +271,20 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
+    }
+
+    pub(crate) fn retention_policy_data_write(
+        &self,
+        metadata: &RetentionPolicyMeta,
+    ) -> Result<(String, Vec<u8>, Vec<u8>), CassieError> {
+        let mut metadata = metadata.clone();
+        metadata.name = self.canonical_collection_name(&metadata.name);
+        metadata.collection = self.canonical_collection_name(&metadata.collection);
+        let database = crate::catalog::relation_database_name(&metadata.collection)
+            .unwrap_or_else(|| self.default_database.clone());
+        let value =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        Ok((database, Self::retention_key(&metadata.name), value))
     }
 
     /// # Errors

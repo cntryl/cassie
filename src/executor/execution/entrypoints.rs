@@ -212,6 +212,20 @@ pub(crate) fn refresh_rollups_for_source_external(
     source: &str,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    refresh_rollups_for_source_with_report_external(
+        cassie,
+        source,
+        &crate::midge::adapter::documents::RollupSourceChangeReport::default(),
+        controls,
+    )
+}
+
+pub(crate) fn refresh_rollups_for_source_with_report_external(
+    cassie: &Cassie,
+    source: &str,
+    report: &crate::midge::adapter::documents::RollupSourceChangeReport,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
     let functions = cassie.catalog.list_functions();
     let user_functions = if cassie.database_catalog_enforced() {
         let database = crate::catalog::relation_database_name(source)
@@ -225,7 +239,7 @@ pub(crate) fn refresh_rollups_for_source_external(
             false,
         )
     };
-    rollups::refresh_rollups_for_source(cassie, source, &user_functions, controls)
+    rollups::refresh_rollups_for_source(cassie, source, report, &user_functions, controls)
 }
 
 pub(crate) fn mark_source_projections_stale_external(

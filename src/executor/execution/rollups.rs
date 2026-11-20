@@ -15,7 +15,13 @@ use super::{
     scan, sort, Cassie, FunctionMeta, LogicalPlan, QueryError, QueryExecutionControls, QueryResult,
 };
 use crate::midge::adapter::check_rollup_maintenance_failure_point;
+use crate::midge::adapter::documents::RollupSourceChangeReport;
+use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
 
+#[path = "rollups/incremental.rs"]
+mod incremental;
+#[path = "rollups/output_order.rs"]
+mod output_order;
 #[path = "rollup_expression.rs"]
 mod rollup_expression;
 #[path = "rollup_payload.rs"]
@@ -65,7 +71,8 @@ fn create_rollup_gated(
         .put_rollup(&meta)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_rollup(meta.clone());
-    if let Err(error) = publish_rollup_rows(cassie, meta.clone(), rows, source_generation) {
+    if let Err(error) = publish_rollup_rows(cassie, meta.clone(), rows, source_generation, controls)
+    {
         if let Err(cleanup_error) = drop_rollup_data(cassie, &meta.name, false) {
             return Err(QueryError::General(format!(
                 "rollup build failed: {error}; cleanup failed: {cleanup_error}"
@@ -116,7 +123,7 @@ fn refresh_rollup_data(
             "rollup '{name}' definition changed while refresh was being prepared; retry refresh"
         )));
     }
-    publish_rollup_rows(cassie, current_meta, rows, source_generation)?;
+    publish_rollup_rows(cassie, current_meta, rows, source_generation, controls)?;
     Ok(())
 }
 
@@ -142,12 +149,15 @@ fn publish_rollup_rows(
     meta: RollupMeta,
     rows: rollup_payload::OwnedRollupRows,
     source_generation: u64,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     let output_collection = meta.output_collection.clone();
+    // Gate only the output. Source writes must keep committing while a
+    // publication is in flight; the generation checks mark it stale instead.
     cassie
         .midge
         .with_collection_gates(std::slice::from_ref(&output_collection), || {
-            publish_rollup_rows_gated(cassie, meta, rows, source_generation)
+            publish_rollup_rows_gated(cassie, meta, rows, source_generation, controls)
         })
 }
 
@@ -156,6 +166,7 @@ fn publish_rollup_rows_gated(
     mut meta: RollupMeta,
     rows: rollup_payload::OwnedRollupRows,
     source_generation: u64,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     ensure_current_rollup_format(&meta)?;
     let current_meta = cassie
@@ -177,7 +188,7 @@ fn publish_rollup_rows_gated(
     cassie.catalog.register_rollup(meta.clone());
 
     crate::executor::pause_before_rollup_output_replace(&meta.name, source_generation);
-    replace_rollup_rows(cassie, &meta, rows)?;
+    create_rollup_collection(cassie, &meta)?;
     crate::executor::pause_before_rollup_ready_metadata(&meta.name, source_generation);
     let generation_after_publication = cassie
         .midge
@@ -188,6 +199,7 @@ fn publish_rollup_rows_gated(
     } else {
         RollupState::Stale
     };
+    meta.output_key_format = RollupMeta::CURRENT_OUTPUT_KEY_FORMAT;
     meta.refresh_cursor.last_refresh_ms = now_ms();
     meta.refresh_cursor.source_generation = source_generation;
     meta.refresh_cursor.source_epoch = cassie.runtime.data_epoch();
@@ -200,16 +212,18 @@ fn publish_rollup_rows_gated(
     } else {
         meta.refresh_cursor.lag_rows.saturating_add(1)
     };
-    cassie
-        .midge
-        .put_rollup(&meta)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.register_rollup(meta.clone());
     if generation_after_publication != source_generation {
+        cassie
+            .midge
+            .put_rollup(&meta)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        cassie.catalog.register_rollup(meta.clone());
         return Err(QueryError::General(
             "source changed while rollup output was being published; retry refresh".to_string(),
         ));
     }
+    replace_rollup_rows(cassie, &meta, rows, controls)?;
+    cassie.catalog.register_rollup(meta.clone());
     cassie.runtime.record_rollup_refresh(meta.name);
     Ok(())
 }
@@ -236,6 +250,7 @@ fn same_rollup_definition(left: &RollupMeta, right: &RollupMeta) -> bool {
         && left.aggregates == right.aggregates
         && left.filter_expr == right.filter_expr
         && left.version == right.version
+        && left.output_key_format == right.output_key_format
 }
 
 pub(super) fn drop_rollup(
@@ -287,6 +302,7 @@ fn drop_rollup_data(cassie: &Cassie, name: &str, if_exists: bool) -> Result<(), 
 pub(super) fn refresh_rollups_for_source(
     cassie: &Cassie,
     source: &str,
+    report: &RollupSourceChangeReport,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
@@ -298,7 +314,11 @@ pub(super) fn refresh_rollups_for_source(
         .map_err(QueryError::Cassie)
         .and_then(|()| {
             for rollup in cassie.catalog.list_rollups_for_source(source) {
-                refresh_rollup_data(cassie, &rollup.name, user_functions, controls)?;
+                let incremental =
+                    incremental::try_refresh_rollup(cassie, &rollup, report, controls)?;
+                if !incremental {
+                    refresh_rollup_data(cassie, &rollup.name, user_functions, controls)?;
+                }
             }
             Ok(())
         });
@@ -358,9 +378,10 @@ pub(super) fn try_execute_rollup_query(
 
     let mut batches = scan::scan(cassie, None, &rollup.output_collection, controls)?;
     if !plan.order.is_empty() {
+        let order = output_order::rollup_output_order(&rollup, plan);
         let eval = sort::EvalInput {
-            order: &plan.order,
-            projection: &plan.projection,
+            order: &order,
+            projection: &[],
             params,
             user_functions,
             search_context: None,
@@ -757,23 +778,104 @@ fn replace_rollup_rows(
     cassie: &Cassie,
     meta: &RollupMeta,
     mut rows: rollup_payload::OwnedRollupRows,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
-    create_rollup_collection(cassie, meta)?;
-    rows.publish_with(|index, payload| {
-        cassie
-            .midge
-            .put_document(
-                &meta.output_collection,
-                Some(format!("rollup-row-{index:020}")),
-                payload,
-            )
-            .map_err(|error| QueryError::General(error.to_string()))?;
+    let operation_bytes = rows
+        .len()
+        .checked_mul(std::mem::size_of::<DocumentWriteOp>())
+        .ok_or_else(|| QueryError::General("rollup write admission overflow".to_string()))?;
+    let mut operation_memory = controls.reserve_query_memory(operation_bytes)?;
+    let mut operations = Vec::new();
+    operations
+        .try_reserve_exact(rows.len())
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    if operations.capacity() > rows.len() {
+        return Err(QueryError::General(
+            "rollup write allocation exceeded its admission".to_string(),
+        ));
+    }
+    rows.publish_with(|_index, payload| {
+        let id = stable_rollup_row_id(meta, &payload)?;
+        let payload_bytes = rollup_payload::json_value_heap_size(&payload)?;
+        let retained_bytes = id
+            .capacity()
+            .checked_add(payload_bytes)
+            .ok_or_else(|| QueryError::General("rollup write admission overflow".to_string()))?;
+        operation_memory.try_grow(retained_bytes)?;
+        operations.push(DocumentWriteOp::Put { id, payload });
+        super::check_timeout(controls)?;
         Ok(())
     })?;
+    let (database, key, value) = cassie
+        .midge
+        .rollup_data_write(meta)
+        .map_err(QueryError::Cassie)?;
+    let mut options = DocumentWriteBatchOptions::sync(cassie.midge.write_options_sync());
+    options.data_database = Some(database);
+    options.additional_data_writes.push((key, Some(value)));
+    cassie
+        .midge
+        .apply_document_write_batch_with_options(&meta.output_collection, operations, &options)
+        .map_err(QueryError::Cassie)?;
     cassie
         .refresh_cardinality_stats(&meta.output_collection)
         .map_err(|error| QueryError::General(error.to_string()))?;
     Ok(())
+}
+
+fn stable_rollup_row_id(
+    meta: &RollupMeta,
+    payload: &serde_json::Value,
+) -> Result<String, QueryError> {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut identity = Vec::with_capacity(meta.group_keys.len().saturating_add(1));
+    identity.push(
+        payload
+            .get(&meta.bucket_expr)
+            .ok_or_else(|| QueryError::General("rollup row is missing its bucket".to_string()))?,
+    );
+    for key in &meta.group_keys {
+        identity.push(payload.get(key).ok_or_else(|| {
+            QueryError::General(format!("rollup row is missing group key '{key}'"))
+        })?);
+    }
+    let encoded =
+        serde_json::to_vec(&identity).map_err(|error| QueryError::General(error.to_string()))?;
+    let id_capacity = encoded
+        .len()
+        .checked_mul(2)
+        .and_then(|bytes| bytes.checked_add("rollup-key-".len()))
+        .ok_or_else(|| QueryError::General("rollup row key size overflow".to_string()))?;
+    let mut id = String::with_capacity(id_capacity);
+    id.push_str("rollup-key-");
+    for byte in encoded {
+        id.push(HEX[usize::from(byte >> 4)] as char);
+        id.push(HEX[usize::from(byte & 0x0f)] as char);
+    }
+    Ok(id)
+}
+
+fn stable_group_row_id(
+    meta: &RollupMeta,
+    bucket_seconds: i64,
+    partition: &str,
+) -> Result<String, QueryError> {
+    let bucket = time::OffsetDateTime::from_unix_timestamp(bucket_seconds)
+        .map_err(|error| QueryError::General(error.to_string()))?
+        .format(&time::format_description::well_known::Rfc3339)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let mut payload = serde_json::Map::new();
+    payload.insert(meta.bucket_expr.clone(), serde_json::Value::String(bucket));
+    let Some(group_key) = meta.group_keys.first() else {
+        return Err(QueryError::General(
+            "incremental rollup has no group key".to_string(),
+        ));
+    };
+    payload.insert(
+        group_key.clone(),
+        serde_json::Value::String(partition.to_owned()),
+    );
+    stable_rollup_row_id(meta, &serde_json::Value::Object(payload))
 }
 
 fn matching_rollup(cassie: &Cassie, source: &str, plan: &LogicalPlan) -> Option<RollupMeta> {

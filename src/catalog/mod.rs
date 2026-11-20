@@ -97,7 +97,9 @@ pub use programs::{
     VectorCatalogIdentitySet, VectorDistanceOperatorIds, ViewMeta, Volatility,
 };
 pub use repair::ProjectionRepairReportMeta;
-pub use retention::{RetentionEnforcementMode, RetentionPolicyMeta, RetentionPolicyState};
+pub use retention::{
+    RetentionEnforcementMode, RetentionPolicyMeta, RetentionPolicyState, RetentionScheduleState,
+};
 pub use roles::{
     normalize_role_name, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RoleObjectPrivilege,
 };

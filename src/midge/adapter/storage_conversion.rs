@@ -233,8 +233,7 @@ impl Midge {
                         super::streaming_scans::decode_expansion_factor(&field.data_type);
                     // Keep the controlled-reader decode envelope and also retain
                     // compact input plus the target row encoding until commit.
-                    let field_bytes = value
-                        .len()
+                    let field_bytes = super::column_store::column_payload_logical_len(&value)
                         .checked_mul(decode_factor.saturating_add(2))
                         .and_then(|bytes| bytes.checked_add(field_key.len()))
                         .and_then(|bytes| bytes.checked_add(id.len()))

@@ -127,6 +127,7 @@ Keys, all in family `\x18` with `rel` = `CollectionMeta.storage_id`:
 | `[rel, 'r', row_id]` | Live marker; value is the row's `RowSchema` version (`u32` BE) then a write revision (`u64` BE) that every write increments |
 | `[rel, 'f', field_id_be32, row_id]` | One compact-encoded value per non-retired field |
 | `[rel, 'x', row_id]` | Deleted marker; value is the revision of the delete (`u64` BE), so a re-insert continues the revision; removed when the row is re-inserted |
+| `[rel, 's', start]` | Derived pruning summary of one segment (see below); never authority. `start` is `0x01` for the table's first segment, else `0x02` then the first row id |
 
 The keys are field-major, so each column is one contiguous key range.
 A write stores every non-retired field: a field the row omits is an explicit
@@ -238,6 +239,110 @@ passes regardless of unselected payload size and a selected wide field is
 rejected with a resource-limit error. Midge returns a fetched value as one
 buffer, so the raw bytes of a selected field exist before the grow check; the
 check precedes decode and retention.
+
+### Compression and pruning (#1357)
+
+Authority stays exactly one thing: the field keys. Two mechanisms make the
+column layout cheaper to store and to scan without adding a second source of
+truth.
+
+**Compressed field values.** A field value is `[type tag][payload]`. When a
+compact value is at least 128 bytes and LZ4 saves at least a quarter of its
+bytes, it is stored as `[0x80][original length: u32 BE][LZ4 block]` and
+expanded on every read before the usual declared-type validation. Smaller or
+incompressible values are stored unchanged, so incompressible data pays no
+space and the only added write cost is one bounded compression attempt per
+value of at least 128 bytes. A declared length outside 128 bytes to 64 MiB, a
+block that does not expand to exactly its declared length, or a tag-0x80 value
+that fails the type check is `XX001` corruption. Query-memory accounting and
+conversion charge the expanded length, not the stored length, before expanding.
+Numeric and short-string columns are not shrunk by this mechanism: each field
+key carries the relation, field id and row id, which dominates a short value.
+Block-packed segments (one encoded chunk per field per segment) would change
+the authority layout and are out of scope here.
+
+**Segment summaries (rebuildable, derived).** A summary record covers one
+contiguous row-id range of up to 512 live rows (built in segments of 256; a
+range that grows past 512 is cut again into 256-row pieces). The record stores
+the schema version it was built at, the live-marker count, a SHA-256
+fingerprint over every marker key and value in the range, and for each
+summarizable column (`SMALLINT`/`INT`/`BIGINT`, `TEXT`/`VARCHAR` up to 256
+bytes, `BOOLEAN`) its non-NULL count, minimum and maximum. A column with a
+missing key (a field added after the row), a longer text value or any other
+type is left unsummarized in that segment. Floats, `CHAR(n)`, temporal,
+composite, domain and every other type are never summarized. The record ends in
+its own SHA-256 checksum; the first four bytes are `CAS1` and a `u16` format
+version.
+
+*Using them.* A scan whose filter is a conjunction of `=`, `<`, `<=`, `>`, `>=`,
+`BETWEEN`, `IS NULL` or `IS NOT NULL` on summarized columns may skip a segment.
+At the first live marker of a segment whose bounds exclude any conjunct, the
+reader re-reads only that segment's markers and compares their count and
+fingerprint with the record. Only an exact match skips it: no field payload is
+fetched or decoded for the segment, and the scan resumes after its last marker.
+Literals must be directly comparable with the column (an integer or float
+literal for an integer column, a string for text, a boolean for boolean);
+anything else prunes nothing. Used by the typed projected read, the ungrouped
+typed aggregate and the controlled projected fallback; the filter is always
+applied again to every row that is read.
+
+*Why a summary cannot hide a match.* Every write bumps the row's marker
+revision in the same transaction as its field keys, so the fingerprint changes
+whenever any row of the range is inserted, updated or deleted. A reader bypasses
+(reads the segment normally and counts `summaries_rejected` or `summaries_stale`)
+a record that is missing, fails its checksum or key binding, has another format
+version or schema version, or whose fingerprint does not match. A bypass is
+never an error: the query returns the complete authoritative result. A forged
+record with a valid checksum and fingerprint is out of scope: summaries are
+derived metadata under the same trust boundary as the field keys.
+
+*Maintenance and publication.* After a statement commits, a separate
+transaction rebuilds only the segments that contain a changed row, or all
+segments when no record exists, a record is unusable, the schema version
+changed, or a scan reported stale records. The rebuild reads one snapshot, so a
+record's fingerprint and bounds describe the same rows. A crash or failure
+between the write and the refresh therefore leaves stale records, never wrong
+ones, and the next refresh repairs them. Interrupted publication cannot expose
+a half-written summary because each record is one key written atomically.
+Drop, conversion and rename already remove or move the whole `[rel, ...]`
+family range, which includes summaries. Cost: a refresh reads at most two
+segments (512 rows) per touched segment, so a one-row commit costs up to
+about 512 marker reads plus 512 field reads per summarized column.
+
+*Version admission.* The layout stays `cassie-midge-layout-v4-0.5.0-columnar`:
+that layout is unreleased, so the `s` key kind and the `0x80` value tag are
+part of its definition and no earlier-format store needs migrating. A build
+without them reads a compressed value as a type-tag mismatch (`XX001`) and a
+summary key as an unknown discriminator it never reads. Within the summary
+format, an unknown `CAS1` version is bypassed and rebuilt, so the format can
+change without a layout raise.
+
+*Corrupt authority.* Pruning never replaces validation. A complete-source scan
+still validates field-to-marker ownership for the whole table before its first
+row, so an orphan field in a skipped segment still fails with `XX001`. Rows in
+a skipped segment are not visited, so a missing or undecodable field value there
+is not seen by that query, exactly as for unselected fields and unvisited rows
+under #1356; `cassie verify` and the storage verifier report them.
+
+*Counters.* `Midge::column_pruning_for_diagnostics()` returns
+`segments_skipped`, `rows_skipped`, `summaries_loaded`, `summaries_rejected`,
+`summaries_stale` and `fingerprint_markers` (markers re-read to verify skip
+candidates; never payloads). A skipped segment adds nothing to
+`column_field_reads_for_diagnostics()` and does not count as a visited marker.
+`set_column_pruning_enabled_for_diagnostics(false)` forces unpruned reads for
+differential tests.
+
+*Measured on the pinned fixtures* (`tests/storage_indexes/column_store/pruning*.rs`,
+1,280 rows, summaries rebuilt to segments of 256, 256, 256 and 512 rows):
+
+| Fixture | Result |
+| --- | --- |
+| Sorted `amount >= 1000`, two selected columns | 3 of 4 segments skipped, 768 rows; 1,024 payload reads and decodes instead of 2,560 |
+| Sorted `tenant = 'tenant-04'` | 3 segments skipped; reads 1,024 instead of 2,560 |
+| `note IS NULL` (NULLs only in the last 180 rows) | 3 segments skipped |
+| Shuffled values, or `amount >= 0` | 0 segments skipped; every row read |
+| Compressible text (`"event-log-line " x 24` plus a row tag, 1,280 rows) | field bytes 554,240 before, 128,000 after; summaries 752 bytes; selective read fetches 23,552 payload bytes instead of 58,880 |
+| Incompressible text (375 pseudo-random letters, 1,280 rows) | stored bytes equal the uncompressed encoding exactly; no value compressed |
 
 ### Versioning
 

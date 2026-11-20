@@ -367,7 +367,7 @@ impl Midge {
                 memory.try_grow(column_candidate_field_bytes(
                     field,
                     field_key.len(),
-                    raw.len(),
+                    super::super::column_store::column_payload_logical_len(&raw),
                 )?)?;
                 if let Some(value) =
                     column_validation::decode_field(collection, &hit.id, field, &raw)?

@@ -29,6 +29,7 @@ parking_lot = { version = "0.13", features = ["arc_lock"] }
 thiserror = "2.0"
 uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
 cntryl-midge = "0.5.3"
+lz4_flex = "0.14"
 cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
 hyper = { version = "1.12", features = ["full"] }
 tracing = "0.1"

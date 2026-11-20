@@ -3,7 +3,14 @@ use super::{
     CollectionStorageMode, FieldConstraint, HashSet, IndexKind, IndexMeta, Midge, ProjectionMeta,
     Query, RowFilter, RowSchema, Schema,
 };
+mod compression;
 pub(super) mod field_selection;
+pub(crate) use compression::logical_len as column_payload_logical_len;
+mod pruning;
+pub use pruning::ColumnPruningSnapshot;
+pub(crate) use pruning::{ColumnPruning, ColumnPruningState};
+mod summary;
+mod summary_refresh;
 #[cfg(test)]
 mod golden_tests;
 mod rows;
@@ -710,6 +717,14 @@ impl Midge {
 
     pub(super) fn column_store_deleted_prefix(relation_id: u64) -> Vec<u8> {
         key_encoding::column_store_deleted_prefix(relation_id)
+    }
+
+    pub(crate) fn column_store_summary_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::column_store_summary_prefix(relation_id)
+    }
+
+    pub(crate) fn column_store_summary_key(relation_id: u64, start: Option<&str>) -> Vec<u8> {
+        key_encoding::column_store_summary_key(relation_id, start)
     }
 
     pub(super) fn column_store_field_prefix(relation_id: u64, field_id: u32) -> Vec<u8> {

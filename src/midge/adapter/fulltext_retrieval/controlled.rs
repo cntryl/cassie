@@ -522,7 +522,7 @@ impl Midge {
                     &field.data_type,
                     &field.name,
                     field_key.len(),
-                    raw.len(),
+                    super::super::column_store::column_payload_logical_len(&raw),
                 )?)?;
                 let Some(value) = column_validation::decode_field(&collection, id, field, &raw)?
                 else {

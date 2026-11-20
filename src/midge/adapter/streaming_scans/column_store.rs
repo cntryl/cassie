@@ -3,6 +3,7 @@ use super::{
     check_controls, key_encoding, AccountedDocument, CassieError, DocumentRef, Midge,
     MidgeRowCursor,
 };
+use crate::midge::adapter::column_store::column_payload_logical_len;
 use crate::midge::adapter::column_store::validation::{
     decode_field, decode_marker, field_is_required, missing_field,
 };
@@ -60,14 +61,15 @@ impl MidgeRowCursor {
                 continue;
             };
             counters.record_payload(raw.len());
+            let logical_len = column_payload_logical_len(&raw);
             check_controls(controls)?;
             let field_bytes = if matches!(
                 field.data_type,
                 crate::types::DataType::Json | crate::types::DataType::Jsonb
             ) {
-                crate::runtime::accounted::json::serialized_decode_bytes(raw.len())?
+                crate::runtime::accounted::json::serialized_decode_bytes(logical_len)?
             } else {
-                raw.len()
+                logical_len
                     .checked_mul(decode_expansion_factor(&field.data_type))
                     .ok_or_else(accounting_overflow)?
             };

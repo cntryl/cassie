@@ -15,10 +15,23 @@ const BIG_FIELD: u32 = 3;
 const WIDE_COLUMNS: &str = "id INT, status TEXT, big TEXT, extra TEXT";
 const NARROW_COLUMNS: &str = "id INT, status TEXT";
 
+/// Non-repeating letters, so value compression leaves the payload at `len` bytes.
+fn noise(len: usize, index: usize) -> String {
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64 ^ (index as u64 + 1);
+    (0..len)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            char::from(b'a' + u8::try_from(state % 26).expect("letter"))
+        })
+        .collect()
+}
+
 fn insert_wide(env: &Env, table: &str, big_len: usize) {
-    let big = "b".repeat(big_len);
     let rows = (0..ROWS)
         .map(|index| {
+            let big = noise(big_len, index);
             let extra = if index % 2 == 0 { "'e'" } else { "NULL" };
             format!("({index}, 's{index}', '{big}', {extra})")
         })

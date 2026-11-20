@@ -76,6 +76,9 @@ pub(super) fn try_execute(
     else {
         return Ok(None);
     };
+    if let Some(filter) = plan.filter.as_ref().and_then(super::column_batch_scan_filter) {
+        stream.set_column_pruning(&filter);
+    }
     breakdown.scan += started.elapsed();
     let mut offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).unwrap_or(usize::MAX);
     let mut remaining = plan.limit_value().map_or(usize::MAX, |limit| {

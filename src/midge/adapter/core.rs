@@ -28,6 +28,7 @@ pub struct Midge {
     query_scan_entries: AtomicU64,
     column_validation_reads: AtomicU64,
     column_field_reads: super::ColumnFieldReadCounters,
+    pub(super) column_pruning: super::ColumnPruningState,
     pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
     pub(super) fulltext_maintenance_metrics: super::fulltext_retrieval::FulltextMaintenanceMetrics,
     pub(super) vector_index_maintenance_metrics:
@@ -135,6 +136,7 @@ impl Midge {
             query_scan_entries: AtomicU64::new(0),
             column_validation_reads: AtomicU64::new(0),
             column_field_reads: super::ColumnFieldReadCounters::default(),
+            column_pruning: super::ColumnPruningState::default(),
             column_batch_operational_metrics: Mutex::new(
                 super::ColumnBatchOperationalMetrics::default(),
             ),

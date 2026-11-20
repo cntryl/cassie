@@ -267,6 +267,7 @@ dependencies = [
  "hyper-util",
  "jiff",
  "jiff-tzdb",
+ "lz4_flex",
  "md-5",
  "num-bigint 0.5.1",
  "num-integer",

@@ -10,6 +10,8 @@ mod alter;
 mod corruption;
 mod images;
 mod no_row_blob;
+mod pruning;
+mod pruning_bytes;
 mod restart;
 mod selected_fields;
 
@@ -126,7 +128,7 @@ impl Env {
 }
 
 /// Whether the key's discriminator component (after the relation id) is `tag`.
-fn key_has_discriminator(key: &[u8], tag: u8) -> bool {
+pub(super) fn key_has_discriminator(key: &[u8], tag: u8) -> bool {
     // cassie \0 \x01 \0 \x18 \0 <8-byte relation> \0 <tag> \0 ...
     let header = b"cassie\0\x01\0\x18\0".len();
     key.get(header + 8..header + 11)

@@ -16,6 +16,8 @@ mod dml_insert;
 mod dml_joined;
 #[path = "dml_joined_update.rs"]
 mod dml_joined_update;
+#[path = "dml_keyed_rows.rs"]
+mod dml_keyed_rows;
 #[path = "dml_merge.rs"]
 mod dml_merge;
 #[path = "dml_missing_row.rs"]

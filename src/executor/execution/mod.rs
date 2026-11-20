@@ -201,6 +201,7 @@ mod index_read;
 mod ordered_read;
 mod projected_read;
 mod projection_handoff;
+mod scalar_equality_probe;
 mod scalar_index_constraints;
 mod time_series_read;
 

@@ -386,6 +386,10 @@ pub struct ReadPathSnapshot {
     pub keyset_scans: u64,
     pub degraded_offset_scans: u64,
     pub heap_top_k_scans: u64,
+    /// UPDATE/DELETE statements that fetched only index or identity candidates.
+    pub dml_keyed_row_lookups_total: u64,
+    /// UPDATE/DELETE statements that scanned the whole target table.
+    pub dml_full_scan_total: u64,
     pub last_collection_scan_collection: String,
     pub last_point_lookup_collection: String,
     pub last_point_lookup_hit: bool,

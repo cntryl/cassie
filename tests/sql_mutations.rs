@@ -35,6 +35,8 @@ use cassie_test_support::support_sql_fixture;
 #[path = "sql_mutations/types/json/json_array_copy.rs"]
 mod type_json_array_copy;
 
+#[path = "sql_mutations/mutations/keyed_dml_lookup.rs"]
+mod keyed_dml_lookup;
 #[path = "sql_mutations/conflicts/skipped_conflict_returning.rs"]
 mod skipped_conflict_returning;
 #[path = "sql_mutations/mutations/constant_planning.rs"]

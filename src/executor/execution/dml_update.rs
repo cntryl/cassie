@@ -1,8 +1,8 @@
 use super::{
-    apply_update_value, batch, build_dml_result, check_timeout, dml_referential_actions,
-    ensure_query_memory_budget, filter, inserted_row_to_batch_row, row_id_from_batch_row, scan,
-    BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta,
-    HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
+    apply_update_value, build_dml_result, check_timeout, dml_referential_actions, filter,
+    inserted_row_to_batch_row, row_id_from_batch_row, BatchRow, Cassie, CassieSession,
+    CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
+    QueryExecutionControls, QueryResult, Value,
 };
 
 struct PreparedUpdateRow {
@@ -144,9 +144,16 @@ fn matched_dml_rows(
     let controls = &statement_controls;
     let (_read_scope, _overlay_scope) =
         crate::executor::execution::entrypoints::enter_statement_read(controls);
-    let batches = scan::scan(cassie, session, table, controls)?;
-    ensure_query_memory_budget(controls, &batches)?;
-    let rows = batch::flatten_batches(batches);
+    let rows = super::dml_keyed_rows::candidate_rows(
+        &super::dml_keyed_rows::DmlRowRequest {
+            cassie,
+            session,
+            table,
+            filter: filter_expr,
+            params: subqueries.params,
+        },
+        controls,
+    )?;
     if let Some(filter_expr) = filter_expr {
         subqueries.filter(rows, filter_expr)
     } else {

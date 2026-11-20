@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 //! Independent BM25 reference for the Cranfield evaluation (#1368).
 //!
-//! Restates the documented contract with no Cassie code: the default analyzer splits on
-//! non-alphanumeric characters, lowercases, drops English stop words and does not stem. Document
-//! count, document frequency and average length cover the whole collection.
+//! Restates the documented contract with no Cassie code: the analyzer lowercases, splits on
+//! non-alphanumeric characters and drops English stop words, then optionally applies the Snowball
+//! English stemmer (`stemming = english`; the same `rust-stemmers` algorithm the analyzer
+//! documents). Document count, document frequency and average length cover the whole collection.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,15 +25,27 @@ fn count(value: usize) -> f64 {
 /// Default analysis: lowercase, split on every non-alphanumeric character, drop empties and stop
 /// words.
 pub fn analyze(text: &str) -> Vec<String> {
+    analyze_with(text, false)
+}
+
+/// Default analysis, then Snowball English stemming of each kept token when `stem` is set.
+pub fn analyze_with(text: &str, stem: bool) -> Vec<String> {
+    let stemmer = stem.then(|| rust_stemmers::Stemmer::create(rust_stemmers::Algorithm::English));
     text.to_lowercase()
         .split(|character: char| !character.is_alphanumeric())
         .filter(|token| !token.is_empty() && !STOP_WORDS.contains(token))
-        .map(str::to_string)
+        .map(|token| {
+            stemmer.as_ref().map_or_else(
+                || token.to_string(),
+                |stemmer| stemmer.stem(token).into_owned(),
+            )
+        })
         .collect()
 }
 
 /// Corpus statistics and per-document term frequencies.
 pub struct Reference {
+    stem: bool,
     ids: Vec<String>,
     lengths: Vec<f64>,
     frequencies: Vec<BTreeMap<String, usize>>,
@@ -41,14 +54,19 @@ pub struct Reference {
 }
 
 impl Reference {
-    /// Builds statistics over `(id, indexed text)` pairs.
+    /// Builds statistics over `(id, indexed text)` pairs with the default analyzer.
     pub fn new(documents: &[(String, String)]) -> Self {
+        Self::with_stemming(documents, false)
+    }
+
+    /// Builds statistics over `(id, indexed text)` pairs, stemming when `stem` is set.
+    pub fn with_stemming(documents: &[(String, String)], stem: bool) -> Self {
         let mut ids = Vec::new();
         let mut lengths = Vec::new();
         let mut frequencies = Vec::new();
         let mut document_frequency: BTreeMap<String, usize> = BTreeMap::new();
         for (id, text) in documents {
-            let tokens = analyze(text);
+            let tokens = analyze_with(text, stem);
             let mut terms: BTreeMap<String, usize> = BTreeMap::new();
             for token in &tokens {
                 *terms.entry(token.clone()).or_insert(0) += 1;
@@ -62,6 +80,7 @@ impl Reference {
         }
         let average_length = (lengths.iter().sum::<f64>() / count(ids.len())).max(1.0);
         Self {
+            stem,
             ids,
             lengths,
             frequencies,
@@ -73,7 +92,7 @@ impl Reference {
     /// Every matching document's score for `query`, summed over its distinct analyzed terms.
     pub fn scores(&self, query: &str) -> BTreeMap<String, f64> {
         let total = count(self.ids.len());
-        let terms: BTreeSet<String> = analyze(query).into_iter().collect();
+        let terms: BTreeSet<String> = analyze_with(query, self.stem).into_iter().collect();
         let mut scores = BTreeMap::new();
         for term in &terms {
             let Some(&df) = self.document_frequency.get(term) else {

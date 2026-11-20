@@ -10,7 +10,7 @@ use cassie::types::Value;
 use crate::support_cranfield::{
     grade_for_level, load_manifest, parse_documents, parse_qrels, parse_queries, CranDocument,
 };
-use crate::support_cranfield_reference::{analyze, compare, Reference, B, K1};
+use crate::support_cranfield_reference::{analyze, analyze_with, compare, Reference, B, K1};
 use crate::support_search_relevance::{mrr_at_k_with_threshold, ndcg_at_k, CUTOFF};
 
 const DOCUMENTS: &str = ".I 1\n.T\nwing flutter in a slipstream\n.A\nsmith,j.\n.B\nj. test. 1, 1950, 1.\n.W\nwing flutter in a slipstream .\n  the wing was\ntested in a tunnel .\n.I 2\n.T\nheat transfer\n.W\nheat transfer across a plate .\n";
@@ -73,7 +73,18 @@ fn should_state_an_evaluation_contract_that_matches_the_reference_implementation
         .sql
         .contains("ORDER BY score DESC, _id ASC LIMIT 10"));
     assert!(contract.contract.contains("independent BM25 reference"));
-    assert!(contract.contract.contains("not thresholded"));
+    assert!(contract.contract.contains("No absolute 0.80 floor"));
+    let names: Vec<&str> = contract
+        .configurations
+        .iter()
+        .map(|configuration| configuration.name.as_str())
+        .collect();
+    assert_eq!(names, ["default", "english_stemming"]);
+    assert!(contract.configurations.iter().all(|configuration| {
+        configuration.min_mean_ndcg_at_10 > 0.0
+            && configuration.min_mean_mrr_at_10 > 0.0
+            && configuration.stemming == configuration.index_options.contains("stemming = english")
+    }));
     assert_eq!(manifest.counts.documents, 1400);
     assert_eq!(manifest.counts.queries, 225);
     assert!(manifest.counts.qrel_lines > manifest.counts.queries);
@@ -223,6 +234,18 @@ fn should_analyze_like_the_documented_default_analyzer() {
 
     // Assert
     assert_eq!(tokens, strings(&["wing", "flutter", "slipstream", "3d"]));
+}
+
+#[test]
+fn should_stem_reference_terms_like_the_english_stemming_option() {
+    // Arrange
+    let text = "Flows flowing";
+
+    // Act
+    let tokens = analyze_with(text, true);
+
+    // Assert
+    assert_eq!(tokens, strings(&["flow", "flow"]));
 }
 
 #[test]

@@ -56,15 +56,31 @@
   },
   "evaluation": {
     "cutoff": 10,
-    "analyzer": "Cassie default fulltext analyzer: standard tokenizer (split on non-alphanumeric characters), case folding, English stop words, no stemming, no synonyms.",
+    "analyzer": "Each configuration's analyzer: standard tokenizer (split on non-alphanumeric characters), case folding, English stop words, no synonyms; stemming as listed per configuration.",
     "sql": "SELECT _id, search_score(body, $1) AS score FROM docs WHERE search(body, $1) ORDER BY score DESC, _id ASC LIMIT 10",
     "bm25": {
       "k1": 1.2,
       "b": 0.75,
       "statistics": "Corpus-wide: document count, document frequency and average analyzed length cover all 1,400 documents. Score is the sum over distinct query terms of idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * length / average)), with idf = ln((N - df + 0.5) / (df + 0.5) + 1)."
     },
-    "score_tolerance": 1e-9,
-    "contract": "Cassie must match the independent BM25 reference on every Cranfield query: identical top-10 document ids in identical order, and each score within score_tolerance of the reference. Absolute nDCG@10 and MRR@10 are reported for Cassie and for the reference, not thresholded: exact BM25 without stemming is known to score well below the 0.80 floor proposed for curated workloads on standard collections, so a floor would measure the collection and not Cassie.",
-    "results_file": "target/relevance/cranfield/results.json"
+    "score_tolerance": 1e-09,
+    "contract": "Tier 1 (correctness, hard gate): for every configuration, Cassie must match the independent BM25 reference on every Cranfield query: identical top-10 document ids in identical order, and each score within score_tolerance. Tier 2 (no regression): each configuration's mean nDCG@10 and MRR@10 must be at least its pinned min_mean_ndcg_at_10 and min_mean_mrr_at_10, set 0.005 below the first measured value. Tier 3 (quality): the english_stemming configuration must score at least the default configuration on both means. No absolute 0.80 floor applies to Cranfield: exact BM25 scores far below it on this collection, so such a floor would measure the collection, not Cassie.",
+    "results_file": "target/relevance/cranfield/results.json",
+    "configurations": [
+      {
+        "name": "default",
+        "index_options": "",
+        "stemming": false,
+        "min_mean_ndcg_at_10": 0.326,
+        "min_mean_mrr_at_10": 0.456
+      },
+      {
+        "name": "english_stemming",
+        "index_options": " WITH (stemming = english)",
+        "stemming": true,
+        "min_mean_ndcg_at_10": 0.35,
+        "min_mean_mrr_at_10": 0.475
+      }
+    ]
   }
 }

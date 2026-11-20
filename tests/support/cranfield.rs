@@ -62,6 +62,17 @@ pub struct EvaluationContract {
     pub bm25: Bm25Contract,
     pub score_tolerance: f64,
     pub contract: String,
+    pub configurations: Vec<AnalyzerConfiguration>,
+}
+
+/// One analyzer configuration the evaluation runs, with its pinned no-regression floors.
+#[derive(Debug, Deserialize)]
+pub struct AnalyzerConfiguration {
+    pub name: String,
+    pub index_options: String,
+    pub stemming: bool,
+    pub min_mean_ndcg_at_10: f64,
+    pub min_mean_mrr_at_10: f64,
 }
 
 #[derive(Debug, Deserialize)]

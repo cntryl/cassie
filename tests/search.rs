@@ -55,6 +55,18 @@ mod scored_field_case;
 #[path = "support/read_equivalence.rs"]
 mod support_read_equivalence;
 
+// Incremental full-text index maintenance: equivalence, write cost, interruption.
+#[path = "search/index_lifecycle/fulltext_block_maintenance.rs"]
+mod fulltext_block_maintenance;
+#[path = "search/index_lifecycle/fulltext_incremental_maintenance.rs"]
+mod fulltext_incremental_maintenance;
+#[path = "search/index_lifecycle/fulltext_publication_interruption.rs"]
+mod fulltext_publication_interruption;
+#[path = "search/index_lifecycle/fulltext_write_amplification.rs"]
+mod fulltext_write_amplification;
+#[path = "support/fulltext_maintenance.rs"]
+mod support_fulltext_maintenance;
+
 #[path = "search/retrieval/scored_read_equivalence.rs"]
 mod scored_read_equivalence;
 

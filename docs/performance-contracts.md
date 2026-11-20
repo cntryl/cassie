@@ -731,7 +731,7 @@ Full-index representative and scale fixtures load source documents in bounded ba
 Initial vector-index publication and vector-index removal page normalized vectors, HNSW nodes, and
 IVFFlat memberships through data transactions of at most 5,000 sidecars. The vector manifest is
 published after initial batches and removed after cleanup batches, so a failed attempt remains
-retryable without exposing partial indexed state.
+retryable without exposing partial indexed state. A full HNSW build interns nodes to dense indexes and compares stored vectors without per-distance allocation, so its cost is dominated by distance computations: 10k 32-dimension vectors (m 16, ef_construction 64) build in under 1 s, and the paired `vector_index_churn` profile exercises 2k and 10k rows.
 Sourced-vector backfill uses the [recoverable publication contract](vector-index-publication.md):
 staged payload and sidecar transactions are bounded separately, while validated base-row updates
 and their applied marker share one atomic data transaction. This does not establish a bounded

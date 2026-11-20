@@ -88,8 +88,11 @@ fn recall_for(metric: DistanceMetric, distance: fn(&[f32], &[f32]) -> f64) -> f6
 
 #[test]
 fn should_build_valid_high_recall_l2_graph_over_thousands_of_points() {
-    // Arrange / Act
-    let recall = recall_for(DistanceMetric::L2, crate::vector::l2_distance);
+    // Arrange
+    let metric = DistanceMetric::L2;
+
+    // Act
+    let recall = recall_for(metric, crate::vector::l2_distance);
 
     // Assert
     assert!(recall >= 0.90, "l2 recall {recall}");
@@ -97,8 +100,11 @@ fn should_build_valid_high_recall_l2_graph_over_thousands_of_points() {
 
 #[test]
 fn should_build_valid_high_recall_cosine_graph_over_thousands_of_points() {
-    // Arrange / Act
-    let recall = recall_for(DistanceMetric::Cosine, crate::vector::cosine_distance);
+    // Arrange
+    let metric = DistanceMetric::Cosine;
+
+    // Act
+    let recall = recall_for(metric, crate::vector::cosine_distance);
 
     // Assert
     assert!(recall >= 0.90, "cosine recall {recall}");

@@ -218,3 +218,38 @@ fn should_match_heap_after_mixed_writes() {
         assert!(staged_col.len() >= 3);
     });
 }
+
+#[test]
+fn should_return_staged_rows_moved_into_a_segment_the_summaries_exclude() {
+    // Arrange
+    with_pair(|pair| {
+        load(pair);
+        pair.run("BEGIN");
+        for mode in [ROW, COL] {
+            pair.run(&format!("UPDATE t_{mode} SET s = 's-12' WHERE a = 500"));
+            pair.run(&format!("UPDATE t_{mode} SET s = 's-00' WHERE a = 12500"));
+            pair.run(&format!("DELETE FROM t_{mode} WHERE a = 12400"));
+        }
+        let midge = &pair.cassie.midge;
+        let before = midge.column_pruning_for_diagnostics();
+
+        // Act
+        let staged_col = pair.sorted("SELECT a, s FROM t_col WHERE s = 's-12'");
+        let skipped = midge
+            .column_pruning_for_diagnostics()
+            .since(before)
+            .segments_skipped;
+        let staged_heap = pair.sorted("SELECT a, s FROM t_row WHERE s = 's-12'");
+        pair.run("ROLLBACK");
+
+        // Assert
+        assert_eq!(staged_col, staged_heap);
+        assert!(
+            staged_col
+                .iter()
+                .any(|row| row[0] == cassie::types::Value::Int64(500)),
+            "the staged row moved out of an excluded segment must be returned"
+        );
+        assert!(skipped > 0, "the persisted side must still prune");
+    });
+}

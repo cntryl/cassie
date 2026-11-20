@@ -26,32 +26,44 @@ fn controlled_request_guard() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-fn transient_server() -> (
-    String,
-    std::sync::mpsc::Receiver<Instant>,
-    std::thread::JoinHandle<(usize, usize)>,
-) {
+/// A local server that answers every request with a transient 429 until it is
+/// stopped, so a provider keeps retrying until something else interrupts it.
+struct TransientServer {
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    thread: std::thread::JoinHandle<usize>,
+}
+
+impl TransientServer {
+    /// Stops the server and returns how many 429 responses it wrote.
+    fn stop(self) -> usize {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.thread.join().expect("transient server")
+    }
+}
+
+fn transient_server() -> (String, TransientServer) {
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind transient server");
     listener
         .set_nonblocking(true)
         .expect("configure transient server");
     let base_url = format!("http://{}", listener.local_addr().expect("server address"));
-    let (response_tx, response_rx) = std::sync::mpsc::channel();
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stopped = std::sync::Arc::clone(&stop);
     let thread = std::thread::spawn(move || {
-        let deadline = Instant::now() + Duration::from_millis(500);
-        let mut request_count = 0usize;
         let mut response_count = 0usize;
-        while Instant::now() < deadline {
+        while !stopped.load(std::sync::atomic::Ordering::SeqCst) {
             match listener.accept() {
                 Ok((mut stream, _)) => {
                     stream
-                        .set_read_timeout(Some(Duration::from_millis(100)))
+                        .set_nonblocking(false)
+                        .expect("blocking transient stream");
+                    stream
+                        .set_read_timeout(Some(Duration::from_millis(500)))
                         .expect("bound transient request read");
                     let mut request = [0_u8; 8_192];
                     if !matches!(stream.read(&mut request), Ok(bytes_read) if bytes_read > 0) {
                         continue;
                     }
-                    request_count += 1;
                     let body = r#"{"error":"retry later"}"#;
                     let response = format!(
                         "HTTP/1.1 429 Too Many Requests\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
@@ -59,26 +71,17 @@ fn transient_server() -> (
                     );
                     if stream.write_all(response.as_bytes()).is_ok() {
                         response_count += 1;
-                        let _ = response_tx.send(Instant::now());
                     }
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    std::thread::sleep(Duration::from_millis(5));
+                    std::thread::sleep(Duration::from_millis(1));
                 }
                 Err(error) => panic!("transient server accept failed: {error}"),
             }
         }
-        (request_count, response_count)
+        response_count
     });
-    (base_url, response_rx, thread)
-}
-
-fn assert_one_transient_request(server: std::thread::JoinHandle<(usize, usize)>) {
-    assert_eq!(
-        server.join().expect("transient server"),
-        (1, 1),
-        "the deadline probe should send one request and get one successful 429 write"
-    );
+    (base_url, TransientServer { stop, thread })
 }
 
 fn delayed_tei_server() -> (
@@ -148,21 +151,30 @@ fn assert_mid_body_reset_is_not_retried(
     assert_eq!(server.join().expect("reset server"), 1);
 }
 
+/// The query deadline the probe gives a provider. It is long enough for a
+/// local request to be answered under any realistic scheduling, so the probe
+/// does not race the first response.
+const PROBE_QUERY_DEADLINE: Duration = Duration::from_millis(1_000);
+/// Retries a probed provider is allowed. Their 50 ms-per-attempt backoff adds
+/// up to minutes, so only the query deadline can end the call in time.
+const PROBE_MAX_RETRIES: usize = 100;
+/// Transport timeout of a probed provider, far beyond the query deadline, so
+/// a timeout can only come from the deadline.
+const PROBE_TRANSPORT_TIMEOUT: Duration = Duration::from_secs(60);
+/// Hang guard for the provider call: well above the deadline and far below the
+/// uncapped retry schedule.
+const PROBE_HANG_GUARD: Duration = Duration::from_secs(15);
+
 fn deadline_limits() -> CassieRuntimeLimits {
     CassieRuntimeLimits {
-        query_timeout_ms: 10,
+        query_timeout_ms: u64::try_from(PROBE_QUERY_DEADLINE.as_millis()).expect("deadline ms"),
         ..CassieRuntimeLimits::default()
     }
 }
 
-fn assert_deadline_interrupts_retry(
-    provider: Box<dyn EmbeddingProvider>,
-    response_written: &std::sync::mpsc::Receiver<Instant>,
-) {
-    // Shared runners can deschedule the test thread after the 10 ms deadline;
-    // this still distinguishes deadline interruption from the 1 s transport timeout.
-    const SCHEDULER_TOLERANT_LIMIT: Duration = Duration::from_millis(250);
-
+/// Runs `provider` against a server that always answers 429 and returns the
+/// error and how long the call took.
+fn run_deadline_probe(provider: Box<dyn EmbeddingProvider>) -> (EmbeddingError, Duration) {
     let limits = deadline_limits();
     let cancellation = QueryCancellationHandle::new();
     let query_cancellation = cancellation.clone();
@@ -173,22 +185,22 @@ fn assert_deadline_interrupts_retry(
             QueryExecutionControls::with_cancellation(&limits, started, query_cancellation);
         let result =
             provider.embed_documents_with_controls(&["bounded input".to_string()], &controls);
-        let _ = result_tx.send((result, started));
+        let _ = result_tx.send((result, started.elapsed()));
     });
-    let (error, started) = match result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT) {
-        Ok((result, started)) => (
+    let outcome = match result_rx.recv_timeout(PROBE_HANG_GUARD) {
+        Ok((result, elapsed)) => (
             result.expect_err("deadline should interrupt provider retry"),
-            started,
+            elapsed,
         ),
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
             cancellation.cancel();
-            let cleanup = result_rx.recv_timeout(SCHEDULER_TOLERANT_LIMIT);
+            let cleanup = result_rx.recv_timeout(PROBE_HANG_GUARD);
             drop(query_worker);
             assert!(
                 cleanup.is_ok(),
                 "provider worker did not stop within the bounded cancellation cleanup"
             );
-            panic!("provider call exceeded its bounded wait");
+            panic!("provider call exceeded its hang guard");
         }
         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
             drop(query_worker);
@@ -196,153 +208,170 @@ fn assert_deadline_interrupts_retry(
         }
     };
     drop(query_worker);
+    outcome
+}
+
+/// The provider retried transient 429s and the query deadline, not the retry
+/// budget or the transport timeout, ended the call.
+fn assert_deadline_interrupted_retries(
+    error: &EmbeddingError,
+    elapsed: Duration,
+    responses: usize,
+) {
     assert!(matches!(error, EmbeddingError::Timeout { .. }));
     assert!(
-        started.elapsed() < SCHEDULER_TOLERANT_LIMIT,
-        "provider retry exceeded the query deadline: {:?}",
-        started.elapsed()
+        elapsed >= PROBE_QUERY_DEADLINE,
+        "the call ended before its query deadline: {elapsed:?}"
     );
-    // The server must have answered with the transient 429. Whether that
-    // write lands before or after the 10 ms deadline depends on the runner's
-    // scheduling, so its instant is not compared with the deadline.
-    response_written
-        .recv_timeout(SCHEDULER_TOLERANT_LIMIT)
-        .expect("server wrote the 429 response");
+    assert!(
+        elapsed < PROBE_HANG_GUARD,
+        "provider retry outlived the query deadline: {elapsed:?}"
+    );
+    assert!(
+        responses >= 1,
+        "the provider must have received at least one transient 429 before the deadline"
+    );
 }
 
 #[test]
 fn should_clamp_openai_retry_backoff_to_query_deadline() {
     // Arrange
     let _guard = controlled_request_guard();
-    let (base_url, response_written, server) = transient_server();
+    let (base_url, server) = transient_server();
     let provider = OpenAiProvider::with_config(OpenAiProviderConfig {
         api_key: "test-key".to_string(),
         model: "text-embedding-3-small".to_string(),
-        timeout: Duration::from_secs(1),
+        timeout: PROBE_TRANSPORT_TIMEOUT,
         max_batch_size: 8,
-        max_retries: 3,
+        max_retries: PROBE_MAX_RETRIES,
         base_url,
     })
     .expect("configure OpenAI provider");
 
     // Act
-    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
+    let (error, elapsed) = run_deadline_probe(Box::new(provider));
+    let responses = server.stop();
 
     // Assert
-    assert_one_transient_request(server);
+    assert_deadline_interrupted_retries(&error, elapsed, responses);
 }
 
 #[test]
 fn should_clamp_openai_compatible_retry_backoff_to_query_deadline() {
     // Arrange
     let _guard = controlled_request_guard();
-    let (base_url, response_written, server) = transient_server();
+    let (base_url, server) = transient_server();
     let provider = OpenAiCompatibleProvider::with_config(OpenAiCompatibleProviderConfig {
         base_url,
         api_key: Some("test-key".to_string()),
         model: "compatible-test".to_string(),
         dimensions: 3,
-        timeout: Duration::from_secs(1),
+        timeout: PROBE_TRANSPORT_TIMEOUT,
         max_batch_size: 8,
-        max_retries: 3,
+        max_retries: PROBE_MAX_RETRIES,
     })
     .expect("configure compatible provider");
 
     // Act
-    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
+    let (error, elapsed) = run_deadline_probe(Box::new(provider));
+    let responses = server.stop();
 
     // Assert
-    assert_one_transient_request(server);
+    assert_deadline_interrupted_retries(&error, elapsed, responses);
 }
 
 #[test]
 fn should_clamp_tei_retry_backoff_to_query_deadline() {
     // Arrange
     let _guard = controlled_request_guard();
-    let (base_url, response_written, server) = transient_server();
+    let (base_url, server) = transient_server();
     let provider = TeiProvider::with_config(TeiProviderConfig {
         base_url,
         model: "tei-test".to_string(),
         dimensions: 3,
-        timeout: Duration::from_secs(1),
+        timeout: PROBE_TRANSPORT_TIMEOUT,
         max_batch_size: 8,
-        max_retries: 3,
+        max_retries: PROBE_MAX_RETRIES,
     })
     .expect("configure TEI provider");
 
     // Act
-    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
+    let (error, elapsed) = run_deadline_probe(Box::new(provider));
+    let responses = server.stop();
 
     // Assert
-    assert_one_transient_request(server);
+    assert_deadline_interrupted_retries(&error, elapsed, responses);
 }
 
 #[test]
 fn should_clamp_ollama_retry_backoff_to_query_deadline() {
     // Arrange
     let _guard = controlled_request_guard();
-    let (base_url, response_written, server) = transient_server();
+    let (base_url, server) = transient_server();
     let provider = OllamaProvider::with_config(OllamaProviderConfig {
         base_url,
         model: "ollama-test".to_string(),
         dimensions: 3,
-        timeout: Duration::from_secs(1),
+        timeout: PROBE_TRANSPORT_TIMEOUT,
         max_batch_size: 8,
-        max_retries: 3,
+        max_retries: PROBE_MAX_RETRIES,
     })
     .expect("configure Ollama provider");
 
     // Act
-    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
+    let (error, elapsed) = run_deadline_probe(Box::new(provider));
+    let responses = server.stop();
 
     // Assert
-    assert_one_transient_request(server);
+    assert_deadline_interrupted_retries(&error, elapsed, responses);
 }
 
 #[test]
 fn should_clamp_voyage_retry_backoff_to_query_deadline() {
     // Arrange
     let _guard = controlled_request_guard();
-    let (base_url, response_written, server) = transient_server();
+    let (base_url, server) = transient_server();
     let provider = VoyageProvider::with_config(VoyageProviderConfig {
         api_key: "test-key".to_string(),
         model: "voyage-test".to_string(),
         dimensions: 3,
-        timeout: Duration::from_secs(1),
+        timeout: PROBE_TRANSPORT_TIMEOUT,
         max_batch_size: 8,
-        max_retries: 3,
+        max_retries: PROBE_MAX_RETRIES,
         base_url,
     })
     .expect("configure Voyage provider");
 
     // Act
-    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
+    let (error, elapsed) = run_deadline_probe(Box::new(provider));
+    let responses = server.stop();
 
     // Assert
-    assert_one_transient_request(server);
+    assert_deadline_interrupted_retries(&error, elapsed, responses);
 }
 
 #[test]
 fn should_clamp_cohere_retry_backoff_to_query_deadline() {
     // Arrange
     let _guard = controlled_request_guard();
-    let (base_url, response_written, server) = transient_server();
+    let (base_url, server) = transient_server();
     let provider = CohereProvider::with_config(CohereProviderConfig {
         api_key: "test-key".to_string(),
         model: "cohere-test".to_string(),
         dimensions: 3,
-        timeout: Duration::from_secs(1),
+        timeout: PROBE_TRANSPORT_TIMEOUT,
         max_batch_size: 8,
-        max_retries: 3,
+        max_retries: PROBE_MAX_RETRIES,
         base_url,
     })
     .expect("configure Cohere provider");
 
     // Act
-    assert_deadline_interrupts_retry(Box::new(provider), &response_written);
+    let (error, elapsed) = run_deadline_probe(Box::new(provider));
+    let responses = server.stop();
 
     // Assert
-    assert_one_transient_request(server);
+    assert_deadline_interrupted_retries(&error, elapsed, responses);
 }
 
 #[test]

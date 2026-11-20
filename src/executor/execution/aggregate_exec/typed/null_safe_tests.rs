@@ -50,7 +50,7 @@ fn observe_null_safe_aggregates(index: Option<&str>) -> Vec<Observed> {
         let plan =
             super::super::super::build_logical_plan_in_session(&cassie, Some(&session), &statement)
                 .expect("plan");
-        let typed = try_execute(&cassie, Some(&session), &plan, &controls)
+        let typed = try_execute(&cassie, Some(&session), &plan, &[], &controls)
             .expect("typed execution")
             .map(|rows| rows[0].entries()[0].1.clone());
         let scalar = cassie

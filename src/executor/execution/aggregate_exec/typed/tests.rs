@@ -145,7 +145,7 @@ fn should_release_numeric_aggregate_stream_owners() {
             .expect("plan");
     let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
     // Act
-    let output = try_execute(&cassie, Some(&session), &plan, &controls)
+    let output = try_execute(&cassie, Some(&session), &plan, &[], &controls)
         .expect("execution")
         .expect("native aggregate path");
     // Assert
@@ -464,7 +464,7 @@ fn should_publish_only_completed_bounded_typed_aggregation() {
             QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
         let before = cassie.metrics();
         // Act
-        let output = try_execute(&cassie, Some(&session), &plan, &controls)
+        let output = try_execute(&cassie, Some(&session), &plan, &[], &controls)
             .expect("typed execution")
             .expect("native path");
         let after = cassie.metrics();
@@ -541,7 +541,7 @@ fn should_release_typed_worker_owners_after_exact_prefixes_beyond_int64() {
             .expect("plan");
     let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
     // Act
-    let output = try_execute(&cassie, Some(&session), &plan, &controls)
+    let output = try_execute(&cassie, Some(&session), &plan, &[], &controls)
         .expect("an int8 prefix beyond i64 stays exact across the worker merge")
         .expect("native aggregate path");
     let after = cassie.metrics();
@@ -578,7 +578,7 @@ fn should_handoff_encoded_numeric_predicates_to_typed_aggregates_without_objects
     let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
     let before = cassie.runtime.snapshot();
     // Act
-    let output = try_execute(&cassie, Some(&session), &plan, &controls)
+    let output = try_execute(&cassie, Some(&session), &plan, &[], &controls)
         .expect("typed execution")
         .expect("native predicate aggregate handoff");
     let after = cassie.runtime.snapshot();
@@ -673,7 +673,7 @@ fn should_preserve_float_fold_semantics_through_encoded_numeric_owners() {
                 .expect("plan");
         let controls =
             QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
-        let row = try_execute(&cassie, Some(&session), &plan, &controls)
+        let row = try_execute(&cassie, Some(&session), &plan, &[], &controls)
             .expect("row execution")
             .expect("typed row");
         let expected = row[0].entries().to_vec();
@@ -681,7 +681,7 @@ fn should_preserve_float_fold_semantics_through_encoded_numeric_owners() {
         cassie.execute_sql(&session,"CREATE INDEX float_owner_idx ON float_owner USING column (n) WITH (segment_size = 2)",vec![]).expect("index");
         let before = cassie.runtime.snapshot();
         // Act
-        let encoded = try_execute(&cassie, Some(&session), &plan, &controls)
+        let encoded = try_execute(&cassie, Some(&session), &plan, &[], &controls)
             .expect("encoded execution")
             .expect("native owner");
         let after = cassie.runtime.snapshot();
@@ -744,7 +744,7 @@ fn should_cancel_after_a_completed_typed_worker_wave_without_success_or_retained
     let _probe = workers::WaveCancellationProbe::arm(cancellation);
     let before = cassie.runtime.snapshot();
     // Act
-    let failure = try_execute(&cassie, Some(&session), &plan, &controls)
+    let failure = try_execute(&cassie, Some(&session), &plan, &[], &controls)
         .expect_err("cancel after two joined and ordered merged workers");
     let after = cassie.runtime.snapshot();
     // Assert
@@ -815,18 +815,13 @@ fn should_keep_excluded_aggregate_combinations_on_existing_fallback() {
             vec![],
             Value::Int64(5),
         ),
-        (
-            "SELECT SUM(n) AS total FROM fallback WHERE n > $1",
-            vec![Value::Int64(2)],
-            Value::Int64(3),
-        ),
     ] {
         let statement = crate::sql::parse_statement(sql).expect("statement");
         let plan =
             super::super::super::build_logical_plan_in_session(&cassie, Some(&session), &statement)
                 .expect("plan");
-        let declined =
-            try_execute(&cassie, Some(&session), &plan, &controls).expect("controlled decline");
+        let declined = try_execute(&cassie, Some(&session), &plan, &[], &controls)
+            .expect("controlled decline");
         let result = cassie
             .execute_sql(&session, sql, params)
             .expect("existing fallback");
@@ -835,12 +830,12 @@ fn should_keep_excluded_aggregate_combinations_on_existing_fallback() {
         assert_eq!(result.rows(), vec![vec![expected]], "{sql}");
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
-    let grouped_sql = "SELECT n,COUNT(*) AS counted FROM fallback GROUP BY n";
+    let grouped_sql = "SELECT n,COUNT(*) AS counted FROM fallback GROUP BY n HAVING COUNT(*) > 0";
     let statement = crate::sql::parse_statement(grouped_sql).expect("statement");
     let plan =
         super::super::super::build_logical_plan_in_session(&cassie, Some(&session), &statement)
             .expect("plan");
-    assert!(try_execute(&cassie, Some(&session), &plan, &controls)
+    assert!(try_execute(&cassie, Some(&session), &plan, &[], &controls)
         .expect("group decline")
         .is_none());
     let grouped = cassie

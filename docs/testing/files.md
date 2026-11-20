@@ -155,10 +155,11 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/catalog_security/views/semantics.rs` | test_module | 293 | 5 | catalog_security | keep | `tests/catalog_security/views/semantics.rs` |
 | `tests/catalog_security.rs` | cargo_target | 176 | 0 | catalog_security | keep | `tests/catalog_security.rs` |
 | `tests/columnar_surface/constraint_equivalence.rs` | test_module | 463 | 11 | columnar_surface | move_with_module_alias | `tests/columnar_surface/constraints/constraint_equivalence.rs` |
+| `tests/columnar_surface/grouped_aggregate.rs` | test_module | 265 | 8 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/boolean/grouped_aggregate.rs`; `tests/columnar_surface/aggregates/core/grouped_aggregate.rs` |
 | `tests/columnar_surface/index_equivalence.rs` | test_module | 349 | 8 | columnar_surface | move_with_module_alias | `tests/columnar_surface/indexes/index_equivalence.rs` |
 | `tests/columnar_surface/pair.rs` | test_support | 142 | 0 | columnar_surface | keep | `tests/columnar_surface/pair.rs` |
 | `tests/columnar_surface/query_equivalence.rs` | test_module | 309 | 11 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/core/query_equivalence.rs`; `tests/columnar_surface/semantics/query_equivalence.rs` |
-| `tests/columnar_surface.rs` | cargo_target | 14 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
+| `tests/columnar_surface.rs` | cargo_target | 17 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
 | `tests/compatibility/clients/desktop_traces/desktop_client_trace_replay.rs` | test_module | 150 | 7 | compatibility | keep | `tests/compatibility/clients/desktop_traces/desktop_client_trace_replay.rs` |
 | `tests/compatibility/clients/diesel/semantics.rs` | test_module | 167 | 1 | compatibility | keep | `tests/compatibility/clients/diesel/semantics.rs` |
 | `tests/compatibility/clients/dump_restore/pg_dump_restore.rs` | test_module | 210 | 1 | compatibility | keep | `tests/compatibility/clients/dump_restore/pg_dump_restore.rs` |

@@ -5,12 +5,13 @@ use crate::executor::retained_memory::{add, mul};
 use crate::executor::typed_batch::{capability, TypedBatch};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{BinaryOp, Expr};
-use crate::types::DataType;
+use crate::types::{DataType, Value};
 use std::mem::size_of;
 
 pub(super) fn prepare(
     expression: Option<&Expr>,
     schema: &CollectionSchema,
+    params: &[Value],
     prepared: &mut PreparedSpecs,
 ) -> Result<bool, QueryError> {
     let Some(expression) = expression else {
@@ -32,7 +33,7 @@ pub(super) fn prepare(
         prepared.memory.try_grow(name.len())?;
         typed_schema.push((name.clone(), field.data_type.clone()));
     }
-    Ok(capability::expression(expression, &typed_schema, &[])
+    Ok(capability::expression(expression, &typed_schema, params)
         == capability::Capability::NativeTyped)
 }
 fn collect(
@@ -74,9 +75,11 @@ fn collect(
             }
             Ok(true)
         }
-        Expr::IntegerLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) | Expr::Null => {
-            Ok(true)
-        }
+        Expr::IntegerLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Param(_)
+        | Expr::Null => Ok(true),
         Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } | Expr::Not { expr } => {
             collect(expr, schema, prepared)
         }
@@ -101,13 +104,14 @@ fn collect(
 pub(super) fn apply(
     batch: TypedBatch,
     expression: Option<&Expr>,
+    params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<TypedBatch, QueryError> {
     match expression {
         Some(expression) => batch.filter(
             controls,
             expression,
-            &[],
+            params,
             &std::collections::HashMap::new(),
             None,
         ),

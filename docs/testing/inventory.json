@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1852,
-    "rust_files": 1808,
-    "rust_test_declarations": 10953,
+    "files": 1853,
+    "rust_files": 1809,
+    "rust_test_declarations": 10961,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10978,
+    "registered_rust_instances": 10986,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -24692,6 +24692,254 @@
         "category": "constraints",
         "directory": "tests/columnar_surface/constraints",
         "file": "tests/columnar_surface/constraints/constraint_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes",
+      "name": "should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 29,
+      "end_line": 57,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_match_the_row_path_for_grouped_aggregates_in_both_storage_modes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_keep_null_keys_as_their_own_group_in_row_path_order",
+      "name": "should_keep_null_keys_as_their_own_group_in_row_path_order",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 60,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_keep_null_keys_as_their_own_group_in_row_path_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_return_no_groups_for_empty_tables",
+      "name": "should_return_no_groups_for_empty_tables",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 83,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_return_no_groups_for_empty_tables"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_report_the_row_path_error_for_float_sum_overflow",
+      "name": "should_report_the_row_path_error_for_float_sum_overflow",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 100,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_report_the_row_path_error_for_float_sum_overflow"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_match_the_row_path_across_a_batch_boundary",
+      "name": "should_match_the_row_path_across_a_batch_boundary",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 129,
+      "end_line": 160,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_match_the_row_path_across_a_batch_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_keep_prepared_parameters_on_the_typed_grouped_path",
+      "name": "should_keep_prepared_parameters_on_the_typed_grouped_path",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 163,
+      "end_line": 190,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_keep_prepared_parameters_on_the_typed_grouped_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_leave_unsupported_grouped_shapes_on_the_row_path",
+      "name": "should_leave_unsupported_grouped_shapes_on_the_row_path",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 193,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_leave_unsupported_grouped_shapes_on_the_row_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/grouped_aggregate.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/grouped_aggregate.rs::should_match_the_row_path_for_parameters_of_every_value_type",
+      "name": "should_match_the_row_path_for_parameters_of_every_value_type",
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "line": 223,
+      "end_line": 265,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "grouped_aggregate::should_match_the_row_path_for_parameters_of_every_value_type"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/boolean",
+        "directory": "tests/columnar_surface/aggregates/boolean",
+        "file": "tests/columnar_surface/aggregates/boolean/grouped_aggregate.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -342779,6 +343027,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/columnar_surface/grouped_aggregate.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 265,
+      "sha256": "62fecc7e36253341fcc61b958b949adb504affe56d65e639d27b87f367c57dd2",
+      "test_declarations": 8,
+      "registered_suites": [
+        "columnar_surface"
+      ],
+      "destinations": [
+        "tests/columnar_surface/aggregates/boolean/grouped_aggregate.rs",
+        "tests/columnar_surface/aggregates/core/grouped_aggregate.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/columnar_surface/index_equivalence.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -342828,8 +343092,8 @@
       "current_file": "tests/columnar_surface.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 14,
-      "sha256": "a1995c2f4dcb4399124ec4c8fb27b37bc6af163c4d1972fbc935b75b3be182f3",
+      "lines": 17,
+      "sha256": "2348185d44efff81e70814bf75260824f0b47719ec5071196af6ffd53da9ba69",
       "test_declarations": 0,
       "registered_suites": [
         "columnar_surface"

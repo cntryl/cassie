@@ -34,6 +34,32 @@ impl Validity {
 }
 
 impl Validity {
+    /// Builds validity from little-endian bit words for `len` lanes.
+    ///
+    /// Returns `None` when the word count does not match `len` or a bit at or
+    /// beyond `len` is set.
+    #[cfg(test)]
+    pub(super) fn from_words(words: &[u64], len: usize) -> Option<Self> {
+        if words.len() != len.div_ceil(64) {
+            return None;
+        }
+        let tail = len % 64;
+        if tail != 0 && words[words.len() - 1] >> tail != 0 {
+            return None;
+        }
+        let set = words
+            .iter()
+            .map(|word| usize::try_from(word.count_ones()).unwrap_or(usize::MAX))
+            .sum::<usize>();
+        Some(if set == len {
+            Self::AllValid
+        } else if set == 0 {
+            Self::AllNull
+        } else {
+            Self::Bitmap(words.to_vec())
+        })
+    }
+
     pub(super) fn from_flags(flags: &[bool]) -> Self {
         if flags.iter().all(|valid| *valid) {
             return Self::AllValid;

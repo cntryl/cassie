@@ -6,6 +6,7 @@ use crate::executor::scan::TypedScanStream;
 use crate::executor::typed_batch::{check_controls, TypedBatch};
 use crate::executor::QueryError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::types::Value;
 use std::mem::size_of;
 
 pub(super) struct Diagnostics {
@@ -24,6 +25,7 @@ pub(super) fn consume_stream(
     stream: &mut TypedScanStream<'_>,
     specs: &mut [Spec],
     predicate: Option<&crate::sql::ast::Expr>,
+    params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<Diagnostics, QueryError> {
     let requested = cassie.runtime.limits().parallel_aggregation_workers.max(1);
@@ -67,7 +69,7 @@ pub(super) fn consume_stream(
             if let Some(batch) =
                 stream.next_batch_bounded(crate::executor::batch::DEFAULT_BATCH_SIZE)?
             {
-                let batch = super::predicate::apply(batch, predicate, controls)?;
+                let batch = super::predicate::apply(batch, predicate, params, controls)?;
                 diagnostic.rows = diagnostic.rows.checked_add(batch.len()).ok_or_else(|| {
                     QueryError::General("typed aggregate row count overflow".to_owned())
                 })?;
@@ -171,7 +173,7 @@ impl Drop for WaveCancellationProbe {
     }
 }
 #[cfg(test)]
-fn cancel_after_completed_wave() {
+pub(super) fn cancel_after_completed_wave() {
     if let Some(handle) = CANCEL_AFTER_WAVE.with(|slot| slot.borrow_mut().take()) {
         handle.cancel();
     }

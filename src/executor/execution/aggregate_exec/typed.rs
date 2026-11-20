@@ -14,6 +14,8 @@ use crate::types::{DataType, Value};
 use std::mem::size_of;
 use std::sync::Arc;
 
+mod group_key;
+mod grouped;
 mod partials;
 mod predicate;
 mod workers;
@@ -156,6 +158,7 @@ pub(in crate::executor::execution) fn try_execute(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
+    params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if !eligible(plan) {
@@ -188,10 +191,13 @@ pub(in crate::executor::execution) fn try_execute(
     let Some(schema) = schema else {
         return Ok(None);
     };
+    if !plan.group_by.is_empty() {
+        return grouped::execute(cassie, session, plan, collection, &schema, params, controls);
+    }
     let Some(mut prepared) = prepare_specs(plan, &schema, controls)? else {
         return Ok(None);
     };
-    if !predicate::prepare(plan.filter.as_ref(), &schema, &mut prepared)? {
+    if !predicate::prepare(plan.filter.as_ref(), &schema, params, &mut prepared)? {
         return Ok(None);
     }
     let Some(mut stream) =
@@ -204,6 +210,7 @@ pub(in crate::executor::execution) fn try_execute(
         &mut stream,
         &mut prepared.specs,
         plan.filter.as_ref(),
+        params,
         controls,
     )?;
     check_controls(controls)?;
@@ -355,7 +362,7 @@ fn eligible(plan: &LogicalPlan) -> bool {
     !plan.projection.is_empty()
         && plan.command.is_none()
         && plan.ctes.is_empty()
-        && plan.group_by.is_empty()
+        && !plan.grouping_subtotal
         && plan.having.is_none()
         && plan.order.is_empty()
         && plan.limit.is_none()
@@ -377,6 +384,9 @@ mod tests;
 
 #[cfg(test)]
 mod boolean_tests;
+
+#[cfg(test)]
+mod grouped_tests;
 
 #[cfg(test)]
 mod encoded_tests;

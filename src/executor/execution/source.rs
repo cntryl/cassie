@@ -428,6 +428,13 @@ pub(super) use source_rows::{
     source_traversal,
 };
 
+fn try_typed_aggregate(
+    env: &SourceExecutionEnv<'_>,
+    plan: &LogicalPlan,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.params, env.controls)
+}
+
 pub(super) fn execute_source_query_with_outer_row(
     env: &SourceExecutionEnv<'_>,
     plan: &LogicalPlan,
@@ -445,9 +452,7 @@ pub(super) fn execute_source_query_with_outer_row(
     }
     let started_at = Instant::now();
     if outer_row.is_none() && plan.filter.is_some() {
-        if let Some(rows) =
-            aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.controls)?
-        {
+        if let Some(rows) = try_typed_aggregate(env, plan)? {
             return Ok(super::owned_rows::OwnedRows::untracked(rows));
         }
     }
@@ -462,9 +467,7 @@ pub(super) fn execute_source_query_with_outer_row(
         return Ok(super::owned_rows::OwnedRows::untracked(rows));
     }
     if outer_row.is_none() && plan.filter.is_none() {
-        if let Some(rows) =
-            aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.controls)?
-        {
+        if let Some(rows) = try_typed_aggregate(env, plan)? {
             return Ok(super::owned_rows::OwnedRows::untracked(rows));
         }
     }

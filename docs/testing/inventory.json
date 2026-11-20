@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1831,
-    "rust_files": 1790,
-    "rust_test_declarations": 10848,
+    "files": 1832,
+    "rust_files": 1791,
+    "rust_test_declarations": 10857,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10873,
+    "registered_rust_instances": 10882,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -253212,6 +253212,285 @@
       }
     },
     {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_update_one_indexed_row_within_a_lowered_memory_budget",
+      "name": "should_update_one_indexed_row_within_a_lowered_memory_budget",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 74,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_update_one_indexed_row_within_a_lowered_memory_budget"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_delete_one_indexed_row_within_a_lowered_memory_budget",
+      "name": "should_delete_one_indexed_row_within_a_lowered_memory_budget",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 103,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_delete_one_indexed_row_within_a_lowered_memory_budget"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_scan_when_no_equality_conjunct_has_an_index",
+      "name": "should_scan_when_no_equality_conjunct_has_an_index",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 129,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_scan_when_no_equality_conjunct_has_an_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_point_read_the_row_identity",
+      "name": "should_point_read_the_row_identity",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 149,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_point_read_the_row_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_intersect_two_indexes_with_a_residual_filter",
+      "name": "should_intersect_two_indexes_with_a_residual_filter",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 179,
+      "end_line": 201,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_intersect_two_indexes_with_a_residual_filter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_match_the_scan_path_for_keyed_statements",
+      "name": "should_match_the_scan_path_for_keyed_statements",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 233,
+      "end_line": 260,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_match_the_scan_path_for_keyed_statements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_match_the_scan_path_inside_open_transactions",
+      "name": "should_match_the_scan_path_inside_open_transactions",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 282,
+      "end_line": 314,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_match_the_scan_path_inside_open_transactions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_scan_for_a_table_changed_by_the_open_transaction",
+      "name": "should_scan_for_a_table_changed_by_the_open_transaction",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 317,
+      "end_line": 341,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_scan_for_a_table_changed_by_the_open_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/mutations/keyed_dml_lookup.rs::should_match_the_scan_path_for_float_signed_zero_keys",
+      "name": "should_match_the_scan_path_for_float_signed_zero_keys",
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "line": 344,
+      "end_line": 387,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "keyed_dml_lookup::should_match_the_scan_path_for_float_signed_zero_keys"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "mutations",
+        "directory": "tests/sql_mutations/mutations",
+        "file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/mutations/mutation/errors.rs::should_reject_truncate_restrict_before_changing_any_listed_table",
       "name": "should_reject_truncate_restrict_before_changing_any_listed_table",
       "current_file": "tests/sql_mutations/mutations/mutation/errors.rs",
@@ -357719,6 +357998,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/mutations/keyed_dml_lookup.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 387,
+      "sha256": "4beb9845d4638e2a33d359287c0164ee40868064ddfc8c41f92812ca306ff83e",
+      "test_declarations": 9,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/mutations/keyed_dml_lookup.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/mutations/mutation/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -358305,8 +358599,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 241,
-      "sha256": "509fdb5e48e83fae25f3eb710d5e3123f9953991630a23e480af0420587e74c9",
+      "lines": 243,
+      "sha256": "04b37aefcabdae8c5dafeb2e087455f6cc511bb5bddbef10deec86a34a23d5c7",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

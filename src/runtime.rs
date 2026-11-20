@@ -50,6 +50,8 @@ pub use regex_test_pause::{pause_next_query_after_regex_search, QueryRegexTestPa
 mod scoring_test_pause;
 #[doc(hidden)]
 pub use scoring_test_pause::QueryScoringTestBoundary;
+#[path = "runtime/dml_metrics.rs"]
+mod dml_metrics;
 #[path = "runtime/execution_result_cache.rs"]
 mod execution_result_cache;
 #[path = "runtime/feedback.rs"]

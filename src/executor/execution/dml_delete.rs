@@ -1,8 +1,7 @@
 use super::{
-    batch, build_dml_result, check_timeout, dml_referential_actions, ensure_query_memory_budget,
-    inserted_row_to_batch_row, row_id_from_batch_row, scan, BatchRow, Cassie, CassieSession,
-    DmlResultContext, FunctionMeta, HashMap, QueryError, QueryExecutionControls, QueryResult,
-    Value,
+    build_dml_result, check_timeout, dml_referential_actions, inserted_row_to_batch_row,
+    row_id_from_batch_row, BatchRow, Cassie, CassieSession, DmlResultContext, FunctionMeta,
+    HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
 };
 
 pub(in crate::executor::execution) fn execute_delete(
@@ -148,9 +147,16 @@ fn matched_delete_rows(
     let controls = &statement_controls;
     let (_read_scope, _overlay_scope) =
         crate::executor::execution::entrypoints::enter_statement_read(controls);
-    let batches = scan::scan(cassie, session, &statement.table, controls)?;
-    ensure_query_memory_budget(controls, &batches)?;
-    let rows = batch::flatten_batches(batches);
+    let rows = super::dml_keyed_rows::candidate_rows(
+        &super::dml_keyed_rows::DmlRowRequest {
+            cassie,
+            session,
+            table: &statement.table,
+            filter: statement.filter.as_ref(),
+            params,
+        },
+        controls,
+    )?;
     let matched_rows = if let Some(filter_expr) = &statement.filter {
         super::dml_subqueries::RowSubqueries {
             cassie,

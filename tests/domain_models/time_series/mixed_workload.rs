@@ -65,7 +65,7 @@ struct ProjectionSnapshots {
 }
 
 #[test]
-fn should_match_independent_event_oracle_across_checkpoint_snapshot_cutoff_and_reopen() {
+fn should_match_independent_event_oracle_across_checkpoint_snapshots_through_reopen() {
     // Arrange
     let directory = IsolatedDataDir::new("mixed-workload-oracle");
     let initial_events = initial_events();

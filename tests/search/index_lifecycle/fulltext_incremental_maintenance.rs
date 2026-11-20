@@ -228,3 +228,51 @@ fn should_match_a_clean_rebuild_when_a_deleted_document_id_is_reinserted() {
     assert_eq!(ids(&cassie, "inc_repair", "beta"), vec![1]);
     assert_matches_clean_rebuild(&cassie, "inc_repair", &QUERIES);
 }
+
+#[test]
+fn should_keep_corpus_totals_when_text_moves_between_null_empty_and_words() {
+    // Arrange
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
+    create_online_sql_table(&cassie, "inc_presence");
+    run(
+        &cassie,
+        "INSERT INTO inc_presence (id, body) VALUES \
+         (1, 'common alpha'), (2, NULL), (3, ''), (4, 'common beta'), (5, NULL)",
+        vec![],
+    );
+    let rebuilds = search_metric(&cassie, "fulltext_rebuilds_total");
+
+    // Act
+    run(
+        &cassie,
+        "UPDATE inc_presence SET body = NULL WHERE id = 1",
+        vec![],
+    );
+    run(
+        &cassie,
+        "UPDATE inc_presence SET body = 'rare gamma' WHERE id = 2",
+        vec![],
+    );
+    run(
+        &cassie,
+        "UPDATE inc_presence SET body = 'common' WHERE id = 3",
+        vec![],
+    );
+    run(
+        &cassie,
+        "UPDATE inc_presence SET body = '' WHERE id = 4",
+        vec![],
+    );
+    run(&cassie, "DELETE FROM inc_presence WHERE id = 5", vec![]);
+    let maintained_rebuilds = search_metric(&cassie, "fulltext_rebuilds_total");
+
+    // Assert
+    assert_eq!(
+        maintained_rebuilds, rebuilds,
+        "presence changes must be maintained without a rebuild"
+    );
+    let state = persisted_state(&cassie, "inc_presence");
+    assert_eq!(state.total_documents, 4);
+    assert_eq!(state.documents_with_text, 3);
+    assert_state_matches_clean_rebuild(&cassie, "inc_presence");
+}

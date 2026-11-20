@@ -323,15 +323,7 @@ fn collect_page(
         }
         rows.try_push_with(
             fulltext_result_row_variable_bytes(id, payload, read),
-            || {
-                fulltext_result_row(
-                    id,
-                    payload,
-                    score,
-                    read,
-                    (&persisted.search, &analyzer),
-                )
-            },
+            || fulltext_result_row(id, payload, score, read, (&persisted.search, &analyzer)),
         )?;
     }
     let (rows, _output_memory) = rows.into_parts();

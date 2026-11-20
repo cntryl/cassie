@@ -429,6 +429,7 @@ impl Midge {
             tx: &tx,
             relation_id,
             index_id,
+            controls,
         })?;
         let loaded = load_controlled_candidate_postings(
             &ControlledPostingReadContext {

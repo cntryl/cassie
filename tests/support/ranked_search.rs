@@ -358,3 +358,13 @@ pub fn load_corpus_in_process(cassie: &Cassie, corpus: &[TenantDoc]) {
     exec_in_process(cassie, "CREATE INDEX docs_tenant ON docs (tenant)");
     exec_in_process(cassie, "CREATE INDEX docs_status ON docs (status)");
 }
+
+/// Adds an HNSW L2 index over `embedding` so hybrid queries can use the bounded ANN candidate
+/// stage (the stage itself is qualified under #1363).
+pub fn create_vector_index_in_process(cassie: &Cassie) {
+    exec_in_process(
+        cassie,
+        "CREATE INDEX docs_vec ON docs USING hnsw (embedding vector_l2_ops) \
+         WITH (m = 8, ef_construction = 32)",
+    );
+}

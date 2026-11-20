@@ -11,7 +11,7 @@ use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
 
 use crate::support_ranked_search::{
-    assert_page_matches, exec_in_process, hybrid_scores, load_corpus_in_process, ranked_page,
+    assert_page_matches, create_vector_index_in_process, exec_in_process, hybrid_scores, load_corpus_in_process, ranked_page,
     tenant_corpus, TenantDoc, WireFixture, HYBRID_TOLERANCE, QUERY,
 };
 
@@ -27,6 +27,7 @@ struct HybridCounters {
     ann_reads: u64,
     row_fetches: u64,
     row_scan_fallbacks: u64,
+    candidates: u64,
 }
 
 impl HybridCounters {
@@ -38,7 +39,10 @@ impl HybridCounters {
             posting_reads: field("posting_reads_total"),
             ann_reads: field("ann_reads_total"),
             row_fetches: field("candidate_row_fetches_total"),
-            row_scan_fallbacks: field("row_scan_fallback_total"),
+            row_scan_fallbacks: metrics["search"]["row_scan_fallback_total"]
+                .as_u64()
+                .unwrap_or(0),
+            candidates: field("candidate_count_total"),
         }
     }
 
@@ -48,6 +52,7 @@ impl HybridCounters {
             ann_reads: self.ann_reads - before.ann_reads,
             row_fetches: self.row_fetches - before.row_fetches,
             row_scan_fallbacks: self.row_scan_fallbacks - before.row_scan_fallbacks,
+            candidates: self.candidates.wrapping_sub(before.candidates),
         }
     }
 }
@@ -94,7 +99,7 @@ fn expected_page(corpus: &[TenantDoc], limit: usize, offset: usize) -> Vec<(Stri
     )
 }
 
-async fn assert_hybrid_pages(eligible: usize) {
+async fn assert_hybrid_pages(eligible: usize, with_ann: bool) {
     // Arrange
     let corpus = tenant_corpus(eligible);
     let permitted: Vec<String> = corpus
@@ -106,6 +111,9 @@ async fn assert_hybrid_pages(eligible: usize) {
     cassie.startup().expect("startup");
     let fixture = WireFixture::start(cassie).await;
     fixture.load_corpus(&corpus).await;
+    if with_ann {
+        create_vector_index_in_process(&fixture.cassie);
+    }
 
     for (limit, offset) in [(5_usize, 0_usize), (5, 5), (10, 3), (50, 0)] {
         // Act
@@ -121,11 +129,15 @@ async fn assert_hybrid_pages(eligible: usize) {
             actual.iter().all(|(id, _)| permitted.contains(id)),
             "no cross-tenant or ineligible-status row may be returned"
         );
-        assert_eq!(delta.ann_reads, 0, "no ANN index is configured");
-        assert!(
-            delta.posting_reads > 0 || delta.row_scan_fallbacks > 0,
-            "hybrid must report either persisted posting reads or a labelled fallback"
-        );
+        if with_ann {
+            assert!(
+                delta.row_scan_fallbacks > 0 || (delta.ann_reads > 0 && delta.posting_reads > 0),
+                "hybrid must report ANN and posting reads or a labelled exact fallback: {delta:?}"
+            );
+        } else {
+            assert_eq!(delta.ann_reads, 0, "no ANN index is configured");
+            assert!(delta.row_scan_fallbacks > 0, "tenant filter without ANN is the exact path");
+        }
         assert!(
             usize::try_from(delta.row_fetches).unwrap() <= corpus.len(),
             "row fetches stay within the collection"
@@ -136,17 +148,17 @@ async fn assert_hybrid_pages(eligible: usize) {
 
 #[test]
 fn should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible() {
-    runtime().block_on(assert_hybrid_pages(2));
+    runtime().block_on(assert_hybrid_pages(2, false));
 }
 
 #[test]
 fn should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible() {
-    runtime().block_on(assert_hybrid_pages(20));
+    runtime().block_on(assert_hybrid_pages(20, false));
 }
 
 #[test]
 fn should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible() {
-    runtime().block_on(assert_hybrid_pages(100));
+    runtime().block_on(assert_hybrid_pages(100, false));
 }
 
 #[test]
@@ -289,4 +301,19 @@ fn damage_fulltext_manifest(cassie: &Cassie) {
         .expect("transaction");
     tx.put(key, b"corrupt".to_vec(), None).expect("damage");
     tx.commit(WriteOptions::sync()).expect("commit damage");
+}
+
+#[test]
+fn should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible() {
+    runtime().block_on(assert_hybrid_pages(2, true));
+}
+
+#[test]
+fn should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible() {
+    runtime().block_on(assert_hybrid_pages(20, true));
+}
+
+#[test]
+fn should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible() {
+    runtime().block_on(assert_hybrid_pages(100, true));
 }

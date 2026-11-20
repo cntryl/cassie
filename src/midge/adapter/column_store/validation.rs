@@ -113,7 +113,18 @@ pub(crate) fn decode_field(
     field: &RowFieldMeta,
     raw: &[u8],
 ) -> Result<Option<serde_json::Value>, CassieError> {
-    match crate::midge::row_blob::decode_compact_field_value(&field.data_type, raw) {
+    let expanded = match super::compression::expand_column_field(raw) {
+        Ok(expanded) => expanded,
+        Err(CassieError::Parse(detail)) => {
+            return Err(corrupt_row(
+                relation,
+                id,
+                &format!("field '{}' does not expand: {detail}", field.name),
+            ))
+        }
+        Err(other) => return Err(other),
+    };
+    match crate::midge::row_blob::decode_compact_field_value(&field.data_type, &expanded) {
         Err(CassieError::Parse(detail)) => Err(corrupt_row(
             relation,
             id,

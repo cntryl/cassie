@@ -15,3 +15,6 @@ mod index_equivalence;
 
 #[path = "columnar_surface/grouped_aggregate.rs"]
 mod grouped_aggregate;
+
+#[path = "columnar_surface/pruning_equivalence.rs"]
+mod pruning_equivalence;

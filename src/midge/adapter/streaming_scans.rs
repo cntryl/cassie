@@ -66,6 +66,7 @@ pub(crate) struct MidgeRowCursor {
     last_key_memory: Option<QueryMemoryReservation>,
     storage: CursorStorage,
     collection: String,
+    pruning: Option<super::ColumnPruning>,
 }
 
 impl std::fmt::Debug for MidgeRowCursor {
@@ -82,6 +83,20 @@ impl std::fmt::Debug for MidgeRowCursor {
 }
 
 impl MidgeRowCursor {
+    /// Lets a column-table scan skip whole segments that a conjunctive filter
+    /// excludes. Skipping is purely an optimization: only verified summaries
+    /// skip, and every other segment is read as usual.
+    pub(crate) fn set_column_pruning(
+        &mut self,
+        midge: &Midge,
+        filter: &super::ColumnBatchScanFilter,
+    ) {
+        if self.storage == CursorStorage::Row || !midge.column_pruning_enabled() {
+            return;
+        }
+        self.pruning = super::ColumnPruning::resolve(&self.collection, &self.row_schema, filter);
+    }
+
     pub(crate) fn next_accounted_document(
         &mut self,
         midge: &Midge,
@@ -188,6 +203,14 @@ impl MidgeRowCursor {
             check_controls(controls)?;
             let (raw_key, raw_value) = entry.map_err(CassieError::from)?;
             scanned_entries = scanned_entries.saturating_add(1);
+            if let Some(pruning) = self.pruning.as_mut() {
+                if let Some(last_skipped) = pruning.skip_to(midge, &self.tx, &raw_key, controls)? {
+                    let memory = controls.reserve_query_memory(last_skipped.len())?;
+                    self.last_key = Some(last_skipped);
+                    self.last_key_memory = Some(memory);
+                    break;
+                }
+            }
             midge.record_query_scan_entry();
             if super::query_scan_control::should_cancel_controlled_query_scan(controls) {
                 return Err(CassieError::QueryCanceled);
@@ -313,6 +336,7 @@ impl Midge {
             last_key_memory: None,
             storage: CursorStorage::new(column_store, traversal),
             collection,
+            pruning: None,
         }))
     }
 

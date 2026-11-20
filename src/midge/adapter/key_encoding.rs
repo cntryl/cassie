@@ -689,6 +689,30 @@ pub(super) fn column_store_field_key(relation_id: u64, field_id: u32, id: &str) 
     )
 }
 
+pub(super) fn column_store_summary_prefix(relation_id: u64) -> Vec<u8> {
+    let relation = encoded_u64_component(relation_id);
+    prefix(FAMILY_COLUMN_STORE, &[relation.as_slice(), b"s"])
+}
+
+/// Key of the pruning-summary record whose segment starts at `start`, or of
+/// the table's first segment when `start` is `None`. The component carries a
+/// leading tag byte so the first segment sorts first and no row id can clash.
+pub(super) fn column_store_summary_key(relation_id: u64, start: Option<&str>) -> Vec<u8> {
+    let relation = encoded_u64_component(relation_id);
+    let mut component = Vec::new();
+    match start {
+        None => component.push(1),
+        Some(start) => {
+            component.push(2);
+            component.extend_from_slice(start.as_bytes());
+        }
+    }
+    key(
+        FAMILY_COLUMN_STORE,
+        &[relation.as_slice(), b"s", component.as_slice()],
+    )
+}
+
 pub(super) fn rollup_prefix() -> Vec<u8> {
     prefix(FAMILY_ROLLUP, &[])
 }

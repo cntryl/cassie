@@ -76,12 +76,11 @@ impl Midge {
 
         for field in row_schema.fields.iter().filter(|field| !field.retired) {
             let key = Self::column_store_field_key(row_schema.relation_id, field.field_id, id);
-            let encoded = match document.get(&field.name) {
-                Some(value) => {
-                    crate::midge::row_blob::encode_compact_value(&field.data_type, value)?
-                }
-                None => crate::midge::row_blob::encode_compact_sql_null(),
-            };
+            let encoded = super::compression::encode_column_field(
+                &field.data_type,
+                document.get(&field.name),
+                true,
+            )?;
             tx.put(key, encoded, None).map_err(CassieError::from)?;
         }
         Ok(())

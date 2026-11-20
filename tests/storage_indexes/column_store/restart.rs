@@ -10,17 +10,17 @@ use cassie::midge::adapter::StorageFamily;
 use cassie::types::Value;
 use std::path::PathBuf;
 
-struct Store(PathBuf);
+pub(super) struct Store(PathBuf);
 
 impl Store {
-    fn new(label: &str) -> Self {
+    pub(super) fn new(label: &str) -> Self {
         crate::support_sql::use_local_storage();
         let path = PathBuf::from(crate::support_sql::data_dir(label));
         std::fs::create_dir_all(&path).expect("isolated data directory");
         Self(path)
     }
 
-    fn open(&self) -> Env {
+    pub(super) fn open(&self) -> Env {
         let cassie = Cassie::new_with_data_dir(&self.0).expect("local store");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);

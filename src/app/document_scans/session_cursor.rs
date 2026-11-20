@@ -44,6 +44,16 @@ impl std::fmt::Debug for SessionRowCursor {
 }
 
 impl SessionRowCursor {
+    /// Lets the persisted column-table side skip segments the filter excludes.
+    /// Staged rows are merged from the session and are never skipped.
+    pub(crate) fn set_column_pruning(
+        &mut self,
+        midge: &Midge,
+        filter: &crate::midge::adapter::ColumnBatchScanFilter,
+    ) {
+        self.persisted.set_column_pruning(midge, filter);
+    }
+
     pub(super) fn new(
         session: Option<&CassieSession>,
         collection: &str,

@@ -127,6 +127,18 @@ impl Fixture {
     }
 }
 
+/// Row `index`'s payload: its number, then `bytes` pseudo-random letters. Letter noise does not
+/// shrink under column-store compression, so the stored field keeps these exact bytes for the
+/// fixture to find and poison.
 pub fn payload(index: usize, bytes: usize) -> String {
-    format!("{index:04}-{}", "x".repeat(bytes))
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64 ^ (index as u64 + 1);
+    let noise = (0..bytes)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            char::from(b'a' + u8::try_from(state % 26).expect("letter"))
+        })
+        .collect::<String>();
+    format!("{index:04}-{noise}")
 }

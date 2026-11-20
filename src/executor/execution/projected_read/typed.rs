@@ -8,6 +8,17 @@ use crate::executor::typed_batch::TypedBatch;
 use std::mem::size_of;
 use std::sync::Arc;
 
+/// Lets a column-table source skip segments the plan's conjunctive filter
+/// excludes; the filter still runs on every row the stream returns.
+pub(in crate::executor::execution) fn prune_stream(
+    stream: &mut scan::TypedScanStream<'_>,
+    filter: Option<&Expr>,
+) {
+    if let Some(filter) = filter.and_then(super::column_batch_scan_filter) {
+        stream.set_column_pruning(&filter);
+    }
+}
+
 pub(super) fn try_execute_rows(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -76,6 +87,7 @@ pub(super) fn try_execute(
     else {
         return Ok(None);
     };
+    prune_stream(&mut stream, plan.filter.as_ref());
     breakdown.scan += started.elapsed();
     let mut offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).unwrap_or(usize::MAX);
     let mut remaining = plan.limit_value().map_or(usize::MAX, |limit| {

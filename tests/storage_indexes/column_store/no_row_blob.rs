@@ -147,7 +147,12 @@ fn should_keep_column_authority_across_column_add_drop() {
             serde_json::json!({"id": 99, "name": "fresh", "qty": 1, "extra": "x"}),
         )
         .expect("write after add column");
-    let widened = env.column_entries(TABLE).len();
+    // Pruning summaries are derived metadata, not authority.
+    let widened = env
+        .column_entries(TABLE)
+        .iter()
+        .filter(|(key, _)| !super::key_has_discriminator(key, b's'))
+        .count();
     midge
         .alter_collection_drop_column(TABLE, "qty")
         .expect("drop column");

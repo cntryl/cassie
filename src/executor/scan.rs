@@ -477,7 +477,7 @@ fn controlled_projected_row_fallback(
     session: Option<&CassieSession>,
     request: &ProjectedFilteredScanRequest<'_>,
 ) -> Result<Option<controlled_source::ControlledInputs>, crate::executor::QueryError> {
-    let Some(cursor) = cassie
+    let Some(mut cursor) = cassie
         .open_session_row_cursor_with_traversal(
             session,
             request.collection,
@@ -489,6 +489,9 @@ fn controlled_projected_row_fallback(
     else {
         return Ok(None);
     };
+    if let Some(filter) = request.column_filter {
+        cursor.set_column_pruning(&cassie.midge, filter);
+    }
     controlled_source::collect(cassie, cursor, request.limit, request.controls).map(Some)
 }
 

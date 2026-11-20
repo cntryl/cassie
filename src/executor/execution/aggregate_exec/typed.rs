@@ -205,6 +205,7 @@ pub(in crate::executor::execution) fn try_execute(
     else {
         return Ok(None);
     };
+    crate::executor::execution::projected_read::prune_stream(&mut stream, plan.filter.as_ref());
     let diagnostic = workers::consume_stream(
         cassie,
         &mut stream,

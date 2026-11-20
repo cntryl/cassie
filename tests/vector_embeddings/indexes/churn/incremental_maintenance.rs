@@ -455,3 +455,41 @@ fn should_rebuild_a_large_damaged_graph_after_the_commit() {
         );
     });
 }
+
+#[test]
+fn should_keep_recall_after_deleting_two_thirds_of_the_rows() {
+    // Arrange
+    with_memory_fixture(|cassie, session| {
+        let table = "incremental_mass_delete";
+        let mut rng = Rng::new(PRNG_START ^ 0x00de);
+        let mut population = rows(300, &mut rng);
+        indexed_table(cassie, session, table, &population);
+        let doomed = population
+            .keys()
+            .enumerate()
+            .filter(|(ordinal, _)| ordinal % 3 != 0)
+            .map(|(_, id)| id.clone())
+            .collect::<Vec<_>>();
+
+        // Act
+        for id in &doomed {
+            assert!(cassie.midge.delete_document(table, id).expect("delete"));
+            population.remove(id);
+        }
+        let graph = persisted_graph(cassie, table);
+        let score = recall(&graph, &population, &mut rng);
+
+        // Assert
+        assert_valid_graph(cassie, table, &population, "after mass delete");
+        assert_eq!(
+            vector_metric(cassie, "index_maintenance_full_rebuilds_total"),
+            0,
+            "deletes are maintained locally"
+        );
+        assert!(
+            score >= RECALL_FLOOR,
+            "recall@{RECALL_K} {score} fell below {RECALL_FLOOR} after deleting {} of 300 rows",
+            doomed.len()
+        );
+    });
+}

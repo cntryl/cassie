@@ -218,7 +218,7 @@ fn measure(runtime: &tokio::runtime::Runtime, scale: &str, rows: usize, profile:
          index_bytes_per_update={update_bytes} rebuild_ms={} fallback_window_ms={}",
         profile.label(),
         ingest.as_millis(),
-        rows as f64 / ingest.as_secs_f64().max(f64::EPSILON),
+        cassie::types::numeric::usize_to_f64(rows) / ingest.as_secs_f64().max(f64::EPSILON),
         build_time.as_millis(),
         query_p95.as_micros(),
         rebuild.as_millis(),

@@ -67,7 +67,7 @@ fn update_target(cassie: &Cassie, body: &str) -> IndexWrite {
 }
 
 #[test]
-fn should_not_grow_index_writes_with_unrelated_documents_and_vocabulary() {
+fn should_not_grow_index_writes_with_unrelated_documents_or_vocabulary() {
     // Arrange
     let cassie = fixture(SMALL_CORPUS);
     let small = update_target(&cassie, "needle needle thread1");

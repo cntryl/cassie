@@ -9,7 +9,7 @@ use crate::support_ranked_search::{
 };
 
 #[test]
-fn should_return_identical_projected_rows_from_the_indexed_and_exact_paths() {
+fn should_return_identical_projected_rows_from_the_indexed_with_exact_paths() {
     // Arrange
     let mut config = crate::support_sql::with_test_root_password(
         CassieRuntimeConfig::from_env().expect("config"),

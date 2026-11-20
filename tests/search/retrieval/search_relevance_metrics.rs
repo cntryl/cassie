@@ -19,7 +19,7 @@ fn grades(values: &[(&str, u8)]) -> BTreeMap<String, u8> {
 }
 
 #[test]
-fn should_compute_ndcg_from_the_gain_and_log_discount_definition() {
+fn should_compute_ndcg_from_the_gain_with_log_discount_definition() {
     // Arrange: gains are 0, 7, 3 at ranks 1..3; the ideal order is B (7) then C (3).
     let ranked = ids(&["A", "B", "C"]);
     let judged = grades(&[("A", 0), ("B", 3), ("C", 2)]);
@@ -34,7 +34,7 @@ fn should_compute_ndcg_from_the_gain_and_log_discount_definition() {
 }
 
 #[test]
-fn should_score_a_perfect_ordering_as_one_and_no_relevant_document_as_zero() {
+fn should_score_a_perfect_ordering_as_one_with_no_relevant_document_as_zero() {
     // Arrange
     let judged = grades(&[("B", 3), ("C", 2)]);
 

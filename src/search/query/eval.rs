@@ -277,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn should_distinguish_adjacent_separated_and_reversed_words_given_a_phrase() {
+    fn should_distinguish_adjacent_separated_with_reversed_words_given_a_phrase() {
         // Arrange
         let query = "\"red shoes\"";
 
@@ -364,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn should_expand_prefix_and_typo_items_against_the_vocabulary() {
+    fn should_expand_prefix_with_typo_items_against_the_vocabulary() {
         // Arrange
         let vocabulary = ["color", "colour", "collar", "shoes"];
         let prefix = resolved("col*", &vocabulary);

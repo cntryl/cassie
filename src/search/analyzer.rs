@@ -737,7 +737,7 @@ mod tests {
     }
 
     #[test]
-    fn should_report_token_occurrences_with_source_spans_and_matching_positions() {
+    fn should_report_token_occurrences_with_source_spans_plus_matching_positions() {
         // Arrange
         let analyzer = AnalyzerConfig::default();
         let text = "Red the Shoes";

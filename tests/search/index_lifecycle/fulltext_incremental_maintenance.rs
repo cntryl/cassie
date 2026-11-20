@@ -126,7 +126,7 @@ fn should_maintain_the_index_without_falling_back_to_row_scans() {
 }
 
 #[test]
-fn should_keep_exact_corpus_totals_across_updates_and_deletes() {
+fn should_keep_exact_corpus_totals_across_updates_with_deletes() {
     // Arrange
     let cassie = online_cassie("inc_totals");
     upsert(&cassie, "inc_totals", 1, "one two three");
@@ -152,7 +152,7 @@ fn should_keep_exact_corpus_totals_across_updates_and_deletes() {
 }
 
 #[test]
-fn should_drop_the_old_hit_and_expose_the_new_term_when_the_only_document_is_replaced() {
+fn should_drop_the_old_hit_exposing_the_new_term_when_the_only_document_is_replaced() {
     // Arrange
     let cassie = online_cassie("inc_fresh");
     upsert(&cassie, "inc_fresh", 1, "alpha filler");

@@ -114,7 +114,7 @@ mod tests {
     }
 
     #[test]
-    fn should_insert_update_and_remove_postings_in_id_order() {
+    fn should_insert_update_with_remove_postings_in_id_order() {
         // Arrange
         let mut postings = vec![posting("b", 1), posting("d", 2)];
         let changes = [
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_a_block_that_fits_and_drop_an_empty_one() {
+    fn should_keep_a_block_that_fits_dropping_an_empty_one() {
         // Arrange
         let postings = vec![posting("a", 1), posting("b", 1)];
 
@@ -191,9 +191,14 @@ mod tests {
         // Arrange
         let limit = MERGE_LIMIT_BYTES;
 
-        // Act / Assert
-        assert!(should_merge(100, 200));
-        assert!(!should_merge(MERGE_BELOW_BYTES, 10));
-        assert!(!should_merge(100, limit));
+        // Act
+        let decisions = [
+            should_merge(100, 200),
+            should_merge(MERGE_BELOW_BYTES, 10),
+            should_merge(100, limit),
+        ];
+
+        // Assert
+        assert_eq!(decisions, [true, false, false]);
     }
 }

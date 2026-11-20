@@ -207,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn should_trim_leading_and_trailing_stop_words_from_phrases() {
+    fn should_trim_leading_with_trailing_stop_words_from_phrases() {
         // Arrange
         let query = "\"the alpha beta of\"";
 
@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn should_drop_stop_word_items_and_keep_remaining_conjunction() {
+    fn should_drop_stop_word_items_keeping_remaining_conjunction() {
         // Arrange
         let query = "the cat";
 
@@ -255,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn should_fold_prefix_and_typo_words_without_stemming() {
+    fn should_fold_prefix_with_typo_words_without_stemming() {
         // Arrange
         let analyzer = AnalyzerConfig {
             stemming: "english".to_string(),
@@ -278,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_short_prefix_short_typo_and_multi_token_prefix() {
+    fn should_reject_short_prefix_short_typo_with_multi_token_prefix() {
         // Arrange
         let queries = ["a*", "abc~", "foo-bar*"];
 

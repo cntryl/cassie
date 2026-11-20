@@ -172,7 +172,7 @@ fn should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligibl
 }
 
 #[test]
-fn should_keep_hybrid_eligibility_and_move_scores_given_a_term_change_in_another_tenant() {
+fn should_keep_hybrid_eligibility_moving_scores_given_a_term_change_in_another_tenant() {
     runtime().block_on(async {
         // Arrange
         let mut corpus = tenant_corpus(20);
@@ -216,7 +216,7 @@ fn should_keep_hybrid_eligibility_and_move_scores_given_a_term_change_in_another
 }
 
 #[test]
-fn should_follow_hybrid_moves_through_rollback_and_commit() {
+fn should_follow_hybrid_moves_through_rollback_with_commit() {
     runtime().block_on(async {
         // Arrange
         let mut corpus = tenant_corpus(20);
@@ -270,7 +270,7 @@ fn should_follow_hybrid_moves_through_rollback_and_commit() {
 }
 
 #[test]
-fn should_rank_hybrid_after_reopen_and_after_a_damaged_text_artifact() {
+fn should_rank_hybrid_after_reopen_with_after_a_damaged_text_artifact() {
     runtime().block_on(async {
         // Arrange
         let directory = crate::support_temp_dirs::IsolatedDataDir::new("tenant-hybrid-reopen");

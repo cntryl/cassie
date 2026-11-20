@@ -28,7 +28,7 @@ const AGREEMENT_QUERIES: [&str; 14] = [
 ];
 
 #[test]
-fn should_agree_across_punctuation_null_and_unicode_given_indexed_and_authoritative_execution() {
+fn should_agree_across_punctuation_null_with_unicode_given_indexed_and_authoritative_execution() {
     // Arrange
     let cassie = corpus_table();
     insert(&cassie, "n01", None);
@@ -43,10 +43,20 @@ fn should_agree_across_punctuation_null_and_unicode_given_indexed_and_authoritat
         vec![],
     );
 
-    // Act / Assert
-    for query in AGREEMENT_QUERIES {
-        let persisted = indexed(&cassie, query);
-        let row_wise = authoritative(&cassie, query);
+    // Act
+    let outcomes = AGREEMENT_QUERIES
+        .iter()
+        .map(|query| {
+            (
+                *query,
+                indexed(&cassie, query),
+                authoritative(&cassie, query),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (query, persisted, row_wise) in outcomes {
         assert_eq!(persisted, row_wise, "{query:?}");
         assert!(
             !persisted.contains(&"n01".to_string()),
@@ -65,7 +75,7 @@ fn should_agree_across_punctuation_null_and_unicode_given_indexed_and_authoritat
 }
 
 #[test]
-fn should_agree_inside_an_open_transaction_and_use_the_index_again_after_it() {
+fn should_agree_inside_an_open_transaction_using_the_index_again_after_it() {
     // Arrange
     let cassie = corpus_cassie("");
     let session = cassie.create_session("tester", None);
@@ -212,24 +222,29 @@ fn should_return_the_program_limit_error_for_an_excessive_prefix_on_every_execut
     let excessive = vec![Value::String("pre*".to_string())];
     let within = vec![Value::String("pre000*".to_string())];
 
-    // Act / Assert
-    for (cassie, sql) in [
+    // Act
+    let outcomes = [
         (&indexed_cassie, FILTERED_WIDE),
         (&indexed_cassie, ROW_WISE_WIDE),
         (&unindexed_cassie, FILTERED_WIDE),
         (&unindexed_cassie, ROW_WISE_WIDE),
-    ] {
+    ]
+    .map(|(cassie, sql)| {
         let session = cassie.create_session("tester", None);
         let error = cassie
             .execute_sql(&session, sql, excessive.clone())
             .expect_err("the expansion limit applies");
-        assert_limit(&error, "max_expansions_per_item");
-
-        // The same session stays usable for a retry with a narrower prefix.
+        // The same session stays usable for a retry within the limit.
         let retry = cassie
             .execute_sql(&session, sql, within.clone())
             .expect("a retry on the same session succeeds");
-        assert_ne!(retry.rows().len(), 0);
+        (error, retry.rows().len())
+    });
+
+    // Assert
+    for (error, retry_rows) in &outcomes {
+        assert_limit(error, "max_expansions_per_item");
+        assert_ne!(*retry_rows, 0);
     }
 }
 
@@ -246,22 +261,29 @@ fn should_return_the_program_limit_error_for_an_excessive_typo_on_every_executio
     let excessive = vec![Value::String("abcde~".to_string())];
     let within = vec![Value::String("abcde".to_string())];
 
-    // Act / Assert
-    for (cassie, sql) in [
+    // Act
+    let outcomes = [
         (&indexed_cassie, FILTERED_WIDE),
         (&indexed_cassie, ROW_WISE_WIDE),
         (&unindexed_cassie, FILTERED_WIDE),
         (&unindexed_cassie, ROW_WISE_WIDE),
-    ] {
+    ]
+    .map(|(cassie, sql)| {
         let session = cassie.create_session("tester", None);
         let error = cassie
             .execute_sql(&session, sql, excessive.clone())
             .expect_err("the expansion limit applies");
-        assert_limit(&error, "max_expansions_per_item");
+        // The same session stays usable for a retry within the limit.
         let retry = cassie
             .execute_sql(&session, sql, within.clone())
             .expect("a retry on the same session succeeds");
-        assert_ne!(retry.rows().len(), 0);
+        (error, retry.rows().len())
+    });
+
+    // Assert
+    for (error, retry_rows) in &outcomes {
+        assert_limit(error, "max_expansions_per_item");
+        assert_ne!(*retry_rows, 0);
     }
 }
 

@@ -61,7 +61,7 @@ fn assert_matches_clean_rebuild(cassie: &Cassie) {
 }
 
 #[test]
-fn should_split_a_growing_term_into_bounded_blocks_and_match_a_rebuild() {
+fn should_split_a_growing_term_into_bounded_blocks_matching_a_rebuild() {
     // Arrange
     let cassie = fixture();
 
@@ -83,7 +83,7 @@ fn should_split_a_growing_term_into_bounded_blocks_and_match_a_rebuild() {
 }
 
 #[test]
-fn should_insert_between_and_before_existing_blocks_and_match_a_rebuild() {
+fn should_insert_between_or_before_existing_blocks_matching_a_rebuild() {
     // Arrange
     let cassie = fixture();
     for index in (0..120).step_by(2).map(|index| index + 10) {
@@ -100,7 +100,7 @@ fn should_insert_between_and_before_existing_blocks_and_match_a_rebuild() {
 }
 
 #[test]
-fn should_merge_shrunken_blocks_and_match_a_rebuild() {
+fn should_merge_shrunken_blocks_matching_a_rebuild() {
     // Arrange
     let cassie = fixture();
     for index in 0..120 {

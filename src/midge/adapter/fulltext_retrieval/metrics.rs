@@ -99,7 +99,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn should_separate_incremental_and_rebuild_counters() {
+    fn should_separate_incremental_with_rebuild_counters() {
         // Arrange
         let metrics = FulltextMaintenanceMetrics::default();
         let incremental = FulltextWriteTally {

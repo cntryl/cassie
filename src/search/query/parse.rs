@@ -372,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn should_bind_and_tighter_than_or_given_mixed_operators() {
+    fn should_bind_conjunction_tighter_than_or_given_mixed_operators() {
         // Arrange
         let query = "a b OR c";
 
@@ -406,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn should_accept_plus_as_required_marker_and_treat_lowercase_keywords_as_words() {
+    fn should_accept_plus_as_required_marker_with_lowercase_keywords_as_words() {
         // Arrange
         let query = "+a or not";
 
@@ -421,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn should_parse_phrase_prefix_and_typo_items() {
+    fn should_parse_phrase_prefix_with_typo_items() {
         // Arrange
         let query = "\"a b\"~2 pre* typo~ edit~1";
 

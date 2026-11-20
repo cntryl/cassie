@@ -1273,25 +1273,33 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/rest/static_ui/admin_ui_static.rs` | test_module | 810 | 14 | rest | keep | `tests/rest/static_ui/admin_ui_static.rs` |
 | `tests/rest/transactions/errors.rs` | test_module | 104 | 1 | rest | keep | `tests/rest/transactions/errors.rs` |
 | `tests/rest.rs` | cargo_target | 62 | 0 | rest | keep | `tests/rest.rs` |
+| `tests/search/index_lifecycle/fulltext_block_maintenance.rs` | test_module | 176 | 5 | search | move_with_module_alias | `tests/search/retrieval/fulltext_block_maintenance.rs` |
 | `tests/search/index_lifecycle/fulltext_drop.rs` | test_module | 76 | 1 | search | keep | `tests/search/index_lifecycle/fulltext_drop.rs` |
+| `tests/search/index_lifecycle/fulltext_incremental_maintenance.rs` | test_module | 278 | 9 | search | move_with_module_alias | `tests/search/retrieval/fulltext_incremental_maintenance.rs` |
 | `tests/search/index_lifecycle/fulltext_persisted_retrieval.rs` | test_module | 200 | 5 | search | keep | `tests/search/index_lifecycle/fulltext_persisted_retrieval.rs` |
 | `tests/search/index_lifecycle/fulltext_persisted_sql.rs` | test_module | 784 | 11 | search | keep | `tests/search/index_lifecycle/fulltext_persisted_sql.rs` |
+| `tests/search/index_lifecycle/fulltext_publication_interruption.rs` | test_module | 174 | 3 | search | move_with_module_alias | `tests/search/retrieval/fulltext_publication_interruption.rs` |
 | `tests/search/index_lifecycle/fulltext_publication_recovery.rs` | test_module | 101 | 2 | search | keep | `tests/search/index_lifecycle/fulltext_publication_recovery.rs` |
+| `tests/search/index_lifecycle/fulltext_write_amplification.rs` | test_module | 150 | 3 | search | move_with_module_alias | `tests/search/retrieval/fulltext_write_amplification.rs` |
 | `tests/search/retrieval/fulltext_analyzer_consistency.rs` | test_module | 392 | 6 | search | keep | `tests/search/retrieval/fulltext_analyzer_consistency.rs` |
 | `tests/search/retrieval/fulltext_analyzer_publication.rs` | test_module | 409 | 8 | search | keep | `tests/search/retrieval/fulltext_analyzer_publication.rs` |
 | `tests/search/retrieval/fulltext_index_completeness.rs` | test_module | 227 | 5 | search | keep | `tests/search/retrieval/fulltext_index_completeness.rs` |
 | `tests/search/retrieval/fulltext_query.rs` | test_module | 743 | 10 | search | keep | `tests/search/retrieval/fulltext_query.rs` |
+| `tests/search/retrieval/fulltext_query_paths.rs` | test_module | 438 | 8 | search | keep | `tests/search/retrieval/fulltext_query_paths.rs` |
+| `tests/search/retrieval/fulltext_query_support.rs` | test_support | 161 | 0 | search | keep | `tests/search/retrieval/fulltext_query_support.rs` |
+| `tests/search/retrieval/fulltext_query_syntax.rs` | test_module | 595 | 19 | search | keep | `tests/search/retrieval/fulltext_query_syntax.rs` |
 | `tests/search/retrieval/fulltext_retrieval_corruption.rs` | test_module | 95 | 2 | search | keep | `tests/search/retrieval/fulltext_retrieval_corruption.rs` |
 | `tests/search/retrieval/fulltext_stemming.rs` | test_module | 157 | 6 | search | keep | `tests/search/retrieval/fulltext_stemming.rs` |
 | `tests/search/retrieval/fulltext_synonyms.rs` | test_module | 326 | 7 | search | keep | `tests/search/retrieval/fulltext_synonyms.rs` |
+| `tests/search/retrieval/ranked_filtered_projection.rs` | test_module | 61 | 1 | search | keep | `tests/search/retrieval/ranked_filtered_projection.rs` |
 | `tests/search/retrieval/scored_declared_id.rs` | test_module | 43 | 1 | search | keep | `tests/search/retrieval/scored_declared_id.rs` |
 | `tests/search/retrieval/scored_field_case.rs` | test_module | 132 | 4 | search | keep | `tests/search/retrieval/scored_field_case.rs` |
 | `tests/search/retrieval/scored_read_equivalence.rs` | test_module | 152 | 4 | search | keep | `tests/search/retrieval/scored_read_equivalence.rs` |
 | `tests/search/retrieval/search_relevance.rs` | test_module | 259 | 5 | search | keep | `tests/search/retrieval/search_relevance.rs` |
 | `tests/search/retrieval/search_relevance_metrics.rs` | test_module | 191 | 8 | search | keep | `tests/search/retrieval/search_relevance_metrics.rs` |
-| `tests/search/retrieval/tenant_ranked_search.rs` | test_module | 389 | 8 | search | keep | `tests/search/retrieval/tenant_ranked_search.rs` |
+| `tests/search/retrieval/tenant_ranked_search.rs` | test_module | 395 | 8 | search | keep | `tests/search/retrieval/tenant_ranked_search.rs` |
 | `tests/search/retrieval/vector.rs` | test_module | 290 | 13 | search | keep | `tests/search/retrieval/vector.rs` |
-| `tests/search.rs` | cargo_target | 81 | 0 | search | keep | `tests/search.rs` |
+| `tests/search.rs` | cargo_target | 103 | 0 | search | keep | `tests/search.rs` |
 | `tests/sql_contextual_literals/contracts/errors.rs` | test_module | 29 | 1 | sql_contextual_literals | keep | `tests/sql_contextual_literals/contracts/errors.rs` |
 | `tests/sql_contextual_literals/contracts/semantics.rs` | test_module | 319 | 6 | sql_contextual_literals | keep | `tests/sql_contextual_literals/contracts/semantics.rs` |
 | `tests/sql_contextual_literals.rs` | cargo_target | 8 | 0 | sql_contextual_literals | keep | `tests/sql_contextual_literals.rs` |
@@ -1691,6 +1699,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/executor.rs` | shared_support | 114 | 0 | catalog_security, executor, search, storage_indexes | keep | `tests/support/executor.rs` |
 | `tests/support/fetch.rs` | shared_support | 72 | 0 | pgwire_extended | keep | `tests/support/fetch.rs` |
 | `tests/support/fetch_sql.rs` | shared_support | 20 | 0 | sql_queries | keep | `tests/support/fetch_sql.rs` |
+| `tests/support/fulltext_maintenance.rs` | shared_support | 198 | 0 | search | keep | `tests/support/fulltext_maintenance.rs` |
 | `tests/support/graph_oracle/enumerate.rs` | shared_support | 106 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/enumerate.rs` |
 | `tests/support/graph_oracle/mod.rs` | shared_support | 19 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/mod.rs` |
 | `tests/support/graph_oracle/model.rs` | shared_support | 298 | 0 | graph_table, graph_weighted | keep | `tests/support/graph_oracle/model.rs` |
@@ -1722,7 +1731,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/primitive_literal_inputs.rs` | shared_support | 162 | 0 | pgwire_extended, sql_queries | keep | `tests/support/primitive_literal_inputs.rs` |
 | `tests/support/query_correctness_fixture.rs` | shared_support | 26 | 0 | sql_queries | keep | `tests/support/query_correctness_fixture.rs` |
 | `tests/support/query_evidence.rs` | shared_support | 206 | 0 | planner_controls | keep | `tests/support/query_evidence.rs` |
-| `tests/support/ranked_search.rs` | shared_support | 378 | 0 | search, vector_embeddings | keep | `tests/support/ranked_search.rs` |
+| `tests/support/ranked_search.rs` | shared_support | 388 | 0 | search, vector_embeddings | keep | `tests/support/ranked_search.rs` |
 | `tests/support/read_equivalence.rs` | shared_support | 41 | 0 | analytics, domain_models, executor, search, storage_indexes, vector_embeddings | keep | `tests/support/read_equivalence.rs` |
 | `tests/support/regex_cancellation.rs` | shared_support | 114 | 0 | sql_queries | keep | `tests/support/regex_cancellation.rs` |
 | `tests/support/relational_evidence.rs` | shared_support | 285 | 0 | sql_queries | keep | `tests/support/relational_evidence.rs` |
@@ -1745,7 +1754,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/scalar_presentation.rs` | shared_support | 833 | 0 | pgwire_extended, sql_queries | keep | `tests/support/scalar_presentation.rs` |
 | `tests/support/scalar_presentation_restart.rs` | shared_support | 56 | 0 | sql_queries | keep | `tests/support/scalar_presentation_restart.rs` |
 | `tests/support/scalar_receive.rs` | shared_support | 164 | 0 | pgwire_extended | keep | `tests/support/scalar_receive.rs` |
-| `tests/support/search_relevance.rs` | shared_support | 227 | 0 | search | keep | `tests/support/search_relevance.rs` |
+| `tests/support/search_relevance.rs` | shared_support | 236 | 0 | search | keep | `tests/support/search_relevance.rs` |
 | `tests/support/skipped_conflict_returning_wire.rs` | shared_support | 221 | 0 | pgwire_extended | keep | `tests/support/skipped_conflict_returning_wire.rs` |
 | `tests/support/sql.rs` | shared_support | 243 | 0 | cassie_test_support | keep | `tests/support/sql.rs` |
 | `tests/support/sql_fixture.rs` | shared_support | 323 | 4 | cassie_test_support | keep | `tests/support/sql_fixture.rs` |
@@ -1780,7 +1789,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` | test_module | 561 | 12 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` |
 | `tests/vector_embeddings/embeddings/embedding_validation.rs` | test_module | 244 | 3 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_validation.rs` |
 | `tests/vector_embeddings/hybrid/hybrid_query.rs` | test_module | 816 | 11 | vector_embeddings | keep | `tests/vector_embeddings/hybrid/hybrid_query.rs` |
-| `tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs` | test_module | 344 | 9 | vector_embeddings | keep | `tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs` |
+| `tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs` | test_module | 349 | 9 | vector_embeddings | keep | `tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs` |
 | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs` | test_module | 33 | 2 | vector_embeddings | keep | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs` |
 | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/errors.rs` | test_module | 239 | 5 | vector_embeddings | keep | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/errors.rs` |
 | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/mod.rs` | module_registration | 226 | 0 | vector_embeddings | keep | `tests/vector_embeddings/indexes/hnsw/hnsw_indexes/mod.rs` |

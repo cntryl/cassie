@@ -142,7 +142,7 @@ fn should_fetch_only_eligible_rows_given_a_selective_tenant_search() {
 }
 
 #[test]
-fn should_keep_eligibility_and_move_scores_given_a_term_change_in_another_tenant() {
+fn should_keep_eligibility_moving_scores_given_a_term_change_in_another_tenant() {
     runtime().block_on(async {
         // Arrange
         let mut corpus = tenant_corpus(20);
@@ -196,7 +196,7 @@ fn expected_page(corpus: &[TenantDoc]) -> Vec<(String, f64)> {
 }
 
 #[test]
-fn should_follow_committed_moves_and_ignore_rolled_back_moves_given_group_changes() {
+fn should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes() {
     runtime().block_on(async {
         // Arrange
         let mut corpus = tenant_corpus(20);
@@ -260,7 +260,7 @@ fn corrupt_fulltext_manifest(cassie: &Cassie) {
 }
 
 #[test]
-fn should_stay_consistent_after_reopen_and_damage_given_a_committed_group_move() {
+fn should_stay_consistent_after_reopen_with_damage_given_a_committed_group_move() {
     runtime().block_on(async {
         // Arrange
         let directory = crate::support_temp_dirs::IsolatedDataDir::new("tenant-ranked-reopen");
@@ -321,7 +321,7 @@ fn hand_corpus() -> Vec<TenantDoc> {
 }
 
 #[test]
-fn should_rank_a_hand_checkable_corpus_with_ties_filters_and_a_frequency_update() {
+fn should_rank_a_hand_checkable_corpus_with_ties_filters_plus_a_frequency_update() {
     runtime().block_on(async {
         // Arrange: n=6, avgdl=13/6, df(alpha)=4, idf=ln(7/4.5). a and b tie (tf=1, dl=2) and c
         // (tf=3, dl=3) leads; z is excluded by status. The update raises df(alpha) to 5.

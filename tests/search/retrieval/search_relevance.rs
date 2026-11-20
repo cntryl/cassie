@@ -196,7 +196,7 @@ fn should_rank_the_keyword_stuffed_decoy_above_the_genuine_listing() {
 }
 
 #[test]
-fn should_write_per_query_results_and_report_the_qualification_state() {
+fn should_write_per_query_results_reporting_the_qualification_state() {
     // Arrange
     let cassie = relevance_cassie();
     let corpus = load_corpus();

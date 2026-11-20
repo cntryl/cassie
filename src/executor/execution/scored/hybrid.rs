@@ -10,6 +10,9 @@ use crate::search::analyzer::AnalyzerConfig;
 use std::collections::HashMap;
 use std::collections::{BTreeSet, HashSet};
 
+#[path = "hybrid/filtered.rs"]
+mod filtered;
+
 pub(super) fn search_context_for_fields(
     cassie: &Cassie,
     collection: &str,
@@ -104,7 +107,11 @@ impl HybridSelectionDiagnostics {
         }
     }
 
-    fn select_fallback(&mut self, reason: &'static str, prefilter_reason: Option<&'static str>) {
+    pub(super) fn select_fallback(
+        &mut self,
+        reason: &'static str,
+        prefilter_reason: Option<&'static str>,
+    ) {
         self.fallback_reason = Some(reason);
         self.fallback_prefilter = prefilter_reason.map(|fallback_reason| HybridPrefilterUsage {
             input_candidates: 0,
@@ -113,7 +120,7 @@ impl HybridSelectionDiagnostics {
         });
     }
 
-    fn select_candidate_budget_fallback(&mut self, candidates: usize) {
+    pub(super) fn select_candidate_budget_fallback(&mut self, candidates: usize) {
         self.budget_rejection = true;
         self.fallback_reason = Some("candidate-budget");
         self.fallback_prefilter = Some(HybridPrefilterUsage {
@@ -240,24 +247,8 @@ pub(super) fn bounded_hybrid_rows(
         diagnostics.select_candidate_budget_fallback(stats.len());
         return Ok(None);
     }
-    let search_context_memory =
-        controls.reserve_query_memory(super::fulltext_read::persisted_search_context_bytes(
-            &text_candidates,
-            context.search_index_options,
-            &spec.text_field,
-        ))?;
-    let search_context = filter::SearchContext::from_persisted_field_statistics(
-        &spec.text_field,
-        &filter::PersistedFieldStatistics {
-            total_documents: text_candidates.total_documents,
-            average_document_length: text_candidates.average_document_length,
-            document_frequency: &text_candidates.document_frequency,
-            field_boost: &context.search_index_options.field_boost,
-            field_k1: &context.search_index_options.field_k1,
-            field_b: &context.search_index_options.field_b,
-            field_analyzer: &context.search_index_options.field_analyzer,
-        },
-    );
+    let (search_context, search_context_memory) =
+        persisted_search_context(&text_candidates, context, spec, controls)?;
     fetch_hybrid_candidate_rows(
         &HybridCandidateFetch {
             cassie,
@@ -277,6 +268,34 @@ pub(super) fn bounded_hybrid_rows(
     )
 }
 
+/// Corpus-wide persisted BM25 statistics for one text field plus the memory that retains them.
+pub(super) fn persisted_search_context(
+    text_candidates: &crate::midge::adapter::fulltext_retrieval::PersistedFulltextCandidateSet,
+    context: &BoundedHybridContext<'_>,
+    spec: &HybridTopKSpec,
+    controls: &QueryExecutionControls,
+) -> Result<(filter::SearchContext, QueryMemoryReservation), QueryError> {
+    let memory =
+        controls.reserve_query_memory(super::fulltext_read::persisted_search_context_bytes(
+            text_candidates,
+            context.search_index_options,
+            &spec.text_field,
+        ))?;
+    let search_context = filter::SearchContext::from_persisted_field_statistics(
+        &spec.text_field,
+        &filter::PersistedFieldStatistics {
+            total_documents: text_candidates.total_documents,
+            average_document_length: text_candidates.average_document_length,
+            document_frequency: &text_candidates.document_frequency,
+            field_boost: &context.search_index_options.field_boost,
+            field_k1: &context.search_index_options.field_k1,
+            field_b: &context.search_index_options.field_b,
+            field_analyzer: &context.search_index_options.field_analyzer,
+        },
+    );
+    Ok((search_context, memory))
+}
+
 pub(super) fn select_hybrid_candidate_rows(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -285,6 +304,12 @@ pub(super) fn select_hybrid_candidate_rows(
     controls: &QueryExecutionControls,
 ) -> Result<Option<BoundedHybridRows>, QueryError> {
     let mut diagnostics = HybridSelectionDiagnostics::default();
+    if let Some(mut rows) =
+        filtered::filtered_hybrid_rows(cassie, session, spec, context, controls, &mut diagnostics)?
+    {
+        rows.diagnostics = diagnostics;
+        return Ok(Some(rows));
+    }
     if let Some(mut rows) =
         bounded_hybrid_rows(cassie, session, spec, context, controls, &mut diagnostics)?
     {

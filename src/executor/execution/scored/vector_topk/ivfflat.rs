@@ -119,6 +119,9 @@ pub(super) fn execute_ivfflat_vector_top_k(
     cassie
         .runtime
         .record_ivfflat_execution(training.lists, probed_lists.len(), candidate_count);
+    cassie
+        .runtime
+        .record_ann_observed_generation(built_generation);
     record_adaptive_candidate_decision(cassie, &adaptive, candidate_count, rows.len());
     Ok(Some(rows))
 }
@@ -172,11 +175,19 @@ fn ivfflat_training(
         cassie.runtime.record_ivfflat_fallback("zero-query-exact");
         return Ok(None);
     }
-    let training = cassie.midge.get_ivfflat_training_manifest_controlled(
+    let training = match cassie.midge.get_ivfflat_training_manifest_controlled(
         &spec.collection,
         stored_vector_field,
         controls,
-    )?;
+    ) {
+        Ok(training) => training,
+        Err(error) => {
+            // A stale or inconsistent manifest is a diagnosed fallback, never a
+            // query failure: the exact path answers instead.
+            handle_ivfflat_storage_error(cassie, error)?;
+            return Ok(None);
+        }
+    };
     if training.is_none() {
         cassie.runtime.record_ivfflat_fallback("missing-training");
     }

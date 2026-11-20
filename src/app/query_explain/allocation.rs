@@ -143,7 +143,7 @@ impl<'a> PlanAllocation<'a> {
         self.controls.check_interruption()
     }
 
-    pub(super) fn controls(&self) -> &'a QueryExecutionControls {
+    pub(crate) fn controls(&self) -> &'a QueryExecutionControls {
         self.controls
     }
 

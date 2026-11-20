@@ -20,6 +20,10 @@ pub enum SchemaWritePausePoint {
     FulltextRebuildCommit,
     ProjectionReplayMetadataCommit,
     SequenceNextValue,
+    /// Vector sidecars and index states staged in a document write, before commit.
+    VectorIndexPublication,
+    /// Final rebuild transaction publishing the vector index state manifest.
+    VectorIndexRebuildCommit,
 }
 
 #[doc(hidden)]

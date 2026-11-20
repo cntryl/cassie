@@ -114,6 +114,9 @@ pub(super) fn execute_hnsw_vector_top_k(
         .runtime
         .record_vector_retrieval_diagnostics(ann_reads, exact_reranks, exact_reranks);
     cassie.runtime.record_hnsw_execution(exact_reranks);
+    cassie
+        .runtime
+        .record_ann_observed_generation(built_generation);
     record_adaptive_candidate_decision(cassie, &adaptive, candidate_count, rows.len());
     Ok(Some(rows))
 }

@@ -3,6 +3,9 @@ use super::{
     DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, VectorIndexRecord,
     VectorIndexState,
 };
+#[path = "vector_indexes/bounded_write.rs"]
+mod bounded_write;
+use bounded_write::SummaryPolicy;
 #[path = "vector_indexes/build.rs"]
 mod build;
 #[path = "vector_indexes/codec.rs"]
@@ -13,6 +16,9 @@ mod controlled_normalized;
 mod ivfflat;
 #[path = "vector_indexes/math.rs"]
 mod math;
+#[path = "vector_indexes/metrics.rs"]
+mod metrics;
+pub(super) use metrics::VectorIndexMaintenanceMetrics;
 #[path = "vector_retrieval.rs"]
 mod vector_retrieval;
 
@@ -96,6 +102,76 @@ impl Midge {
         ))
     }
 
+    /// Counts persisted keys and key-plus-value bytes of every artifact one
+    /// vector index owns: normalized vectors, graph nodes, list memberships,
+    /// the state manifest and the source summary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the field has no storage identity or a scan fails.
+    #[doc(hidden)]
+    pub fn vector_index_artifact_footprint_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<serde_json::Value, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let measure = |prefix: Vec<u8>| -> Result<(u64, u64), CassieError> {
+            let entries = collect_scan(
+                tx.scan(&Query::new().prefix(prefix.into()))
+                    .map_err(CassieError::from)?,
+            )?;
+            let bytes = entries
+                .iter()
+                .map(|(key, value)| key.len() + value.len())
+                .sum::<usize>();
+            Ok((
+                u64::try_from(entries.len()).unwrap_or(u64::MAX),
+                u64::try_from(bytes).unwrap_or(u64::MAX),
+            ))
+        };
+        let (normalized_keys, normalized_bytes) =
+            measure(Self::normalized_vector_prefix(relation_id, field_id))?;
+        let (node_keys, node_bytes) = measure(super::key_encoding::hnsw_graph_node_prefix(
+            relation_id,
+            field_id,
+        ))?;
+        let (membership_keys, membership_bytes) = measure(
+            super::key_encoding::ivfflat_membership_prefix(relation_id, field_id),
+        )?;
+        // The manifest and summary keys share a prefix with the node keys, so
+        // they are point reads rather than prefix scans.
+        let single = |key: Vec<u8>| -> Result<(u64, u64), CassieError> {
+            let Some(value) = tx.get(&key).map_err(CassieError::from)? else {
+                return Ok((0, 0));
+            };
+            Ok((
+                1,
+                u64::try_from(key.len() + value.len()).unwrap_or(u64::MAX),
+            ))
+        };
+        let (state_keys, state_bytes) =
+            single(Self::vector_index_state_key(relation_id, field_id))?;
+        let (summary_keys, summary_bytes) = single(
+            super::key_encoding::ivfflat_source_summary_key(relation_id, field_id),
+        )?;
+        Ok(serde_json::json!({
+            "normalized_keys": normalized_keys,
+            "normalized_bytes": normalized_bytes,
+            "graph_node_keys": node_keys,
+            "graph_node_bytes": node_bytes,
+            "membership_keys": membership_keys,
+            "membership_bytes": membership_bytes,
+            "state_keys": state_keys,
+            "state_bytes": state_bytes,
+            "summary_keys": summary_keys,
+            "total_keys": normalized_keys + node_keys + membership_keys + state_keys + summary_keys,
+            "total_bytes": normalized_bytes + node_bytes + membership_bytes + state_bytes + summary_bytes,
+        }))
+    }
+
     pub(super) fn vector_storage_ids(
         &self,
         collection: &str,
@@ -157,22 +233,17 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let collection = self.canonical_collection_name(collection);
         state.built_generation = self.collection_generation(&collection)?;
-        self.write_vector_index_state(&collection, field, state)
+        self.write_vector_index_state(&collection, field, state, SummaryPolicy::Keep)
     }
 
     fn write_vector_index_state(
         &self,
         collection: &str,
         field: &str,
-        mut state: VectorIndexState,
+        state: VectorIndexState,
+        summary_policy: SummaryPolicy,
     ) -> Result<(), CassieError> {
-        state.built_generation = self.collection_generation(collection)?;
-        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
-        Self::write_vector_index_state_to_tx(&mut tx, relation_id, field_id, &state)?;
-        drop(state);
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+        self.publish_vector_sidecars(collection, field, None, Some(state), summary_policy)
     }
 
     pub(super) fn write_vector_index_state_to_tx(
@@ -232,78 +303,13 @@ impl Midge {
         records: &[NormalizedVectorRecord],
         state: &VectorIndexState,
     ) -> Result<(), CassieError> {
-        let generation = self.collection_generation(&index.collection)?;
-        let (relation_id, field_id) = self.vector_storage_ids(&index.collection, &index.field)?;
-        let normalized_prefix = Self::normalized_vector_prefix(relation_id, field_id);
-        let node_prefix = super::key_encoding::hnsw_graph_node_prefix(relation_id, field_id);
-        let membership_prefix =
-            super::key_encoding::ivfflat_membership_prefix(relation_id, field_id);
-
-        self.delete_vector_sidecars_in_batches(
+        self.publish_vector_sidecars(
             &index.collection,
-            &[normalized_prefix, node_prefix, membership_prefix],
-        )?;
-
-        for records in records.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
-            let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
-            for record in records {
-                let mut record = record.clone();
-                record.built_generation = generation;
-                tx.put(
-                    Self::normalized_vector_key(relation_id, field_id, &record.id),
-                    encode_normalized_vector(&record)?,
-                    None,
-                )
-                .map_err(CassieError::from)?;
-            }
-            tx.commit(self.write_options_sync())
-                .map_err(CassieError::from)?;
-        }
-
-        if let Some(graph) = state.hnsw_graph.as_ref() {
-            for nodes in graph.nodes.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
-                let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
-                for node in nodes {
-                    tx.put(
-                        super::key_encoding::hnsw_graph_node_key(relation_id, field_id, &node.id),
-                        encode_hnsw_node(node)?,
-                        None,
-                    )
-                    .map_err(CassieError::from)?;
-                }
-                tx.commit(self.write_options_sync())
-                    .map_err(CassieError::from)?;
-            }
-        }
-        if let Some(training) = state.ivfflat_training.as_ref() {
-            let assignments = training.assignments.iter().collect::<Vec<_>>();
-            for assignments in assignments.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
-                let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
-                for (id, list) in assignments {
-                    tx.put(
-                        super::key_encoding::ivfflat_membership_key(
-                            relation_id,
-                            field_id,
-                            **list,
-                            id,
-                        ),
-                        Vec::new(),
-                        None,
-                    )
-                    .map_err(CassieError::from)?;
-                }
-                tx.commit(self.write_options_sync())
-                    .map_err(CassieError::from)?;
-            }
-        }
-
-        let mut state = state.clone();
-        state.built_generation = generation;
-        let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
-        Self::write_vector_index_manifest_to_tx(&mut tx, relation_id, field_id, &state)?;
-        check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+            &index.field,
+            Some(records),
+            Some(state.clone()),
+            SummaryPolicy::Refresh,
+        )
     }
 
     pub(super) fn delete_vector_sidecars_in_batches(
@@ -344,6 +350,15 @@ impl Midge {
         field_id: u32,
         state: &VectorIndexState,
     ) -> Result<(), CassieError> {
+        let (key, value) = Self::vector_index_manifest_entry(relation_id, field_id, state)?;
+        tx.put(key, value, None).map_err(CassieError::from)
+    }
+
+    fn vector_index_manifest_entry(
+        relation_id: u64,
+        field_id: u32,
+        state: &VectorIndexState,
+    ) -> Result<(Vec<u8>, Vec<u8>), CassieError> {
         let hnsw_graph = state
             .hnsw_graph
             .as_ref()
@@ -379,12 +394,7 @@ impl Midge {
             hnsw_graph,
             ivfflat_training,
         })?;
-        tx.put(
-            Self::vector_index_state_key(relation_id, field_id),
-            value,
-            None,
-        )
-        .map_err(CassieError::from)
+        Ok((Self::vector_index_state_key(relation_id, field_id), value))
     }
 
     pub(super) fn refresh_vector_index_states_in_tx(
@@ -761,28 +771,13 @@ impl Midge {
         index: &VectorIndexRecord,
         records: &[NormalizedVectorRecord],
     ) -> Result<(), CassieError> {
-        let generation = self.collection_generation(&index.collection)?;
-        let (relation_id, field_id) = self.vector_storage_ids(&index.collection, &index.field)?;
-        let mut records = records.to_vec();
-        for record in &mut records {
-            record.built_generation = generation;
-        }
-        let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
-        Self::delete_normalized_vector_keys_with_prefix(
-            &mut tx,
-            Self::normalized_vector_prefix(relation_id, field_id),
-        )?;
-        for record in &records {
-            tx.put(
-                Self::normalized_vector_key(relation_id, field_id, &record.id),
-                encode_normalized_vector(record)?,
-                None,
-            )
-            .map_err(CassieError::from)?;
-        }
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
-        Ok(())
+        self.publish_vector_sidecars(
+            &index.collection,
+            &index.field,
+            Some(records),
+            None,
+            SummaryPolicy::Keep,
+        )
     }
 
     /// # Errors
@@ -828,7 +823,12 @@ impl Midge {
                 hnsw_graph: Some(self.rebuild_hnsw_graph(&index)?),
                 ivfflat_training: None,
             };
-            self.write_vector_index_state(&index.collection, &index.field, state)?;
+            self.write_vector_index_state(
+                &index.collection,
+                &index.field,
+                state,
+                SummaryPolicy::Refresh,
+            )?;
             refreshed += 1;
         }
         Ok(refreshed)

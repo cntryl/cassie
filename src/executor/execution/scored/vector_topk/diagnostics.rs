@@ -94,15 +94,39 @@ fn record_ann_exact_fallback(
 }
 
 pub(super) fn record_hnsw_concurrent_source_change(cassie: &Cassie) {
+    cassie.runtime.record_ann_stale_attempt_discard();
     cassie
         .runtime
         .record_hnsw_fallback("concurrent-source-change");
 }
 
 pub(super) fn record_ivfflat_concurrent_source_change(cassie: &Cassie) {
+    cassie.runtime.record_ann_stale_attempt_discard();
     cassie
         .runtime
         .record_ivfflat_fallback("concurrent-source-change");
+}
+
+/// Charges an exact answer to the fallback clock when its field has an ANN index.
+pub(super) fn record_exact_fallback_duration(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
+    started_at: std::time::Instant,
+) -> Result<(), QueryError> {
+    let indexed = cassie
+        .midge
+        .get_vector_index_definition(&spec.collection, stored_vector_field)
+        .map_err(QueryError::from)?
+        .is_some_and(|record| {
+            record.metadata.index_type != crate::embeddings::VectorIndexType::BruteForce
+        });
+    if indexed {
+        cassie
+            .runtime
+            .record_ann_fallback_duration(started_at.elapsed());
+    }
+    Ok(())
 }
 
 #[cfg(test)]

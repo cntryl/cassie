@@ -8,6 +8,8 @@ mod fulltext_live_ingest;
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
 pub mod stress;
+#[path = "support/vector_index_churn.rs"]
+mod vector_index_churn;
 #[path = "support/workloads.rs"]
 mod workloads;
 
@@ -42,6 +44,7 @@ struct VectorRetrievalCases {
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier5, OWNER);
     fulltext_live_ingest::run_paired_profiles(&workloads::runtime());
+    vector_index_churn::run_profiles();
     let selected = ["10k", "100k", "250k"].into_iter().any(|scale| {
         [
             "full_text_query",

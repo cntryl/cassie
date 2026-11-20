@@ -876,49 +876,6 @@ impl Midge {
         Ok(Some(record))
     }
 
-    pub(super) fn write_hnsw_source_summary(
-        &self,
-        collection: &str,
-        field: &str,
-        graph: &crate::embeddings::HnswGraphState,
-    ) -> Result<(), CassieError> {
-        let generation = self.collection_generation(collection)?;
-        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
-        Self::write_vector_source_summary_to_tx(
-            &mut tx,
-            relation_id,
-            field_id,
-            generation,
-            graph.source_fingerprint,
-            graph.row_count,
-        )?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
-    }
-
-    pub(super) fn write_ivfflat_source_summary(
-        &self,
-        collection: &str,
-        field: &str,
-        source_fingerprint: u64,
-        row_count: usize,
-    ) -> Result<(), CassieError> {
-        let generation = self.collection_generation(collection)?;
-        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
-        Self::write_vector_source_summary_to_tx(
-            &mut tx,
-            relation_id,
-            field_id,
-            generation,
-            source_fingerprint,
-            row_count,
-        )?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
-    }
-
     pub(super) fn write_hnsw_source_summary_to_tx(
         tx: &mut crate::midge::adapter::AdapterTransaction,
         relation_id: u64,

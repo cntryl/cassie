@@ -548,7 +548,7 @@ impl Cassie {
         if session.read_transaction_is_active() {
             return Some("active_transaction");
         }
-        if logical_plan_uses_virtual_catalog(&physical.logical) {
+        if super::query_virtual_catalog::logical_plan_uses_virtual_catalog(&physical.logical) {
             return Some("virtual_catalog");
         }
         if ["set_config", "pg_catalog.set_config"].iter().any(|name| {
@@ -826,7 +826,13 @@ impl Cassie {
         )?;
         crate::executor::check_plan_constants(&physical.logical, controls)?;
         let graph = super::query_explain::graph_lines(self, Some(session), &physical);
-        let mut plan = super::query_explain::plan_line(self, &physical, &graph, controls)?;
+        let mut plan = super::query_explain::plan_line(
+            self,
+            &physical,
+            &graph,
+            (Some(session), &params),
+            controls,
+        )?;
         let mut structured =
             super::query_explain::structured_plan(self, &physical, &graph, controls)?;
 
@@ -907,64 +913,6 @@ impl Cassie {
             feedback_keys,
             &deltas.to_success_observation(result, elapsed_ms),
         );
-    }
-}
-
-fn logical_plan_uses_virtual_catalog(plan: &crate::planner::logical::LogicalPlan) -> bool {
-    query_source_uses_virtual_catalog(&plan.source)
-        || plan.ctes.iter().any(|cte| match &cte.query {
-            crate::sql::ast::CteQuery::Simple(statement) => {
-                parsed_statement_uses_virtual_catalog(statement)
-            }
-            crate::sql::ast::CteQuery::Recursive {
-                base, recursive, ..
-            } => {
-                parsed_statement_uses_virtual_catalog(base)
-                    || parsed_statement_uses_virtual_catalog(recursive)
-            }
-        })
-        || plan.set.as_ref().is_some_and(|set| {
-            query_source_uses_virtual_catalog(&set.right.source)
-                || set.right.ctes.iter().any(|cte| match &cte.query {
-                    crate::sql::ast::CteQuery::Simple(statement) => {
-                        parsed_statement_uses_virtual_catalog(statement)
-                    }
-                    crate::sql::ast::CteQuery::Recursive {
-                        base, recursive, ..
-                    } => {
-                        parsed_statement_uses_virtual_catalog(base)
-                            || parsed_statement_uses_virtual_catalog(recursive)
-                    }
-                })
-        })
-}
-
-fn parsed_statement_uses_virtual_catalog(statement: &crate::sql::ast::ParsedStatement) -> bool {
-    match &statement.statement {
-        QueryStatement::Select(select) => query_source_uses_virtual_catalog(&select.source),
-        _ => false,
-    }
-}
-
-fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> bool {
-    match source {
-        crate::sql::ast::QuerySource::Aliased { source, .. }
-        | crate::sql::ast::QuerySource::TableSample { source, .. } => {
-            query_source_uses_virtual_catalog(source)
-        }
-        crate::sql::ast::QuerySource::Collection(name) => {
-            crate::catalog::virtual_views::schema(name).is_some()
-        }
-        crate::sql::ast::QuerySource::Subquery { select, .. } => {
-            query_source_uses_virtual_catalog(&select.source)
-        }
-        crate::sql::ast::QuerySource::Join { left, right, .. } => {
-            query_source_uses_virtual_catalog(left) || query_source_uses_virtual_catalog(right)
-        }
-        crate::sql::ast::QuerySource::Cte(_)
-        | crate::sql::ast::QuerySource::Values { .. }
-        | crate::sql::ast::QuerySource::SingleRow
-        | crate::sql::ast::QuerySource::TableFunction { .. } => false,
     }
 }
 

@@ -12,3 +12,6 @@ mod constraint_equivalence;
 
 #[path = "columnar_surface/index_equivalence.rs"]
 mod index_equivalence;
+
+#[path = "columnar_surface/grouped_aggregate.rs"]
+mod grouped_aggregate;

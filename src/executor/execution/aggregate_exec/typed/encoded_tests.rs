@@ -9,7 +9,7 @@ fn execute(cassie: &Cassie, session: &CassieSession, sql: &str) -> Result<Vec<Ve
         super::super::super::build_logical_plan_in_session(cassie, Some(session), &statement)
             .expect("plan");
     let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
-    let result = try_execute(cassie, Some(session), &plan, &controls)
+    let result = try_execute(cassie, Some(session), &plan, &[], &controls)
         .map(|output| {
             let output = output.expect("selected typed path");
             output
@@ -195,8 +195,8 @@ fn should_decline_native_aggregation_before_opening_inputs_when_the_transport_fl
     let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
     let before = cassie.runtime.snapshot();
     // Act
-    let declined =
-        try_execute(&cassie, Some(&session), &plan, &controls).expect("controlled floor decline");
+    let declined = try_execute(&cassie, Some(&session), &plan, &[], &controls)
+        .expect("controlled floor decline");
     let after = cassie.runtime.snapshot();
     // Assert
     assert!(declined.is_none());

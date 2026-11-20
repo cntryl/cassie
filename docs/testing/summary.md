@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1852 |
-| Rust files | 1808 |
-| Rust test declarations | 10953 |
+| Files under `tests/` | 1841 |
+| Rust files | 1798 |
+| Rust test declarations | 10890 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 10978 |
+| Static Rust registration instances | 10915 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -31,7 +31,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 32 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 538 | 0 |
-| [columnar_surface](inventory/columnar_surface.md) | 30 | 0 |
+| [columnar_surface](inventory/columnar_surface.md) | 37 | 0 |
 | [compatibility](inventory/compatibility.md) | 520 | 0 |
 | [composite_types](inventory/composite_types.md) | 229 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
@@ -41,9 +41,9 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [enum_types](inventory/enum_types.md) | 187 | 0 |
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
-| [graph_guide](inventory/graph_guide.md) | 12 | 0 |
-| [graph_table](inventory/graph_table.md) | 178 | 0 |
-| [graph_types](inventory/graph_types.md) | 129 | 0 |
+| [graph_guide](inventory/graph_guide.md) | 11 | 0 |
+| [graph_table](inventory/graph_table.md) | 151 | 0 |
+| [graph_types](inventory/graph_types.md) | 115 | 0 |
 | [graph_weighted](inventory/graph_weighted.md) | 97 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
 | [metrics](inventory/metrics.md) | 58 | 0 |
@@ -72,7 +72,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
 | [test_inventory](inventory/test_inventory.md) | 6 | 0 |
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |
-| [vector_embeddings](inventory/vector_embeddings.md) | 276 | 0 |
+| [vector_embeddings](inventory/vector_embeddings.md) | 248 | 0 |
 
 ## Cargo targets
 

@@ -26,8 +26,9 @@ mod vector;
 
 pub(crate) use fulltext::{
     fulltext_document_stats_key, fulltext_document_stats_prefix, fulltext_index_artifact_prefix,
-    fulltext_index_collection_prefix, fulltext_index_key, fulltext_index_manifest_key,
-    fulltext_postings_prefix, fulltext_term_postings_block_key, fulltext_term_postings_prefix,
+    fulltext_index_collection_prefix, fulltext_index_key, fulltext_postings_prefix,
+    fulltext_term_postings_block_key, fulltext_term_postings_prefix, fulltext_term_record_key,
+    fulltext_term_records_prefix,
 };
 #[cfg(test)]
 pub(super) use graph::legacy_graph_sample_keys;
@@ -139,24 +140,24 @@ const FAMILY_OBJECT_ID_COUNTER: &[u8] = b"object-id-counter";
 #[repr(u8)]
 pub(crate) enum FulltextArtifactKind {
     Meta = 1,
-    Manifest = 2,
     Postings = 3,
     Document = 4,
+    Term = 5,
 }
 
 impl FulltextArtifactKind {
     const fn as_segment(self) -> [u8; 1] {
         match self {
             Self::Meta => [Self::Meta as u8],
-            Self::Manifest => [Self::Manifest as u8],
             Self::Postings => [Self::Postings as u8],
             Self::Document => [Self::Document as u8],
+            Self::Term => [Self::Term as u8],
         }
     }
 }
 
 pub(crate) const FULLTEXT_ARTIFACT_META: [u8; 1] = FulltextArtifactKind::Meta.as_segment();
-pub(crate) const FULLTEXT_ARTIFACT_MANIFEST: [u8; 1] = FulltextArtifactKind::Manifest.as_segment();
+pub(crate) const FULLTEXT_ARTIFACT_TERM: [u8; 1] = FulltextArtifactKind::Term.as_segment();
 pub(crate) const FULLTEXT_ARTIFACT_POSTINGS: [u8; 1] = FulltextArtifactKind::Postings.as_segment();
 pub(crate) const FULLTEXT_ARTIFACT_DOCUMENT: [u8; 1] = FulltextArtifactKind::Document.as_segment();
 

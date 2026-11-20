@@ -2,15 +2,18 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use cntryl_midge::Query;
 
+use super::layout::{self, TermBlockValidator};
+use super::vocabulary::TermDirectory;
 use super::{
-    codec, validate_manifest_header, FulltextManifest, LoadedCandidatePostings,
-    PersistedFulltextCandidateSet, PersistedFulltextDocumentStats, STATE_VERSION,
+    codec, LoadedCandidatePostings, PersistedFulltextCandidateSet, PersistedFulltextDocumentStats,
+    STATE_VERSION,
 };
 use crate::app::CassieError;
 use crate::midge::adapter::column_store::validation as column_validation;
 use crate::midge::adapter::{DocumentRef, Midge};
 use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::search::query::{CompiledQuery, ResolvedQuery};
 use crate::types::DataType;
 
 pub(crate) struct ControlledFulltextCandidateSet {
@@ -121,7 +124,6 @@ struct ControlledPostingReadContext<'a> {
     relation_id: u64,
     index_id: u64,
     allowed_ids: Option<&'a BTreeSet<String>>,
-    manifest: &'a FulltextManifest,
     controls: &'a QueryExecutionControls,
 }
 
@@ -205,7 +207,20 @@ fn load_controlled_document_stats(
                 .saturating_mul(2)
                 .saturating_add(retained_string_bytes(&id)),
         )?;
-        stats.insert(id, codec::decode_document_stats(&raw)?);
+        let document = codec::decode_document_stats(&raw)?;
+        memory.try_grow(
+            document
+                .term_positions
+                .values()
+                .map(|positions| {
+                    positions
+                        .len()
+                        .saturating_mul(std::mem::size_of::<u32>())
+                        .saturating_add(std::mem::size_of::<Vec<u32>>())
+                })
+                .fold(0usize, usize::saturating_add),
+        )?;
+        stats.insert(id, document);
     }
     Ok(stats)
 }
@@ -229,10 +244,18 @@ fn load_controlled_candidate_postings(
             .tx
             .scan(&Query::new().prefix(prefix.into()))
             .map_err(CassieError::from)?;
-        let expected = context.manifest.terms.get(term);
+        let record_key =
+            Midge::fulltext_term_record_key(context.relation_id, context.index_id, term);
+        let record_raw = context.tx.get(&record_key).map_err(CassieError::from)?;
+        record_controlled_read(context.midge, context.controls)?;
+        let record = record_raw
+            .map(|raw| {
+                memory.try_grow(record_key.len().saturating_add(raw.len()))?;
+                codec::decode_term_record(&raw)
+            })
+            .transpose()?;
+        let mut validator = TermBlockValidator::new(term, context.relation_id, context.index_id);
         let mut term_documents = BTreeSet::new();
-        let mut posting_count = 0usize;
-        let mut block_count = 0usize;
         for entry in &mut scan {
             check_controls(context.controls)?;
             let (key, raw) = entry.map_err(CassieError::from)?;
@@ -243,20 +266,8 @@ fn load_controlled_candidate_postings(
                     .saturating_mul(2)
                     .saturating_add(BTREE_ENTRY_OVERHEAD),
             )?;
-            if key
-                != Midge::fulltext_term_postings_block_key(
-                    context.relation_id,
-                    context.index_id,
-                    term,
-                    block_count,
-                )
-            {
-                return Err(CassieError::Parse(format!(
-                    "non-contiguous fulltext posting blocks for '{term}'"
-                )));
-            }
             let postings = codec::decode_postings(&raw)?;
-            posting_count = posting_count.saturating_add(postings.len());
+            validator.accept(&key, &postings)?;
             for posting in postings {
                 let retained = retained_string_bytes(&posting.document_id);
                 memory.try_grow(
@@ -269,12 +280,7 @@ fn load_controlled_candidate_postings(
                         retained
                     },
                 )?;
-                if !term_documents.insert(posting.document_id.clone()) {
-                    return Err(CassieError::Parse(format!(
-                        "duplicate fulltext posting for '{}' in '{term}'",
-                        posting.document_id
-                    )));
-                }
+                term_documents.insert(posting.document_id.clone());
                 if context
                     .allowed_ids
                     .is_none_or(|allowed| allowed.contains(&posting.document_id))
@@ -282,18 +288,9 @@ fn load_controlled_candidate_postings(
                     loaded.ids.insert(posting.document_id);
                 }
             }
-            block_count = block_count.saturating_add(1);
         }
-        if block_count != expected.map_or(0, |integrity| integrity.block_count) {
-            return Err(CassieError::Parse(format!(
-                "incomplete fulltext posting blocks for '{term}'"
-            )));
-        }
-        if posting_count != expected.map_or(0, |integrity| integrity.posting_count) {
-            return Err(CassieError::Parse(format!(
-                "incomplete fulltext postings for '{term}'"
-            )));
-        }
+        let block_count = validator.block_count();
+        validator.finish(record.as_ref())?;
         loaded.block_reads = loaded.block_reads.saturating_add(block_count);
         loaded.source_ids.extend(term_documents.iter().cloned());
         memory
@@ -333,6 +330,50 @@ impl Midge {
         )
     }
 
+    /// Reads the candidates of a `'query'`-syntax search: expands its prefix
+    /// and typo items against the index vocabulary inside the same read
+    /// transaction as the posting and statistics reads, then loads the postings
+    /// of the positive terms.
+    ///
+    /// Returns the candidates, the resolved query and the reservation that
+    /// accounts the resolved query.
+    pub(crate) fn fulltext_candidate_set_for_query_controlled(
+        &self,
+        collection: &str,
+        index_name: &str,
+        query: &CompiledQuery,
+        controls: &QueryExecutionControls,
+    ) -> Result<
+        (
+            ControlledFulltextCandidateSet,
+            ResolvedQuery,
+            QueryMemoryReservation,
+        ),
+        CassieError,
+    > {
+        let mut resolved = None;
+        let mut resolved_memory = None;
+        let candidates = self.fulltext_candidate_set_resolving_controlled(
+            collection,
+            index_name,
+            None,
+            controls,
+            &mut |directory| {
+                let query = query.resolve(directory)?;
+                resolved_memory = Some(controls.reserve_query_memory(query.estimated_bytes())?);
+                let terms = query.positive_terms().to_vec();
+                resolved = Some(query);
+                Ok(terms)
+            },
+        )?;
+        match (resolved, resolved_memory) {
+            (Some(resolved), Some(memory)) => Ok((candidates, resolved, memory)),
+            _ => Err(CassieError::Execution(
+                "fulltext fallback:unresolved-query".to_string(),
+            )),
+        }
+    }
+
     fn fulltext_candidate_set_inner_controlled(
         &self,
         collection: &str,
@@ -340,6 +381,23 @@ impl Midge {
         terms: &[String],
         allowed_ids: Option<&BTreeSet<String>>,
         controls: &QueryExecutionControls,
+    ) -> Result<ControlledFulltextCandidateSet, CassieError> {
+        self.fulltext_candidate_set_resolving_controlled(
+            collection,
+            index_name,
+            allowed_ids,
+            controls,
+            &mut |_| Ok(terms.to_vec()),
+        )
+    }
+
+    fn fulltext_candidate_set_resolving_controlled(
+        &self,
+        collection: &str,
+        index_name: &str,
+        allowed_ids: Option<&BTreeSet<String>>,
+        controls: &QueryExecutionControls,
+        resolve_terms: &mut dyn FnMut(&TermDirectory<'_>) -> Result<Vec<String>, CassieError>,
     ) -> Result<ControlledFulltextCandidateSet, CassieError> {
         check_controls(controls)?;
         let collection = self.canonical_collection_name(collection);
@@ -367,19 +425,12 @@ impl Midge {
             ));
         }
 
-        let manifest_key =
-            Self::fulltext_index_manifest_key(relation_id, index_id, metadata.built_generation);
-        let manifest_raw = tx
-            .get(&manifest_key)
-            .map_err(CassieError::from)?
-            .ok_or_else(|| {
-                CassieError::Parse("missing fulltext generation manifest".to_string())
-            })?;
-        record_controlled_read(self, controls)?;
-        memory.try_grow(manifest_key.len().saturating_add(manifest_raw.len()))?;
-        memory.try_grow(manifest_raw.len().saturating_mul(2))?;
-        let manifest = codec::decode_manifest(&manifest_raw)?;
-        validate_manifest_header(&metadata, &manifest)?;
+        let terms = resolve_terms(&TermDirectory {
+            tx: &tx,
+            relation_id,
+            index_id,
+            controls,
+        })?;
         let loaded = load_controlled_candidate_postings(
             &ControlledPostingReadContext {
                 midge: self,
@@ -387,10 +438,9 @@ impl Midge {
                 relation_id,
                 index_id,
                 allowed_ids,
-                manifest: &manifest,
                 controls,
             },
-            terms,
+            &terms,
             &mut memory,
         )?;
         let row_schema = self.row_schema(&collection)?;
@@ -415,7 +465,10 @@ impl Midge {
         Ok(ControlledFulltextCandidateSet {
             candidates: PersistedFulltextCandidateSet {
                 total_documents: metadata.total_documents,
-                average_document_length: metadata.average_document_length,
+                average_document_length: layout::average_document_length(
+                    metadata.total_document_length,
+                    metadata.documents_with_text,
+                ),
                 analyzer: metadata.analyzer,
                 document_frequency: loaded.document_frequency,
                 document_stats: stats,

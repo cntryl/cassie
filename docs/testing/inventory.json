@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1798,
-    "rust_files": 1761,
-    "rust_test_declarations": 10722,
+    "files": 1817,
+    "rust_files": 1776,
+    "rust_test_declarations": 10800,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10747,
+    "registered_rust_instances": 10825,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -235728,6 +235728,161 @@
       }
     },
     {
+      "id": "tests/search/index_lifecycle/fulltext_block_maintenance.rs::should_split_a_growing_term_into_bounded_blocks_matching_a_rebuild",
+      "name": "should_split_a_growing_term_into_bounded_blocks_matching_a_rebuild",
+      "current_file": "tests/search/index_lifecycle/fulltext_block_maintenance.rs",
+      "line": 64,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_block_maintenance::should_split_a_growing_term_into_bounded_blocks_matching_a_rebuild"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_block_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_block_maintenance.rs::should_insert_between_or_before_existing_blocks_matching_a_rebuild",
+      "name": "should_insert_between_or_before_existing_blocks_matching_a_rebuild",
+      "current_file": "tests/search/index_lifecycle/fulltext_block_maintenance.rs",
+      "line": 86,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_block_maintenance::should_insert_between_or_before_existing_blocks_matching_a_rebuild"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_block_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_block_maintenance.rs::should_merge_shrunken_blocks_matching_a_rebuild",
+      "name": "should_merge_shrunken_blocks_matching_a_rebuild",
+      "current_file": "tests/search/index_lifecycle/fulltext_block_maintenance.rs",
+      "line": 103,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_block_maintenance::should_merge_shrunken_blocks_matching_a_rebuild"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_block_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_block_maintenance.rs::should_remove_every_artifact_of_a_term_when_its_last_document_leaves",
+      "name": "should_remove_every_artifact_of_a_term_when_its_last_document_leaves",
+      "current_file": "tests/search/index_lifecycle/fulltext_block_maintenance.rs",
+      "line": 127,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_block_maintenance::should_remove_every_artifact_of_a_term_when_its_last_document_leaves"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_block_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_block_maintenance.rs::should_enumerate_index_terms_by_prefix_with_a_limit",
+      "name": "should_enumerate_index_terms_by_prefix_with_a_limit",
+      "current_file": "tests/search/index_lifecycle/fulltext_block_maintenance.rs",
+      "line": 154,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_block_maintenance::should_enumerate_index_terms_by_prefix_with_a_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_block_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/index_lifecycle/fulltext_drop.rs::should_preserve_fulltext_search_results_after_schema_qualified_drop",
       "name": "should_preserve_fulltext_search_results_after_schema_qualified_drop",
       "current_file": "tests/search/index_lifecycle/fulltext_drop.rs",
@@ -235753,6 +235908,285 @@
         "category": "index_lifecycle",
         "directory": "tests/search/index_lifecycle",
         "file": "tests/search/index_lifecycle/fulltext_drop.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_match_a_clean_rebuild_after_mixed_single_document_writes",
+      "name": "should_match_a_clean_rebuild_after_mixed_single_document_writes",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 19,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_match_a_clean_rebuild_after_mixed_single_document_writes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_match_a_clean_rebuild_after_a_burst_of_common_term_edits",
+      "name": "should_match_a_clean_rebuild_after_a_burst_of_common_term_edits",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 49,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_match_a_clean_rebuild_after_a_burst_of_common_term_edits"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_match_a_clean_rebuild_after_multi_document_commits",
+      "name": "should_match_a_clean_rebuild_after_multi_document_commits",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 76,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_match_a_clean_rebuild_after_multi_document_commits"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_maintain_the_index_without_falling_back_to_row_scans",
+      "name": "should_maintain_the_index_without_falling_back_to_row_scans",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 106,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_maintain_the_index_without_falling_back_to_row_scans"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_keep_exact_corpus_totals_across_updates_with_deletes",
+      "name": "should_keep_exact_corpus_totals_across_updates_with_deletes",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 129,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_keep_exact_corpus_totals_across_updates_with_deletes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_drop_the_old_hit_exposing_the_new_term_when_the_only_document_is_replaced",
+      "name": "should_drop_the_old_hit_exposing_the_new_term_when_the_only_document_is_replaced",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 155,
+      "end_line": 178,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_drop_the_old_hit_exposing_the_new_term_when_the_only_document_is_replaced"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_serve_replaced_terms_from_the_index_after_a_cold_restart",
+      "name": "should_serve_replaced_terms_from_the_index_after_a_cold_restart",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 181,
+      "end_line": 213,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_serve_replaced_terms_from_the_index_after_a_cold_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_match_a_clean_rebuild_when_a_deleted_document_id_is_reinserted",
+      "name": "should_match_a_clean_rebuild_when_a_deleted_document_id_is_reinserted",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 216,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_match_a_clean_rebuild_when_a_deleted_document_id_is_reinserted"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs::should_keep_corpus_totals_when_text_moves_between_null_empty_and_words",
+      "name": "should_keep_corpus_totals_when_text_moves_between_null_empty_and_words",
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "line": 233,
+      "end_line": 278,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_incremental_maintenance::should_keep_corpus_totals_when_text_moves_between_null_empty_and_words"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_incremental_maintenance.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -236255,6 +236689,99 @@
       }
     },
     {
+      "id": "tests/search/index_lifecycle/fulltext_publication_interruption.rs::should_serve_the_previous_consistent_result_while_postings_are_published",
+      "name": "should_serve_the_previous_consistent_result_while_postings_are_published",
+      "current_file": "tests/search/index_lifecycle/fulltext_publication_interruption.rs",
+      "line": 50,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_publication_interruption::should_serve_the_previous_consistent_result_while_postings_are_published"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_publication_interruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_publication_interruption.rs::should_fall_back_with_a_label_while_an_interrupted_rebuild_is_paused_then_serve_after_retry",
+      "name": "should_fall_back_with_a_label_while_an_interrupted_rebuild_is_paused_then_serve_after_retry",
+      "current_file": "tests/search/index_lifecycle/fulltext_publication_interruption.rs",
+      "line": 93,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_publication_interruption::should_fall_back_with_a_label_while_an_interrupted_rebuild_is_paused_then_serve_after_retry"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_publication_interruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_publication_interruption.rs::should_recover_an_interrupted_publication_after_reopening_local_storage",
+      "name": "should_recover_an_interrupted_publication_after_reopening_local_storage",
+      "current_file": "tests/search/index_lifecycle/fulltext_publication_interruption.rs",
+      "line": 146,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_publication_interruption::should_recover_an_interrupted_publication_after_reopening_local_storage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_publication_interruption.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/index_lifecycle/fulltext_publication_recovery.rs::should_replay_fulltext_publication_debt_after_restart",
       "name": "should_replay_fulltext_publication_debt_after_restart",
       "current_file": "tests/search/index_lifecycle/fulltext_publication_recovery.rs",
@@ -236314,6 +236841,99 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_write_amplification.rs::should_not_grow_index_writes_with_unrelated_documents_or_vocabulary",
+      "name": "should_not_grow_index_writes_with_unrelated_documents_or_vocabulary",
+      "current_file": "tests/search/index_lifecycle/fulltext_write_amplification.rs",
+      "line": 70,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_write_amplification::should_not_grow_index_writes_with_unrelated_documents_or_vocabulary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_write_amplification.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_write_amplification.rs::should_bound_a_common_term_update_by_one_posting_block",
+      "name": "should_bound_a_common_term_update_by_one_posting_block",
+      "current_file": "tests/search/index_lifecycle/fulltext_write_amplification.rs",
+      "line": 96,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_write_amplification::should_bound_a_common_term_update_by_one_posting_block"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_write_amplification.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/index_lifecycle/fulltext_write_amplification.rs::should_count_index_writes_separately_from_source_rows",
+      "name": "should_count_index_writes_separately_from_source_rows",
+      "current_file": "tests/search/index_lifecycle/fulltext_write_amplification.rs",
+      "line": 116,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_write_amplification::should_count_index_writes_separately_from_source_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_write_amplification.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -236844,8 +237464,8 @@
       }
     },
     {
-      "id": "tests/search/retrieval/fulltext_index_completeness.rs::should_rebuild_a_malformed_manifest_during_startup",
-      "name": "should_rebuild_a_malformed_manifest_during_startup",
+      "id": "tests/search/retrieval/fulltext_index_completeness.rs::should_rebuild_a_malformed_term_record_during_startup",
+      "name": "should_rebuild_a_malformed_term_record_during_startup",
       "current_file": "tests/search/retrieval/fulltext_index_completeness.rs",
       "line": 175,
       "end_line": 195,
@@ -236856,7 +237476,7 @@
       "instances": [
         {
           "suite": "search",
-          "name": "fulltext_index_completeness::should_rebuild_a_malformed_manifest_during_startup"
+          "name": "fulltext_index_completeness::should_rebuild_a_malformed_term_record_during_startup"
         }
       ],
       "attributes": [
@@ -237213,6 +237833,843 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_agree_across_punctuation_null_with_unicode_given_indexed_and_authoritative_execution",
+      "name": "should_agree_across_punctuation_null_with_unicode_given_indexed_and_authoritative_execution",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 31,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_agree_across_punctuation_null_with_unicode_given_indexed_and_authoritative_execution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_agree_inside_an_open_transaction_using_the_index_again_after_it",
+      "name": "should_agree_inside_an_open_transaction_using_the_index_again_after_it",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 78,
+      "end_line": 135,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_agree_inside_an_open_transaction_using_the_index_again_after_it"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_see_committed_updates_through_both_executions",
+      "name": "should_see_committed_updates_through_both_executions",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 138,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_see_committed_updates_through_both_executions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_return_the_program_limit_error_for_an_excessive_prefix_on_every_execution",
+      "name": "should_return_the_program_limit_error_for_an_excessive_prefix_on_every_execution",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 217,
+      "end_line": 249,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_return_the_program_limit_error_for_an_excessive_prefix_on_every_execution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_return_the_program_limit_error_for_an_excessive_typo_on_every_execution",
+      "name": "should_return_the_program_limit_error_for_an_excessive_typo_on_every_execution",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 252,
+      "end_line": 288,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_return_the_program_limit_error_for_an_excessive_typo_on_every_execution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_return_the_program_limit_error_when_the_query_expands_past_the_total_limit",
+      "name": "should_return_the_program_limit_error_when_the_query_expands_past_the_total_limit",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 291,
+      "end_line": 323,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_return_the_program_limit_error_when_the_query_expands_past_the_total_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_distinguish_opposite_token_orders_after_reopening_a_disk_backed_store",
+      "name": "should_distinguish_opposite_token_orders_after_reopening_a_disk_backed_store",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 326,
+      "end_line": 411,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_distinguish_opposite_token_orders_after_reopening_a_disk_backed_store"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_reject_a_query_error_without_breaking_the_session",
+      "name": "should_reject_a_query_error_without_breaking_the_session",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 414,
+      "end_line": 438,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_reject_a_query_error_without_breaking_the_session"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_distinguish_adjacent_from_separated_terms_given_a_quoted_phrase",
+      "name": "should_distinguish_adjacent_from_separated_terms_given_a_quoted_phrase",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 44,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_distinguish_adjacent_from_separated_terms_given_a_quoted_phrase"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_allow_ordered_slack_given_phrase_slop",
+      "name": "should_allow_ordered_slack_given_phrase_slop",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 64,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_allow_ordered_slack_given_phrase_slop"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_preserve_stop_word_gaps_given_phrases_and_hyphenated_words",
+      "name": "should_preserve_stop_word_gaps_given_phrases_and_hyphenated_words",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 83,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_preserve_stop_word_gaps_given_phrases_and_hyphenated_words"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_separate_prefix_collisions_given_wildcard_terms",
+      "name": "should_separate_prefix_collisions_given_wildcard_terms",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 104,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_separate_prefix_collisions_given_wildcard_terms"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_apply_required_excluded_terms_given_boolean_operators",
+      "name": "should_apply_required_excluded_terms_given_boolean_operators",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 125,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_apply_required_excluded_terms_given_boolean_operators"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_match_single_edit_misspellings_given_typo_terms",
+      "name": "should_match_single_edit_misspellings_given_typo_terms",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 147,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_match_single_edit_misspellings_given_typo_terms"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_match_unicode_text_given_punctuation",
+      "name": "should_match_unicode_text_given_punctuation",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 168,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_match_unicode_text_given_punctuation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_fold_accents_for_prefix_words_given_accent_folding",
+      "name": "should_fold_accents_for_prefix_words_given_accent_folding",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 189,
+      "end_line": 205,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_fold_accents_for_prefix_words_given_accent_folding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_match_nothing_given_blank_or_stop_word_only_queries",
+      "name": "should_match_nothing_given_blank_or_stop_word_only_queries",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 208,
+      "end_line": 220,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_match_nothing_given_blank_or_stop_word_only_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_keep_the_two_argument_form_identical_to_the_terms_syntax",
+      "name": "should_keep_the_two_argument_form_identical_to_the_terms_syntax",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 223,
+      "end_line": 263,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_keep_the_two_argument_form_identical_to_the_terms_syntax"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_accept_the_syntax_selector_as_a_bound_parameter",
+      "name": "should_accept_the_syntax_selector_as_a_bound_parameter",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 266,
+      "end_line": 284,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_accept_the_syntax_selector_as_a_bound_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_return_invalid_parameter_errors_given_malformed_queries",
+      "name": "should_return_invalid_parameter_errors_given_malformed_queries",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 287,
+      "end_line": 325,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_return_invalid_parameter_errors_given_malformed_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_reject_an_unknown_syntax_selector_with_an_invalid_parameter_error",
+      "name": "should_reject_an_unknown_syntax_selector_with_an_invalid_parameter_error",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 328,
+      "end_line": 357,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_reject_an_unknown_syntax_selector_with_an_invalid_parameter_error"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_reject_queries_over_the_declared_structural_limits",
+      "name": "should_reject_queries_over_the_declared_structural_limits",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 360,
+      "end_line": 384,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_reject_queries_over_the_declared_structural_limits"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_score_only_satisfied_positive_terms_with_corpus_wide_statistics",
+      "name": "should_score_only_satisfied_positive_terms_with_corpus_wide_statistics",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 387,
+      "end_line": 424,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_score_only_satisfied_positive_terms_with_corpus_wide_statistics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_match_scores_given_indexed_execution_versus_authoritative_execution",
+      "name": "should_match_scores_given_indexed_execution_versus_authoritative_execution",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 427,
+      "end_line": 457,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_match_scores_given_indexed_execution_versus_authoritative_execution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_highlight_only_tokens_that_satisfied_positive_items",
+      "name": "should_highlight_only_tokens_that_satisfied_positive_items",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 460,
+      "end_line": 513,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_highlight_only_tokens_that_satisfied_positive_items"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_use_the_persisted_index_given_phrase_prefix_and_typo_queries",
+      "name": "should_use_the_persisted_index_given_phrase_prefix_and_typo_queries",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 516,
+      "end_line": 535,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_use_the_persisted_index_given_phrase_prefix_and_typo_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_query_syntax.rs::should_rank_the_phrase_match_first_given_hybrid_scoring",
+      "name": "should_rank_the_phrase_match_first_given_hybrid_scoring",
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "line": 538,
+      "end_line": 588,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_syntax::should_rank_the_phrase_match_first_given_hybrid_scoring"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_syntax.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -237681,6 +239138,37 @@
       }
     },
     {
+      "id": "tests/search/retrieval/ranked_filtered_projection.rs::should_return_identical_projected_rows_from_the_indexed_with_exact_paths",
+      "name": "should_return_identical_projected_rows_from_the_indexed_with_exact_paths",
+      "current_file": "tests/search/retrieval/ranked_filtered_projection.rs",
+      "line": 12,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "ranked_filtered_projection::should_return_identical_projected_rows_from_the_indexed_with_exact_paths"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/ranked_filtered_projection.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/retrieval/scored_declared_id.rs::should_return_declared_id_from_search_score_top_k",
       "name": "should_return_declared_id_from_search_score_top_k",
       "current_file": "tests/search/retrieval/scored_declared_id.rs",
@@ -237957,6 +239445,657 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_freeze_a_workload_with_the_required_intent_shape",
+      "name": "should_freeze_a_workload_with_the_required_intent_shape",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 72,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_freeze_a_workload_with_the_required_intent_shape"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_return_zero_hits_for_every_no_hit_intent",
+      "name": "should_return_zero_hits_for_every_no_hit_intent",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 128,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_return_zero_hits_for_every_no_hit_intent"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_return_the_authored_intended_document_within_the_top_ten_for_answerable_intents",
+      "name": "should_return_the_authored_intended_document_within_the_top_ten_for_answerable_intents",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 149,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_return_the_authored_intended_document_within_the_top_ten_for_answerable_intents"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_rank_the_keyword_stuffed_decoy_above_the_genuine_listing",
+      "name": "should_rank_the_keyword_stuffed_decoy_above_the_genuine_listing",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 177,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_rank_the_keyword_stuffed_decoy_above_the_genuine_listing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_write_per_query_results_reporting_the_qualification_state",
+      "name": "should_write_per_query_results_reporting_the_qualification_state",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 199,
+      "end_line": 259,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_write_per_query_results_reporting_the_qualification_state"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_compute_ndcg_from_the_gain_with_log_discount_definition",
+      "name": "should_compute_ndcg_from_the_gain_with_log_discount_definition",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 22,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_compute_ndcg_from_the_gain_with_log_discount_definition"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_score_a_perfect_ordering_as_one_with_no_relevant_document_as_zero",
+      "name": "should_score_a_perfect_ordering_as_one_with_no_relevant_document_as_zero",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 37,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_score_a_perfect_ordering_as_one_with_no_relevant_document_as_zero"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_ignore_results_below_the_cutoff_when_computing_ndcg",
+      "name": "should_ignore_results_below_the_cutoff_when_computing_ndcg",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 53,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_ignore_results_below_the_cutoff_when_computing_ndcg"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_use_the_first_document_graded_relevant_for_reciprocal_rank",
+      "name": "should_use_the_first_document_graded_relevant_for_reciprocal_rank",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 65,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_use_the_first_document_graded_relevant_for_reciprocal_rank"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_pass_the_floors_given_the_graded_document_ranked_first",
+      "name": "should_pass_the_floors_given_the_graded_document_ranked_first",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 125,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_pass_the_floors_given_the_graded_document_ranked_first"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_fail_the_floors_given_a_judged_irrelevant_decoy_ranked_first",
+      "name": "should_fail_the_floors_given_a_judged_irrelevant_decoy_ranked_first",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 143,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_fail_the_floors_given_a_judged_irrelevant_decoy_ranked_first"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_reject_judgments_that_miss_an_answerable_intent_or_name_fewer_than_two_graders",
+      "name": "should_reject_judgments_that_miss_an_answerable_intent_or_name_fewer_than_two_graders",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 161,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_reject_judgments_that_miss_an_answerable_intent_or_name_fewer_than_two_graders"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_reject_an_unjudged_file_that_carries_grades",
+      "name": "should_reject_an_unjudged_file_that_carries_grades",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 180,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_reject_an_unjudged_file_that_carries_grades"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_tenant_status_pages_like_global_bm25_given_one_percent_eligible",
+      "name": "should_rank_tenant_status_pages_like_global_bm25_given_one_percent_eligible",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 104,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_rank_tenant_status_pages_like_global_bm25_given_one_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_tenant_status_pages_like_global_bm25_given_ten_percent_eligible",
+      "name": "should_rank_tenant_status_pages_like_global_bm25_given_ten_percent_eligible",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 109,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_rank_tenant_status_pages_like_global_bm25_given_ten_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_tenant_status_pages_like_global_bm25_given_half_eligible",
+      "name": "should_rank_tenant_status_pages_like_global_bm25_given_half_eligible",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 114,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_rank_tenant_status_pages_like_global_bm25_given_half_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_fetch_only_eligible_rows_given_a_selective_tenant_search",
+      "name": "should_fetch_only_eligible_rows_given_a_selective_tenant_search",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 119,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_fetch_only_eligible_rows_given_a_selective_tenant_search"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_keep_eligibility_moving_scores_given_a_term_change_in_another_tenant",
+      "name": "should_keep_eligibility_moving_scores_given_a_term_change_in_another_tenant",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 145,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_keep_eligibility_moving_scores_given_a_term_change_in_another_tenant"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes",
+      "name": "should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 199,
+      "end_line": 236,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_follow_committed_moves_ignoring_rolled_back_moves_given_group_changes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_stay_consistent_after_reopen_with_damage_given_a_committed_group_move",
+      "name": "should_stay_consistent_after_reopen_with_damage_given_a_committed_group_move",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 263,
+      "end_line": 301,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_stay_consistent_after_reopen_with_damage_given_a_committed_group_move"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_a_hand_checkable_corpus_with_ties_filters_plus_a_frequency_update",
+      "name": "should_rank_a_hand_checkable_corpus_with_ties_filters_plus_a_frequency_update",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 324,
+      "end_line": 395,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_rank_a_hand_checkable_corpus_with_ties_filters_plus_a_frequency_update"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -328410,6 +330549,285 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible",
+      "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 160,
+      "end_line": 162,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible",
+      "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 165,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible",
+      "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 170,
+      "end_line": 172,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_keep_hybrid_eligibility_moving_scores_given_a_term_change_in_another_tenant",
+      "name": "should_keep_hybrid_eligibility_moving_scores_given_a_term_change_in_another_tenant",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 175,
+      "end_line": 216,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_keep_hybrid_eligibility_moving_scores_given_a_term_change_in_another_tenant"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_follow_hybrid_moves_through_rollback_with_commit",
+      "name": "should_follow_hybrid_moves_through_rollback_with_commit",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 219,
+      "end_line": 270,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_follow_hybrid_moves_through_rollback_with_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_after_reopen_with_after_a_damaged_text_artifact",
+      "name": "should_rank_hybrid_after_reopen_with_after_a_damaged_text_artifact",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 273,
+      "end_line": 310,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_after_reopen_with_after_a_damaged_text_artifact"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible",
+      "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 337,
+      "end_line": 339,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible",
+      "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 342,
+      "end_line": 344,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible",
+      "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 347,
+      "end_line": 349,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs::should_store_hnsw_nodes_as_point_readable_binary_records",
       "name": "should_store_hnsw_nodes_as_point_readable_binary_records",
       "current_file": "tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs",
@@ -338753,6 +341171,58 @@
       "registered_suites": [],
       "destinations": [
         "tests/corpus/postgresql18/v3-contract-vectors.json"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/v1/README.md",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 73,
+      "sha256": "822d79be552c6d6019bdc046d66e3b31cc1eb820c93170890b7c643f60bf8cb0",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/v1/README.md"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/v1/corpus.json",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 49,
+      "sha256": "410a05049ad5965f7a0abf185355bbd84bfdb71a4dfefa0d7f47a16e27c321d2",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/v1/corpus.json"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/v1/intents.json",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 31,
+      "sha256": "b3f9723e8bd3ef59a53ab222c32faa94c27def4dc91c4f1e596fd383e64c635d",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/v1/intents.json"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/v1/judgments.json",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 7,
+      "sha256": "9b30b37a803208fd068f40c767b9a1b3e8438bb9ad11d3c3d5556c3f173e9a3d",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/v1/judgments.json"
       ],
       "line_limit": null
     },
@@ -352231,6 +354701,21 @@
       "line_limit": 12000
     },
     {
+      "current_file": "tests/search/index_lifecycle/fulltext_block_maintenance.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 176,
+      "sha256": "1ef76cd07f3cfa9d8ab282a611fb6b5da697c56ac421c723d0ceb058b7087747",
+      "test_declarations": 5,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_block_maintenance.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/index_lifecycle/fulltext_drop.rs",
       "role": "test_module",
       "action": "keep",
@@ -352242,6 +354727,21 @@
       ],
       "destinations": [
         "tests/search/index_lifecycle/fulltext_drop.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/index_lifecycle/fulltext_incremental_maintenance.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 278,
+      "sha256": "52d3d92d99bc482a61657a87c185e4ae3ba582d883e02e0c58dfe8b286b0c596",
+      "test_declarations": 9,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_incremental_maintenance.rs"
       ],
       "line_limit": 1000
     },
@@ -352276,6 +354776,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/index_lifecycle/fulltext_publication_interruption.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 174,
+      "sha256": "d0bed67844a9f971862eec30e3684c73485ee4dcbb8a8fe37ad0cdb7f216b065",
+      "test_declarations": 3,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_publication_interruption.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/index_lifecycle/fulltext_publication_recovery.rs",
       "role": "test_module",
       "action": "keep",
@@ -352287,6 +354802,21 @@
       ],
       "destinations": [
         "tests/search/index_lifecycle/fulltext_publication_recovery.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/index_lifecycle/fulltext_write_amplification.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 150,
+      "sha256": "a3470afd39e5158648ef15858182dd2865a81629c1653ff22d27f330dd4c7da0",
+      "test_declarations": 3,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_write_amplification.rs"
       ],
       "line_limit": 1000
     },
@@ -352325,7 +354855,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 227,
-      "sha256": "a80ce8c493611f686b59e11c964346ab418e0535c64979b7eabe4bf7b032a3dc",
+      "sha256": "d0e2f3e3095317d9ea52e946dbdff25659cef5b78652f47a001e54624d6ff1b5",
       "test_declarations": 5,
       "registered_suites": [
         "search"
@@ -352347,6 +354877,51 @@
       ],
       "destinations": [
         "tests/search/retrieval/fulltext_query.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 438,
+      "sha256": "78f80b6152693ad498f57699fb181914f1f7685bb616c7ba6f716b5aa66d6853",
+      "test_declarations": 8,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_query_paths.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/retrieval/fulltext_query_support.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 161,
+      "sha256": "f8e5b467d59a6c9b66a79ec7d31deaf196a69f62220fc1882f5b9167da05b396",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_query_support.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/retrieval/fulltext_query_syntax.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 595,
+      "sha256": "e5c67898632e1b5f73e400afb371a05cfdec90efff5cbff8f86723865c12db55",
+      "test_declarations": 19,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_query_syntax.rs"
       ],
       "line_limit": 1000
     },
@@ -352396,6 +354971,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/retrieval/ranked_filtered_projection.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 61,
+      "sha256": "6aa1b926e8baac5172cde5ca8c747a56298f435e3e13fee2d91b56889c611440",
+      "test_declarations": 1,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/ranked_filtered_projection.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/retrieval/scored_declared_id.rs",
       "role": "test_module",
       "action": "keep",
@@ -352441,6 +355031,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 259,
+      "sha256": "5b67e6357ebde307d360a3d3f5551a633bd39979d7dc048f8d62b62d0ff728a1",
+      "test_declarations": 5,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/search_relevance.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 191,
+      "sha256": "6578969d3b6ad38c09eafac0b0f4df65303ebb01fa39dcbe03f242c08180c9c0",
+      "test_declarations": 8,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/search_relevance_metrics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 395,
+      "sha256": "49be615d907ef4739d2e5c01383952198aeaedc619cbe415f8660d4590908d45",
+      "test_declarations": 8,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/tenant_ranked_search.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/retrieval/vector.rs",
       "role": "test_module",
       "action": "keep",
@@ -352459,8 +355094,8 @@
       "current_file": "tests/search.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 63,
-      "sha256": "e81605df535c9ee279ac8d67704f7af3fda0a99fb1b1b6e2113889603189265e",
+      "lines": 103,
+      "sha256": "b130caabef28868ec45a218012920109a0c3678d7ea85a5f8b42c8f2cb2fc72f",
       "test_declarations": 0,
       "registered_suites": [
         "search"
@@ -358462,6 +361097,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/fulltext_maintenance.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 198,
+      "sha256": "5ee2d4c60bed3e499d27791c6e38eabb0d1bf7018ec11e32a8a8c580c311fc84",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/support/fulltext_maintenance.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/graph_oracle/enumerate.rs",
       "role": "shared_support",
       "action": "keep",
@@ -358936,6 +361586,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/ranked_search.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 388,
+      "sha256": "2663cc17235a52181b801b34867d0d1889074aeb56a7234f68416f29994aa054",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search",
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/support/ranked_search.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/read_equivalence.rs",
       "role": "shared_support",
       "action": "keep",
@@ -359262,6 +361928,21 @@
       ],
       "destinations": [
         "tests/support/scalar_receive.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/search_relevance.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 236,
+      "sha256": "4deca35156a495b87ae6be2fc37aabaa8ae3e4894b8adbe70bd765bb3968d926",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/support/search_relevance.rs"
       ],
       "line_limit": 1000
     },
@@ -359783,6 +362464,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 349,
+      "sha256": "cb0940d18f6884b6acdcb575c4df170e07c2dd785e8755e1f806213d1c4820f6",
+      "test_declarations": 9,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs",
       "role": "test_module",
       "action": "keep",
@@ -360236,8 +362932,8 @@
       "current_file": "tests/vector_embeddings.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 113,
-      "sha256": "5e9f3e55569a2158b6e008b31800ba71389a4b02043fa1b3fc6a4194d83d26ca",
+      "lines": 122,
+      "sha256": "651605dc9c2fab25fc52e83a16c24cfd1e78029aefaa2d7c5be069e36db858ca",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"

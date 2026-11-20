@@ -1,3 +1,5 @@
+use crate::search::query::{SearchQueryInput, SearchSyntax};
+
 use super::{
     batch, expr_key, filter, load_fulltext_index_options, query_cache, scan, virtual_views,
     AnalyzerConfig, BatchRow, BinaryHeap, BinaryOp, Cassie, CassieSession, CmpOrdering,
@@ -8,6 +10,8 @@ use super::{
 
 #[path = "scored/candidate.rs"]
 mod candidate;
+#[path = "scored/fulltext_filtered_topk.rs"]
+mod fulltext_filtered_topk;
 #[path = "scored/fulltext_read.rs"]
 mod fulltext_read;
 #[path = "scored/fulltext_topk.rs"]
@@ -16,8 +20,12 @@ mod fulltext_topk;
 mod hybrid;
 #[path = "scored/memory.rs"]
 mod memory;
+#[path = "scored/persisted_search.rs"]
+mod persisted_search;
 #[path = "scored/posting_candidates.rs"]
 mod posting_candidates;
+#[path = "scored/search_arguments.rs"]
+mod search_arguments;
 #[path = "scored/vector_topk.rs"]
 mod vector_topk;
 
@@ -26,6 +34,9 @@ use fulltext_read::execute_fulltext_filtered_read;
 use fulltext_topk::execute_fulltext_top_k;
 use hybrid::{hybrid_search_documents, select_hybrid_candidate_rows, BoundedHybridContext};
 use posting_candidates::{posting_list_candidate_ids_controlled, PostingListDocument};
+use search_arguments::{
+    search_function_args_with_params, search_predicate_args_with_params, search_query_function_args,
+};
 pub(crate) use vector_topk::install_ann_rerank_barriers;
 pub(crate) use vector_topk::vector_top_k_shape;
 use vector_topk::{
@@ -63,6 +74,16 @@ pub(super) fn execute_scored_search_top_k(
             return Ok(Some(Vec::new()));
         }
         return execute_hybrid_top_k(cassie, session, user_functions, params, &spec, controls);
+    }
+    if let Some(spec) = fulltext_filtered_topk::ranked_filtered_top_k_spec(plan, params) {
+        return fulltext_filtered_topk::execute_ranked_filtered_top_k(
+            cassie,
+            session,
+            user_functions,
+            params,
+            &spec,
+            controls,
+        );
     }
     if let Some(spec) = fulltext_filtered_read_spec(plan, params) {
         if virtual_views::schema(&spec.collection).is_some()
@@ -189,7 +210,7 @@ struct FulltextCandidateScoringRequest<'a> {
     candidate_ids: Option<&'a HashSet<String>>,
     search_context: &'a filter::SearchContext,
     text_field: &'a str,
-    query_terms: &'a [String],
+    search: &'a filter::PreparedSearch,
     require_match: bool,
     top_needed: usize,
     controls: &'a QueryExecutionControls,
@@ -200,7 +221,7 @@ struct FulltextPartitionScoringRequest<'a> {
     candidate_ids: Option<&'a HashSet<String>>,
     search_context: &'a filter::SearchContext,
     text_field: &'a str,
-    query_terms: &'a [String],
+    search: &'a filter::PreparedSearch,
     require_match: bool,
     top_needed: usize,
     controls: &'a QueryExecutionControls,
@@ -214,7 +235,7 @@ fn score_fulltext_top_k_candidates(
         candidate_ids: request.candidate_ids,
         search_context: request.search_context,
         text_field: request.text_field,
-        query_terms: request.query_terms,
+        search: request.search,
         require_match: request.require_match,
         top_needed: request.top_needed,
         controls: request.controls,
@@ -287,14 +308,15 @@ fn score_fulltext_partition(
                 continue;
             }
         }
-        let score = request.search_context.score_term_stats(
+        let matched = request.search.evaluate(
+            request.search_context,
             Some(request.text_field),
             &document.text_stats,
-            request.query_terms,
         );
-        if request.require_match && score == 0.0 {
+        if request.require_match && matched.is_none() {
             continue;
         }
+        let score = matched.unwrap_or(0.0);
         top.try_push(request.top_needed, -score, score, &document.id)?;
     }
     Ok(top)
@@ -435,7 +457,7 @@ fn record_hybrid_metrics(cassie: &Cassie, started_at: Instant, counts: HybridMet
 struct FulltextTopKSpec {
     collection: String,
     text_field: String,
-    query: String,
+    query: SearchQueryInput,
     id_column: String,
     score_column: String,
     require_match: bool,
@@ -452,7 +474,7 @@ impl FulltextTopKSpec {
 pub(super) struct FulltextFilteredReadSpec {
     pub(super) collection: String,
     pub(super) text_field: String,
-    pub(super) query: String,
+    pub(super) query: SearchQueryInput,
     pub(super) columns: Vec<fulltext_read::SearchProjectionColumn>,
     pub(super) snippets: Vec<fulltext_read::SearchSnippetProjection>,
     pub(super) score_column: String,
@@ -730,70 +752,6 @@ fn order_matches_function_score(
     }
 }
 
-fn search_function_args_with_params(
-    function: &FunctionCall,
-    params: &[Value],
-) -> Option<(String, String)> {
-    if !function.name.eq_ignore_ascii_case("search_score") || function.args.len() != 2 {
-        return None;
-    }
-    let Expr::Column(field) = &function.args[0] else {
-        return None;
-    };
-    Some((
-        field.clone(),
-        search_query_argument(&function.args[1], params)?,
-    ))
-}
-
-fn search_query_function_args(
-    function: &FunctionCall,
-    name: &str,
-    params: &[Value],
-) -> Option<(String, String)> {
-    if !function.name.eq_ignore_ascii_case(name) || function.args.len() != 2 {
-        return None;
-    }
-    let Expr::Column(field) = &function.args[0] else {
-        return None;
-    };
-    Some((
-        field.clone(),
-        search_query_argument(&function.args[1], params)?,
-    ))
-}
-
-fn search_predicate_args_with_params(
-    function: &FunctionCall,
-    params: &[Value],
-) -> Option<(String, String)> {
-    if !matches!(
-        function.name.to_ascii_lowercase().as_str(),
-        "search" | "search_score"
-    ) || function.args.len() != 2
-    {
-        return None;
-    }
-    let Expr::Column(field) = &function.args[0] else {
-        return None;
-    };
-    Some((
-        field.clone(),
-        search_query_argument(&function.args[1], params)?,
-    ))
-}
-
-fn search_query_argument(expr: &Expr, params: &[Value]) -> Option<String> {
-    match expr {
-        Expr::StringLiteral(query) => Some(query.clone()),
-        Expr::Param(index) => params
-            .get(*index)
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        _ => None,
-    }
-}
-
 fn hybrid_function_args(
     function: &FunctionCall,
     params: &[Value],
@@ -808,8 +766,12 @@ fn hybrid_function_args(
         return None;
     };
     let (text_field, query) = search_function_args_with_params(search_function, params)?;
+    if query.syntax != SearchSyntax::Terms {
+        // The `'query'` syntax is evaluated row-wise by the generic path.
+        return None;
+    }
     let (vector_field, vector_query) = vector_score_args(vector_function, params)?;
-    Some((text_field, query, vector_field, vector_query))
+    Some((text_field, query.text, vector_field, vector_query))
 }
 
 fn vector_score_args(function: &FunctionCall, params: &[Value]) -> Option<(String, Vec<f32>)> {
@@ -841,13 +803,15 @@ fn function_call_key(function: &FunctionCall) -> String {
     format!("{}({})", function.name.to_ascii_lowercase(), args)
 }
 
-fn json_search_term_stats(
+fn json_search_term_stats_for_query(
     value: Option<&serde_json::Value>,
     analyzer: &AnalyzerConfig,
+    input: &SearchQueryInput,
 ) -> filter::SearchTermStats {
-    filter::SearchTermStats::from_text_with_analyzer(
+    filter::SearchTermStats::for_search(
         value.and_then(serde_json::Value::as_str),
         analyzer,
+        input.syntax == SearchSyntax::Query,
     )
 }
 

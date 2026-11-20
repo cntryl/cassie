@@ -16,6 +16,8 @@ pub enum SchemaWritePausePoint {
     CollectionCreate,
     DatabaseCreateFinalize,
     FulltextAnalyzerChange,
+    FulltextPostingPublication,
+    FulltextRebuildCommit,
     ProjectionReplayMetadataCommit,
     SequenceNextValue,
 }

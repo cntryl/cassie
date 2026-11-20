@@ -225,6 +225,12 @@ Supported options:
 
 Analyzer options are persisted and used by indexing, `search()`, `search_score()`, snippets, BM25 statistics, rebuild scans, and cached full-text scoring metadata.
 
+`search()`, `search_score()` and `snippet()` take an optional third argument selecting the query
+syntax: `'terms'` (the default, any-token matching) or `'query'`, which adds quoted phrases with
+optional slop, `word*` prefixes, `word~` single-edit typo matching, `OR`, `-`/`NOT` exclusion and
+parentheses, with bounded expansion limits and `22023`/`54000` diagnostics. See the
+[full-text query contract](fulltext-query-contract.md).
+
 ## Vector Indexes
 
 Vector indexes support Cassie vector search and pgvector-style operator surfaces.

@@ -33,6 +33,12 @@ mod integration_sql_fulltext_query;
 
 #[path = "search/retrieval/fulltext_analyzer_publication.rs"]
 mod fulltext_analyzer_publication;
+#[path = "search/retrieval/fulltext_query_paths.rs"]
+mod fulltext_query_paths;
+#[path = "search/retrieval/fulltext_query_support.rs"]
+mod fulltext_query_support;
+#[path = "search/retrieval/fulltext_query_syntax.rs"]
+mod fulltext_query_syntax;
 #[path = "search/retrieval/fulltext_stemming.rs"]
 mod fulltext_stemming;
 #[path = "search/retrieval/fulltext_synonyms.rs"]
@@ -55,9 +61,43 @@ mod scored_field_case;
 #[path = "support/read_equivalence.rs"]
 mod support_read_equivalence;
 
+// Incremental full-text index maintenance: equivalence, write cost, interruption.
+#[path = "search/index_lifecycle/fulltext_block_maintenance.rs"]
+mod fulltext_block_maintenance;
+#[path = "search/index_lifecycle/fulltext_incremental_maintenance.rs"]
+mod fulltext_incremental_maintenance;
+#[path = "search/index_lifecycle/fulltext_publication_interruption.rs"]
+mod fulltext_publication_interruption;
+#[path = "search/index_lifecycle/fulltext_write_amplification.rs"]
+mod fulltext_write_amplification;
+#[path = "support/fulltext_maintenance.rs"]
+mod support_fulltext_maintenance;
+
 #[path = "search/retrieval/scored_read_equivalence.rs"]
 mod scored_read_equivalence;
 
 // Analyzer and corpus-statistics consistency for scored fulltext reads.
 #[path = "search/retrieval/fulltext_analyzer_consistency.rs"]
 mod fulltext_analyzer_consistency;
+
+// Corpus-wide BM25 oracle and two-tenant pgwire fixture shared with the hybrid suite.
+#[path = "support/ranked_search.rs"]
+mod support_ranked_search;
+
+// Tenant-filtered ranked lexical search and hand-checkable BM25 ranking.
+#[path = "search/retrieval/tenant_ranked_search.rs"]
+mod tenant_ranked_search;
+
+// Judged-relevance workload (#1368): types, nDCG@10 / MRR@10 and graded evaluation.
+#[path = "support/search_relevance.rs"]
+mod support_search_relevance;
+
+#[path = "search/retrieval/search_relevance_metrics.rs"]
+mod search_relevance_metrics;
+
+#[path = "search/retrieval/search_relevance.rs"]
+mod search_relevance;
+
+// Projected columns and snippets agree between the indexed and exact ranked filtered paths.
+#[path = "search/retrieval/ranked_filtered_projection.rs"]
+mod ranked_filtered_projection;

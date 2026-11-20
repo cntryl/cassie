@@ -69,12 +69,16 @@ pub fn load_judgments() -> Judgments {
         .expect("judgments.json is well formed")
 }
 
+fn count_f64(count: usize) -> f64 {
+    f64::from(u32::try_from(count).expect("count fits in u32"))
+}
+
 fn gain(grade: u8) -> f64 {
     f64::from(2_u32.pow(u32::from(grade))) - 1.0
 }
 
 fn discount(rank_from_one: usize) -> f64 {
-    ((rank_from_one + 1) as f64).log2().recip()
+    count_f64(rank_from_one + 1).log2().recip()
 }
 
 /// nDCG@k with gain `2^grade - 1`; ungraded documents have grade 0. Zero when nothing is graded
@@ -107,7 +111,7 @@ pub fn mrr_at_k(ranked: &[String], grades: &BTreeMap<String, u8>, k: usize) -> f
         .iter()
         .take(k)
         .position(|id| grades.get(id).copied().unwrap_or(0) >= RELEVANT_GRADE)
-        .map_or(0.0, |index| 1.0 / (index + 1) as f64)
+        .map_or(0.0, |index| 1.0 / count_f64(index + 1))
 }
 
 /// Checks a judgments file against the workload. An `unjudged` file must be empty.
@@ -116,7 +120,8 @@ pub fn validate_judgments(
     corpus: &Corpus,
     intents: &IntentSet,
 ) -> Result<(), String> {
-    if judgments.corpus_version != corpus.version || judgments.corpus_version != intents.corpus_version
+    if judgments.corpus_version != corpus.version
+        || judgments.corpus_version != intents.corpus_version
     {
         return Err("judgments, intents and corpus must share one corpus version".to_string());
     }
@@ -138,23 +143,41 @@ fn validate_judged(
     corpus: &Corpus,
     intents: &IntentSet,
 ) -> Result<(), String> {
-    let graders: BTreeSet<_> = judgments.graders.iter().filter(|g| !g.trim().is_empty()).collect();
+    let graders: BTreeSet<_> = judgments
+        .graders
+        .iter()
+        .filter(|g| !g.trim().is_empty())
+        .collect();
     if graders.len() < 2 {
         return Err("a judged file needs at least two distinct named graders".to_string());
     }
     let documents: BTreeSet<_> = corpus.documents.iter().map(|doc| doc.id.as_str()).collect();
     for intent in intents.intents.iter().filter(|i| i.split != "no_hit") {
-        let Some(grades) = judgments.grades.get(&intent.id) else {
+        let Some(intent_grades) = judgments.grades.get(&intent.id) else {
             return Err(format!("intent {} has no grades", intent.id));
         };
-        if let Some(unknown) = grades.keys().find(|id| !documents.contains(id.as_str())) {
-            return Err(format!("intent {} grades unknown document {unknown}", intent.id));
+        if let Some(unknown) = intent_grades
+            .keys()
+            .find(|id| !documents.contains(id.as_str()))
+        {
+            return Err(format!(
+                "intent {} grades unknown document {unknown}",
+                intent.id
+            ));
         }
-        if grades.values().any(|grade| *grade > MAX_GRADE) {
-            return Err(format!("intent {} has a grade above {MAX_GRADE}", intent.id));
+        if intent_grades.values().any(|grade| *grade > MAX_GRADE) {
+            return Err(format!(
+                "intent {} has a grade above {MAX_GRADE}",
+                intent.id
+            ));
         }
-        if intent.split == "held_out" && !grades.values().any(|grade| *grade >= RELEVANT_GRADE) {
-            return Err(format!("held-out intent {} has no relevant document", intent.id));
+        if intent.split == "held_out"
+            && !intent_grades.values().any(|grade| *grade >= RELEVANT_GRADE)
+        {
+            return Err(format!(
+                "held-out intent {} has no relevant document",
+                intent.id
+            ));
         }
     }
     Ok(())
@@ -204,7 +227,7 @@ pub fn evaluate_held_out(
     if per_intent.is_empty() {
         return Err("no held-out intents to evaluate".to_string());
     }
-    let count = per_intent.len() as f64;
+    let count = count_f64(per_intent.len());
     Ok(Evaluation {
         mean_ndcg: per_intent.iter().map(|s| s.ndcg).sum::<f64>() / count,
         mean_mrr: per_intent.iter().map(|s| s.mrr).sum::<f64>() / count,

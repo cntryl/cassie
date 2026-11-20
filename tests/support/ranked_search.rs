@@ -14,6 +14,11 @@ use tokio_postgres::types::{ToSql, Type};
 use tokio_postgres::NoTls;
 
 pub const TOTAL_DOCUMENTS: usize = 200;
+
+/// Exact conversion of a small count for oracle arithmetic.
+pub fn count_f64(count: usize) -> f64 {
+    f64::from(u32::try_from(count).expect("count fits in u32"))
+}
 const K1: f64 = 1.2;
 const B: f64 = 0.75;
 pub const QUERY: &str = "harbor cobalt";
@@ -78,7 +83,7 @@ pub fn tenant_corpus(eligible: usize) -> Vec<TenantDoc> {
             let embedding = if popular {
                 [1.0, 0.0]
             } else {
-                [0.5 + 0.125 * (index % 4) as f64, 0.25]
+                [0.5 + 0.125 * count_f64(index % 4), 0.25]
             };
             TenantDoc {
                 id: format!("d{index:03}"),
@@ -93,21 +98,26 @@ pub fn tenant_corpus(eligible: usize) -> Vec<TenantDoc> {
 
 /// Corpus-wide BM25 by the documented formula, summed over distinct query terms.
 pub fn bm25_scores(corpus: &[TenantDoc], terms: &[&str]) -> BTreeMap<String, f64> {
-    let total = corpus.len() as f64;
-    let lengths: Vec<f64> = corpus.iter().map(|doc| doc.tokens().len() as f64).collect();
+    let total = count_f64(corpus.len());
+    let lengths: Vec<f64> = corpus
+        .iter()
+        .map(|doc| count_f64(doc.tokens().len()))
+        .collect();
     let average = (lengths.iter().sum::<f64>() / total).max(1.0);
     let mut scores = BTreeMap::new();
     for term in terms.iter().collect::<BTreeSet<_>>() {
-        let df = corpus
-            .iter()
-            .filter(|doc| doc.tokens().contains(term))
-            .count() as f64;
+        let df = count_f64(
+            corpus
+                .iter()
+                .filter(|doc| doc.tokens().contains(term))
+                .count(),
+        );
         if df == 0.0 {
             continue;
         }
         let idf = ((total - df + 0.5) / (df + 0.5) + 1.0).ln();
         for (doc, length) in corpus.iter().zip(&lengths) {
-            let tf = doc.tokens().iter().filter(|token| *token == term).count() as f64;
+            let tf = count_f64(doc.tokens().iter().filter(|token| *token == term).count());
             if tf > 0.0 {
                 let norm = tf + K1 * (1.0 - B + B * length / average);
                 *scores.entry(doc.id.clone()).or_insert(0.0) += idf * tf * (K1 + 1.0) / norm;
@@ -150,7 +160,12 @@ pub fn ranked_page(
         .filter(|doc| eligible(doc))
         .filter_map(|doc| scores.get(&doc.id).map(|score| (doc.id.clone(), *score)))
         .collect();
-    ranked.sort_by(|left, right| right.1.total_cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    ranked.sort_by(|left, right| {
+        right
+            .1
+            .total_cmp(&left.1)
+            .then_with(|| left.0.cmp(&right.0))
+    });
     ranked.into_iter().skip(offset).take(limit).collect()
 }
 
@@ -281,7 +296,7 @@ impl WireFixture {
     }
 
     /// Creates `docs`, loads `corpus` and builds the full-text and scalar indexes.
-    pub async fn load_corpus(&self, corpus: &[TenantDoc]) {
+    pub fn load_corpus(&self, corpus: &[TenantDoc]) {
         load_corpus_in_process(&self.cassie, corpus);
     }
 
@@ -354,7 +369,10 @@ pub fn load_corpus_in_process(cassie: &Cassie, corpus: &[TenantDoc]) {
             )
             .expect("write document");
     }
-    exec_in_process(cassie, "CREATE INDEX docs_fts ON docs USING fulltext (body)");
+    exec_in_process(
+        cassie,
+        "CREATE INDEX docs_fts ON docs USING fulltext (body)",
+    );
     exec_in_process(cassie, "CREATE INDEX docs_tenant ON docs (tenant)");
     exec_in_process(cassie, "CREATE INDEX docs_status ON docs (status)");
 }

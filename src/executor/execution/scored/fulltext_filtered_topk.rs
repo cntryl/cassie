@@ -196,11 +196,11 @@ pub(super) fn execute_ranked_filtered_top_k(
     }
     let started_at = Instant::now();
     let read = &spec.read;
-    let persisted = match fulltext_read::load_persisted_fulltext_read(cassie, session, read, controls)?
-    {
-        PersistedFulltextReadSelection::Ready(persisted) => *persisted,
-        PersistedFulltextReadSelection::Exact(_) => return Ok(None),
-    };
+    let persisted =
+        match fulltext_read::load_persisted_fulltext_read(cassie, session, read, controls)? {
+            PersistedFulltextReadSelection::Ready(persisted) => *persisted,
+            PersistedFulltextReadSelection::Exact(_) => return Ok(None),
+        };
     let scalar_candidates = scalar_conjunct_candidates(cassie, session, read, params, controls)?;
     let matched = fulltext_read::score_persisted_candidates(
         &persisted,
@@ -217,6 +217,57 @@ pub(super) fn execute_ranked_filtered_top_k(
     }
     matched.sort_by(rank_order);
 
+    let context = PageContext {
+        cassie,
+        session,
+        user_functions,
+        params,
+        spec,
+        persisted: &persisted,
+        controls,
+    };
+    let Some((rows, row_fetches)) = collect_page(&context, matched)? else {
+        return Ok(None);
+    };
+    cassie.runtime.record_fulltext_retrieval_diagnostics(
+        persisted.candidates.posting_block_reads,
+        row_fetches,
+    );
+    cassie.runtime.record_search_execution(
+        started_at.elapsed(),
+        persisted.candidates.document_stats.len(),
+        rows.len(),
+    );
+    Ok(Some(rows))
+}
+
+struct PageContext<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    spec: &'a RankedFilteredTopKSpec,
+    persisted: &'a fulltext_read::PersistedFulltextRead,
+    controls: &'a QueryExecutionControls,
+}
+
+/// Visits ranked candidates, fetching rows only when needed, until the page is full. Returns
+/// `None` when a candidate row has vanished so the caller can use the exact path.
+fn collect_page(
+    context: &PageContext<'_>,
+    matched: Vec<(&String, f64)>,
+) -> Result<Option<(Vec<BatchRow>, usize)>, QueryError> {
+    let PageContext {
+        cassie,
+        session,
+        user_functions,
+        params,
+        spec,
+        persisted,
+        controls,
+    } = *context;
+    let read = &spec.read;
+    let needs_fetch = spec.needs_row_fetch();
     let analyzer = persisted
         .search_context
         .analyzer_for_field(&read.text_field);
@@ -280,14 +331,5 @@ pub(super) fn execute_ranked_filtered_top_k(
         )?;
     }
     let (rows, _output_memory) = rows.into_parts();
-    cassie.runtime.record_fulltext_retrieval_diagnostics(
-        persisted.candidates.posting_block_reads,
-        row_fetches,
-    );
-    cassie.runtime.record_search_execution(
-        started_at.elapsed(),
-        persisted.candidates.document_stats.len(),
-        rows.len(),
-    );
-    Ok(Some(rows))
+    Ok(Some((rows, row_fetches)))
 }

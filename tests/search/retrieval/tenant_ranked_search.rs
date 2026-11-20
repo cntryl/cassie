@@ -9,8 +9,8 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 
 use crate::support_ranked_search::{
     assert_page_matches, bm25_scores, exec_in_process, fallback_reason_count,
-    load_corpus_in_process, ranked_page, tenant_corpus,
-    SearchCounters, TenantDoc, WireFixture, QUERY, SCORE_TOLERANCE, TOTAL_DOCUMENTS,
+    load_corpus_in_process, ranked_page, tenant_corpus, SearchCounters, TenantDoc, WireFixture,
+    QUERY, SCORE_TOLERANCE, TOTAL_DOCUMENTS,
 };
 
 const TIE_ORDERED: &str = "SELECT _id, search_score(body, $1) AS score FROM docs \
@@ -41,7 +41,7 @@ async fn loaded_fixture(corpus: &[TenantDoc]) -> WireFixture {
     let cassie = Cassie::new_in_memory_with_config(uncached_config()).expect("cassie");
     cassie.startup().expect("startup");
     let fixture = WireFixture::start(cassie).await;
-    fixture.load_corpus(corpus).await;
+    fixture.load_corpus(corpus);
     fixture
 }
 
@@ -76,7 +76,13 @@ async fn assert_tenant_pages(eligible: usize) {
     for (limit, offset) in [(5_usize, 0_usize), (5, 5), (10, 3), (50, 0)] {
         for sql in [TIE_ORDERED, SCORE_ONLY_ORDERED] {
             // Act
-            let (actual, delta) = tenant_page(&fixture, sql, limit as i64, offset as i64).await;
+            let (actual, delta) = tenant_page(
+                &fixture,
+                sql,
+                i64::try_from(limit).unwrap(),
+                i64::try_from(offset).unwrap(),
+            )
+            .await;
 
             // Assert
             let expected = ranked_page(&scores, &corpus, TenantDoc::eligible, limit, offset);
@@ -87,8 +93,8 @@ async fn assert_tenant_pages(eligible: usize) {
             );
             assert_eq!(delta.row_scan_fallbacks, 0, "indexed path expected");
             assert!(delta.posting_reads > 0);
-            assert_eq!(delta.results as usize, actual.len());
-            assert_eq!(delta.candidates, scores.len() as u64);
+            assert_eq!(usize::try_from(delta.results).unwrap(), actual.len());
+            assert_eq!(usize::try_from(delta.candidates).unwrap(), scores.len());
         }
     }
     fixture.stop().await;
@@ -265,7 +271,10 @@ fn should_stay_consistent_after_reopen_and_damage_given_a_committed_group_move()
                     .expect("open local");
             cassie.startup().expect("startup");
             load_corpus_in_process(&cassie, &corpus);
-            exec_in_process(&cassie, "UPDATE docs SET status = 'closed' WHERE _id = 'd001'");
+            exec_in_process(
+                &cassie,
+                "UPDATE docs SET status = 'closed' WHERE _id = 'd001'",
+            );
         }
         corpus[1].status = "closed";
         let expected = expected_page(&corpus);
@@ -350,11 +359,20 @@ fn should_rank_a_hand_checkable_corpus_with_ties_filters_and_a_frequency_update(
         assert_eq!(ids(&top_two), ["c", "a"]);
         assert_eq!(ids(&second_page), ["a", "b"]);
         let idf = (7.0_f64 / 4.5).ln();
-        assert!((first[0].1 - idf * 3.0 * 2.2 / (3.0 + 1.2 * (0.25 + 0.75 * 3.0 / (13.0 / 6.0)))).abs() < 1e-9);
+        assert!(
+            (first[0].1 - idf * 3.0 * 2.2 / (3.0 + 1.2 * (0.25 + 0.75 * 3.0 / (13.0 / 6.0)))).abs()
+                < 1e-9
+        );
         assert!(first[1].1.to_bits() == first[2].1.to_bits(), "exact tie");
         assert_page_matches(
             &first,
-            &ranked_page(&bm25_scores(&original, &["alpha"]), &original, active, 10, 0),
+            &ranked_page(
+                &bm25_scores(&original, &["alpha"]),
+                &original,
+                active,
+                10,
+                0,
+            ),
             SCORE_TOLERANCE,
         );
         assert_eq!(ids(&updated), ["c", "a", "b"]);

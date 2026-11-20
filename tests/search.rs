@@ -79,3 +79,7 @@ mod search_relevance_metrics;
 
 #[path = "search/retrieval/search_relevance.rs"]
 mod search_relevance;
+
+// Projected columns and snippets agree between the indexed and exact ranked filtered paths.
+#[path = "search/retrieval/ranked_filtered_projection.rs"]
+mod ranked_filtered_projection;

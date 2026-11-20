@@ -682,10 +682,7 @@ pub(super) fn scalar_equality_candidates(
         return Ok(None);
     };
     if !super::super::index_probe_canonicalization::probe_comparison_is_exact(
-        cassie,
-        collection,
-        &field,
-        &value,
+        cassie, collection, &field, &value,
     ) {
         return Ok(None);
     }
@@ -700,11 +697,7 @@ pub(super) fn scalar_equality_candidates(
                     crate::sql::ColumnIdentifierPath::stored_field_key(indexed)
                         == crate::sql::ColumnIdentifierPath::reference_field_key(&field)
                 })
-                && super::super::index_read::index_trailing_keys_not_null(
-                    cassie,
-                    collection,
-                    index,
-                )
+                && super::super::index_read::index_trailing_keys_not_null(cassie, collection, index)
         })
     else {
         return Ok(None);
@@ -712,17 +705,10 @@ pub(super) fn scalar_equality_candidates(
     if session.is_some_and(|session| !session.transaction_index_visible(&index, &cassie.catalog)) {
         return Ok(None);
     }
-    let signed_zero_counterpart = super::super::index_read::signed_zero_probe_counterpart(
-        cassie,
-        collection,
-        &field,
-        &value,
-    );
+    let signed_zero_counterpart =
+        super::super::index_read::signed_zero_probe_counterpart(cassie, collection, &field, &value);
     super::super::index_probe_canonicalization::canonicalize_index_probe_value(
-        cassie,
-        collection,
-        &field,
-        &mut value,
+        cassie, collection, &field, &mut value,
     );
     let mut probe_values = vec![value];
     if let Some(mut counterpart) = signed_zero_counterpart {

@@ -85,9 +85,18 @@ fn should_freeze_a_workload_with_the_required_intent_shape() {
     assert_eq!(intents.corpus_version, corpus.version);
     assert!(intents.intents.len() >= 20, "at least 20 distinct intents");
     assert_eq!(unique.len(), intents.intents.len(), "intent ids are unique");
-    assert!(count("held_out") >= 10, "at least ten held-out answerable intents");
+    assert!(
+        count("held_out") >= 10,
+        "at least ten held-out answerable intents"
+    );
     assert!(count("no_hit") >= 1, "a separate no-hit set");
-    for kind in ["exact_identifier", "description", "repeated_terms", "ambiguous", "no_hit"] {
+    for kind in [
+        "exact_identifier",
+        "description",
+        "repeated_terms",
+        "ambiguous",
+        "no_hit",
+    ] {
         assert!(kinds.contains(kind), "missing intent kind {kind}");
     }
     assert!(intents
@@ -100,7 +109,11 @@ fn should_freeze_a_workload_with_the_required_intent_shape() {
             .iter()
             .chain(&intent.authored_decoy_doc_ids)
         {
-            assert!(documents.contains(id.as_str()), "{} names unknown {id}", intent.id);
+            assert!(
+                documents.contains(id.as_str()),
+                "{} names unknown {id}",
+                intent.id
+            );
         }
         assert_eq!(
             intent.split == "no_hit",
@@ -126,7 +139,7 @@ fn should_return_zero_hits_for_every_no_hit_intent() {
         .collect();
 
     // Assert
-    assert!(!hits.is_empty());
+    assert_ne!(hits.len(), 0);
     for (id, count) in hits {
         assert_eq!(count, 0, "no-hit intent {id} must return zero hits");
     }
@@ -141,7 +154,11 @@ fn should_return_the_authored_intended_document_within_the_top_ten_for_answerabl
     let results = run_all_intents(&cassie);
 
     // Assert: a fixture sanity check on the author's design, not a relevance judgment.
-    for intent in load_intents().intents.iter().filter(|i| i.split != "no_hit") {
+    for intent in load_intents()
+        .intents
+        .iter()
+        .filter(|i| i.split != "no_hit")
+    {
         let ranked = &results[&intent.id];
         assert!(!ranked.is_empty(), "{} returned nothing", intent.id);
         assert!(ranked.len() <= CUTOFF);
@@ -217,9 +234,13 @@ fn should_write_per_query_results_and_report_the_qualification_state() {
             })).collect::<Vec<_>>(),
         })),
     });
-    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("search_relevance_v1_results.json");
-    std::fs::write(&path, serde_json::to_vec_pretty(&report).expect("report json"))
-        .expect("write per-query results");
+    let path =
+        std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("search_relevance_v1_results.json");
+    std::fs::write(
+        &path,
+        serde_json::to_vec_pretty(&report).expect("report json"),
+    )
+    .expect("write per-query results");
 
     // Assert
     assert!(validation.is_ok(), "judgments file must be well formed");

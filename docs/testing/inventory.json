@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1798,
-    "rust_files": 1761,
-    "rust_test_declarations": 10722,
+    "files": 1808,
+    "rust_files": 1767,
+    "rust_test_declarations": 10752,
     "python_test_declarations": 22,
-    "registered_rust_instances": 10747,
+    "registered_rust_instances": 10777,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -237960,6 +237960,657 @@
       }
     },
     {
+      "id": "tests/search/retrieval/search_relevance.rs::should_freeze_a_workload_with_the_required_intent_shape",
+      "name": "should_freeze_a_workload_with_the_required_intent_shape",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 72,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_freeze_a_workload_with_the_required_intent_shape"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_return_zero_hits_for_every_no_hit_intent",
+      "name": "should_return_zero_hits_for_every_no_hit_intent",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 128,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_return_zero_hits_for_every_no_hit_intent"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_return_the_authored_intended_document_within_the_top_ten_for_answerable_intents",
+      "name": "should_return_the_authored_intended_document_within_the_top_ten_for_answerable_intents",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 149,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_return_the_authored_intended_document_within_the_top_ten_for_answerable_intents"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_rank_the_keyword_stuffed_decoy_above_the_genuine_listing",
+      "name": "should_rank_the_keyword_stuffed_decoy_above_the_genuine_listing",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 177,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_rank_the_keyword_stuffed_decoy_above_the_genuine_listing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance.rs::should_write_per_query_results_and_report_the_qualification_state",
+      "name": "should_write_per_query_results_and_report_the_qualification_state",
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "line": 199,
+      "end_line": 259,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance::should_write_per_query_results_and_report_the_qualification_state"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_compute_ndcg_from_the_gain_and_log_discount_definition",
+      "name": "should_compute_ndcg_from_the_gain_and_log_discount_definition",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 22,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_compute_ndcg_from_the_gain_and_log_discount_definition"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_score_a_perfect_ordering_as_one_and_no_relevant_document_as_zero",
+      "name": "should_score_a_perfect_ordering_as_one_and_no_relevant_document_as_zero",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 37,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_score_a_perfect_ordering_as_one_and_no_relevant_document_as_zero"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_ignore_results_below_the_cutoff_when_computing_ndcg",
+      "name": "should_ignore_results_below_the_cutoff_when_computing_ndcg",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 53,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_ignore_results_below_the_cutoff_when_computing_ndcg"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_use_the_first_document_graded_relevant_for_reciprocal_rank",
+      "name": "should_use_the_first_document_graded_relevant_for_reciprocal_rank",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 65,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_use_the_first_document_graded_relevant_for_reciprocal_rank"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_pass_the_floors_given_the_graded_document_ranked_first",
+      "name": "should_pass_the_floors_given_the_graded_document_ranked_first",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 125,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_pass_the_floors_given_the_graded_document_ranked_first"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_fail_the_floors_given_a_judged_irrelevant_decoy_ranked_first",
+      "name": "should_fail_the_floors_given_a_judged_irrelevant_decoy_ranked_first",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 143,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_fail_the_floors_given_a_judged_irrelevant_decoy_ranked_first"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_reject_judgments_that_miss_an_answerable_intent_or_name_fewer_than_two_graders",
+      "name": "should_reject_judgments_that_miss_an_answerable_intent_or_name_fewer_than_two_graders",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 161,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_reject_judgments_that_miss_an_answerable_intent_or_name_fewer_than_two_graders"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/search_relevance_metrics.rs::should_reject_an_unjudged_file_that_carries_grades",
+      "name": "should_reject_an_unjudged_file_that_carries_grades",
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "line": 180,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "search_relevance_metrics::should_reject_an_unjudged_file_that_carries_grades"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/search_relevance_metrics.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_tenant_status_pages_like_global_bm25_given_one_percent_eligible",
+      "name": "should_rank_tenant_status_pages_like_global_bm25_given_one_percent_eligible",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 98,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_rank_tenant_status_pages_like_global_bm25_given_one_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_tenant_status_pages_like_global_bm25_given_ten_percent_eligible",
+      "name": "should_rank_tenant_status_pages_like_global_bm25_given_ten_percent_eligible",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 103,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_rank_tenant_status_pages_like_global_bm25_given_ten_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_tenant_status_pages_like_global_bm25_given_half_eligible",
+      "name": "should_rank_tenant_status_pages_like_global_bm25_given_half_eligible",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 108,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_rank_tenant_status_pages_like_global_bm25_given_half_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_fetch_only_eligible_rows_given_a_selective_tenant_search",
+      "name": "should_fetch_only_eligible_rows_given_a_selective_tenant_search",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 113,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_fetch_only_eligible_rows_given_a_selective_tenant_search"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_keep_eligibility_and_move_scores_given_a_term_change_in_another_tenant",
+      "name": "should_keep_eligibility_and_move_scores_given_a_term_change_in_another_tenant",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 139,
+      "end_line": 180,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_keep_eligibility_and_move_scores_given_a_term_change_in_another_tenant"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_follow_committed_moves_and_ignore_rolled_back_moves_given_group_changes",
+      "name": "should_follow_committed_moves_and_ignore_rolled_back_moves_given_group_changes",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 193,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_follow_committed_moves_and_ignore_rolled_back_moves_given_group_changes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_stay_consistent_after_reopen_and_damage_given_a_committed_group_move",
+      "name": "should_stay_consistent_after_reopen_and_damage_given_a_committed_group_move",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 257,
+      "end_line": 295,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_stay_consistent_after_reopen_and_damage_given_a_committed_group_move"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/tenant_ranked_search.rs::should_rank_a_hand_checkable_corpus_with_ties_filters_and_a_frequency_update",
+      "name": "should_rank_a_hand_checkable_corpus_with_ties_filters_and_a_frequency_update",
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "line": 318,
+      "end_line": 389,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "tenant_ranked_search::should_rank_a_hand_checkable_corpus_with_ties_filters_and_a_frequency_update"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/tenant_ranked_search.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/retrieval/vector.rs::should_tokenize_text_into_lowercase_terms",
       "name": "should_tokenize_text_into_lowercase_terms",
       "current_file": "tests/search/retrieval/vector.rs",
@@ -328410,6 +329061,285 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible",
+      "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 155,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_one_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible",
+      "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 160,
+      "end_line": 162,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_ten_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible",
+      "name": "should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 165,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_by_the_documented_contract_given_half_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_keep_hybrid_eligibility_and_move_scores_given_a_term_change_in_another_tenant",
+      "name": "should_keep_hybrid_eligibility_and_move_scores_given_a_term_change_in_another_tenant",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 170,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_keep_hybrid_eligibility_and_move_scores_given_a_term_change_in_another_tenant"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_follow_hybrid_moves_through_rollback_and_commit",
+      "name": "should_follow_hybrid_moves_through_rollback_and_commit",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 214,
+      "end_line": 265,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_follow_hybrid_moves_through_rollback_and_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_after_reopen_and_after_a_damaged_text_artifact",
+      "name": "should_rank_hybrid_after_reopen_and_after_a_damaged_text_artifact",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 268,
+      "end_line": 305,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_after_reopen_and_after_a_damaged_text_artifact"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible",
+      "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 332,
+      "end_line": 334,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_with_an_ann_index_given_one_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible",
+      "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 337,
+      "end_line": 339,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_with_an_ann_index_given_ten_percent_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs::should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible",
+      "name": "should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible",
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "line": 342,
+      "end_line": 344,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "tenant_hybrid_ranking::should_rank_hybrid_tenant_pages_with_an_ann_index_given_half_eligible"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "hybrid",
+        "directory": "tests/vector_embeddings/hybrid",
+        "file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs::should_store_hnsw_nodes_as_point_readable_binary_records",
       "name": "should_store_hnsw_nodes_as_point_readable_binary_records",
       "current_file": "tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs",
@@ -338753,6 +339683,58 @@
       "registered_suites": [],
       "destinations": [
         "tests/corpus/postgresql18/v3-contract-vectors.json"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/v1/README.md",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 73,
+      "sha256": "822d79be552c6d6019bdc046d66e3b31cc1eb820c93170890b7c643f60bf8cb0",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/v1/README.md"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/v1/corpus.json",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 49,
+      "sha256": "410a05049ad5965f7a0abf185355bbd84bfdb71a4dfefa0d7f47a16e27c321d2",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/v1/corpus.json"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/v1/intents.json",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 31,
+      "sha256": "b3f9723e8bd3ef59a53ab222c32faa94c27def4dc91c4f1e596fd383e64c635d",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/v1/intents.json"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/corpus/search_relevance/v1/judgments.json",
+      "role": "oracle_data",
+      "action": "keep",
+      "lines": 7,
+      "sha256": "9b30b37a803208fd068f40c767b9a1b3e8438bb9ad11d3c3d5556c3f173e9a3d",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/corpus/search_relevance/v1/judgments.json"
       ],
       "line_limit": null
     },
@@ -352441,6 +353423,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/retrieval/search_relevance.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 259,
+      "sha256": "a390b11bb22c43e0a27869977a62835e310929ca4c805bcf160e2c62e71014ef",
+      "test_declarations": 5,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/search_relevance.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/retrieval/search_relevance_metrics.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 191,
+      "sha256": "202cd2c73e778e2362267735560a2468302448c0d7d03b577518e7e7f32affaf",
+      "test_declarations": 8,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/search_relevance_metrics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/search/retrieval/tenant_ranked_search.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 389,
+      "sha256": "55254ac438453910c0fe08f42231636e38912e6c9e12f70798690d8fd5e8c3b4",
+      "test_declarations": 8,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/tenant_ranked_search.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/retrieval/vector.rs",
       "role": "test_module",
       "action": "keep",
@@ -352459,8 +353486,8 @@
       "current_file": "tests/search.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 63,
-      "sha256": "e81605df535c9ee279ac8d67704f7af3fda0a99fb1b1b6e2113889603189265e",
+      "lines": 81,
+      "sha256": "462f7d969288fffbe1eda28817a1162e8691d93db99744865b0d4a104ebd5a00",
       "test_declarations": 0,
       "registered_suites": [
         "search"
@@ -358936,6 +359963,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/ranked_search.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 378,
+      "sha256": "8641654f555e4c383afbac1de248616840630254a23a7a1524e10e50f83b7b21",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search",
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/support/ranked_search.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/read_equivalence.rs",
       "role": "shared_support",
       "action": "keep",
@@ -359262,6 +360305,21 @@
       ],
       "destinations": [
         "tests/support/scalar_receive.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/search_relevance.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 227,
+      "sha256": "db7f0d819792b89c93adb9c1e243d8f87e07a861188a0ae81ae8d7d953d62bad",
+      "test_declarations": 0,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/support/search_relevance.rs"
       ],
       "line_limit": 1000
     },
@@ -359783,6 +360841,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 344,
+      "sha256": "bf5a0e6da0b816d06f064b1d0a998b1e7533374f303d91a4ad1ab1bf290a5bd1",
+      "test_declarations": 9,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/hybrid/tenant_hybrid_ranking.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/indexes/hnsw/hnsw_indexes/binary.rs",
       "role": "test_module",
       "action": "keep",
@@ -360236,8 +361309,8 @@
       "current_file": "tests/vector_embeddings.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 113,
-      "sha256": "5e9f3e55569a2158b6e008b31800ba71389a4b02043fa1b3fc6a4194d83d26ca",
+      "lines": 122,
+      "sha256": "651605dc9c2fab25fc52e83a16c24cfd1e78029aefaa2d7c5be069e36db858ca",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"

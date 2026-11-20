@@ -11,13 +11,15 @@ use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
 
 use crate::support_ranked_search::{
-    assert_page_matches, create_vector_index_in_process, exec_in_process, hybrid_scores, load_corpus_in_process, ranked_page,
-    tenant_corpus, TenantDoc, WireFixture, HYBRID_TOLERANCE, QUERY,
+    assert_page_matches, create_vector_index_in_process, exec_in_process, hybrid_scores,
+    load_corpus_in_process, ranked_page, tenant_corpus, TenantDoc, WireFixture, HYBRID_TOLERANCE,
+    QUERY,
 };
 
 const TERMS: [&str; 2] = ["harbor", "cobalt"];
 const NEAREST: [f64; 2] = [1.0, 0.0];
-const HYBRID_PAGE: &str = "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score \
+const HYBRID_PAGE: &str =
+    "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score \
     FROM docs WHERE search(body, $1) AND tenant = $3 AND status = $4 \
     ORDER BY score DESC LIMIT $5 OFFSET $6";
 
@@ -110,14 +112,19 @@ async fn assert_hybrid_pages(eligible: usize, with_ann: bool) {
     let cassie = Cassie::new_in_memory_with_config(uncached_config()).expect("cassie");
     cassie.startup().expect("startup");
     let fixture = WireFixture::start(cassie).await;
-    fixture.load_corpus(&corpus).await;
+    fixture.load_corpus(&corpus);
     if with_ann {
         create_vector_index_in_process(&fixture.cassie);
     }
 
     for (limit, offset) in [(5_usize, 0_usize), (5, 5), (10, 3), (50, 0)] {
         // Act
-        let (actual, delta) = hybrid_page(&fixture, limit as i64, offset as i64).await;
+        let (actual, delta) = hybrid_page(
+            &fixture,
+            i64::try_from(limit).unwrap(),
+            i64::try_from(offset).unwrap(),
+        )
+        .await;
 
         // Assert
         assert_page_matches(
@@ -136,7 +143,10 @@ async fn assert_hybrid_pages(eligible: usize, with_ann: bool) {
             );
         } else {
             assert_eq!(delta.ann_reads, 0, "no ANN index is configured");
-            assert!(delta.row_scan_fallbacks > 0, "tenant filter without ANN is the exact path");
+            assert!(
+                delta.row_scan_fallbacks > 0,
+                "tenant filter without ANN is the exact path"
+            );
         }
         assert!(
             usize::try_from(delta.row_fetches).unwrap() <= corpus.len(),
@@ -169,7 +179,7 @@ fn should_keep_hybrid_eligibility_and_move_scores_given_a_term_change_in_another
         let cassie = Cassie::new_in_memory_with_config(uncached_config()).expect("cassie");
         cassie.startup().expect("startup");
         let fixture = WireFixture::start(cassie).await;
-        fixture.load_corpus(&corpus).await;
+        fixture.load_corpus(&corpus);
         let (before, _) = hybrid_page(&fixture, 100, 0).await;
 
         // Act
@@ -213,7 +223,7 @@ fn should_follow_hybrid_moves_through_rollback_and_commit() {
         let cassie = Cassie::new_in_memory_with_config(uncached_config()).expect("cassie");
         cassie.startup().expect("startup");
         let fixture = WireFixture::start(cassie).await;
-        fixture.load_corpus(&corpus).await;
+        fixture.load_corpus(&corpus);
         let baseline = hybrid_page(&fixture, 100, 0).await.0;
         let original = corpus.clone();
 
@@ -234,11 +244,27 @@ fn should_follow_hybrid_moves_through_rollback_and_commit() {
         let committed = hybrid_page(&fixture, 100, 0).await.0;
 
         // Assert
-        assert_page_matches(&baseline, &expected_page(&original, 100, 0), HYBRID_TOLERANCE);
-        assert_page_matches(&in_transaction, &expected_page(&moved, 100, 0), HYBRID_TOLERANCE);
+        assert_page_matches(
+            &baseline,
+            &expected_page(&original, 100, 0),
+            HYBRID_TOLERANCE,
+        );
+        assert_page_matches(
+            &in_transaction,
+            &expected_page(&moved, 100, 0),
+            HYBRID_TOLERANCE,
+        );
         assert!(in_transaction_delta.row_scan_fallbacks > 0);
-        assert_page_matches(&rolled_back, &expected_page(&original, 100, 0), HYBRID_TOLERANCE);
-        assert_page_matches(&committed, &expected_page(&corpus, 100, 0), HYBRID_TOLERANCE);
+        assert_page_matches(
+            &rolled_back,
+            &expected_page(&original, 100, 0),
+            HYBRID_TOLERANCE,
+        );
+        assert_page_matches(
+            &committed,
+            &expected_page(&corpus, 100, 0),
+            HYBRID_TOLERANCE,
+        );
         fixture.stop().await;
     });
 }
@@ -255,13 +281,17 @@ fn should_rank_hybrid_after_reopen_and_after_a_damaged_text_artifact() {
                     .expect("open local");
             cassie.startup().expect("startup");
             load_corpus_in_process(&cassie, &corpus);
-            exec_in_process(&cassie, "UPDATE docs SET status = 'closed' WHERE _id = 'd001'");
+            exec_in_process(
+                &cassie,
+                "UPDATE docs SET status = 'closed' WHERE _id = 'd001'",
+            );
         }
         corpus[1].status = "closed";
 
         // Act
-        let cassie = Cassie::new_local_with_data_dir_and_config(directory.path(), uncached_config())
-            .expect("reopen local");
+        let cassie =
+            Cassie::new_local_with_data_dir_and_config(directory.path(), uncached_config())
+                .expect("reopen local");
         cassie.startup().expect("startup after reopen");
         let fixture = WireFixture::start(cassie).await;
         let reopened = hybrid_page(&fixture, 100, 0).await.0;

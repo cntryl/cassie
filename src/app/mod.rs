@@ -143,6 +143,7 @@ mod domain_scope;
 mod enum_checks;
 mod enum_notice;
 mod enum_scope;
+mod publication_intent;
 mod query;
 mod query_bind;
 mod query_bound;

@@ -378,6 +378,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/domain_models/time_series/indexes/time_series_indexes/parameters.rs` | test_module | 78 | 1 | domain_models | keep | `tests/domain_models/time_series/indexes/time_series_indexes/parameters.rs` |
 | `tests/domain_models/time_series/indexes/time_series_indexes/restart.rs` | test_module | 105 | 1 | domain_models | keep | `tests/domain_models/time_series/indexes/time_series_indexes/restart.rs` |
 | `tests/domain_models/time_series/indexes/time_series_indexes/semantics.rs` | test_module | 717 | 11 | domain_models | keep | `tests/domain_models/time_series/indexes/time_series_indexes/semantics.rs` |
+| `tests/domain_models/time_series/mixed_workload.rs` | test_module | 685 | 1 | domain_models | move_with_module_alias | `tests/domain_models/time_series/queries/mixed_workload.rs` |
 | `tests/domain_models/time_series/partitions/time_series_partition_delimiters.rs` | test_module | 48 | 1 | domain_models | keep | `tests/domain_models/time_series/partitions/time_series_partition_delimiters.rs` |
 | `tests/domain_models/time_series/qualification.rs` | test_module | 178 | 2 | domain_models | keep | `tests/domain_models/time_series/qualification.rs` |
 | `tests/domain_models/time_series/queries/calendar_dashboard.rs` | test_module | 762 | 2 | domain_models | keep | `tests/domain_models/time_series/queries/calendar_dashboard.rs` |
@@ -391,7 +392,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/domain_models/time_series/rollups/time_series_rollups/mod.rs` | module_registration | 135 | 0 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/mod.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/restart.rs` | test_module | 150 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/restart.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs` | test_module | 644 | 11 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs` |
-| `tests/domain_models.rs` | cargo_target | 40 | 0 | domain_models | keep | `tests/domain_models.rs` |
+| `tests/domain_models.rs` | cargo_target | 43 | 0 | domain_models | keep | `tests/domain_models.rs` |
 | `tests/domain_types/alter.rs` | test_module | 559 | 34 | domain_types | move_with_module_alias | `tests/domain_types/semantics/alter.rs` |
 | `tests/domain_types/cast_wire.rs` | test_module | 346 | 23 | domain_types | split_by_contract | `tests/domain_types/aggregates/core/cast_wire.rs`; `tests/domain_types/aggregates/strings/cast_wire.rs`; `tests/domain_types/grammar/cast_wire.rs` |
 | `tests/domain_types/catalogs.rs` | test_module | 167 | 8 | domain_types | move_with_module_alias | `tests/domain_types/semantics/catalogs.rs` |

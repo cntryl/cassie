@@ -298,3 +298,70 @@ fn should_attribute_every_replay_acknowledgement_commit_to_one_source() {
     assert_eq!(writes.attempted, writes.primary_attempts + maintenance);
     assert!(writes.maintenance_barrier_attempts <= maintenance);
 }
+
+#[test]
+fn should_maintain_time_series_index_in_replay_commit_without_a_full_rebuild() {
+    // Arrange
+    let (cassie, _projection) = fixture();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE replay_series_docs (id INT PRIMARY KEY, device TEXT NOT NULL, event_at TIMESTAMP NOT NULL)",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX replay_series_idx ON replay_series_docs USING time_series (event_at) WITH (bucket_width = '1 day', partition_by = device)",
+            vec![],
+        )
+        .unwrap();
+    let series = cassie.midge.canonical_collection_name("replay_series_docs");
+    let replays = (1..=3_u64)
+        .map(|round| {
+            let mut replay = batch(&series);
+            replay.batch_id = format!("batch-{round}");
+            replay.events[0].event_id = format!("event-{round}");
+            replay.events[0].checkpoint = format!("checkpoint-{round}");
+            replay.events[0].position = Some(round);
+            replay.events[0].document_id = format!("row-{}", round.min(2));
+            replay.events[0].payload = Some(serde_json::json!({
+                "id": round.min(2),
+                "device": "d1",
+                "event_at": format!("2026-01-0{round}T03:04:05Z"),
+            }));
+            replay
+        })
+        .collect::<Vec<_>>();
+
+    // Act
+    let mut applied = 0;
+    let mut maintenance = 0;
+    for replay in replays {
+        let (result, writes) = observe_native_commits(|| cassie.replay_projection_batch(replay));
+        applied += result.unwrap().applied_event_count;
+        maintenance += writes.time_series_maintenance_attempts;
+    }
+
+    // Assert
+    assert_eq!(applied, 3);
+    assert_eq!(
+        maintenance, 0,
+        "a replay commit maintains the index inside its own transaction"
+    );
+    let rows = cassie
+        .execute_sql(
+            &session,
+            "SELECT id FROM replay_series_docs WHERE device = 'd1' AND event_at >= '2026-01-02T00:00:00Z' AND event_at < '2026-01-04T00:00:00Z' ORDER BY id",
+            vec![],
+        )
+        .unwrap();
+    assert_eq!(rows.rows().len(), 1);
+    assert_eq!(
+        cassie.metrics()["time_series"]["fallback_scans"].as_u64(),
+        Some(0),
+        "the in-transaction index must stay readable without a row fallback"
+    );
+}

@@ -143,6 +143,9 @@ impl Cassie {
         self.authorize_role_object_access(session, &parsed.statement)?;
         // Existing executable statements hold the publication read guard. A
         // brief exclusive capture keeps data and SQL metadata at one boundary.
+        // The publication lock lets readers pass a waiting writer, so the capture
+        // announces its intent and new statements yield until it is done.
+        let _intent = self.publication_intent.announce();
         let _publication = loop {
             controls.check_interruption()?;
             #[cfg(test)]

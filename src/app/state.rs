@@ -26,6 +26,8 @@ pub struct Cassie {
     /// Read recursion lets post-commit maintenance re-enter a statement's
     /// retained publication snapshot while a writer is waiting.
     pub(crate) catalog_publication: Arc<parking_lot::RecursiveRwLock<()>>,
+    /// Lets a writer waiting for `catalog_publication` hold back new statements.
+    pub(crate) publication_intent: Arc<super::publication_intent::PublicationIntent>,
     pub(crate) transaction_unique_waits: Arc<super::TransactionUniqueWaits>,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
     pub(crate) runtime: Arc<RuntimeState>,

@@ -4,6 +4,7 @@
 #[path = "support/retrieval.rs"]
 mod support_retrieval;
 use cassie_test_support::support_sql;
+use cassie_test_support::support_temp_dirs;
 
 #[path = "vector_embeddings/vectors/ann_candidate_exhaustion.rs"]
 mod ann_candidate_exhaustion;
@@ -111,3 +112,11 @@ mod sql_ann_metric_lifecycle;
 
 #[path = "vector_embeddings/vectors/sql_ann_metric_recall.rs"]
 mod sql_ann_metric_recall;
+
+// Corpus-wide BM25 oracle and two-tenant pgwire fixture shared with the search suite.
+#[path = "support/ranked_search.rs"]
+mod support_ranked_search;
+
+// Tenant-filtered hybrid ranking against the documented hybrid scoring contract.
+#[path = "vector_embeddings/hybrid/tenant_hybrid_ranking.rs"]
+mod tenant_hybrid_ranking;

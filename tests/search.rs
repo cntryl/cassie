@@ -61,3 +61,11 @@ mod scored_read_equivalence;
 // Analyzer and corpus-statistics consistency for scored fulltext reads.
 #[path = "search/retrieval/fulltext_analyzer_consistency.rs"]
 mod fulltext_analyzer_consistency;
+
+// Corpus-wide BM25 oracle and two-tenant pgwire fixture shared with the hybrid suite.
+#[path = "support/ranked_search.rs"]
+mod support_ranked_search;
+
+// Tenant-filtered ranked lexical search and hand-checkable BM25 ranking.
+#[path = "search/retrieval/tenant_ranked_search.rs"]
+mod tenant_ranked_search;

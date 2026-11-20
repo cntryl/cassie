@@ -246,6 +246,11 @@ harness = false
 path = "benches/tier5_scaling_transport.rs"
 
 [[bench]]
+name = "tier5_time_series_mixed"
+harness = false
+path = "benches/tier5_time_series_mixed.rs"
+
+[[bench]]
 name = "tier6_soak_mixed"
 harness = false
 path = "benches/tier6_soak_mixed.rs"

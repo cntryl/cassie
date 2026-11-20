@@ -1,4 +1,3 @@
-use crate::types::numeric::usize_to_f64;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -10,12 +9,23 @@ use crate::search::analyzer::AnalyzerConfig;
 
 #[path = "fulltext_retrieval/analyzer_change.rs"]
 mod analyzer_change;
+#[path = "fulltext_retrieval/blocks.rs"]
+mod blocks;
 #[path = "fulltext_retrieval/codec.rs"]
 mod codec;
 #[path = "fulltext_retrieval/controlled.rs"]
 mod controlled;
+#[path = "fulltext_retrieval/incremental.rs"]
+mod incremental;
+#[path = "fulltext_retrieval/layout.rs"]
+mod layout;
+#[path = "fulltext_retrieval/metrics.rs"]
+mod metrics;
 
-const STATE_VERSION: u32 = 2;
+pub(crate) use incremental::FulltextCommitChanges;
+pub(crate) use metrics::{FulltextMaintenanceMetrics, FulltextWriteTally};
+
+const STATE_VERSION: u32 = 3;
 const FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
 
 fn fulltext_build_ranges(item_count: usize) -> impl Iterator<Item = std::ops::Range<usize>> {
@@ -55,12 +65,8 @@ impl Midge {
         key_encoding::fulltext_index_artifact_prefix(relation_id, index_id)
     }
 
-    pub(crate) fn fulltext_index_manifest_key(
-        relation_id: u64,
-        index_id: u64,
-        generation: u64,
-    ) -> Vec<u8> {
-        key_encoding::fulltext_index_manifest_key(relation_id, index_id, generation)
+    pub(crate) fn fulltext_term_record_key(relation_id: u64, index_id: u64, term: &str) -> Vec<u8> {
+        key_encoding::fulltext_term_record_key(relation_id, index_id, term)
     }
 
     pub(crate) fn fulltext_postings_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
@@ -79,9 +85,14 @@ impl Midge {
         relation_id: u64,
         index_id: u64,
         term: &str,
-        block: usize,
+        first_document_id: &str,
     ) -> Vec<u8> {
-        key_encoding::fulltext_term_postings_block_key(relation_id, index_id, term, block)
+        key_encoding::fulltext_term_postings_block_key(
+            relation_id,
+            index_id,
+            term,
+            first_document_id,
+        )
     }
 
     pub(crate) fn fulltext_document_stats_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
@@ -125,29 +136,30 @@ pub struct PersistedFulltextIndexState {
     pub total_documents: usize,
     pub documents_with_text: usize,
     pub average_document_length: f64,
+    /// Exact total token length of every document with text.
+    pub total_document_length: usize,
     pub analyzer: AnalyzerConfig,
     pub document_stats: BTreeMap<String, PersistedFulltextDocumentStats>,
     pub postings: BTreeMap<String, Vec<PersistedFulltextPosting>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct FulltextIndexMetadata {
     version: u32,
     built_generation: u64,
     total_documents: usize,
     documents_with_text: usize,
-    average_document_length: f64,
+    /// Exact token total, so BM25 averages are recomputed instead of drifting.
+    total_document_length: usize,
+    posting_terms: usize,
     analyzer: AnalyzerConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct FulltextManifest {
-    version: u32,
-    built_generation: u64,
-    total_documents: usize,
-    posting_terms: usize,
-    document_count: usize,
-    terms: BTreeMap<String, FulltextTermIntegrity>,
+/// Integrity counts of one term's posting blocks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FulltextTermRecord {
+    block_count: usize,
+    posting_count: usize,
 }
 
 struct LoadedFulltextPostings {
@@ -163,53 +175,6 @@ struct LoadedCandidatePostings {
     block_reads: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct FulltextTermIntegrity {
-    block_count: usize,
-    posting_count: usize,
-}
-
-fn validate_manifest_header(
-    metadata: &FulltextIndexMetadata,
-    manifest: &FulltextManifest,
-) -> Result<(), CassieError> {
-    if manifest.version != STATE_VERSION
-        || manifest.built_generation != metadata.built_generation
-        || manifest.total_documents != metadata.total_documents
-        || manifest.posting_terms != manifest.terms.len()
-        || manifest.document_count != metadata.documents_with_text
-    {
-        return Err(CassieError::Parse(
-            "fulltext generation manifest does not match metadata".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_complete_artifact_counts(
-    metadata: &FulltextIndexMetadata,
-    manifest: &FulltextManifest,
-    block_counts: &BTreeMap<String, usize>,
-    posting_counts: &BTreeMap<String, usize>,
-    document_count: usize,
-) -> Result<(), CassieError> {
-    validate_manifest_header(metadata, manifest)?;
-    if manifest.document_count != document_count
-        || manifest.terms.iter().any(|(term, integrity)| {
-            block_counts.get(term).copied().unwrap_or_default() != integrity.block_count
-                || posting_counts.get(term).copied().unwrap_or_default() != integrity.posting_count
-        })
-        || block_counts
-            .keys()
-            .any(|term| !manifest.terms.contains_key(term))
-    {
-        return Err(CassieError::Parse(
-            "fulltext persisted artifact counts are inconsistent".to_string(),
-        ));
-    }
-    Ok(())
-}
-
 fn load_complete_fulltext_postings(
     tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
@@ -220,34 +185,32 @@ fn load_complete_fulltext_postings(
         tx.scan(&Query::new().prefix(postings_prefix.clone().into()))
             .map_err(CassieError::from)?,
     )?;
-    let mut postings = BTreeMap::<String, Vec<PersistedFulltextPosting>>::new();
-    let mut block_counts = BTreeMap::<String, usize>::new();
-    let mut posting_counts = BTreeMap::<String, usize>::new();
-    let mut posting_ids = BTreeMap::<String, std::collections::BTreeSet<String>>::new();
+    let mut observed = Vec::new();
     for (key, raw) in posting_entries {
         let term = key_encoding::utf8_first_component_after_prefix(&key, &postings_prefix)
             .ok_or_else(|| CassieError::Parse("invalid fulltext posting key".to_string()))?;
-        let block = block_counts.entry(term.clone()).or_default();
-        if key != Midge::fulltext_term_postings_block_key(relation_id, index_id, &term, *block) {
-            return Err(CassieError::Parse(format!(
-                "non-contiguous fulltext posting blocks for '{term}'"
-            )));
-        }
-        *block = block.saturating_add(1);
         let block = codec::decode_postings(&raw).map_err(|error| {
             CassieError::Parse(format!("invalid fulltext posting for '{term}': {error}"))
         })?;
-        let ids = posting_ids.entry(term.clone()).or_default();
-        for posting in &block {
-            if !ids.insert(posting.document_id.clone()) {
-                return Err(CassieError::Parse(format!(
-                    "duplicate fulltext posting for '{}' in '{term}'",
-                    posting.document_id
-                )));
-            }
+        observed.push((term, key, block));
+    }
+    let mut block_counts = BTreeMap::new();
+    let mut posting_counts = BTreeMap::new();
+    {
+        let mut validators = BTreeMap::<&str, layout::TermBlockValidator<'_>>::new();
+        for (term, key, block) in &observed {
+            validators
+                .entry(term.as_str())
+                .or_insert_with(|| layout::TermBlockValidator::new(term, relation_id, index_id))
+                .accept(key, block)?;
         }
-        let count = posting_counts.entry(term.clone()).or_default();
-        *count = count.saturating_add(block.len());
+        for (term, validator) in validators {
+            block_counts.insert(term.to_string(), validator.block_count());
+            posting_counts.insert(term.to_string(), validator.posting_count());
+        }
+    }
+    let mut postings = BTreeMap::<String, Vec<PersistedFulltextPosting>>::new();
+    for (term, _, block) in observed {
         postings.entry(term).or_default().extend(block);
     }
     Ok(LoadedFulltextPostings {
@@ -257,13 +220,39 @@ fn load_complete_fulltext_postings(
     })
 }
 
+fn validate_complete_artifact_counts(
+    metadata: &FulltextIndexMetadata,
+    term_records: &BTreeMap<String, FulltextTermRecord>,
+    loaded: &LoadedFulltextPostings,
+    document_stats: &BTreeMap<String, PersistedFulltextDocumentStats>,
+) -> Result<(), CassieError> {
+    let blocks_match = term_records.len() == loaded.block_counts.len()
+        && term_records.iter().all(|(term, record)| {
+            loaded.block_counts.get(term) == Some(&record.block_count)
+                && loaded.posting_counts.get(term) == Some(&record.posting_count)
+        });
+    let total_length = document_stats
+        .values()
+        .map(layout::document_length)
+        .sum::<usize>();
+    if !blocks_match
+        || metadata.posting_terms != term_records.len()
+        || metadata.documents_with_text != document_stats.len()
+        || metadata.total_document_length != total_length
+    {
+        return Err(CassieError::Parse(
+            "fulltext persisted artifact counts are inconsistent".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 fn load_candidate_postings(
     tx: &crate::midge::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     terms: &[String],
     allowed_ids: Option<&std::collections::BTreeSet<String>>,
-    manifest: &FulltextManifest,
 ) -> Result<LoadedCandidatePostings, CassieError> {
     let mut loaded = LoadedCandidatePostings {
         ids: std::collections::BTreeSet::new(),
@@ -272,45 +261,26 @@ fn load_candidate_postings(
         block_reads: 0,
     };
     for term in terms {
+        let record = layout::read_term_record(tx, relation_id, index_id, term)?;
         let prefix = Midge::fulltext_term_postings_prefix(relation_id, index_id, term);
         let entries = collect_scan(
             tx.scan(&Query::new().prefix(prefix.into()))
                 .map_err(CassieError::from)?,
         )?;
         loaded.block_reads = loaded.block_reads.saturating_add(entries.len());
-        let expected = manifest.terms.get(term);
-        if entries.len() != expected.map_or(0, |integrity| integrity.block_count) {
-            return Err(CassieError::Parse(format!(
-                "incomplete fulltext posting blocks for '{term}'"
-            )));
-        }
+        let mut validator = layout::TermBlockValidator::new(term, relation_id, index_id);
         let mut term_documents = std::collections::BTreeSet::new();
-        let mut posting_count = 0usize;
-        for (block, (key, raw)) in entries.into_iter().enumerate() {
-            if key != Midge::fulltext_term_postings_block_key(relation_id, index_id, term, block) {
-                return Err(CassieError::Parse(format!(
-                    "non-contiguous fulltext posting blocks for '{term}'"
-                )));
-            }
+        for (key, raw) in entries {
             let postings = codec::decode_postings(&raw)?;
-            posting_count = posting_count.saturating_add(postings.len());
+            validator.accept(&key, &postings)?;
             for posting in postings {
-                if !term_documents.insert(posting.document_id.clone()) {
-                    return Err(CassieError::Parse(format!(
-                        "duplicate fulltext posting for '{}' in '{term}'",
-                        posting.document_id
-                    )));
-                }
+                term_documents.insert(posting.document_id.clone());
                 if allowed_ids.is_none_or(|allowed| allowed.contains(&posting.document_id)) {
                     loaded.ids.insert(posting.document_id);
                 }
             }
         }
-        if posting_count != expected.map_or(0, |integrity| integrity.posting_count) {
-            return Err(CassieError::Parse(format!(
-                "incomplete fulltext postings for '{term}'"
-            )));
-        }
+        validator.finish(record.as_ref())?;
         loaded.source_ids.extend(term_documents.iter().cloned());
         loaded
             .document_frequency
@@ -350,9 +320,36 @@ impl Midge {
         let collection = self.canonical_collection_name(&index.collection);
         let generation = self.collection_generation(&collection)?;
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
-        self.rebuild_fulltext_index_in_tx(&mut tx, &collection, index, generation)?;
+        let tally = self.rebuild_fulltext_index_in_tx(&mut tx, &collection, index, generation)?;
+        super::schema_write_control::pause_before_schema_write_commit(
+            super::schema_write_control::SchemaWritePausePoint::FulltextRebuildCommit,
+        );
         tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+            .map_err(CassieError::from)?;
+        self.fulltext_maintenance_metrics.record(&tally);
+        Ok(())
+    }
+
+    /// Rebuilds a full-text index from its committed rows, discarding all
+    /// incrementally maintained artifacts. Equivalence tests compare the state
+    /// before and after.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the index is missing or storage fails.
+    #[doc(hidden)]
+    pub fn rebuild_fulltext_index_for_diagnostics(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<(), CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let index = self
+            .get_index(&collection, index_name)?
+            .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
+        let write_gate = self.collection_write_gate(&collection);
+        let _write_guard = write_gate.lock();
+        self.rebuild_fulltext_index_for_index(&index)
     }
 
     pub(super) fn rebuild_prepared_fulltext_index_for_index(
@@ -374,31 +371,10 @@ impl Midge {
         let prefix = Self::fulltext_index_artifact_prefix(relation_id, index_id);
         self.delete_prepared_fulltext_artifacts_in_batches(&collection, &prefix)?;
 
-        let posting_blocks = state
-            .postings
-            .iter()
-            .map(|(term, postings)| {
-                codec::encode_posting_blocks(postings).map(|blocks| (term.clone(), blocks))
-            })
-            .collect::<Result<BTreeMap<_, _>, CassieError>>()?;
-        let mut artifacts = Vec::new();
-        for (term, blocks) in &posting_blocks {
-            for (block, encoded) in blocks.iter().enumerate() {
-                artifacts.push((
-                    Self::fulltext_term_postings_block_key(relation_id, index_id, term, block),
-                    encoded.clone(),
-                ));
-            }
-        }
-        for (document_id, stats) in &state.document_stats {
-            artifacts.push((
-                Self::fulltext_document_stats_key(relation_id, index_id, document_id),
-                codec::encode_document_stats(stats),
-            ));
-        }
-        for range in fulltext_build_ranges(artifacts.len()) {
+        let records = Self::fulltext_state_records(index, &state)?;
+        for range in fulltext_build_ranges(records.body.len()) {
             let mut tx = self.begin_data_rw_tx_for(&collection)?;
-            for (key, value) in &artifacts[range] {
+            for (key, value) in &records.body[range] {
                 tx.put(key.clone(), value.clone(), None)
                     .map_err(CassieError::from)?;
             }
@@ -406,47 +382,10 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
 
-        let metadata = FulltextIndexMetadata {
-            version: STATE_VERSION,
-            built_generation: state.built_generation,
-            total_documents: state.total_documents,
-            documents_with_text: state.documents_with_text,
-            average_document_length: state.average_document_length,
-            analyzer: state.analyzer,
-        };
-        let terms = posting_blocks
-            .iter()
-            .map(|(term, blocks)| {
-                (
-                    term.clone(),
-                    FulltextTermIntegrity {
-                        block_count: blocks.len(),
-                        posting_count: state.postings.get(term).map_or(0, Vec::len),
-                    },
-                )
-            })
-            .collect();
-        let manifest = FulltextManifest {
-            version: STATE_VERSION,
-            built_generation: state.built_generation,
-            total_documents: state.total_documents,
-            posting_terms: state.postings.len(),
-            document_count: state.document_stats.len(),
-            terms,
-        };
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
-        tx.put(
-            Self::fulltext_index_key(relation_id, index_id),
-            codec::encode_metadata(&metadata),
-            None,
-        )
-        .map_err(CassieError::from)?;
-        tx.put(
-            Self::fulltext_index_manifest_key(relation_id, index_id, state.built_generation),
-            codec::encode_manifest(&manifest),
-            None,
-        )
-        .map_err(CassieError::from)?;
+        let (metadata_key, metadata_value) = records.metadata;
+        tx.put(metadata_key, metadata_value, None)
+            .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)
     }
@@ -478,18 +417,24 @@ impl Midge {
         }
     }
 
+    /// Rebuilds the whole index from committed rows inside `tx`, returning what it wrote.
     pub(crate) fn rebuild_fulltext_index_in_tx(
         &self,
         tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         generation: u64,
-    ) -> Result<(), CassieError> {
+    ) -> Result<FulltextWriteTally, CassieError> {
         let row_schema = self.row_schema(collection)?;
         let documents = self.load_documents_from_tx(tx, collection, &row_schema)?;
         let state = build_state(index, generation, documents)?;
-        Self::delete_fulltext_artifacts_in_tx(tx, index)?;
-        Self::save_fulltext_state_in_tx(tx, index, &state)
+        let mut tally = FulltextWriteTally {
+            full_rebuild: true,
+            ..FulltextWriteTally::default()
+        };
+        tally.pieces_deleted = Self::delete_fulltext_artifacts_in_tx(tx, index)?;
+        Self::save_fulltext_state_in_tx(tx, index, &state, &mut tally)?;
+        Ok(tally)
     }
 
     /// # Errors
@@ -519,18 +464,6 @@ impl Midge {
                 metadata.version
             )));
         }
-        let manifest_raw = tx
-            .get(&Self::fulltext_index_manifest_key(
-                relation_id,
-                index_id,
-                metadata.built_generation,
-            ))
-            .map_err(CassieError::from)?
-            .ok_or_else(|| {
-                CassieError::Parse("missing fulltext generation manifest".to_string())
-            })?;
-        let manifest = codec::decode_manifest(&manifest_raw)?;
-        validate_manifest_header(&metadata, &manifest)?;
         let loaded = load_complete_fulltext_postings(&tx, relation_id, index_id)?;
         let document_prefix = Self::fulltext_document_stats_prefix(relation_id, index_id);
         let document_stats = collect_scan(
@@ -549,18 +482,17 @@ impl Midge {
             Ok((document_id, stats))
         })
         .collect::<Result<BTreeMap<_, _>, CassieError>>()?;
-        validate_complete_artifact_counts(
-            &metadata,
-            &manifest,
-            &loaded.block_counts,
-            &loaded.posting_counts,
-            document_stats.len(),
-        )?;
+        let term_records = layout::load_term_records(&tx, relation_id, index_id)?;
+        validate_complete_artifact_counts(&metadata, &term_records, &loaded, &document_stats)?;
         Ok(Some(PersistedFulltextIndexState {
             built_generation: metadata.built_generation,
             total_documents: metadata.total_documents,
             documents_with_text: metadata.documents_with_text,
-            average_document_length: metadata.average_document_length,
+            average_document_length: layout::average_document_length(
+                metadata.total_document_length,
+                metadata.documents_with_text,
+            ),
+            total_document_length: metadata.total_document_length,
             analyzer: metadata.analyzer,
             document_stats,
             postings: loaded.postings,
@@ -638,20 +570,7 @@ impl Midge {
                 "fulltext fallback:stale-generation".to_string(),
             ));
         }
-        let manifest_raw = tx
-            .get(&Self::fulltext_index_manifest_key(
-                relation_id,
-                index_id,
-                metadata.built_generation,
-            ))
-            .map_err(CassieError::from)?
-            .ok_or_else(|| {
-                CassieError::Parse("missing fulltext generation manifest".to_string())
-            })?;
-        let manifest = codec::decode_manifest(&manifest_raw)?;
-        validate_manifest_header(&metadata, &manifest)?;
-        let loaded =
-            load_candidate_postings(&tx, relation_id, index_id, terms, allowed_ids, &manifest)?;
+        let loaded = load_candidate_postings(&tx, relation_id, index_id, terms, allowed_ids)?;
         let row_schema = self.row_schema(&collection)?;
         for id in &loaded.source_ids {
             if !self.fulltext_source_document_exists(&tx, &collection, &row_schema, id)? {
@@ -679,7 +598,10 @@ impl Midge {
         }
         Ok(PersistedFulltextCandidateSet {
             total_documents: metadata.total_documents,
-            average_document_length: metadata.average_document_length,
+            average_document_length: layout::average_document_length(
+                metadata.total_document_length,
+                metadata.documents_with_text,
+            ),
             analyzer: metadata.analyzer,
             document_frequency: loaded.document_frequency,
             document_stats: stats,
@@ -760,89 +682,33 @@ impl Midge {
     fn delete_fulltext_artifacts_in_tx(
         tx: &mut crate::midge::adapter::AdapterTransaction,
         index: &IndexMeta,
-    ) -> Result<(), CassieError> {
+    ) -> Result<usize, CassieError> {
         let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;
         let prefix = Self::fulltext_index_artifact_prefix(relation_id, index_id);
         let entries = collect_scan(
             tx.scan(&Query::new().prefix(prefix.into()))
                 .map_err(CassieError::from)?,
         )?;
+        let deleted = entries.len();
         for (key, _) in entries {
             tx.delete(key).map_err(CassieError::from)?;
         }
-        Ok(())
+        Ok(deleted)
     }
 
     fn save_fulltext_state_in_tx(
         tx: &mut crate::midge::adapter::AdapterTransaction,
         index: &IndexMeta,
         state: &PersistedFulltextIndexState,
+        tally: &mut FulltextWriteTally,
     ) -> Result<(), CassieError> {
-        let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;
-        let metadata = FulltextIndexMetadata {
-            version: STATE_VERSION,
-            built_generation: state.built_generation,
-            total_documents: state.total_documents,
-            documents_with_text: state.documents_with_text,
-            average_document_length: state.average_document_length,
-            analyzer: state.analyzer.clone(),
-        };
-        tx.put(
-            Self::fulltext_index_key(relation_id, index_id),
-            codec::encode_metadata(&metadata),
-            None,
-        )
-        .map_err(CassieError::from)?;
-        let posting_blocks = state
-            .postings
-            .iter()
-            .map(|(term, postings)| {
-                codec::encode_posting_blocks(postings).map(|blocks| (term.clone(), blocks))
-            })
-            .collect::<Result<BTreeMap<_, _>, CassieError>>()?;
-        let terms = posting_blocks
-            .iter()
-            .map(|(term, blocks)| {
-                (
-                    term.clone(),
-                    FulltextTermIntegrity {
-                        block_count: blocks.len(),
-                        posting_count: state.postings.get(term).map_or(0, Vec::len),
-                    },
-                )
-            })
-            .collect();
-        let manifest = FulltextManifest {
-            version: STATE_VERSION,
-            built_generation: state.built_generation,
-            total_documents: state.total_documents,
-            posting_terms: state.postings.len(),
-            document_count: state.document_stats.len(),
-            terms,
-        };
-        tx.put(
-            Self::fulltext_index_manifest_key(relation_id, index_id, state.built_generation),
-            codec::encode_manifest(&manifest),
-            None,
-        )
-        .map_err(CassieError::from)?;
-        for (term, blocks) in posting_blocks {
-            for (block, encoded) in blocks.into_iter().enumerate() {
-                tx.put(
-                    Self::fulltext_term_postings_block_key(relation_id, index_id, &term, block),
-                    encoded,
-                    None,
-                )
-                .map_err(CassieError::from)?;
-            }
-        }
-        for (document_id, stats) in &state.document_stats {
-            tx.put(
-                Self::fulltext_document_stats_key(relation_id, index_id, document_id),
-                codec::encode_document_stats(stats),
-                None,
-            )
-            .map_err(CassieError::from)?;
+        let records = Self::fulltext_state_records(index, state)?;
+        for (key, value) in std::iter::once(records.metadata).chain(records.body) {
+            tally.pieces_written = tally.pieces_written.saturating_add(1);
+            tally.bytes_written = tally
+                .bytes_written
+                .saturating_add(key.len().saturating_add(value.len()));
+            tx.put(key, value, None).map_err(CassieError::from)?;
         }
         Ok(())
     }
@@ -917,11 +783,8 @@ fn build_state(
         built_generation: generation,
         total_documents,
         documents_with_text,
-        average_document_length: if documents_with_text == 0 {
-            0.0
-        } else {
-            usize_to_f64(total_length) / usize_to_f64(documents_with_text)
-        },
+        average_document_length: layout::average_document_length(total_length, documents_with_text),
+        total_document_length: total_length,
         analyzer,
         document_stats,
         postings,

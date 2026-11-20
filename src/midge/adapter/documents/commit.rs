@@ -4,6 +4,7 @@ use std::time::Duration;
 use super::super::{CassieError, Midge};
 use super::{DocumentWriteBatchOptions, DocumentWriteBatchReport};
 use crate::app::StorageRetryKind;
+use crate::midge::adapter::fulltext_retrieval::{FulltextCommitChanges, FulltextWriteTally};
 use crate::midge::adapter::maintenance::check_fulltext_maintenance_failure_point;
 
 impl Midge {
@@ -25,6 +26,7 @@ impl Midge {
         }
 
         let mut generations = BTreeMap::new();
+        let mut fulltext_tallies = Vec::<FulltextWriteTally>::new();
         for collection in &changed_collections {
             let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
             if let Some(records) = vector_records_by_collection.get(collection) {
@@ -57,7 +59,18 @@ impl Midge {
                             generation,
                         )?;
                     } else {
-                        self.rebuild_fulltext_index_in_tx(&mut tx, collection, index, generation)?;
+                        let report = reports.get(collection);
+                        fulltext_tallies.push(self.maintain_fulltext_index_in_tx(
+                            &mut tx,
+                            collection,
+                            index,
+                            generation,
+                            &FulltextCommitChanges {
+                                changed_ids:
+                                    report.map_or(&[][..], |report| report.changed_ids.as_slice()),
+                                row_delta: report.map_or(0, |report| report.row_delta),
+                            },
+                        )?);
                     }
                 }
             }
@@ -82,7 +95,15 @@ impl Midge {
                 super::super::schema_write_control::SchemaWritePausePoint::ProjectionReplayMetadataCommit,
             );
         }
+        if !fulltext_tallies.is_empty() {
+            super::super::schema_write_control::pause_before_schema_write_commit(
+                super::super::schema_write_control::SchemaWritePausePoint::FulltextPostingPublication,
+            );
+        }
         tx.commit(options.commit).map_err(CassieError::from)?;
+        for tally in &fulltext_tallies {
+            self.fulltext_maintenance_metrics.record(tally);
+        }
         let mut sorted_changed_collections = changed_collections;
         sorted_changed_collections.sort();
 

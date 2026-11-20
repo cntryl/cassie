@@ -38,6 +38,13 @@ impl Cassie {
         ) {
             column_batches.extend(operational.clone());
         }
+        let mut search = serde_json::to_value(snapshot.search).unwrap_or_default();
+        if let (Some(search), Some(maintenance)) = (
+            search.as_object_mut(),
+            self.midge.fulltext_maintenance_metrics().as_object(),
+        ) {
+            search.extend(maintenance.clone());
+        }
         serde_json::json!({
             "uptime_seconds": snapshot.runtime.uptime_seconds,
             "running_queries": snapshot.runtime.running_queries,
@@ -49,7 +56,7 @@ impl Cassie {
             "transactions": { "unique_waiters": self.transaction_unique_waits.waiting_count() },
             "rest": snapshot.rest,
             "pgwire": snapshot.pgwire,
-            "search": snapshot.search,
+            "search": search,
             "vector": snapshot.vector,
             "hybrid": snapshot.hybrid,
             "storage": snapshot.storage,

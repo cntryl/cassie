@@ -96,7 +96,7 @@ fn should_degrade_to_the_exact_subset_when_a_selective_residual_underfills_the_a
 }
 
 #[test]
-fn should_distinguish_filtered_ann_bounded_exact_and_full_fallback_in_explain() {
+fn should_report_each_filtered_vector_strategy_in_explain() {
     // Arrange
     let large = open(
         corpus_for(IndexKind::Hnsw, TOTAL_ROWS, 400),

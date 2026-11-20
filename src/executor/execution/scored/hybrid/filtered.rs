@@ -22,9 +22,9 @@ use crate::runtime::FilteredVectorWork;
 use crate::search::query::SearchSyntax;
 use crate::sql::ast::{BinaryOp, Expr};
 
-fn decline(cassie: &Cassie, reason: &str) -> Result<Option<BoundedHybridRows>, QueryError> {
+fn decline(cassie: &Cassie, reason: &str) -> Option<BoundedHybridRows> {
     cassie.runtime.record_vector_filtered_fallback(reason);
-    Ok(None)
+    None
 }
 
 /// Splits `filter` into the `search(<text field>, <query>)` conjunct hybrid scoring already
@@ -78,14 +78,14 @@ pub(super) fn filtered_hybrid_rows(
         return Ok(None);
     };
     if session.is_some_and(|session| session.has_collection_changes(&spec.collection)) {
-        return decline(cassie, "transaction-overlay");
+        return Ok(decline(cassie, "transaction-overlay"));
     }
     let residual = residual_conjuncts(filter_expr, spec, context.params);
     let Some(residual_filter) = and_all(&residual) else {
         return Ok(None);
     };
     if !super::super::vector_prefilter_supported(&residual_filter, context.schema) {
-        return decline(cassie, "unsupported-filter");
+        return Ok(decline(cassie, "unsupported-filter"));
     }
     let Some(fulltext_index) = cassie
         .catalog
@@ -97,7 +97,7 @@ pub(super) fn filtered_hybrid_rows(
                     == crate::sql::ColumnIdentifierPath::reference_field_key(&spec.text_field)
         })
     else {
-        return decline(cassie, "missing-text-index");
+        return Ok(decline(cassie, "missing-text-index"));
     };
     let generation = cassie.midge.collection_generation(&spec.collection)?;
     let Some(subset) = intersect_scalar_conjuncts(
@@ -109,11 +109,11 @@ pub(super) fn filtered_hybrid_rows(
         controls,
     )?
     else {
-        return decline(cassie, "no-eligible-scalar-index");
+        return Ok(decline(cassie, "no-eligible-scalar-index"));
     };
     let adaptive_max = cassie.runtime.limits().adaptive_candidate_max;
     if subset.ids.len() > adaptive_max {
-        return decline(cassie, "subset-over-candidate-cap");
+        return Ok(decline(cassie, "subset-over-candidate-cap"));
     }
     let (subset_ids, subset_memory) = collect_ids(controls, &subset.ids)?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, context.analyzer);
@@ -126,12 +126,12 @@ pub(super) fn filtered_hybrid_rows(
     ) {
         Ok(candidates) => candidates,
         Err(error) if is_query_control_error(&error) => return Err(QueryError::from(error)),
-        Err(_) => return decline(cassie, "invalid-text-artifact"),
+        Err(_) => return Ok(decline(cassie, "invalid-text-artifact")),
     };
     let (text_candidates, text_memory) = text_candidates.into_parts();
     let stats = &text_candidates.document_stats;
     if stats.len() > adaptive_max {
-        return decline(cassie, "subset-over-candidate-cap");
+        return Ok(decline(cassie, "subset-over-candidate-cap"));
     }
     let (search_context, search_context_memory) =
         persisted_search_context(&text_candidates, context, spec, controls)?;
@@ -157,10 +157,10 @@ pub(super) fn filtered_hybrid_rows(
         diagnostics,
     )?;
     let Some(rows) = rows else {
-        return decline(cassie, "missing-candidate-row");
+        return Ok(decline(cassie, "missing-candidate-row"));
     };
     if cassie.midge.collection_generation(&spec.collection)? != generation {
-        return decline(cassie, "concurrent-source-change");
+        return Ok(decline(cassie, "concurrent-source-change"));
     }
     cassie.runtime.record_vector_filtered_path(
         "hybrid.bounded-exact",

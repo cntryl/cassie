@@ -132,7 +132,7 @@ fn should_serve_hybrid_tenant_pages_from_the_scalar_subset_given_half_eligible()
 }
 
 #[test]
-fn should_follow_a_committed_update_and_delete_in_hybrid_tenant_pages() {
+fn should_follow_committed_changes_in_hybrid_tenant_pages() {
     // Arrange
     let mut corpus = tenant_corpus(20);
     let (cassie, session) = open(&corpus, true, uncached_config());

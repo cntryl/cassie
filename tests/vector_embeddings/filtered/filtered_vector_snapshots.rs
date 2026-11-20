@@ -20,7 +20,7 @@ fn first_page(fixture: &Fixture) -> Vec<(String, f64)> {
 }
 
 #[test]
-fn should_exclude_updated_and_deleted_rows_after_a_committed_change() {
+fn should_exclude_changed_rows_after_a_committed_update_plus_delete() {
     // Arrange
     let mut rows = corpus_for(IndexKind::Hnsw, TOTAL, ELIGIBLE);
     let fixture = open(rows.clone(), IndexKind::Hnsw, uncached_config());

@@ -66,7 +66,7 @@ fn rank_layout(total: usize, eligible: usize) -> (Vec<usize>, Vec<usize>) {
     (eligible_ranks, foreign_ranks)
 }
 
-/// IVFFlat layout: a thin band around the unit-circle arc starting at the query. Rank `r` lies
+/// `IVFFlat` layout: a thin band around the unit-circle arc starting at the query. Rank `r` lies
 /// at angle `0.0002 * (r + 1)` with a small radial jitter, so angular lists align with distance.
 fn arc_point(rank: usize) -> [f32; 2] {
     let angle = 0.0002 * (count_f32(rank) + 1.0);
@@ -308,15 +308,15 @@ impl Counters {
         let filtered = &metrics["vector_filtered"];
         let field = |name: &str| filtered[name].as_u64().unwrap_or(0);
         let path = |name: &str| filtered["paths"][name].as_u64().unwrap_or(0);
-        let fallbacks = filtered["fallback_reasons"]
-            .as_object()
-            .map(|reasons| {
-                reasons
-                    .iter()
-                    .map(|(reason, count)| (reason.clone(), count.as_u64().unwrap_or(0)))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let fallbacks =
+            filtered["fallback_reasons"]
+                .as_object()
+                .map_or_else(BTreeMap::new, |reasons| {
+                    reasons
+                        .iter()
+                        .map(|(reason, count)| (reason.clone(), count.as_u64().unwrap_or(0)))
+                        .collect()
+                });
         Self {
             filtered_ann: path("standalone.filtered-ann"),
             standalone_bounded_exact: path("standalone.bounded-exact"),

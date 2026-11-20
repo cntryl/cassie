@@ -2,7 +2,7 @@
 //!
 //! The ANN index knows nothing about the scalar filter, so a window of nearest candidates may
 //! contain no eligible row at all. Each window is therefore grown (HNSW: a larger search limit;
-//! IVFFlat: more probed lists) until enough eligible candidates are collected, the index is
+//! `IVFFlat`: more probed lists) until enough eligible candidates are collected, the index is
 //! exhausted, or the declared candidate cap is reached. The caller exact-reranks the eligible
 //! candidates from source rows and never trusts an underfilled window.
 
@@ -33,7 +33,7 @@ pub(in super::super) struct AnnEligible {
     pub(in super::super) windows: usize,
     pub(in super::super) candidates_read: usize,
     pub(in super::super) ann_reads: usize,
-    /// IVFFlat lists in the index and lists probed by the final window (zero for HNSW).
+    /// `IVFFlat` lists in the index and lists probed by the final window (zero for HNSW).
     pub(in super::super) lists: (usize, usize),
     pub(in super::super) memory: QueryMemoryReservation,
 }

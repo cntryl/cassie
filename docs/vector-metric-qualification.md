@@ -21,7 +21,7 @@ identities or candidate membership.
 
 SQL operators execute generic scalar projection/ordering. Native SQL top-k selects
 `vector_distance` L2, an identity projection, a matching ORDER BY expression and
-a bounded LIMIT. SQL DESC retains exact fallback. REST HNSW handles all three
+a bounded LIMIT. SQL DESC retains exact fallback. Equality filters over eligible scalar indexes follow the [filtered vector contract](vector-filtered-search-contract.md). REST HNSW handles all three
 metrics. REST IVFFlat handles L2 natively; cosine/dot use normalized exact fallback.
 A five-vector fixture uses HNSW search capacity covering all candidates and IVF
 probes covering all lists. Its independent exact ranking checks metric and identity

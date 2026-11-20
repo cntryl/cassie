@@ -1,9 +1,9 @@
 //! #1369: tenant-filtered hybrid ranking over pgwire prepared statements. The expected final
 //! score is computed independently from the documented contract in `docs/performance-contracts.md`
 //! (corpus-wide BM25 combined as `0.65 * bm25 + 0.35 / (1 + L2)`, rounded to 12 places) and
-//! eligible membership comes from the tenant and status predicates. The vector candidate stage
-//! (ANN window fill, recall, work bounds) belongs to #1363 and is not exercised here: this fixture
-//! has no ANN index, so vector candidates are exact and `ann_reads_total` stays zero.
+//! eligible membership comes from the tenant and status predicates. The candidate-stage work
+//! bounds and strategy selection (#1363) are asserted in `tenant_hybrid_candidates.rs`; here the
+//! pages and the absence of the exact row scan are checked with and without an ANN index.
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
@@ -136,18 +136,21 @@ async fn assert_hybrid_pages(eligible: usize, with_ann: bool) {
             actual.iter().all(|(id, _)| permitted.contains(id)),
             "no cross-tenant or ineligible-status row may be returned"
         );
-        if with_ann {
-            assert!(
-                delta.row_scan_fallbacks > 0 || (delta.ann_reads > 0 && delta.posting_reads > 0),
-                "hybrid must report ANN and posting reads or a labelled exact fallback: {delta:?}"
-            );
-        } else {
-            assert_eq!(delta.ann_reads, 0, "no ANN index is configured");
-            assert!(
-                delta.row_scan_fallbacks > 0,
-                "tenant filter without ANN is the exact path"
-            );
-        }
+        // #1363: a tenant equality filter is served from persisted postings restricted to the
+        // scalar-index subset, with or without an ANN index. Hybrid scoring needs a lexical match,
+        // so no vector candidate window is read and no exact row scan runs.
+        assert_eq!(
+            delta.ann_reads, 0,
+            "no vector window is needed (ann={with_ann})"
+        );
+        assert!(
+            delta.posting_reads > 0,
+            "postings are read (ann={with_ann})"
+        );
+        assert_eq!(
+            delta.row_scan_fallbacks, 0,
+            "the tenant filter must not select the exact row scan (ann={with_ann})"
+        );
         assert!(
             usize::try_from(delta.row_fetches).unwrap() <= corpus.len(),
             "row fetches stay within the collection"

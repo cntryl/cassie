@@ -1,4 +1,4 @@
-//! #1363: filtered vector top-k at 1%, 10% and 50% selectivity for HNSW and IVFFlat.
+//! #1363: filtered vector top-k at 1%, 10% and 50% selectivity for `HNSW` and `IVFFlat`.
 //!
 //! Every fixture places all of the nearest-neighbor first window on the foreign tenant and ranks
 //! the first eligible row after every foreign row, so a strategy that trusts the first ANN batch

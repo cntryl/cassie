@@ -144,3 +144,75 @@ for PR head [`6c2cde77`](https://github.com/cntryl/cassie/commit/6c2cde77c9c747a
 retained-executable startup probe, complete ordered local validation and final
 integration status. This finite witness adds no format, API or support promotion;
 broader parent #764 acceptance and downstream #765 qualification remain open.
+
+## Rebuild Publication And Churn Qualification
+
+Whole-index rebuilds (index creation, `REPAIR INDEX`-style refresh, startup
+reconciliation) no longer stage every artifact in one transaction. Midge
+validates each detached transaction against an 8 MiB budget that charges 512
+bytes plus key and value size per operation, so a single-transaction rebuild of
+a few thousand wide vectors fails. Artifacts are now staged in transactions
+bounded by estimated bytes (4 MiB) and operations (5,000), diffed against the
+persisted artifacts (unchanged records are skipped; obsolete graph nodes, list
+memberships and normalized vectors are deleted), and the source summary and
+state manifest are written together in the final transaction. A reader that
+sees a partially staged rebuild finds a manifest that no longer matches its
+artifacts and takes the labelled exact fallback; the manifest never points at
+unstaged artifacts. Document writes still maintain graph and membership state
+inside the writing transaction, so one write to a very large collection is
+bounded by the same budget (a tracked limitation, not changed here).
+
+### Generation labels and stale attempts
+
+A statement reads its index state, candidates and rows from one snapshot.
+`vector.last_ann_observed_generation` is the collection generation of the latest
+successful ANN answer, recorded after the final source-generation check. A
+reader paused at rerank while a write commits is therefore labelled with the
+generation it read, never the newer one. If an attempt does observe an
+inconsistency (a missing candidate row, malformed vector or generation
+mismatch) it is labelled `concurrent-source-change`, increments
+`vector.ann_stale_attempt_discards_total` and the algorithm fallback counter,
+records no execution counters, and the exact path runs once. A stale persisted
+manifest (`concurrent-source-change` for both algorithms) takes the same
+labelled fallback instead of failing the query.
+
+### Operator procedure
+
+1. Detect: `vector.hnsw_fallbacks` or `vector.ivfflat_fallbacks` rising, with
+   `vector.last_fallback_reason` of `concurrent-source-change`, `stale-graph`,
+   `missing-graph`, `missing-training` or `stale-*`, means queries are exact.
+   `vector.ann_fallback_micros_total` and `ann_last_fallback_micros` give the
+   time of function-shaped (`vector_distance`) statements answered exactly for an
+   indexed field; operator-shaped (`<->`) statements fall through to the generic
+   scan and are timed by query latency.
+2. Rebuild: run the index repair statement for the collection, or restart
+   (startup reconciles IVFFlat and rewrites normalized vectors). Progress is
+   visible in `vector.index_rebuilds_total`, `index_sidecar_transactions_total`
+   and `index_sidecar_bytes_written_total`; when it finishes,
+   `index_last_rebuild_micros`, `index_last_rebuild_bytes_written` and
+   `index_last_rebuild_transactions` describe it.
+   `index_max_sidecar_transaction_bytes` stays at or below 4 MiB.
+3. Confirm return to indexed service: a fresh eligible query increments
+   `hnsw_executions` or `ivfflat_executions` with no fallback increment, and
+   `last_ann_observed_generation` equals the collection generation. A reopen
+   selects the same published generation. Interrupting a rebuild before its
+   final transaction leaves the previous manifest; interrupting after it leaves
+   the new one; either reopens usable, and a retry reclaims obsolete artifacts.
+4. Persisted size: the `vector.index_*` counters and the
+   `vector_index_artifact_footprint_for_diagnostics` diagnostic (key and byte
+   counts per artifact family) bound the extra persisted bytes. Peak query
+   memory is `query.peak_accounted_memory_bytes`.
+
+### Evidence
+
+`tests/vector_embeddings/indexes/churn/` owns the seeded churn sequence (insert,
+replace-vector-with-same-count, delete, aborted write, rebuild) over HNSW and
+IVFFlat; the paused-reader, publication-pause and rebuild-pause barrier tests;
+local-disk interruption before and after manifest publication with reopen,
+stale-state fallback and obsolete-artifact reclamation (asserted by key counts
+under the index prefixes); and the larger-than-one-transaction build.
+`benches/support/vector_index_churn.rs` (opt in with
+`CASSIE_BENCH_VECTOR_INDEX_CHURN=1` on `tier5_scaling_retrieval`) prints build
+time, rebuild time and bytes, fallback duration, return-to-indexed-service time,
+persisted index bytes and peak query memory per algorithm and scale. Measured
+values are not recorded here until the profile runs on the pinned fixture.

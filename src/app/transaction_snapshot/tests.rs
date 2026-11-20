@@ -343,3 +343,19 @@ fn should_select_encoding_descriptor_authority_for_each_isolation_scope() {
             .any(|field| field.name == "note"));
     }
 }
+
+#[test]
+fn should_outwait_running_statements_when_retrying_the_publication_capture() {
+    // Arrange
+    let slices = (0..14).map(publication_wait_slice).collect::<Vec<_>>();
+
+    // Act
+    let first = slices[0];
+    let longest = *slices.last().expect("slices");
+
+    // Assert
+    assert_eq!(first, Duration::from_millis(2));
+    assert!(slices.windows(2).all(|pair| pair[0] <= pair[1]));
+    assert!(slices.iter().any(|slice| *slice >= Duration::from_secs(1)));
+    assert_eq!(longest, Duration::from_millis(2048));
+}

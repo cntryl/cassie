@@ -8,10 +8,10 @@
 
 use std::collections::HashSet;
 
+use super::super::QueryError;
 use super::{ANN_RERANK_OVERSAMPLE, INITIAL_WINDOW_FLOOR, INITIAL_WINDOW_PER_ROW};
 use crate::app::{Cassie, CassieError};
 use crate::embeddings::{DistanceMetric, VectorIndexRecord, VectorIndexType};
-use super::super::QueryError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 pub(in super::super) struct AnnRequest<'a> {
@@ -78,11 +78,12 @@ fn reserve_ids(
     ids: &[String],
 ) -> Result<QueryMemoryReservation, QueryError> {
     let bytes = ids.iter().fold(
-        ids.len()
-            .saturating_mul(std::mem::size_of::<String>()),
+        ids.len().saturating_mul(std::mem::size_of::<String>()),
         |bytes, id| bytes.saturating_add(id.len()),
     );
-    controls.reserve_query_memory(bytes).map_err(QueryError::from)
+    controls
+        .reserve_query_memory(bytes)
+        .map_err(QueryError::from)
 }
 
 fn storage_decline(error: CassieError, marker: &str) -> Result<AnnOutcome, QueryError> {
@@ -102,16 +103,20 @@ fn hnsw_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
         .max(INITIAL_WINDOW_FLOOR)
         .min(cap);
     let (mut windows, mut candidates_read, mut ann_reads) = (0usize, 0usize, 0usize);
+    let mut last_returned = 0usize;
     loop {
         super::super::super::check_timeout(request.controls)?;
-        let batch = match request.cassie.midge.search_hnsw_graph_point_read_controlled(
-            request.collection,
-            request.stored_field,
-            request.query,
-            &request.index.metadata,
-            window,
-            request.controls,
-        ) {
+        let batch = match request
+            .cassie
+            .midge
+            .search_hnsw_graph_point_read_controlled(
+                request.collection,
+                request.stored_field,
+                request.query,
+                &request.index.metadata,
+                window,
+                request.controls,
+            ) {
             Ok(Some(batch)) => batch,
             Ok(None) => return Ok(AnnOutcome::Declined("missing-graph".to_string())),
             Err(error) => return storage_decline(error, "hnsw fallback:"),
@@ -122,6 +127,12 @@ fn hnsw_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
         ann_reads = ann_reads.saturating_add(reads);
         candidates_read = candidates_read.saturating_add(candidates.len());
         let returned = candidates.len();
+        let mut candidates = candidates;
+        candidates.sort_by(|left, right| {
+            left.distance
+                .total_cmp(&right.distance)
+                .then_with(|| left.id.cmp(&right.id))
+        });
         let mut ids = Vec::new();
         for candidate in candidates {
             if request.subset.contains(&candidate.id) {
@@ -132,7 +143,10 @@ fn hnsw_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
             }
         }
         drop(candidate_memory);
-        let exhausted = returned < window || window >= source_rows;
+        // Only a window that returned every indexed row proves the index is exhausted. A search
+        // that stops returning new rows is limited by graph reach, and the eligible rows it
+        // missed cannot be distinguished from absent ones.
+        let exhausted = returned >= source_rows;
         if ids.len() >= target || exhausted {
             let memory = reserve_ids(request.controls, &ids)?;
             return Ok(AnnOutcome::Eligible(AnnEligible {
@@ -145,6 +159,10 @@ fn hnsw_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
                 memory,
             }));
         }
+        if returned < window && returned <= last_returned {
+            return Ok(AnnOutcome::Declined("graph-reach-limited".to_string()));
+        }
+        last_returned = returned;
         if window >= cap {
             return Ok(AnnOutcome::Declined("candidate-cap".to_string()));
         }
@@ -155,11 +173,14 @@ fn hnsw_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
 fn ivfflat_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
     let cap = request.candidate_cap();
     let target = request.target();
-    let Some(snapshot) = request.cassie.midge.get_ivfflat_training_manifest_controlled(
-        request.collection,
-        request.stored_field,
-        request.controls,
-    )?
+    let Some(snapshot) = request
+        .cassie
+        .midge
+        .get_ivfflat_training_manifest_controlled(
+            request.collection,
+            request.stored_field,
+            request.controls,
+        )?
     else {
         return Ok(AnnOutcome::Declined("missing-training".to_string()));
     };
@@ -191,9 +212,9 @@ fn ivfflat_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
         } else {
             crate::vector::ivfflat::probe_lists(&normalized, &training)
         };
-        let _list_memory = request.controls.reserve_query_memory(
-            lists.len().saturating_mul(std::mem::size_of::<usize>()),
-        )?;
+        let _list_memory = request
+            .controls
+            .reserve_query_memory(lists.len().saturating_mul(std::mem::size_of::<usize>()))?;
         let batch = match request.cassie.midge.ivfflat_candidate_vectors_controlled(
             request.collection,
             request.stored_field,

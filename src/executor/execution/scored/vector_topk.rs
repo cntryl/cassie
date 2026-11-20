@@ -160,12 +160,7 @@ fn execute_operator_vector_top_k(
             filter_expr,
             controls,
         };
-        filtered::execute_filtered_vector_top_k(
-            cassie,
-            spec,
-            &request,
-            std::time::Instant::now(),
-        )?
+        filtered::execute_filtered_vector_top_k(cassie, spec, &request, std::time::Instant::now())?
     } else {
         hnsw::execute_hnsw_vector_top_k(cassie, session, spec, &stored_vector_field, controls)?
     };

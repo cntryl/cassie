@@ -113,8 +113,7 @@ pub(super) fn execute_filtered_vector_top_k(
             match filtered_ann(&context, &index, &subset, generation, &mut work)? {
                 Some(reranked) => ("standalone.filtered-ann", reranked),
                 None if subset.ids.len() <= adaptive_max => {
-                    let Some(reranked) =
-                        bounded_exact(&context, &subset, generation, &mut work)?
+                    let Some(reranked) = bounded_exact(&context, &subset, generation, &mut work)?
                     else {
                         return Ok(decline(cassie, "concurrent-source-change"));
                     };

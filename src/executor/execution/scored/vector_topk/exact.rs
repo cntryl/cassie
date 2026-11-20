@@ -241,7 +241,10 @@ fn document_matches_filter(
     .map(|rows| !rows.is_empty())
 }
 
-pub(super) fn validate_exact_vector(spec: &VectorDistanceTopKSpec, vector: &[f32]) -> Result<(), QueryError> {
+pub(super) fn validate_exact_vector(
+    spec: &VectorDistanceTopKSpec,
+    vector: &[f32],
+) -> Result<(), QueryError> {
     if vector.len() != spec.query.len() || vector.is_empty() {
         return Err(QueryError::General(format!(
             "vector field '{}' on collection '{}' does not match query dimensions {}",

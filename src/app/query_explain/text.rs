@@ -1,7 +1,7 @@
 use super::allocation::PlanAllocation;
 use crate::app::{CassieError, CassieSession};
-use crate::types::Value;
 use crate::sql::ast::{CteQuery, Expr, SelectItem};
+use crate::types::Value;
 
 use super::super::{vector_prefilter_fallback_reason, vector_prefilter_supported, Cassie};
 use super::{non_empty_or_none, projection_freshness, selected_cost};

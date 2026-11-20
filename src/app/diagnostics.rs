@@ -58,6 +58,7 @@ impl Cassie {
             "pgwire": snapshot.pgwire,
             "search": search,
             "vector": snapshot.vector,
+            "vector_filtered": snapshot.vector_filtered,
             "hybrid": snapshot.hybrid,
             "storage": snapshot.storage,
             "plan_cache": snapshot.plan_cache,

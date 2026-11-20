@@ -105,7 +105,11 @@ impl HybridSelectionDiagnostics {
         }
     }
 
-    pub(super) fn select_fallback(&mut self, reason: &'static str, prefilter_reason: Option<&'static str>) {
+    pub(super) fn select_fallback(
+        &mut self,
+        reason: &'static str,
+        prefilter_reason: Option<&'static str>,
+    ) {
         self.fallback_reason = Some(reason);
         self.fallback_prefilter = prefilter_reason.map(|fallback_reason| HybridPrefilterUsage {
             input_candidates: 0,

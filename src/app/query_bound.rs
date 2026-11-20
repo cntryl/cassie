@@ -211,6 +211,7 @@ impl Cassie {
                 (controls, authority),
             );
         }
+        let _statement = self.publication_intent.enter_statement(controls)?;
         let _publication_read = self.catalog_publication.read();
         self.execute_bound_catalog_scoped_for_operation(
             session,

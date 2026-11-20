@@ -345,17 +345,57 @@ fn should_select_encoding_descriptor_authority_for_each_isolation_scope() {
 }
 
 #[test]
-fn should_outwait_running_statements_when_retrying_the_publication_capture() {
+fn should_hold_back_a_new_statement_while_a_capture_waits_for_publication() {
     // Arrange
-    let slices = (0..14).map(publication_wait_slice).collect::<Vec<_>>();
+    let (cassie, session, parsed) = fixture();
+    let cassie = std::sync::Arc::new(cassie);
+    let running_statement = cassie.catalog_publication.read();
+    let (waiting_tx, waiting_rx) = std::sync::mpsc::channel();
+    let capture_cassie = std::sync::Arc::clone(&cassie);
+    let capture = std::thread::spawn(move || {
+        PUBLICATION_WAIT.with(|slot| {
+            *slot.borrow_mut() = Some(Box::new(move || {
+                waiting_tx.send(()).expect("announce capture wait");
+            }));
+        });
+        let result = capture_cassie.prepare_transaction_read_view(
+            &session,
+            &parsed,
+            &controls(16 * 1024 * 1024),
+        );
+        (
+            result.is_ok(),
+            session.repeatable_read_capture_generation().is_none(),
+        )
+    });
+    waiting_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("capture is waiting for the publication guard");
+    let statement_cassie = std::sync::Arc::clone(&cassie);
+    let new_statement = std::thread::spawn(move || {
+        let entry = statement_cassie
+            .publication_intent
+            .enter_statement(&controls(1024))
+            .is_ok();
+        let _publication = statement_cassie.catalog_publication.read();
+        entry
+    });
+    let hang_guard = Instant::now() + Duration::from_secs(4);
+    let mut held_back = false;
+    while !held_back && Instant::now() < hang_guard {
+        held_back = cassie.publication_intent.yielding_statements() == 1;
+        std::thread::yield_now();
+    }
 
     // Act
-    let first = slices[0];
-    let longest = *slices.last().expect("slices");
+    drop(running_statement);
+    let (captured, installed) = capture.join().expect("capture worker");
+    let entered = new_statement.join().expect("statement worker");
 
     // Assert
-    assert_eq!(first, Duration::from_millis(2));
-    assert!(slices.windows(2).all(|pair| pair[0] <= pair[1]));
-    assert!(slices.iter().any(|slice| *slice >= Duration::from_secs(1)));
-    assert_eq!(longest, Duration::from_millis(2048));
+    assert!(held_back, "the new statement yields to the waiting capture");
+    assert!(captured);
+    assert!(installed);
+    assert!(entered);
+    assert_eq!(cassie.publication_intent.yielding_statements(), 0);
 }

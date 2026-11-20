@@ -143,18 +143,19 @@ impl Cassie {
         self.authorize_role_object_access(session, &parsed.statement)?;
         // Existing executable statements hold the publication read guard. A
         // brief exclusive capture keeps data and SQL metadata at one boundary.
-        let mut attempt = 0_u32;
+        // The publication lock lets readers pass a waiting writer, so the capture
+        // announces its intent and new statements yield until it is done.
+        let _intent = self.publication_intent.announce();
         let _publication = loop {
             controls.check_interruption()?;
             #[cfg(test)]
             tests::before_publication_lock();
             if let Some(guard) = self
                 .catalog_publication
-                .try_write_for(publication_wait_slice(attempt))
+                .try_write_for(Duration::from_millis(2))
             {
                 break guard;
             }
-            attempt = attempt.saturating_add(1);
         };
         let Some(generation) = session.repeatable_read_capture_generation() else {
             return Ok(());
@@ -188,18 +189,6 @@ impl Cassie {
         session
             .install_repeatable_read_snapshot(generation, data, catalog, fence, history, controls)
     }
-}
-
-/// How long one capture attempt queues for the exclusive publication guard.
-///
-/// A queued writer keeps new readers out, but leaving the queue after a timeout
-/// lets them back in. Continuous overlapping statements, each holding the read
-/// guard for its whole execution, therefore starve a capture that gives up
-/// after a couple of milliseconds. The wait doubles from 2 ms up to about two
-/// seconds, so a capture outlasts statements that are already running while
-/// cancellation and deadlines are still observed between slices.
-pub(super) fn publication_wait_slice(attempt: u32) -> Duration {
-    Duration::from_millis(2).saturating_mul(1_u32 << attempt.min(10))
 }
 
 #[cfg(test)]

@@ -116,6 +116,7 @@ impl Cassie {
             catalog_owner: None,
             catalog,
             catalog_publication: Arc::new(parking_lot::RecursiveRwLock::new(())),
+            publication_intent: Arc::default(),
             transaction_unique_waits: Arc::new(super::TransactionUniqueWaits::default()),
             embedding_provider,
             runtime,

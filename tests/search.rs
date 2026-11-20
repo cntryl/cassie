@@ -31,6 +31,8 @@ mod fulltext_retrieval_corruption;
 #[path = "search/retrieval/fulltext_query.rs"]
 mod integration_sql_fulltext_query;
 
+#[path = "search/retrieval/fulltext_analyzer_publication.rs"]
+mod fulltext_analyzer_publication;
 #[path = "search/retrieval/fulltext_stemming.rs"]
 mod fulltext_stemming;
 #[path = "search/retrieval/fulltext_synonyms.rs"]

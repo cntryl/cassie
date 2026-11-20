@@ -60,7 +60,7 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
             }
             Ok(())
         },
-        |updated| cassie.catalog.register_index(updated),
+        |updated| register_updated_index(cassie, statement, updated),
     );
     match updated {
         Ok(()) => Ok(output),
@@ -70,6 +70,24 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
         }) if statement.if_exists => Ok(output),
         Err(error) => Err(QueryError::General(error.to_string())),
     }
+}
+
+/// Storage reports an index under its canonical collection name (for example
+/// `postgres.public.t`) while the catalog keys it by the relation spelling the
+/// statement was bound to (`t`). Re-registering the storage spelling would add a
+/// second catalog entry beside the original, so keep the catalog's spelling.
+fn register_updated_index(
+    cassie: &Cassie,
+    statement: &AlterIndexStatement,
+    mut updated: catalog::IndexMeta,
+) {
+    if let Some(existing) = cassie
+        .catalog
+        .get_index(&statement.collection, &statement.name)
+    {
+        updated.collection = existing.collection;
+    }
+    cassie.catalog.register_index(updated);
 }
 
 /// Full-text `ALTER INDEX` only changes analyzer options; the rebuild and the
@@ -123,16 +141,7 @@ fn alter_fulltext_index(
                 }
                 Ok(())
             },
-            |mut updated| {
-                // Keep the catalog's own spelling of the collection so the entry is replaced.
-                if let Some(existing) = cassie
-                    .catalog
-                    .get_index(&statement.collection, &statement.name)
-                {
-                    updated.collection = existing.collection;
-                }
-                cassie.catalog.register_index(updated);
-            },
+            |updated| register_updated_index(cassie, statement, updated),
         )
         .map_err(|error| QueryError::General(error.to_string()))?;
     Ok(output)

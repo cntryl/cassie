@@ -551,8 +551,11 @@ mod tests {
 
     #[test]
     fn should_reject_directional_synonym_syntax() {
-        // Arrange / Act
-        let error = with_synonyms("car=>auto").expect_err("directional rules are unsupported");
+        // Arrange
+        let raw = "car=>auto";
+
+        // Act
+        let error = with_synonyms(raw).expect_err("directional rules are unsupported");
 
         // Assert
         assert!(error.contains("=>"), "{error}");
@@ -560,17 +563,23 @@ mod tests {
 
     #[test]
     fn should_reject_terms_shared_by_two_synonym_groups() {
-        // Arrange / Act
-        let error = with_synonyms("car,auto;auto,vehicle").expect_err("overlap is rejected");
+        // Arrange
+        let raw = "car,auto;auto,vehicle";
+
+        // Act
+        let error = with_synonyms(raw).expect_err("overlap is rejected");
 
         // Assert
         assert!(error.contains("more than one group"), "{error}");
     }
 
     #[test]
-    fn should_reject_singleton_and_multi_token_synonym_members() {
-        // Arrange / Act
-        let singleton = with_synonyms("car").expect_err("one member is not a group");
+    fn should_reject_singleton_or_multi_token_synonym_members() {
+        // Arrange
+        let single = "car";
+
+        // Act
+        let singleton = with_synonyms(single).expect_err("one member is not a group");
         let multi = with_synonyms("car,motor vehicle").expect_err("members are single terms");
 
         // Assert

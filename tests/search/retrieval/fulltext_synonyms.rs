@@ -6,7 +6,7 @@ use cassie::types::Value;
 use std::sync::Arc;
 use std::time::Duration;
 
-fn run(cassie: &Cassie, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
+pub(super) fn run(cassie: &Cassie, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(&session, sql, params)
@@ -15,7 +15,7 @@ fn run(cassie: &Cassie, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
         .to_vec()
 }
 
-fn run_error(cassie: &Cassie, sql: &str) -> String {
+pub(super) fn run_error(cassie: &Cassie, sql: &str) -> String {
     let session = cassie.create_session("tester", None);
     match cassie.execute_sql(&session, sql, vec![]) {
         Ok(_) => String::new(),
@@ -30,13 +30,17 @@ const DOCS: [(i64, &str); 4] = [
     (4, "Caf\u{e9} menu"),
 ];
 
-fn seed(cassie: &Cassie, table: &str, index_options: &str) {
+pub(super) fn seed(cassie: &Cassie, table: &str, index_options: &str) {
+    seed_docs(cassie, table, &DOCS, index_options);
+}
+
+pub(super) fn seed_docs(cassie: &Cassie, table: &str, docs: &[(i64, &str)], index_options: &str) {
     run(
         cassie,
         &format!("CREATE TABLE {table} (id INT NOT NULL, body TEXT)"),
         vec![],
     );
-    for (id, body) in DOCS {
+    for (id, body) in docs.iter().copied() {
         run(
             cassie,
             &format!("INSERT INTO {table} (id, body) VALUES ($1, $2)"),
@@ -50,7 +54,7 @@ fn seed(cassie: &Cassie, table: &str, index_options: &str) {
     );
 }
 
-fn ids(cassie: &Cassie, table: &str, query: &str) -> Vec<i64> {
+pub(super) fn ids(cassie: &Cassie, table: &str, query: &str) -> Vec<i64> {
     run(
         cassie,
         &format!("SELECT id FROM {table} WHERE search(body, $1) ORDER BY id"),
@@ -64,7 +68,7 @@ fn ids(cassie: &Cassie, table: &str, query: &str) -> Vec<i64> {
     .collect()
 }
 
-fn scores(cassie: &Cassie, table: &str, query: &str) -> Vec<(i64, f64)> {
+pub(super) fn scores(cassie: &Cassie, table: &str, query: &str) -> Vec<(i64, f64)> {
     run(
         cassie,
         &format!(
@@ -80,7 +84,7 @@ fn scores(cassie: &Cassie, table: &str, query: &str) -> Vec<(i64, f64)> {
     .collect()
 }
 
-fn reloptions(cassie: &Cassie, index: &str) -> String {
+pub(super) fn reloptions(cassie: &Cassie, index: &str) -> String {
     let rows = run(
         cassie,
         &format!("SELECT reloptions FROM pg_class WHERE relname = '{index}'"),
@@ -92,7 +96,7 @@ fn reloptions(cassie: &Cassie, index: &str) -> String {
     }
 }
 
-const SYNONYMS: &str = "synonyms = 'car,auto;tv,television;caf\u{e9},bistro'";
+pub(super) const SYNONYMS: &str = "synonyms = 'car,auto;tv,television;caf\u{e9},bistro'";
 
 #[test]
 fn should_match_synonym_groups_through_prepared_queries() {

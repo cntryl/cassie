@@ -600,3 +600,8 @@ impl Column {
 #[cfg(test)]
 #[path = "column/boolean_tests.rs"]
 mod boolean_tests;
+
+// Consumed by the column-vector reader; test-only until that producer lands.
+#[cfg(test)]
+#[path = "column/lanes.rs"]
+mod lanes;

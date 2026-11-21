@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1859,
-    "rust_files": 1815,
-    "rust_test_declarations": 11020,
+    "files": 1865,
+    "rust_files": 1821,
+    "rust_test_declarations": 11058,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11045,
+    "registered_rust_instances": 11083,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -67861,8 +67861,8 @@
       "id": "tests/graph_guide/coverage.rs::should_tag_every_sql_block_as_an_example",
       "name": "should_tag_every_sql_block_as_an_example",
       "current_file": "tests/graph_guide/coverage.rs",
-      "line": 21,
-      "end_line": 30,
+      "line": 22,
+      "end_line": 31,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -67892,8 +67892,8 @@
       "id": "tests/graph_guide/coverage.rs::should_give_every_example_a_unique_id",
       "name": "should_give_every_example_a_unique_id",
       "current_file": "tests/graph_guide/coverage.rs",
-      "line": 33,
-      "end_line": 46,
+      "line": 34,
+      "end_line": 47,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -67923,8 +67923,8 @@
       "id": "tests/graph_guide/coverage.rs::should_place_every_example_in_a_world_with_a_test",
       "name": "should_place_every_example_in_a_world_with_a_test",
       "current_file": "tests/graph_guide/coverage.rs",
-      "line": 49,
-      "end_line": 62,
+      "line": 50,
+      "end_line": 63,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -68212,6 +68212,37 @@
         {
           "suite": "graph_guide",
           "name": "examples::should_run_every_stable_identity_example"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_guide",
+        "category": "semantics",
+        "directory": "tests/graph_guide/semantics",
+        "file": "tests/graph_guide/semantics/examples.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_guide/examples.rs::should_run_every_database_clone_example",
+      "name": "should_run_every_database_clone_example",
+      "current_file": "tests/graph_guide/examples.rs",
+      "line": 119,
+      "end_line": 128,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_guide",
+          "name": "examples::should_run_every_database_clone_example"
         }
       ],
       "attributes": [
@@ -68627,6 +68658,223 @@
         "category": "semantics",
         "directory": "tests/graph_table/semantics",
         "file": "tests/graph_table/semantics/composition.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cost_curves.rs::should_admit_one_edge_per_incident_edge_given_a_degree_curve",
+      "name": "should_admit_one_edge_per_incident_edge_given_a_degree_curve",
+      "current_file": "tests/graph_table/cost_curves.rs",
+      "line": 106,
+      "end_line": 120,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cost_curves::should_admit_one_edge_per_incident_edge_given_a_degree_curve"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cost_curves.rs::should_grow_index_entries_linearly_with_degree_given_a_degree_curve",
+      "name": "should_grow_index_entries_linearly_with_degree_given_a_degree_curve",
+      "current_file": "tests/graph_table/cost_curves.rs",
+      "line": 123,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cost_curves::should_grow_index_entries_linearly_with_degree_given_a_degree_curve"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cost_curves.rs::should_expand_one_neighborhood_per_hop_given_a_depth_curve",
+      "name": "should_expand_one_neighborhood_per_hop_given_a_depth_curve",
+      "current_file": "tests/graph_table/cost_curves.rs",
+      "line": 140,
+      "end_line": 154,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cost_curves::should_expand_one_neighborhood_per_hop_given_a_depth_curve"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cost_curves.rs::should_leave_every_counter_unchanged_given_ten_times_the_disconnected_edges",
+      "name": "should_leave_every_counter_unchanged_given_ten_times_the_disconnected_edges",
+      "current_file": "tests/graph_table/cost_curves.rs",
+      "line": 157,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cost_curves::should_leave_every_counter_unchanged_given_ten_times_the_disconnected_edges"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cost_curves.rs::should_return_the_exact_rows_given_a_depth_curve",
+      "name": "should_return_the_exact_rows_given_a_depth_curve",
+      "current_file": "tests/graph_table/cost_curves.rs",
+      "line": 172,
+      "end_line": 183,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cost_curves::should_return_the_exact_rows_given_a_depth_curve"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cost_curves.rs::should_not_touch_the_hub_given_a_leaf_anchored_pattern_pointing_away_from_it",
+      "name": "should_not_touch_the_hub_given_a_leaf_anchored_pattern_pointing_away_from_it",
+      "current_file": "tests/graph_table/cost_curves.rs",
+      "line": 203,
+      "end_line": 217,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cost_curves::should_not_touch_the_hub_given_a_leaf_anchored_pattern_pointing_away_from_it"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_table/cost_curves.rs::should_pay_the_hub_degree_once_given_a_pattern_anchored_at_the_hub",
+      "name": "should_pay_the_hub_degree_once_given_a_pattern_anchored_at_the_hub",
+      "current_file": "tests/graph_table/cost_curves.rs",
+      "line": 220,
+      "end_line": 233,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_table",
+          "name": "cost_curves::should_pay_the_hub_degree_once_given_a_pattern_anchored_at_the_hub"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_table",
+        "category": "semantics",
+        "directory": "tests/graph_table/semantics",
+        "file": "tests/graph_table/semantics/cost_curves.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -74058,6 +74306,688 @@
       }
     },
     {
+      "id": "tests/graph_types/clone_clients.rs::should_reject_a_graph_reference_in_a_clone_before_the_definition_is_recreated",
+      "name": "should_reject_a_graph_reference_in_a_clone_before_the_definition_is_recreated",
+      "current_file": "tests/graph_types/clone_clients.rs",
+      "line": 103,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_clients::should_reject_a_graph_reference_in_a_clone_before_the_definition_is_recreated"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_clients.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_clients.rs::should_round_trip_a_native_path_in_a_clone_after_recreating_the_exported_definition",
+      "name": "should_round_trip_a_native_path_in_a_clone_after_recreating_the_exported_definition",
+      "current_file": "tests/graph_types/clone_clients.rs",
+      "line": 121,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_clients::should_round_trip_a_native_path_in_a_clone_after_recreating_the_exported_definition"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_clients.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_clients.rs::should_reject_a_source_reference_copied_to_a_recreated_clone_through_the_driver",
+      "name": "should_reject_a_source_reference_copied_to_a_recreated_clone_through_the_driver",
+      "current_file": "tests/graph_types/clone_clients.rs",
+      "line": 142,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_clients::should_reject_a_source_reference_copied_to_a_recreated_clone_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_clients.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_clients.rs::should_not_apply_the_exported_definition_twice_through_the_driver",
+      "name": "should_not_apply_the_exported_definition_twice_through_the_driver",
+      "current_file": "tests/graph_types/clone_clients.rs",
+      "line": 168,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_clients::should_not_apply_the_exported_definition_twice_through_the_driver"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_clients.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_clients.rs::should_carry_clone_local_identities_in_the_json_path_through_sqlx",
+      "name": "should_carry_clone_local_identities_in_the_json_path_through_sqlx",
+      "current_file": "tests/graph_types/clone_clients.rs",
+      "line": 219,
+      "end_line": 256,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_clients::should_carry_clone_local_identities_in_the_json_path_through_sqlx"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_clients.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_clients.rs::should_keep_the_clone_path_shape_equal_to_the_source_path_through_sqlx",
+      "name": "should_keep_the_clone_path_shape_equal_to_the_source_path_through_sqlx",
+      "current_file": "tests/graph_types/clone_clients.rs",
+      "line": 259,
+      "end_line": 289,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_clients::should_keep_the_clone_path_shape_equal_to_the_source_path_through_sqlx"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_clients.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_restart.rs::should_keep_the_recreated_clone_graph_after_reopening_the_storage",
+      "name": "should_keep_the_recreated_clone_graph_after_reopening_the_storage",
+      "current_file": "tests/graph_types/clone_restart.rs",
+      "line": 62,
+      "end_line": 87,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_restart::should_keep_the_recreated_clone_graph_after_reopening_the_storage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_export_the_exact_definition_of_a_graph",
+      "name": "should_export_the_exact_definition_of_a_graph",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 112,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_export_the_exact_definition_of_a_graph"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_recreate_both_exported_graphs_in_a_clone",
+      "name": "should_recreate_both_exported_graphs_in_a_clone",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 145,
+      "end_line": 156,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_recreate_both_exported_graphs_in_a_clone"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_give_the_recreated_graphs_identities_of_their_own",
+      "name": "should_give_the_recreated_graphs_identities_of_their_own",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 159,
+      "end_line": 179,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_give_the_recreated_graphs_identities_of_their_own"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_read_the_same_edges_in_the_clone_as_its_restored_table_rows",
+      "name": "should_read_the_same_edges_in_the_clone_as_its_restored_table_rows",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 182,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_read_the_same_edges_in_the_clone_as_its_restored_table_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_keep_the_graph_unchanged_given_a_rerun_of_the_export",
+      "name": "should_keep_the_graph_unchanged_given_a_rerun_of_the_export",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 207,
+      "end_line": 221,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_keep_the_graph_unchanged_given_a_rerun_of_the_export"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_not_publish_a_graph_when_a_mapped_table_is_missing_in_the_clone",
+      "name": "should_not_publish_a_graph_when_a_mapped_table_is_missing_in_the_clone",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 224,
+      "end_line": 237,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_not_publish_a_graph_when_a_mapped_table_is_missing_in_the_clone"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_reject_a_graph_query_when_the_failed_recreation_published_nothing",
+      "name": "should_reject_a_graph_query_when_the_failed_recreation_published_nothing",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 240,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_reject_a_graph_query_when_the_failed_recreation_published_nothing"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_complete_the_recreation_after_the_missing_table_is_restored",
+      "name": "should_complete_the_recreation_after_the_missing_table_is_restored",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 264,
+      "end_line": 280,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_complete_the_recreation_after_the_missing_table_is_restored"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_reject_a_copied_source_reference_in_a_clone_with_like_named_mappings",
+      "name": "should_reject_a_copied_source_reference_in_a_clone_with_like_named_mappings",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 306,
+      "end_line": 322,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_reject_a_copied_source_reference_in_a_clone_with_like_named_mappings"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_resolve_a_fresh_clone_reference_from_an_explicit_typed_key",
+      "name": "should_resolve_a_fresh_clone_reference_from_an_explicit_typed_key",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 325,
+      "end_line": 341,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_resolve_a_fresh_clone_reference_from_an_explicit_typed_key"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_reject_a_reference_minted_in_one_clone_in_a_sibling_clone_of_the_same_image",
+      "name": "should_reject_a_reference_minted_in_one_clone_in_a_sibling_clone_of_the_same_image",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 344,
+      "end_line": 363,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_reject_a_reference_minted_in_one_clone_in_a_sibling_clone_of_the_same_image"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_resolve_each_sibling_clones_own_fresh_reference",
+      "name": "should_resolve_each_sibling_clones_own_fresh_reference",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 366,
+      "end_line": 391,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_resolve_each_sibling_clones_own_fresh_reference"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_export_no_definition_to_a_reader_who_may_not_read_a_mapped_table",
+      "name": "should_export_no_definition_to_a_reader_who_may_not_read_a_mapped_table",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 410,
+      "end_line": 420,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_export_no_definition_to_a_reader_who_may_not_read_a_mapped_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_not_publish_a_graph_when_the_recreating_role_may_not_read_a_mapped_table",
+      "name": "should_not_publish_a_graph_when_the_recreating_role_may_not_read_a_mapped_table",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 423,
+      "end_line": 435,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_not_publish_a_graph_when_the_recreating_role_may_not_read_a_mapped_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/clone_workflow.rs::should_round_trip_a_definition_that_needs_identifier_quoting",
+      "name": "should_round_trip_a_definition_that_needs_identifier_quoting",
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "line": 438,
+      "end_line": 462,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "clone_workflow::should_round_trip_a_definition_that_needs_identifier_quoting"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/clone_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_types/constructors.rs::should_build_a_key_part_from_each_exact_type",
       "name": "should_build_a_key_part_from_each_exact_type",
       "current_file": "tests/graph_types/constructors.rs",
@@ -76786,6 +77716,130 @@
       }
     },
     {
+      "id": "tests/graph_types/refs_cost.rs::should_read_the_same_entries_for_a_vertex_reference_when_the_table_grows",
+      "name": "should_read_the_same_entries_for_a_vertex_reference_when_the_table_grows",
+      "current_file": "tests/graph_types/refs_cost.rs",
+      "line": 49,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs_cost::should_read_the_same_entries_for_a_vertex_reference_when_the_table_grows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs_cost.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs_cost.rs::should_read_two_rows_by_key_for_a_vertex_reference",
+      "name": "should_read_two_rows_by_key_for_a_vertex_reference",
+      "current_file": "tests/graph_types/refs_cost.rs",
+      "line": 63,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs_cost::should_read_two_rows_by_key_for_a_vertex_reference"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs_cost.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs_cost.rs::should_read_three_rows_by_key_for_an_edge_reference",
+      "name": "should_read_three_rows_by_key_for_an_edge_reference",
+      "current_file": "tests/graph_types/refs_cost.rs",
+      "line": 75,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs_cost::should_read_three_rows_by_key_for_an_edge_reference"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs_cost.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/refs_cost.rs::should_read_the_same_entries_for_an_edge_reference_when_the_vertex_table_grows",
+      "name": "should_read_the_same_entries_for_an_edge_reference_when_the_vertex_table_grows",
+      "current_file": "tests/graph_types/refs_cost.rs",
+      "line": 87,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "refs_cost::should_read_the_same_entries_for_an_edge_reference_when_the_vertex_table_grows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/refs_cost.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/graph_types/reserved.rs::should_block_dropping_the_reserved_schema",
       "name": "should_block_dropping_the_reserved_schema",
       "current_file": "tests/graph_types/reserved.rs",
@@ -78578,6 +79632,130 @@
         "category": "parameters",
         "directory": "tests/graph_weighted/parameters",
         "file": "tests/graph_weighted/parameters/binding.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_validate_every_selected_edge_given_ten_times_the_disconnected_edges",
+      "name": "should_validate_every_selected_edge_given_ten_times_the_disconnected_edges",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 63,
+      "end_line": 74,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_validate_every_selected_edge_given_ten_times_the_disconnected_edges"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_leave_the_search_counters_unchanged_given_ten_times_the_disconnected_edges",
+      "name": "should_leave_the_search_counters_unchanged_given_ten_times_the_disconnected_edges",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 77,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_leave_the_search_counters_unchanged_given_ten_times_the_disconnected_edges"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_search_only_the_visited_neighbourhood_given_a_depth_curve",
+      "name": "should_search_only_the_visited_neighbourhood_given_a_depth_curve",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 101,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_search_only_the_visited_neighbourhood_given_a_depth_curve"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_reject_an_invalid_weight_outside_the_visited_neighbourhood",
+      "name": "should_reject_an_invalid_weight_outside_the_visited_neighbourhood",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 119,
+      "end_line": 129,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_reject_an_invalid_weight_outside_the_visited_neighbourhood"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -349488,8 +350666,8 @@
       "current_file": "tests/graph_guide/coverage.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 62,
-      "sha256": "7e64c4017ec4e91973275f62e5562a9268e0699d44b92401cc27afed0b90402d",
+      "lines": 63,
+      "sha256": "0a8437a7b9911621a446dffee4cee218c0b82591bb20ca1a549ae3f0cc5fdda7",
       "test_declarations": 3,
       "registered_suites": [
         "graph_guide"
@@ -349503,9 +350681,9 @@
       "current_file": "tests/graph_guide/examples.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 116,
-      "sha256": "7c2c2419182a752ebff42c1ef93641ee4f38095393879da26fd4366982e416d1",
-      "test_declarations": 9,
+      "lines": 128,
+      "sha256": "29f2d79f0a1a1f29718c37d5e73ed4bb3a81140fb59518a5cb7f947296edaf75",
+      "test_declarations": 10,
       "registered_suites": [
         "graph_guide"
       ],
@@ -349591,6 +350769,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_table/cost_curves.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 233,
+      "sha256": "28d41486ca1d7d305c18e3fc585ce1721e258ee3faee277a0099d1ad63eda7e2",
+      "test_declarations": 7,
+      "registered_suites": [
+        "graph_table"
+      ],
+      "destinations": [
+        "tests/graph_table/semantics/cost_curves.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_table/cte_view_dependencies.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -349655,7 +350848,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 689,
-      "sha256": "91ede06df209b1f5ace0416aa32a1857842dca6a5508a612137855f99c5ff4da",
+      "sha256": "7acf2b0f6f463e82f98d8e6eeca18c64172c8c2cb2d404ffa7e6572db2324ed2",
       "test_declarations": 21,
       "registered_suites": [
         "graph_table"
@@ -349957,8 +351150,8 @@
       "current_file": "tests/graph_table.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 91,
-      "sha256": "1fef45d953fadf6d92f5ad130c1b0ddd6dfd43488063c597792333048aecbf61",
+      "lines": 94,
+      "sha256": "1a74bcb8868194bde1b339e6a9baecd3f55788315d5852d48c520c8a6d694d57",
       "test_declarations": 0,
       "registered_suites": [
         "graph_table"
@@ -349999,6 +351192,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_types/clone_clients.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 289,
+      "sha256": "2c623aba114846bf6f0d7ba80fb27166f9b478da0e6f1e8b97f6af7b9b8d5924",
+      "test_declarations": 6,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/clone_clients.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/clone_restart.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 87,
+      "sha256": "b3a2df780b3be14ad3f247702ef706afd7e7d07505ceda74aa5976800ad13615",
+      "test_declarations": 1,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/clone_restart.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_types/clone_workflow.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 462,
+      "sha256": "9bdf4c1e5e2711b2a2f9815b58f06bf456a37a14c70e763c9a602cbca03e1717",
+      "test_declarations": 15,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/clone_workflow.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_types/constructors.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -350018,7 +351256,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 402,
-      "sha256": "1bda8c1ca30a4afabb99829f3220f007f6ceed5044845bcfdd453a805eadd548",
+      "sha256": "290dff8e6eeba2f6f91394f06da3842078f431c42e462a5fc8f574b1c7cdf892",
       "test_declarations": 8,
       "registered_suites": [
         "graph_types"
@@ -350254,6 +351492,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/graph_types/refs_cost.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 98,
+      "sha256": "3d0a34b1139d51ed232432b36283091a3bb17ff727b75f837f3effa0bcc766c5",
+      "test_declarations": 4,
+      "registered_suites": [
+        "graph_types"
+      ],
+      "destinations": [
+        "tests/graph_types/semantics/refs_cost.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/graph_types/reserved.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -350302,8 +351555,8 @@
       "current_file": "tests/graph_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 71,
-      "sha256": "ba5bc100ab5e2a1bbb23a6eaa6f6c47c7617f138378f781465feb71f360fa543",
+      "lines": 83,
+      "sha256": "5a853c08400d4195610dbdf37424c7b9456fe68bc4b7708209d7d83e0dcbccf0",
       "test_declarations": 0,
       "registered_suites": [
         "graph_types"
@@ -350340,6 +351593,21 @@
       ],
       "destinations": [
         "tests/graph_weighted/parameters/binding.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 129,
+      "sha256": "00a8ece3ec4440795702b404da65ce47d1162f0c4156d7a2709a2caff83983ab",
+      "test_declarations": 4,
+      "registered_suites": [
+        "graph_weighted"
+      ],
+      "destinations": [
+        "tests/graph_weighted/semantics/cost_curves.rs"
       ],
       "line_limit": 1000
     },
@@ -350528,8 +351796,8 @@
       "current_file": "tests/graph_weighted.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 51,
-      "sha256": "197e1b1db7c707edecb2ebfae1d8e884185b028400ee7f319b32479e9677a476",
+      "lines": 54,
+      "sha256": "c584ea5e25d929906a2d6b20f5d06e85b8ca259c7b55de0e06bea8877966a124",
       "test_declarations": 0,
       "registered_suites": [
         "graph_weighted"

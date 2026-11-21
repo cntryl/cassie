@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1858,
-    "rust_files": 1814,
-    "rust_test_declarations": 11004,
+    "files": 1859,
+    "rust_files": 1815,
+    "rust_test_declarations": 11020,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11029,
+    "registered_rust_instances": 11045,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -247818,6 +247818,502 @@
       }
     },
     {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_accept_quoted_column_in_table_level_check",
+      "name": "should_accept_quoted_column_in_table_level_check",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 33,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_accept_quoted_column_in_table_level_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_accept_operator_characters_inside_quoted_check_column",
+      "name": "should_accept_operator_characters_inside_quoted_check_column",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 49,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_accept_operator_characters_inside_quoted_check_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_accept_quoted_column_in_column_level_check",
+      "name": "should_accept_quoted_column_in_column_level_check",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 68,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_accept_quoted_column_in_column_level_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_reject_zero_for_quoted_table_level_check",
+      "name": "should_reject_zero_for_quoted_table_level_check",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 84,
+      "end_line": 102,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_reject_zero_for_quoted_table_level_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_accept_positive_value_for_quoted_table_level_check",
+      "name": "should_accept_positive_value_for_quoted_table_level_check",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 105,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_accept_positive_value_for_quoted_table_level_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_accept_null_for_quoted_table_level_check",
+      "name": "should_accept_null_for_quoted_table_level_check",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 126,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_accept_null_for_quoted_table_level_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_reject_zero_for_operator_named_quoted_column",
+      "name": "should_reject_zero_for_operator_named_quoted_column",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 147,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_reject_zero_for_operator_named_quoted_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_reject_zero_for_quoted_column_level_check",
+      "name": "should_reject_zero_for_quoted_column_level_check",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 168,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_reject_zero_for_quoted_column_level_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_keep_prior_rows_when_quoted_check_rejects_a_write",
+      "name": "should_keep_prior_rows_when_quoted_check_rejects_a_write",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 189,
+      "end_line": 213,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_keep_prior_rows_when_quoted_check_rejects_a_write"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_attach_check_to_the_exact_case_column",
+      "name": "should_attach_check_to_the_exact_case_column",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 216,
+      "end_line": 240,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_attach_check_to_the_exact_case_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_resolve_escaped_double_quote_in_check_column",
+      "name": "should_resolve_escaped_double_quote_in_check_column",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 243,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_resolve_escaped_double_quote_in_check_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_reject_quoted_check_column_that_does_not_exist",
+      "name": "should_reject_quoted_check_column_that_does_not_exist",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 264,
+      "end_line": 277,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_reject_quoted_check_column_that_does_not_exist"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_reject_quoted_check_column_with_different_case",
+      "name": "should_reject_quoted_check_column_with_different_case",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 280,
+      "end_line": 296,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_reject_quoted_check_column_with_different_case"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_leave_no_relation_after_mismatched_quoted_check_column",
+      "name": "should_leave_no_relation_after_mismatched_quoted_check_column",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 299,
+      "end_line": 313,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_leave_no_relation_after_mismatched_quoted_check_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_keep_enforcing_unquoted_check",
+      "name": "should_keep_enforcing_unquoted_check",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 316,
+      "end_line": 334,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_keep_enforcing_unquoted_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_enforce_quoted_check_after_restart",
+      "name": "should_enforce_quoted_check_after_restart",
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "line": 337,
+      "end_line": 384,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "quoted_check_identifiers::should_enforce_quoted_check_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/quoted_check_identifiers.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/constraints/semantics/errors.rs::should_reject_altered_check_constraint_when_existing_row_violates_it",
       "name": "should_reject_altered_check_constraint_when_existing_row_violates_it",
       "current_file": "tests/sql_mutations/constraints/semantics/errors.rs",
@@ -362182,6 +362678,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 384,
+      "sha256": "64850d8d9cfbdef75db5955d77f50351f53c24440e95343a9e35da45a783ebdb",
+      "test_declarations": 16,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/grammar/quoted_check_identifiers.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/constraints/semantics/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -363443,8 +363954,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 243,
-      "sha256": "04b37aefcabdae8c5dafeb2e087455f6cc511bb5bddbef10deec86a34a23d5c7",
+      "lines": 246,
+      "sha256": "ee596a3a7d7c38e2d98d798bd065ea7750a5773952ef20074091100e85789caf",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

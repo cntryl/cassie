@@ -2,6 +2,8 @@
 mod exists_binding;
 #[path = "dispatch/exists_predicate.rs"]
 mod exists_predicate;
+#[path = "dispatch/mixed_execution.rs"]
+mod mixed_execution;
 #[path = "dispatch/predicates.rs"]
 mod predicates;
 pub(super) use exists_binding::build_exists_logical_plan_with_fields;
@@ -12,10 +14,10 @@ mod relational_boundary_tests;
 
 use super::types::ExecutionBreakdownDurations;
 use super::{
-    analytical_projection, batch, execute_cte, index_read, ordered_read, plan_inspection,
-    projected_read, rollups, scored, source, BatchRow, Cassie, CassieSession, CteContext, Expr,
-    FunctionMeta, HashMap, Instant, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls,
-    QuerySource, SelectItem, Value,
+    analytical_projection, batch, execute_cte, index_read, ordered_read, projected_read, rollups,
+    scored, source, BatchRow, Cassie, CassieSession, CteContext, Expr, FunctionMeta, HashMap,
+    Instant, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QuerySource,
+    SelectItem, Value,
 };
 
 type ExprResolution<'a> = Result<Expr, QueryError>;
@@ -265,7 +267,7 @@ fn execute_plan_with_physical(
         (plan, physical)
     };
 
-    let mixed_execution = mixed_execution_summary(plan);
+    let mixed_execution = mixed_execution::mixed_execution_summary(plan);
     if outer_row.is_none() && !source_reads_materialized_projection(env.cassie, &plan.source) {
         let mut access_path_context = AccessPathContext {
             env,
@@ -350,7 +352,7 @@ pub(super) fn preferred_access_path_route(
 fn execute_access_path_registry(
     context: &mut AccessPathContext<'_>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    if order_alias_shadows_source(context) {
+    if super::order_alias_shadow::order_alias_shadows_source(context.env.cassie, context.plan) {
         return Ok(None);
     }
     let preferred_route = preferred_access_path_route(context.physical);
@@ -374,26 +376,6 @@ fn execute_access_path_registry(
     }
 
     Ok(None)
-}
-
-/// An ORDER BY name taken over by an output alias is ordered by the generic sort.
-fn order_alias_shadows_source(context: &AccessPathContext<'_>) -> bool {
-    if context.plan.order.is_empty() {
-        return false;
-    }
-    let fields = context
-        .env
-        .cassie
-        .catalog
-        .get_schema(&context.plan.collection)
-        .map(|schema| {
-            schema
-                .fields
-                .into_iter()
-                .map(|field| field.name)
-                .collect::<Vec<_>>()
-        });
-    super::order_alias_shadow::order_alias_shadows_source_column(context.plan, fields.as_deref())
 }
 
 fn execute_access_path_route(
@@ -494,55 +476,6 @@ fn rollup_path(context: &mut AccessPathContext<'_>) -> AccessPathResult {
         context.env.params,
         context.env.user_functions,
         context.env.controls,
-    )
-}
-
-fn mixed_execution_summary(plan: &LogicalPlan) -> Option<String> {
-    let uses_fulltext = !plan_inspection::fulltext_query_fields(plan).is_empty();
-    let uses_vector = plan_inspection::plan_uses_vector_operator(plan)
-        || plan_inspection::plan_uses_function(plan, "vector_score")
-        || plan_inspection::plan_uses_function(plan, "vector_distance");
-    let uses_hybrid = plan_inspection::plan_uses_function(plan, "hybrid_score");
-    let uses_scoring = uses_fulltext || uses_vector || uses_hybrid;
-    let uses_aggregate = !plan.group_by.is_empty()
-        || plan.having.is_some()
-        || plan.projection.iter().any(select_item_is_aggregate);
-    let mixed = (uses_fulltext && uses_vector) || (uses_aggregate && uses_scoring);
-    mixed.then(|| {
-        let mut stages = Vec::new();
-        if uses_scoring {
-            stages.push("candidate_generation");
-        }
-        if plan.filter.is_some() {
-            stages.push("metadata_prefilter");
-        }
-        if uses_scoring {
-            stages.push("exact_scoring");
-        }
-        if uses_aggregate {
-            stages.push("analytical_grouping");
-        }
-        if !plan.order.is_empty() {
-            stages.push("ordering");
-        }
-        if plan.offset_value().is_some() {
-            stages.push("offset");
-        }
-        if plan.limit_value().is_some() {
-            stages.push("limit");
-        }
-        format!("source_row_exact_baseline;stages={}", stages.join(">"))
-    })
-}
-
-fn select_item_is_aggregate(item: &SelectItem) -> bool {
-    matches!(
-        item,
-        SelectItem::Function { function, .. }
-            if matches!(
-                function.name.to_ascii_lowercase().as_str(),
-                "count" | "sum" | "avg" | "min" | "max"
-            )
     )
 }
 

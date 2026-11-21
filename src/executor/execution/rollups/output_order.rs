@@ -35,6 +35,8 @@ fn output_column(rollup: &RollupMeta, expr: &Expr) -> Option<Expr> {
     rollup
         .aggregates
         .iter()
-        .find(|aggregate| super::stored_aggregate_signature(aggregate).as_ref() == Some(&signature))
+        .find(|aggregate| {
+            super::matching::stored_aggregate_signature(aggregate).as_ref() == Some(&signature)
+        })
         .map(|aggregate| Expr::Column(aggregate.alias.clone()))
 }

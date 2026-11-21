@@ -182,9 +182,9 @@
     ],
     "files": 1873,
     "rust_files": 1829,
-    "rust_test_declarations": 11123,
+    "rust_test_declarations": 11125,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11148,
+    "registered_rust_instances": 11150,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -4505,11 +4505,73 @@
       }
     },
     {
+      "id": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs::should_reject_lower_position_after_positionless_event_in_one_batch",
+      "name": "should_reject_lower_position_after_positionless_event_in_one_batch",
+      "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
+      "line": 323,
+      "end_line": 342,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "analytics",
+          "name": "projection_lifecycle::should_reject_lower_position_after_positionless_event_in_one_batch"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "analytics",
+        "category": "projections/projection_lifecycle",
+        "directory": "tests/analytics/projections/projection_lifecycle",
+        "file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs::should_reject_lower_position_after_positionless_replay_batch",
+      "name": "should_reject_lower_position_after_positionless_replay_batch",
+      "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
+      "line": 345,
+      "end_line": 374,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "analytics",
+          "name": "projection_lifecycle::should_reject_lower_position_after_positionless_replay_batch"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "analytics",
+        "category": "projections/projection_lifecycle",
+        "directory": "tests/analytics/projections/projection_lifecycle",
+        "file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs::should_fail_duplicate_event_id_in_batch_without_partial_replay",
       "name": "should_fail_duplicate_event_id_in_batch_without_partial_replay",
       "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
-      "line": 288,
-      "end_line": 382,
+      "line": 377,
+      "end_line": 471,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -4539,8 +4601,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs::should_refresh_materialized_projection_after_source_write",
       "name": "should_refresh_materialized_projection_after_source_write",
       "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
-      "line": 385,
-      "end_line": 479,
+      "line": 474,
+      "end_line": 568,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -4570,8 +4632,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs::should_activate_built_materialized_projection_version",
       "name": "should_activate_built_materialized_projection_version",
       "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
-      "line": 482,
-      "end_line": 543,
+      "line": 571,
+      "end_line": 632,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -4601,8 +4663,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs::should_allocate_new_projection_version_id_after_dropping_older_version",
       "name": "should_allocate_new_projection_version_id_after_dropping_older_version",
       "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
-      "line": 546,
-      "end_line": 621,
+      "line": 635,
+      "end_line": 710,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -4632,8 +4694,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs::should_not_reuse_projection_version_id_after_dropping_highest_version",
       "name": "should_not_reuse_projection_version_id_after_dropping_highest_version",
       "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
-      "line": 624,
-      "end_line": 665,
+      "line": 713,
+      "end_line": 754,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -4663,8 +4725,8 @@
       "id": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs::should_build_projection_version_after_dropping_conflicting_output_collection",
       "name": "should_build_projection_version_after_dropping_conflicting_output_collection",
       "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
-      "line": 668,
-      "end_line": 714,
+      "line": 757,
+      "end_line": 803,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -346240,9 +346302,9 @@
       "current_file": "tests/analytics/projections/projection_lifecycle/semantics_parse_materialized_projection_lifecycle_commands.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 714,
-      "sha256": "3e39b770525c9214ac36a1ff9ed15e4a983398bfc28188a2b37c96f863393639",
-      "test_declarations": 10,
+      "lines": 803,
+      "sha256": "95ae8d0ec7cbebe51785cc666c13956924d27cee6140b6ac8b02f7fe9199237d",
+      "test_declarations": 12,
       "registered_suites": [
         "analytics"
       ],

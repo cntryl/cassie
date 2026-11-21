@@ -284,6 +284,95 @@ fn should_report_failed_freshness_for_out_of_order_replay() {
     });
 }
 
+fn replay_position_event(id: &str, position: Option<u64>) -> ProjectionReplayEvent {
+    ProjectionReplayEvent {
+        event_id: id.to_string(),
+        checkpoint: format!("checkpoint-{id}"),
+        position,
+        document_id: format!("doc-{id}"),
+        payload: Some(serde_json::json!({"title": id})),
+    }
+}
+
+fn replay_position_batch(
+    projection: &str,
+    batch_id: &str,
+    events: Vec<ProjectionReplayEvent>,
+) -> ProjectionReplayBatch {
+    ProjectionReplayBatch {
+        projection: projection.to_string(),
+        source_identity: "orders-stream".to_string(),
+        batch_id: batch_id.to_string(),
+        lag: 0,
+        events,
+    }
+}
+
+fn replay_position_fixture(table: &str) -> (Cassie, String) {
+    let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(&session, &format!("CREATE TABLE {table} (title TEXT)"), vec![])
+        .unwrap();
+    let projection = canonical_test_collection(&cassie, table);
+    (cassie, projection)
+}
+
+#[test]
+fn should_reject_lower_position_after_positionless_event_in_one_batch() {
+    // Arrange
+    let (cassie, projection) = replay_position_fixture("projection_replay_none_in_batch");
+
+    // Act
+    let error = cassie
+        .replay_projection_batch(replay_position_batch(
+            &projection,
+            "batch-1",
+            vec![
+                replay_position_event("event-5", Some(5)),
+                replay_position_event("event-none", None),
+                replay_position_event("event-3", Some(3)),
+            ],
+        ))
+        .unwrap_err();
+
+    // Assert
+    assert!(error.to_string().contains("out-of-order"));
+}
+
+#[test]
+fn should_reject_lower_position_after_positionless_replay_batch() {
+    // Arrange
+    let (cassie, projection) = replay_position_fixture("projection_replay_none_batch");
+    cassie
+        .replay_projection_batch(replay_position_batch(
+            &projection,
+            "batch-1",
+            vec![replay_position_event("event-5", Some(5))],
+        ))
+        .unwrap();
+    cassie
+        .replay_projection_batch(replay_position_batch(
+            &projection,
+            "batch-2",
+            vec![replay_position_event("event-none", None)],
+        ))
+        .unwrap();
+
+    // Act
+    let error = cassie
+        .replay_projection_batch(replay_position_batch(
+            &projection,
+            "batch-3",
+            vec![replay_position_event("event-4", Some(4))],
+        ))
+        .unwrap_err();
+
+    // Assert
+    assert!(error.to_string().contains("out-of-order"));
+}
+
 #[test]
 fn should_fail_duplicate_event_id_in_batch_without_partial_replay() {
     // Arrange

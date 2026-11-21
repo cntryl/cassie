@@ -366,10 +366,11 @@ impl Cassie {
             }
             replay_event_ids.push(event.event_id.clone());
 
-            position_cursor = event.position;
+            // A positionless event neither clears nor lowers the ordering cursor.
+            position_cursor = event.position.or(position_cursor);
             applied = applied.saturating_add(1);
             source_checkpoint = Some(event.checkpoint.clone());
-            source_position = event.position;
+            source_position = position_cursor;
             last_applied_event_id = Some(event.event_id.clone());
         }
 

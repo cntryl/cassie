@@ -597,7 +597,15 @@ fn projected_result_scan_limit(
     if plan.filter.is_some() || !plan.order.is_empty() {
         return planned_limit;
     }
-    let result_cap = controls.max_result_rows.saturating_add(1);
+    // Rows skipped by OFFSET are not result rows, so the cap is measured after them.
+    let offset = plan
+        .offset_value()
+        .and_then(|offset| usize::try_from(offset.max(0)).ok())
+        .unwrap_or(0);
+    let result_cap = controls
+        .max_result_rows
+        .saturating_add(1)
+        .saturating_add(offset);
     Some(planned_limit.unwrap_or(result_cap).min(result_cap))
 }
 

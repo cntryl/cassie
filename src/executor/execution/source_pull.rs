@@ -586,6 +586,14 @@ pub(super) fn try_execute(
     }
     env.controls.check_interruption()?;
     drop(cursor);
+    // The loop stops one row past the cap. A consumer that is not the client result, such as
+    // INSERT ... SELECT, must not receive that truncated source as if it were complete.
+    if output.len() > env.controls.max_result_rows {
+        return Err(crate::app::CassieError::ResourceLimit(
+            "query result row limit exceeded".to_owned(),
+        )
+        .into());
+    }
     let memory = Arc::new(memory);
     for row in &mut output {
         row.attach_operator_memory(env.controls, Arc::clone(&memory))?;

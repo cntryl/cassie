@@ -20,6 +20,9 @@ mod cte_identity;
 #[path = "sql_queries/cardinality_admission.rs"]
 mod cardinality_admission;
 
+#[path = "sql_queries/offset_result_cap.rs"]
+mod offset_result_cap;
+
 #[path = "sql_queries/expressions/alias_integration.rs"]
 mod alias_integration;
 

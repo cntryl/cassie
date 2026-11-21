@@ -10,6 +10,7 @@ use super::{
     SelectStatement,
 };
 use crate::sql::ast::IdentifierPath;
+use crate::sql::ast::JoinKind;
 use crate::types::row_identity::{
     is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
 };
@@ -696,6 +697,7 @@ fn bind_join_source_with_lateral_fields(
     );
     let mut right = *right;
     super::aliases::lower_lateral(&left, &mut right, catalog, scope)?;
+    let unbound_right = matches!(kind, JoinKind::Right | JoinKind::Full).then(|| right.clone());
     let right = bind_query_source_with_lateral_fields(
         right,
         catalog,
@@ -706,6 +708,15 @@ fn bind_join_source_with_lateral_fields(
         },
         context,
     )?;
+    if let Some(unbound_right) = unbound_right {
+        reject_left_reads_on_preserved_side(
+            &unbound_right,
+            catalog,
+            scope,
+            lateral_scope,
+            context,
+        )?;
+    }
     let mut joined = QuerySource::Join {
         left: Box::new(left),
         right: Box::new(right),
@@ -715,6 +726,34 @@ fn bind_join_source_with_lateral_fields(
     super::aliases::lower_join_on(&mut joined, catalog, scope)?;
     validate_join_source(&mut joined, catalog, scope, context)?;
     Ok(joined)
+}
+
+/// The right side of a RIGHT or FULL join is the preserved side, so PostgreSQL forbids it to read
+/// the left side even when it is LATERAL. It binds against the enclosing scope alone: a reference
+/// that only the left side supplies is reported as an invalid FROM-clause reference.
+fn reject_left_reads_on_preserved_side(
+    right: &QuerySource,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    lateral_scope: LateralScope<'_>,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let probe = bind_query_source_with_lateral_fields(
+        right.clone(),
+        catalog,
+        scope,
+        lateral_scope,
+        context,
+    );
+    match probe {
+        Err(CassieError::UndefinedColumn(_)) => Err(crate::app::DiagnosticError::new(
+            "42P01",
+            "invalid reference to FROM-clause entry for the left side of a RIGHT or FULL JOIN",
+        )
+        .with_detail("The combining JOIN type must be INNER or LEFT for a LATERAL reference.")
+        .into()),
+        _ => Ok(()),
+    }
 }
 
 fn validate_join_source(

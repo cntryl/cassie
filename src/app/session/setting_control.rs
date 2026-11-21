@@ -1,6 +1,7 @@
 //! Connection reset defaults are independent from transactional rollback snapshots.
 
 use super::{CassieError, CassieSession};
+use crate::app::session_settings::SETTINGS;
 
 impl CassieSession {
     pub(crate) fn set_startup_setting(&self, name: &str, value: &str) -> Result<(), CassieError> {
@@ -22,7 +23,7 @@ impl CassieSession {
                 "parameter \"{name}\" cannot be reset"
             )));
         }
-        self.with_owned_setting_state(|| {
+        self.apply_session_write(&[name], || {
             let value = self.settings.lock().reset(name)?;
             if name.eq_ignore_ascii_case("search_path") {
                 self.set_search_path_locked(
@@ -37,7 +38,8 @@ impl CassieSession {
     }
 
     pub(crate) fn reset_all_settings(&self) -> Result<(), CassieError> {
-        self.with_owned_setting_state(|| {
+        let names: Vec<&str> = SETTINGS.iter().map(|spec| spec.name).collect();
+        self.apply_session_write(&names, || {
             let mut settings = self.settings.lock();
             settings.reset_all();
             let search_path = settings

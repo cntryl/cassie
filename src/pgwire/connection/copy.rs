@@ -69,6 +69,10 @@ mod stale_entry_tests;
 #[path = "copy/input_text_tests.rs"]
 mod input_text_tests;
 
+#[cfg(test)]
+#[path = "copy/output_tests.rs"]
+mod output_tests;
+
 use binding::CopyFromBinding;
 use input_read::{read_admitted_copy_message, CopyReadOutcome};
 #[cfg(test)]

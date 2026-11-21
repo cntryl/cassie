@@ -182,9 +182,9 @@
     ],
     "files": 1885,
     "rust_files": 1841,
-    "rust_test_declarations": 11266,
+    "rust_test_declarations": 11267,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11291,
+    "registered_rust_instances": 11292,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -31260,6 +31260,37 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::copy_forms::text_format::should_import_standalone_backslash_dot_as_a_csv_field"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/copy",
+        "directory": "tests/compatibility/lifecycle/copy",
+        "file": "tests/compatibility/lifecycle/copy/text_format.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/copy/text_format.rs::should_import_escaped_tab_row_before_end_marker",
+      "name": "should_import_escaped_tab_row_before_end_marker",
+      "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
+      "line": 188,
+      "end_line": 229,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::copy_forms::text_format::should_import_escaped_tab_row_before_end_marker"
         }
       ],
       "attributes": [
@@ -353386,9 +353417,9 @@
       "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 185,
-      "sha256": "8e936c884afce9475db5fb84b951ab6d7881dc0b6ad50aa5398642d4ab73d930",
-      "test_declarations": 4,
+      "lines": 229,
+      "sha256": "8a20ba4da983067697e67b911ed5ef2bda626b163223e66a2af50b0ebfacd061",
+      "test_declarations": 5,
       "registered_suites": [
         "compatibility"
       ],

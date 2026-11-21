@@ -30,6 +30,12 @@ fn next_char(bytes: &[u8], offset: usize) -> Result<(char, usize), CassieError> 
     Ok((text.chars().next().expect("nonempty UTF-8 character"), end))
 }
 
+/// Inside a quoted field the escape character makes the quote or escape
+/// character that follows it literal.
+fn is_quote_or_escape(character: char, options: CopyCsvOptions<'_>) -> bool {
+    character == options.quote || character == options.escape
+}
+
 pub(crate) fn parse_csv_payload(
     payload: &[u8],
     options: CopyCsvOptions<'_>,
@@ -56,7 +62,7 @@ pub(crate) fn parse_csv_payload(
         let escaped_quote = in_quotes
             && character == options.escape
             && next < payload.len()
-            && next_char(payload, next)?.0 == options.quote;
+            && is_quote_or_escape(next_char(payload, next)?.0, options);
         if escaped_quote {
             index = next_char(payload, next)?.1;
             continue;
@@ -154,10 +160,11 @@ fn push_field(
         if in_quotes
             && character == options.escape
             && next < raw.len()
-            && next_char(raw, next)?.0 == options.quote
+            && is_quote_or_escape(next_char(raw, next)?.0, options)
         {
-            field.push(options.quote);
-            index = next_char(raw, next)?.1;
+            let (literal, after) = next_char(raw, next)?;
+            field.push(literal);
+            index = after;
         } else if character == options.quote {
             in_quotes = !in_quotes;
             index = next;

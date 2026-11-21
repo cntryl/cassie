@@ -156,6 +156,8 @@ mod sql_semantic_regressions;
 // Formerly tests/window_frames.rs.
 #[path = "sql_queries/windows/window_frame_empty_ranges.rs"]
 mod window_frame_empty_ranges;
+#[path = "sql_queries/windows/window_frame_validation.rs"]
+mod window_frame_validation;
 #[path = "sql_queries/windows/window_frames.rs"]
 mod window_frames;
 

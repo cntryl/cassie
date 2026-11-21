@@ -467,13 +467,9 @@ fn parse_window_frame(raw: &str, unit: WindowFrameUnit) -> Result<WindowFrame, S
     } else {
         (bounds.trim(), "current row")
     };
-    let start = parse_window_bound(start_raw)?;
-    let end = parse_window_bound(end_raw)?;
-    if !valid_window_bound_order(start, end) {
-        return Err(SqlError::unsupported(
-            "invalid window frame bounds: start must precede end".into(),
-        ));
-    }
+    let start = parse_window_bound(start_raw, "starting")?;
+    let end = parse_window_bound(end_raw, "ending")?;
+    validate_window_bound_order(start, end)?;
     Ok(WindowFrame {
         unit,
         start,
@@ -504,7 +500,7 @@ fn split_window_exclusion(raw: &str) -> Result<(&str, WindowFrameExclusion), Sql
     Ok((raw[..position].trim(), exclusion))
 }
 
-fn parse_window_bound(raw: &str) -> Result<WindowFrameBound, SqlError> {
+fn parse_window_bound(raw: &str, position: &str) -> Result<WindowFrameBound, SqlError> {
     let keyword = super::lexical::without_comments(raw)
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -525,8 +521,15 @@ fn parse_window_bound(raw: &str) -> Result<WindowFrameBound, SqlError> {
                 )));
             };
             if value.trim_start().starts_with('-') {
-                return Err(SqlError::unsupported(
-                    "negative window frame offsets are unsupported".into(),
+                return Err(SqlError::diagnostic(
+                    "22013",
+                    format!("frame {position} offset must not be negative"),
+                ));
+            }
+            if value.trim() == "null" {
+                return Err(SqlError::diagnostic(
+                    "22004",
+                    format!("frame {position} offset must not be null"),
                 ));
             }
             let value = value.trim().parse::<u64>().map_err(|_| {
@@ -541,26 +544,27 @@ fn parse_window_bound(raw: &str) -> Result<WindowFrameBound, SqlError> {
     }
 }
 
-fn valid_window_bound_order(start: WindowFrameBound, end: WindowFrameBound) -> bool {
-    if matches!(start, WindowFrameBound::UnboundedPreceding)
-        || matches!(end, WindowFrameBound::UnboundedFollowing)
-    {
-        return true;
-    }
-    if matches!(
-        start,
-        WindowFrameBound::Preceding(_) | WindowFrameBound::CurrentRow
-    ) && matches!(
-        end,
-        WindowFrameBound::CurrentRow | WindowFrameBound::Following(_)
-    ) {
-        return true;
-    }
-    match (start, end) {
-        (WindowFrameBound::Preceding(start), WindowFrameBound::Preceding(end)) => start >= end,
-        (WindowFrameBound::Following(start), WindowFrameBound::Following(end)) => start <= end,
-        _ => false,
-    }
+/// Applies PostgreSQL's frame-clause rules (SQLSTATE 42P20). An offset start may
+/// exceed its offset end: that frame is simply empty.
+fn validate_window_bound_order(
+    start: WindowFrameBound,
+    end: WindowFrameBound,
+) -> Result<(), SqlError> {
+    let message = match (start, end) {
+        (WindowFrameBound::UnboundedFollowing, _) => "frame start cannot be UNBOUNDED FOLLOWING",
+        (_, WindowFrameBound::UnboundedPreceding) => "frame end cannot be UNBOUNDED PRECEDING",
+        (WindowFrameBound::CurrentRow, WindowFrameBound::Preceding(_)) => {
+            "frame starting from current row cannot have preceding rows"
+        }
+        (WindowFrameBound::Following(_), WindowFrameBound::CurrentRow) => {
+            "frame starting from following row cannot end with current row"
+        }
+        (WindowFrameBound::Following(_), WindowFrameBound::Preceding(_)) => {
+            "frame starting from following row cannot have preceding rows"
+        }
+        _ => return Ok(()),
+    };
+    Err(SqlError::diagnostic("42P20", message.into()))
 }
 
 pub(super) fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {

@@ -408,8 +408,11 @@ documents; `EXPLAIN` says why:
 `column_vector=eligible|fallback|not_applicable` and `column_vector_reason=`
 appear on every plan; `EXPLAIN ANALYZE` adds `column_vector_batches_delta`,
 `column_vector_lanes_delta`, `column_vector_values_delta`,
-`column_vector_staged_rows_delta`, `column_vector_segments_pruned_delta` and
-`row_documents_delta`. An eligible statement reports `row_documents_delta=0`.
+`column_vector_staged_rows_delta`, `column_vector_segments_pruned_delta`,
+`column_vector_partitions_delta`, `column_vector_workers_delta`,
+`column_vector_serial_label` (`none` unless the statement ran serially for a
+parallel-contract label below) and `row_documents_delta`. An eligible statement
+reports `row_documents_delta=0`.
 
 **Open transactions (D5).** A scan merges the session's staged rows serially in
 id order with the persisted batches: an upsert replaces a persisted lane or
@@ -441,6 +444,54 @@ selected-field counters of #1356 (`column_field_reads_for_diagnostics()`) also
 count the vector reader's fetches and decodes.
 `set_column_vector_enabled_for_diagnostics(false)` forces row documents for
 differential tests and benchmarks.
+
+**Parallel waves (#1358, S5; off by default).** `parallel_aggregation_workers`
+(aggregates) and `parallel_scan_workers` (projections) default to 1 and then the
+vector path is the serial path above, unchanged: the #1360 claim holds at one
+worker. With a limit above 1 an eligible scan runs in waves:
+
+- *Partitions* are contiguous id ranges, one per segment: the ranges segment
+  pruning kept, or, for an unpruned scan, the cuts at the table's summary slot
+  boundaries. Contiguous ranges always cover the id space, so a stale
+  boundary is still a valid partition; only *pruning* needs trusted summaries.
+  A table without summaries has one range.
+- *Waves* hand one partition to each of `min(limit, partitions)` operator
+  workers (`try_acquire_operator_workers`, the permits every parallel
+  operator shares) on scoped threads. The coordinator joins every worker
+  before it inspects any result and merges results in partition (id) order.
+- *Workers* read through borrowed state only: the reader's own snapshot
+  transaction, the schema, the query controls and the runtime. They open no
+  transaction and consult no thread-local scope (`StatementReadScope`, the
+  active storage scope, publication controls), so every partition reads the
+  statement's snapshot; a commit that lands between partitions is invisible to
+  all of them. A compile-time `Sync`/`Send` assertion pins what workers share.
+- *Merge rules.* COUNT, integer SUM, MIN and MAX fold in the worker and merge
+  exactly; grouped partials merge group by group, keeping the first-seen key
+  values of the earliest partition, and groups still finish in semantic key
+  order. Float SUM and AVG are order-sensitive: their workers return the
+  filtered typed batches and the coordinator folds them in row-id order, so the
+  result is bit-identical to the serial fold (group keys for such a query are
+  computed by the coordinator). Projections are filtered by the workers (when
+  the filter is in the native typed subset; otherwise by the coordinator) and
+  projected and emitted by the coordinator in row-id order. A `LIMIT` or
+  `OFFSET` read serially.
+- *Memory.* A wave reserves, before any worker starts, `workers` times (one
+  decoded batch of carriers, the partial a worker may retain, thread
+  bookkeeping); batches and partials are then admitted as usual. Peak memory is
+  about `workers x (range batch + partial)`, still independent of input rows
+  for a constant group count, apart from float SUM/AVG, whose filtered
+  partition batches stay live until merged. Cancellation and the deadline are
+  checked inside every worker; a failed or canceled wave joins all workers,
+  releases their permits and all accounted memory, and returns no output.
+- *Serial reads* record a label in
+  `column_vector_reads_for_diagnostics().last_serial_label` (and, for
+  aggregates asked to use workers, in the aggregation fallback reason):
+  `column-vector-worker-limit-one` (limit is 1),
+  `column-vector-staged-serial` (the session has staged rows, D5: the staged
+  merge is serial), `column-vector-single-partition` (one range) and
+  `column-vector-worker-budget` (no operator permits free). Counters
+  `partitions`, `parallel_scans`, `workers` and `serial_scans` join the
+  list above.
 
 ### Versioning
 

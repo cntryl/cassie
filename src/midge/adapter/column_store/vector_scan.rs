@@ -15,11 +15,13 @@
 mod counters;
 mod decode;
 mod merge;
+mod partitions;
 #[cfg(test)]
 mod tests;
 
 pub(crate) use counters::ColumnVectorReadCounters;
 pub use counters::ColumnVectorReadSnapshot;
+pub(crate) use partitions::ColumnPartitionReader;
 
 use super::validation::decode_marker;
 use super::{CassieError, Midge, Query, RowSchema};

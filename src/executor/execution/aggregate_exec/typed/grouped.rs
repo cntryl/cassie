@@ -13,7 +13,7 @@ use crate::executor::batch::{BatchRow, DEFAULT_BATCH_SIZE};
 use crate::executor::execution::aggregate_exec::group_memory::GroupMemory;
 use crate::executor::execution::aggregate_exec::output_owner;
 use crate::executor::retained_memory::{add, mul, value_clone_bytes};
-use crate::executor::scan::TypedScanStream;
+use crate::executor::scan::{Partitioning, TypedScanStream};
 use crate::executor::typed_batch::{check_controls, Cell, TypedBatch};
 use crate::executor::QueryError;
 use crate::planner::logical::LogicalPlan;
@@ -30,6 +30,21 @@ pub(super) const DISPATCH: &str = "typed-grouped-row-order-fold";
 struct Aggregate {
     column: Option<usize>,
     template: State,
+    /// Partials of this aggregate merge exactly (not float SUM or AVG).
+    merge_safe: bool,
+}
+
+impl Aggregate {
+    /// Float SUM and AVG depend on row order, so their partials do not merge.
+    fn new(column: Option<usize>, template: State, float_input: bool) -> Self {
+        let merge_safe = !(matches!(template, State::Avg { .. })
+            || matches!(template, State::Sum { .. }) && float_input);
+        Self {
+            column,
+            template,
+            merge_safe,
+        }
+    }
 }
 
 enum Output {
@@ -37,7 +52,7 @@ enum Output {
     Aggregate { index: usize, name: String },
 }
 
-struct Shape {
+pub(super) struct Shape {
     keys: Vec<usize>,
     aggregates: Vec<Aggregate>,
     outputs: Vec<Output>,
@@ -49,9 +64,18 @@ struct Group {
 }
 
 // The map must retire before the reservation that covers its groups.
-struct Groups {
+pub(super) struct Groups {
     map: KeyedMap<SemanticKey, Group>,
     memory: GroupMemory,
+}
+
+impl Groups {
+    pub(super) fn new(controls: &QueryExecutionControls) -> Result<Self, QueryError> {
+        Ok(Self {
+            map: KeyedMap::new(Some(controls))?,
+            memory: GroupMemory::new(controls)?,
+        })
+    }
 }
 
 pub(super) fn execute(
@@ -74,23 +98,48 @@ pub(super) fn execute(
     else {
         return Ok(None);
     };
-    let mut groups = Groups {
-        map: KeyedMap::new(Some(controls))?,
-        memory: GroupMemory::new(controls)?,
-    };
-    while let Some(batch) = stream.next_batch_bounded(DEFAULT_BATCH_SIZE)? {
-        let batch = predicate::apply(batch, plan.filter.as_ref(), params, controls)?;
-        shape.fold(&batch, &mut groups, controls)?;
-        drop(batch);
-        #[cfg(test)]
-        super::workers::cancel_after_completed_wave();
+    let mut groups = Groups::new(controls)?;
+    let requested = cassie.runtime.limits().parallel_aggregation_workers.max(1);
+    let mut fallback = DISPATCH;
+    let mut parallel = None;
+    match stream.partitioning(requested)? {
+        Some(Partitioning::Parallel(scan)) => {
+            parallel = Some(super::vector_waves::consume_grouped(
+                &scan,
+                &shape,
+                &mut groups,
+                plan.filter.as_ref(),
+                params,
+                controls,
+            )?);
+        }
+        Some(Partitioning::Serial(label)) if requested > 1 => fallback = label,
+        _ => {}
+    }
+    if parallel.is_none() {
+        while let Some(batch) = stream.next_batch_bounded(DEFAULT_BATCH_SIZE)? {
+            let batch = predicate::apply(batch, plan.filter.as_ref(), params, controls)?;
+            shape.fold(&batch, &mut groups, controls)?;
+            drop(batch);
+            #[cfg(test)]
+            super::workers::cancel_after_completed_wave();
+        }
     }
     check_controls(controls)?;
     let rows = shape.finish(groups, controls)?;
     check_controls(controls)?;
-    cassie
-        .runtime
-        .record_parallel_aggregation_fallback(DISPATCH);
+    if let Some(waves) = parallel.filter(|waves| waves.workers > 1) {
+        cassie.runtime.record_parallel_aggregation(
+            waves.workers,
+            waves.partitions,
+            waves.rows,
+            rows.len(),
+        );
+    } else {
+        cassie
+            .runtime
+            .record_parallel_aggregation_fallback(fallback);
+    }
     tracing::trace!(target: "cassie::typed_profile", event = "typed_grouped_aggregate_complete",
         output_groups = rows.len(),
         current_admitted_query_bytes = controls.current_query_memory_bytes(),
@@ -118,14 +167,14 @@ pub(super) fn explain_shape(
 }
 
 impl Shape {
-    fn group_fixed_bytes(&self) -> Result<usize, QueryError> {
+    pub(super) fn group_fixed_bytes(&self) -> Result<usize, QueryError> {
         Ok(add(
             size_of::<(SemanticKey, Group)>(),
             mul(self.aggregates.len(), size_of::<State>())?,
         )?)
     }
 
-    fn fold(
+    pub(super) fn fold(
         &self,
         batch: &TypedBatch,
         groups: &mut Groups,
@@ -160,6 +209,43 @@ impl Shape {
             check_controls(controls)?;
             groups.memory.add(added)?;
         }
+        Ok(())
+    }
+
+    /// Whether every aggregate's partial merges exactly, so partitions can
+    /// fold independently.
+    pub(super) fn merge_safe(&self) -> bool {
+        self.aggregates.iter().all(|aggregate| aggregate.merge_safe)
+    }
+
+    /// Merges a later partition's groups into `groups`. A group seen before
+    /// keeps its first-seen key values and absorbs the later partial; a new
+    /// group joins as is. Output order does not depend on merge order: groups
+    /// finish in semantic key order.
+    pub(super) fn merge(
+        &self,
+        groups: &mut Groups,
+        later: Groups,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), QueryError> {
+        let Groups { map, memory } = later;
+        let fixed = self.group_fixed_bytes()?;
+        for (key, group) in map.into_sorted_entries()? {
+            check_controls(controls)?;
+            match groups.map.entry(key)? {
+                Entry::Occupied(entry) => {
+                    for (state, partial) in entry.into_mut().states.iter_mut().zip(&group.states) {
+                        state.merge_ordered(partial)?;
+                    }
+                }
+                Entry::Vacant(entry) => {
+                    let added = group_bytes(entry.key(), &group.values, fixed)?;
+                    entry.insert(group);
+                    groups.memory.add(added)?;
+                }
+            }
+        }
+        drop(memory);
         Ok(())
     }
 
@@ -292,6 +378,7 @@ fn prepare(
                 let [Expr::Column(argument)] = function.args.as_slice() else {
                     return Ok(None);
                 };
+                let mut float_input = false;
                 let column = match template {
                     State::Boolean(_) => return Ok(None),
                     State::Count(_) if argument == "*" => None,
@@ -313,6 +400,7 @@ fn prepare(
                         if !supported {
                             return Ok(None);
                         }
+                        float_input = field.data_type == DataType::Float;
                         Some(scan_index(&mut prepared, argument)?)
                     }
                 };
@@ -322,7 +410,7 @@ fn prepare(
                     index: aggregates.len(),
                     name,
                 });
-                aggregates.push(Aggregate { column, template });
+                aggregates.push(Aggregate::new(column, template, float_input));
             }
             _ => return Ok(None),
         }

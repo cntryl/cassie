@@ -18,6 +18,7 @@ mod group_key;
 mod grouped;
 mod partials;
 mod predicate;
+mod vector_waves;
 mod workers;
 
 enum State {
@@ -426,3 +427,6 @@ mod encoded_tests;
 
 #[cfg(test)]
 mod null_safe_tests;
+
+#[cfg(test)]
+mod vector_tests;

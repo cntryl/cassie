@@ -18,8 +18,8 @@ mod vector_scan;
 pub(crate) use vector_scan::identity_lanes;
 pub use vector_scan::ColumnVectorReadSnapshot;
 pub(crate) use vector_scan::{
-    ColumnIdRange, ColumnVectorBatch, ColumnVectorOutput, ColumnVectorReadCounters,
-    ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,
+    ColumnIdRange, ColumnPartitionReader, ColumnVectorBatch, ColumnVectorOutput,
+    ColumnVectorReadCounters, ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,
 };
 pub(super) mod validation;
 

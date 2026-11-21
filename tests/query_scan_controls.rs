@@ -48,6 +48,9 @@ mod specialized_query_controls_retrieval;
 #[path = "query_scan_controls/column_store/row_limits.rs"]
 mod column_limit;
 
+#[path = "query_scan_controls/column_store/vector_waves.rs"]
+mod vector_waves;
+
 #[path = "support/column_projection_fixture.rs"]
 mod support_column_projection_fixture;
 

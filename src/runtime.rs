@@ -68,6 +68,7 @@ mod join_metrics;
 mod operator_feedback_state;
 #[path = "runtime/operator_workers.rs"]
 mod operator_workers;
+pub(crate) use operator_workers::OperatorWorkerGuard;
 #[path = "runtime/owned_memory.rs"]
 pub(crate) mod owned_memory;
 #[path = "runtime/pgwire_state.rs"]

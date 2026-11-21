@@ -161,8 +161,9 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/columnar_surface/pruning_equivalence.rs` | test_module | 255 | 6 | columnar_surface | move_with_module_alias | `tests/columnar_surface/semantics/pruning_equivalence.rs` |
 | `tests/columnar_surface/query_equivalence.rs` | test_module | 309 | 11 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/core/query_equivalence.rs`; `tests/columnar_surface/semantics/query_equivalence.rs` |
 | `tests/columnar_surface/vector_execution.rs` | test_module | 464 | 17 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/core/vector_execution.rs`; `tests/columnar_surface/aggregates/ranges/vector_execution.rs`; `tests/columnar_surface/semantics/vector_execution.rs` |
+| `tests/columnar_surface/vector_parallel.rs` | test_module | 375 | 14 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/bit_bytea/vector_parallel.rs`; `tests/columnar_surface/aggregates/core/vector_parallel.rs`; `tests/columnar_surface/semantics/vector_parallel.rs` |
 | `tests/columnar_surface/vector_pruning.rs` | test_module | 148 | 4 | columnar_surface | move_with_module_alias | `tests/columnar_surface/semantics/vector_pruning.rs` |
-| `tests/columnar_surface.rs` | cargo_target | 26 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
+| `tests/columnar_surface.rs` | cargo_target | 29 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
 | `tests/compatibility/clients/desktop_traces/desktop_client_trace_replay.rs` | test_module | 150 | 7 | compatibility | keep | `tests/compatibility/clients/desktop_traces/desktop_client_trace_replay.rs` |
 | `tests/compatibility/clients/diesel/semantics.rs` | test_module | 167 | 1 | compatibility | keep | `tests/compatibility/clients/diesel/semantics.rs` |
 | `tests/compatibility/clients/dump_restore/pg_dump_restore.rs` | test_module | 210 | 1 | compatibility | keep | `tests/compatibility/clients/dump_restore/pg_dump_restore.rs` |
@@ -1245,6 +1246,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/planner_controls.rs` | cargo_target | 74 | 0 | planner_controls | keep | `tests/planner_controls.rs` |
 | `tests/query_scan_controls/cancellation/request_cancellation.rs` | test_module | 152 | 3 | query_scan_controls | keep | `tests/query_scan_controls/cancellation/request_cancellation.rs` |
 | `tests/query_scan_controls/column_store/row_limits.rs` | test_module | 44 | 2 | query_scan_controls | keep | `tests/query_scan_controls/column_store/row_limits.rs` |
+| `tests/query_scan_controls/column_store/vector_waves.rs` | test_module | 92 | 3 | query_scan_controls | split_by_contract | `tests/query_scan_controls/aggregates/core/vector_waves/cancellation.rs`; `tests/query_scan_controls/cancellation/vector_waves/cancellation.rs` |
 | `tests/query_scan_controls/predicates/fulltext_filtered_controls.rs` | test_module | 209 | 2 | query_scan_controls | keep | `tests/query_scan_controls/predicates/fulltext_filtered_controls.rs` |
 | `tests/query_scan_controls/resources/query_resource_controls.rs` | test_module | 683 | 12 | query_scan_controls | keep | `tests/query_scan_controls/resources/query_resource_controls.rs` |
 | `tests/query_scan_controls/resources/scalar_index_resource_controls.rs` | test_module | 175 | 3 | query_scan_controls | keep | `tests/query_scan_controls/resources/scalar_index_resource_controls.rs` |
@@ -1254,7 +1256,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/query_scan_controls/scans/specialized_query_controls.rs` | test_module | 513 | 3 | query_scan_controls | keep | `tests/query_scan_controls/scans/specialized_query_controls.rs` |
 | `tests/query_scan_controls/scans/specialized_query_controls_retrieval.rs` | test_module | 725 | 9 | query_scan_controls | keep | `tests/query_scan_controls/scans/specialized_query_controls_retrieval.rs` |
 | `tests/query_scan_controls/scans/vector_ann_concurrency.rs` | test_module | 549 | 9 | query_scan_controls | keep | `tests/query_scan_controls/scans/vector_ann_concurrency.rs` |
-| `tests/query_scan_controls.rs` | cargo_target | 58 | 0 | query_scan_controls | keep | `tests/query_scan_controls.rs` |
+| `tests/query_scan_controls.rs` | cargo_target | 61 | 0 | query_scan_controls | keep | `tests/query_scan_controls.rs` |
 | `tests/relational_qualification/ancestor_scope.rs` | test_module | 258 | 5 | relational_qualification | keep | `tests/relational_qualification/ancestor_scope.rs` |
 | `tests/relational_qualification/exists_having.rs` | test_module | 130 | 3 | relational_qualification | keep | `tests/relational_qualification/exists_having.rs` |
 | `tests/relational_qualification/exists_order.rs` | test_module | 138 | 4 | relational_qualification | keep | `tests/relational_qualification/exists_order.rs` |

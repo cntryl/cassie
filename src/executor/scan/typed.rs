@@ -10,6 +10,7 @@ use crate::executor::typed_batch::TypedBatch;
 use std::mem::size_of;
 
 mod authoritative;
+pub(crate) use authoritative::{PartitionBatches, PartitionedScan, Partitioning};
 
 pub(crate) struct TypedScanStream<'a> {
     cassie: &'a Cassie,
@@ -35,6 +36,25 @@ impl<'a> TypedScanStream<'a> {
         if let Some(source) = self.authoritative.as_mut() {
             source.set_pruning(self.cassie, filter, self.controls);
         }
+    }
+
+    /// Chooses between a serial read and waves of up to `requested` workers
+    /// over id-range partitions. `None` when the source is not an
+    /// authoritative column table, whose other readers have no partitions.
+    ///
+    /// # Errors
+    ///
+    /// Returns storage, resource-limit and cancellation errors.
+    pub(crate) fn partitioning(
+        &mut self,
+        requested: usize,
+    ) -> Result<Option<Partitioning<'_>>, QueryError> {
+        let Some(source) = self.authoritative.as_mut() else {
+            return Ok(None);
+        };
+        source
+            .partitioning(self.cassie, &self.schema, requested, self.controls)
+            .map(Some)
     }
 
     #[cfg(test)]

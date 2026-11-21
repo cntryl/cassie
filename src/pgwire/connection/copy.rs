@@ -25,6 +25,8 @@ mod filter_text;
 mod input;
 #[path = "copy/input_read.rs"]
 mod input_read;
+#[path = "copy/input_text.rs"]
+mod input_text;
 #[path = "copy/output.rs"]
 mod output;
 #[path = "copy/payload_owner.rs"]
@@ -62,6 +64,10 @@ mod diagnostic_tests;
 #[cfg(test)]
 #[path = "copy/stale_entry_tests.rs"]
 mod stale_entry_tests;
+
+#[cfg(test)]
+#[path = "copy/input_text_tests.rs"]
+mod input_text_tests;
 
 use binding::CopyFromBinding;
 use input_read::{read_admitted_copy_message, CopyReadOutcome};

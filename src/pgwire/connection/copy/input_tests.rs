@@ -50,11 +50,7 @@ fn should_preserve_text_copy_escape_with_final_record_behavior() {
     // Assert
     assert_eq!(
         rows,
-        vec![vec![
-            Some("101".into()),
-            Some("x41".into()),
-            Some("end\\".into())
-        ]]
+        vec![vec![Some("A".into()), Some("A".into()), Some("end".into())]]
     );
     drop((rows, memory));
     assert_eq!(controls.current_query_memory_bytes(), 0);

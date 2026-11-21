@@ -255,11 +255,7 @@ impl ColumnVectorScan {
         midge
             .column_vector_counters()
             .record_batch(rows, lanes.len());
-        Ok(Some(ColumnVectorBatch {
-            ids,
-            lanes,
-            memory,
-        }))
+        Ok(Some(ColumnVectorBatch { ids, lanes, memory }))
     }
 
     /// Reads up to `want` markers of the current range after the resume point.

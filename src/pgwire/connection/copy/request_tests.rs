@@ -49,3 +49,45 @@ fn should_keep_a_missing_copy_target_on_the_existing_error_path() {
             if message == "COPY requires FROM STDIN or TO STDOUT"
     ));
 }
+
+#[test]
+fn should_accept_option_list_without_with_keyword() {
+    // Arrange
+    let sql = "COPY t FROM STDIN (DELIMITER '|')";
+
+    // Act
+    let request = parse_copy_request(sql)
+        .expect("valid COPY")
+        .expect("COPY request");
+
+    // Assert
+    assert_eq!(request.delimiter, Some('|'));
+}
+
+#[test]
+fn should_default_option_list_format_to_text() {
+    // Arrange
+    let sql = "COPY t FROM STDIN WITH (DELIMITER '|')";
+
+    // Act
+    let request = parse_copy_request(sql)
+        .expect("valid COPY")
+        .expect("COPY request");
+
+    // Assert
+    assert_eq!(request.format, super::CopyWireFormat::Text);
+}
+
+#[test]
+fn should_default_escape_to_the_quote_character() {
+    // Arrange
+    let sql = "COPY t FROM STDIN WITH (FORMAT CSV, QUOTE '''')";
+
+    // Act
+    let request = parse_copy_request(sql)
+        .expect("valid COPY")
+        .expect("COPY request");
+
+    // Assert
+    assert_eq!((request.quote, request.escape), ('\'', '\''));
+}

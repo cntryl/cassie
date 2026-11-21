@@ -148,6 +148,38 @@ fn should_highlight_accent_folded_matches_in_snippet() {
 }
 
 #[test]
+fn should_find_decomposed_accent_word_given_accent_folding() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
+        cassie.startup().unwrap();
+        run(&cassie, "CREATE TABLE decomposed_ft (id INT NOT NULL, body TEXT)");
+        run(
+            &cassie,
+            "INSERT INTO decomposed_ft (id, body) VALUES (1, 'cafe\u{301} bar'), (2, '\u{130}stanbul trip')",
+        );
+        run(
+            &cassie,
+            "CREATE INDEX decomposed_ft_idx ON decomposed_ft USING FULLTEXT (body) WITH (accent_folding = 'true')",
+        );
+
+        // Act
+        let rows = run(
+            &cassie,
+            "SELECT id FROM decomposed_ft WHERE search(body, 'cafe') OR search(body, 'istanbul') ORDER BY id",
+        );
+
+        // Assert
+        assert_eq!(rows, vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]);
+    });
+}
+
+#[test]
 fn should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

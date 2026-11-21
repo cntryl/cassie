@@ -45,6 +45,11 @@ pub(crate) fn execute_vector_distance_top_k(
     let Some(spec) = vector_distance_top_k_spec(plan, params, controls)? else {
         return Ok(None);
     };
+    // A window beyond the adaptive candidate maximum is not an error for a top-k query: the
+    // generic scan returns the answer, as for every other ordering.
+    if spec.top_needed() > cassie.runtime.limits().adaptive_candidate_max.max(1) {
+        return Ok(None);
+    }
     let started_at = std::time::Instant::now();
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", spec.collection))

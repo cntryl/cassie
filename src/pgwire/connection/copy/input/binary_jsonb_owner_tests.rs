@@ -203,7 +203,7 @@ fn should_match_legacy_jsonb_array_envelope_with_element_error_precedence() {
         make(2, 1, 0, &[Some(b"\x011"), Some(b"\x01[1,]")], &[42]),
         make(1, 1, 0, &[None], &[]),
         make(1, 1, 0, &[Some(b"\x01null")], &[]),
-        make(1, i32::MAX, 0, &[Some(b"\x01{\"z\":1}")], &[]),
+        make(1, i32::MAX - 1, 0, &[Some(b"\x01{\"z\":1}")], &[]),
     ];
     // Act / Assert
     for input in cases {
@@ -278,7 +278,7 @@ fn should_match_legacy_jsonb_array_text_with_compact_fallback() {
             &[(1, -2), (2, 1)],
             &[Some(b"\x01\"q\\\"x\""), Some(b"\x01[1,2]")],
         ),
-        make(&[(1, i32::MAX)], &[Some(b"\x01{\"aa\":1,\"z\":2}")]),
+        make(&[(1, i32::MAX - 1)], &[Some(b"\x01{\"aa\":1,\"z\":2}")]),
     ];
     // Act / Assert
     for input in cases {
@@ -315,7 +315,7 @@ fn should_return_owned_jsonb_array_text_from_binary_copy() {
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let mut array = Vec::new();
-    for value in [1_i32, 0, 3802, 1, i32::MAX] {
+    for value in [1_i32, 0, 3802, 1, i32::MAX - 1] {
         array.extend_from_slice(&value.to_be_bytes());
     }
     let field = b"\x01{\"aa\":1,\"z\":2}";

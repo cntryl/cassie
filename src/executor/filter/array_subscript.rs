@@ -164,7 +164,9 @@ fn coordinates(mut offset: usize, dimensions: &[ArrayDimension]) -> Vec<i32> {
     for index in (0..dimensions.len()).rev() {
         let dimension = dimensions[index];
         let length = usize::try_from(dimension.length).unwrap_or(1);
-        coordinates[index] = dimension.lower_bound + i32::try_from(offset % length).unwrap_or(0);
+        coordinates[index] = dimension
+            .lower_bound
+            .saturating_add(i32::try_from(offset % length).unwrap_or(0));
         offset /= length;
     }
     coordinates

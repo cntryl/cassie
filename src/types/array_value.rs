@@ -573,10 +573,11 @@ fn checked_element_count(dimensions: &[ArrayDimension]) -> Result<usize, String>
         if dimension.length <= 0 {
             return Err("nonempty SQL array dimensions must have positive lengths".to_string());
         }
-        dimension
-            .lower_bound
-            .checked_add(dimension.length - 1)
-            .ok_or_else(|| "SQL array upper bound exceeds INT4".to_string())?;
+        super::array_bounds::check_dimension_bounds(
+            dimension.lower_bound,
+            i64::from(dimension.length),
+        )
+        .map_err(|error| error.message)?;
         count
             .checked_mul(
                 usize::try_from(dimension.length).map_err(|_| {

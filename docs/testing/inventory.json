@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1869,
-    "rust_files": 1825,
-    "rust_test_declarations": 11098,
+    "files": 1873,
+    "rust_files": 1829,
+    "rust_test_declarations": 11123,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11123,
+    "registered_rust_instances": 11148,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -262915,6 +262915,192 @@
       }
     },
     {
+      "id": "tests/sql_mutations/types/arrays/array_bound_limits.rs::should_reject_array_literal_whose_upper_bound_is_int_max",
+      "name": "should_reject_array_literal_whose_upper_bound_is_int_max",
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "line": 13,
+      "end_line": 25,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "array_bound_limits::should_reject_array_literal_whose_upper_bound_is_int_max"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/arrays",
+        "directory": "tests/sql_mutations/types/arrays",
+        "file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/types/arrays/array_bound_limits.rs::should_reject_array_cast_whose_span_exceeds_int4",
+      "name": "should_reject_array_cast_whose_span_exceeds_int4",
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "line": 28,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "array_bound_limits::should_reject_array_cast_whose_span_exceeds_int4"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/arrays",
+        "directory": "tests/sql_mutations/types/arrays",
+        "file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/types/arrays/array_bound_limits.rs::should_reject_array_literal_with_upper_bound_below_lower_bound",
+      "name": "should_reject_array_literal_with_upper_bound_below_lower_bound",
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "line": 40,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "array_bound_limits::should_reject_array_literal_with_upper_bound_below_lower_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/arrays",
+        "directory": "tests/sql_mutations/types/arrays",
+        "file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/types/arrays/array_bound_limits.rs::should_reject_element_assignment_past_the_array_size_limit",
+      "name": "should_reject_element_assignment_past_the_array_size_limit",
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "line": 55,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "array_bound_limits::should_reject_element_assignment_past_the_array_size_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/arrays",
+        "directory": "tests/sql_mutations/types/arrays",
+        "file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/types/arrays/array_bound_limits.rs::should_reject_slice_assignment_past_the_array_size_limit",
+      "name": "should_reject_slice_assignment_past_the_array_size_limit",
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "line": 70,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "array_bound_limits::should_reject_slice_assignment_past_the_array_size_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/arrays",
+        "directory": "tests/sql_mutations/types/arrays",
+        "file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/types/arrays/array_bound_limits.rs::should_keep_custom_lower_bound_arrays_updatable_by_slice",
+      "name": "should_keep_custom_lower_bound_arrays_updatable_by_slice",
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "line": 85,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "array_bound_limits::should_keep_custom_lower_bound_arrays_updatable_by_slice"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/arrays",
+        "directory": "tests/sql_mutations/types/arrays",
+        "file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_mutations/types/arrays/array_input_copy.rs::should_reject_copy_scalar_array_input_before_publication",
       "name": "should_reject_copy_scalar_array_input_before_publication",
       "current_file": "tests/sql_mutations/types/arrays/array_input_copy.rs",
@@ -288800,6 +288986,192 @@
       }
     },
     {
+      "id": "tests/sql_queries/expressions/order_by_swapped_alias.rs::should_order_a_limited_read_by_the_output_alias_that_shadows_a_source_column",
+      "name": "should_order_a_limited_read_by_the_output_alias_that_shadows_a_source_column",
+      "current_file": "tests/sql_queries/expressions/order_by_swapped_alias.rs",
+      "line": 20,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "order_by_swapped_alias::should_order_a_limited_read_by_the_output_alias_that_shadows_a_source_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ordering",
+        "directory": "tests/sql_queries/ordering",
+        "file": "tests/sql_queries/ordering/order_by_swapped_alias.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/order_by_swapped_alias.rs::should_order_a_descending_limited_read_by_the_shadowing_output_alias",
+      "name": "should_order_a_descending_limited_read_by_the_shadowing_output_alias",
+      "current_file": "tests/sql_queries/expressions/order_by_swapped_alias.rs",
+      "line": 32,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "order_by_swapped_alias::should_order_a_descending_limited_read_by_the_shadowing_output_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ordering",
+        "directory": "tests/sql_queries/ordering",
+        "file": "tests/sql_queries/ordering/order_by_swapped_alias.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/order_by_swapped_alias.rs::should_order_an_unlimited_read_by_the_shadowing_output_alias",
+      "name": "should_order_an_unlimited_read_by_the_shadowing_output_alias",
+      "current_file": "tests/sql_queries/expressions/order_by_swapped_alias.rs",
+      "line": 44,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "order_by_swapped_alias::should_order_an_unlimited_read_by_the_shadowing_output_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ordering",
+        "directory": "tests/sql_queries/ordering",
+        "file": "tests/sql_queries/ordering/order_by_swapped_alias.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/order_by_swapped_alias.rs::should_order_by_the_shadowing_output_alias_when_the_source_column_is_indexed",
+      "name": "should_order_by_the_shadowing_output_alias_when_the_source_column_is_indexed",
+      "current_file": "tests/sql_queries/expressions/order_by_swapped_alias.rs",
+      "line": 56,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "order_by_swapped_alias::should_order_by_the_shadowing_output_alias_when_the_source_column_is_indexed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ordering",
+        "directory": "tests/sql_queries/ordering",
+        "file": "tests/sql_queries/ordering/order_by_swapped_alias.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/order_by_swapped_alias.rs::should_order_a_filtered_read_by_the_shadowing_output_alias",
+      "name": "should_order_a_filtered_read_by_the_shadowing_output_alias",
+      "current_file": "tests/sql_queries/expressions/order_by_swapped_alias.rs",
+      "line": 71,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "order_by_swapped_alias::should_order_a_filtered_read_by_the_shadowing_output_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ordering",
+        "directory": "tests/sql_queries/ordering",
+        "file": "tests/sql_queries/ordering/order_by_swapped_alias.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/order_by_swapped_alias.rs::should_order_by_the_shadowing_output_alias_with_an_offset",
+      "name": "should_order_by_the_shadowing_output_alias_with_an_offset",
+      "current_file": "tests/sql_queries/expressions/order_by_swapped_alias.rs",
+      "line": 86,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "order_by_swapped_alias::should_order_by_the_shadowing_output_alias_with_an_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ordering",
+        "directory": "tests/sql_queries/ordering",
+        "file": "tests/sql_queries/ordering/order_by_swapped_alias.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/expressions/pagination.rs::should_bind_pagination_parameters_before_planning_each_execution",
       "name": "should_bind_pagination_parameters_before_planning_each_execution",
       "current_file": "tests/sql_queries/expressions/pagination.rs",
@@ -289293,6 +289665,192 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/predicate_precedence.rs::should_bind_between_tighter_than_equality",
+      "name": "should_bind_between_tighter_than_equality",
+      "current_file": "tests/sql_queries/expressions/predicate_precedence.rs",
+      "line": 6,
+      "end_line": 15,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "predicate_precedence::should_bind_between_tighter_than_equality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "predicates",
+        "directory": "tests/sql_queries/predicates",
+        "file": "tests/sql_queries/predicates/predicate_precedence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/predicate_precedence.rs::should_bind_not_between_tighter_than_equality",
+      "name": "should_bind_not_between_tighter_than_equality",
+      "current_file": "tests/sql_queries/expressions/predicate_precedence.rs",
+      "line": 18,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "predicate_precedence::should_bind_not_between_tighter_than_equality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "predicates",
+        "directory": "tests/sql_queries/predicates",
+        "file": "tests/sql_queries/predicates/predicate_precedence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/predicate_precedence.rs::should_bind_in_tighter_than_equality",
+      "name": "should_bind_in_tighter_than_equality",
+      "current_file": "tests/sql_queries/expressions/predicate_precedence.rs",
+      "line": 30,
+      "end_line": 39,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "predicate_precedence::should_bind_in_tighter_than_equality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "predicates",
+        "directory": "tests/sql_queries/predicates",
+        "file": "tests/sql_queries/predicates/predicate_precedence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/predicate_precedence.rs::should_bind_not_in_tighter_than_inequality",
+      "name": "should_bind_not_in_tighter_than_inequality",
+      "current_file": "tests/sql_queries/expressions/predicate_precedence.rs",
+      "line": 42,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "predicate_precedence::should_bind_not_in_tighter_than_inequality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "predicates",
+        "directory": "tests/sql_queries/predicates",
+        "file": "tests/sql_queries/predicates/predicate_precedence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/predicate_precedence.rs::should_keep_between_over_an_arithmetic_left_operand",
+      "name": "should_keep_between_over_an_arithmetic_left_operand",
+      "current_file": "tests/sql_queries/expressions/predicate_precedence.rs",
+      "line": 54,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "predicate_precedence::should_keep_between_over_an_arithmetic_left_operand"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "predicates",
+        "directory": "tests/sql_queries/predicates",
+        "file": "tests/sql_queries/predicates/predicate_precedence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/expressions/predicate_precedence.rs::should_filter_rows_by_a_comparison_against_a_between_result",
+      "name": "should_filter_rows_by_a_comparison_against_a_between_result",
+      "current_file": "tests/sql_queries/expressions/predicate_precedence.rs",
+      "line": 66,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "predicate_precedence::should_filter_rows_by_a_comparison_against_a_between_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "predicates",
+        "directory": "tests/sql_queries/predicates",
+        "file": "tests/sql_queries/predicates/predicate_precedence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -300360,6 +300918,223 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_return_the_limited_rows_when_the_offset_exceeds_the_result_cap",
+      "name": "should_return_the_limited_rows_when_the_offset_exceeds_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 37,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_return_the_limited_rows_when_the_offset_exceeds_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_return_every_row_after_an_offset_that_exceeds_the_result_cap",
+      "name": "should_return_every_row_after_an_offset_that_exceeds_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 49,
+      "end_line": 58,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_return_every_row_after_an_offset_that_exceeds_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_return_the_limited_rows_past_the_result_cap_with_one_scan_worker",
+      "name": "should_return_the_limited_rows_past_the_result_cap_with_one_scan_worker",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 61,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_return_the_limited_rows_past_the_result_cap_with_one_scan_worker"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_return_distinct_rows_after_an_offset_within_the_result_cap",
+      "name": "should_return_distinct_rows_after_an_offset_within_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 73,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_return_distinct_rows_after_an_offset_within_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_still_refuse_a_result_larger_than_the_cap_after_an_offset",
+      "name": "should_still_refuse_a_result_larger_than_the_cap_after_an_offset",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 87,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_still_refuse_a_result_larger_than_the_cap_after_an_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_refuse_an_insert_whose_generated_source_exceeds_the_result_cap",
+      "name": "should_refuse_an_insert_whose_generated_source_exceeds_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 99,
+      "end_line": 115,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_refuse_an_insert_whose_generated_source_exceeds_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_insert_a_generated_source_that_fits_the_result_cap",
+      "name": "should_insert_a_generated_source_that_fits_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 118,
+      "end_line": 134,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_insert_a_generated_source_that_fits_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -366431,6 +367206,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 100,
+      "sha256": "3f18c99090e3620ee3d44e47c02b9411af173a13f359dfbc27417474bc9aab04",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/types/arrays/array_bound_limits.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/types/arrays/array_input_copy.rs",
       "role": "test_module",
       "action": "keep",
@@ -366522,8 +367312,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 246,
-      "sha256": "ee596a3a7d7c38e2d98d798bd065ea7750a5773952ef20074091100e85789caf",
+      "lines": 248,
+      "sha256": "c78eab9376919bb2d016628939523378d7f3e1ede01926c63d2eb7917874890b",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"
@@ -368125,6 +368915,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/expressions/order_by_swapped_alias.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 95,
+      "sha256": "359d7227ca418403e742bcd6e00c162caee98c5d0a1a04fb330510d2495a3b0b",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/ordering/order_by_swapped_alias.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/expressions/pagination.rs",
       "role": "test_module",
       "action": "keep",
@@ -368136,6 +368941,21 @@
       ],
       "destinations": [
         "tests/sql_queries/expressions/pagination.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/expressions/predicate_precedence.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 81,
+      "sha256": "9a0dde433ed2b725ebb9331fc9b6cccf9aeff17a6eea30f843cd05c0d2340d9f",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/predicates/predicate_precedence.rs"
       ],
       "line_limit": 1000
     },
@@ -368572,6 +369392,21 @@
       ],
       "destinations": [
         "tests/sql_queries/names/reserved_id_source_resolution.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 134,
+      "sha256": "e4d75d900e08cfd073e1d1bccf48d079b2c23f15fd26059ab45fd37679f86a59",
+      "test_declarations": 7,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/expressions/offset_result_cap.rs"
       ],
       "line_limit": 1000
     },
@@ -369614,8 +370449,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 319,
-      "sha256": "e3f1a32bc447d83bfe4d1ec844d2cf4323b7efe7341cc6c78f5d7f11ebe83778",
+      "lines": 328,
+      "sha256": "ba789512bbeb0c46c05bdd31bbbcce58a9f3d05ecb5e3609474b8e6f8336db2d",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"

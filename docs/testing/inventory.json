@@ -182,9 +182,9 @@
     ],
     "files": 1873,
     "rust_files": 1829,
-    "rust_test_declarations": 11126,
+    "rust_test_declarations": 11128,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11151,
+    "registered_rust_instances": 11153,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -263194,6 +263194,68 @@
       }
     },
     {
+      "id": "tests/sql_mutations/types/arrays/array_bound_limits.rs::should_reject_json_delete_path_whose_upper_bound_is_int_max",
+      "name": "should_reject_json_delete_path_whose_upper_bound_is_int_max",
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "line": 103,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "array_bound_limits::should_reject_json_delete_path_whose_upper_bound_is_int_max"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/arrays",
+        "directory": "tests/sql_mutations/types/arrays",
+        "file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/types/arrays/array_bound_limits.rs::should_reject_json_delete_path_with_upper_bound_below_lower_bound",
+      "name": "should_reject_json_delete_path_with_upper_bound_below_lower_bound",
+      "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+      "line": 115,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "array_bound_limits::should_reject_json_delete_path_with_upper_bound_below_lower_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/arrays",
+        "directory": "tests/sql_mutations/types/arrays",
+        "file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_mutations/types/arrays/array_input_copy.rs::should_reject_copy_scalar_array_input_before_publication",
       "name": "should_reject_copy_scalar_array_input_before_publication",
       "current_file": "tests/sql_mutations/types/arrays/array_input_copy.rs",
@@ -367302,9 +367364,9 @@
       "current_file": "tests/sql_mutations/types/arrays/array_bound_limits.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 100,
-      "sha256": "3f18c99090e3620ee3d44e47c02b9411af173a13f359dfbc27417474bc9aab04",
-      "test_declarations": 6,
+      "lines": 124,
+      "sha256": "5a83b69dcc6eeb25b31663e971b193021413d2ec8ea8c2fcc900dd778dc05daa",
+      "test_declarations": 8,
       "registered_suites": [
         "sql_mutations"
       ],

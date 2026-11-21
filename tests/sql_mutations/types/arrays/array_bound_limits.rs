@@ -98,3 +98,27 @@ fn should_keep_custom_lower_bound_arrays_updatable_by_slice() {
     // Assert
     assert_eq!(rows, vec![vec![Value::String("[5:6]={7,8}".into())]]);
 }
+
+#[test]
+fn should_reject_json_delete_path_whose_upper_bound_is_int_max() {
+    // Arrange
+    let fixture = fixture("array-bounds-json-delete-path");
+
+    // Act
+    let error = fixture.error("SELECT '{\"a\":1}'::jsonb #- '[2147483647:2147483647]={x}'");
+
+    // Assert
+    assert_eq!(error.sql_state(), "54000");
+}
+
+#[test]
+fn should_reject_json_delete_path_with_upper_bound_below_lower_bound() {
+    // Arrange
+    let fixture = fixture("array-bounds-json-delete-inverted");
+
+    // Act
+    let error = fixture.error("SELECT '{\"a\":1}'::jsonb #- '[1:0]={}'");
+
+    // Assert
+    assert_eq!(error.sql_state(), "2202E");
+}

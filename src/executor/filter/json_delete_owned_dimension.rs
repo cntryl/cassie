@@ -90,6 +90,10 @@ pub(super) fn body<'a, F: FnMut(Progress)>(
         return Ok(None);
     };
     let length = i64::from(upper) - i64::from(lower) + 1;
+    if length < 1 || crate::types::array_bounds::check_dimension_bounds(lower, length).is_err() {
+        // PostgreSQL rejects these; the legacy parser reports the exact error.
+        return Ok(None);
+    }
     let Ok(length) = i32::try_from(length) else {
         return Ok(None);
     };

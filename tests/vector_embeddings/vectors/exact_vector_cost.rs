@@ -617,3 +617,201 @@ mod cancellation {
         assert_eq!(recovery.expect("same-session recovery").rows().len(), K);
     }
 }
+
+mod direct_decode {
+    use super::*;
+
+    /// A one-row result keeps the fetched-row charge small so the scan page dominates the peak.
+    fn single_row_sql() -> String {
+        query_sql(Metric::L2, false, false).replace(&format!("LIMIT {K}"), "LIMIT 1")
+    }
+
+    /// Four bytes per component plus bookkeeping for a 256-row page, and the query allowance.
+    fn direct_page_peak_bound() -> u64 {
+        let page = 256 * (DIMS * 4 + 1024);
+        u64::try_from(page + 128 * 1024).expect("bound fits u64")
+    }
+
+    #[test]
+    fn should_charge_the_scan_page_for_packed_components_not_decoded_values() {
+        // Arrange
+        let cassie = heap_cassie(2_000, AMPLE_BUDGET);
+
+        // Act
+        let ids = returned_ids(&cassie, &single_row_sql(), params(&spread_query(), false));
+        let peak = peak_memory(&cassie);
+
+        // Assert
+        assert_eq!(
+            ids,
+            brute_force(2_000, Metric::L2, &spread_query(), false, false)[..1]
+        );
+        assert!(
+            peak <= direct_page_peak_bound(),
+            "the scan peaked at {peak} accounted bytes, above the {} byte packed-component bound",
+            direct_page_peak_bound()
+        );
+    }
+
+    #[test]
+    fn should_accept_a_budget_below_the_decoded_value_footprint() {
+        // Arrange
+        let budget = usize::try_from(direct_page_peak_bound()).expect("bound fits usize");
+        let cassie = heap_cassie(2_000, budget);
+
+        // Act
+        let ids = returned_ids(&cassie, &single_row_sql(), params(&spread_query(), false));
+
+        // Assert
+        assert_eq!(
+            ids,
+            brute_force(2_000, Metric::L2, &spread_query(), false, false)[..1]
+        );
+    }
+
+    #[test]
+    fn should_rank_filtered_rows_without_the_filtered_out_tenants() {
+        // Arrange
+        let cassie = heap_cassie(1_200, AMPLE_BUDGET);
+
+        // Act
+        let ids = returned_ids(
+            &cassie,
+            &query_sql(Metric::Cosine, false, true),
+            params(&tied_query(), true),
+        );
+
+        // Assert
+        assert_eq!(
+            ids,
+            brute_force(1_200, Metric::Cosine, &tied_query(), false, true)
+        );
+        assert!(ids.iter().all(|id| {
+            let row: usize = id[1..].parse().expect("row number");
+            tenant_of(row) == "t1"
+        }));
+    }
+}
+
+/// The two-column `SELECT id, <distance> ... ORDER BY <distance> LIMIT n` shape has its own
+/// exact path; its NULL-vector rows must order as PostgreSQL orders NULLs.
+mod two_column_shape {
+    use super::*;
+
+    fn cassie_with_null_vectors(is_null: impl Fn(usize) -> bool) -> Cassie {
+        let cassie = Cassie::new_in_memory_with_config(config(AMPLE_BUDGET)).expect("Cassie");
+        crate::support_sql::install_vector_extension(&cassie);
+        // No declared `id` column: the fast path serves the row identity.
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                &format!("CREATE TABLE items (tenant TEXT, title TEXT, embedding VECTOR({DIMS}))"),
+                vec![],
+            )
+            .expect("create table");
+        let documents = (0..60)
+            .map(|row| {
+                let embedding = if is_null(row) {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(vector_for(row))
+                };
+                (
+                    Some(row_id(row)),
+                    serde_json::json!({
+                        "tenant": tenant_of(row),
+                        "title": format!("title {row}"),
+                        "embedding": embedding,
+                    }),
+                )
+            })
+            .collect();
+        cassie
+            .midge
+            .put_fresh_documents("items", documents)
+            .expect("load rows");
+        cassie
+    }
+
+    fn two_column_sql(direction: &str) -> String {
+        format!("SELECT id, embedding <-> $1 AS score FROM items ORDER BY embedding <-> $1 {direction} LIMIT {K}")
+    }
+
+    fn generic_sql(direction: &str) -> String {
+        format!("SELECT id, title, embedding <-> $1 AS score FROM items ORDER BY embedding <-> $1 {direction} LIMIT {K}")
+    }
+
+    /// The `vector_distance` function form is a documented exact fast path that excludes rows
+    /// without a vector in either direction (the function itself rejects a NULL operand).
+    fn function_sql(direction: &str) -> String {
+        format!("SELECT id, vector_distance(embedding, $1) AS score FROM items ORDER BY score {direction} LIMIT {K}")
+    }
+
+    #[test]
+    fn should_exclude_null_vector_rows_from_a_descending_vector_distance_function_ranking() {
+        // Arrange
+        let cassie = cassie_with_null_vectors(|row| row % 20 == 3);
+        let scored = (0..60)
+            .filter(|row| row % 20 != 3)
+            .map(|row| {
+                (
+                    Metric::L2.distance(&vector_for(row), &spread_query()),
+                    row_id(row),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut expected = scored;
+        expected.sort_by(|left, right| {
+            right
+                .0
+                .total_cmp(&left.0)
+                .then_with(|| left.1.cmp(&right.1))
+        });
+        let expected = expected
+            .into_iter()
+            .take(K)
+            .map(|(_, id)| id)
+            .collect::<Vec<_>>();
+
+        // Act
+        let actual = returned_ids(
+            &cassie,
+            &function_sql("DESC"),
+            params(&spread_query(), false),
+        );
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn should_order_null_vector_rows_first_for_a_descending_two_column_distance() {
+        // Arrange
+        let cassie = cassie_with_null_vectors(|row| row % 20 == 3);
+        let query = params(&spread_query(), false);
+
+        // Act
+        let actual = returned_ids(&cassie, &two_column_sql("DESC"), query.clone());
+        let expected = returned_ids(&cassie, &generic_sql("DESC"), query);
+
+        // Assert
+        assert_eq!(actual, expected);
+        assert_eq!(actual[..3], [row_id(3), row_id(23), row_id(43)]);
+    }
+
+    #[test]
+    fn should_append_null_vector_rows_when_fewer_than_k_are_scored_in_the_two_column_shape() {
+        // Arrange
+        let cassie = cassie_with_null_vectors(|row| row >= 5);
+        let query = params(&spread_query(), false);
+
+        // Act
+        let actual = returned_ids(&cassie, &two_column_sql("ASC"), query.clone());
+        let expected = returned_ids(&cassie, &generic_sql("ASC"), query);
+
+        // Assert
+        assert_eq!(actual.len(), K);
+        assert_eq!(actual, expected);
+    }
+}

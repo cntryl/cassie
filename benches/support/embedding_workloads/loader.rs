@@ -6,6 +6,7 @@ use crate::embedding_workloads::ground_truth::{
     decode_truths, encode_truths, exact_top_k, Metric, Truth,
 };
 use crate::embedding_workloads::manifest::{in_tenant, Manifest, README_HINT};
+use crate::embedding_workloads::synthetic;
 use crate::embedding_workloads::vector_file::{
     read_f32_rows, read_lines, sha256_file, verify_checksum,
 };
@@ -99,6 +100,60 @@ impl Workload {
             queries_sha256: manifest
                 .file(&names[2])
                 .map_or_else(String::new, |f| f.sha256.clone()),
+            dir: dir.to_path_buf(),
+        })
+    }
+
+    /// Generates the deterministic synthetic control for `set` and verifies its checksums
+    /// against the manifest.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message when the manifest has no such set, the query splits are not
+    /// frozen, or a generated checksum differs from the recorded one.
+    pub fn synthetic(manifest: &Manifest, dir: &Path, set: &str) -> Result<Self, String> {
+        let control = &manifest.synthetic_control;
+        let set_entry = manifest
+            .set(set)
+            .ok_or_else(|| format!("manifest has no set {set}"))?;
+        let query_ids = [
+            &manifest.queries.tuning.ids[..],
+            &manifest.queries.held_out.ids[..],
+        ]
+        .concat();
+        if query_ids.is_empty() {
+            return Err(format!("the query splits are not frozen; {README_HINT}"));
+        }
+        let vectors = synthetic::generate(control, set_entry.documents, query_ids.len());
+        let documents_sha256 = synthetic::checksum(&vectors.documents);
+        let queries_sha256 = synthetic::checksum(&vectors.queries);
+        let mismatches: Vec<String> = [(set, &documents_sha256), ("queries", &queries_sha256)]
+            .into_iter()
+            .filter(|(name, actual)| control.sha256.get(*name) != Some(*actual))
+            .map(|(name, actual)| format!("{name} hashes to {actual}"))
+            .collect();
+        if !mismatches.is_empty() {
+            return Err(format!(
+                "synthetic control differs from the manifest sha256 record: {}",
+                mismatches.join("; ")
+            ));
+        }
+        Ok(Self {
+            model_key: control.name.clone(),
+            model_stem: control.name.clone(),
+            model_id: "deterministic-synthetic-control".to_string(),
+            model_revision: "manifest synthetic_control".to_string(),
+            set: set.to_string(),
+            dimensions: control.dimensions,
+            documents: vectors.documents,
+            document_ids: (0..set_entry.documents)
+                .map(|ordinal| format!("syn-{ordinal:06}"))
+                .collect(),
+            queries: vectors.queries,
+            query_ids,
+            tuning_count: manifest.queries.tuning.count,
+            documents_sha256,
+            queries_sha256,
             dir: dir.to_path_buf(),
         })
     }

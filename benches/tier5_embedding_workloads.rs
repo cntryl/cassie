@@ -5,9 +5,18 @@
 //! `tools/embeddings/README.md`. Optional settings:
 //!
 //! - `CASSIE_BENCH_EMBEDDING_SETS` (default `10k`), comma list of manifest set names
-//! - `CASSIE_BENCH_EMBEDDING_MODELS` (default `bge-small,bge-base`)
+//! - `CASSIE_BENCH_EMBEDDING_MODELS` (default `bge-small,bge-base,synthetic`; `synthetic` is the
+//!   deterministic control generated in memory from the manifest `synthetic_control`)
 //! - `CASSIE_BENCH_EMBEDDING_TUNING_POINTS` (default `2`, maximum `2`) per index
 //! - `CASSIE_BENCH_EMBEDDING_QUERY_LIMIT` caps queries per split (smoke runs only)
+//! - `CASSIE_BENCH_EMBEDDING_METRICS` (default `l2,cosine`)
+//! - `CASSIE_BENCH_EMBEDDING_ALGORITHMS` (default `exact,hnsw,ivfflat`)
+//! - `CASSIE_BENCH_EMBEDDING_SWEEP=1` builds every swept candidate in the manifest
+//!   `index_tuning` grid and measures the tuning split only; selection uses these rows
+//! - `CASSIE_BENCH_EMBEDDING_RECALL_ONLY=1` skips the exact configuration and warmup and
+//!   reports recall and candidate counts (latency columns are not-quiet and indicative)
+//! - `CASSIE_BENCH_EMBEDDINGS_DIR` reads and writes this directory instead of
+//!   `target/embeddings`
 //! - `CASSIE_BENCH_EMBEDDING_QUERY_MEMORY_BUDGET_BYTES` (default 8 GiB; Cassie's 10 MiB
 //!   default rejects exact scans of these sets)
 //!
@@ -42,9 +51,9 @@ fn env_number(name: &str) -> Option<usize> {
         .and_then(|value| value.parse().ok())
 }
 
-fn print_summary(result: &serde_json::Value) {
+fn print_summary(result: &serde_json::Value, split: &str) {
     let rows = result["rows"].as_array().map_or(&[][..], Vec::as_slice);
-    for row in rows.iter().filter(|row| row["split"] == "held_out") {
+    for row in rows.iter().filter(|row| row["split"] == split) {
         println!(
             "embedding_workloads model={} set={} metric={} algorithm={} point={} filter={} kind={} \
              queries={}/{} recall20={:.4} p50_us={:.0} p95_us={:.0} qps={:.1} candidates={:.0} \
@@ -74,30 +83,49 @@ fn run() -> Result<(), String> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest = Manifest::load(&root.join("tests/corpus/embeddings/manifest.json"))?;
     manifest.validate()?;
-    let dir = embeddings_dir(&root);
+    let dir = std::env::var_os("CASSIE_BENCH_EMBEDDINGS_DIR")
+        .map_or_else(|| embeddings_dir(&root), PathBuf::from);
+    let sweep = std::env::var_os("CASSIE_BENCH_EMBEDDING_SWEEP").is_some();
     let results_dir = dir.join("results");
     std::fs::create_dir_all(&results_dir).map_err(|error| error.to_string())?;
     let options = runner::RunOptions {
         tuning_points: env_number("CASSIE_BENCH_EMBEDDING_TUNING_POINTS").unwrap_or(2),
+        splits: if sweep {
+            vec!["tuning".to_string()]
+        } else {
+            vec!["tuning".to_string(), "held_out".to_string()]
+        },
+        sweep,
+        metrics: env_list("CASSIE_BENCH_EMBEDDING_METRICS", ""),
+        algorithms: env_list("CASSIE_BENCH_EMBEDDING_ALGORITHMS", "exact,hnsw,ivfflat"),
+        recall_only: std::env::var_os("CASSIE_BENCH_EMBEDDING_RECALL_ONLY").is_some(),
         query_limit: env_number("CASSIE_BENCH_EMBEDDING_QUERY_LIMIT"),
         work_dir: dir.join("work"),
         query_memory_budget_bytes: env_number("CASSIE_BENCH_EMBEDDING_QUERY_MEMORY_BUDGET_BYTES")
             .unwrap_or(8 << 30),
     };
     for set in env_list("CASSIE_BENCH_EMBEDDING_SETS", "10k") {
-        for model in env_list("CASSIE_BENCH_EMBEDDING_MODELS", "bge-small,bge-base") {
-            let workload = loader::Workload::load(&manifest, &dir, &model, &set)?;
+        for model in env_list(
+            "CASSIE_BENCH_EMBEDDING_MODELS",
+            "bge-small,bge-base,synthetic",
+        ) {
+            let workload = if model == manifest.synthetic_control.name {
+                loader::Workload::synthetic(&manifest, &dir, &set)?
+            } else {
+                loader::Workload::load(&manifest, &dir, &model, &set)?
+            };
             let result = runner::run_workload(&manifest, &workload, &options)?;
             let stamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |elapsed| elapsed.as_secs());
-            let path = results_dir.join(format!("{stamp}-{model}-{set}.json"));
+            let mode = if sweep { "-sweep" } else { "" };
+            let path = results_dir.join(format!("{stamp}-{model}-{set}{mode}.json"));
             std::fs::write(
                 &path,
                 serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?,
             )
             .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
-            print_summary(&result);
+            print_summary(&result, if sweep { "tuning" } else { "held_out" });
             println!("embedding_workloads wrote {}", path.display());
         }
     }

@@ -357,7 +357,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/constraint_ingress/contracts/errors.rs` | test_module | 51 | 1 | constraint_ingress | keep | `tests/constraint_ingress/contracts/errors.rs` |
 | `tests/constraint_ingress/contracts/semantics.rs` | test_module | 105 | 2 | constraint_ingress | keep | `tests/constraint_ingress/contracts/semantics.rs` |
 | `tests/constraint_ingress.rs` | cargo_target | 11 | 0 | constraint_ingress | keep | `tests/constraint_ingress.rs` |
-| `tests/corpus/embeddings/manifest.json` | oracle_data | 158 | 0 | — | keep | `tests/corpus/embeddings/manifest.json` |
+| `tests/corpus/embeddings/manifest.json` | oracle_data | 269 | 0 | — | keep | `tests/corpus/embeddings/manifest.json` |
 | `tests/corpus/postgresql18/UPSTREAM-LICENSE` | oracle_data | 23 | 0 | — | keep | `tests/corpus/postgresql18/UPSTREAM-LICENSE` |
 | `tests/corpus/postgresql18/boolean.json` | oracle_data | 5019 | 0 | — | keep | `tests/corpus/postgresql18/boolean.json` |
 | `tests/corpus/postgresql18/bootstrap.json` | oracle_data | 102 | 0 | — | keep | `tests/corpus/postgresql18/bootstrap.json` |
@@ -1824,7 +1824,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/embeddings/embedding_response_limits.rs` | test_module | 207 | 4 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_response_limits.rs` |
 | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` | test_module | 561 | 12 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` |
 | `tests/vector_embeddings/embeddings/embedding_validation.rs` | test_module | 244 | 3 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_validation.rs` |
-| `tests/vector_embeddings/embeddings/embedding_workloads.rs` | test_module | 435 | 18 | vector_embeddings | split_by_contract | `tests/vector_embeddings/aggregates/ordered_set/embedding_workloads.rs`; `tests/vector_embeddings/embeddings/embedding_workloads.rs` |
+| `tests/vector_embeddings/embeddings/embedding_workloads.rs` | test_module | 532 | 24 | vector_embeddings | split_by_contract | `tests/vector_embeddings/aggregates/ordered_set/embedding_workloads.rs`; `tests/vector_embeddings/embeddings/embedding_workloads.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_contract.rs` | test_module | 182 | 6 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_selectivity.rs` | test_module | 166 | 8 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector_selectivity.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_snapshots.rs` | test_module | 186 | 3 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector_snapshots.rs` |
@@ -1853,7 +1853,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/publication/orphans.rs` | test_module | 122 | 1 | vector_embeddings | keep | `tests/vector_embeddings/publication/orphans.rs` |
 | `tests/vector_embeddings/publication/restart.rs` | test_module | 254 | 2 | vector_embeddings | keep | `tests/vector_embeddings/publication/restart.rs` |
 | `tests/vector_embeddings/vectors/ann_candidate_exhaustion.rs` | test_module | 228 | 5 | vector_embeddings | keep | `tests/vector_embeddings/vectors/ann_candidate_exhaustion.rs` |
-| `tests/vector_embeddings/vectors/exact_vector_cost.rs` | test_module | 619 | 10 | vector_embeddings | split_by_contract | `tests/vector_embeddings/vectors/cancellation.rs`; `tests/vector_embeddings/vectors/memory.rs`; `tests/vector_embeddings/vectors/results.rs`; `tests/vector_embeddings/vectors/shapes.rs` |
+| `tests/vector_embeddings/vectors/exact_vector_cost.rs` | test_module | 817 | 16 | vector_embeddings | split_by_contract | `tests/vector_embeddings/vectors/cancellation.rs`; `tests/vector_embeddings/vectors/direct_decode.rs`; `tests/vector_embeddings/vectors/memory.rs`; `tests/vector_embeddings/vectors/results.rs`; `tests/vector_embeddings/vectors/shapes.rs`; `tests/vector_embeddings/vectors/two_column_shape.rs` |
 | `tests/vector_embeddings/vectors/metric_qualification.rs` | test_module | 546 | 11 | vector_embeddings | keep | `tests/vector_embeddings/vectors/metric_qualification.rs` |
 | `tests/vector_embeddings/vectors/normalized_vector_generation.rs` | test_module | 96 | 1 | vector_embeddings | keep | `tests/vector_embeddings/vectors/normalized_vector_generation.rs` |
 | `tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs` | test_module | 249 | 5 | vector_embeddings | keep | `tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs` |
@@ -1862,6 +1862,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/vectors/vector_declared_id.rs` | test_module | 47 | 1 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_declared_id.rs` |
 | `tests/vector_embeddings/vectors/vector_index_drop.rs` | test_module | 123 | 3 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_index_drop.rs` |
 | `tests/vector_embeddings/vectors/vector_index_metadata.rs` | test_module | 719 | 8 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_index_metadata.rs` |
+| `tests/vector_embeddings/vectors/vector_index_write_stall.rs` | test_module | 60 | 1 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_index_write_stall.rs` |
 | `tests/vector_embeddings/vectors/vector_indexes.rs` | test_module | 640 | 10 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_indexes.rs` |
 | `tests/vector_embeddings/vectors/vector_parameter_finiteness.rs` | test_module | 72 | 1 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_parameter_finiteness.rs` |
 | `tests/vector_embeddings/vectors/vector_query.rs` | test_module | 267 | 4 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_query.rs` |
@@ -1870,4 +1871,4 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/vectors/vector_source_column_lifecycle.rs` | test_module | 174 | 3 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_source_column_lifecycle.rs` |
 | `tests/vector_embeddings/vectors/vector_state_generation.rs` | test_module | 48 | 1 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_state_generation.rs` |
 | `tests/vector_embeddings/vectors/vector_write_path.rs` | test_module | 843 | 20 | vector_embeddings | keep | `tests/vector_embeddings/vectors/vector_write_path.rs` |
-| `tests/vector_embeddings.rs` | cargo_target | 149 | 0 | vector_embeddings | keep | `tests/vector_embeddings.rs` |
+| `tests/vector_embeddings.rs` | cargo_target | 152 | 0 | vector_embeddings | keep | `tests/vector_embeddings.rs` |

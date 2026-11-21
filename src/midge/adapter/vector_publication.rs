@@ -11,6 +11,10 @@ use super::{
 };
 
 const STAGING_BATCH_SIZE: usize = 5_000;
+/// Staging transactions are bounded by bytes as well as rows: at 768 dimensions a 5,000-row
+/// batch is about 50 MB, which floods the memtable and stalls the writes that follow.
+const STAGING_TX_BYTE_BUDGET: usize = 4 * 1024 * 1024;
+const STAGING_OP_OVERHEAD_BYTES: usize = 512;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(super) struct PendingVectorBackfill {
@@ -67,27 +71,34 @@ impl Midge {
             .collect::<Vec<_>>();
         let source_generation = self.collection_generation(&index.collection)?;
         let mut digest = Sha256::new();
-        for (batch, chunk) in rows.chunks(STAGING_BATCH_SIZE).enumerate() {
-            let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
-            for (offset, row) in chunk.iter().enumerate() {
-                let ordinal =
-                    u64::try_from(batch * STAGING_BATCH_SIZE + offset).map_err(parse_error)?;
-                let value = serde_json::to_vec(row).map_err(parse_error)?;
-                digest.update(
-                    u64::try_from(value.len())
-                        .map_err(parse_error)?
-                        .to_be_bytes(),
-                );
-                digest.update(&value);
-                tx.put(
-                    key_encoding::vector_backfill_row_key(&publication_id, ordinal),
-                    value,
-                    None,
-                )
-                .map_err(CassieError::from)?;
+        let mut staged = Vec::new();
+        let mut staged_bytes = 0usize;
+        for (ordinal, row) in rows.iter().enumerate() {
+            let ordinal = u64::try_from(ordinal).map_err(parse_error)?;
+            let value = serde_json::to_vec(row).map_err(parse_error)?;
+            digest.update(
+                u64::try_from(value.len())
+                    .map_err(parse_error)?
+                    .to_be_bytes(),
+            );
+            digest.update(&value);
+            let key = key_encoding::vector_backfill_row_key(&publication_id, ordinal);
+            let cost = STAGING_OP_OVERHEAD_BYTES
+                .saturating_add(key.len())
+                .saturating_add(value.len());
+            if !staged.is_empty()
+                && (staged.len() >= STAGING_BATCH_SIZE
+                    || staged_bytes.saturating_add(cost) > STAGING_TX_BYTE_BUDGET)
+            {
+                self.commit_backfill_staging(&index.collection, &staged)?;
+                staged.clear();
+                staged_bytes = 0;
             }
-            tx.commit(self.write_options_sync())
-                .map_err(CassieError::from)?;
+            staged.push((key, value));
+            staged_bytes = staged_bytes.saturating_add(cost);
+        }
+        if !staged.is_empty() {
+            self.commit_backfill_staging(&index.collection, &staged)?;
         }
         let publication = PendingIndexPublication {
             state: IndexPublicationState::Prepared,
@@ -119,6 +130,24 @@ impl Midge {
             .and_then(|()| self.publish_pending_vector_index(&publication))
             .map_err(|error| {
             CassieError::Storage(format!("recoverable vector index publication for '{}': {error}; preserve the journal and restart before further writes", publication.index.collection))
+        })
+    }
+
+    /// Commits one staging transaction, rebuilt on each write-stall retry.
+    fn commit_backfill_staging(
+        &self,
+        collection: &str,
+        staged: &[(Vec<u8>, Vec<u8>)],
+    ) -> Result<(), CassieError> {
+        super::vector_indexes::retry_bulk_write_stall(|| {
+            let mut tx = self.begin_data_rw_tx_for(collection)?;
+            for (key, value) in staged {
+                tx.put(key.clone(), value.clone(), None)
+                    .map_err(CassieError::from)?;
+            }
+            // Injected storage failures stay aimed at the data commit that follows staging.
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)
         })
     }
 

@@ -16,6 +16,8 @@ mod candidate;
 mod diagnostics;
 #[path = "vector_topk/exact.rs"]
 mod exact;
+#[path = "vector_topk/exact_direct.rs"]
+mod exact_direct;
 #[path = "vector_topk/filtered.rs"]
 mod filtered;
 #[path = "vector_topk/generic.rs"]

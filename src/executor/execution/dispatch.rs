@@ -350,6 +350,9 @@ pub(super) fn preferred_access_path_route(
 fn execute_access_path_registry(
     context: &mut AccessPathContext<'_>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    if order_alias_shadows_source(context) {
+        return Ok(None);
+    }
     let preferred_route = preferred_access_path_route(context.physical);
     if let Some(route) = preferred_route {
         if let Some(rows) = execute_access_path_route(route, context)? {
@@ -371,6 +374,26 @@ fn execute_access_path_registry(
     }
 
     Ok(None)
+}
+
+/// An ORDER BY name taken over by an output alias is ordered by the generic sort.
+fn order_alias_shadows_source(context: &AccessPathContext<'_>) -> bool {
+    if context.plan.order.is_empty() {
+        return false;
+    }
+    let fields = context
+        .env
+        .cassie
+        .catalog
+        .get_schema(&context.plan.collection)
+        .map(|schema| {
+            schema
+                .fields
+                .into_iter()
+                .map(|field| field.name)
+                .collect::<Vec<_>>()
+        });
+    super::order_alias_shadow::order_alias_shadows_source_column(context.plan, fields.as_deref())
 }
 
 fn execute_access_path_route(

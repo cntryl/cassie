@@ -19,6 +19,49 @@ pub(in crate::executor::execution) fn prune_stream(
     }
 }
 
+/// What the typed projected read scans, as EXPLAIN reports it.
+pub(in crate::executor::execution) enum ProjectedShape {
+    /// The read runs typed over these scan fields.
+    Fields(Vec<String>),
+    /// The plan holds a clause or expression the typed read cannot evaluate.
+    Expression,
+    /// The query budget cannot hold one typed carrier.
+    TransportBudget,
+    /// A covering column index serves the filtered or limited read instead.
+    CoveringIndex,
+}
+
+/// The decision [`try_execute`] makes before it opens a scan, without opening one.
+pub(in crate::executor::execution) fn explain_shape(
+    cassie: &Cassie,
+    plan: &LogicalPlan,
+    params: &[Value],
+    collection: &str,
+    controls: &QueryExecutionControls,
+) -> Result<ProjectedShape, QueryError> {
+    if !has_transport_budget(controls)? {
+        return Ok(ProjectedShape::TransportBudget);
+    }
+    if !supports_plan(plan) || point_lookup_read_spec(plan, params).is_some() {
+        return Ok(ProjectedShape::Expression);
+    }
+    let (schema, _schema_memory) = cassie
+        .catalog
+        .clone_schema_with_controls(collection, controls)?;
+    let Some(schema) = schema else {
+        return Ok(ProjectedShape::Expression);
+    };
+    let Some((fields, _field_memory)) = scan_fields(plan, &schema, controls)? else {
+        return Ok(ProjectedShape::Expression);
+    };
+    if (plan.filter.is_some() || plan.limit_value().is_some() || plan.offset_value().is_some())
+        && scan::has_covering_column_index(cassie, collection, &fields)
+    {
+        return Ok(ProjectedShape::CoveringIndex);
+    }
+    Ok(ProjectedShape::Fields(fields))
+}
+
 pub(super) fn try_execute_rows(
     cassie: &Cassie,
     session: Option<&CassieSession>,

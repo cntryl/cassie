@@ -728,7 +728,10 @@ pub(crate) fn attach_row_types(row: &mut BatchRow, schema: Option<&CollectionSch
     row.set_data_types(types);
 }
 
-fn field_data_type<'a>(schema: Option<&'a CollectionSchema>, field: &str) -> Option<&'a DataType> {
+pub(crate) fn field_data_type<'a>(
+    schema: Option<&'a CollectionSchema>,
+    field: &str,
+) -> Option<&'a DataType> {
     let reference = crate::sql::ColumnIdentifierPath::parse(field).ok()?;
     schema?
         .fields

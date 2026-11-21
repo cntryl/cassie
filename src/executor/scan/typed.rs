@@ -9,9 +9,12 @@ use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::executor::typed_batch::TypedBatch;
 use std::mem::size_of;
 
+mod authoritative;
+
 pub(crate) struct TypedScanStream<'a> {
     cassie: &'a Cassie,
     cursor: Option<SessionRowCursor>,
+    authoritative: Option<authoritative::AuthoritativeSource>,
     encoded: Option<crate::midge::adapter::EncodedSource>,
     encoded_position: usize,
     schema: Vec<(String, DataType)>,
@@ -28,6 +31,9 @@ impl<'a> TypedScanStream<'a> {
     ) {
         if let Some(cursor) = self.cursor.as_mut() {
             cursor.set_column_pruning(&self.cassie.midge, filter);
+        }
+        if let Some(source) = self.authoritative.as_mut() {
+            source.set_pruning(self.cassie, filter, self.controls);
         }
     }
 
@@ -103,6 +109,7 @@ impl<'a> TypedScanStream<'a> {
                     return Ok(Some(Self {
                         cassie,
                         cursor: None,
+                        authoritative: None,
                         encoded: Some(source),
                         encoded_position: 0,
                         schema,
@@ -118,6 +125,20 @@ impl<'a> TypedScanStream<'a> {
                 }
                 Err(error) => return Err(controlled_storage_error(cassie, error)),
             }
+        }
+        if let Some(source) = authoritative::open(
+            cassie, session, collection, fields, &schema, traversal, controls,
+        )? {
+            return Ok(Some(Self {
+                cassie,
+                cursor: None,
+                authoritative: Some(source),
+                encoded: None,
+                encoded_position: 0,
+                schema,
+                controls,
+                _schema_memory: memory,
+            }));
         }
         let Some(cursor) = cassie
             .open_session_row_cursor_with_traversal(
@@ -135,6 +156,7 @@ impl<'a> TypedScanStream<'a> {
         Ok(Some(Self {
             cassie,
             cursor: Some(cursor),
+            authoritative: None,
             encoded: None,
             encoded_position: 0,
             schema,
@@ -200,6 +222,9 @@ impl<'a> TypedScanStream<'a> {
             self.encoded_position += 1;
             profile_batch("encoded", &batch, lanes);
             return Ok(Some(batch));
+        }
+        if let Some(source) = self.authoritative.as_mut() {
+            return source.next_batch(self.cassie, &self.schema, max_rows, self.controls);
         }
         self.next_document_batch(max_rows)
     }

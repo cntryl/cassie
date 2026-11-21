@@ -99,6 +99,24 @@ pub(super) fn execute(
     Ok(Some(rows))
 }
 
+/// The scan fields a grouped plan reads, or why it declines to the row path.
+pub(super) fn explain_shape(
+    plan: &LogicalPlan,
+    schema: &CollectionSchema,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<super::PlanShape, QueryError> {
+    let Some((_, mut prepared)) = prepare(plan, schema, controls)? else {
+        return Ok(super::PlanShape::Aggregate);
+    };
+    if !predicate::prepare(plan.filter.as_ref(), schema, params, &mut prepared)? {
+        return Ok(super::PlanShape::Expression);
+    }
+    Ok(super::PlanShape::Fields(std::mem::take(
+        &mut prepared.fields,
+    )))
+}
+
 impl Shape {
     fn group_fixed_bytes(&self) -> Result<usize, QueryError> {
         Ok(add(

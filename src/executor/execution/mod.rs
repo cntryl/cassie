@@ -161,6 +161,8 @@ pub(crate) use projection_diff::{
 mod projection_repair;
 pub(crate) use projection_repair::repair_projection_column_definitions;
 mod column_storage_command;
+mod column_vector_plan;
+pub(crate) use column_vector_plan::column_vector_eligibility;
 mod composite_view_rewrite;
 mod domain_check_definition;
 mod domain_command;

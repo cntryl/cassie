@@ -708,7 +708,7 @@ so above 1 means the column arm is faster.
 | `BENCH_TIER3_STORAGE_MODES_CONTROL` | measurement | Time a second heap sample of each primary query to measure the noise band |
 | `BENCH_TIER3_STORAGE_MODES_BOOTSTRAP` | `2000` | Bootstrap resamples for the 95% confidence interval of the median paired ratio |
 | `BENCH_TIER3_STORAGE_MODES_STRICT` | `0` | `1` exits non-zero when a primary query loses the gate; otherwise a loss is printed and recorded |
-| `BENCH_TIER3_STORAGE_MODES_REQUIRE_VECTOR` | `0` | `1` asserts `column_vector=eligible`, `column_vector_batches_delta > 0`, `row_documents_delta == 0` and `fallback_reason=none` on the column arm; those tokens do not exist yet, so a missing token fails instead of being assumed |
+| `BENCH_TIER3_STORAGE_MODES_REQUIRE_VECTOR` | `0` | `1` asserts `column_vector=eligible`, `column_vector_batches_delta > 0`, `row_documents_delta == 0` and `fallback_reason=none` on the column arm; `column_vector`/`column_vector_reason` come from EXPLAIN and the two deltas from the arm's counted run (`column_vector_reads`, `row_documents_built`); a missing token fails instead of being assumed |
 | `BENCH_TIER3_STORAGE_MODES_QUERIES` | all | Comma-separated name substrings to run (`amplification` and `footprint` select those probes) |
 | `BENCH_TIER3_STORAGE_MODES_FOOTPRINT` / `_FOOTPRINT_ROWS` / `_AMPLIFICATION_ROWS` | on / 100k / 20k | Local-mode disk footprint sub-run and write-amplification fixture size |
 | `BENCH_TIER3_STORAGE_MODES_OUT` | `target/storage_modes_paired.json` | JSON report: raw samples, p50/p95, bootstrap CI, evidence, gate result |

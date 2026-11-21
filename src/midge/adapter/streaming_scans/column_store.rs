@@ -83,6 +83,7 @@ impl MidgeRowCursor {
             object.insert(field.name.clone(), value);
         }
         check_controls(controls)?;
+        midge.column_vector_counters().record_row_document();
         AccountedDocument::from_reserved_decoded_document(
             DocumentRef {
                 id,

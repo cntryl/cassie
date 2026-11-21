@@ -142,9 +142,47 @@ impl Midge {
         tx: &crate::midge::adapter::AdapterTransaction,
         relation: &str,
         row_schema: &RowSchema,
+        check: impl FnMut() -> Result<(), CassieError>,
+    ) -> Result<(), CassieError> {
+        self.validate_field_markers(
+            tx,
+            relation,
+            row_schema,
+            row_schema.fields.iter().filter(|field| !field.retired),
+            check,
+        )
+    }
+
+    /// Rejects orphan field keys among the fields a complete-source scan reads
+    /// (owner decision D1): the scan validates the fields it selects plus the
+    /// markers it walks. An orphan in an unread field is found when that field
+    /// is read and by `cassie verify`.
+    pub(crate) fn validate_selected_column_store_field_markers(
+        &self,
+        tx: &crate::midge::adapter::AdapterTransaction,
+        relation: &str,
+        row_schema: &RowSchema,
+        selection: &super::field_selection::ColumnFieldSelection,
+        check: impl FnMut() -> Result<(), CassieError>,
+    ) -> Result<(), CassieError> {
+        self.validate_field_markers(
+            tx,
+            relation,
+            row_schema,
+            selection.fields(row_schema),
+            check,
+        )
+    }
+
+    pub(in crate::midge::adapter) fn validate_field_markers<'a>(
+        &self,
+        tx: &crate::midge::adapter::AdapterTransaction,
+        relation: &str,
+        row_schema: &RowSchema,
+        fields: impl Iterator<Item = &'a RowFieldMeta>,
         mut check: impl FnMut() -> Result<(), CassieError>,
     ) -> Result<(), CassieError> {
-        for field in row_schema.fields.iter().filter(|field| !field.retired) {
+        for field in fields {
             check()?;
             let prefix = Self::column_store_field_prefix(row_schema.relation_id, field.field_id);
             let mut scan = tx

@@ -57,3 +57,47 @@ impl RawLanes {
         }
     }
 }
+
+impl LaneValidity {
+    /// Whether lane `lane` holds a value.
+    pub(crate) fn is_valid(&self, lane: usize) -> bool {
+        match self {
+            Self::AllValid => true,
+            Self::Flags(flags) => flags.get(lane).copied().unwrap_or(false),
+            Self::Words(words) => words
+                .get(lane / 64)
+                .is_some_and(|word| word >> (lane % 64) & 1 == 1),
+        }
+    }
+}
+
+impl RawLanes {
+    /// The value in lane `lane`, SQL NULL for an invalid or absent lane.
+    pub(crate) fn value_at(&self, lane: usize) -> Value {
+        match self {
+            Self::I64 { values, validity } => values
+                .get(lane)
+                .filter(|_| validity.is_valid(lane))
+                .map_or(Value::Null, |value| Value::Int64(*value)),
+            Self::F64 { values, validity } => values
+                .get(lane)
+                .filter(|_| validity.is_valid(lane))
+                .map_or(Value::Null, |value| Value::Float64(*value)),
+            Self::Bool { values, validity } => values
+                .get(lane)
+                .filter(|_| validity.is_valid(lane))
+                .map_or(Value::Null, |value| Value::Bool(*value != 0)),
+            Self::Utf8 {
+                bytes,
+                offsets,
+                validity,
+            } => match (offsets.get(lane), offsets.get(lane + 1)) {
+                (Some(start), Some(end)) if validity.is_valid(lane) => bytes
+                    .get(*start..*end)
+                    .map_or(Value::Null, |text| Value::String(text.to_owned())),
+                _ => Value::Null,
+            },
+            Self::Values(values) => values.get(lane).cloned().unwrap_or(Value::Null),
+        }
+    }
+}

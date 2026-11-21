@@ -38,7 +38,6 @@ impl Validity {
     ///
     /// Returns `None` when the word count does not match `len` or a bit at or
     /// beyond `len` is set.
-    #[cfg(test)]
     pub(super) fn from_words(words: &[u64], len: usize) -> Option<Self> {
         if words.len() != len.div_ceil(64) {
             return None;

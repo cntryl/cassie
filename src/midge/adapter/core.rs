@@ -29,6 +29,7 @@ pub struct Midge {
     graph_reference_reads: AtomicU64,
     column_validation_reads: AtomicU64,
     column_field_reads: super::ColumnFieldReadCounters,
+    column_vector_reads: super::ColumnVectorReadCounters,
     pub(super) column_pruning: super::ColumnPruningState,
     pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
     pub(super) fulltext_maintenance_metrics: super::fulltext_retrieval::FulltextMaintenanceMetrics,
@@ -138,6 +139,7 @@ impl Midge {
             graph_reference_reads: AtomicU64::new(0),
             column_validation_reads: AtomicU64::new(0),
             column_field_reads: super::ColumnFieldReadCounters::default(),
+            column_vector_reads: super::ColumnVectorReadCounters::default(),
             column_pruning: super::ColumnPruningState::default(),
             column_batch_operational_metrics: Mutex::new(
                 super::ColumnBatchOperationalMetrics::default(),
@@ -297,6 +299,31 @@ impl Midge {
     #[must_use]
     pub fn column_field_reads_for_diagnostics(&self) -> super::ColumnFieldReadSnapshot {
         self.column_field_reads.snapshot()
+    }
+
+    /// Vector reader scans, batches, lanes, pruned segments, fetched and decoded
+    /// values, row documents built by any column reader, and staged rows
+    /// merged. Difference two snapshots with `since`.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn column_vector_reads_for_diagnostics(&self) -> super::ColumnVectorReadSnapshot {
+        self.column_vector_reads.snapshot()
+    }
+
+    /// Whether column scans may read vector batches.
+    pub(crate) fn column_vector_enabled(&self) -> bool {
+        self.column_vector_reads.enabled()
+    }
+
+    /// Forces column scans to read row documents (`false`) or restores vector
+    /// batches. Differential tests use it to compare the two readers.
+    #[doc(hidden)]
+    pub fn set_column_vector_enabled_for_diagnostics(&self, enabled: bool) {
+        self.column_vector_reads.set_enabled(enabled);
+    }
+
+    pub(crate) fn column_vector_counters(&self) -> &super::ColumnVectorReadCounters {
+        &self.column_vector_reads
     }
 
     pub(super) fn column_field_reads(&self) -> &super::ColumnFieldReadCounters {

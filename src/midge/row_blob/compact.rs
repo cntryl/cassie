@@ -56,6 +56,109 @@ pub(crate) fn decode_compact_field_value(
     Ok(Some(decoded))
 }
 
+/// One stored field value read without building a JSON value for the
+/// fixed-width and text types the vector reader keeps in native lanes.
+#[derive(Debug, PartialEq)]
+pub(crate) enum CompactScalar<'a> {
+    /// SQL NULL, or a JSON column's absent value.
+    Null,
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    Text(&'a str),
+    /// Every other type, exactly as `decode_compact_field_value` returns it.
+    Generic(Option<serde_json::Value>),
+}
+
+/// Decodes one stored field value like [`decode_compact_field_value`], but
+/// keeps integers, floats, Booleans and text out of JSON.
+///
+/// The tag check, the integer width check and the rejection of a non-finite
+/// float are the ones `decode_compact_field_value` applies.
+///
+/// # Errors
+///
+/// Returns a parse error when the bytes do not decode as the declared type.
+pub(crate) fn decode_compact_scalar<'a>(
+    data_type: &DataType,
+    bytes: &'a [u8],
+) -> Result<CompactScalar<'a>, CassieError> {
+    let native = matches!(
+        data_type,
+        DataType::SmallInt
+            | DataType::Int
+            | DataType::BigInt
+            | DataType::Float
+            | DataType::Boolean
+            | DataType::Text
+            | DataType::Varchar { .. }
+            | DataType::Char { .. }
+    );
+    if !native {
+        return decode_compact_field_value(data_type, bytes).map(CompactScalar::Generic);
+    }
+    let (&type_tag, payload) = bytes
+        .split_first()
+        .ok_or_else(|| CassieError::Parse("empty compact value".to_string()))?;
+    if type_tag == TYPE_NULL {
+        decode_directory_value(type_tag, payload)?;
+        return Ok(CompactScalar::Null);
+    }
+    let expected = expected_type_tag(data_type);
+    if type_tag != expected {
+        return Err(CassieError::Parse(format!(
+            "stored type tag {type_tag} but the declared type uses type tag {expected}"
+        )));
+    }
+    let eight = |what: &str| {
+        <[u8; 8]>::try_from(payload).map_err(|_| {
+            CassieError::Parse(if payload.len() > 8 {
+                "row blob field payload has unconsumed bytes".to_string()
+            } else {
+                format!("invalid {what} in row blob")
+            })
+        })
+    };
+    match data_type {
+        DataType::Float => {
+            let value = f64::from_be_bytes(eight("f64")?);
+            if value.is_finite() {
+                Ok(CompactScalar::Float(value))
+            } else {
+                Err(CassieError::Parse("invalid f64 in row blob".to_string()))
+            }
+        }
+        DataType::Boolean => match payload {
+            [flag] => Ok(CompactScalar::Boolean(*flag != 0)),
+            [] => Err(CassieError::Parse("invalid bool in row blob".to_string())),
+            _ => Err(CassieError::Parse(
+                "row blob field payload has unconsumed bytes".to_string(),
+            )),
+        },
+        DataType::Text | DataType::Varchar { .. } | DataType::Char { .. } => {
+            std::str::from_utf8(payload)
+                .map(CompactScalar::Text)
+                .map_err(|error| CassieError::Parse(format!("invalid UTF-8 in row blob: {error}")))
+        }
+        _ => {
+            let value = i64::from_be_bytes(eight("i64")?);
+            let fits = match data_type {
+                DataType::SmallInt => i16::try_from(value).is_ok(),
+                DataType::Int => i32::try_from(value).is_ok(),
+                _ => true,
+            };
+            if fits {
+                Ok(CompactScalar::Integer(value))
+            } else {
+                Err(CassieError::Parse(format!(
+                    "stored integer is outside declared {} range",
+                    data_type.type_name()
+                )))
+            }
+        }
+    }
+}
+
 /// The compact encoding of an explicit SQL NULL, valid for every column type.
 pub(crate) fn encode_compact_sql_null() -> Vec<u8> {
     vec![TYPE_NULL]

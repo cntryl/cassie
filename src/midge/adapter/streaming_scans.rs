@@ -147,10 +147,11 @@ impl MidgeRowCursor {
         }
 
         if self.storage == CursorStorage::ColumnCompletePending {
-            midge.validate_column_store_field_markers(
+            midge.validate_selected_column_store_field_markers(
                 &self.tx,
                 &self.collection,
                 &self.row_schema,
+                &self.column_fields,
                 || check_controls(controls),
             )?;
             self.storage = CursorStorage::ColumnCompleteValidated;

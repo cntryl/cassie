@@ -14,6 +14,13 @@ mod golden_tests;
 mod rows;
 mod summary;
 mod summary_refresh;
+mod vector_scan;
+pub(crate) use vector_scan::identity_lanes;
+pub use vector_scan::ColumnVectorReadSnapshot;
+pub(crate) use vector_scan::{
+    ColumnIdRange, ColumnVectorBatch, ColumnVectorOutput, ColumnVectorReadCounters,
+    ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,
+};
 pub(super) mod validation;
 
 type InitialCollectionPublication = (bool, u64, Vec<crate::catalog::ObjectCommentMeta>);

@@ -186,6 +186,7 @@ pub(super) fn load_records(
 
 struct SegmentIndex {
     lower_bounds: Vec<Vec<u8>>,
+    starts: Vec<Option<String>>,
     records: Vec<Option<SummaryRecord>>,
     _memory: QueryMemoryReservation,
 }
@@ -274,6 +275,26 @@ impl ColumnPruning {
             return Ok(None);
         }
 
+        self.verified_last_key(midge, tx, segment, controls)
+    }
+
+    /// Re-reads an excluded segment's markers and compares their fingerprint
+    /// with its record. Returns the segment's last live marker key only when
+    /// the record is trusted; a mismatch counts as stale and reads normally.
+    fn verified_last_key(
+        &self,
+        midge: &Midge,
+        tx: &crate::midge::adapter::DataReadTransaction,
+        segment: usize,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Vec<u8>>, CassieError> {
+        let Some(index) = self.index.as_ref() else {
+            return Ok(None);
+        };
+        let Some(Some(record)) = index.records.get(segment) else {
+            return Ok(None);
+        };
+        let counters = midge.column_pruning();
         let mut query = Query::new().start_key(index.lower_bounds[segment].clone().into());
         query = match index.lower_bounds.get(segment + 1) {
             Some(end) => query.end_key(end.clone().into()),
@@ -299,6 +320,62 @@ impl ColumnPruning {
         Ok(last_key)
     }
 
+    /// Plans the id ranges a vector scan reads: one per segment, omitting each
+    /// segment whose verified summary excludes the filter. A segment that holds
+    /// an id the open transaction staged is never omitted, and a summary that
+    /// cannot be trusted leaves its segment in. `None` means the table has no
+    /// summaries, so the scan reads one whole range.
+    pub(in crate::midge::adapter) fn plan_ranges(
+        &mut self,
+        midge: &Midge,
+        tx: &crate::midge::adapter::DataReadTransaction,
+        staged: &[&str],
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Vec<super::ColumnIdRange>>, CassieError> {
+        if self.index.is_none() {
+            self.index = Some(self.load_index(midge, tx, controls)?);
+        }
+        let Some(index) = self.index.as_ref() else {
+            return Ok(None);
+        };
+        if index.records.is_empty() {
+            return Ok(None);
+        }
+        let segments = index.records.len();
+        let mut ranges = Vec::with_capacity(segments);
+        let (mut pruned, mut untrusted) = (0_u64, 0_u64);
+        for segment in 0..segments {
+            check_controls(controls)?;
+            let start = index.starts[segment].clone();
+            let end = index.starts.get(segment + 1).cloned().flatten();
+            let holds_staged = staged.iter().any(|id| {
+                start.as_deref().is_none_or(|start| *id >= start)
+                    && end.as_deref().is_none_or(|end| *id < end)
+            });
+            let record = index.records[segment].as_ref();
+            let excluded = !holds_staged
+                && record.is_some_and(|record| {
+                    record.schema_version == self.schema_version
+                        && segment_excluded(record, &self.predicates)
+                });
+            if excluded {
+                if self
+                    .verified_last_key(midge, tx, segment, controls)?
+                    .is_some()
+                {
+                    pruned += 1;
+                    continue;
+                }
+                untrusted += 1;
+            }
+            ranges.push(super::ColumnIdRange { start, end });
+        }
+        midge
+            .column_vector_counters()
+            .record_segments(pruned, untrusted);
+        Ok(Some(ranges))
+    }
+
     fn load_index(
         &self,
         midge: &Midge,
@@ -319,9 +396,11 @@ impl ColumnPruning {
                 Some(id) => Midge::column_store_row_key(self.relation_id, id),
             })
             .collect();
+        let starts = loaded.iter().map(|slot| slot.start.clone()).collect();
         let records = loaded.into_iter().map(|slot| slot.record).collect();
         Ok(SegmentIndex {
             lower_bounds,
+            starts,
             records,
             _memory: memory,
         })

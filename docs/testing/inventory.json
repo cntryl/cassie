@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1876,
-    "rust_files": 1832,
-    "rust_test_declarations": 11169,
+    "files": 1879,
+    "rust_files": 1835,
+    "rust_test_declarations": 11206,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11194,
+    "registered_rust_instances": 11231,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -52789,6 +52789,161 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_return_nested_aggregate_row_from_table_without_rollup",
+      "name": "should_return_nested_aggregate_row_from_table_without_rollup",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 36,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_return_nested_aggregate_row_from_table_without_rollup"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_decline_rollup_when_aggregate_is_nested_in_projection_expression",
+      "name": "should_decline_rollup_when_aggregate_is_nested_in_projection_expression",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 51,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_decline_rollup_when_aggregate_is_nested_in_projection_expression"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_return_table_rows_for_nested_aggregate_the_rollup_holds",
+      "name": "should_return_table_rows_for_nested_aggregate_the_rollup_holds",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 65,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_return_table_rows_for_nested_aggregate_the_rollup_holds"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_decline_rollup_when_order_by_uses_aggregate_it_lacks",
+      "name": "should_decline_rollup_when_order_by_uses_aggregate_it_lacks",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 80,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_decline_rollup_when_order_by_uses_aggregate_it_lacks"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_decline_rollup_when_case_expression_nests_aggregate_it_lacks",
+      "name": "should_decline_rollup_when_case_expression_nests_aggregate_it_lacks",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 94,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_decline_rollup_when_case_expression_nests_aggregate_it_lacks"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -326775,6 +326930,998 @@
       }
     },
     {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_range_end_precedes_first_row",
+      "name": "should_count_zero_rows_when_range_end_precedes_first_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 38,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_range_end_precedes_first_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_return_null_sum_when_range_frame_lies_before_every_row",
+      "name": "should_return_null_sum_when_range_frame_lies_before_every_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 53,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_return_null_sum_when_range_frame_lies_before_every_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_range_start_follows_last_row",
+      "name": "should_count_zero_rows_when_range_start_follows_last_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 68,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_range_start_follows_last_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_return_null_sum_when_range_frame_lies_after_every_row",
+      "name": "should_return_null_sum_when_range_frame_lies_after_every_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 83,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_return_null_sum_when_range_frame_lies_after_every_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_descending_range_end_precedes_first_row",
+      "name": "should_count_zero_rows_when_descending_range_end_precedes_first_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 98,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_descending_range_end_precedes_first_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_descending_range_start_follows_last_row",
+      "name": "should_count_zero_rows_when_descending_range_start_follows_last_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 113,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_descending_range_start_follows_last_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_include_leading_nulls_in_range_frame_ending_before_current_peers",
+      "name": "should_include_leading_nulls_in_range_frame_ending_before_current_peers",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 128,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_include_leading_nulls_in_range_frame_ending_before_current_peers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_include_trailing_nulls_in_range_frame_starting_after_current_peers",
+      "name": "should_include_trailing_nulls_in_range_frame_starting_after_current_peers",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 143,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_include_trailing_nulls_in_range_frame_starting_after_current_peers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_rows_frame_lies_before_first_rows",
+      "name": "should_count_zero_rows_when_rows_frame_lies_before_first_rows",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 158,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_rows_frame_lies_before_first_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_return_null_value_functions_over_empty_rows_frame",
+      "name": "should_return_null_value_functions_over_empty_rows_frame",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 173,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_return_null_value_functions_over_empty_rows_frame"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_rows_frame_lies_after_last_rows",
+      "name": "should_count_zero_rows_when_rows_frame_lies_after_last_rows",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 199,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_rows_frame_lies_after_last_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_preceding_start_offset_is_smaller_than_end_offset",
+      "name": "should_count_zero_rows_when_preceding_start_offset_is_smaller_than_end_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 214,
+      "end_line": 226,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_preceding_start_offset_is_smaller_than_end_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_following_start_offset_is_larger_than_end_offset",
+      "name": "should_count_zero_rows_when_following_start_offset_is_larger_than_end_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 229,
+      "end_line": 241,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_following_start_offset_is_larger_than_end_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_peer_groups_for_groups_frame_ending_before_current_group",
+      "name": "should_count_peer_groups_for_groups_frame_ending_before_current_group",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 244,
+      "end_line": 256,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_peer_groups_for_groups_frame_ending_before_current_group"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_peer_groups_for_groups_frame_after_current_group",
+      "name": "should_count_peer_groups_for_groups_frame_after_current_group",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 259,
+      "end_line": 271,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_peer_groups_for_groups_frame_after_current_group"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_groups_frame_lies_before_first_group",
+      "name": "should_count_zero_rows_when_groups_frame_lies_before_first_group",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 274,
+      "end_line": 286,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_groups_frame_lies_before_first_group"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_frame_starting_at_unbounded_following",
+      "name": "should_reject_frame_starting_at_unbounded_following",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 40,
+      "end_line": 45,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_frame_starting_at_unbounded_following"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_unbounded_following_start_with_current_row_end",
+      "name": "should_reject_unbounded_following_start_with_current_row_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 48,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_unbounded_following_start_with_current_row_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_short_form_unbounded_following",
+      "name": "should_reject_short_form_unbounded_following",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 56,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_short_form_unbounded_following"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_frame_ending_at_unbounded_preceding",
+      "name": "should_reject_frame_ending_at_unbounded_preceding",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 64,
+      "end_line": 69,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_frame_ending_at_unbounded_preceding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_unbounded_preceding_to_unbounded_preceding",
+      "name": "should_reject_unbounded_preceding_to_unbounded_preceding",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 72,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_unbounded_preceding_to_unbounded_preceding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_offset_start_with_unbounded_preceding_end",
+      "name": "should_reject_offset_start_with_unbounded_preceding_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 80,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_offset_start_with_unbounded_preceding_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_current_row_start_with_preceding_offset_end",
+      "name": "should_reject_current_row_start_with_preceding_offset_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 88,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_current_row_start_with_preceding_offset_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_following_start_with_current_row_end",
+      "name": "should_reject_following_start_with_current_row_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 96,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_following_start_with_current_row_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_following_start_with_preceding_end",
+      "name": "should_reject_following_start_with_preceding_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 104,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_following_start_with_preceding_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_short_form_following_offset",
+      "name": "should_reject_short_form_following_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 112,
+      "end_line": 117,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_short_form_following_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_negative_frame_offset",
+      "name": "should_reject_negative_frame_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 120,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_negative_frame_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_null_frame_offset",
+      "name": "should_reject_null_frame_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 129,
+      "end_line": 135,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_null_frame_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_accept_preceding_start_with_smaller_preceding_end",
+      "name": "should_accept_preceding_start_with_smaller_preceding_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 138,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_accept_preceding_start_with_smaller_preceding_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_accept_following_start_with_smaller_following_end",
+      "name": "should_accept_following_start_with_smaller_following_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 143,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_accept_following_start_with_smaller_following_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_accept_following_start_with_unbounded_following_end",
+      "name": "should_accept_following_start_with_unbounded_following_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 148,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_accept_following_start_with_unbounded_following_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_accept_short_form_preceding_offset",
+      "name": "should_accept_short_form_preceding_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 153,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_accept_short_form_preceding_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/windows/window_frames.rs::should_parse_explicit_rows_frame_bounds",
       "name": "should_parse_explicit_rows_frame_bounds",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
@@ -327182,7 +328329,7 @@
       "name": "should_reject_invalid_window_frame_order",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
       "line": 394,
-      "end_line": 404,
+      "end_line": 405,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -327212,8 +328359,8 @@
       "id": "tests/sql_queries/windows/window_frames.rs::should_reject_negative_window_frame_offset",
       "name": "should_reject_negative_window_frame_offset",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
-      "line": 407,
-      "end_line": 417,
+      "line": 408,
+      "end_line": 419,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -327243,8 +328390,8 @@
       "id": "tests/sql_queries/windows/window_frames.rs::should_default_deserialized_window_frame_exclusion",
       "name": "should_default_deserialized_window_frame_exclusion",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
-      "line": 420,
-      "end_line": 430,
+      "line": 422,
+      "end_line": 432,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -327274,8 +328421,8 @@
       "id": "tests/sql_queries/windows/window_frames.rs::should_not_return_unsupported_window_frame_sqlstate",
       "name": "should_not_return_unsupported_window_frame_sqlstate",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
-      "line": 433,
-      "end_line": 481,
+      "line": 435,
+      "end_line": 483,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -353057,6 +354204,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 106,
+      "sha256": "256bc02df0e8cdde8ae0b5c56c01e602fbb2451089f8cb53334c84022b63df97",
+      "test_declarations": 5,
+      "registered_suites": [
+        "domain_models"
+      ],
+      "destinations": [
+        "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -353135,8 +354297,8 @@
       "current_file": "tests/domain_models.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 43,
-      "sha256": "2d2cfb6a071cc2a432aacadb9836e6806adb4f308c6e1751788c004e4e7cc217",
+      "lines": 46,
+      "sha256": "a08ca4d004161d4908a81dcedd306ba846b1866017142bd5724c8fbafb975afb",
       "test_declarations": 0,
       "registered_suites": [
         "domain_models"
@@ -371902,11 +373064,42 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 286,
+      "sha256": "17cd20922f7f35a027bd38e2b8e1a387195de41a7e9018ba24a543dee3593012",
+      "test_declarations": 16,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/windows/window_frame_empty_ranges.rs",
+        "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 155,
+      "sha256": "af8c84deba7c47843aec4348a5c9cf954403bb5ca54295da7c6dc0de182d7c20",
+      "test_declarations": 16,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/windows/window_frame_validation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/windows/window_frames.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 481,
-      "sha256": "a89bff0578a03b4b763b1bdc897890965695481ee99d9208ce1ce0068dbd8ea0",
+      "lines": 483,
+      "sha256": "55eb159cf110e5e1969611dcdb435fcbbaa6e776c54159afee1be6cacbee57d5",
       "test_declarations": 17,
       "registered_suites": [
         "sql_queries"
@@ -371920,8 +373113,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 328,
-      "sha256": "ba789512bbeb0c46c05bdd31bbbcce58a9f3d05ecb5e3609474b8e6f8336db2d",
+      "lines": 332,
+      "sha256": "990d91b84a265884cccf78374ce79fa76600205656b2da08e5c28e539f6444db",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"

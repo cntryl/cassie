@@ -396,12 +396,13 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/domain_models/time_series/retention/scheduled_recovery.rs` | test_module | 997 | 9 | domain_models | keep | `tests/domain_models/time_series/retention/scheduled_recovery.rs` |
 | `tests/domain_models/time_series/retention/time_series_retention.rs` | test_module | 482 | 6 | domain_models | keep | `tests/domain_models/time_series/retention/time_series_retention.rs` |
 | `tests/domain_models/time_series/rollups/boolean_predicates.rs` | test_module | 121 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/boolean_predicates.rs` |
+| `tests/domain_models/time_series/rollups/nested_aggregate_match.rs` | test_module | 106 | 5 | domain_models | move_with_module_alias | `tests/domain_models/aggregates/grouping/nested_aggregate_match.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/errors.rs` | test_module | 89 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/errors.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/incremental.rs` | test_module | 661 | 7 | domain_models | move_with_module_alias | `tests/domain_models/aggregates/grouping/incremental.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/mod.rs` | module_registration | 135 | 0 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/mod.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/restart.rs` | test_module | 150 | 2 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/restart.rs` |
 | `tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs` | test_module | 644 | 11 | domain_models | keep | `tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs` |
-| `tests/domain_models.rs` | cargo_target | 43 | 0 | domain_models | keep | `tests/domain_models.rs` |
+| `tests/domain_models.rs` | cargo_target | 46 | 0 | domain_models | keep | `tests/domain_models.rs` |
 | `tests/domain_types/alter.rs` | test_module | 559 | 34 | domain_types | move_with_module_alias | `tests/domain_types/semantics/alter.rs` |
 | `tests/domain_types/cast_wire.rs` | test_module | 346 | 23 | domain_types | split_by_contract | `tests/domain_types/aggregates/core/cast_wire.rs`; `tests/domain_types/aggregates/strings/cast_wire.rs`; `tests/domain_types/grammar/cast_wire.rs` |
 | `tests/domain_types/catalogs.rs` | test_module | 167 | 8 | domain_types | move_with_module_alias | `tests/domain_types/semantics/catalogs.rs` |
@@ -1655,8 +1656,10 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_queries/types/temporal/temporal.rs` | test_module | 714 | 51 | sql_queries | keep | `tests/sql_queries/types/temporal/temporal.rs` |
 | `tests/sql_queries/types/temporal/text_timezone_abbreviations.rs` | test_module | 169 | 9 | sql_queries | keep | `tests/sql_queries/types/temporal/text_timezone_abbreviations.rs` |
 | `tests/sql_queries/types/uuid_lsn/uuid_hash_lsn.rs` | test_module | 437 | 31 | sql_queries | keep | `tests/sql_queries/types/uuid_lsn/uuid_hash_lsn.rs` |
-| `tests/sql_queries/windows/window_frames.rs` | test_module | 481 | 17 | sql_queries | keep | `tests/sql_queries/windows/window_frames.rs` |
-| `tests/sql_queries.rs` | cargo_target | 328 | 0 | sql_queries | keep | `tests/sql_queries.rs` |
+| `tests/sql_queries/windows/window_frame_empty_ranges.rs` | test_module | 286 | 16 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/windows/window_frame_empty_ranges.rs`; `tests/sql_queries/types/ranges/window_frame_empty_ranges.rs` |
+| `tests/sql_queries/windows/window_frame_validation.rs` | test_module | 155 | 16 | sql_queries | move_with_module_alias | `tests/sql_queries/aggregates/windows/window_frame_validation.rs` |
+| `tests/sql_queries/windows/window_frames.rs` | test_module | 483 | 17 | sql_queries | keep | `tests/sql_queries/windows/window_frames.rs` |
+| `tests/sql_queries.rs` | cargo_target | 332 | 0 | sql_queries | keep | `tests/sql_queries.rs` |
 | `tests/sql_relation_identifiers/contracts/restart.rs` | test_module | 80 | 1 | sql_relation_identifiers | keep | `tests/sql_relation_identifiers/contracts/restart.rs` |
 | `tests/sql_relation_identifiers/contracts/semantics.rs` | test_module | 169 | 7 | sql_relation_identifiers | keep | `tests/sql_relation_identifiers/contracts/semantics.rs` |
 | `tests/sql_relation_identifiers.rs` | cargo_target | 76 | 0 | sql_relation_identifiers | keep | `tests/sql_relation_identifiers.rs` |

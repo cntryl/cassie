@@ -160,7 +160,9 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/columnar_surface/pair.rs` | test_support | 142 | 0 | columnar_surface | keep | `tests/columnar_surface/pair.rs` |
 | `tests/columnar_surface/pruning_equivalence.rs` | test_module | 255 | 6 | columnar_surface | move_with_module_alias | `tests/columnar_surface/semantics/pruning_equivalence.rs` |
 | `tests/columnar_surface/query_equivalence.rs` | test_module | 309 | 11 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/core/query_equivalence.rs`; `tests/columnar_surface/semantics/query_equivalence.rs` |
-| `tests/columnar_surface.rs` | cargo_target | 20 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
+| `tests/columnar_surface/vector_execution.rs` | test_module | 464 | 17 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/core/vector_execution.rs`; `tests/columnar_surface/aggregates/ranges/vector_execution.rs`; `tests/columnar_surface/semantics/vector_execution.rs` |
+| `tests/columnar_surface/vector_pruning.rs` | test_module | 148 | 4 | columnar_surface | move_with_module_alias | `tests/columnar_surface/semantics/vector_pruning.rs` |
+| `tests/columnar_surface.rs` | cargo_target | 26 | 0 | columnar_surface | keep | `tests/columnar_surface.rs` |
 | `tests/compatibility/clients/desktop_traces/desktop_client_trace_replay.rs` | test_module | 150 | 7 | compatibility | keep | `tests/compatibility/clients/desktop_traces/desktop_client_trace_replay.rs` |
 | `tests/compatibility/clients/diesel/semantics.rs` | test_module | 167 | 1 | compatibility | keep | `tests/compatibility/clients/diesel/semantics.rs` |
 | `tests/compatibility/clients/dump_restore/pg_dump_restore.rs` | test_module | 210 | 1 | compatibility | keep | `tests/compatibility/clients/dump_restore/pg_dump_restore.rs` |
@@ -1654,14 +1656,14 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_set_operations/set_operations/set_operation_widths.rs` | test_module | 61 | 2 | sql_set_operations | keep | `tests/sql_set_operations/set_operations/set_operation_widths.rs` |
 | `tests/sql_set_operations.rs` | cargo_target | 17 | 0 | sql_set_operations | keep | `tests/sql_set_operations.rs` |
 | `tests/storage_indexes/column_store/alter.rs` | test_module | 441 | 17 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/alter.rs` |
-| `tests/storage_indexes/column_store/corruption.rs` | test_module | 615 | 19 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/corruption.rs` |
+| `tests/storage_indexes/column_store/corruption.rs` | test_module | 619 | 19 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/corruption.rs` |
 | `tests/storage_indexes/column_store/images.rs` | test_module | 203 | 3 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/images.rs` |
 | `tests/storage_indexes/column_store/mod.rs` | module_registration | 136 | 0 | storage_indexes | keep | `tests/storage_indexes/column_store/mod.rs` |
 | `tests/storage_indexes/column_store/no_row_blob.rs` | test_module | 193 | 9 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/no_row_blob.rs` |
 | `tests/storage_indexes/column_store/pruning.rs` | test_module | 381 | 11 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/pruning.rs` |
 | `tests/storage_indexes/column_store/pruning_bytes.rs` | test_module | 165 | 3 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/pruning_bytes.rs` |
 | `tests/storage_indexes/column_store/restart.rs` | test_module | 589 | 11 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/restart.rs` |
-| `tests/storage_indexes/column_store/selected_fields.rs` | test_module | 434 | 11 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/selected_fields.rs` |
+| `tests/storage_indexes/column_store/selected_fields.rs` | test_module | 495 | 13 | storage_indexes | move_with_module_alias | `tests/storage_indexes/storage/selected_fields.rs` |
 | `tests/storage_indexes/constraints/namespace_backing.rs` | test_module | 835 | 25 | storage_indexes | keep | `tests/storage_indexes/constraints/namespace_backing.rs` |
 | `tests/storage_indexes/databases/image_generation.rs` | test_module | 213 | 6 | storage_indexes | keep | `tests/storage_indexes/databases/image_generation.rs` |
 | `tests/storage_indexes/indexes/column_index_declared_id.rs` | test_module | 83 | 2 | storage_indexes | keep | `tests/storage_indexes/indexes/column_index_declared_id.rs` |

@@ -10,6 +10,7 @@ use cassie::midge::adapter::ColumnFieldReadSnapshot;
 use cassie::types::Value;
 
 const ROWS: usize = 20;
+const ID_FIELD: u32 = 1;
 const STATUS_FIELD: u32 = 2;
 const BIG_FIELD: u32 = 3;
 const WIDE_COLUMNS: &str = "id INT, status TEXT, big TEXT, extra TEXT";
@@ -126,11 +127,37 @@ fn should_report_ownership_validation_reads_apart_from_selected_field_work() {
     let wide = observed(&env, "SELECT id, status FROM wide_col");
 
     // Assert
-    // Complete traversal validates every non-retired field key and its marker.
-    assert_eq!(narrow.ownership_reads, 2 * 2 * ROWS as u64);
-    assert_eq!(wide.ownership_reads, 4 * 2 * ROWS as u64);
+    // The vector reader finds orphans while it merges the fields it reads, so a
+    // complete traversal needs no separate ownership preflight.
+    assert_eq!(narrow.ownership_reads, 0);
+    assert_eq!(wide.ownership_reads, 0);
     assert_eq!(wide.fields, narrow.fields);
     assert_eq!(wide.marker_reads, ROWS as u64);
+}
+
+#[test]
+fn should_validate_ownership_only_for_the_selected_fields_on_the_document_path() {
+    // Arrange
+    let env = env();
+    create_narrow(&env, "narrow_col");
+    create_wide(&env, "wide_col", 64);
+    env.cassie
+        .midge
+        .set_column_vector_enabled_for_diagnostics(false);
+
+    // Act
+    let narrow = observed(&env, "SELECT id, status FROM narrow_col");
+    let wide = observed(&env, "SELECT id, status FROM wide_col");
+    env.cassie
+        .midge
+        .set_column_vector_enabled_for_diagnostics(true);
+
+    // Assert
+    // Complete traversal validates the selected field keys and their markers
+    // (owner decision D1), however many fields the table has.
+    assert_eq!(narrow.ownership_reads, 2 * 2 * ROWS as u64);
+    assert_eq!(wide.ownership_reads, narrow.ownership_reads);
+    assert_eq!(wide.fields, narrow.fields);
 }
 
 #[test]
@@ -265,7 +292,7 @@ fn should_fail_complete_traversal_on_an_orphan_field_but_not_a_bounded_limit() {
         .midge
         .raw_put(
             cassie::midge::adapter::StorageFamily::Data,
-            &env.field_key("wide_col", BIG_FIELD, "zz-ghost"),
+            &env.field_key("wide_col", ID_FIELD, "zz-ghost"),
             &orphan,
         )
         .expect("orphan field key");
@@ -282,6 +309,40 @@ fn should_fail_complete_traversal_on_an_orphan_field_but_not_a_bounded_limit() {
     assert_eq!(bounded.ownership_reads, 0);
     assert_eq!(exists.rows, vec![vec![Value::Bool(true)]]);
     assert_eq!(exists.ownership_reads, 0);
+}
+
+#[test]
+fn should_leave_an_orphan_in_an_unread_field_to_the_verifier() {
+    // Arrange
+    let env = env();
+    create_wide(&env, "wide_col", 64);
+    let mut orphan = vec![0x05];
+    orphan.extend_from_slice(b"ghost");
+    env.cassie
+        .midge
+        .raw_put(
+            cassie::midge::adapter::StorageFamily::Data,
+            &env.field_key("wide_col", BIG_FIELD, "zz-ghost"),
+            &orphan,
+        )
+        .expect("orphan field key");
+
+    // Act
+    let narrow = observed(&env, "SELECT id FROM wide_col");
+    let wide = observe(&env, "SELECT id, big FROM wide_col").expect_err("read field fails");
+    let verifier = env
+        .cassie
+        .midge
+        .verify_column_store_for_diagnostics("wide_col")
+        .expect("verifier");
+
+    // Assert
+    assert_eq!(narrow.rows.len(), ROWS);
+    assert_eq!(narrow.ownership_reads, 0);
+    assert_eq!(wide.sql_state(), "XX001");
+    assert!(wide.to_string().contains("zz-ghost"), "{wide}");
+    assert_eq!(verifier.len(), 1);
+    assert!(verifier[0].contains("zz-ghost"));
 }
 
 #[test]

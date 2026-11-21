@@ -18,3 +18,9 @@ mod grouped_aggregate;
 
 #[path = "columnar_surface/pruning_equivalence.rs"]
 mod pruning_equivalence;
+
+#[path = "columnar_surface/vector_execution.rs"]
+mod vector_execution;
+
+#[path = "columnar_surface/vector_pruning.rs"]
+mod vector_pruning;

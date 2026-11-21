@@ -484,7 +484,11 @@ fn should_not_validate_unvisited_orphans_for_a_limit_one_query() {
         &full.expect_err("an unrestricted query still checks the full source"),
         "unvisited",
     );
-    assert!(env.cassie.midge.column_validation_reads_for_diagnostics() > before);
+    assert_eq!(
+        env.cassie.midge.column_validation_reads_for_diagnostics(),
+        before,
+        "the vector reader finds the orphan while merging, with no ownership preflight"
+    );
 }
 
 #[test]
@@ -567,7 +571,7 @@ fn should_validate_complete_sources_before_blocking_operators_limit_their_output
     let env = seeded();
     raw_put(
         &env,
-        &env.field_key(TABLE, NAME_FIELD, "unvisited"),
+        &env.field_key(TABLE, ID_FIELD, "unvisited"),
         &cassie_encoded_text("orphan"),
     );
 

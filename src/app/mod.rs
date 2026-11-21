@@ -139,6 +139,7 @@ mod lifecycle;
 mod operational;
 mod portal_reads;
 pub(crate) use portal_reads::PortalReadSpec;
+mod check_numbers;
 mod domain_enforcement;
 mod domain_scope;
 mod enum_checks;

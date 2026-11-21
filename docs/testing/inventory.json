@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1879,
-    "rust_files": 1835,
-    "rust_test_declarations": 11206,
+    "files": 1880,
+    "rust_files": 1836,
+    "rust_test_declarations": 11215,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11231,
+    "registered_rust_instances": 11240,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -250515,6 +250515,285 @@
       }
     },
     {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_accept_float_value_equal_to_integer_bound",
+      "name": "should_accept_float_value_equal_to_integer_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 18,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_accept_float_value_equal_to_integer_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_reject_float_zero_for_not_equal_integer_bound",
+      "name": "should_reject_float_zero_for_not_equal_integer_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 30,
+      "end_line": 39,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_reject_float_zero_for_not_equal_integer_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_accept_integer_value_equal_to_float_bound",
+      "name": "should_accept_integer_value_equal_to_float_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 42,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_accept_integer_value_equal_to_float_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_accept_integer_value_not_equal_to_fractional_bound",
+      "name": "should_accept_integer_value_not_equal_to_fractional_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 54,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_accept_integer_value_not_equal_to_fractional_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_reject_bigint_differing_from_bound_beyond_float_precision",
+      "name": "should_reject_bigint_differing_from_bound_beyond_float_precision",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 66,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_reject_bigint_differing_from_bound_beyond_float_precision"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_accept_numeric_value_equal_to_integer_bound",
+      "name": "should_accept_numeric_value_equal_to_integer_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 78,
+      "end_line": 87,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_accept_numeric_value_equal_to_integer_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_enforce_float_equality_check_on_update",
+      "name": "should_enforce_float_equality_check_on_update",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 90,
+      "end_line": 115,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_enforce_float_equality_check_on_update"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_treat_float_equal_to_integer_bound_as_not_distinct",
+      "name": "should_treat_float_equal_to_integer_bound_as_not_distinct",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 118,
+      "end_line": 127,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_treat_float_equal_to_integer_bound_as_not_distinct"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_reject_float_equal_to_integer_bound_for_is_distinct_from",
+      "name": "should_reject_float_equal_to_integer_bound_for_is_distinct_from",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 130,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_reject_float_equal_to_integer_bound_for_is_distinct_from"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/constraints/quoted_check_identifiers.rs::should_accept_quoted_column_in_table_level_check",
       "name": "should_accept_quoted_column_in_table_level_check",
       "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
@@ -368624,6 +368903,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 139,
+      "sha256": "d9e5d7040309012787607bb88196ed4bcb62db8a06f88245e04f98cdc83a29c9",
+      "test_declarations": 9,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/types/numeric/numeric_check_equality.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/constraints/quoted_check_identifiers.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -369945,8 +370239,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 254,
-      "sha256": "1f1bf43f67fc0f365edd2b96689699a65315d72e9a83ad1bbb67859aea72c048",
+      "lines": 257,
+      "sha256": "693a7bc1849fb1bbaf8157ba7001e1b1b8bd9da83f4c3c9512cb510109bca807",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

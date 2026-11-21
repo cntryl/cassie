@@ -111,6 +111,9 @@ mod dml_statement_atomicity;
 #[path = "sql_mutations/constraints/foreign_keys/foreign_key_concurrency.rs"]
 mod foreign_key_concurrency;
 
+#[path = "sql_mutations/constraints/numeric_check_equality.rs"]
+mod numeric_check_equality;
+
 // Formerly tests/integration_sql_constraints.rs.
 #[path = "sql_mutations/constraints/semantics/mod.rs"]
 mod integration_sql_constraints;

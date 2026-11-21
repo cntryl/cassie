@@ -886,7 +886,7 @@ impl Cassie {
             let equal = if check.value.is_null() {
                 value_is_sql_null
             } else {
-                !value_is_sql_null && value == &check.value
+                !value_is_sql_null && super::check_numbers::values_equal(value, &check.value)
             };
             return Ok(if check.operator == ConstraintOperator::IsNotDistinctFrom {
                 equal
@@ -903,8 +903,8 @@ impl Cassie {
             ConstraintOperator::IsDistinctFrom | ConstraintOperator::IsNotDistinctFrom => {
                 unreachable!("null-safe checks handled above")
             }
-            ConstraintOperator::Eq => value == &check.value,
-            ConstraintOperator::NotEq => value != &check.value,
+            ConstraintOperator::Eq => super::check_numbers::values_equal(value, &check.value),
+            ConstraintOperator::NotEq => !super::check_numbers::values_equal(value, &check.value),
             ConstraintOperator::Lt => Self::compare_constraint_values(value, &check.value)
                 .is_some_and(std::cmp::Ordering::is_lt),
             ConstraintOperator::Lte => Self::compare_constraint_values(value, &check.value)
@@ -928,10 +928,9 @@ impl Cassie {
         right: &serde_json::Value,
     ) -> Option<std::cmp::Ordering> {
         match (left, right) {
-            (serde_json::Value::Number(left), serde_json::Value::Number(right)) => left
-                .as_f64()
-                .and_then(|left| right.as_f64().map(|right| left.partial_cmp(&right)))
-                .flatten(),
+            (serde_json::Value::Number(left), serde_json::Value::Number(right)) => {
+                super::check_numbers::compare_numbers(left, right)
+            }
             // Canonical timestamps are widened first so a CHECK bound written
             // as `...SSZ` compares by instant against fixed-width values.
             (serde_json::Value::String(left), serde_json::Value::String(right)) => Some(

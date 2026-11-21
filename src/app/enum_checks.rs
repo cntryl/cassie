@@ -80,6 +80,11 @@ impl Cassie {
                 return result;
             }
         }
+        if !value_is_sql_null && !check.value.is_null() {
+            if let Some(result) = super::check_numbers::numeric_column_check(schema, value, check) {
+                return Ok(result);
+            }
+        }
         Self::satisfies_check_constraint(value, check, value_is_sql_null)
     }
 }

@@ -1,6 +1,9 @@
 #[path = "sql_mutations/insert/default_cells.rs"]
 mod insert_default_cells;
 
+#[path = "sql_mutations/insert/integer_range.rs"]
+mod insert_integer_range;
+
 #[path = "sql_mutations/insert/unknown_literals.rs"]
 mod insert_unknown_literals;
 

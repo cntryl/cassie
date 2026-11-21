@@ -436,26 +436,30 @@ impl Cassie {
 
         match expected {
             crate::types::DataType::Null => Self::invalid_vector(field, "null"),
-            crate::types::DataType::SmallInt => {
-                Self::validate_integer_range(field, value, "smallint", |number| {
-                    i16::try_from(number).is_ok()
-                })
-            }
+            crate::types::DataType::SmallInt => super::integer_range::validate_in_range(
+                field,
+                value,
+                "smallint",
+                "smallint",
+                |number| i16::try_from(number).is_ok(),
+            ),
             crate::types::DataType::Int => {
-                Self::validate_integer_range(field, value, "int", |number| {
+                super::integer_range::validate_in_range(field, value, "int", "integer", |number| {
                     i32::try_from(number).is_ok()
                 })
             }
-            crate::types::DataType::BigInt => Self::validate_bigint(field, value),
+            crate::types::DataType::BigInt => super::integer_range::validate_bigint(field, value),
             crate::types::DataType::Extended(kind) => kind
                 .from_json(value)
                 .map(|_| ())
                 .map_err(|error| CassieError::InvalidVector(format!("field '{field}': {error}"))),
-            crate::types::DataType::ObjectId(kind) => {
-                Self::validate_integer_range(field, value, kind.name(), |number| {
-                    (0..=crate::types::object_id::MAX_OID).contains(&number)
-                })
-            }
+            crate::types::DataType::ObjectId(kind) => super::integer_range::validate_in_range(
+                field,
+                value,
+                kind.name(),
+                kind.name(),
+                |number| (0..=crate::types::object_id::MAX_OID).contains(&number),
+            ),
             crate::types::DataType::Float => Self::validate_float(field, value),
             crate::types::DataType::Boolean => Self::validate_boolean(field, value),
             crate::types::DataType::Name => {
@@ -510,37 +514,6 @@ impl Cassie {
         Err(CassieError::InvalidVector(format!(
             "field '{field}' expects {expected}"
         )))
-    }
-
-    fn validate_integer_range<F>(
-        field: &str,
-        value: &serde_json::Value,
-        type_name: &str,
-        in_range: F,
-    ) -> Result<(), CassieError>
-    where
-        F: FnOnce(i64) -> bool,
-    {
-        let number = value
-            .as_i64()
-            .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
-            .ok_or_else(|| {
-                CassieError::InvalidVector(format!("field '{field}' expects {type_name}"))
-            })?;
-
-        if in_range(number) {
-            Ok(())
-        } else {
-            Self::invalid_vector(field, type_name)
-        }
-    }
-
-    fn validate_bigint(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
-        if value.is_i64() || value.as_u64().is_some() {
-            Ok(())
-        } else {
-            Self::invalid_vector(field, "bigint")
-        }
     }
 
     fn validate_float(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {

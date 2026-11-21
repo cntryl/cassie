@@ -330,3 +330,6 @@ mod statistical_windows;
 
 #[path = "sql_queries/ctes/jsonb_search_cycle.rs"]
 mod jsonb_search_cycle;
+
+#[path = "sql_queries/grammar/keyword_boundaries.rs"]
+mod keyword_boundaries;

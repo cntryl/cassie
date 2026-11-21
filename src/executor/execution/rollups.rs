@@ -952,6 +952,32 @@ fn eligible_plan_shape(plan: &LogicalPlan) -> bool {
             .projection
             .iter()
             .any(|item| matches!(item, SelectItem::WindowFunction { .. }))
+        && aggregates_only_at_projection_top_level(plan)
+}
+
+/// A rollup stores finished aggregates, so it can only answer aggregates that
+/// are whole projection items. An aggregate nested in an expression, a CASE or
+/// an ORDER BY key would be evaluated against rollup rows that lack its input.
+fn aggregates_only_at_projection_top_level(plan: &LogicalPlan) -> bool {
+    let nests_aggregate = |expr: &Expr| {
+        expr.any_descendant_or_self(&mut |expr| {
+            matches!(expr, Expr::Function(function)
+                if crate::sql::functions::is_aggregate_function(&function.name))
+        })
+    };
+    plan.projection.iter().all(|item| match item {
+        SelectItem::Function { function, .. } => {
+            function.args.iter().all(|arg| !nests_aggregate(arg))
+                && function
+                    .filter
+                    .as_ref()
+                    .is_none_or(|filter| !nests_aggregate(filter))
+        }
+        SelectItem::Expr { expr, .. } => !nests_aggregate(expr),
+        SelectItem::Wildcard | SelectItem::Column { .. } | SelectItem::WindowFunction { .. } => {
+            true
+        }
+    }) && plan.order.iter().all(|order| !nests_aggregate(&order.expr))
 }
 
 fn value_to_json(value: Value) -> Result<serde_json::Value, QueryError> {

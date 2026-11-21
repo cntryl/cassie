@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1868 |
-| Rust files | 1824 |
-| Rust test declarations | 11088 |
+| Files under `tests/` | 1873 |
+| Rust files | 1829 |
+| Rust test declarations | 11128 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11113 |
+| Static Rust registration instances | 11153 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -27,11 +27,11 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 
 | Owner | Source declarations | Review required |
 | --- | ---: | ---: |
-| [analytics](inventory/analytics.md) | 190 | 0 |
+| [analytics](inventory/analytics.md) | 192 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 32 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 538 | 0 |
-| [columnar_surface](inventory/columnar_surface.md) | 79 | 0 |
+| [columnar_surface](inventory/columnar_surface.md) | 89 | 0 |
 | [compatibility](inventory/compatibility.md) | 520 | 0 |
 | [composite_types](inventory/composite_types.md) | 229 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
@@ -59,12 +59,12 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [query_scan_controls](inventory/query_scan_controls.md) | 56 | 3 |
 | [relational_qualification](inventory/relational_qualification.md) | 77 | 0 |
 | [rest](inventory/rest.md) | 101 | 0 |
-| [search](inventory/search.md) | 170 | 0 |
+| [search](inventory/search.md) | 171 | 0 |
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 7 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 520 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 1982 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 528 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 2001 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 12 | 0 |
 | [storage_indexes](inventory/storage_indexes.md) | 295 | 0 |

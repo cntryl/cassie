@@ -1,4 +1,5 @@
 pub(crate) mod array;
+pub mod array_bounds;
 pub mod array_value;
 pub(crate) mod boolean;
 pub(crate) mod builtin;

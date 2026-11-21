@@ -158,8 +158,9 @@ impl AnalyzerConfig {
     /// Whether `word` contains a character the tokenizer splits on.
     #[must_use]
     pub fn has_token_boundary(&self, word: &str) -> bool {
+        let mut boundaries = TokenBoundaries::new(&self.tokenizer);
         word.chars()
-            .any(|character| is_token_boundary(&self.tokenizer, character))
+            .any(|character| boundaries.is_boundary(character))
     }
 
     fn canonical_term(&self, token: String) -> String {
@@ -286,9 +287,10 @@ impl AnalyzerConfig {
         let stemmer = self.stemmer();
         let mut spans: Vec<(usize, usize)> = Vec::new();
         let mut token_start: Option<usize> = None;
+        let mut token_boundaries = TokenBoundaries::new(&self.tokenizer);
         let boundaries = folded
             .char_indices()
-            .map(|(index, character)| (index, is_token_boundary(&self.tokenizer, character)))
+            .map(|(index, character)| (index, token_boundaries.is_boundary(character)))
             .chain(std::iter::once((folded.len(), true)));
         for (index, boundary) in boundaries {
             match (token_start, boundary) {
@@ -321,9 +323,10 @@ impl AnalyzerConfig {
         let mut occurrences = Vec::new();
         let mut position = 0u32;
         let mut token_start: Option<usize> = None;
+        let mut token_boundaries = TokenBoundaries::new(&self.tokenizer);
         let boundaries = folded
             .char_indices()
-            .map(|(index, character)| (index, is_token_boundary(&self.tokenizer, character)))
+            .map(|(index, character)| (index, token_boundaries.is_boundary(character)))
             .chain(std::iter::once((folded.len(), true)));
         for (index, boundary) in boundaries {
             match (token_start, boundary) {
@@ -384,20 +387,56 @@ fn parse_bool_option(name: &str, value: &str) -> Result<bool, String> {
     }
 }
 
-fn is_token_boundary(tokenizer: &str, character: char) -> bool {
-    match tokenizer {
-        "whitespace" => character.is_whitespace(),
-        _ => !character.is_alphanumeric(),
+/// Returns true for the combining mark blocks (Unicode category M) that attach
+/// to the preceding base character.
+fn is_combining_mark(character: char) -> bool {
+    matches!(
+        character,
+        '\u{300}'..='\u{36f}'
+            | '\u{1ab0}'..='\u{1aff}'
+            | '\u{1dc0}'..='\u{1dff}'
+            | '\u{20d0}'..='\u{20ff}'
+            | '\u{fe20}'..='\u{fe2f}'
+    )
+}
+
+/// Decides token boundaries one character at a time. A combining mark stays
+/// inside the token it follows, so a decomposed accent or the dot left by
+/// lowercasing `U+0130` never splits a word; a mark with no token to attach to
+/// is a boundary like any other punctuation.
+struct TokenBoundaries<'a> {
+    tokenizer: &'a str,
+    in_token: bool,
+}
+
+impl<'a> TokenBoundaries<'a> {
+    fn new(tokenizer: &'a str) -> Self {
+        Self {
+            tokenizer,
+            in_token: false,
+        }
+    }
+
+    fn is_boundary(&mut self, character: char) -> bool {
+        let boundary = match self.tokenizer {
+            "whitespace" => character.is_whitespace(),
+            _ if is_combining_mark(character) => !self.in_token,
+            _ => !character.is_alphanumeric(),
+        };
+        self.in_token = !boundary;
+        boundary
     }
 }
 
 fn tokenize_with<'a>(input: &'a str, tokenizer: &'a str) -> impl Iterator<Item = &'a str> + 'a {
-    input.split(move |character: char| is_token_boundary(tokenizer, character))
+    let mut boundaries = TokenBoundaries::new(tokenizer);
+    input.split(move |character: char| boundaries.is_boundary(character))
 }
 
 fn fold_accents(input: &str) -> String {
     input
         .chars()
+        .filter(|character| !is_combining_mark(*character))
         .map(|character| match character {
             'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' | 'ā' | 'ă' | 'ą' => 'a',
             'Á' | 'À' | 'Â' | 'Ä' | 'Ã' | 'Å' | 'Ā' | 'Ă' | 'Ą' => 'A',
@@ -435,6 +474,71 @@ mod tests {
 
         // Assert
         assert_eq!(tokens, vec!["alpha", "beta", "gamma"]);
+    }
+
+    #[test]
+    fn should_keep_combining_mark_inside_standard_token() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+
+        // Act
+        let tokens = config.analyze("cafe\u{301} bar");
+
+        // Assert
+        assert_eq!(tokens, vec!["cafe\u{301}", "bar"]);
+    }
+
+    #[test]
+    fn should_keep_dotted_capital_i_word_whole() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+
+        // Act
+        let tokens = config.analyze("\u{130}stanbul");
+
+        // Assert
+        assert_eq!(tokens, vec!["i\u{307}stanbul"]);
+    }
+
+    #[test]
+    fn should_not_start_token_at_standalone_combining_mark() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+
+        // Act
+        let tokens = config.analyze("alpha \u{301} beta");
+
+        // Assert
+        assert_eq!(tokens, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn should_strip_combining_marks_given_accent_folding() {
+        // Arrange
+        let config = AnalyzerConfig {
+            accent_folding: true,
+            ..AnalyzerConfig::default()
+        };
+
+        // Act
+        let tokens = config.analyze("cafe\u{301} \u{130}stanbul");
+
+        // Assert
+        assert_eq!(tokens, vec!["cafe", "istanbul"]);
+    }
+
+    #[test]
+    fn should_highlight_whole_word_with_combining_mark() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+        let text = "cafe\u{301} bar";
+        let terms = vec!["cafe\u{301}".to_string()];
+
+        // Act
+        let spans = config.matching_spans(text, &terms);
+
+        // Assert
+        assert_eq!(spans, vec![(0, "cafe\u{301}".len())]);
     }
 
     #[test]

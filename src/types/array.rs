@@ -502,11 +502,16 @@ fn parse_dimension_prefix(
             TextArrayError::Invalid("invalid PostgreSQL array upper bound".to_string())
         })?;
         let length = i64::from(upper_bound) - i64::from(lower_bound) + 1;
-        if length < 0 {
-            return Err(TextArrayError::Invalid(
-                "invalid PostgreSQL array dimension bounds".to_string(),
+        if length < 1 {
+            return Err(TextArrayError::TypeInput(
+                crate::types::extended::TypeInputError::new(
+                    "2202E",
+                    "upper bound cannot be less than lower bound".to_string(),
+                ),
             ));
         }
+        crate::types::array_bounds::check_dimension_bounds(lower_bound, length)
+            .map_err(TextArrayError::TypeInput)?;
         dimensions.push(crate::types::ArrayDimension {
             length: i32::try_from(length)
                 .map_err(|_| TextArrayError::Invalid("array dimension exceeds INT4".to_string()))?,

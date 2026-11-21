@@ -15,6 +15,8 @@ mod sequence_effect;
 #[cfg(test)]
 mod sequence_effect_tests;
 #[cfg(test)]
+mod set_after_local_tests;
+#[cfg(test)]
 mod shared_setting_tests;
 #[cfg(test)]
 mod truncate_owner_tests;
@@ -36,6 +38,7 @@ mod owned_setting;
 mod random_state;
 pub(crate) use random_state::SessionRandom;
 mod setting_control;
+mod setting_writes;
 mod sql_objects;
 pub(crate) use sql_objects::{
     CursorOptions, SessionCursor, SessionObjects, SessionPrepared, MAX_CURSORS_PER_SESSION,
@@ -127,6 +130,9 @@ struct SessionTransactionState {
     session_state: Option<SessionStateSnapshot>,
     /// Settings changed by `SET LOCAL`, restored when the transaction ends.
     local_settings: Vec<String>,
+    /// The last session-level `SET`/`RESET` result per setting in this
+    /// transaction, which `SET LOCAL` restoration must not undo.
+    session_writes: setting_writes::SessionWrites,
     /// Declared projection write mode and sticky effect history, shared with
     /// every statement fork of this transaction.
     projection_write: Arc<projection_write::ProjectionWriteAuthority>,
@@ -191,6 +197,7 @@ struct SessionSavepoint {
     storage_overlay: StorageOverlay,
     session_state: SessionStateSnapshot,
     unique_keys: BTreeSet<super::UniqueTransactionKey>,
+    session_writes: setting_writes::SessionWrites,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -337,6 +344,7 @@ impl CassieSession {
                 storage_overlay: Arc::new(Mutex::new(StorageOverlay::default())),
                 session_state: None,
                 local_settings: Vec::new(),
+                session_writes: setting_writes::SessionWrites::new(),
                 projection_write: Arc::default(),
                 sealed_for_commit: false,
                 commit_thread: None,
@@ -478,7 +486,7 @@ impl CassieSession {
             return self.set_transaction_read_only(value);
         }
         Self::reject_projection_write_mode_change(name)?;
-        self.with_owned_setting_state(|| self.settings.lock().set(name, value))
+        self.apply_session_write(&[name], || self.settings.lock().set(name, value))
     }
 
     pub(crate) fn set_backend_pid(&self, process_id: i32) {

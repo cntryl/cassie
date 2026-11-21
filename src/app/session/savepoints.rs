@@ -46,6 +46,7 @@ impl CassieSession {
                 waits.snapshot_owner_keys(transaction.unique_owner_id)
             });
         let catalog_views = transaction.catalog_views.clone();
+        let session_writes = transaction.session_writes.clone();
         transaction.savepoints.push(SessionSavepoint {
             name: name.to_ascii_lowercase(),
             object_mark: self.session_objects_mark(),
@@ -58,6 +59,7 @@ impl CassieSession {
             catalog_views,
             storage_overlay,
             session_state: self.session_state_snapshot(),
+            session_writes,
             unique_keys,
         });
         Ok(())
@@ -158,6 +160,7 @@ impl CassieSession {
         let catalog_base_version = transaction.savepoints[index].catalog_base_version;
         let storage_overlay = transaction.savepoints[index].storage_overlay.clone();
         let session_state = transaction.savepoints[index].session_state.clone();
+        transaction.session_writes = transaction.savepoints[index].session_writes.clone();
         let object_mark = transaction.savepoints[index].object_mark;
         let unique_owner_id = transaction.unique_owner_id;
         #[cfg(test)]

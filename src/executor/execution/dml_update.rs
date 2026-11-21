@@ -354,10 +354,14 @@ fn apply_array_update_value(
                 .dimensions()
                 .first()
                 .map_or(1, |dimension| dimension.lower_bound);
-            let default_upper = array
-                .dimensions()
-                .first()
-                .map_or(0, |dimension| dimension.lower_bound + dimension.length - 1);
+            let default_upper = match array.dimensions().first() {
+                Some(dimension) => crate::types::array_bounds::checked_upper_bound(
+                    dimension.lower_bound,
+                    dimension.length,
+                )
+                .ok_or_else(|| QueryError::General("array upper bound exceeds INT4".into()))?,
+                None => 0,
+            };
             let lower = lower
                 .as_ref()
                 .map(|expression| {
@@ -437,6 +441,7 @@ fn set_array_element(
         .lower_bound
         .checked_add(dimension.length - 1)
         .ok_or_else(|| QueryError::General("array upper bound exceeds INT4".into()))?;
+    check_grown_bounds(dimension.lower_bound.min(index), upper_bound.max(index))?;
     let mut elements = array.elements().to_vec();
     let mut lower_bound = dimension.lower_bound;
     if index < lower_bound {
@@ -484,6 +489,15 @@ fn set_array_element(
     )
     .map_err(QueryError::General)?;
     Ok(())
+}
+
+/// Reject an assignment whose resulting dimension PostgreSQL would refuse (54000).
+fn check_grown_bounds(lower: i32, upper: i32) -> Result<(), QueryError> {
+    crate::types::array_bounds::check_dimension_bounds(
+        lower,
+        i64::from(upper) - i64::from(lower) + 1,
+    )
+    .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))
 }
 
 fn set_array_slice(
@@ -540,6 +554,7 @@ fn set_array_slice(
         )
         .and_then(|exclusive| exclusive.checked_sub(1))
         .ok_or_else(|| QueryError::General("array upper bound exceeds INT4".into()))?;
+    check_grown_bounds(old_lower, old_upper.max(upper))?;
     if upper > old_upper {
         let extra =
             usize::try_from(upper.checked_sub(old_upper).ok_or_else(|| {

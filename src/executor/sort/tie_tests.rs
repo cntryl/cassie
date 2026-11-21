@@ -76,7 +76,7 @@ fn should_preserve_wrapping_prefix_with_nested_json_for_public_edge_shapes() {
     let valid_max = SqlArray::new(
         vec![ArrayDimension {
             length: 1,
-            lower_bound: i32::MAX,
+            lower_bound: i32::MAX - 1,
         }],
         vec![Value::Int64(1)],
     )

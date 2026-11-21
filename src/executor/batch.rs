@@ -590,7 +590,7 @@ fn push_value_key(out: &mut String, value: &Value) {
                     out,
                     "[{}:{}]",
                     dimension.lower_bound,
-                    dimension.lower_bound + dimension.length - 1
+                    i64::from(dimension.lower_bound) + i64::from(dimension.length) - 1
                 );
             }
             out.push_str(&v.to_nested_json().to_string());

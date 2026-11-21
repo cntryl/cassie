@@ -20,8 +20,17 @@ mod cte_identity;
 #[path = "sql_queries/cardinality_admission.rs"]
 mod cardinality_admission;
 
+#[path = "sql_queries/offset_result_cap.rs"]
+mod offset_result_cap;
+
 #[path = "sql_queries/expressions/alias_integration.rs"]
 mod alias_integration;
+
+#[path = "sql_queries/expressions/order_by_swapped_alias.rs"]
+mod order_by_swapped_alias;
+
+#[path = "sql_queries/expressions/predicate_precedence.rs"]
+mod predicate_precedence;
 
 #[path = "sql_queries/expressions/conditional/conditional_expressions.rs"]
 mod sql_conditional_expressions;

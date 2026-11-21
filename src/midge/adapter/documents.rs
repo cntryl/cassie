@@ -562,6 +562,7 @@ impl Midge {
         for operation in operations {
             match operation {
                 DocumentWriteOp::Put { id, payload } => {
+                    super::row_id::reject_nul_row_id(&id)?;
                     Self::validate_document(&context.schema, &payload)?;
                     let row_blob = encode_row(&context.row_schema, &payload)?;
                     let normalized_records = context

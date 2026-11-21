@@ -200,6 +200,7 @@ pub(crate) use scored::{vector_prefilter_fallback_reason, vector_prefilter_suppo
 mod analytical_projection;
 mod index_probe_canonicalization;
 mod index_read;
+mod order_alias_shadow;
 mod ordered_read;
 mod projected_read;
 mod projection_handoff;

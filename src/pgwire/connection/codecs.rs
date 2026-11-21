@@ -1,3 +1,5 @@
+#[path = "codecs/array_decode.rs"]
+mod array_decode;
 #[path = "codecs/enum_value.rs"]
 pub(super) mod enum_value;
 #[path = "codecs/jsonb.rs"]
@@ -22,6 +24,7 @@ use time::{Date, PrimitiveDateTime, Time};
 #[path = "codecs/vector.rs"]
 mod vector;
 
+use array_decode::decode_array;
 use vector::{decode_vector, encode_vector};
 
 const OID_ARRAY_BASE: i64 = 34_000;
@@ -547,82 +550,6 @@ fn encode_array(value: &Value, type_oid: i64, element_oid: i64) -> io::Result<Ve
         encoded.extend_from_slice(&element);
     }
     Ok(encoded)
-}
-
-fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value> {
-    let mut cursor = 0;
-    let dimensions = read_i32(parameter, &mut cursor, "array")?;
-    let has_null = read_i32(parameter, &mut cursor, "array")?;
-    let element_oid = i64::from(read_i32(parameter, &mut cursor, "array")?);
-    if !(0..=6).contains(&dimensions)
-        || !matches!(has_null, 0 | 1)
-        || element_oid != expected_element_oid
-    {
-        return Err(invalid_data("array"));
-    }
-    binary_codec_for_oid(element_oid)?;
-    if dimensions == 0 {
-        // The canonical empty array: no dimension header and no elements.
-        if has_null != 0 || cursor != parameter.len() {
-            return Err(invalid_data("array"));
-        }
-        return Ok(Value::Array(crate::types::SqlArray::empty()));
-    }
-    let mut shape =
-        Vec::with_capacity(usize::try_from(dimensions).map_err(|_| invalid_data("array"))?);
-    let mut element_count = 1_usize;
-    for _ in 0..dimensions {
-        let length = read_i32(parameter, &mut cursor, "array")?;
-        let lower_bound = read_i32(parameter, &mut cursor, "array")?;
-        let length_usize = usize::try_from(length).map_err(|_| invalid_data("array"))?;
-        element_count = element_count
-            .checked_mul(length_usize)
-            .ok_or_else(|| invalid_data("array"))?;
-        shape.push(crate::types::ArrayDimension {
-            length,
-            lower_bound,
-        });
-    }
-    let minimum_payload_bytes = element_count
-        .checked_mul(std::mem::size_of::<i32>())
-        .ok_or_else(|| invalid_data("array"))?;
-    if parameter.len().saturating_sub(cursor) < minimum_payload_bytes {
-        return Err(invalid_data("array"));
-    }
-    let mut values = Vec::with_capacity(element_count);
-    let mut sql_null_frame = false;
-    let mut document_null_element = false;
-    for index in 0..element_count {
-        let element_length = read_i32(parameter, &mut cursor, "array")?;
-        if element_length == -1 {
-            sql_null_frame = true;
-            values.push(Value::Null);
-            continue;
-        }
-        let element_length = usize::try_from(element_length).map_err(|_| invalid_data("array"))?;
-        let end = cursor
-            .checked_add(element_length)
-            .ok_or_else(|| invalid_data("array"))?;
-        let bytes = parameter
-            .get(cursor..end)
-            .ok_or_else(|| invalid_data("array"))?;
-        cursor = end;
-        let value = binary_to_value(bytes, element_oid).map_err(|error| {
-            temporal_error::array_error(timetz_error::array_error(error, index), index)
-        })?;
-        if matches!(value, Value::Json(ref document) if document.is_null()) {
-            document_null_element = true;
-        }
-        values.push(value);
-    }
-    if cursor != parameter.len() || (has_null == 0 && sql_null_frame) {
-        return Err(invalid_data("array"));
-    }
-    if document_null_element {
-        return Err(unsupported_codec(OID_ARRAY_BASE + element_oid));
-    }
-    let array = crate::types::SqlArray::new(shape, values).map_err(|_| invalid_data("array"))?;
-    Ok(Value::Array(array))
 }
 
 fn read_i32(parameter: &[u8], cursor: &mut usize, type_name: &str) -> io::Result<i32> {

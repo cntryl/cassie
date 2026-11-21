@@ -168,16 +168,16 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
             });
         }
     }
-    if let Some((left, right)) = split_top_level(raw, " not in ") {
+    if let Some((left, right)) = membership_split(raw, " not in ") {
         return parse_in_list_expression(left, right, true);
     }
-    if let Some((left, right)) = split_top_level(raw, " in ") {
+    if let Some((left, right)) = membership_split(raw, " in ") {
         return parse_in_list_expression(left, right, false);
     }
-    if let Some((left, right)) = split_top_level(raw, " not between ") {
+    if let Some((left, right)) = membership_split(raw, " not between ") {
         return parse_between_expression(left, right, true);
     }
-    if let Some((left, right)) = split_top_level(raw, " between ") {
+    if let Some((left, right)) = membership_split(raw, " between ") {
         return parse_between_expression(left, right, false);
     }
     for (op, parsed) in [
@@ -210,6 +210,12 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
     }
 
     parse_prefix_expression(raw)
+}
+
+/// Splits on a membership keyword unless a comparison before it must be split first.
+fn membership_split<'a>(raw: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {
+    split_top_level(raw, keyword)
+        .filter(|(left, _)| !super::membership_precedence::left_operand_has_comparison(left))
 }
 
 /// pgvector distance operators bind tighter than comparisons, so

@@ -158,6 +158,7 @@ impl CassieSession {
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.session_state = Some(session_state);
         transaction.local_settings.clear();
+        transaction.session_writes.clear();
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
         transaction.commit_thread = None;
@@ -402,6 +403,7 @@ impl CassieSession {
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
+        let session_writes = std::mem::take(&mut transaction.session_writes);
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
         transaction.commit_thread = None;
@@ -419,7 +421,7 @@ impl CassieSession {
         if let Some(state) = session_state {
             let mut settings = self.settings.lock();
             for name in locals {
-                settings.restore_from(&name, &state.settings);
+                settings.restore_local(&name, &state.settings, &session_writes);
             }
         }
         #[cfg(test)]
@@ -556,6 +558,7 @@ impl CassieSession {
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.local_settings.clear();
+        transaction.session_writes.clear();
         transaction.projection_write = Arc::default();
         transaction.sealed_for_commit = false;
         transaction.commit_thread = None;

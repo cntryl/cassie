@@ -24,7 +24,7 @@ fn should_build_extreme_bound_tie_with_owned_sort_key_at_measured_budget() {
     let array = SqlArray::new(
         vec![ArrayDimension {
             length: 1,
-            lower_bound: i32::MAX,
+            lower_bound: i32::MAX - 1,
         }],
         vec![Value::Int64(7)],
     )
@@ -56,7 +56,7 @@ fn should_build_extreme_bound_tie_with_owned_sort_key_at_measured_budget() {
         .expect("sort key");
     let peak = baseline.peak_query_memory_bytes();
     // Assert
-    assert_eq!(key.tie_key, "[2147483647:2147483647][7]");
+    assert_eq!(key.tie_key, "[2147483646:2147483646][7]");
     assert!(baseline.current_query_memory_bytes() >= key.tie_key.capacity());
     drop(key);
     assert_eq!(baseline.current_query_memory_bytes(), 0);

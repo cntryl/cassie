@@ -210,6 +210,8 @@ pub(crate) use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string
 mod materialized_projection;
 #[path = "parser/materialized_view.rs"]
 mod materialized_view;
+#[path = "parser/membership_precedence.rs"]
+mod membership_precedence;
 #[path = "parser/operators.rs"]
 mod operators;
 #[path = "parser/order_ordinals.rs"]

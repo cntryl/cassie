@@ -204,6 +204,34 @@ impl SessionSettings {
         }
     }
 
+    /// The setting's canonical name and stored (non-default) value.
+    pub(crate) fn stored_entry(&self, name: &str) -> Option<(&'static str, Option<String>)> {
+        let spec = find(name).ok()?;
+        Some((spec.name, self.mutable.get(spec.name).cloned()))
+    }
+
+    /// Ends `SET LOCAL` for one setting: a session-level write made in the
+    /// transaction wins, otherwise the BEGIN-time value returns.
+    pub(crate) fn restore_local(
+        &mut self,
+        name: &str,
+        snapshot: &Self,
+        writes: &BTreeMap<String, Option<String>>,
+    ) {
+        let Ok(spec) = find(name) else {
+            return;
+        };
+        match writes.get(spec.name) {
+            Some(Some(value)) => {
+                self.mutable.insert(spec.name.to_string(), value.clone());
+            }
+            Some(None) => {
+                self.mutable.remove(spec.name);
+            }
+            None => self.restore_from(name, snapshot),
+        }
+    }
+
     pub(crate) fn reset_all(&mut self) {
         self.mutable.clone_from(&self.startup);
     }

@@ -433,6 +433,7 @@ pub use schema_write_control::{
     set_schema_write_commit_barriers, SchemaWriteConflictTestGuard, SchemaWriteConflictWorkerGuard,
     SchemaWritePausePoint,
 };
+mod row_id;
 #[cfg(test)]
 #[path = "schema_ops_tests.rs"]
 mod schema_ops_tests;

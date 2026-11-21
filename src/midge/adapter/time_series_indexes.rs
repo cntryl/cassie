@@ -253,6 +253,7 @@ impl Midge {
         for (id, payload) in documents {
             Self::validate_document(&schema, &payload)?;
             let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
+            super::row_id::reject_nul_row_id(&id)?;
             let row_blob = encode_row(&row_schema, &payload)?;
             tx.put(Self::row_key(row_schema.relation_id, &id), row_blob, None)
                 .map_err(CassieError::from)?;

@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1868,
-    "rust_files": 1824,
-    "rust_test_declarations": 11088,
+    "files": 1869,
+    "rust_files": 1825,
+    "rust_test_declarations": 11098,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11113,
+    "registered_rust_instances": 11123,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -25188,6 +25188,316 @@
         "category": "indexes",
         "directory": "tests/columnar_surface/indexes",
         "file": "tests/columnar_surface/indexes/index_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_refuse_nul_row_id_in_row_table_put_document",
+      "name": "should_refuse_nul_row_id_in_row_table_put_document",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 39,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_refuse_nul_row_id_in_row_table_put_document"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_refuse_nul_row_id_in_column_table_put_document",
+      "name": "should_refuse_nul_row_id_in_column_table_put_document",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 44,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_refuse_nul_row_id_in_column_table_put_document"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_refuse_nul_row_id_in_put_documents_batch",
+      "name": "should_refuse_nul_row_id_in_put_documents_batch",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 49,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_refuse_nul_row_id_in_put_documents_batch"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_refuse_nul_row_id_in_fresh_document_load",
+      "name": "should_refuse_nul_row_id_in_fresh_document_load",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 73,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_refuse_nul_row_id_in_fresh_document_load"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_not_take_the_row_id_from_a_rest_json_id_field",
+      "name": "should_not_take_the_row_id_from_a_rest_json_id_field",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 92,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_not_take_the_row_id_from_a_rest_json_id_field"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_not_accept_an_id_column_in_sql_insert",
+      "name": "should_not_accept_an_id_column_in_sql_insert",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 120,
+      "end_line": 133,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_not_accept_an_id_column_in_sql_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_refuse_nul_in_escape_string_literal",
+      "name": "should_refuse_nul_in_escape_string_literal",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 136,
+      "end_line": 148,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_refuse_nul_in_escape_string_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_refuse_nul_row_id_in_projection_replay",
+      "name": "should_refuse_nul_row_id_in_projection_replay",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 151,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_refuse_nul_row_id_in_projection_replay"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_round_trip_punctuated_non_ascii_ids_in_row_table",
+      "name": "should_round_trip_punctuated_non_ascii_ids_in_row_table",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 217,
+      "end_line": 219,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_round_trip_punctuated_non_ascii_ids_in_row_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/nul_row_id.rs::should_round_trip_punctuated_non_ascii_ids_in_column_table",
+      "name": "should_round_trip_punctuated_non_ascii_ids_in_column_table",
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "line": 222,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "nul_row_id::should_round_trip_punctuated_non_ascii_ids_in_column_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/nul_row_id.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -347007,6 +347317,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/columnar_surface/nul_row_id.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 224,
+      "sha256": "b5b0c645eaf9362c28e4f0cc78a88c1684f9d661c92d1759d93c139ef600ebd5",
+      "test_declarations": 10,
+      "registered_suites": [
+        "columnar_surface"
+      ],
+      "destinations": [
+        "tests/columnar_surface/semantics/nul_row_id.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/columnar_surface/pair.rs",
       "role": "test_support",
       "action": "keep",
@@ -347105,8 +347430,8 @@
       "current_file": "tests/columnar_surface.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 29,
-      "sha256": "2e22a1f8bb944de784fbb86e923e2289a7a5220f2663bb569ba4a37479fecda3",
+      "lines": 32,
+      "sha256": "33ff42953b6ce73ae27ef129048bdf6d7c041aa1a2a8a165cffb9c51a94a35b2",
       "test_declarations": 0,
       "registered_suites": [
         "columnar_surface"

@@ -25,5 +25,8 @@ mod vector_execution;
 #[path = "columnar_surface/vector_pruning.rs"]
 mod vector_pruning;
 
+#[path = "columnar_surface/nul_row_id.rs"]
+mod nul_row_id;
+
 #[path = "columnar_surface/vector_parallel.rs"]
 mod vector_parallel;

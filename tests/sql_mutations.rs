@@ -94,6 +94,9 @@ mod copy_csv_null_fields;
 #[path = "sql_mutations/constraints/alter_add_column_constraints.rs"]
 mod alter_add_column_constraints;
 
+#[path = "sql_mutations/constraints/quoted_check_identifiers.rs"]
+mod quoted_check_identifiers;
+
 // Formerly tests/dml_statement_atomicity.rs.
 #[path = "sql_mutations/atomicity/dml_statement_atomicity.rs"]
 mod dml_statement_atomicity;

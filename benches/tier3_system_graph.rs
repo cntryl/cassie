@@ -8,6 +8,8 @@ use cassie::app::{Cassie, CassieSession};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::types::Value;
 
+#[path = "support/graph_evidence.rs"]
+mod graph_evidence;
 #[path = "support/graph_org.rs"]
 mod graph_org;
 #[path = "support/graph_social.rs"]
@@ -47,6 +49,8 @@ const FRIENDS_OF_FRIENDS_SQL: &str = "SELECT t.friend FROM GRAPH_TABLE (bench_so
      COLUMNS (b.id AS friend)) AS t";
 const EXACT_READ_PATH: &str = "graph_table_exact_read";
 const INDEXED_READ_PATH: &str = "graph_table_indexed_read";
+
+const SOCIAL_INDEXES: &str = "bench_knows(src), bench_knows(dst)";
 
 struct Fixture {
     cassie: Arc<Cassie>,
@@ -177,6 +181,146 @@ fn expect_rows(fixture: &Fixture, sql: &str, params: &[Value], rows: usize) -> u
     observed
 }
 
+/// The pinned identity of a fixture in the evidence record. The generators are closed-form
+/// formulas over the row key, so there is no random seed and every run builds the same rows.
+fn fixture_identity(mapped_rows: i64, indexes: &str) -> serde_json::Value {
+    serde_json::json!({
+        "scale": FIXTURE_SCALE, "mapped_rows": mapped_rows, "data": "closed-form generators, no seed",
+        "storage_mode": "memory", "indexes": indexes,
+        "query_memory_budget_bytes": workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+        "result_cache": "disabled",
+    })
+}
+
+/// Counter evidence of the selected cases, each on its own freshly opened fixture so the
+/// first query is cold and the peak query memory belongs to that case alone.
+fn collect_evidence(
+    selected: [bool; 4],
+    (access, org, social): (
+        &graph_org::Access,
+        &graph_org::Hierarchy,
+        &graph_social::Social,
+    ),
+    reachable_user: Option<(i64, usize)>,
+) -> graph_evidence::Evidence {
+    let mut evidence = graph_evidence::Evidence::new(BENCHMARK);
+    let [authorization, hierarchy, friends, routes] = selected;
+    if let (true, Some((user, _))) = (authorization, reachable_user) {
+        let fixture = open_fixture();
+        access.plan().apply(&fixture.cassie, &fixture.session);
+        let params = [Value::Int64(user)];
+        evidence.collect(
+            &fixture.cassie,
+            &fixture.session,
+            &graph_evidence::Spec {
+                family: "graph_authorization_reachability_query",
+                case: FIXTURE_SCALE,
+                sql: graph_org::REACHABILITY_SQL,
+                params: &params,
+                expected: graph_evidence::int_rows(access.reachable_resources(user)),
+                exact_switch: true,
+                fixture: fixture_identity(
+                    ACCESS_MAPPED_ROWS,
+                    "bench_member_of(member, grp), bench_grants(holder, resource)",
+                ),
+            },
+        );
+        fixture.cassie.shutdown();
+    }
+    if hierarchy {
+        let fixture = open_fixture();
+        org.plan().apply(&fixture.cassie, &fixture.session);
+        let (leaf, _) = org.deepest();
+        let params = [Value::Int64(leaf)];
+        evidence.collect(
+            &fixture.cassie,
+            &fixture.session,
+            &graph_evidence::Spec {
+                family: "graph_hierarchy_ancestry_query",
+                case: FIXTURE_SCALE,
+                sql: graph_org::ANCESTRY_SQL,
+                params: &params,
+                expected: graph_evidence::int_rows(graph_org::Hierarchy::ancestors(leaf)),
+                exact_switch: true,
+                fixture: fixture_identity(HIERARCHY_MAPPED_ROWS, "bench_reports_to(child, parent)"),
+            },
+        );
+        fixture.cassie.shutdown();
+    }
+    if friends {
+        let fixture = open_fixture();
+        social.plan().apply(&fixture.cassie, &fixture.session);
+        let params = [Value::Int64(1)];
+        evidence.collect(
+            &fixture.cassie,
+            &fixture.session,
+            &graph_evidence::Spec {
+                family: "graph_friends_of_friends_query",
+                case: FIXTURE_SCALE,
+                sql: FRIENDS_OF_FRIENDS_SQL,
+                params: &params,
+                expected: graph_evidence::int_rows(social.walk_endpoints(1, 2, 2)),
+                exact_switch: true,
+                fixture: fixture_identity(SOCIAL_MAPPED_ROWS, SOCIAL_INDEXES),
+            },
+        );
+        fixture.cassie.shutdown();
+    }
+    if routes {
+        let fixture = open_fixture();
+        social.plan().apply(&fixture.cassie, &fixture.session);
+        let route = social.route(1, ROUTE_HOPS, ROUTE_PATHS);
+        let mut expected = (1..)
+            .zip(&route.costs)
+            .map(|(rank, cost): (i64, &i64)| vec![rank.to_string(), cost.to_string()])
+            .collect::<Vec<_>>();
+        expected.sort();
+        let sql = route.sql();
+        let (cold, _) = evidence.collect(
+            &fixture.cassie,
+            &fixture.session,
+            &graph_evidence::Spec {
+                family: "graph_weighted_routes_query",
+                case: FIXTURE_SCALE,
+                sql: &sql,
+                params: &[],
+                expected,
+                exact_switch: false,
+                fixture: fixture_identity(SOCIAL_MAPPED_ROWS, SOCIAL_INDEXES),
+            },
+        );
+        if i64::try_from(cold.validation_rows) != Ok(SOCIAL_EDGES) {
+            evidence.finding(format!(
+                "graph_weighted_routes_query: validated {} edge rows, the selected mapping has {SOCIAL_EDGES}",
+                cold.validation_rows
+            ));
+        }
+        fixture.cassie.shutdown();
+    }
+    evidence
+}
+
+/// Opens the shared timing fixture and loads the selected graphs; returns it with its setup time.
+fn populated_fixture(
+    social: &graph_social::Social,
+    access: &graph_org::Access,
+    org: &graph_org::Hierarchy,
+    [authorization, hierarchy, social_graph]: [bool; 3],
+) -> (Fixture, Duration) {
+    let fixture = open_fixture();
+    let setup_started = Instant::now();
+    if social_graph {
+        social.plan().apply(&fixture.cassie, &fixture.session);
+    }
+    if authorization {
+        access.plan().apply(&fixture.cassie, &fixture.session);
+    }
+    if hierarchy {
+        org.plan().apply(&fixture.cassie, &fixture.session);
+    }
+    (fixture, setup_started.elapsed())
+}
+
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier3, BENCHMARK);
     let authorization = selected_case(&runner, "graph_authorization_reachability_query");
@@ -188,29 +332,41 @@ fn main() {
         return;
     }
 
-    let fixture = open_fixture();
-    let setup_started = Instant::now();
     let social = graph_social::Social::new(SOCIAL_PEOPLE, SOCIAL_EDGES);
-    if friends.is_some() || routes.is_some() {
-        social.plan().apply(&fixture.cassie, &fixture.session);
-    }
     let access = graph_org::Access::new(
         ACCESS_PRINCIPALS,
         ACCESS_GROUPS,
         ACCESS_MEMBERSHIPS,
         ACCESS_RESOURCES,
     );
-    if authorization.is_some() {
-        access.plan().apply(&fixture.cassie, &fixture.session);
-    }
     let org = graph_org::Hierarchy::new(HIERARCHY_NODES);
-    if hierarchy.is_some() {
-        org.plan().apply(&fixture.cassie, &fixture.session);
-    }
-    let setup = setup_started.elapsed();
+    let reachable_user = authorization
+        .is_some()
+        .then(|| access.sample_user(MINIMUM_REACHABLE_GRANTS));
+    let evidence = collect_evidence(
+        [
+            authorization.is_some(),
+            hierarchy.is_some(),
+            friends.is_some(),
+            routes.is_some(),
+        ],
+        (&access, &org, &social),
+        reachable_user,
+    );
+
+    let (fixture, setup) = populated_fixture(
+        &social,
+        &access,
+        &org,
+        [
+            authorization.is_some(),
+            hierarchy.is_some(),
+            friends.is_some() || routes.is_some(),
+        ],
+    );
 
     if let Some(case) = authorization {
-        let (user, rows) = access.sample_user(MINIMUM_REACHABLE_GRANTS);
+        let (user, rows) = reachable_user.expect("sampled user");
         let params = vec![Value::Int64(user)];
         let case = evidenced(
             case,
@@ -267,4 +423,5 @@ fn main() {
     }
     fixture.cassie.shutdown();
     runner.finish();
+    evidence.finish();
 }

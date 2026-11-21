@@ -54,6 +54,18 @@ impl Hierarchy {
         }
     }
 
+    /// The ancestors of `node`: its parent, grandparent and so on up to the root.
+    #[must_use]
+    pub fn ancestors(node: i64) -> Vec<i64> {
+        let mut found = Vec::new();
+        let mut at = node;
+        while at > 1 {
+            at /= 2;
+            found.push(at);
+        }
+        found
+    }
+
     /// The deepest node and its number of ancestors, which is `floor(log2(node))`.
     #[must_use]
     pub fn deepest(&self) -> (i64, usize) {
@@ -183,6 +195,25 @@ impl Access {
             .map(held_by)
             .sum::<usize>();
         held_by(user) + memberships
+    }
+
+    /// The resource of every `(zero or one membership) then grant` walk from `user`, one
+    /// entry per walk, computed from the generating formulas rather than through Cassie.
+    #[must_use]
+    pub fn reachable_resources(&self, user: i64) -> Vec<i64> {
+        let users = self.principals - self.groups;
+        let held_by = |holder: i64| {
+            (1..=self.resources)
+                .filter(move |key| (key * HOLDER_STEP) % self.principals + 1 == holder)
+                .collect::<Vec<_>>()
+        };
+        let mut found = held_by(user);
+        for key in 1..=self.memberships {
+            if self.groups + (key % users) + 1 == user {
+                found.extend(held_by(key % self.groups + 1));
+            }
+        }
+        found
     }
 
     /// The first user (not a group) with at least `minimum` reachable grants, and that count.

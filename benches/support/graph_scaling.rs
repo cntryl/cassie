@@ -31,6 +31,19 @@ impl Tree {
         self.nodes * 2 - 1
     }
 
+    /// The `(source, destination)` of every edge: vertex `v > 1` hangs under `(v - 2) / fanout + 1`.
+    pub fn edges(&self) -> Vec<(i64, i64)> {
+        (2..=self.nodes)
+            .map(|target| {
+                let parent = (target - 2) / self.fanout + 1;
+                (
+                    i64::try_from(parent).expect("parent"),
+                    i64::try_from(target).expect("target"),
+                )
+            })
+            .collect()
+    }
+
     pub fn sql(&self) -> String {
         format!(
             "SELECT * FROM GRAPH_TABLE (scaling MATCH (a IS node WHERE a.id = 1) \

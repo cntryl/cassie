@@ -78,6 +78,8 @@ pub struct Route {
     pub max_hops: usize,
     pub k: usize,
     pub expected_rows: usize,
+    /// Costs of the `k` cheapest simple paths, ascending (path rank `i + 1` has cost `i`).
+    pub costs: Vec<i64>,
 }
 
 impl Route {
@@ -165,25 +167,29 @@ impl Social {
         out
     }
 
+    /// The endpoint of every walk of `minimum..=maximum` edges starting at `start`.
+    #[must_use]
+    pub fn walk_endpoints(&self, start: i64, minimum: usize, maximum: usize) -> Vec<i64> {
+        let adjacency = self.adjacency();
+        let mut frontier = vec![start];
+        let mut found = Vec::new();
+        for length in 1..=maximum {
+            frontier = frontier
+                .iter()
+                .flat_map(|vertex| adjacency[usize::try_from(*vertex).expect("vertex")].iter())
+                .map(|(destination, _)| *destination)
+                .collect();
+            if length >= minimum {
+                found.extend(frontier.iter().copied());
+            }
+        }
+        found
+    }
+
     /// The number of walks of `minimum..=maximum` edges starting at `start`.
     #[must_use]
     pub fn walks(&self, start: i64, minimum: usize, maximum: usize) -> usize {
-        let adjacency = self.adjacency();
-        let mut frontier = vec![start];
-        let mut total = 0;
-        for length in 1..=maximum {
-            let mut next = Vec::new();
-            for vertex in &frontier {
-                for (destination, _) in &adjacency[usize::try_from(*vertex).expect("vertex")] {
-                    next.push(*destination);
-                }
-            }
-            if length >= minimum {
-                total += next.len();
-            }
-            frontier = next;
-        }
-        total
+        self.walk_endpoints(start, minimum, maximum).len()
     }
 
     /// A route from `source` to the first vertex that is first reached at exactly three hops,
@@ -197,13 +203,16 @@ impl Social {
         let adjacency = self.adjacency();
         let target = reachable_at_depth(&adjacency, source, ROUTE_DEPTH)
             .expect("a vertex three hops from the source");
-        let paths = simple_paths(&adjacency, source, target, max_hops);
+        let mut costs = simple_path_costs(&adjacency, source, target, max_hops);
+        costs.sort_unstable();
+        costs.truncate(k);
         Route {
             source,
             target,
             max_hops,
             k,
-            expected_rows: paths.min(k),
+            expected_rows: costs.len(),
+            costs,
         }
     }
 }
@@ -220,30 +229,51 @@ fn reachable_at_depth(adjacency: &[Vec<(i64, i64)>], source: i64, depth: usize) 
     frontier.into_iter().find(|vertex| *vertex != source)
 }
 
-/// Counts simple paths of at most `max_hops` edges; parallel edges count separately.
-fn simple_paths(adjacency: &[Vec<(i64, i64)>], source: i64, target: i64, max_hops: usize) -> usize {
+/// The cost of every simple path of at most `max_hops` edges; parallel edges count separately.
+fn simple_path_costs(
+    adjacency: &[Vec<(i64, i64)>],
+    source: i64,
+    target: i64,
+    max_hops: usize,
+) -> Vec<i64> {
     fn walk(
         adjacency: &[Vec<(i64, i64)>],
         at: i64,
         target: i64,
         left: usize,
-        seen: &mut Vec<i64>,
-    ) -> usize {
+        (seen, cost): (&mut Vec<i64>, i64),
+        found: &mut Vec<i64>,
+    ) {
         if at == target {
-            return 1;
+            found.push(cost);
+            return;
         }
         if left == 0 {
-            return 0;
+            return;
         }
-        let mut found = 0;
-        for (next, _) in &adjacency[usize::try_from(at).expect("vertex")] {
+        for (next, weight) in &adjacency[usize::try_from(at).expect("vertex")] {
             if !seen.contains(next) {
                 seen.push(*next);
-                found += walk(adjacency, *next, target, left - 1, seen);
+                walk(
+                    adjacency,
+                    *next,
+                    target,
+                    left - 1,
+                    (seen, cost + weight),
+                    found,
+                );
                 seen.pop();
             }
         }
-        found
     }
-    walk(adjacency, source, target, max_hops, &mut vec![source])
+    let mut found = Vec::new();
+    walk(
+        adjacency,
+        source,
+        target,
+        max_hops,
+        (&mut vec![source], 0),
+        &mut found,
+    );
+    found
 }

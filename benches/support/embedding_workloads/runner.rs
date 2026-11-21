@@ -7,9 +7,9 @@
 
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieError, StorageRetryKind};
 use cassie::config::{
     CassieRuntimeConfig, EmbeddingsRuntimeConfig, ExecutionResultCacheEnabled, LocalRuntimeConfig,
 };
@@ -24,6 +24,9 @@ use crate::loader::{Workload, SPLITS};
 const TABLE: &str = "embedding_docs";
 const WARMUP_QUERIES: usize = 5;
 const INGEST_BATCH: usize = 1_000;
+const INGEST_STALL_ATTEMPTS: u32 = 400;
+const INGEST_STALL_STEP: Duration = Duration::from_millis(5);
+const INGEST_STALL_MAX: Duration = Duration::from_millis(250);
 const FILTERS: [(&str, Option<u32>); 4] = [
     ("unfiltered", None),
     ("t1", Some(1)),
@@ -127,6 +130,29 @@ fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Loads one ingest batch. A 768-dimension load outruns memtable flushing, and Midge refuses
+/// the next transaction with a write stall at admission, before applying it. The fresh loader
+/// has no retry of its own, so the batch is resubmitted after a capped backoff.
+fn put_fresh_batch(cassie: &Cassie, batch: &[(Option<String>, Json)]) -> Result<(), String> {
+    for attempt in 1..=INGEST_STALL_ATTEMPTS {
+        match cassie.midge.put_fresh_documents(TABLE, batch.to_vec()) {
+            Ok(_) => return Ok(()),
+            Err(CassieError::StorageRetryable(error))
+                if error.kind() == StorageRetryKind::WriteStall
+                    && attempt < INGEST_STALL_ATTEMPTS =>
+            {
+                std::thread::sleep(
+                    INGEST_STALL_STEP
+                        .saturating_mul(attempt)
+                        .min(INGEST_STALL_MAX),
+                );
+            }
+            Err(error) => return Err(format!("ingest: {error}")),
+        }
+    }
+    Err("ingest: write stall retries exhausted".to_string())
+}
+
 /// Ingests every document once into `<work>/base`; returns the directory and ingest time.
 fn build_base(workload: &Workload, options: &RunOptions) -> Result<(PathBuf, f64), String> {
     let base = options
@@ -152,7 +178,7 @@ fn build_base(workload: &Workload, options: &RunOptions) -> Result<(PathBuf, f64
     )?;
     let total = workload.document_ids.len();
     for start in (0..total).step_by(INGEST_BATCH) {
-        let batch = (start..(start + INGEST_BATCH).min(total))
+        let batch: Vec<_> = (start..(start + INGEST_BATCH).min(total))
             .map(|ordinal| {
                 let id = &workload.document_ids[ordinal];
                 let flag = |percent| {
@@ -168,10 +194,7 @@ fn build_base(workload: &Workload, options: &RunOptions) -> Result<(PathBuf, f64
                 )
             })
             .collect();
-        cassie
-            .midge
-            .put_fresh_documents(TABLE, batch)
-            .map_err(|error| format!("ingest: {error}"))?;
+        put_fresh_batch(&cassie, &batch)?;
     }
     // Fresh document loads require a table without secondary indexes, so the tenant
     // indexes are built after the load.

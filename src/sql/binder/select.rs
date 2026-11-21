@@ -171,7 +171,11 @@ fn register_cte_name(name: &str, local_names: &mut HashSet<String>) -> Result<St
     }
     let normalized = name.to_owned();
     if !local_names.insert(normalized.clone()) {
-        return Err(CassieError::Planner(format!("duplicate CTE name '{name}'")));
+        return Err(crate::app::DiagnosticError::new(
+            "42712",
+            format!("WITH query name \"{name}\" specified more than once"),
+        )
+        .into());
     }
     Ok(normalized)
 }

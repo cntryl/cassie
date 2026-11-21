@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1880,
-    "rust_files": 1836,
-    "rust_test_declarations": 11215,
+    "files": 1881,
+    "rust_files": 1837,
+    "rust_test_declarations": 11224,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11240,
+    "registered_rust_instances": 11249,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -258916,6 +258916,254 @@
       }
     },
     {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_on_insert",
+      "name": "should_report_integer_out_of_range_on_insert",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 27,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_on_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_smallint_out_of_range_on_insert",
+      "name": "should_report_smallint_out_of_range_on_insert",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 39,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_smallint_out_of_range_on_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_bigint_out_of_range_on_insert",
+      "name": "should_report_bigint_out_of_range_on_insert",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 51,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_bigint_out_of_range_on_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_on_update_literal",
+      "name": "should_report_integer_out_of_range_on_update_literal",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 63,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_on_update_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_on_update_expression",
+      "name": "should_report_integer_out_of_range_on_update_expression",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 75,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_on_update_expression"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_for_bound_parameter",
+      "name": "should_report_integer_out_of_range_for_bound_parameter",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 87,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_for_bound_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_on_copy",
+      "name": "should_report_integer_out_of_range_on_copy",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 106,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_on_copy"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_accept_integer_at_the_range_boundary",
+      "name": "should_accept_integer_at_the_range_boundary",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 127,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_accept_integer_at_the_range_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/insert/unknown_literals.rs::should_convert_quoted_literals_to_the_column_type_when_inserting_values",
       "name": "should_convert_quoted_literals_to_the_column_type_when_inserting_values",
       "current_file": "tests/sql_mutations/insert/unknown_literals.rs",
@@ -284308,8 +284556,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_resolve_a_quoted_local_cte_before_the_catalog",
       "name": "should_resolve_a_quoted_local_cte_before_the_catalog",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 15,
-      "end_line": 22,
+      "line": 14,
+      "end_line": 21,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284339,8 +284587,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_inherit_quoted_cte_identity_in_a_nested_select",
       "name": "should_inherit_quoted_cte_identity_in_a_nested_select",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 25,
-      "end_line": 34,
+      "line": 24,
+      "end_line": 33,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284370,8 +284618,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_fold_unquoted_cte_identifiers_once",
       "name": "should_fold_unquoted_cte_identifiers_once",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 37,
-      "end_line": 52,
+      "line": 36,
+      "end_line": 51,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284401,8 +284649,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_keep_qualified_catalog_references_outside_cte_lookup",
       "name": "should_keep_qualified_catalog_references_outside_cte_lookup",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 55,
-      "end_line": 62,
+      "line": 54,
+      "end_line": 61,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284432,8 +284680,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_materialize_case_distinct_ctes_independently",
       "name": "should_materialize_case_distinct_ctes_independently",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 65,
-      "end_line": 72,
+      "line": 64,
+      "end_line": 71,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284463,8 +284711,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_inline_case_distinct_ctes_independently",
       "name": "should_inline_case_distinct_ctes_independently",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 75,
-      "end_line": 82,
+      "line": 74,
+      "end_line": 81,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284494,8 +284742,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_reject_duplicate_resolved_cte_identifiers",
       "name": "should_reject_duplicate_resolved_cte_identifiers",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 85,
-      "end_line": 101,
+      "line": 84,
+      "end_line": 98,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284522,11 +284770,42 @@
       }
     },
     {
+      "id": "tests/sql_queries/cte_identity.rs::should_report_postgresql_message_for_duplicate_cte_names",
+      "name": "should_report_postgresql_message_for_duplicate_cte_names",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 101,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_report_postgresql_message_for_duplicate_cte_names"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/cte_identity.rs::should_preserve_cte_identifier_contents",
       "name": "should_preserve_cte_identifier_contents",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 104,
-      "end_line": 122,
+      "line": 119,
+      "end_line": 137,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284556,8 +284835,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_preserve_nonrecursive_body_visibility",
       "name": "should_preserve_nonrecursive_body_visibility",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 125,
-      "end_line": 136,
+      "line": 140,
+      "end_line": 151,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284587,8 +284866,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_resolve_a_quoted_recursive_self_reference",
       "name": "should_resolve_a_quoted_recursive_self_reference",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 139,
-      "end_line": 156,
+      "line": 154,
+      "end_line": 171,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284618,8 +284897,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_preserve_quoted_cte_wildcard_descriptors",
       "name": "should_preserve_quoted_cte_wildcard_descriptors",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 159,
-      "end_line": 178,
+      "line": 174,
+      "end_line": 193,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284649,8 +284928,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_restore_outer_cte_identity_after_a_nested_shadow",
       "name": "should_restore_outer_cte_identity_after_a_nested_shadow",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 181,
-      "end_line": 188,
+      "line": 196,
+      "end_line": 203,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -284680,8 +284959,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_resolve_implicit_qualifiers_of_case_distinct_ctes",
       "name": "should_resolve_implicit_qualifiers_of_case_distinct_ctes",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 191,
-      "end_line": 220,
+      "line": 206,
+      "end_line": 235,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -369503,6 +369782,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 143,
+      "sha256": "72d664610cc92ced88c0e09a688b78df5e5b5fa23529f9c5131be6badfe33aa8",
+      "test_declarations": 8,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/types/ranges/integer_range.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/insert/unknown_literals.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -370239,8 +370533,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 257,
-      "sha256": "693a7bc1849fb1bbaf8157ba7001e1b1b8bd9da83f4c3c9512cb510109bca807",
+      "lines": 260,
+      "sha256": "50bb9e03d6298e009a82c94e6d21b1cd9a49812e09756987cac2b5699dc0ac58",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"
@@ -371545,9 +371839,9 @@
       "current_file": "tests/sql_queries/cte_identity.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 220,
-      "sha256": "de22088e4499de9c7a642eb8791514780cdfebc1c394f96e0d08d8e9676a5363",
-      "test_declarations": 13,
+      "lines": 235,
+      "sha256": "67b2aee214ae45d1d4dbd9d309b0005b74f3c3892926a2f1761dce98ea51ae54",
+      "test_declarations": 14,
       "registered_suites": [
         "sql_queries"
       ],

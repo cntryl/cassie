@@ -1,5 +1,20 @@
+//! The mixed window: a phase machine over refresh, backfill and retention.
+//!
+//! The contract times (minute two, three and five) are release points, not
+//! deadlines. A phase never starts before its time, and retention additionally
+//! waits for the refresh, the correction drain and every snapshot probe taken
+//! before it, so each probe compares against a model whose retention state is
+//! known exactly. Phases that are still unfinished when the measured window
+//! ends run to completion; nothing is judged by how long it took.
+
 use super::runtime::{MixedWindow, MixedWindowResult};
-use super::*;
+use super::{
+    model, thread, Duration, Instant, MaintenanceAction, MaintenanceResult, Ordering, ProbeResult,
+    ProbeScope, Producer, Receiver, SharedMetrics, TryRecvError,
+};
+
+/// Aborts a wedged run. It is a hang guard, never a pass or fail condition.
+const PHASE_HANG_GUARD: Duration = Duration::from_hours(4);
 
 pub(super) fn run_mixed_window(mut window: MixedWindow<'_>) -> MixedWindowResult {
     let producer = Producer::start(
@@ -17,13 +32,24 @@ pub(super) fn run_mixed_window(mut window: MixedWindow<'_>) -> MixedWindowResult
 
     let measured_elapsed = window.start.elapsed();
     window.shared.readers_active.store(false, Ordering::Release);
-    let backlog_events_at_window_end = window
-        .shared
-        .offered_events
-        .load(Ordering::Acquire)
-        .saturating_sub(window.shared.acknowledged_events.load(Ordering::Acquire));
+    let backlog_events_at_window_end = window.shared.steady_backlog();
+    let result = progress.finish(
+        &window,
+        &producer,
+        backlog_events_at_window_end,
+        measured_elapsed,
+    );
     producer.stop();
-    progress.finish(&window, backlog_events_at_window_end, measured_elapsed)
+    result
+}
+
+/// Where one maintenance or backfill phase is in its lifecycle.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum Phase {
+    #[default]
+    Waiting,
+    Running,
+    Done,
 }
 
 #[derive(Default)]
@@ -34,13 +60,11 @@ struct MixedProgress {
     oracle_rows_compared: usize,
     correction_events_expected: u64,
     correction_events_acknowledged: u64,
-    retention_applied: bool,
-    refresh_started: bool,
-    retention_started: bool,
-    corrections_started: bool,
+    refresh: Phase,
+    corrections: Phase,
+    retention: Phase,
     refresh_receiver: Option<Receiver<MaintenanceResult>>,
     correction_receiver: Option<Receiver<u64>>,
-    correction_offer_confirmed: bool,
     pending_probes: Vec<Receiver<ProbeResult>>,
     retention_receiver: Option<Receiver<MaintenanceResult>>,
 }
@@ -48,32 +72,47 @@ struct MixedProgress {
 impl MixedProgress {
     fn advance(&mut self, window: &MixedWindow<'_>, producer: &Producer) {
         let elapsed = window.start.elapsed();
-        if !self.refresh_started && elapsed >= model::scaled(model::REFRESH_AT_SECONDS) {
-            self.start_refresh(window);
-        }
-        if !self.corrections_started && elapsed >= model::scaled(model::CORRECTION_AT_SECONDS) {
-            self.start_corrections(window, producer);
-        }
-        if !self.retention_started && elapsed >= model::scaled(model::RETENTION_AT_SECONDS) {
-            self.retention_started = true;
-            self.retention_receiver = Some(window.maintenance.retention());
-        }
         self.collect_refresh(window);
         self.collect_corrections(window);
         self.collect_retention(window);
         self.collect_probes(window);
+        if self.refresh == Phase::Waiting && elapsed >= model::scaled(model::REFRESH_AT_SECONDS) {
+            self.start_refresh(window);
+        }
+        if self.corrections == Phase::Waiting
+            && elapsed >= model::scaled(model::CORRECTION_AT_SECONDS)
+        {
+            self.start_corrections(window, producer);
+        }
+        if elapsed >= model::scaled(model::RETENTION_AT_SECONDS) {
+            self.start_retention_when_ready(window);
+        }
     }
 
     fn start_refresh(&mut self, window: &MixedWindow<'_>) {
         self.refresh_receiver = Some(window.maintenance.refresh());
-        self.refresh_started = true;
+        self.refresh = Phase::Running;
     }
 
     fn start_corrections(&mut self, window: &MixedWindow<'_>, producer: &Producer) {
         self.correction_events_expected = u64::try_from(window.fixture.event_count / 50)
             .expect("two-percent correction count fits u64");
         self.correction_receiver = Some(producer.offer_corrections(window.fixture.event_count));
-        self.corrections_started = true;
+        self.corrections = Phase::Running;
+    }
+
+    /// Retention runs once the model has no other change in flight: the refresh
+    /// and the correction drain are complete and their probes have reported.
+    fn start_retention_when_ready(&mut self, window: &MixedWindow<'_>) {
+        if self.retention != Phase::Waiting
+            || self.refresh != Phase::Done
+            || self.corrections != Phase::Done
+            || !self.pending_probes.is_empty()
+        {
+            return;
+        }
+        self.retention = Phase::Running;
+        self.retention_receiver = Some(window.maintenance.retention());
     }
 
     fn collect_refresh(&mut self, window: &MixedWindow<'_>) {
@@ -84,8 +123,11 @@ impl MixedProgress {
             Ok(result) => {
                 self.refresh_receiver = None;
                 if result.completed {
+                    self.refresh = Phase::Done;
+                }
+                if result.completed {
                     self.pending_probes
-                        .push(window.readers.request_verify(false));
+                        .push(window.readers.request_verify(false, ProbeScope::Pages));
                 }
                 self.maintenance_actions.push(action_record(
                     result,
@@ -109,7 +151,6 @@ impl MixedProgress {
                         "correction burst must equal two percent of seeded events"
                     );
                     self.correction_receiver = None;
-                    self.correction_offer_confirmed = true;
                 }
                 Err(TryRecvError::Disconnected) => {
                     panic!("producer disconnected before confirming corrections");
@@ -117,13 +158,28 @@ impl MixedProgress {
                 Err(TryRecvError::Empty) => {}
             }
         }
-        if self.correction_offer_confirmed
-            && self.correction_events_acknowledged == 0
-            && committed_correction_count(window.shared) >= self.correction_events_expected
+        // Acknowledgement is read from exact counters; once the whole burst is
+        // acknowledged the relation is probed in full for backfill accounting.
+        if self.corrections == Phase::Running
+            && self.correction_receiver.is_none()
+            && window
+                .shared
+                .acknowledged_correction_events
+                .load(Ordering::Acquire)
+                >= self.correction_events_expected
         {
-            self.correction_events_acknowledged = committed_correction_count(window.shared);
+            self.correction_events_acknowledged = window
+                .shared
+                .acknowledged_correction_events
+                .load(Ordering::Acquire);
+            self.corrections = Phase::Done;
             self.pending_probes
-                .push(window.readers.request_verify(false));
+                .push(window.readers.request_verify(false, ProbeScope::Pages));
+            self.pending_probes.push(
+                window
+                    .readers
+                    .request_verify(false, ProbeScope::FullRelation),
+            );
         }
     }
 
@@ -141,15 +197,17 @@ impl MixedProgress {
     }
 
     fn complete_retention(&mut self, window: &MixedWindow<'_>, result: MaintenanceResult) {
-        self.retention_applied = result.completed;
+        if result.completed {
+            self.retention = Phase::Done;
+        }
         self.maintenance_actions.push(action_record(
             result,
             model::scaled_seconds(model::RETENTION_AT_SECONDS),
             window.start,
         ));
-        if self.retention_applied {
+        if self.retention == Phase::Done {
             self.pending_probes
-                .push(window.readers.request_verify(true));
+                .push(window.readers.request_verify(true, ProbeScope::Pages));
         }
         self.retention_receiver = None;
     }
@@ -176,33 +234,37 @@ impl MixedProgress {
         }
     }
 
+    /// Runs every phase the measured window did not reach to completion while
+    /// the producer keeps offering steady batches.
     fn finish(
         mut self,
         window: &MixedWindow<'_>,
+        producer: &Producer,
         backlog_events_at_window_end: u64,
         measured_elapsed: Duration,
     ) -> MixedWindowResult {
-        let completion_deadline = Instant::now() + Duration::from_secs(180);
-        while self.has_pending_work() && Instant::now() < completion_deadline {
+        let hang_guard = Instant::now() + PHASE_HANG_GUARD;
+        while self.has_pending_work() {
+            assert!(
+                Instant::now() < hang_guard,
+                "mixed phase hang guard: refresh_done={} corrections_done={} retention_done={} probes={}",
+                self.refresh == Phase::Done,
+                self.corrections == Phase::Done,
+                self.retention == Phase::Done,
+                self.pending_probes.len()
+            );
             self.collect_refresh(window);
             self.collect_corrections(window);
             self.collect_retention(window);
             self.collect_probes(window);
+            if self.refresh == Phase::Waiting {
+                self.start_refresh(window);
+            }
+            if self.corrections == Phase::Waiting {
+                self.start_corrections(window, producer);
+            }
+            self.start_retention_when_ready(window);
             thread::sleep(Duration::from_millis(5));
-        }
-        if self.refresh_receiver.is_some() {
-            self.maintenance_actions.push(incomplete_action(
-                "rollup_refresh",
-                model::scaled_seconds(model::REFRESH_AT_SECONDS),
-                window.start,
-            ));
-        }
-        if self.retention_receiver.is_some() {
-            self.maintenance_actions.push(incomplete_action(
-                "retention_enforcement",
-                model::scaled_seconds(model::RETENTION_AT_SECONDS),
-                window.start,
-            ));
         }
         MixedWindowResult {
             measured_elapsed,
@@ -212,17 +274,15 @@ impl MixedProgress {
             oracle_rows_compared: self.oracle_rows_compared,
             correction_events_expected: self.correction_events_expected,
             correction_events_acknowledged: self.correction_events_acknowledged,
-            retention_applied: self.retention_applied,
+            retention_applied: self.retention == Phase::Done,
             backlog_events_at_window_end,
         }
     }
 
     fn has_pending_work(&self) -> bool {
-        self.refresh_receiver.is_some()
-            || self.correction_receiver.is_some()
-            || (self.corrections_started
-                && self.correction_events_acknowledged < self.correction_events_expected)
-            || self.retention_receiver.is_some()
+        self.refresh != Phase::Done
+            || self.corrections != Phase::Done
+            || self.retention != Phase::Done
             || !self.pending_probes.is_empty()
     }
 }
@@ -239,21 +299,7 @@ fn action_record(
         operation_elapsed_millis: result.elapsed.as_millis(),
         completed_batches: result.completed_batches,
         completed: result.completed,
-    }
-}
-
-fn incomplete_action(
-    name: &str,
-    scheduled_elapsed_seconds: u64,
-    start: Instant,
-) -> MaintenanceAction {
-    MaintenanceAction {
-        name: name.to_owned(),
-        scheduled_elapsed_seconds,
-        actual_elapsed_millis: start.elapsed().as_millis(),
-        operation_elapsed_millis: 180_000,
-        completed_batches: 0,
-        completed: false,
+        deleted_rows: result.deleted_rows,
     }
 }
 
@@ -270,17 +316,4 @@ fn record_probe(
     if !probe.matched {
         shared.oracle_mismatches.fetch_add(1, Ordering::Relaxed);
     }
-}
-
-fn committed_correction_count(shared: &SharedMetrics) -> u64 {
-    u64::try_from(
-        shared
-            .committed_events
-            .lock()
-            .expect("committed event log mutex")
-            .iter()
-            .filter(|mutation| mutation.event_id.starts_with("backfill-correction-"))
-            .count(),
-    )
-    .expect("committed corrections fit u64")
 }

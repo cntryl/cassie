@@ -13,12 +13,20 @@ use super::fixture::{Fixture, DAILY_ROLLUP, RETENTION_POLICY, TABLE};
 use super::model::{self, EventRow, Mutation};
 use super::RunKind;
 
+#[path = "workers_probe.rs"]
+mod probe;
+use probe::{probe_devices, result_event_rows, verify_snapshot, PreparedReaderProbe};
 #[path = "workers_retention.rs"]
 mod retention;
 #[path = "workers_runtime.rs"]
 mod runtime;
-use retention::*;
-use runtime::*;
+use retention::{enforce_retention, retention_accounting, retention_pending};
+use runtime::{
+    backlog_growth, backlog_is_stable, bracket_ingest_rate, current_fallback_scans,
+    infer_limiting_resource, percentile_us, producer_loop, run_paced_window, start_maintenance,
+    start_readers, start_sampler, value_text, verify_final_mixed_state, wait_for_duration,
+    writer_loop, FinalStateEvidence, MixedWindow,
+};
 #[path = "workers_mixed.rs"]
 mod mixed;
 use mixed::run_mixed_window;
@@ -32,7 +40,6 @@ const BRACKET_REFINEMENTS: usize = 2;
 const BRACKET_MAX_RATE: u64 = 65_536;
 const BRACKET_WINDOW: Duration = Duration::from_secs(8);
 const WRITER_DRAIN_TIMEOUT: Duration = Duration::from_secs(60);
-const ORACLE_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ScenarioReport {
@@ -50,8 +57,8 @@ pub struct ScenarioReport {
     pub reader_queries: u64,
     pub reader_p50_us: f64,
     pub reader_p95_us: f64,
-    pub rollup_debt: bool,
-    pub rollup_refresh_completed: bool,
+    #[serde(flatten)]
+    pub maintenance: MaintenanceFlags,
     pub fallback_scans: u64,
     pub rollup_refresh_contended_failures: u64,
     pub rollup_refresh_writer_quiesced_millis: u64,
@@ -59,18 +66,29 @@ pub struct ScenarioReport {
     pub sampled_peak_rss_bytes: u64,
     pub correction_events_expected: u64,
     pub correction_events_acknowledged: u64,
-    pub pending_retention: bool,
     pub oracle_page_checks: usize,
     pub oracle_checkpoints: Vec<String>,
     pub oracle_rows_compared: usize,
     pub oracle_rollup_groups_compared: usize,
     pub oracle_mismatches: usize,
+    pub retention_expected_deleted_rows: u64,
+    pub retention_reported_deleted_rows: u64,
+    pub retention_expired_rows_remaining: u64,
     pub first_limiting_resource: String,
     pub rate_attempts: Vec<RateAttempt>,
     pub samples: Vec<SecondSample>,
     pub maintenance_actions: Vec<MaintenanceAction>,
     pub raw_reader_latency_us: Vec<u64>,
     pub raw_writer_latency_us: Vec<u64>,
+}
+
+/// Maintenance outcomes, grouped so the report struct stays under the boolean
+/// field budget; serialized flat.
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct MaintenanceFlags {
+    pub rollup_debt: bool,
+    pub rollup_refresh_completed: bool,
+    pub pending_retention: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -106,12 +124,18 @@ pub struct MaintenanceAction {
     pub operation_elapsed_millis: u128,
     pub completed_batches: u64,
     pub completed: bool,
+    pub deleted_rows: u64,
 }
 
 #[derive(Default)]
 struct SharedMetrics {
     offered_events: AtomicU64,
     acknowledged_events: AtomicU64,
+    /// Correction-burst events offered and acknowledged. The burst lands as one
+    /// 2% step by contract, so it is accounted separately from the steady
+    /// ingest backlog.
+    offered_correction_events: AtomicU64,
+    acknowledged_correction_events: AtomicU64,
     peak_backlog_events: AtomicU64,
     window_peak_backlog_events: AtomicU64,
     reader_queries: AtomicU64,
@@ -145,12 +169,28 @@ impl SharedMetrics {
         }
     }
 
-    fn record_offer(&self, event_count: usize) {
+    fn record_offer(&self, mutations: &[Mutation]) {
         self.offered_events.fetch_add(
-            u64::try_from(event_count).expect("offered events fit u64"),
+            u64::try_from(mutations.len()).expect("offered events fit u64"),
             Ordering::Relaxed,
         );
+        self.offered_correction_events
+            .fetch_add(correction_events(mutations), Ordering::Relaxed);
         self.observe_backlog();
+    }
+
+    /// Steady-ingest backlog: offered minus acknowledged events, excluding the
+    /// correction burst, which is verified by exact drain accounting instead.
+    fn steady_backlog(&self) -> u64 {
+        let offered = self
+            .offered_events
+            .load(Ordering::Acquire)
+            .saturating_sub(self.offered_correction_events.load(Ordering::Acquire));
+        let acknowledged = self
+            .acknowledged_events
+            .load(Ordering::Acquire)
+            .saturating_sub(self.acknowledged_correction_events.load(Ordering::Acquire));
+        offered.saturating_sub(acknowledged)
     }
 
     fn record_commit(&self, mutations: &[Mutation], latency: Duration) {
@@ -166,6 +206,8 @@ impl SharedMetrics {
             .lock()
             .expect("writer latency mutex")
             .push(latency.as_nanos());
+        self.acknowledged_correction_events
+            .fetch_add(correction_events(mutations), Ordering::Relaxed);
         self.acknowledged_events.fetch_add(
             u64::try_from(mutations.len()).expect("acknowledged events fit u64"),
             Ordering::Relaxed,
@@ -174,10 +216,7 @@ impl SharedMetrics {
     }
 
     fn observe_backlog(&self) {
-        let backlog = self
-            .offered_events
-            .load(Ordering::Relaxed)
-            .saturating_sub(self.acknowledged_events.load(Ordering::Relaxed));
+        let backlog = self.steady_backlog();
         self.peak_backlog_events
             .fetch_max(backlog, Ordering::Relaxed);
         self.window_peak_backlog_events
@@ -185,12 +224,36 @@ impl SharedMetrics {
     }
 }
 
+fn correction_events(mutations: &[Mutation]) -> u64 {
+    u64::try_from(
+        mutations
+            .iter()
+            .filter(|mutation| {
+                mutation
+                    .event_id
+                    .starts_with(model::CORRECTION_EVENT_PREFIX)
+            })
+            .count(),
+    )
+    .expect("correction count fits u64")
+}
+
 enum ReaderCommand {
     Verify {
         retention_applied: bool,
+        scope: ProbeScope,
         response: mpsc::Sender<ProbeResult>,
     },
     Stop,
+}
+
+/// What a synchronized snapshot probe compares with the event model.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProbeScope {
+    /// Sampled prepared range pages, the shape the readers run.
+    Pages,
+    /// Every row of the relation, for exact backfill accounting.
+    FullRelation,
 }
 
 #[derive(Clone, Debug)]
@@ -213,6 +276,8 @@ struct MaintenanceResult {
     elapsed: Duration,
     completed_batches: u64,
     completed: bool,
+    /// Rows the operation reports as removed; zero for non-retention work.
+    deleted_rows: u64,
 }
 
 struct WriterService {
@@ -230,7 +295,8 @@ impl WriterService {
     fn start(cassie: Arc<Cassie>, projection: String, shared: Arc<SharedMetrics>) -> Self {
         let (sender, receiver) = mpsc::sync_channel(WRITER_QUEUE_BATCHES);
         let writer_shared = Arc::clone(&shared);
-        let join = thread::spawn(move || writer_loop(cassie, projection, receiver, writer_shared));
+        let join =
+            thread::spawn(move || writer_loop(&cassie, &projection, &receiver, &writer_shared));
         Self {
             queue: WriterQueue { sender, shared },
             join: Some(join),
@@ -254,7 +320,7 @@ impl WriterService {
 impl WriterQueue {
     fn offer(&self, mutations: Vec<Mutation>) {
         assert!(!mutations.is_empty(), "writer batches cannot be empty");
-        self.shared.record_offer(mutations.len());
+        self.shared.record_offer(&mutations);
         self.sender
             .send(mutations)
             .expect("send offered projection batch to the writer");
@@ -283,7 +349,7 @@ struct Producer {
 impl Producer {
     fn start(queue: WriterQueue, cursor: EventCursor, target_rate: u64) -> Self {
         let (sender, receiver) = mpsc::channel();
-        let join = thread::spawn(move || producer_loop(queue, cursor, receiver, target_rate));
+        let join = thread::spawn(move || producer_loop(&queue, cursor, &receiver, target_rate));
         Self {
             sender,
             join: Some(join),
@@ -317,11 +383,12 @@ struct ReaderPool {
 }
 
 impl ReaderPool {
-    fn request_verify(&self, retention_applied: bool) -> Receiver<ProbeResult> {
+    fn request_verify(&self, retention_applied: bool, scope: ProbeScope) -> Receiver<ProbeResult> {
         let (response, receiver) = mpsc::channel();
         self.probe_sender
             .send(ReaderCommand::Verify {
                 retention_applied,
+                scope,
                 response,
             })
             .expect("send synchronized oracle page probe");
@@ -398,7 +465,11 @@ impl EventCursor {
                 let id = u64::try_from(row_id).expect("correction row id fits u64");
                 self.next_mutation(
                     model::correction(row_id, self.device_count),
-                    format!("backfill-correction-{id}-{}", self.next_position),
+                    format!(
+                        "{}{id}-{}",
+                        model::CORRECTION_EVENT_PREFIX,
+                        self.next_position
+                    ),
                 )
             })
             .collect()
@@ -479,7 +550,7 @@ impl ScenarioRun {
             )
         });
         let readers = matches!(kind, RunKind::ReaderOnly | RunKind::Mixed)
-            .then(|| start_readers(fixture, Arc::clone(&shared)));
+            .then(|| start_readers(fixture, &shared));
         let maintenance =
             matches!(kind, RunKind::Mixed).then(|| start_maintenance(fixture, Arc::clone(&shared)));
         let sampler = Some(start_sampler(Arc::clone(&shared)));
@@ -597,12 +668,9 @@ impl ScenarioRun {
         reader_baseline_p95: Option<f64>,
         outcome: ScenarioOutcome,
     ) -> ScenarioReport {
-        let backlog_at_window_end = outcome.backlog_events_at_window_end.unwrap_or_else(|| {
-            self.shared
-                .offered_events
-                .load(Ordering::Acquire)
-                .saturating_sub(self.shared.acknowledged_events.load(Ordering::Acquire))
-        });
+        let backlog_at_window_end = outcome
+            .backlog_events_at_window_end
+            .unwrap_or_else(|| self.shared.steady_backlog());
         let final_state = verify_final_mixed_state(
             fixture,
             &self.shared,
@@ -612,6 +680,12 @@ impl ScenarioRun {
                 .maintenance_actions
                 .iter()
                 .any(|action| action.name == "rollup_refresh" && action.completed),
+            outcome
+                .maintenance_actions
+                .iter()
+                .filter(|action| action.name == "retention_enforcement" && action.completed)
+                .map(|action| action.deleted_rows)
+                .sum(),
         );
         let rollup_refresh_completed = outcome
             .maintenance_actions
@@ -676,12 +750,7 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
     let backlog_stable = backlog_is_stable(kind, backlog_events_at_window_end, &samples);
     let writer_rate = writer_rate(kind, outcome.sustainable_rate, acknowledged_events, elapsed);
     let peak_backlog_events = shared.peak_backlog_events.load(Ordering::Acquire);
-    let sampled_peak_rss_bytes = samples
-        .iter()
-        .map(|sample| sample.sampled_rss_bytes)
-        .max()
-        .unwrap_or_default()
-        .max(super::evidence::process_rss_bytes());
+    let sampled_peak_rss_bytes = sampled_peak_rss_bytes(&samples);
     let first_limiting_resource = infer_limiting_resource(
         kind,
         backlog_events_at_window_end,
@@ -718,8 +787,11 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         reader_queries,
         reader_p50_us,
         reader_p95_us,
-        rollup_debt: final_state.rollup_debt,
-        rollup_refresh_completed,
+        maintenance: MaintenanceFlags {
+            rollup_debt: final_state.rollup_debt,
+            rollup_refresh_completed,
+            pending_retention,
+        },
         fallback_scans: final_state.fallback_scans,
         rollup_refresh_contended_failures: shared
             .refresh_contended_failures
@@ -731,7 +803,6 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         sampled_peak_rss_bytes,
         correction_events_expected,
         correction_events_acknowledged,
-        pending_retention,
         oracle_page_checks: outcome.oracle_page_checks,
         oracle_checkpoints: outcome.oracle_checkpoints,
         oracle_rows_compared: outcome
@@ -739,6 +810,9 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
             .saturating_add(final_state.oracle_rows_compared),
         oracle_rollup_groups_compared: final_state.oracle_rollup_groups_compared,
         oracle_mismatches,
+        retention_expected_deleted_rows: final_state.retention_expected_deleted_rows,
+        retention_reported_deleted_rows: final_state.retention_reported_deleted_rows,
+        retention_expired_rows_remaining: final_state.retention_expired_rows_remaining,
         first_limiting_resource,
         rate_attempts: outcome.rate_attempts,
         samples,
@@ -748,19 +822,23 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
     }
 }
 
+fn sampled_peak_rss_bytes(samples: &[SecondSample]) -> u64 {
+    samples
+        .iter()
+        .map(|sample| sample.sampled_rss_bytes)
+        .max()
+        .unwrap_or_default()
+        .max(super::evidence::process_rss_bytes())
+}
+
 fn writer_rate(kind: RunKind, sustainable_rate: u64, acknowledged: u64, elapsed: Duration) -> u64 {
     match kind {
         RunKind::IngestOnly => sustainable_rate,
         RunKind::ReaderOnly => 0,
-        RunKind::Mixed => {
-            let elapsed_nanos = elapsed.as_nanos();
-            if elapsed_nanos > 0 {
-                let rate = u128::from(acknowledged).saturating_mul(1_000_000_000) / elapsed_nanos;
-                u64::try_from(rate).unwrap_or(u64::MAX)
-            } else {
-                0
-            }
-        }
+        RunKind::Mixed => u128::from(acknowledged)
+            .saturating_mul(1_000_000_000)
+            .checked_div(elapsed.as_nanos())
+            .map_or(0, |rate| u64::try_from(rate).unwrap_or(u64::MAX)),
     }
 }
 

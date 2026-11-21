@@ -10,6 +10,7 @@ use super::RunKind;
 
 const PROFILE_ID: &str = "workstation-apple-m5-arm64-apfs";
 const MINIMUM_FREE_BYTES: u64 = 20 * 1024 * 1024 * 1024;
+const SMOKE_MINIMUM_FREE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct HostProfile {
@@ -31,7 +32,7 @@ impl HostProfile {
             profile_id, PROFILE_ID,
             "this campaign requires the Apple M5/APFS profile"
         );
-        assert!(cfg!(target_os = "macos"), "the campaign requires macOS");
+        assert_eq!(std::env::consts::OS, "macos", "the campaign requires macOS");
         assert_eq!(
             std::env::consts::ARCH,
             "aarch64",
@@ -55,9 +56,17 @@ impl HostProfile {
 
         let filesystem_report = command_output("df", &["-Pk", "/private/tmp"]);
         let data_volume_free_bytes = available_bytes(&filesystem_report);
+        // A harness smoke run uses a small seed and needs far less space; the
+        // qualification run never sets the smoke variable.
+        let minimum_free_bytes = if std::env::var_os("CASSIE_BENCH_TS_MIXED_SMOKE_EVENTS").is_some()
+        {
+            SMOKE_MINIMUM_FREE_BYTES
+        } else {
+            MINIMUM_FREE_BYTES
+        };
         assert!(
-            data_volume_free_bytes >= MINIMUM_FREE_BYTES,
-            "the campaign needs at least 20 GiB free on /private/tmp; found {data_volume_free_bytes} bytes"
+            data_volume_free_bytes >= minimum_free_bytes,
+            "the campaign needs at least {minimum_free_bytes} bytes free on /private/tmp; found {data_volume_free_bytes} bytes"
         );
         let data_volume_device = filesystem_report
             .lines()

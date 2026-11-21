@@ -1,10 +1,18 @@
-use super::*;
+use super::{
+    enforce_retention, model, mpsc, probe_devices, result_event_rows, retention_accounting, thread,
+    verify_snapshot, Arc, BTreeMap, Cassie, CassieSession, Duration, EventCursor, EventRow,
+    Fixture, Instant, JoinHandle, MaintenanceAction, MaintenanceCommand, MaintenanceResult,
+    MaintenanceWorker, Mutation, Ordering, PreparedReaderProbe, ProducerCommand, RateAttempt,
+    ReaderCommand, ReaderPool, Receiver, RunKind, SecondSample, SharedMetrics, TryRecvError, Value,
+    WriterQueue, WriterService, BRACKET_FIRST_RATE, BRACKET_MAX_RATE, BRACKET_REFINEMENTS,
+    BRACKET_WINDOW, DAILY_ROLLUP, PAGE_ROWS, READER_COUNT, TABLE, WRITER_DRAIN_TIMEOUT,
+};
 
 pub(super) fn writer_loop(
-    cassie: Arc<Cassie>,
-    projection: String,
-    receiver: Receiver<Vec<Mutation>>,
-    shared: Arc<SharedMetrics>,
+    cassie: &Arc<Cassie>,
+    projection: &str,
+    receiver: &Receiver<Vec<Mutation>>,
+    shared: &Arc<SharedMetrics>,
 ) {
     while let Ok(mutations) = receiver.recv() {
         let batch_number = shared.acknowledged_events.load(Ordering::Relaxed);
@@ -13,7 +21,7 @@ pub(super) fn writer_loop(
             .map(|mutation| mutation.position)
             .expect("writer receives nonempty batch");
         let batch = model::replay_batch(
-            &projection,
+            projection,
             &format!("mixed-batch-{batch_number:012}-{last_position:012}"),
             &mutations,
         );
@@ -28,9 +36,9 @@ pub(super) fn writer_loop(
 }
 
 pub(super) fn producer_loop(
-    queue: WriterQueue,
+    queue: &WriterQueue,
     mut cursor: EventCursor,
-    receiver: Receiver<ProducerCommand>,
+    receiver: &Receiver<ProducerCommand>,
     target_rate: u64,
 ) {
     let interval = batch_interval(target_rate);
@@ -65,7 +73,7 @@ pub(super) fn producer_loop(
     }
 }
 
-pub(super) fn start_readers(fixture: &Fixture, shared: Arc<SharedMetrics>) -> ReaderPool {
+pub(super) fn start_readers(fixture: &Fixture, shared: &Arc<SharedMetrics>) -> ReaderPool {
     let (probe_sender, probe_receiver) = mpsc::channel();
     let (ready_sender, ready_receiver) = mpsc::channel();
     let mut probe_receiver = Some(probe_receiver);
@@ -75,7 +83,7 @@ pub(super) fn start_readers(fixture: &Fixture, shared: Arc<SharedMetrics>) -> Re
         let cassie = Arc::clone(&fixture.cassie);
         let projection = fixture.projection.clone();
         let initial_rows = Arc::clone(&fixture.initial_rows);
-        let reader_shared = Arc::clone(&shared);
+        let reader_shared = Arc::clone(shared);
         let reader_ready = ready_sender.clone();
         let commands = (reader_id == 0).then(|| {
             probe_receiver
@@ -158,14 +166,15 @@ fn reader_loop(worker: ReaderWorker) {
                 Ok(ReaderCommand::Stop) | Err(TryRecvError::Disconnected) => break,
                 Ok(ReaderCommand::Verify {
                     retention_applied,
+                    scope,
                     response,
                 }) => {
                     let devices = probe_devices(device_count, query_sequence);
                     query_sequence = query_sequence.saturating_add(1);
-                    let probe = verify_prepared_pages(
+                    let probe = verify_snapshot(
                         &cassie,
                         &session,
-                        PreparedReaderProbe {
+                        &PreparedReaderProbe {
                             statement_prefix: &format!("mixed_range_reader_{reader_id}_w"),
                             probe_sequence: query_sequence,
                             projection: &projection,
@@ -173,6 +182,7 @@ fn reader_loop(worker: ReaderWorker) {
                             shared: &shared,
                             devices: &devices,
                             retention_applied,
+                            scope,
                         },
                     );
                     response
@@ -212,146 +222,6 @@ fn reader_loop(worker: ReaderWorker) {
             .push(started.elapsed().as_nanos());
         shared.reader_queries.fetch_add(1, Ordering::Relaxed);
         shared.readers_in_flight.fetch_sub(1, Ordering::AcqRel);
-    }
-}
-
-/// Releases the reader pause once the snapshot capture statement has returned,
-/// including when the probe unwinds.
-struct ResumeReaders<'a>(&'a SharedMetrics);
-
-impl Drop for ResumeReaders<'_> {
-    fn drop(&mut self) {
-        self.0.readers_paused.store(false, Ordering::Release);
-    }
-}
-
-struct PreparedReaderProbe<'a> {
-    statement_prefix: &'a str,
-    probe_sequence: u64,
-    projection: &'a str,
-    initial_rows: &'a BTreeMap<i64, EventRow>,
-    shared: &'a SharedMetrics,
-    devices: &'a [String],
-    retention_applied: bool,
-}
-
-/// Devices sampled at one synchronization point: up to `PROBE_DEVICES`, spread
-/// evenly across the device space and rotated by the probe sequence so that
-/// successive probes cover different devices.
-fn probe_devices(device_count: usize, sequence: u64) -> Vec<String> {
-    let sampled = device_count.min(PROBE_DEVICES);
-    let stride = device_count / sampled;
-    let rotation = usize::try_from(sequence).unwrap_or_default() % stride;
-    (0..sampled)
-        .map(|index| model::device_name(index * stride + rotation))
-        .collect()
-}
-
-fn verify_prepared_pages(
-    cassie: &Cassie,
-    session: &CassieSession,
-    probe: PreparedReaderProbe<'_>,
-) -> ProbeResult {
-    let probe_started = Instant::now();
-    // Synchronized pause: the other readers finish their running statement and
-    // idle while the snapshot is captured, because the capture needs the
-    // catalog publication guard exclusively and continuously overlapping
-    // statements would otherwise keep it from ever being free.
-    probe.shared.readers_paused.store(true, Ordering::Release);
-    while probe.shared.readers_in_flight.load(Ordering::Acquire) > 0 {
-        thread::sleep(Duration::from_millis(1));
-    }
-    execute_checked(
-        cassie,
-        session,
-        "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
-    );
-    eprintln!(
-        "mixed: probe snapshot opened after {:?}",
-        probe_started.elapsed()
-    );
-    let _resume = ResumeReaders(probe.shared);
-    let checkpoint_result = cassie
-        .execute_sql(
-            session,
-            &format!(
-                "SELECT source_checkpoint FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{}'",
-                probe.projection
-            ),
-            Vec::new(),
-        )
-        .unwrap_or_else(|error| {
-            panic!(
-                "read checkpoint in prepared page snapshot after {:?}: {error}",
-                probe_started.elapsed()
-            )
-        });
-    drop(_resume);
-    eprintln!(
-        "mixed: probe checkpoint read after {:?}",
-        probe_started.elapsed()
-    );
-    let checkpoint = checkpoint_result.rows()[0][0]
-        .as_str()
-        .expect("projection checkpoint text")
-        .to_owned();
-    let mut pages = Vec::with_capacity(probe.devices.len());
-    let windows = (0..probe.devices.len())
-        .map(|index| {
-            (usize::try_from(probe.probe_sequence).unwrap_or_default() + index)
-                % model::RANGE_WINDOWS
-        })
-        .collect::<Vec<_>>();
-    for (device, window) in probe.devices.iter().zip(&windows) {
-        let page_result = cassie
-            .execute_sql(
-                session,
-                &format!("EXECUTE {}{window}('{device}')", probe.statement_prefix),
-                Vec::new(),
-            )
-            .expect("read prepared page in checkpoint snapshot");
-        pages.push(result_event_rows(page_result.rows()));
-    }
-    execute_checked(cassie, session, "COMMIT");
-
-    let checkpoint_position = model::checkpoint_position(&checkpoint)
-        .expect("checkpoint string includes monotonically increasing position");
-    wait_for_committed_position(probe.shared, checkpoint_position);
-    let committed = probe
-        .shared
-        .committed_events
-        .lock()
-        .expect("committed event log mutex")
-        .clone();
-    let expected_rows = model::apply_through_checkpoint(
-        probe.initial_rows,
-        &committed,
-        checkpoint_position,
-        probe.retention_applied,
-    );
-    let mut expected_total = 0;
-    let mut actual_total = 0;
-    let mut matched = true;
-    for ((device, window), actual) in probe.devices.iter().zip(&windows).zip(&pages) {
-        let expected = model::oracle_pages(&expected_rows, device, *window, PAGE_ROWS);
-        expected_total += expected.len();
-        actual_total += actual.len();
-        if *actual != expected {
-            eprintln!(
-                "mixed: oracle page mismatch checkpoint={checkpoint} device={device} window={window} expected={} actual={} first_expected={:?} first_actual={:?}",
-                expected.len(),
-                actual.len(),
-                expected.first(),
-                actual.first()
-            );
-        }
-        matched &= *actual == expected;
-    }
-    ProbeResult {
-        checkpoint,
-        expected_rows: expected_total,
-        actual_rows: actual_total,
-        matched,
     }
 }
 
@@ -528,14 +398,14 @@ pub(super) fn start_sampler(shared: Arc<SharedMetrics>) -> JoinHandle<()> {
             thread::sleep(Duration::from_secs(1));
             let now = Counters::capture(&shared);
             let sample = SecondSample {
-                elapsed_seconds: u64::try_from(started.elapsed().as_secs()).unwrap_or(u64::MAX),
+                elapsed_seconds: started.elapsed().as_secs(),
                 offered_events: now.offered,
                 acknowledged_events: now.acknowledged,
                 offered_events_per_second: now.offered.saturating_sub(previous.offered),
                 acknowledged_events_per_second: now
                     .acknowledged
                     .saturating_sub(previous.acknowledged),
-                backlog_events: now.offered.saturating_sub(now.acknowledged),
+                backlog_events: now.steady_backlog,
                 reader_queries: now.reader_queries,
                 sampled_rss_bytes: crate::workload::evidence::process_rss_bytes(),
             };
@@ -554,6 +424,7 @@ pub(super) fn start_sampler(shared: Arc<SharedMetrics>) -> JoinHandle<()> {
 
 #[derive(Clone, Copy)]
 struct Counters {
+    steady_backlog: u64,
     offered: u64,
     acknowledged: u64,
     reader_queries: u64,
@@ -562,6 +433,7 @@ struct Counters {
 impl Counters {
     fn capture(shared: &SharedMetrics) -> Self {
         Self {
+            steady_backlog: shared.steady_backlog(),
             offered: shared.offered_events.load(Ordering::Acquire),
             acknowledged: shared.acknowledged_events.load(Ordering::Acquire),
             reader_queries: shared.reader_queries.load(Ordering::Acquire),
@@ -650,6 +522,7 @@ fn refresh_result(started: Instant, attempts: u64, completed: bool) -> Maintenan
         elapsed: started.elapsed(),
         completed_batches: attempts,
         completed,
+        deleted_rows: 0,
     }
 }
 
@@ -677,39 +550,10 @@ pub(super) struct MixedWindowResult {
     pub(super) backlog_events_at_window_end: u64,
 }
 
-fn wait_for_committed_position(shared: &SharedMetrics, target: u64) {
-    let deadline = Instant::now() + ORACLE_WAIT_TIMEOUT;
-    while shared.committed_position.load(Ordering::Acquire) < target {
-        assert!(
-            Instant::now() < deadline,
-            "checkpoint journal publication deadline"
-        );
-        thread::yield_now();
-    }
-}
-
-fn execute_checked(cassie: &Cassie, session: &CassieSession, sql: &str) {
-    cassie
-        .execute_sql(session, sql, Vec::new())
-        .unwrap_or_else(|error| panic!("execute campaign SQL {sql:?}: {error}"));
-}
-
 pub(super) fn current_fallback_scans(cassie: &Cassie) -> u64 {
     cassie.metrics()["time_series"]["fallback_scans"]
         .as_u64()
         .unwrap_or_default()
-}
-
-fn result_event_rows(rows: &[Vec<Value>]) -> Vec<EventRow> {
-    rows.iter()
-        .map(|row| EventRow {
-            id: row[0].as_i64().expect("page row id is INT"),
-            device: row[1].as_str().expect("page device is TEXT").to_owned(),
-            event_at: temporal::canonical_timestamp(&value_text(&row[2]))
-                .expect("page timestamp is canonicalizable"),
-            amount: row[3].as_i64().expect("page amount is INT"),
-        })
-        .collect()
 }
 
 pub(super) struct FinalStateEvidence {
@@ -718,6 +562,9 @@ pub(super) struct FinalStateEvidence {
     pub(super) oracle_rollup_groups_compared: usize,
     pub(super) oracle_rows_compared: usize,
     pub(super) oracle_mismatches: usize,
+    pub(super) retention_expected_deleted_rows: u64,
+    pub(super) retention_reported_deleted_rows: u64,
+    pub(super) retention_expired_rows_remaining: u64,
 }
 
 pub(super) fn verify_final_mixed_state(
@@ -726,6 +573,7 @@ pub(super) fn verify_final_mixed_state(
     retention_applied: bool,
     fallback_scans_before: u64,
     rollup_refresh_completed: bool,
+    retention_reported_deleted_rows: u64,
 ) -> FinalStateEvidence {
     let maximum_position = shared.committed_position.load(Ordering::Acquire);
     let committed = shared
@@ -753,6 +601,14 @@ pub(super) fn verify_final_mixed_state(
         );
     }
     let mut mismatches = usize::from(actual != expected_relation);
+    let retention = retention_accounting(
+        fixture,
+        &committed,
+        maximum_position,
+        retention_applied,
+        retention_reported_deleted_rows,
+    );
+    mismatches = mismatches.saturating_add(retention.mismatches);
     let expected_rollups = oracle_rollups(&expected);
     // The plain grouped query is eligible for rollup substitution; the `id >= 0`
     // predicate keeps the same aggregation on the authoritative source rows.
@@ -791,6 +647,9 @@ pub(super) fn verify_final_mixed_state(
         oracle_rollup_groups_compared: expected_rollups.len(),
         oracle_rows_compared: expected.len(),
         oracle_mismatches: mismatches,
+        retention_expected_deleted_rows: retention.expected_deleted,
+        retention_reported_deleted_rows,
+        retention_expired_rows_remaining: retention.expired_remaining,
     }
 }
 
@@ -842,7 +701,7 @@ fn read_rollup_map(fixture: &Fixture, sql: &str) -> BTreeMap<(String, String), (
         .collect()
 }
 
-fn value_text(value: &Value) -> String {
+pub(super) fn value_text(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
         Value::Typed(typed) => typed.text(),

@@ -4,6 +4,7 @@ use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
 use serde::Serialize;
 
 pub const SOURCE_IDENTITY: &str = "tier5-time-series-event-stream-v1";
+pub const CORRECTION_EVENT_PREFIX: &str = "backfill-correction-";
 pub const WRITER_BATCH_EVENTS: usize = 128;
 pub const RETENTION_AT: &str = "2026-01-15T00:00:00Z";
 pub const RETENTION_BOUNDARY: &str = "2026-01-08T00:00:00.000000Z";
@@ -63,7 +64,7 @@ pub fn new_row(row_id: u64, device_count: usize) -> EventRow {
 
 pub fn correction(row_id: usize, device_count: usize) -> EventRow {
     let mut row = initial_row(row_id, device_count);
-    row.event_at = "2026-01-01T00:00:00.000000Z".to_owned();
+    "2026-01-01T00:00:00.000000Z".clone_into(&mut row.event_at);
     row.amount += 100_000;
     row
 }

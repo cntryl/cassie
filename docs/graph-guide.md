@@ -1531,7 +1531,9 @@ Standard `information_schema` views describe each graph, following the SQL/PGQ v
 `pg_edge_table_components`, `pg_element_table_labels`, `pg_element_table_properties` and
 `pg_label_properties`. The view `pg_catalog.pg_property_graph_identities` adds the durable
 graph, database and mapping identifiers that the standard views cannot carry. A graph is
-listed only to a session that can read all of its mapped tables. The administrative REST
+listed only to a session that can read all of its mapped tables. `property_graphs` also
+carries `property_graph_definition`, the exact `CREATE PROPERTY GRAPH` statement that
+recreates the graph ([section 14](#14-recreating-graphs-in-a-database-clone)). The administrative REST
 catalog (`GET /api/v1/admin/catalog`, also served at `/api/v1/admin/query/schema`) lists the
 graphs of the database in a `property_graphs` section; see the [OpenAPI document](../public/openapi.yml).
 
@@ -2316,3 +2318,157 @@ SELECT cassie_graph.vertex_ref('authz_a', 'm',
 The `tests/graph_types/identity_*.rs` suite runs these cases against row and columnar
 sources, including the restart, rename and reinsertion rows (`identity_restart.rs`) and the
 writer and reader transaction runs (`identity_corrections.rs`).
+
+## 14. Recreating graphs in a database clone
+
+<!-- world: clone -->
+
+A database image restores into a **new** database. The restored tables keep their rows, but
+the clone holds no graph definitions, and it has its own database identity: a graph you
+create in it gets fresh graph and mapping identities. Recreate the graphs from their exported
+definitions.
+
+**Export.** `information_schema.property_graphs` has a `property_graph_definition` column
+with the exact `CREATE PROPERTY GRAPH` statement of each graph you may read. The statement
+names the graph and its tables by schema and local name only, never by database, and lists
+vertex tables before edge tables. A graph is listed only when you can read every table it
+maps, so an unauthorized reader gets no definition.
+
+<!-- example: clone-create-people -->
+```sql
+CREATE TABLE people (id BIGINT PRIMARY KEY, name TEXT NOT NULL)
+```
+
+<!-- example: clone-create-follows -->
+```sql
+CREATE TABLE follows (id BIGINT PRIMARY KEY, follower_id BIGINT NOT NULL, followee_id BIGINT NOT NULL)
+```
+
+<!-- example: clone-insert-people -->
+```sql
+INSERT INTO people VALUES (1, 'Ada'), (2, 'Ben'), (3, 'Cy')
+```
+
+<!-- example: clone-insert-follows -->
+```sql
+INSERT INTO follows VALUES (10, 1, 2), (11, 2, 3)
+```
+
+<!-- example: clone-create-graph -->
+```sql
+CREATE PROPERTY GRAPH social
+  VERTEX TABLES (people AS person KEY (id) LABEL person PROPERTIES (id, name))
+  EDGE TABLES (
+    follows AS knows KEY (id)
+      SOURCE KEY (follower_id) REFERENCES person (id)
+      DESTINATION KEY (followee_id) REFERENCES person (id)
+      LABEL knows PROPERTIES (id)
+  )
+```
+
+<!-- example: clone-export -->
+```sql
+SELECT property_graph_definition FROM information_schema.property_graphs
+WHERE property_graph_name = 'social'
+```
+```text result
+CREATE PROPERTY GRAPH public.social VERTEX TABLES (public.people AS person KEY (id) LABEL person PROPERTIES (id, name)) EDGE TABLES (public.follows AS knows KEY (id) SOURCE KEY (follower_id) REFERENCES person (id) DESTINATION KEY (followee_id) REFERENCES person (id) LABEL knows PROPERTIES (id))
+```
+
+**Recreate.** In the clone, restore the tables first, then run each exported statement. The
+graphs do not depend on one another, so their order does not matter; export them in name
+order for a repeatable script. The next examples play the clone's side: the graph is dropped
+to stand for a clone that has the tables but no graph, and the exported statement is run
+exactly as exported.
+
+<!-- example: clone-drop-graph -->
+```sql
+DROP PROPERTY GRAPH social
+```
+
+**A missing table.** `CREATE PROPERTY GRAPH` validates the whole definition and publishes it
+atomically. When a mapped table has not been restored, the statement fails with `42P01` and
+the clone has no partial graph: the graph stays unknown (`42704`) until a complete
+statement succeeds.
+
+<!-- example: clone-drop-follows -->
+```sql
+DROP TABLE follows
+```
+
+<!-- example: clone-recreate-missing-table -->
+```sql
+CREATE PROPERTY GRAPH public.social VERTEX TABLES (public.people AS person KEY (id) LABEL person PROPERTIES (id, name)) EDGE TABLES (public.follows AS knows KEY (id) SOURCE KEY (follower_id) REFERENCES person (id) DESTINATION KEY (followee_id) REFERENCES person (id) LABEL knows PROPERTIES (id))
+```
+```text sqlstate
+42P01
+```
+
+<!-- example: clone-query-unpublished -->
+```sql
+SELECT * FROM GRAPH_TABLE (social MATCH (a IS person) COLUMNS (a.id AS id)) AS t
+```
+```text sqlstate
+42704
+```
+
+Restore the table, then rerun the same statement unchanged:
+
+<!-- example: clone-restore-follows -->
+```sql
+CREATE TABLE follows (id BIGINT PRIMARY KEY, follower_id BIGINT NOT NULL, followee_id BIGINT NOT NULL)
+```
+
+<!-- example: clone-reinsert-follows -->
+```sql
+INSERT INTO follows VALUES (10, 1, 2), (11, 2, 3)
+```
+
+<!-- example: clone-recreate -->
+```sql
+CREATE PROPERTY GRAPH public.social VERTEX TABLES (public.people AS person KEY (id) LABEL person PROPERTIES (id, name)) EDGE TABLES (public.follows AS knows KEY (id) SOURCE KEY (follower_id) REFERENCES person (id) DESTINATION KEY (followee_id) REFERENCES person (id) LABEL knows PROPERTIES (id))
+```
+
+**Rerun.** Running the statement again fails with `42710` and changes nothing: the graph, its
+identities and any reference minted from them stay as they were. A recreation script that
+must be rerunnable checks `information_schema.property_graphs` first and skips a graph that
+is already defined.
+
+<!-- example: clone-rerun -->
+```sql
+CREATE PROPERTY GRAPH public.social VERTEX TABLES (public.people AS person KEY (id) LABEL person PROPERTIES (id, name)) EDGE TABLES (public.follows AS knows KEY (id) SOURCE KEY (follower_id) REFERENCES person (id) DESTINATION KEY (followee_id) REFERENCES person (id) LABEL knows PROPERTIES (id))
+```
+```text sqlstate
+42710
+```
+
+**Query and references.** The clone reads the same rows as its restored tables:
+
+<!-- example: clone-query -->
+```sql
+SELECT * FROM GRAPH_TABLE (social MATCH (a IS person) -[IS knows]-> (b IS person) COLUMNS (a.id AS a, b.id AS b)) AS t ORDER BY a, b
+```
+```text result
+1 | 2
+2 | 3
+```
+
+A reference saved in the source database carries the **source** database, graph and mapping
+identities. In the clone it is rejected with `42704`, even when the clone has a graph and
+mappings with the same names; it is never retargeted. Mint a fresh reference in the clone
+from the explicit typed application key instead:
+
+<!-- example: clone-fresh-reference -->
+```sql
+SELECT (cassie_graph.vertex_ref('social', 'person', ARRAY[cassie_graph.key_part(2::bigint)])).element_kind
+```
+```text result
+1
+```
+
+Two clones restored from one image get distinct identities from each other as well, so a
+reference minted in one clone is also rejected in the other, and each clone must mint its
+own. `tests/graph_types/clone_workflow.rs` restores real images and runs this recipe for two
+graphs, two sibling clones, a missing table and a rerun; `tests/graph_types/clone_clients.rs`
+runs it through `tokio-postgres` (native composite and array path) and `sqlx` (scalar and
+JSON path).

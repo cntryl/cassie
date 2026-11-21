@@ -27,6 +27,7 @@ pub mod object_comment;
 pub mod object_identity;
 pub mod operational;
 pub mod programs;
+pub mod property_graph_definition;
 pub mod property_graphs;
 pub mod relation_row_type;
 pub mod repair;

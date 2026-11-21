@@ -9,6 +9,7 @@ mod composite;
 mod domain;
 mod encoding;
 mod enum_value;
+mod vector_field;
 
 use self::compact::{decode_directory_value, expected_type_tag};
 use self::encoding::encode_value;
@@ -16,6 +17,7 @@ pub(crate) use compact::{
     decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
     encode_compact_value, CompactScalar,
 };
+pub(crate) use vector_field::{split_vector_row, PackedVector, VectorColumn};
 
 const MAGIC: &[u8; 4] = b"CRB1";
 const FORMAT_VERSION: u8 = 1;

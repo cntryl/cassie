@@ -8,6 +8,7 @@ mod accounted_page;
 mod column_store;
 #[cfg(test)]
 mod tests;
+mod vector_rows;
 
 pub(super) use accounted_page::decode_expansion_factor;
 use accounted_page::provisional_document_bytes;

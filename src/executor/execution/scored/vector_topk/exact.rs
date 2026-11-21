@@ -271,75 +271,156 @@ fn stream_exact_vector_candidates(
     }
     let skipped_field = prefilter_supported.then_some(request.stored_vector_field);
     let schema = cassie.catalog.get_schema(&spec.collection);
-    let page_rows = exact_page_rows(spec.query.len());
-    let mut top = AccountedVectorTopK::try_new(request.controls)?;
-    let mut candidate_count = 0usize;
+    let mut ranker = Ranker::try_new(spec, mode, request.controls)?;
     let mut scanned_count = 0usize;
-    let mut unscored_count = 0usize;
-    loop {
-        let documents = cursor.next_documents(&cassie.midge, page_rows, request.controls)?;
-        if documents.is_empty() {
-            break;
+    let direct = if prefilter_supported {
+        cursor.vector_column(request.stored_vector_field)
+    } else {
+        None
+    };
+    if let Some(column) = direct {
+        let context = FilterContext {
+            mode,
+            schema: schema.as_ref(),
+            skipped_field,
+        };
+        let page_rows = super::exact_direct::direct_page_rows(spec.query.len());
+        let mut state = super::exact_direct::DirectScan {
+            cursor: &mut cursor,
+            column: &column,
+            ranker: &mut ranker,
+            scanned: &mut scanned_count,
+        };
+        if !super::exact_direct::rank_direct_pages(
+            cassie,
+            &mut state,
+            (request, &context),
+            page_rows,
+        )? {
+            return Ok(StreamOutcome::Declined);
         }
-        for mut document in documents {
-            super::super::super::check_timeout(request.controls)?;
-            scanned_count = scanned_count.saturating_add(1);
-            let filter = FilterContext {
-                mode,
-                schema: schema.as_ref(),
-                skipped_field,
-            };
-            let FilterOutcome::Accepted(detached) =
-                filter_document(&mut document, request, &filter)?
-            else {
-                continue;
-            };
-            let Some(value) = detached
-                .as_ref()
-                .or_else(|| document.payload.get(request.stored_vector_field))
-                .filter(|value| !value.is_null())
-            else {
-                unscored_count = unscored_count.saturating_add(1);
-                continue;
-            };
-            let Some(vector) = vector_from_json(value) else {
-                if mode == StreamMode::Candidates {
+    } else {
+        let page_rows = exact_page_rows(spec.query.len());
+        loop {
+            let documents = cursor.next_documents(&cassie.midge, page_rows, request.controls)?;
+            if documents.is_empty() {
+                break;
+            }
+            for mut document in documents {
+                super::super::super::check_timeout(request.controls)?;
+                scanned_count = scanned_count.saturating_add(1);
+                let filter = FilterContext {
+                    mode,
+                    schema: schema.as_ref(),
+                    skipped_field,
+                };
+                let FilterOutcome::Accepted(detached) =
+                    filter_document(&mut document, request, &filter)?
+                else {
+                    continue;
+                };
+                let value = detached
+                    .as_ref()
+                    .or_else(|| document.payload.get(request.stored_vector_field))
+                    .filter(|value| !value.is_null());
+                let vector = match value {
+                    None => None,
+                    Some(value) => {
+                        let Some(vector) = vector_from_json(value) else {
+                            if mode == StreamMode::Candidates {
+                                return Ok(StreamOutcome::Declined);
+                            }
+                            return Err(QueryError::General(
+                                "exact vector candidate is invalid".to_string(),
+                            ));
+                        };
+                        Some(vector)
+                    }
+                };
+                if !ranker.rank(request.controls, &document.id, vector)? {
                     return Ok(StreamOutcome::Declined);
                 }
-                return Err(QueryError::General(
-                    "exact vector candidate is invalid".to_string(),
-                ));
-            };
-            if mode == StreamMode::Candidates && !exact_vector_is_valid(spec, &vector) {
-                return Ok(StreamOutcome::Declined);
             }
-            validate_exact_vector(spec, &vector)?;
-            let score = spec.exact_distance(&vector);
-            candidate_count = candidate_count.saturating_add(1);
-            top.try_push(
-                SqlVectorCandidate {
-                    sort_value: candidate_sort_value(&spec.direction, score),
-                    score,
-                    id: document.id.clone(),
-                },
-                spec.top_needed(),
-            )?;
-            request
-                .controls
-                .scored_candidate(QueryScoringTestBoundary::ExactVector)?;
         }
     }
+    finish_stream(cassie, request, ranker, scanned_count)
+}
+
+/// Ranks scored vectors into the bounded top-k heap and counts the rows it cannot score.
+pub(super) struct Ranker<'a> {
+    spec: &'a VectorDistanceTopKSpec,
+    mode: StreamMode,
+    top: AccountedVectorTopK,
+    candidate_count: usize,
+    unscored_count: usize,
+}
+
+impl<'a> Ranker<'a> {
+    pub(super) fn try_new(
+        spec: &'a VectorDistanceTopKSpec,
+        mode: StreamMode,
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, QueryError> {
+        Ok(Self {
+            spec,
+            mode,
+            top: AccountedVectorTopK::try_new(controls)?,
+            candidate_count: 0,
+            unscored_count: 0,
+        })
+    }
+
+    /// Ranks one row. `false` means the generic executor must answer instead.
+    pub(super) fn rank(
+        &mut self,
+        controls: &QueryExecutionControls,
+        id: &str,
+        vector: Option<Vec<f32>>,
+    ) -> Result<bool, QueryError> {
+        let Some(vector) = vector else {
+            self.unscored_count = self.unscored_count.saturating_add(1);
+            return Ok(true);
+        };
+        if self.mode == StreamMode::Candidates && !exact_vector_is_valid(self.spec, &vector) {
+            return Ok(false);
+        }
+        validate_exact_vector(self.spec, &vector)?;
+        let score = self.spec.exact_distance(&vector);
+        self.candidate_count = self.candidate_count.saturating_add(1);
+        self.top.try_push(
+            SqlVectorCandidate {
+                sort_value: candidate_sort_value(&self.spec.direction, score),
+                score,
+                id: id.to_string(),
+            },
+            self.spec.top_needed(),
+        )?;
+        controls.scored_candidate(QueryScoringTestBoundary::ExactVector)?;
+        Ok(true)
+    }
+}
+
+fn finish_stream(
+    cassie: &Cassie,
+    request: &ExactVectorRequest<'_>,
+    ranker: Ranker<'_>,
+    scanned_count: usize,
+) -> Result<StreamOutcome, QueryError> {
     if request.filter_expr.is_some() {
         cassie
             .runtime
-            .record_vector_prefilter_usage(scanned_count, candidate_count, None);
+            .record_vector_prefilter_usage(scanned_count, ranker.candidate_count, None);
     }
     super::super::super::check_timeout(request.controls)?;
-    if mode == StreamMode::Candidates && unscored_count > 0 && candidate_count < spec.top_needed() {
+    if ranker.mode == StreamMode::Candidates
+        && ranker.unscored_count > 0
+        && ranker.candidate_count < ranker.spec.top_needed()
+    {
         // The generic ordering appends NULL-vector rows after the scored ones.
         return Ok(StreamOutcome::Declined);
     }
-    let (top, memory) = top.into_parts();
+    let candidate_count = ranker.candidate_count;
+    let (top, memory) = ranker.top.into_parts();
     Ok(StreamOutcome::Selected(
         top,
         memory,
@@ -351,13 +432,13 @@ fn stream_exact_vector_candidates(
 }
 
 /// What the per-document filter step needs besides the document and the request.
-struct FilterContext<'a> {
-    mode: StreamMode,
-    schema: Option<&'a crate::catalog::CollectionSchema>,
-    skipped_field: Option<&'a str>,
+pub(super) struct FilterContext<'a> {
+    pub(super) mode: StreamMode,
+    pub(super) schema: Option<&'a crate::catalog::CollectionSchema>,
+    pub(super) skipped_field: Option<&'a str>,
 }
 
-enum FilterOutcome {
+pub(super) enum FilterOutcome {
     Rejected,
     /// Carries the stored vector when a general query shape detached it so its typed row could be
     /// built without the elements.
@@ -366,7 +447,7 @@ enum FilterOutcome {
 
 /// Applies the filter to one document. A general query shape evaluates it on typed rows exactly
 /// as the generic executor does.
-fn filter_document(
+pub(super) fn filter_document(
     document: &mut crate::midge::adapter::DocumentRef,
     request: &ExactVectorRequest<'_>,
     filter: &FilterContext<'_>,

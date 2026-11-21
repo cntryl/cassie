@@ -433,3 +433,100 @@ fn should_report_nearest_rank_percentiles_with_means() {
     assert!(percentile(&[], 95).abs() < f64::EPSILON);
     assert!(mean(&[]).abs() < f64::EPSILON);
 }
+
+#[test]
+fn should_generate_the_synthetic_control_bit_identically_on_every_call() {
+    // Arrange
+    let manifest = Manifest::load(std::path::Path::new(MANIFEST_PATH)).expect("manifest");
+    let control = &manifest.synthetic_control;
+
+    // Act
+    let first = workloads::synthetic::generate(control, 50, 7);
+    let second = workloads::synthetic::generate(control, 50, 7);
+
+    // Assert
+    assert_eq!(first.documents, second.documents);
+    assert_eq!(first.queries, second.queries);
+    assert_eq!(first.documents.len(), 50 * control.dimensions);
+}
+
+#[test]
+fn should_generate_unit_length_synthetic_vectors() {
+    // Arrange
+    let manifest = Manifest::load(std::path::Path::new(MANIFEST_PATH)).expect("manifest");
+    let control = &manifest.synthetic_control;
+
+    // Act
+    let vectors = workloads::synthetic::generate(control, 20, 0);
+
+    // Assert
+    for row in vectors.documents.chunks(control.dimensions) {
+        let norm: f32 = row.iter().map(|value| value * value).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-4, "row norm {norm}");
+    }
+}
+
+#[test]
+fn should_generate_synthetic_queries_from_a_stream_other_than_the_documents() {
+    // Arrange
+    let manifest = Manifest::load(std::path::Path::new(MANIFEST_PATH)).expect("manifest");
+    let control = &manifest.synthetic_control;
+
+    // Act
+    let vectors = workloads::synthetic::generate(control, 5, 5);
+
+    // Assert
+    assert_ne!(vectors.documents, vectors.queries);
+}
+
+#[test]
+fn should_match_the_recorded_synthetic_checksums_of_the_10k_set() {
+    // Arrange
+    let manifest = Manifest::load(std::path::Path::new(MANIFEST_PATH)).expect("manifest");
+    let control = &manifest.synthetic_control;
+    let queries = manifest.queries.tuning.count + manifest.queries.held_out.count;
+    let documents = manifest.set("10k").expect("10k set").documents;
+
+    // Act
+    let vectors = workloads::synthetic::generate(control, documents, queries);
+
+    // Assert
+    assert_eq!(
+        control.sha256.get("10k"),
+        Some(&workloads::synthetic::checksum(&vectors.documents))
+    );
+    assert_eq!(
+        control.sha256.get("queries"),
+        Some(&workloads::synthetic::checksum(&vectors.queries))
+    );
+}
+
+#[test]
+fn should_reject_a_tuning_point_outside_the_swept_candidates() {
+    // Arrange
+    let mut value = manifest_value();
+    value["index_tuning"]["hnsw"]["ef_search_points"] = serde_json::json!([1280, 77]);
+    let manifest = Manifest::parse(&value.to_string()).expect("parse");
+
+    // Act
+    let error = manifest
+        .validate()
+        .expect_err("an unswept point is rejected");
+
+    // Assert
+    assert!(error.contains("77"), "{error}");
+}
+
+#[test]
+fn should_require_at_least_two_tuning_points_per_index() {
+    // Arrange
+    let mut value = manifest_value();
+    value["index_tuning"]["ivfflat"]["probe_permille_points"] = serde_json::json!([80]);
+    let manifest = Manifest::parse(&value.to_string()).expect("parse");
+
+    // Act
+    let error = manifest.validate().expect_err("one point is rejected");
+
+    // Assert
+    assert!(error.contains("two tuning points"), "{error}");
+}

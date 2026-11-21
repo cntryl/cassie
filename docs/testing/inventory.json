@@ -182,9 +182,9 @@
     ],
     "files": 1867,
     "rust_files": 1823,
-    "rust_test_declarations": 11075,
+    "rust_test_declarations": 11087,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11100,
+    "registered_rust_instances": 11112,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -337028,6 +337028,192 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/embeddings/embedding_workloads.rs::should_generate_the_synthetic_control_bit_identically_on_every_call",
+      "name": "should_generate_the_synthetic_control_bit_identically_on_every_call",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+      "line": 438,
+      "end_line": 451,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_workloads::should_generate_the_synthetic_control_bit_identically_on_every_call"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/embeddings/embedding_workloads.rs::should_generate_unit_length_synthetic_vectors",
+      "name": "should_generate_unit_length_synthetic_vectors",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+      "line": 454,
+      "end_line": 467,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_workloads::should_generate_unit_length_synthetic_vectors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/embeddings/embedding_workloads.rs::should_generate_synthetic_queries_from_a_stream_other_than_the_documents",
+      "name": "should_generate_synthetic_queries_from_a_stream_other_than_the_documents",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+      "line": 470,
+      "end_line": 480,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_workloads::should_generate_synthetic_queries_from_a_stream_other_than_the_documents"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/embeddings/embedding_workloads.rs::should_match_the_recorded_synthetic_checksums_of_the_10k_set",
+      "name": "should_match_the_recorded_synthetic_checksums_of_the_10k_set",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+      "line": 483,
+      "end_line": 502,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_workloads::should_match_the_recorded_synthetic_checksums_of_the_10k_set"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/embeddings/embedding_workloads.rs::should_reject_a_tuning_point_outside_the_swept_candidates",
+      "name": "should_reject_a_tuning_point_outside_the_swept_candidates",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+      "line": 505,
+      "end_line": 518,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_workloads::should_reject_a_tuning_point_outside_the_swept_candidates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/embeddings/embedding_workloads.rs::should_require_at_least_two_tuning_points_per_index",
+      "name": "should_require_at_least_two_tuning_points_per_index",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+      "line": 521,
+      "end_line": 532,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_workloads::should_require_at_least_two_tuning_points_per_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/filtered/filtered_vector_contract.rs::should_fill_a_large_window_when_every_first_batch_candidate_is_foreign",
       "name": "should_fill_a_large_window_when_every_first_batch_candidate_is_foreign",
       "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
@@ -341041,6 +341227,204 @@
         "category": "vectors",
         "directory": "tests/vector_embeddings/vectors",
         "file": "tests/vector_embeddings/vectors/cancellation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::direct_decode::should_charge_the_scan_page_for_packed_components_not_decoded_values",
+      "name": "should_charge_the_scan_page_for_packed_components_not_decoded_values",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 636,
+      "end_line": 654,
+      "inline_modules": [
+        "direct_decode"
+      ],
+      "inline_module_lines": 74,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::direct_decode::should_charge_the_scan_page_for_packed_components_not_decoded_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/direct_decode.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::direct_decode::should_accept_a_budget_below_the_decoded_value_footprint",
+      "name": "should_accept_a_budget_below_the_decoded_value_footprint",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 657,
+      "end_line": 670,
+      "inline_modules": [
+        "direct_decode"
+      ],
+      "inline_module_lines": 74,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::direct_decode::should_accept_a_budget_below_the_decoded_value_footprint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/direct_decode.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::direct_decode::should_rank_filtered_rows_without_the_filtered_out_tenants",
+      "name": "should_rank_filtered_rows_without_the_filtered_out_tenants",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 673,
+      "end_line": 693,
+      "inline_modules": [
+        "direct_decode"
+      ],
+      "inline_module_lines": 74,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::direct_decode::should_rank_filtered_rows_without_the_filtered_out_tenants"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/direct_decode.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::two_column_shape::should_exclude_null_vector_rows_from_a_descending_vector_distance_function_ranking",
+      "name": "should_exclude_null_vector_rows_from_a_descending_vector_distance_function_ranking",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 752,
+      "end_line": 786,
+      "inline_modules": [
+        "two_column_shape"
+      ],
+      "inline_module_lines": 120,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::two_column_shape::should_exclude_null_vector_rows_from_a_descending_vector_distance_function_ranking"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/two_column_shape.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::two_column_shape::should_order_null_vector_rows_first_for_a_descending_two_column_distance",
+      "name": "should_order_null_vector_rows_first_for_a_descending_two_column_distance",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 789,
+      "end_line": 801,
+      "inline_modules": [
+        "two_column_shape"
+      ],
+      "inline_module_lines": 120,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::two_column_shape::should_order_null_vector_rows_first_for_a_descending_two_column_distance"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/two_column_shape.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::two_column_shape::should_append_null_vector_rows_when_fewer_than_k_are_scored_in_the_two_column_shape",
+      "name": "should_append_null_vector_rows_when_fewer_than_k_are_scored_in_the_two_column_shape",
+      "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
+      "line": 804,
+      "end_line": 816,
+      "inline_modules": [
+        "two_column_shape"
+      ],
+      "inline_module_lines": 120,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "exact_vector_cost::two_column_shape::should_append_null_vector_rows_when_fewer_than_k_are_scored_in_the_two_column_shape"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/two_column_shape.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -349595,8 +349979,8 @@
       "current_file": "tests/corpus/embeddings/manifest.json",
       "role": "oracle_data",
       "action": "keep",
-      "lines": 158,
-      "sha256": "8eedac7ce116855f94bfcc34509601dc7e2bbfd81045cfda23b4221331144064",
+      "lines": 269,
+      "sha256": "4044eb79a8676bd629254ac586d9ff38109d5bab15d6af9a2a800fc95622142e",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [
@@ -371537,9 +371921,9 @@
       "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 435,
-      "sha256": "ac8c9119f8799366d99f4fbc32c783bd26ad0fc2fa3d56a3c9c21d68c33f4019",
-      "test_declarations": 18,
+      "lines": 532,
+      "sha256": "8f3a1ce51dca3a43bfcb0fbc29817ca44eeacade9885d487a096dc74936cbe5c",
+      "test_declarations": 24,
       "registered_suites": [
         "vector_embeddings"
       ],
@@ -371973,17 +372357,19 @@
       "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 619,
-      "sha256": "102751ffca6f590d56240ce71fc45698556396a6cf9ba01678f06c2508589bb0",
-      "test_declarations": 10,
+      "lines": 817,
+      "sha256": "ccee9adb8db99f73fd5a1c67c4ce4e42f026b96d2952403e2545dfe7ffd54df9",
+      "test_declarations": 16,
       "registered_suites": [
         "vector_embeddings"
       ],
       "destinations": [
         "tests/vector_embeddings/vectors/cancellation.rs",
+        "tests/vector_embeddings/vectors/direct_decode.rs",
         "tests/vector_embeddings/vectors/memory.rs",
         "tests/vector_embeddings/vectors/results.rs",
-        "tests/vector_embeddings/vectors/shapes.rs"
+        "tests/vector_embeddings/vectors/shapes.rs",
+        "tests/vector_embeddings/vectors/two_column_shape.rs"
       ],
       "line_limit": 1000
     },

@@ -17,7 +17,7 @@ use cassie::types::Value;
 use serde_json::{json, Value as Json};
 
 use crate::embedding_workloads::ground_truth::{distance, recall_at_k, Metric, Truth};
-use crate::embedding_workloads::manifest::Manifest;
+use crate::embedding_workloads::manifest::{IndexTuning, Manifest};
 use crate::embedding_workloads::statistics::{mean, percentile};
 use crate::loader::{Workload, SPLITS};
 
@@ -33,6 +33,16 @@ const FILTERS: [(&str, Option<u32>); 4] = [
 
 pub struct RunOptions {
     pub tuning_points: usize,
+    /// Splits to measure; a selection sweep runs `tuning` only.
+    pub splits: Vec<String>,
+    /// Measure every swept candidate instead of the selected points.
+    pub sweep: bool,
+    /// Metrics to run (`l2`, `cosine`); the manifest ground-truth metrics when empty.
+    pub metrics: Vec<String>,
+    /// Algorithms to run: `exact`, `hnsw` and `ivfflat`.
+    pub algorithms: Vec<String>,
+    /// Skip the exact configuration and the warmup: report recall and candidate counts only.
+    pub recall_only: bool,
     pub query_limit: Option<usize>,
     pub work_dir: PathBuf,
     /// Accounted memory budget for one query; the 10 MiB default rejects exact scans of
@@ -54,6 +64,8 @@ fn runtime_config(dimensions: usize, query_memory_budget_bytes: usize) -> Cassie
         dimensions,
     });
     config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+    // Index builds at 100k documents exceed the 30 s default deadline on a shared machine.
+    config.limits.query_timeout_ms = 0;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config
 }
@@ -174,19 +186,33 @@ fn build_base(workload: &Workload, options: &RunOptions) -> Result<(PathBuf, f64
     Ok((base, started.elapsed().as_secs_f64()))
 }
 
-/// The index tuning points for an algorithm at `rows` documents.
+/// The index tuning points for an algorithm at `rows` documents, from the manifest.
+///
+/// `points` limits the selected points per index; `sweep` returns every swept candidate.
 #[must_use]
-pub fn index_plans(rows: usize, points: usize) -> Vec<IndexPlan> {
+pub fn index_plans(
+    rows: usize,
+    points: usize,
+    tuning: &IndexTuning,
+    sweep: bool,
+) -> Vec<IndexPlan> {
     let lists = (1..=rows.max(1))
         .find(|n| n * n >= rows)
         .unwrap_or(1)
         .max(4);
     let sample = rows.min(20 * lists).max(lists);
+    let pick = |selected: &[usize], candidates: &[usize]| -> Vec<usize> {
+        if sweep {
+            candidates.to_vec()
+        } else {
+            selected.iter().copied().take(points.max(1)).collect()
+        }
+    };
+    let hnsw = &tuning.hnsw;
+    let ivf = &tuning.ivfflat;
     let mut plans = Vec::new();
-    let hnsw = [(16, 128, 64), (16, 128, 256)];
-    let ivf = [(lists.div_ceil(16).max(1)), (lists.div_ceil(4).max(1))];
-    for point in 0..points.clamp(1, 2) {
-        let (m, build, search) = hnsw[point];
+    for search in pick(&hnsw.ef_search_points, &hnsw.ef_search_candidates) {
+        let (m, build) = (hnsw.m, hnsw.ef_construction);
         plans.push(IndexPlan {
             algorithm: "hnsw",
             point: format!("m{m}_efc{build}_efs{search}"),
@@ -194,12 +220,14 @@ pub fn index_plans(rows: usize, points: usize) -> Vec<IndexPlan> {
                 "index_type = hnsw, m = {m}, ef_construction = {build}, ef_search = {search}"
             ),
         });
+    }
+    for permille in pick(&ivf.probe_permille_points, &ivf.probe_permille_candidates) {
+        let probes = (lists * permille).div_ceil(1000).max(1);
         plans.push(IndexPlan {
             algorithm: "ivfflat",
-            point: format!("lists{lists}_probes{}", ivf[point]),
+            point: format!("lists{lists}_probes{probes}"),
             options: format!(
-                "index_type = ivfflat, lists = {lists}, probes = {}, training_sample_size = {sample}, training_seed = 42",
-                ivf[point]
+                "index_type = ivfflat, lists = {lists}, probes = {probes}, training_sample_size = {sample}, training_seed = 42"
             ),
         });
     }
@@ -293,6 +321,7 @@ struct Measurement<'a> {
     workload: &'a Workload,
     metric: Metric,
     indexed: bool,
+    recall_only: bool,
 }
 
 impl Measurement<'_> {
@@ -489,9 +518,13 @@ fn measure_cells(
     let workload = measurement.workload;
     // Warmup is separate from measurement and is not reported.
     let (warm_split, warm_all) = &query_sets[0];
-    let warm: Vec<usize> = warm_all.iter().copied().take(WARMUP_QUERIES).collect();
-    for (filter, _) in FILTERS {
-        let column = (filter != "unfiltered").then_some(filter);
+    let warm: Vec<usize> = if measurement.recall_only {
+        Vec::new()
+    } else {
+        warm_all.iter().copied().take(WARMUP_QUERIES).collect()
+    };
+    for (filter, _) in FILTERS.iter().filter(|_| !warm.is_empty()) {
+        let column = (*filter != "unfiltered").then_some(*filter);
         let warm_truth: Vec<Truth> = truths[&format!("{filter}:{warm_split}")]
             .iter()
             .take(warm.len())
@@ -559,6 +592,7 @@ fn run_configuration(
         workload,
         metric,
         indexed: plan.is_some(),
+        recall_only: options.recall_only,
     };
     let cells = measure_cells(&measurement, truths, query_sets)?;
     let context = RowContext {
@@ -613,6 +647,7 @@ pub fn run_workload(
     let k = manifest.ground_truth.k;
     let query_sets: Vec<(String, Vec<usize>)> = SPLITS
         .iter()
+        .filter(|split| options.splits.iter().any(|chosen| chosen == *split))
         .map(|split| {
             (
                 (*split).to_string(),
@@ -623,7 +658,12 @@ pub fn run_workload(
     let (base, ingest_seconds) = build_base(workload, options)?;
     let mut rows = Vec::new();
     let mut truth_seconds = 0.0;
-    for metric_name in &manifest.ground_truth.metrics {
+    for metric_name in manifest
+        .ground_truth
+        .metrics
+        .iter()
+        .filter(|name| options.metrics.is_empty() || options.metrics.contains(name))
+    {
         let metric = if metric_name == "cosine" {
             Metric::Cosine
         } else {
@@ -647,16 +687,27 @@ pub fn run_workload(
             }
         }
         truth_seconds += started.elapsed().as_secs_f64();
-        rows.extend(run_configuration(
-            workload,
-            options,
-            &base,
-            metric,
-            None,
-            &truths,
-            &query_sets,
-        )?);
-        for plan in index_plans(workload.document_ids.len(), options.tuning_points) {
+        if !options.recall_only && options.algorithms.iter().any(|name| name == "exact") {
+            rows.extend(run_configuration(
+                workload,
+                options,
+                &base,
+                metric,
+                None,
+                &truths,
+                &query_sets,
+            )?);
+        }
+        let plans = index_plans(
+            workload.document_ids.len(),
+            options.tuning_points,
+            &manifest.index_tuning,
+            options.sweep,
+        );
+        for plan in plans
+            .into_iter()
+            .filter(|plan| options.algorithms.iter().any(|name| name == plan.algorithm))
+        {
             rows.extend(run_configuration(
                 workload,
                 options,
@@ -680,7 +731,11 @@ pub fn run_workload(
         "ingest_seconds": ingest_seconds,
         "ground_truth_seconds": truth_seconds,
         "query_memory_budget_bytes": options.query_memory_budget_bytes,
+        "query_timeout_ms": 0,
         "tuning_points_per_index": options.tuning_points,
+        "sweep": options.sweep,
+        "recall_only": options.recall_only,
+        "splits": options.splits,
         "query_limit": options.query_limit,
         "note": "peak_query_memory_bytes_configuration_scope is the process-lifetime peak of one configuration, shared by its filter rows.",
         "rows": rows,

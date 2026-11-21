@@ -113,12 +113,116 @@
     "tie_policy": "Truth is the first k rows in that order. A returned row also counts as correct when its distance equals the k-th truth distance exactly (tie-inclusive at the boundary). Filtered cases rank only rows in the tenant subset.",
     "recall": "recall@20 = correct returned rows / min(20, size of the truth list); averaged per query, reported per filter selectivity."
   },
+  "synthetic_control": {
+    "name": "synthetic",
+    "description": "Deterministic synthetic control: 64 unit cluster centers (Gaussian components, normalized); each document and query is a random center plus per-component Gaussian noise of total length noise_milli/1000, then L2-normalized. 384 dimensions. Generated in memory by benches/support/embedding_workloads/synthetic.rs; no files.",
+    "generator": "SplitMix64 streams (center_stream, document_stream, query_stream); uniform = (u64 >> 48) / 65536 in f32; gaussian = sum of 12 uniforms - 6; only f32 + * / sqrt, so output is bit-identical across platforms.",
+    "dimensions": 384,
+    "clusters": 64,
+    "noise_milli": 400,
+    "center_stream": 1365001,
+    "document_stream": 1365002,
+    "query_stream": 1365003,
+    "document_ids": "syn-<six digit ordinal>; documents use the same sets (10k, 100k) and the tenant columns of the corpus; queries reuse the manifest tuning and held-out query ids as labels.",
+    "sha256": {
+      "10k": "1557bace8ae064e985a191cd4c1d7d2f895e56fbd32582dde89c2c3da5000250",
+      "100k": "d336d5b24096139b08df8ae388a75c44eb612e9faeced814d8e289f4362a047e",
+      "queries": "d06dfe5e1bef8f2b6b15cdbd467a1c1188a6dc86d9dc2ea9d8dced3fa551ba7c"
+    }
+  },
+  "index_tuning": {
+    "recall_floor": 0.9,
+    "selection_set": "10k",
+    "rule": "Selection uses only the tuning split of the 10k set (swept with CASSIE_BENCH_EMBEDDING_SWEEP=1 over the grid below). For each index, the first point is the smallest swept candidate whose mean tuning recall@20 is at least recall_floor in every ANN-served cell (metric cosine and l2 x filter unfiltered, t1, t10, t50; a cell served by exact fallback is not ANN evidence and is skipped) of both real-embedding models (bge-small, bge-base). The second point is the next larger swept candidate, so each index reports one operating point at the floor and one with more headroom. The synthetic control is swept and reported in selection_record but does not gate the choice: it is the hard-negative control. Held-out queries are reported at the chosen points and never used to choose them. A later change to the points needs a new sweep on the tuning split.",
+    "selection_record": {
+      "tuning_queries_per_cell": {
+        "synthetic": 250,
+        "bge-small": 250,
+        "bge-base": 250
+      },
+      "min_recall_at_20_over_ann_served_cells": {
+        "hnsw": {
+          "1280": {
+            "bge-base": 0.9964,
+            "bge-small": 0.9982,
+            "synthetic": 0.8884
+          },
+          "2560": {
+            "bge-base": 0.9994,
+            "bge-small": 0.9996,
+            "synthetic": 0.8884
+          }
+        },
+        "ivfflat": {
+          "10": {
+            "bge-base": 0.309,
+            "bge-small": 0.2973,
+            "synthetic": 0.7466
+          },
+          "20": {
+            "bge-base": 0.4536,
+            "bge-small": 0.422,
+            "synthetic": 0.891
+          },
+          "40": {
+            "bge-base": 0.5898,
+            "bge-small": 0.57,
+            "synthetic": 0.9562
+          },
+          "80": {
+            "bge-base": 0.6888,
+            "bge-small": 0.6714,
+            "synthetic": 0.9564
+          },
+          "160": {
+            "bge-base": 0.7996,
+            "bge-small": 0.7852,
+            "synthetic": 0.9712
+          },
+          "320": {
+            "bge-base": 0.9244,
+            "bge-small": 0.919,
+            "synthetic": 0.9908
+          },
+          "640": {
+            "bge-base": 0.9892,
+            "bge-small": 0.9878,
+            "synthetic": 0.9974
+          }
+        }
+      }
+    },
+    "hnsw": {
+      "m": 16,
+      "ef_construction": 128,
+      "ef_search_candidates": [1280, 2560],
+      "ef_search_note": "For k = 20 the HNSW executor searches max(ef_search, 64 * k) = max(ef_search, 1280) candidates (src/executor/execution/scored/vector_topk/hnsw.rs), so an ef_search below 1280 is the same operating point as 1280; the sweep therefore starts at that floor.",
+      "ef_search_points": [1280, 2560]
+    },
+    "ivfflat": {
+      "probe_permille_candidates": [10, 20, 40, 80, 160, 320, 640],
+      "probe_permille_points": [320, 640]
+    }
+  },
   "files": [
+    {
+      "name": "cqadupstack-100k.ids.txt",
+      "sha256": "5a6b4f9f1d17688e4fde1fd399cab4dd57d73c637a276a8db5fb2f125bfedf9b",
+      "bytes": 1350356,
+      "rows": 100000
+    },
     {
       "name": "cqadupstack-10k.ids.txt",
       "sha256": "06d876e2804b9080c79e1e44810829b0faeef923e512b6bcf21bb49458aea7fc",
       "bytes": 134951,
       "rows": 10000
+    },
+    {
+      "name": "cqadupstack-bge-base-en-v1.5-100k.f32",
+      "sha256": "72cf48dc0d460f92e2056ffd2154bdc226105111de69d2656891db210d00758f",
+      "bytes": 307200000,
+      "rows": 100000,
+      "dimensions": 768
     },
     {
       "name": "cqadupstack-bge-base-en-v1.5-10k.f32",
@@ -133,6 +237,13 @@
       "bytes": 6144000,
       "rows": 2000,
       "dimensions": 768
+    },
+    {
+      "name": "cqadupstack-bge-small-en-v1.5-100k.f32",
+      "sha256": "1eaf0299153a352f70671ecb39e8a9e85e90a5a86da6dbe315f107a8148139e2",
+      "bytes": 153600000,
+      "rows": 100000,
+      "dimensions": 384
     },
     {
       "name": "cqadupstack-bge-small-en-v1.5-10k.f32",

@@ -145,8 +145,9 @@ def write_lines(path, items):
 
 
 def collapse_string_arrays(text):
-    pattern = re.compile(r'\[\n\s+"[^\n]*"(?:,\n\s+"[^\n]*")*\n\s+\]')
-    return pattern.sub(lambda m: "[" + ", ".join(re.findall(r'"[^"\n]*"', m.group(0))) + "]", text)
+    item = r'(?:"[^\n]*"|\d+)'
+    pattern = re.compile(r"\[\n\s+" + item + r"(?:,\n\s+" + item + r")*\n\s+\]")
+    return pattern.sub(lambda m: "[" + ", ".join(re.findall(r'"[^"\n]*"|\d+', m.group(0))) + "]", text)
 
 
 def save_manifest(manifest):
@@ -163,6 +164,7 @@ def main():
     )
     parser.add_argument("--update-manifest", action="store_true", help="write query split and checksums into the manifest")
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--threads", type=int, default=0, help="torch CPU threads (0 keeps the library default)")
     args = parser.parse_args()
 
     manifest = json.loads(MANIFEST.read_text())
@@ -200,6 +202,11 @@ def main():
     record(path, len(query_order), None)
 
     from sentence_transformers import SentenceTransformer
+
+    if args.threads > 0:
+        import torch
+
+        torch.set_num_threads(args.threads)
 
     for key in args.models.split(","):
         spec = next(m for m in manifest["models"] if m["key"] == key)

@@ -10,5 +10,7 @@ pub mod ground_truth;
 pub mod manifest;
 #[path = "embedding_workloads/statistics.rs"]
 pub mod statistics;
+#[path = "embedding_workloads/synthetic.rs"]
+pub mod synthetic;
 #[path = "embedding_workloads/vector_file.rs"]
 pub mod vector_file;
